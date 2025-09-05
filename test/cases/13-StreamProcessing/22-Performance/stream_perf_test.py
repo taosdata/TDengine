@@ -10,6 +10,7 @@ import os
 import signal
 import sys
 import datetime
+import itertools
 
 """TDengine New Stream Computing Performance Test
 TDengine 新数据流计算性能测试工具
@@ -27,7 +28,7 @@ Catalog/目录:
 
 Features/功能:
     ✨ 流计算性能测试
-        - 支持滑动窗口、会话窗口、计数窗口、事件窗口、状态窗口、定时触发等6种窗口类型
+        - 支持时间窗口、滑动窗口、会话窗口、计数窗口、事件窗口、状态窗口、定时触发等7种窗口类型
         - 支持超级表和子表数据源，支持按子表名和tag分组
         - 支持聚合查询和投影查询两种计算模式
         - 支持单流和多流并发测试
@@ -72,6 +73,10 @@ Test Scenarios/测试场景:
         - 适用于算法验证和性能对比
 
 Window Types/窗口类型:
+    📊 时间窗口 (INTERVAL SLIDING WINDOW)
+        - 固定时间间隔的计算
+        - 适用于连续数据的平滑统计
+        
     📊 滑动窗口 (SLIDING WINDOW)
         - 固定时间间隔的滑动计算
         - 适用于连续数据的平滑统计
@@ -255,7 +260,7 @@ def print_separator(char='-', length=80, color=None):
         
 class MonitorSystemLoad:
 
-    def __init__(self, name_pattern, count, perf_file='/tmp/perf.log', use_signal=True, interval=1, deployment_mode='cluster') -> None:
+    def __init__(self, name_pattern, count, perf_file='/tmp/perf.log', use_signal=True, interval=1, deployment_mode='cluster', warm_up_time=0) -> None:
         """初始化系统负载监控
         
         Args:
@@ -264,12 +269,28 @@ class MonitorSystemLoad:
             perf_file: 性能数据输出文件
             interval: 性能采集间隔(秒),默认1秒
             deployment_mode: 部署模式 'single' 或 'cluster'
+            warm_up_time: 预热时间(秒),在此期间收集数据但不打印,默认0秒
         """
         self.name_pattern = name_pattern  # 保存进程名模式
         self.count = count
         self.perf_file = perf_file
         self.interval = interval
         self.deployment_mode = deployment_mode
+        self.warm_up_time = warm_up_time
+        
+        # 添加唯一标识符
+        import uuid
+        self.instance_id = str(uuid.uuid4())[:8]
+        self.thread_name = f"MonitorSystemLoad-{self.instance_id}"
+        
+        print(f"调试: MonitorSystemLoad 初始化，实例ID = {self.instance_id}，perf_file = {perf_file}")
+        print(f"调试: 预热等待时间 = {warm_up_time}秒")        
+        
+        self.stop_monitoring = False
+        self._should_stop = False
+        self._is_running = False
+        self._force_stop = False
+        self._stop_event = threading.Event()
         
         # 根据部署模式确定需要监控的节点
         if deployment_mode == 'single':
@@ -282,8 +303,14 @@ class MonitorSystemLoad:
         # 为每个dnode创建对应的性能文件句柄
         self.perf_files = {}
         for dnode in self.monitor_nodes:
-            file_path = f"{os.path.splitext(perf_file)[0]}-{dnode}.log"
+            # 基于传入的perf_file路径生成每个节点的文件路径
+            base_dir = os.path.dirname(perf_file)
+            base_name = os.path.splitext(os.path.basename(perf_file))[0]
+            file_path = os.path.join(base_dir, f"{base_name}-{dnode}.log")
+            
             try:
+                # 确保目录存在
+                os.makedirs(base_dir, exist_ok=True)
                 self.perf_files[dnode] = open(file_path, 'w+')
                 print(f"创建性能日志文件: {file_path}")
             except Exception as e:
@@ -291,7 +318,12 @@ class MonitorSystemLoad:
                 
         # 创建汇总日志文件
         try:
-            all_file = f"{os.path.splitext(perf_file)[0]}-all.log"
+            base_dir = os.path.dirname(perf_file)
+            base_name = os.path.splitext(os.path.basename(perf_file))[0]
+            all_file = os.path.join(base_dir, f"{base_name}-all.log")
+            
+            # 确保目录存在
+            os.makedirs(base_dir, exist_ok=True)
             self.perf_files['all'] = open(all_file, 'w+')
             print(f"创建汇总日志文件: {all_file}")
         except Exception as e:
@@ -299,13 +331,22 @@ class MonitorSystemLoad:
             
         # 获取进程ID
         self.pids = self.get_pids_by_pattern()
-        self.processes = {
-            dnode: psutil.Process(pid) if pid else None
-            for dnode, pid in self.pids.items()
-        }
-        for process in self.processes.values():
-            if process:
-                process.cpu_percent()
+        self.processes = {}
+        
+        # 修复CPU监控问题：正确初始化进程对象并进行第一次CPU采样
+        for dnode, pid in self.pids.items():
+            if pid:
+                try:
+                    process = psutil.Process(pid)
+                    process.cpu_percent()
+                    self.processes[dnode] = process
+                    print(f"初始化进程对象: {dnode}, PID: {pid}")
+                except Exception as e:
+                    print(f"初始化进程对象失败 {dnode} (PID: {pid}): {str(e)}")
+                    self.processes[dnode] = None
+            else:
+                self.processes[dnode] = None
+                
         self.stop_monitoring = False
         self._should_stop = False
         if use_signal and threading.current_thread() is threading.main_thread():
@@ -314,24 +355,49 @@ class MonitorSystemLoad:
 
     def __del__(self):
         """确保所有文件都被正确关闭"""
-        for f in self.perf_files.values():
-            try:
-                f.close()
-            except:
-                pass
+        try:
+            if hasattr(self, '_is_running') and self._is_running:
+                print(f"调试: MonitorSystemLoad实例 {getattr(self, 'instance_id', 'unknown')} 正在析构，强制停止")
+                self.stop()
+        except:
+            pass
+        
+        # 关闭文件句柄
+        if hasattr(self, 'perf_files'):
+            for f in self.perf_files.values():
+                try:
+                    if not f.closed:
+                        f.close()
+                except:
+                    pass
             
     def stop(self):
         """提供外部停止监控的方法"""
+        print(f"调试: 停止监控实例 {getattr(self, 'instance_id', 'unknown')}")
         self.stop_monitoring = True
         self._should_stop = True
+        self._force_stop = True 
+        self._is_running = False
+        self._stop_event.set() 
+        
         print("\n停止性能监控...")
         # 等待所有文件写入完成
-        for f in self.perf_files.values():
-            try:
-                f.flush()
-            except:
-                pass
+        if hasattr(self, 'perf_files'):
+            for f in self.perf_files.values():
+                try:
+                    if not f.closed:
+                        f.flush()
+                except:
+                    pass
             
+
+    def _should_continue_monitoring(self):
+        """统一的停止检查方法"""
+        return (not self.stop_monitoring and 
+                not self._should_stop and 
+                not self._force_stop and 
+                not self._stop_event.is_set())
+        
     def signal_handler(self, signum, frame):
         """处理中断信号"""
         print("\n收到中断信号，正在停止监控...")
@@ -353,13 +419,14 @@ class MonitorSystemLoad:
                 return proc.info['pid']
         return None
     
-    def write_metrics(self, dnode, status, timestamp=None):
+    def write_metrics(self, dnode, status, timestamp=None, print_to_console=True):
         """写入性能指标
         
         Args:
             dnode: 节点名称
             status: 性能数据
             timestamp: 时间戳(可选)
+            print_to_console: 是否打印到控制台
         """
         # 写入单个节点的日志文件
         self.perf_files[dnode].write(status + '\n')
@@ -367,8 +434,9 @@ class MonitorSystemLoad:
         # 同时写入汇总日志文件
         self.perf_files['all'].write(status + '\n')
         
-        # 输出到控制台
-        print(status)
+        # 根据参数决定是否输出到控制台
+        if print_to_console:
+            print(status)
 
     def get_pids_by_pattern(self):
         """根据进程名模式获取所有匹配的进程ID"""
@@ -411,12 +479,13 @@ class MonitorSystemLoad:
         
         return pids
     
-    def write_zero_metrics(self, dnode, timestamp):
+    def write_zero_metrics(self, dnode, timestamp, is_warm_up=False, instance_id=None):
         """写入零值指标
         
         Args:
             dnode: 节点名称
             timestamp: 时间戳
+            is_warm_up: 是否为预热期
         """
         status = (
             f"{timestamp} [{dnode}] "
@@ -425,8 +494,22 @@ class MonitorSystemLoad:
             f"Read: 0.00MB (0), "
             f"Write: 0.00MB (0)"
         )
-        self.perf_files[dnode].write(status + '\n')
-        print(status)
+        
+        if is_warm_up:
+            status += " [预热期数据]"
+        if instance_id:
+            status += f" (实例ID: {instance_id})"
+        
+        try:
+            if hasattr(self, 'perf_files') and dnode in self.perf_files:
+                if not self.perf_files[dnode].closed:
+                    self.perf_files[dnode].write(status + '\n')
+        except:
+            pass
+        
+        # 预热期不打印到控制台
+        if not is_warm_up:
+            print(status)
         
     def get_proc_status_old(self):
         """监控所有匹配进程的状态"""
@@ -508,98 +591,210 @@ class MonitorSystemLoad:
 
     def get_proc_status(self):
         """监控所有匹配进程的状态"""
+        # 标记实例正在运行
+        self._is_running = True
+        instance_id = getattr(self, 'instance_id', 'unknown')
+        
+        print(f"调试: 监控线程开始运行，实例ID = {instance_id}")
+        
         try:
-            while self.count > 0 and not self.stop_monitoring and not self._should_stop:
+            # 计算预热期间的数据点数量
+            warm_up_cycles = int(self.warm_up_time / self.interval) if self.warm_up_time > 0 else 0
+            
+            if warm_up_cycles > 0:
+                print(f"\n=== 开始性能监控预热期 ===")
+                print(f"预热时间: {self.warm_up_time}秒 ({warm_up_cycles}个周期)")
+                print(f"预热期间收集数据但不打印，等待系统稳定...")
+                
+                # 写入预热说明到日志文件
+                for f in self.perf_files.values():
+                    f.write(f"=== 性能监控预热期开始 ===\n")
+                    f.write(f"预热时间: {self.warm_up_time}秒\n")
+                    f.write(f"预热期间的数据仅用于系统稳定，不作为性能评估依据\n")
+                    f.write(f"{'='*60}\n")
+            
+            cycle_count = 0
+            
+            while self.count > 0 and self._should_continue_monitoring():
                 start_time = time.time()
+                cycle_count += 1
+                
+                # 在每个循环开始时检查停止标志
+                if not self._should_continue_monitoring():
+                    print(f"调试: 监控实例 {instance_id} 收到停止信号，第{cycle_count}次循环")
+                    break
                 
                 sys_load = psutil.getloadavg()
                 timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
                 
+                # 判断是否在预热期
+                is_warm_up = cycle_count <= warm_up_cycles
+                
                 # 记录系统负载
                 load_info = f"\n{timestamp} System Load: {sys_load[0]:.2f}\n"
-                for f in self.perf_files.values():
-                    f.write(load_info)
-                print(load_info)
+                if is_warm_up:
+                    load_info += f" [预热期 {cycle_count}/{warm_up_cycles}] (实例ID: {instance_id})"
+                else:
+                    load_info += f" [正式监控] (实例ID: {instance_id})"
+                load_info += "\n"
                 
+                # 写入文件（包括预热期数据）
+                for f in self.perf_files.values():
+                    try:
+                        if not f.closed:
+                            f.write(load_info)
+                    except:
+                        pass
+                                
+                # 控制台输出（预热期静默）
+                if not is_warm_up:
+                    print(load_info.strip()) 
+                elif cycle_count == 1:
+                    print(f"预热开始: {timestamp}(实例ID: {instance_id})")
+                elif cycle_count % 10 == 0:  # 每10个周期显示一次预热进度
+                    print(f"预热进度: {cycle_count}/{warm_up_cycles} ({(cycle_count/warm_up_cycles)*100:.1f}%)(实例ID: {instance_id})")
+                
+                current_pids = self.get_pids_by_pattern()
+                
+                # 更新进程对象：检查PID是否变化，如果变化则重新初始化
+                for dnode in self.monitor_nodes:
+                    current_pid = current_pids.get(dnode)
+                    existing_process = self.processes.get(dnode)
+                    
+                    # 检查是否需要更新进程对象
+                    need_update = False
+                    if current_pid is None:
+                        # 进程不存在了
+                        if existing_process is not None:
+                            need_update = True
+                            self.processes[dnode] = None
+                    elif existing_process is None:
+                        # 新发现的进程
+                        need_update = True
+                    elif existing_process.pid != current_pid:
+                        # PID变化了，进程重启了
+                        need_update = True
+                    
+                    if need_update and current_pid:
+                        try:
+                            new_process = psutil.Process(current_pid)
+                            new_process.cpu_percent()
+                            self.processes[dnode] = new_process
+                            print(f"调试: 更新进程对象 {dnode}, 新PID: {current_pid}")
+                        except Exception as e:
+                            print(f"调试: 初始化新进程对象失败 {dnode} (PID: {current_pid}): {str(e)}")
+                            self.processes[dnode] = None
+                            
                 # 收集进程指标
                 for dnode in self.monitor_nodes:
-                    process = self.processes.get(dnode)
                     try:
+                        process = self.processes.get(dnode)
+                        
                         if process and process.is_running():
-                            # 直接获取CPU使用率，不使用interval参数
-                            cpu_percent = process.cpu_percent()
-                            memory_info = process.memory_info()
-                            memory_percent = process.memory_percent()
-                            io_counters = process.io_counters()
+                            try:
+                                cpu_percent = process.cpu_percent(interval=None)
+                                memory_info = process.memory_info()
+                                memory_percent = process.memory_percent()
+                                io_counters = process.io_counters()
 
-                            status = (
-                                f"{timestamp} [{dnode}] "
-                                f"CPU: {cpu_percent:.1f}%, "
-                                f"Memory: {memory_info.rss/1048576.0:.2f}MB ({memory_percent:.2f}%), "
-                                f"Read: {io_counters.read_bytes/1048576.0:.2f}MB ({io_counters.read_count}), "
-                                f"Write: {io_counters.write_bytes/1048576.0:.2f}MB ({io_counters.write_count})"
-                            )
-                            self.write_metrics(dnode, status)
+                                status = (
+                                    f"{timestamp} [{dnode}] "
+                                    f"CPU: {cpu_percent:.1f}%, "
+                                    f"Memory: {memory_info.rss/1048576.0:.2f}MB ({memory_percent:.2f}%), "
+                                    f"Read: {io_counters.read_bytes/1048576.0:.2f}MB ({io_counters.read_count}), "
+                                    f"Write: {io_counters.write_bytes/1048576.0:.2f}MB ({io_counters.write_count})"
+                                )
+                                
+                                if is_warm_up:
+                                    status += f" [预热期数据] (实例ID: {instance_id})"
+                                else:
+                                    status += f" (实例ID: {instance_id})"
+                                
+                                # 写入日志文件
+                                self.write_metrics(dnode, status, print_to_console=(not is_warm_up))
+                                # ✅ 调试输出CPU采样信息
+                                if cycle_count <= 3 or (cycle_count % 20 == 0):  # 前3次或每20次打印调试信息
+                                    print(f"调试: {dnode} CPU采样 - 周期{cycle_count}, CPU: {cpu_percent:.1f}%")
+                                    
+                            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                                print(f"调试: 进程{dnode}访问失败: {str(e)}")
+                                self.write_zero_metrics(dnode, timestamp, is_warm_up, instance_id)
+                                self.processes[dnode] = None  # 清理无效的进程对象
                         else:
-                            if dnode in self.pids or self.deployment_mode == 'cluster':
-                                self.write_zero_metrics(dnode, timestamp)
+                            # 如果配置要求监控此节点但找不到进程
+                            if dnode in self.monitor_nodes:
+                                self.write_zero_metrics(dnode, timestamp, is_warm_up, instance_id)
                             
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        if dnode in self.pids or self.deployment_mode == 'cluster':
-                            self.write_zero_metrics(dnode, timestamp)
-                        self.processes[dnode] = None
                     except Exception as e:
-                        print(f"监控 {dnode} 出错: {str(e)}")
-                        if dnode in self.pids or self.deployment_mode == 'cluster':
-                            self.write_zero_metrics(dnode, timestamp)
+                        if not is_warm_up:
+                            print(f"监控 {dnode} 出错: {str(e)} (实例ID: {instance_id})")
+                        self.write_zero_metrics(dnode, timestamp, is_warm_up, instance_id)
                 
                 # 添加分隔线
-                separator = "-" * 80 + "\n"
+                separator = f"---------------- (实例ID: {instance_id}) ----------------\n"
                 for f in self.perf_files.values():
-                    f.write(separator)
-                    f.flush()
-                print(separator.strip())
+                    try:
+                        if not f.closed:
+                            f.write(separator)
+                            f.flush()
+                    except:
+                        pass
+                
+                if not is_warm_up:
+                    print(separator.strip())
+                    
+                # 预热期结束提示
+                if is_warm_up and cycle_count == warm_up_cycles:
+                    print(f"\n=== 预热期结束，开始正式性能监控 (实例ID: {instance_id}) ===")
+                    
+                    # 写入预热结束标记
+                    for f in self.perf_files.values():
+                        try:
+                            if not f.closed:
+                                f.write(f"\n=== 预热期结束，正式监控开始 (实例ID: {instance_id}) ===\n")
+                                f.write(f"{'='*60}\n")
+                                f.flush()
+                                print(f"调试: 已写入预热期结束标记到性能文件")
+                        except Exception as e:
+                            print(f"调试: 写入预热期结束标记失败: {str(e)}")
+                            pass
                 
                 # 精确控制间隔时间
                 elapsed = time.time() - start_time
                 if elapsed < self.interval:
-                    time.sleep(self.interval - elapsed)
+                    remaining_time = self.interval - elapsed
+                    
+                    # 使用Event.wait()替代sleep，能立即响应停止信号
+                    if self._stop_event.wait(timeout=remaining_time):
+                        print(f"调试: 监控实例 {instance_id} 在wait期间收到停止信号")
+                        break
                 
                 self.count -= 1
                 
-                # 检查是否需要停止
-                if self.stop_monitoring or self._should_stop:
-                    print("监控提前结束")
+                # 最终检查是否需要停止
+                if not self._should_continue_monitoring():
+                    print(f"调试: 监控实例 {instance_id} 正常结束循环")
                     break
                 
-                # 使用分段sleep，以便能够及时响应停止信号
-                elapsed = time.time() - start_time
-                remaining_time = self.interval - elapsed
-                
-                if remaining_time > 0:
-                    # 将大的间隔分解为小的片段，以便及时响应停止信号
-                    sleep_chunks = max(1, int(remaining_time))  # 每次最多sleep 1秒
-                    chunk_size = remaining_time / sleep_chunks
-                    
-                    for _ in range(sleep_chunks):
-                        if self.stop_monitoring or self._should_stop:
-                            print("在sleep期间收到停止信号")
-                            break
-                        time.sleep(chunk_size)
-                
         except Exception as e:
-            print(f"监控出错: {str(e)}")  
+            print(f"监控出错 (实例ID: {instance_id}): {str(e)}")  
         finally:
-            print("监控线程正在清理资源...")
-            # 关闭所有文件
-            for f in self.perf_files.values():
-                try:
-                    f.close()
-                except:
-                    pass
-            print("监控线程已结束")              
+            self._is_running = False
+            print(f"调试: 监控线程正在清理资源 (实例ID: {instance_id})...")
+            
+            # ✅ 确保所有文件句柄都被关闭
+            if hasattr(self, 'perf_files'):
+                for f in self.perf_files.values():
+                    try:
+                        if not f.closed:
+                            f.close()
+                    except:
+                        pass
+                        
+            print(f"调试: 监控线程已结束 (实例ID: {instance_id})")
+                   
 
-def do_monitor(runtime, perf_file, deployment_mode='cluster'):
+def do_monitor(runtime, perf_file, deployment_mode='cluster', warm_up_time=0):
     """监控线程函数"""
     try:
         # 不在子线程中使用信号处理
@@ -608,7 +803,8 @@ def do_monitor(runtime, perf_file, deployment_mode='cluster'):
             runtime, 
             perf_file, 
             use_signal=False,
-            deployment_mode=deployment_mode
+            deployment_mode=deployment_mode,
+            warm_up_time=warm_up_time 
         )
         loader.get_proc_status()
     except Exception as e:
@@ -2125,7 +2321,7 @@ class StreamSQLTemplates:
     '''
     
     @classmethod
-    def get_sql(cls, sql_type, stream_num=1, **kwargs):
+    def get_sql(cls, sql_type, stream_num=1, auto_combine=False, **kwargs):
         """
         获取指定类型的 SQL 模板 - 主要入口方法
         
@@ -2134,6 +2330,7 @@ class StreamSQLTemplates:
                 单个模板: 'intervalsliding_stb', 'intervalsliding_stb_partition_by_tbname' 等
                 组合模板: 'intervalsliding_detailed', 'session_detailed' 等
             stream_num: 流数量（仅对单个流类型有效）
+            auto_combine: 是否自动生成6种参数组合
             **kwargs: 可选参数
                 
         Returns:
@@ -2229,59 +2426,62 @@ class StreamSQLTemplates:
             'period_detailed': instance.get_period_group_detailed,
         }
         
-        # # 处理单个详细模板
-        # if sql_type in detailed_templates:
-        #     return detailed_templates[sql_type](**kwargs)
-        
-        # # 处理组合模板
-        # if sql_type in group_templates:
-        #     return group_templates[sql_type](**kwargs)
-        
-        # # 处理单个详细模板
-        # if sql_type in detailed_templates:
-        #     base_sql = detailed_templates[sql_type](**kwargs)
-            
-        #     # 如果stream_num > 1，生成多个流
-        #     if stream_num > 1:
-        #         print(f"生成 {stream_num} 个 {sql_type} 类型的流")
-        #         return instance.generate_multiple_streams(base_sql, stream_num)
-        #     else:
-        #         return base_sql
-        
         # 处理单个详细模板时
         if sql_type in detailed_templates:
-            # 如果stream_num > 1，需要为每个流生成不同的SQL（特别是tb类型）
-            if stream_num > 1:
-                print(f"生成 {stream_num} 个 {sql_type} 类型的流")
-                result = {}
+            # 检查是否启用自动组合
+            if auto_combine:
+                print(f"自动生成 {sql_type} 的6种参数组合 (忽略 --agg-or-select 和 --tbname-or-trows-or-sourcetable 参数)")
                 
-                for i in range(1, stream_num + 1):
-                    # 为每个流传入stream_index参数
-                    stream_sql = detailed_templates[sql_type](stream_index=i, **kwargs)
-                    result[f'stream_{i}'] = stream_sql
+                if stream_num > 1:
+                    print("警告: --auto-combine 模式下 --stream-num 参数无效，将忽略")
+                
+                # 生成6种组合
+                combinations = [
+                    ('tbname', 'agg'),
+                    ('tbname', 'select'),
+                    ('trows', 'agg'),
+                    ('trows', 'select'),
+                    ('sourcetable', 'agg'),
+                    ('sourcetable', 'select')
+                ]
+                
+                result = {}
+                for tbname_param, agg_param in combinations:
+                    # 创建参数副本，覆盖指定参数
+                    combo_kwargs = kwargs.copy()
+                    combo_kwargs['tbname_or_trows_or_sourcetable'] = tbname_param
+                    combo_kwargs['agg_or_select'] = agg_param
                     
+                    # 生成组合名称
+                    combo_name = f"{sql_type}_{agg_param}_{tbname_param}"
+                    
+                    # 生成SQL
+                    combo_sql = detailed_templates[sql_type](**combo_kwargs)
+                    result[combo_name] = combo_sql
+                    
+                    print(f"  生成组合: {combo_name}")
+                
                 return result
+                
             else:
-                return detailed_templates[sql_type](**kwargs)
+                # 原有逻辑：根据 stream_num 处理
+                if stream_num > 1:
+                    print(f"生成 {stream_num} 个 {sql_type} 类型的流")
+                    result = {}
+                    
+                    for i in range(1, stream_num + 1):
+                        stream_sql = detailed_templates[sql_type](stream_index=i, **kwargs)
+                        result[f'stream_{i}'] = stream_sql
+                        
+                    return result
+                else:
+                    return detailed_templates[sql_type](**kwargs)
         
-        # # 处理组合模板
-        # if sql_type in group_templates:
-        #     if stream_num > 1:
-        #         print("警告: 组合模板不支持 --stream-num 参数，将忽略该参数")
-        #     return group_templates[sql_type](**kwargs)
-        
-        # # 处理特殊组合
-        # if sql_type == 'all_detailed':
-        #     if stream_num > 1:
-        #         print("警告: all_detailed 模板不支持 --stream-num 参数，将忽略该参数")
-        #     result = {}
-        #     for group_type in ['intervalsliding_detailed', 'session_detailed', 'count_detailed', 
-        #                     'event_detailed', 'state_detailed', 'period_detailed']:
-        #         result.update(group_templates[group_type](**kwargs))
-        #     return result
-        
-        # 处理组合模板（支持 stream_num）
+        # 处理组合模板（支持 stream_num）（不受 auto_combine 影响）
         if sql_type in group_templates:
+            if auto_combine:
+                print("警告: 组合模板不支持 --auto-combine 参数，将忽略该参数")
+                
             base_sqls = group_templates[sql_type](**kwargs)
             
             # 如果stream_num > 1，为每个组合中的每个流生成多个副本
@@ -2305,6 +2505,9 @@ class StreamSQLTemplates:
         
         # 处理特殊组合
         if sql_type == 'all_detailed':
+            if auto_combine:
+                print("警告: all_detailed 模板不支持 --auto-combine 参数，将忽略该参数")
+                
             result = {}
             for group_type in ['intervalsliding_detailed', 'sliding_detailed', 'session_detailed', 'count_detailed', 
                             'event_detailed', 'state_detailed', 'period_detailed']:
@@ -2367,6 +2570,2640 @@ def format_delay_time(delay_ms):
             parts.append(f"{seconds:.1f}s")
         
         return "".join(parts)
+    
+def extract_stream_creation_error(error_message):
+    """从流创建错误信息中提取TDengine的具体错误
+    
+    Args:
+        error_message: 完整的异常错误信息
+        
+    Returns:
+        str: 提取的TDengine错误信息
+    """
+    #print(f"调试 extract_stream_creation_error: 输入参数类型={type(error_message)}, 长度={len(str(error_message))}")
+    
+    try:
+        # 简单处理：直接返回错误信息，只做基本清理
+        if not error_message:
+            print(f"调试: 错误信息为空，返回默认消息")
+            return ""
+        
+        # 转换为字符串
+        error_str = str(error_message).strip()
+        #print(f"调试: 转换后字符串长度: {len(error_str)}")
+        
+    
+        if not error_str:
+            print(f"调试: 转换后字符串为空，返回默认消息")
+            return "错误信息为空"
+        
+        # 如果太长就截断
+        if len(error_str) > 500:
+            error_str = error_str[:500] + "..."
+        
+        # 清理换行符，保持单行显示
+        error_str = error_str.replace('\n', ' ').replace('\r', ' ')
+        
+        # 清理HTML特殊字符
+        error_str = error_str.replace('<', '&lt;').replace('>', '&gt;')
+        
+        return error_str
+        
+    except Exception as e:
+        return f"错误信息处理失败: {str(e)}"
+
+  
+def extract_tdengine_error(error_message):
+    """从错误信息中提取TDengine的具体错误
+    
+    Args:
+        error_message: 完整的错误信息
+        
+    Returns:
+        str: 提取的TDengine错误信息
+    """
+    try:
+        # 简化处理：直接返回错误信息，只做基本的长度控制
+        if not error_message:
+            return ""
+        
+        # 转换为字符串（防止传入非字符串类型）
+        error_str = str(error_message).strip()
+        #print(f"调试: 转换后字符串长度: {len(error_str)}")
+        print(f"调试: 原始错误信息前300个字符: {error_str[:300]}")
+        
+        # 如果错误信息太长，截断到合理长度
+        max_length = 500
+        if len(error_str) > max_length:
+            error_str = error_str[:max_length] + "..."
+        
+        # 清理一些可能影响HTML显示的字符
+        error_str = error_str.replace('<', '&lt;').replace('>', '&gt;')
+        error_str = error_str.replace('\n', ' ').replace('\r', ' ')
+        print(f"调试: 清理后错误信息长度: {len(error_str)}")
+        print(f"调试: 最终返回的错误信息: {error_str[:200]}...")
+        
+        return error_str
+        
+    except Exception as e:
+        # 如果处理出错，返回简单的错误信息
+        return f"错误信息处理失败: {str(e)}"
+    
+
+def format_sql_for_display(sql_text):
+    """格式化SQL用于显示，去掉多余的空白和换行
+    
+    Args:
+        sql_text: 原始SQL文本
+        
+    Returns:
+        str: 格式化后的SQL
+    """
+    try:
+        import re
+        
+        # 1. 去掉前后的空白
+        sql = sql_text.strip()
+        
+        # 2. 将多个连续的空白字符（包括换行、制表符、空格）替换为单个空格
+        sql = re.sub(r'\s+', ' ', sql)
+        
+        # 3. 在主要的SQL关键字前后添加适当的换行，使结构更清晰
+        # 但保持整体紧凑
+        keywords = [
+            'create stream', 'from', 'partition by', 'into', 'as select', 
+            'where', 'interval\\(', 'sliding\\(', 'session\\(', 'period\\(', 
+            'count_window\\(', 'event_window\\(', 'state_window\\('
+        ]
+        
+        for keyword in keywords:
+            # 在关键字前添加换行（除了第一个create stream）
+            if keyword != 'create stream':
+                sql = re.sub(f'\\s+({keyword})', r' \1', sql, flags=re.IGNORECASE)
+        
+        # 4. 特殊处理：在主要子句之间添加分隔
+        # 但不添加实际换行，而是用 | 符号分隔增强可读性
+        sql = re.sub(r'\s+(from\s+)', r' | \1', sql, flags=re.IGNORECASE)
+        sql = re.sub(r'\s+(partition\s+by)', r' | \1', sql, flags=re.IGNORECASE)
+        sql = re.sub(r'\s+(into\s+)', r' | \1', sql, flags=re.IGNORECASE)
+        sql = re.sub(r'\s+(as\s+select)', r' | \1', sql, flags=re.IGNORECASE)
+        
+        return sql
+        
+    except Exception as e:
+        # 如果格式化出错，返回简单清理后的版本
+        return ' '.join(sql_text.split())
+
+
+
+class StreamBatchTester:
+    """流计算批量测试器 - 自动执行多种参数组合测试"""
+    
+    def __init__(self, base_args=None, specified_sql_types=None, filter_mode='all', single_template_mode='default'):
+        """初始化批量测试器
+        
+        Args:
+            base_args: 基础参数字典，包含不变的参数
+            specified_sql_types: 指定的SQL类型列表，如果为None则使用默认的全部组合
+            filter_mode: 过滤模式 ('all', 'skip-known-failures', 'only-known-failures')
+        """
+        self.base_args = base_args or {}
+        self.test_results = []
+        self.failed_tests = []
+        self.current_test_index = 0
+        self.total_tests = 0
+        self.start_time = None
+        self.specified_sql_types = specified_sql_types or []
+        self.filter_mode = filter_mode
+        self.single_template_mode = single_template_mode
+        
+        # 缓存已知失败测试列表，避免重复调用和打印
+        self._known_failure_tests = None
+        
+        # 默认的固定参数
+        self.fixed_params = {
+            'mode': 1,  # 实时流计算测试
+            'check_stream_delay': True,
+            'stream_num': 1,
+            'real_time_batch_sleep': 0,
+            'monitor_interval': 30,
+            'delay_check_interval': 30,
+            'max_delay_threshold': 30000,
+            'deployment_mode': 'single',
+            'table_count': 2000,
+            'histroy_rows': 1,
+            'real_time_batch_rows': 200,
+            'disorder_ratio': 0,
+            'vgroups': 10,
+            'debug_flag': 131,
+            'num_of_log_lines': 500000
+        }
+        
+        # 更新固定参数
+        self.fixed_params.update(self.base_args)       
+        
+        # 批量测试中强制启用流延迟检查
+        self.fixed_params['check_stream_delay'] = True
+        
+        print(f"批量测试器初始化完成:")
+        if self.specified_sql_types:
+            print(f"  指定SQL类型: {', '.join(self.specified_sql_types)}")
+        else:
+            print(f"  SQL类型: 全部组合")
+            
+        print(f"  过滤模式: {self.filter_mode}")
+        if self.filter_mode != 'all':
+            failure_count = len(self.get_known_failure_tests())
+            print(f"  已知失败测试: {failure_count} 个")
+            if self.filter_mode == 'skip-known-failures':
+                print(f"  将跳过已知失败的测试场景，专注于成功场景")
+            elif self.filter_mode == 'only-known-failures':
+                print(f"  仅运行已知失败的测试场景，用于调试失败原因")
+                
+        print(f"  流延迟检查: {'启用' if self.fixed_params['check_stream_delay'] else '禁用'} (批量测试强制启用)")
+        print(f"  延迟检查间隔: {self.fixed_params['delay_check_interval']}秒")
+        print(f"  最大延迟阈值: {self.fixed_params['max_delay_threshold']}ms")
+        print(f"  流数量: {self.fixed_params['stream_num']}") 
+
+
+    def get_known_failure_tests(self):
+        """获取已知失败的测试场景列表
+        
+        这里维护所有已知会失败的测试场景名称
+        您可以直接在这里添加或删除失败的测试名称
+        
+        Returns:
+            set: 已知失败的测试名称集合
+        """
+        # 使用缓存避免重复创建和打印
+        if self._known_failure_tests is not None:
+            return self._known_failure_tests
+        
+        # 在这里维护已知失败的测试名称列表
+        known_failures = {
+            # period 
+            'period_stb_agg_tbname',
+            'period_stb_select_tbname', 
+            'period_stb_partition_by_tag_agg_tbname',
+            'period_stb_partition_by_tag_select_tbname',
+            'period_tb_agg_tbname',
+            'period_tb_select_tbname',
+            
+            # count 
+            'count_stb_agg_tbname',
+            'count_stb_select_tbname',
+            'count_stb_agg_trows', 
+            'count_stb_select_trows',
+            'count_stb_agg_sourcetable_stb',
+            'count_stb_select_sourcetable_stb',
+            'count_stb_partition_by_tag_agg_tbname',
+            'count_stb_partition_by_tag_select_tbname',
+            'count_stb_partition_by_tag_agg_trows', 
+            'count_stb_partition_by_tag_select_trows',
+            'count_stb_partition_by_tag_agg_sourcetable_stb',
+            'count_stb_partition_by_tag_select_sourcetable_stb',
+            'count_tb_agg_tbname',
+            'count_tb_select_tbname',
+            
+            # event 
+            'event_stb_agg_tbname',
+            'event_stb_select_tbname',
+            'event_stb_agg_trows',
+            'event_stb_select_trows',
+            'event_stb_agg_sourcetable_stb', 
+            'event_stb_select_sourcetable_stb',
+            'event_stb_partition_by_tag_agg_tbname',
+            'event_stb_partition_by_tag_select_tbname',
+            'event_stb_partition_by_tag_agg_trows',
+            'event_stb_partition_by_tag_select_trows',
+            'event_stb_partition_by_tag_agg_sourcetable_stb', 
+            'event_stb_partition_by_tag_select_sourcetable_stb',
+            'event_tb_agg_tbname',
+            'event_tb_select_tbname',
+            
+            # state 
+            'state_stb_agg_tbname',
+            'state_stb_select_tbname',
+            'state_stb_agg_trows',
+            'state_stb_select_trows',
+            'state_stb_agg_sourcetable_stb', 
+            'state_stb_select_sourcetable_stb',
+            'state_stb_partition_by_tag_agg_tbname',
+            'state_stb_partition_by_tag_select_tbname',
+            'state_stb_partition_by_tag_agg_trows',
+            'state_stb_partition_by_tag_select_trows',
+            'state_stb_partition_by_tag_agg_sourcetable_stb', 
+            'state_stb_partition_by_tag_select_sourcetable_stb',
+            'state_tb_agg_tbname',
+            'state_tb_select_tbname',
+            
+            # intervalsliding
+            'intervalsliding_stb_agg_tbname',
+            'intervalsliding_stb_select_tbname',
+            'intervalsliding_stb_partition_by_tag_agg_tbname',
+            'intervalsliding_stb_partition_by_tag_select_tbname',
+            'intervalsliding_tb_agg_tbname',
+            'intervalsliding_tb_select_tbname',
+            
+            # session            
+            'session_stb_agg_tbname',
+            'session_stb_select_tbname',
+            'session_stb_partition_by_tag_agg_tbname',
+            'session_stb_partition_by_tag_select_tbname',
+            'session_tb_agg_tbname',
+            'session_tb_select_tbname',
+            
+            # sliding
+            'sliding_stb_agg_tbname',
+            'sliding_stb_select_tbname',
+            'sliding_stb_partition_by_tag_agg_tbname',
+            'sliding_stb_partition_by_tag_select_tbname',
+            'sliding_tb_agg_tbname',
+            'sliding_tb_select_tbname',
+            
+        }
+        
+        # 缓存结果并只打印一次
+        self._known_failure_tests = known_failures
+        print(f"维护的已知失败测试列表包含 {len(known_failures)} 个场景")
+        return self._known_failure_tests
+    
+    def extract_stream_names_from_sql(self, sql_templates):
+        """从SQL模板中提取流名称
+        
+        Args:
+            sql_templates: SQL模板字符串或字典
+            
+        Returns:
+            set: 流名称集合
+        """
+        import re
+        stream_names = set()
+        
+        try:
+            if isinstance(sql_templates, dict):
+                for sql_template in sql_templates.values():
+                    match = re.search(r'create\s+stream\s+([^\s]+)', sql_template, re.IGNORECASE)
+                    if match:
+                        full_stream_name = match.group(1)
+                        # 去掉数据库前缀，只保留流名称部分
+                        if '.' in full_stream_name:
+                            stream_name = full_stream_name.split('.')[-1]
+                        else:
+                            stream_name = full_stream_name
+                        stream_names.add(stream_name)
+                        print(f"调试: 从SQL中提取流名称: {full_stream_name} -> {stream_name}")
+            else:
+                match = re.search(r'create\s+stream\s+([^\s]+)', sql_templates, re.IGNORECASE)
+                if match:
+                    full_stream_name = match.group(1)
+                    # 去掉数据库前缀，只保留流名称部分
+                    if '.' in full_stream_name:
+                        stream_name = full_stream_name.split('.')[-1]
+                    else:
+                        stream_name = full_stream_name
+                    stream_names.add(stream_name)
+                    print(f"调试: 从SQL中提取流名称: {full_stream_name} -> {stream_name}")
+        except Exception as e:
+            print(f"提取流名称时出错: {str(e)}")
+        
+        return stream_names
+
+    def should_skip_test_by_stream_names(self, stream_names):
+        """根据流名称判断是否跳过测试
+        
+        Args:
+            stream_names: 当前测试要创建的流名称集合
+            
+        Returns:
+            tuple: (是否跳过, 原因)
+        """
+        if self.filter_mode == 'all':
+            return False, ""
+        
+        print(f"调试过滤: 当前流名称集合: {stream_names}")
+        print(f"调试过滤: 过滤模式: {self.filter_mode}")
+        
+        known_failures = self.get_known_failure_tests()
+        print(f"调试过滤: 已知失败流数量: {len(known_failures)}")
+        
+        failed_streams = stream_names.intersection(known_failures)
+        success_streams = stream_names - known_failures
+        
+        print(f"调试过滤: 匹配到的失败流: {failed_streams}")
+        print(f"调试过滤: 成功流: {success_streams}")
+        
+        if self.filter_mode == 'skip-known-failures':
+            # 如果包含已知失败的流，跳过
+            if failed_streams:
+                return True, f"包含已知失败流: {', '.join(failed_streams)}"
+            return False, ""
+            
+        elif self.filter_mode == 'only-known-failures':
+            # 如果不包含已知失败的流，跳过
+            if not failed_streams:
+                return True, f"不包含已知失败流，当前流: {', '.join(stream_names)}"
+            return False, ""
+            
+        return False, ""
+        
+    def get_test_combinations(self):
+        """获取所有测试组合
+        
+        Returns:
+            list: 包含所有参数组合的列表
+        """
+        if self.specified_sql_types:
+            # 如果指定了SQL类型，使用指定的类型进行组合
+            return self.get_combinations_for_specified_types()
+        else:
+            # 使用默认的全部组合
+            return self.get_default_combinations()
+    
+    def get_default_combinations(self):
+        """获取默认的全部测试组合 """
+        # 定义变化的参数
+        variable_params = {
+            'tbname_or_trows_or_sourcetable': ['tbname', 'trows', 'sourcetable'],
+            'agg_or_select': ['agg', 'select'],
+            'sql_type': [
+                # 单个详细模板 - 间隔滑动窗口
+                'intervalsliding_stb', 'intervalsliding_stb_partition_by_tbname', 
+                'intervalsliding_stb_partition_by_tag', 'intervalsliding_tb',
+                # 单个详细模板 - 滑动窗口  
+                'sliding_stb', 'sliding_stb_partition_by_tbname',
+                'sliding_stb_partition_by_tag', 'sliding_tb',
+                # 单个详细模板 - 会话窗口
+                'session_stb', 'session_stb_partition_by_tbname',
+                'session_stb_partition_by_tag', 'session_tb',
+                # 单个详细模板 - 计数窗口
+                'count_stb', 'count_stb_partition_by_tbname',
+                'count_stb_partition_by_tag', 'count_tb',
+                # 单个详细模板 - 事件窗口
+                'event_stb', 'event_stb_partition_by_tbname',
+                'event_stb_partition_by_tag', 'event_tb',
+                # 单个详细模板 - 状态窗口
+                'state_stb', 'state_stb_partition_by_tbname',
+                'state_stb_partition_by_tag', 'state_tb',
+                # 单个详细模板 - 定时触发
+                'period_stb', 'period_stb_partition_by_tbname',
+                'period_stb_partition_by_tag', 'period_tb'
+            ]
+        }
+        
+        # 生成所有组合
+        combinations = []
+        keys = list(variable_params.keys())
+        values = list(variable_params.values())
+        
+        for combination in itertools.product(*values):
+            param_dict = dict(zip(keys, combination))
+            combinations.append(param_dict)
+            
+        return combinations
+    
+    def get_combinations_for_specified_types(self):
+        """为指定的SQL类型生成测试组合"""
+        combinations = []
+        
+        # 解析指定的SQL类型并生成对应的组合
+        for sql_type in self.specified_sql_types:
+            type_combinations = self.get_combinations_for_single_type(sql_type)
+            combinations.extend(type_combinations)
+        
+        return combinations
+    
+    def get_combinations_for_single_type(self, sql_type):
+        """为单个SQL类型生成测试组合"""
+        combinations = []
+        
+        # 固定参数组合模板 - 这些忽略命令行的 tbname_or_trows_or_sourcetable 和 agg_or_select
+        fixed_param_templates = {
+            'tbname_agg': [
+                ('tbname', 'agg', 'intervalsliding_stb'), ('tbname', 'agg', 'intervalsliding_stb_partition_by_tbname'),
+                ('tbname', 'agg', 'intervalsliding_stb_partition_by_tag'), ('tbname', 'agg', 'intervalsliding_tb'),
+                ('tbname', 'agg', 'sliding_stb'), ('tbname', 'agg', 'sliding_stb_partition_by_tbname'),
+                ('tbname', 'agg', 'sliding_stb_partition_by_tag'), ('tbname', 'agg', 'sliding_tb'),
+                ('tbname', 'agg', 'session_stb'), ('tbname', 'agg', 'session_stb_partition_by_tbname'),
+                ('tbname', 'agg', 'session_stb_partition_by_tag'), ('tbname', 'agg', 'session_tb'),
+                ('tbname', 'agg', 'count_stb'), ('tbname', 'agg', 'count_stb_partition_by_tbname'),
+                ('tbname', 'agg', 'count_stb_partition_by_tag'), ('tbname', 'agg', 'count_tb'),
+                ('tbname', 'agg', 'event_stb'), ('tbname', 'agg', 'event_stb_partition_by_tbname'),
+                ('tbname', 'agg', 'event_stb_partition_by_tag'), ('tbname', 'agg', 'event_tb'),
+                ('tbname', 'agg', 'state_stb'), ('tbname', 'agg', 'state_stb_partition_by_tbname'),
+                ('tbname', 'agg', 'state_stb_partition_by_tag'), ('tbname', 'agg', 'state_tb'),
+                ('tbname', 'agg', 'period_stb'), ('tbname', 'agg', 'period_stb_partition_by_tbname'),
+                ('tbname', 'agg', 'period_stb_partition_by_tag'), ('tbname', 'agg', 'period_tb')
+            ],
+            'tbname_select': [
+                ('tbname', 'select', 'intervalsliding_stb'), ('tbname', 'select', 'intervalsliding_stb_partition_by_tbname'),
+                ('tbname', 'select', 'intervalsliding_stb_partition_by_tag'), ('tbname', 'select', 'intervalsliding_tb'),
+                ('tbname', 'select', 'sliding_stb'), ('tbname', 'select', 'sliding_stb_partition_by_tbname'),
+                ('tbname', 'select', 'sliding_stb_partition_by_tag'), ('tbname', 'select', 'sliding_tb'),
+                ('tbname', 'select', 'session_stb'), ('tbname', 'select', 'session_stb_partition_by_tbname'),
+                ('tbname', 'select', 'session_stb_partition_by_tag'), ('tbname', 'select', 'session_tb'),
+                ('tbname', 'select', 'count_stb'), ('tbname', 'select', 'count_stb_partition_by_tbname'),
+                ('tbname', 'select', 'count_stb_partition_by_tag'), ('tbname', 'select', 'count_tb'),
+                ('tbname', 'select', 'event_stb'), ('tbname', 'select', 'event_stb_partition_by_tbname'),
+                ('tbname', 'select', 'event_stb_partition_by_tag'), ('tbname', 'select', 'event_tb'),
+                ('tbname', 'select', 'state_stb'), ('tbname', 'select', 'state_stb_partition_by_tbname'),
+                ('tbname', 'select', 'state_stb_partition_by_tag'), ('tbname', 'select', 'state_tb'),
+                ('tbname', 'select', 'period_stb'), ('tbname', 'select', 'period_stb_partition_by_tbname'),
+                ('tbname', 'select', 'period_stb_partition_by_tag'), ('tbname', 'select', 'period_tb')
+            ],
+            'trows_agg': [
+                ('trows', 'agg', 'intervalsliding_stb'), ('trows', 'agg', 'intervalsliding_stb_partition_by_tbname'),
+                ('trows', 'agg', 'intervalsliding_stb_partition_by_tag'), ('trows', 'agg', 'intervalsliding_tb'),
+                ('trows', 'agg', 'sliding_stb'), ('trows', 'agg', 'sliding_stb_partition_by_tbname'),
+                ('trows', 'agg', 'sliding_stb_partition_by_tag'), ('trows', 'agg', 'sliding_tb'),
+                ('trows', 'agg', 'session_stb'), ('trows', 'agg', 'session_stb_partition_by_tbname'),
+                ('trows', 'agg', 'session_stb_partition_by_tag'), ('trows', 'agg', 'session_tb'),
+                ('trows', 'agg', 'count_stb'), ('trows', 'agg', 'count_stb_partition_by_tbname'),
+                ('trows', 'agg', 'count_stb_partition_by_tag'), ('trows', 'agg', 'count_tb'),
+                ('trows', 'agg', 'event_stb'), ('trows', 'agg', 'event_stb_partition_by_tbname'),
+                ('trows', 'agg', 'event_stb_partition_by_tag'), ('trows', 'agg', 'event_tb'),
+                ('trows', 'agg', 'state_stb'), ('trows', 'agg', 'state_stb_partition_by_tbname'),
+                ('trows', 'agg', 'state_stb_partition_by_tag'), ('trows', 'agg', 'state_tb'),
+                ('trows', 'agg', 'period_stb'), ('trows', 'agg', 'period_stb_partition_by_tbname'),
+                ('trows', 'agg', 'period_stb_partition_by_tag'), ('trows', 'agg', 'period_tb')
+            ],
+            'trows_select': [
+                ('trows', 'select', 'intervalsliding_stb'), ('trows', 'select', 'intervalsliding_stb_partition_by_tbname'),
+                ('trows', 'select', 'intervalsliding_stb_partition_by_tag'), ('trows', 'select', 'intervalsliding_tb'),
+                ('trows', 'select', 'sliding_stb'), ('trows', 'select', 'sliding_stb_partition_by_tbname'),
+                ('trows', 'select', 'sliding_stb_partition_by_tag'), ('trows', 'select', 'sliding_tb'),
+                ('trows', 'select', 'session_stb'), ('trows', 'select', 'session_stb_partition_by_tbname'),
+                ('trows', 'select', 'session_stb_partition_by_tag'), ('trows', 'select', 'session_tb'),
+                ('trows', 'select', 'count_stb'), ('trows', 'select', 'count_stb_partition_by_tbname'),
+                ('trows', 'select', 'count_stb_partition_by_tag'), ('trows', 'select', 'count_tb'),
+                ('trows', 'select', 'event_stb'), ('trows', 'select', 'event_stb_partition_by_tbname'),
+                ('trows', 'select', 'event_stb_partition_by_tag'), ('trows', 'select', 'event_tb'),
+                ('trows', 'select', 'state_stb'), ('trows', 'select', 'state_stb_partition_by_tbname'),
+                ('trows', 'select', 'state_stb_partition_by_tag'), ('trows', 'select', 'state_tb'),
+                ('trows', 'select', 'period_stb'), ('trows', 'select', 'period_stb_partition_by_tbname'),
+                ('trows', 'select', 'period_stb_partition_by_tag'), ('trows', 'select', 'period_tb')
+            ],
+            'sourcetable_agg': [
+                ('sourcetable', 'agg', 'intervalsliding_stb'), ('sourcetable', 'agg', 'intervalsliding_stb_partition_by_tbname'),
+                ('sourcetable', 'agg', 'intervalsliding_stb_partition_by_tag'), ('sourcetable', 'agg', 'intervalsliding_tb'),
+                ('sourcetable', 'agg', 'sliding_stb'), ('sourcetable', 'agg', 'sliding_stb_partition_by_tbname'),
+                ('sourcetable', 'agg', 'sliding_stb_partition_by_tag'), ('sourcetable', 'agg', 'sliding_tb'),
+                ('sourcetable', 'agg', 'session_stb'), ('sourcetable', 'agg', 'session_stb_partition_by_tbname'),
+                ('sourcetable', 'agg', 'session_stb_partition_by_tag'), ('sourcetable', 'agg', 'session_tb'),
+                ('sourcetable', 'agg', 'count_stb'), ('sourcetable', 'agg', 'count_stb_partition_by_tbname'),
+                ('sourcetable', 'agg', 'count_stb_partition_by_tag'), ('sourcetable', 'agg', 'count_tb'),
+                ('sourcetable', 'agg', 'event_stb'), ('sourcetable', 'agg', 'event_stb_partition_by_tbname'),
+                ('sourcetable', 'agg', 'event_stb_partition_by_tag'), ('sourcetable', 'agg', 'event_tb'),
+                ('sourcetable', 'agg', 'state_stb'), ('sourcetable', 'agg', 'state_stb_partition_by_tbname'),
+                ('sourcetable', 'agg', 'state_stb_partition_by_tag'), ('sourcetable', 'agg', 'state_tb'),
+                ('sourcetable', 'agg', 'period_stb'), ('sourcetable', 'agg', 'period_stb_partition_by_tbname'),
+                ('sourcetable', 'agg', 'period_stb_partition_by_tag'), ('sourcetable', 'agg', 'period_tb')
+            ],
+            'sourcetable_select': [
+                ('sourcetable', 'select', 'intervalsliding_stb'), ('sourcetable', 'select', 'intervalsliding_stb_partition_by_tbname'),
+                ('sourcetable', 'select', 'intervalsliding_stb_partition_by_tag'), ('sourcetable', 'select', 'intervalsliding_tb'),
+                ('sourcetable', 'select', 'sliding_stb'), ('sourcetable', 'select', 'sliding_stb_partition_by_tbname'),
+                ('sourcetable', 'select', 'sliding_stb_partition_by_tag'), ('sourcetable', 'select', 'sliding_tb'),
+                ('sourcetable', 'select', 'session_stb'), ('sourcetable', 'select', 'session_stb_partition_by_tbname'),
+                ('sourcetable', 'select', 'session_stb_partition_by_tag'), ('sourcetable', 'select', 'session_tb'),
+                ('sourcetable', 'select', 'count_stb'), ('sourcetable', 'select', 'count_stb_partition_by_tbname'),
+                ('sourcetable', 'select', 'count_stb_partition_by_tag'), ('sourcetable', 'select', 'count_tb'),
+                ('sourcetable', 'select', 'event_stb'), ('sourcetable', 'select', 'event_stb_partition_by_tbname'),
+                ('sourcetable', 'select', 'event_stb_partition_by_tag'), ('sourcetable', 'select', 'event_tb'),
+                ('sourcetable', 'select', 'state_stb'), ('sourcetable', 'select', 'state_stb_partition_by_tbname'),
+                ('sourcetable', 'select', 'state_stb_partition_by_tag'), ('sourcetable', 'select', 'state_tb'),
+                ('sourcetable', 'select', 'period_stb'), ('sourcetable', 'select', 'period_stb_partition_by_tbname'),
+                ('sourcetable', 'select', 'period_stb_partition_by_tag'), ('sourcetable', 'select', 'period_tb')
+            ]
+        }
+        
+        # 组合模板 - 每组包含4种组合，使用所有的 tbname_or_trows_or_sourcetable 和 agg_or_select 组合
+        detailed_templates = {
+            'intervalsliding_detailed': [
+                'intervalsliding_stb', 'intervalsliding_stb_partition_by_tbname',
+                'intervalsliding_stb_partition_by_tag', 'intervalsliding_tb'
+            ],
+            'sliding_detailed': [
+                'sliding_stb', 'sliding_stb_partition_by_tbname',
+                'sliding_stb_partition_by_tag', 'sliding_tb'
+            ],
+            'session_detailed': [
+                'session_stb', 'session_stb_partition_by_tbname',
+                'session_stb_partition_by_tag', 'session_tb'
+            ],
+            'count_detailed': [
+                'count_stb', 'count_stb_partition_by_tbname',
+                'count_stb_partition_by_tag', 'count_tb'
+            ],
+            'event_detailed': [
+                'event_stb', 'event_stb_partition_by_tbname',
+                'event_stb_partition_by_tag', 'event_tb'
+            ],
+            'state_detailed': [
+                'state_stb', 'state_stb_partition_by_tbname',
+                'state_stb_partition_by_tag', 'state_tb'
+            ],
+            'period_detailed': [
+                'period_stb', 'period_stb_partition_by_tbname',
+                'period_stb_partition_by_tag', 'period_tb'
+            ]
+        }
+        
+        # 检查是否是固定参数组合模板
+        if sql_type in fixed_param_templates:
+            for tbname_param, agg_param, actual_sql_type in fixed_param_templates[sql_type]:
+                combinations.append({
+                    'sql_type': actual_sql_type,
+                    'tbname_or_trows_or_sourcetable': tbname_param,
+                    'agg_or_select': agg_param
+                })
+            print(f"  {sql_type}: 生成 {len(fixed_param_templates[sql_type])} 种组合")
+            
+        # 检查是否是组合模板
+        elif sql_type in detailed_templates:
+            for actual_sql_type in detailed_templates[sql_type]:
+                # 对每个sql_type，生成所有 tbname_or_trows_or_sourcetable 和 agg_or_select 的组合
+                for tbname_param in ['tbname', 'trows', 'sourcetable']:
+                    for agg_param in ['agg', 'select']:
+                        combinations.append({
+                            'sql_type': actual_sql_type,
+                            'tbname_or_trows_or_sourcetable': tbname_param,
+                            'agg_or_select': agg_param
+                        })
+            print(f"  {sql_type}: 生成 {len(detailed_templates[sql_type]) * 3 * 2} 种组合 (4个模板 × 3个from类型 × 2个查询类型)")
+            
+        # 检查是否是all_detailed特殊模板
+        elif sql_type == 'all_detailed':
+            all_sql_types = []
+            for template_list in detailed_templates.values():
+                all_sql_types.extend(template_list)
+            
+            for actual_sql_type in all_sql_types:
+                for tbname_param in ['tbname', 'trows', 'sourcetable']:
+                    for agg_param in ['agg', 'select']:
+                        combinations.append({
+                            'sql_type': actual_sql_type,
+                            'tbname_or_trows_or_sourcetable': tbname_param,
+                            'agg_or_select': agg_param
+                        })
+            print(f"  {sql_type}: 生成 {len(all_sql_types) * 3 * 2} 种组合 (28个模板 × 3个from类型 × 2个查询类型)")
+            
+        # 检查是否是单个模板
+        else:
+            # # 单个SQL类型，生成所有参数组合
+            # for tbname_param in ['tbname', 'trows', 'sourcetable']:
+            #     for agg_param in ['agg', 'select']:
+            #         combinations.append({
+            #             'sql_type': sql_type,
+            #             'tbname_or_trows_or_sourcetable': tbname_param,
+            #             'agg_or_select': agg_param
+            #         })
+            # print(f"  {sql_type}: 生成 6 种组合 (3个from类型 × 2个查询类型)")
+            
+            # 单个SQL类型的新逻辑：默认只生成一个测试（使用默认参数）
+            # 用户可以通过添加其他参数来控制行为
+            # 检查批量测试模式设置
+            if hasattr(self, 'single_template_mode') and self.single_template_mode == 'all-combinations':
+                # 生成所有参数组合
+                for tbname_param in ['tbname', 'trows', 'sourcetable']:
+                    for agg_param in ['agg', 'select']:
+                        combinations.append({
+                            'sql_type': sql_type,
+                            'tbname_or_trows_or_sourcetable': tbname_param,
+                            'agg_or_select': agg_param
+                        })
+                print(f"  {sql_type}: 生成 6 种组合 (3个from类型 × 2个查询类型)")
+            else:
+                # 只生成默认组合
+                combinations.append({
+                    'sql_type': sql_type,
+                    'tbname_or_trows_or_sourcetable': 'sourcetable',
+                    'agg_or_select': 'agg'
+                })
+                print(f"  {sql_type}: 生成 1 种组合 (默认参数)")
+                print(f"    提示: 使用 --batch-single-template-mode all-combinations 可测试所有6种组合")
+        
+        return combinations
+    
+    def filter_combinations(self, combinations):
+        """过滤测试组合
+        
+        由于需要先生成SQL才能获得流名称，这里只做基本的有效性检查
+        实际的失败过滤将在execute_single_test中进行
+        
+        Args:
+            combinations: 原始组合列表
+            
+        Returns:
+            list: 过滤后的有效组合列表
+        """
+        valid_combinations = []
+        for combo in combinations:
+            if self.is_valid_combination(combo):
+                valid_combinations.append(combo)
+        
+        # 打印过滤统计
+        total_original = len(combinations)
+        total_filtered = len(valid_combinations)
+        
+        print(f"\n=== 测试组合基本过滤统计 ===")
+        print(f"原始组合数: {total_original}")
+        print(f"有效组合数: {total_filtered}")
+        
+        if self.filter_mode != 'all':
+            print(f"过滤模式: {self.filter_mode}")
+            print(f"注意: 已知失败流的过滤将在实际创建流时进行")
+        
+        return valid_combinations
+    
+    def is_valid_combination(self, combo):
+        """检查组合是否有效
+        
+        Args:
+            combo: 参数组合字典
+            
+        Returns:
+            bool: 是否为有效组合
+        """
+        sql_type = combo['sql_type']
+        tbname_param = combo['tbname_or_trows_or_sourcetable']
+        
+        # Period 类型的特殊处理
+        if sql_type.startswith('period_'):
+            pass
+            
+        # 可以在这里添加更多过滤规则
+        # 例如：某些组合可能不支持或没有意义
+        
+        return True
+    
+    def create_batch_result_dir(self):
+        """创建批量测试结果目录"""
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        result_dir = f"/tmp/stream_batch_test_{timestamp}"
+        os.makedirs(result_dir, exist_ok=True)
+        
+        # 创建子目录
+        for subdir in ['logs', 'performance', 'reports', 'configs']:
+            os.makedirs(os.path.join(result_dir, subdir), exist_ok=True)
+            
+        return result_dir
+    
+    def generate_test_config(self, combination, test_index, result_dir):
+        """为单个测试生成配置
+        
+        Args:
+            combination: 参数组合
+            test_index: 测试编号
+            result_dir: 结果目录
+            
+        Returns:
+            dict: 完整的测试配置
+        """
+        # 合并固定参数和变化参数
+        config = self.fixed_params.copy()
+        config.update(combination)
+        
+        # 强制确保流延迟检查在批量测试中启用
+        config['check_stream_delay'] = True
+    
+        # 设置输出文件路径
+        test_name = f"test_{test_index:03d}_{combination['sql_type']}_{combination['agg_or_select']}_{combination['tbname_or_trows_or_sourcetable']}"
+        config['test_name'] = test_name
+        config['perf_file'] = os.path.join(result_dir, 'performance', f'{test_name}_perf.log')
+        config['delay_log_file'] = os.path.join(result_dir, 'logs', f'{test_name}_delay.log')
+        config['test_log_file'] = os.path.join(result_dir, 'logs', f'{test_name}_test.log')
+        
+        # 调试输出：验证延迟检查配置
+        print(f"调试: 为测试 {test_name} 设置性能文件: {config['perf_file']}")
+        print(f"调试: 为测试 {test_name} 设置延迟日志文件: {config['delay_log_file']}")
+        print(f"  check_stream_delay: {config.get('check_stream_delay', 'NOT_SET')}")
+        print(f"  delay_check_interval: {config.get('delay_check_interval', 'NOT_SET')}")
+        print(f"  max_delay_threshold: {config.get('max_delay_threshold', 'NOT_SET')}")
+        print(f"  stream_num: {config.get('stream_num', 'NOT_SET')}") 
+        print(f"  monitor_warm_up_time: {config.get('monitor_warm_up_time', 'NOT_SET')}") 
+        
+        if not config['check_stream_delay']:
+            # 强制启用
+            config['check_stream_delay'] = True
+            print(f"  ✓ 已强制启用流延迟检查")
+        
+        return config
+    
+    def execute_single_test(self, config):
+        """执行单个测试
+        
+        Args:
+            config: 测试配置字典
+            
+        Returns:
+            dict: 测试结果
+        """
+        test_name = config['test_name']
+        start_time = time.time()
+        
+        print(f"\n{'='*80}")
+        print(f"开始测试: {test_name}")
+        print(f"测试编号: {self.current_test_index}/{self.total_tests}")
+        print(f"SQL类型: {config['sql_type']}")
+        print(f"查询类型: {config['agg_or_select']}")
+        print(f"FROM类型: {config['tbname_or_trows_or_sourcetable']}")
+        print(f"运行时间: {config.get('time', 5)}分钟")
+        print(f"流数量: {config.get('stream_num', 1)}") 
+        print(f"预热时间: {config.get('monitor_warm_up_time', 'AUTO')}秒")
+        print(f"{'='*80}")
+        
+        result = {
+            'test_name': test_name,
+            'config': config,
+            'start_time': datetime.datetime.now().isoformat(),
+            'status': 'RUNNING',
+            'duration': 0,
+            'error': None
+        }
+        
+        # 检查是否需要跳过（在实际创建流之前）
+        if self.filter_mode != 'all':
+            try:
+                # 生成SQL模板
+                sql_templates = StreamSQLTemplates.get_sql(
+                    config['sql_type'],
+                    stream_num=config.get('stream_num', 1),
+                    agg_or_select=config['agg_or_select'],
+                    tbname_or_trows_or_sourcetable=config['tbname_or_trows_or_sourcetable']
+                )
+                
+                # 提取流名称
+                stream_names = self.extract_stream_names_from_sql(sql_templates)
+                
+                # 检查是否应该跳过
+                should_skip, skip_reason = self.should_skip_test_by_stream_names(stream_names)
+                
+                if should_skip:
+                    print(f"⏭️  跳过测试: {skip_reason}")
+                    
+                    # 记录跳过结果
+                    end_time = time.time()
+                    duration = end_time - start_time
+                    
+                    result.update({
+                        'status': 'SKIPPED',
+                        'end_time': datetime.datetime.now().isoformat(),
+                        'duration': duration,
+                        'skip_reason': skip_reason,
+                        'stream_names': list(stream_names)
+                    })
+                    
+                    return result
+                else:
+                    print(f"✅ 测试通过过滤检查，将要创建的流: {', '.join(stream_names)}")
+                    
+            except Exception as e:
+                print(f"⚠️  过滤检查时出错: {str(e)}，继续执行测试")
+        
+        # 继续执行原有的测试逻辑
+        log_file = None
+        original_stdout = sys.stdout
+        
+        try:
+            # 强制清理环境
+            print("清理测试环境...")
+            self.cleanup_environment()
+            
+            # 等待环境清理完成
+            time.sleep(3)
+        
+            # 额外的线程清理检查
+            #print("检查并清理可能的残留线程...")
+            import threading
+            active_threads = threading.active_count()
+            print(f"当前活跃线程数: {active_threads}")
+            
+            # 强制垃圾回收
+            import gc
+            gc.collect()
+            time.sleep(2)
+        
+            # 验证环境清理是否成功
+            result_check = subprocess.run('ps -ef | grep taosd | grep -v grep', 
+                                        shell=True, capture_output=True, text=True)
+            if result_check.stdout:
+                print("⚠️  发现残留taosd进程，强制清理...")
+                subprocess.run('pkill -9 taosd', shell=True)
+                time.sleep(3)
+            
+            # 创建StreamStarter实例
+            starter = StreamStarter(
+                runtime=config.get('time', 5),
+                perf_file=config['perf_file'],
+                table_count=config['table_count'],
+                histroy_rows=config['histroy_rows'],
+                real_time_batch_rows=config['real_time_batch_rows'],
+                real_time_batch_sleep=config['real_time_batch_sleep'],
+                disorder_ratio=config['disorder_ratio'],
+                vgroups=config['vgroups'],
+                sql_type=config['sql_type'],
+                stream_num=config.get('stream_num', 1),
+                stream_perf_test_dir=config.get('stream_perf_test_dir', '/home/stream_perf_test_dir'),
+                monitor_interval=config['monitor_interval'],
+                deployment_mode=config['deployment_mode'],
+                debug_flag=config['debug_flag'],
+                num_of_log_lines=config['num_of_log_lines'],
+                agg_or_select=config['agg_or_select'],
+                tbname_or_trows_or_sourcetable=config['tbname_or_trows_or_sourcetable'],
+                check_stream_delay=config['check_stream_delay'],
+                max_delay_threshold=config['max_delay_threshold'],
+                delay_check_interval=config['delay_check_interval'],
+                delay_log_file=config['delay_log_file'],
+                monitor_warm_up_time=config.get('monitor_warm_up_time') 
+            )
+            
+            # 打开日志文件并设置输出重定向
+            log_file = open(config['test_log_file'], 'w')
+            
+            # 同时输出到控制台和文件
+            class TeeOutput:
+                def __init__(self, *files):
+                    self.files = files
+                def write(self, text):
+                    for f in self.files:
+                        try:
+                            f.write(text)
+                            f.flush()
+                        except (ValueError, OSError) as e:
+                            pass
+                def flush(self):
+                    for f in self.files:
+                        try:
+                            f.flush()
+                        except (ValueError, OSError):
+                            pass
+            
+            sys.stdout = TeeOutput(original_stdout, log_file)
+            
+            # 执行测试
+            print(f"开始执行流计算测试: {test_name}")
+            print(f"延迟监控状态: {'启用' if config['check_stream_delay'] else '禁用'}")
+            print(f"性能监控文件: {config['perf_file']}")
+            print(f"流数量: {config.get('stream_num', 1)}") 
+            
+            # ✅ 验证预热时间是否正确传递
+            if hasattr(starter, 'monitor_warm_up_time'):
+                print(f"预热时间配置: {starter.monitor_warm_up_time}秒")
+            else:
+                print(f"警告: 预热时间参数未设置")
+            
+            
+            # 核心测试逻辑 - 使用内部异常处理
+            test_error = None
+            try:
+                starter.do_test_stream_with_realtime_data()
+            except Exception as inner_e:
+                # 捕获具体的流创建或执行错误
+                error_message = str(inner_e)
+                
+                # 检查是否是流创建相关的错误
+                if any(keyword in error_message.lower() for keyword in ['create stream', 'cursor.execute', '%%tbname']):
+                    test_error = extract_stream_creation_error(error_message)
+                else:
+                    test_error = extract_tdengine_error(error_message)
+                
+            # 正常完成或有错误，都先安全地关闭文件和恢复输出
+            sys.stdout = original_stdout
+            if log_file:
+                log_file.close()
+                log_file = None
+                
+            # 如果有错误，现在抛出
+            if test_error:
+                raise Exception(test_error)
+                
+            end_time = time.time()
+            duration = end_time - start_time
+            
+            result.update({
+                'status': 'SUCCESS',
+                'end_time': datetime.datetime.now().isoformat(),
+                'duration': duration
+            })
+            
+            print(f"测试 {test_name} 完成，耗时: {duration:.2f}秒")
+            
+        except Exception as e:
+            end_time = time.time()
+            duration = end_time - start_time
+            
+            # 使用异常消息作为错误信息
+            error_message = str(e)
+            
+            # 确保错误信息不为空
+            if not error_message or error_message.strip() == "":
+                error_message = "未知错误: 测试执行失败但无具体错误信息"
+            
+            result.update({
+                'status': 'FAILED',
+                'end_time': datetime.datetime.now().isoformat(),
+                'duration': duration,
+                'error': error_message
+            })
+            
+            print(f"测试 {test_name} 失败: {error_message}")
+            
+            self.failed_tests.append(result)
+            
+        finally:
+            # 安全地恢复标准输出和关闭文件
+            if sys.stdout != original_stdout:
+                sys.stdout = original_stdout
+            
+            if log_file and not log_file.closed:
+                try:
+                    log_file.close()
+                except:
+                    pass
+            
+            # 强制清理环境，为下一个测试做准备
+            print("测试后全面清理环境...")
+            try:
+                # 1. 强制停止所有taosd进程
+                print("  → 停止所有taosd进程")
+                subprocess.run('pkill -9 taosd', shell=True)
+                time.sleep(2)
+                
+                # 2. 清理可能的监控线程和文件句柄
+                print("  → 清理系统资源")
+                import gc
+                gc.collect()
+                
+                # 3. 清理临时文件
+                print("  → 清理临时文件")
+                subprocess.run('rm -f /tmp/stream_from*.json', shell=True)
+                subprocess.run('rm -f /tmp/taosBenchmark_result.log', shell=True)
+                
+                # 4. 检查活跃线程数
+                import threading
+                active_threads = threading.active_count()
+                print(f"  → 当前活跃线程数: {active_threads}")
+                
+                # 5. 验证清理结果
+                check_result = subprocess.run('ps -ef | grep taosd | grep -v grep', 
+                                            shell=True, capture_output=True, text=True)
+                if check_result.stdout:
+                    print(f"  ⚠️  警告: 仍有taosd进程运行，可能影响下个测试")
+                else:
+                    print(f"  ✅ 环境清理完成")
+                    
+            except Exception as cleanup_e:
+                print(f"  ⚠️  清理过程出错: {str(cleanup_e)}")
+            
+            # 5. 为下一个测试留出缓冲时间
+            if self.current_test_index < self.total_tests:
+                print("  → 等待3秒后开始下一个测试...")
+                time.sleep(3)
+            
+        return result
+            
+            
+    def cleanup_environment(self):
+        """清理测试环境"""
+        try:
+            print("执行增强环境清理...")
+            
+            # 1. 强制停止所有taosd进程
+            print("  → 强制停止taosd进程")
+            subprocess.run('pkill -9 taosd', shell=True)
+            time.sleep(2)
+            # 强制停止所有活跃的监控线程
+            stopped_threads = []
+            for thread in threading.enumerate():
+                if thread.name in ["MonitorSystemLoad", "TaosdMonitor", "StreamDelayMonitor", "DelayedStreamCreation", "ContinuousDataWriter"]:
+                    try:
+                        print(f"    发现活跃监控线程: {thread.name}")
+                        if hasattr(thread, '_target') and hasattr(thread._target, '__self__'):
+                            monitor_obj = thread._target.__self__
+                            if hasattr(monitor_obj, 'stop'):
+                                print(f"    调用 {thread.name} 的stop()方法")
+                                monitor_obj.stop()
+                            elif hasattr(monitor_obj, '_stop_event'):
+                                print(f"    设置 {thread.name} 的_stop_event")
+                                monitor_obj._stop_event.set()
+                            elif hasattr(monitor_obj, '_should_stop'):
+                                print(f"    设置 {thread.name} 的_should_stop标志")
+                                monitor_obj._should_stop = True
+                        
+                        # 通用的停止标志设置
+                        if hasattr(thread, '_should_stop'):
+                            thread._should_stop = True
+                            print(f"    已设置线程 {thread.name} 的停止标志")
+                        
+                        stopped_threads.append(thread.name)
+                    except Exception as e:
+                        print(f"    设置线程停止标志失败: {str(e)}")
+            
+            # 等待监控线程自然结束
+            if stopped_threads:
+                print(f"  → 等待 {len(stopped_threads)} 个监控线程结束...")
+                start_wait = time.time()
+                max_wait = 5  # 最多等待5秒
+                
+                while time.time() - start_wait < max_wait:
+                    active_monitor_threads = []
+                    for thread in threading.enumerate():
+                        if thread.name in ["MonitorSystemLoad", "TaosdMonitor", "StreamDelayMonitor", "DelayedStreamCreation", "ContinuousDataWriter"]:
+                            active_monitor_threads.append(thread.name)
+                    
+                    if not active_monitor_threads:
+                        print(f"  ✅ 所有监控线程已停止")
+                        break
+                        
+                    print(f"    等待中，剩余活跃线程: {', '.join(active_monitor_threads)}")
+                    time.sleep(1)
+                else:
+                    print(f"  ⚠️  超时：仍有监控线程未结束，强制继续清理")
+            
+            # 强制垃圾回收，清理可能的资源
+            import gc
+            gc.collect()
+                   
+            # 多次尝试停止进程
+            max_attempts = 5
+            for attempt in range(max_attempts):
+                # 首先尝试正常停止
+                subprocess.run('pkill -15 -f "^taosd.*-c.*conf"', shell=True)
+                time.sleep(1)
+                
+                # 检查是否还有进程
+                result = subprocess.run('pgrep -f "^taosd.*-c.*conf"', shell=True, capture_output=True)
+                if result.returncode != 0:  # 没有找到进程
+                    print("  ✅ 所有taosd进程已停止")
+                    break
+                
+                # 强制停止
+                subprocess.run('pkill -9 -f "^taosd.*-c.*conf"', shell=True)
+                time.sleep(1)
+                
+                # 再次检查
+                result = subprocess.run('pgrep -f "^taosd.*-c.*conf"', shell=True, capture_output=True)
+                if result.returncode != 0:
+                    print("  ✅ 所有taosd进程已停止")
+                    break
+                else:
+                    print(f"  ⚠️  第{attempt+1}次尝试: 仍有taosd进程运行，继续清理...")
+        
+            # ✅ 2. 清理可能的监控线程和资源
+            print("  → 强制清理监控资源")
+            
+            # 强制垃圾回收
+            gc.collect()
+            
+            # 等待一段时间让所有线程结束
+            time.sleep(2)
+            
+            # ✅ 3. 清理临时文件和socket文件
+            print("  → 清理临时文件")
+            temp_patterns = [
+                '/tmp/stream_from*.json',
+                '/tmp/taosBenchmark_result.log',
+                '/tmp/testlog/*',
+            ]
+            
+            # 单独处理可能有问题的文件模式
+            socket_patterns = [
+                '/tmp/*.sock*',
+                '/tmp/taos*.sock'
+            ]
+            
+            for pattern in temp_patterns:
+                try:
+                    subprocess.run(f'rm -f {pattern}', shell=True)
+                except:
+                    pass
+                    
+            # 小心处理socket文件，避免删除重要文件
+            for pattern in socket_patterns:
+                try:
+                    # 使用find命令更安全地删除
+                    subprocess.run(f'find /tmp -name "{pattern.split("/")[-1]}" -type f -delete 2>/dev/null', shell=True)
+                except:
+                    pass
+            
+            # 4. 最终验证
+            print("  → 验证清理结果")
+            result = subprocess.run('ps -ef | grep "taosd.*-c.*conf" | grep -v grep', 
+                                    shell=True, capture_output=True, text=True)
+            if result.stdout:
+                print(f"  ⚠️  警告: 发现残留进程:")
+                for line in result.stdout.strip().split('\n'):
+                    print(f"       {line}")
+                # 最后一次强制清理
+                subprocess.run('pkill -9 -f "^taosd.*-c.*conf"', shell=True)
+                time.sleep(1)
+            else:
+                print(f"  ✅ 环境清理验证通过")
+            
+            # 5. 检查和报告活跃线程状态
+            print("  → 检查活跃线程状态")
+            active_monitor_threads = []
+            for thread in threading.enumerate():
+                if thread.name in ["MonitorSystemLoad", "TaosdMonitor", "StreamDelayMonitor", "DelayedStreamCreation", "ContinuousDataWriter"]:
+                    active_monitor_threads.append(thread.name)
+            
+            if active_monitor_threads:
+                print(f"  ⚠️  警告: 仍有活跃的监控线程: {', '.join(active_monitor_threads)}")
+                print(f"    这些线程在下次测试时会自动停止")
+            else:
+                print(f"  ✅ 所有监控线程已清理")
+                
+            total_active_threads = threading.active_count()
+            print(f"  → 当前总活跃线程数: {total_active_threads}")
+            
+            print("增强环境清理完成")
+            
+        except Exception as e:
+            print(f"增强环境清理时出错: {str(e)}")
+    
+    def save_test_config(self, config, result_dir):
+        """保存测试配置到文件"""
+        config_file = os.path.join(result_dir, 'configs', f"{config['test_name']}_config.json")
+        
+        # 创建可序列化的配置副本
+        serializable_config = {}
+        for key, value in config.items():
+            if isinstance(value, (str, int, float, bool, list, dict, type(None))):
+                serializable_config[key] = value
+            else:
+                serializable_config[key] = str(value)
+        
+        with open(config_file, 'w') as f:
+            json.dump(serializable_config, f, indent=2)
+    
+    def generate_progress_report(self, result_dir):
+        """生成进度报告"""
+        if not self.test_results:
+            return
+            
+        report_file = os.path.join(result_dir, 'reports', 'progress_report.txt')
+        
+        with open(report_file, 'w') as f:
+            f.write(f"批量流计算测试进度报告\n")
+            f.write(f"{'='*60}\n")
+            f.write(f"开始时间: {self.start_time}\n")
+            f.write(f"当前时间: {datetime.datetime.now().isoformat()}\n")
+            f.write(f"总测试数: {self.total_tests}\n")
+            f.write(f"已完成: {len(self.test_results)}\n")
+            f.write(f"成功: {len([r for r in self.test_results if r['status'] == 'SUCCESS'])}\n")
+            f.write(f"失败: {len([r for r in self.test_results if r['status'] == 'FAILED'])}\n")
+            f.write(f"进度: {(len(self.test_results)/self.total_tests)*100:.1f}%\n")
+            f.write(f"\n最近完成的测试:\n")
+            
+            for result in self.test_results[-5:]:  # 显示最近5个
+                status_icon = "✓" if result['status'] == 'SUCCESS' else "✗"
+                f.write(f"  {status_icon} {result['test_name']} - {result.get('duration', 0):.1f}s\n")
+                
+    
+    def generate_final_report_bak(self, result_dir):
+        """生成最终测试报告"""
+        report_file = os.path.join(result_dir, 'reports', 'final_report.html')
+        
+        success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
+        failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
+        total_duration = sum(r.get('duration', 0) for r in self.test_results)
+        
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>流计算批量测试报告</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        .header {{ background-color: #f0f0f0; padding: 20px; border-radius: 5px; }}
+        .summary {{ display: flex; justify-content: space-around; margin: 20px 0; }}
+        .metric {{ text-align: center; padding: 10px; background-color: #e9e9e9; border-radius: 5px; }}
+        .success {{ color: green; }}
+        .failed {{ color: red; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f2f2f2; }}
+        .status-success {{ background-color: #d4edda; }}
+        .status-failed {{ background-color: #f8d7da; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>TDengine 流计算批量测试报告</h1>
+        <p>生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p>测试开始: {self.start_time}</p>
+        <p>测试结束: {datetime.datetime.now().isoformat()}</p>
+    </div>
+    
+    <div class="summary">
+        <div class="metric">
+            <h3>总测试数</h3>
+            <h2>{self.total_tests}</h2>
+        </div>
+        <div class="metric success">
+            <h3>成功</h3>
+            <h2>{success_count}</h2>
+        </div>
+        <div class="metric failed">
+            <h3>失败</h3>
+            <h2>{failed_count}</h2>
+        </div>
+        <div class="metric">
+            <h3>成功率</h3>
+            <h2>{(success_count/self.total_tests*100):.1f}%</h2>
+        </div>
+        <div class="metric">
+            <h3>总耗时</h3>
+            <h2>{total_duration/3600:.1f}小时</h2>
+        </div>
+    </div>
+    
+    <h2>详细测试结果</h2>
+    <table>
+        <tr>
+            <th>测试名称</th>
+            <th>SQL类型</th>
+            <th>查询类型</th>
+            <th>FROM类型</th>
+            <th>状态</th>
+            <th>耗时(秒)</th>
+            <th>错误信息</th>
+        </tr>
+"""
+        
+        for result in self.test_results:
+            config = result['config']
+            status_class = 'status-success' if result['status'] == 'SUCCESS' else 'status-failed'
+            error_msg = result.get('error', '')[:100] if result.get('error') else ''
+            
+            html_content += f"""
+        <tr class="{status_class}">
+            <td>{result['test_name']}</td>
+            <td>{config['sql_type']}</td>
+            <td>{config['agg_or_select']}</td>
+            <td>{config['tbname_or_trows_or_sourcetable']}</td>
+            <td>{result['status']}</td>
+            <td>{result.get('duration', 0):.1f}</td>
+            <td>{error_msg}</td>
+        </tr>
+"""
+        
+        html_content += """
+    </table>
+</body>
+</html>
+"""
+        
+        with open(report_file, 'w') as f:
+            f.write(html_content)
+        
+        print(f"最终报告已生成: {report_file}")
+
+
+    def generate_final_report(self, result_dir):
+        """生成最终测试报告"""
+        report_file = os.path.join(result_dir, 'reports', 'final_report.html')
+        
+        success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
+        failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
+        skipped_count = len([r for r in self.test_results if r['status'] == 'SKIPPED'])
+        total_duration = sum(r.get('duration', 0) for r in self.test_results)
+        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 检查是否有测试结果
+        if not self.test_results:
+            print("警告: 没有测试结果可以生成报告")
+            # 生成一个简单的空报告
+            report_file = os.path.join(result_dir, 'reports', 'final_report.html')
+            try:
+                os.makedirs(os.path.dirname(report_file), exist_ok=True)
+                with open(report_file, 'w', encoding='utf-8') as f:
+                    f.write(f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>流计算批量测试报告 - 无测试结果</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>流计算批量测试报告</h1>
+    <p>生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    <p><strong>警告:</strong> 没有测试结果可以显示。</p>
+    <p>可能的原因:</p>
+    <ul>
+        <li>过滤设置导致所有测试都被跳过</li>
+        <li>测试配置错误</li>
+        <li>测试提前终止</li>
+    </ul>
+    <p>请检查过滤模式和SQL类型设置。</p>
+</body>
+</html>
+""")
+                print(f"空报告已生成: {report_file}")
+            except Exception as e:
+                print(f"生成空报告失败: {str(e)}")
+            return
+        
+        report_file = os.path.join(result_dir, 'reports', 'final_report.html')
+        
+        # 防止除零错误
+        total_tests = len(self.test_results)
+        if total_tests == 0:
+            success_rate = 0
+            avg_duration = 0
+            efficiency = 0
+        else:
+            success_rate = (success_count / total_tests) * 100
+            avg_duration = total_duration / total_tests / 60
+            efficiency = total_tests / (total_duration / 3600) if total_duration > 0 else 0
+        
+        # 获取系统信息
+        def get_system_info():
+            """获取系统CPU核数和总内存"""
+            try:
+                # 获取CPU核数
+                cpu_count = None
+                try:
+                    result = subprocess.run('lscpu | grep "^CPU(s):"', shell=True, 
+                                        capture_output=True, text=True)
+                    if result.returncode == 0:
+                        cpu_line = result.stdout.strip()
+                        # 解析 "CPU(s):                             16" 格式
+                        cpu_count = cpu_line.split(':')[1].strip()
+                        print(f"调试: 获取到CPU核数: {cpu_count}")
+                except Exception as e:
+                    print(f"调试: 获取CPU核数失败: {str(e)}")
+                
+                # 获取总内存
+                total_memory_gb = None
+                try:
+                    result = subprocess.run('free -m | grep "^Mem:"', shell=True, 
+                                        capture_output=True, text=True)
+                    if result.returncode == 0:
+                        mem_line = result.stdout.strip()
+                        # 解析 "Mem:           15944        1234        5678        ..." 格式
+                        total_memory_mb = int(mem_line.split()[1])
+                        total_memory_gb = f"{total_memory_mb/1024:.1f}GB"
+                        print(f"调试: 获取到总内存: {total_memory_gb}")
+                except Exception as e:
+                    print(f"调试: 获取总内存失败: {str(e)}")
+                    
+                return cpu_count, total_memory_gb
+            except Exception as e:
+                print(f"调试: 获取系统信息失败: {str(e)}")
+                return None, None
+        
+        system_cpu_count, system_total_memory = get_system_info()
+        
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>流计算批量测试详细报告</title>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 20px; }}
+        .summary {{ display: flex; justify-content: space-around; margin: 20px 0; flex-wrap: wrap; }}
+        .metric {{ text-align: center; padding: 20px; background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); min-width: 150px; margin: 5px; }}
+        .metric h3 {{ margin: 0 0 10px 0; color: #666; font-size: 14px; }}
+        .metric h2 {{ margin: 0; font-size: 24px; }}
+        .success {{ color: #28a745; }}
+        .failed {{ color: #dc3545; }}
+        .warning {{ color: #ffc107; }}
+        .info {{ color: #17a2b8; }}
+        
+        /* 表格样式 */
+        .table-container {{ background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 8px; text-align: left; font-weight: 600; font-size: 12px; }}
+        td {{ border: none; padding: 12px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 11px; }}
+        tr:hover {{ background-color: #f8f9fa; }}
+        .status-success {{ background-color: #d4edda !important; }}
+        .status-failed {{ background-color: #f8d7da !important; }}
+        .status-skipped {{ background-color: #f8f9fa !important; }}
+        
+        /* 状态标签 */
+        .status-badge {{ padding: 4px 8px; border-radius: 15px; font-size: 10px; font-weight: bold; text-transform: uppercase; }}
+        .badge-success {{ background-color: #28a745; color: white; }}
+        .badge-failed {{ background-color: #dc3545; color: white; }}
+        .badge-skipped {{ background-color: #6c757d; color: white; }} 
+        
+        /* 性能指标样式 */
+        .perf-good {{ color: #28a745; font-weight: bold; }}
+        .perf-warning {{ color: #ffc107; font-weight: bold; }}
+        .perf-danger {{ color: #dc3545; font-weight: bold; }}
+        
+        /* SQL展示样式 */
+        .sql-preview {{ 
+            font-family: 'Courier New', monospace; 
+            font-size: 10px; 
+            background-color: #f8f9fa; 
+            padding: 5px; 
+            border-radius: 3px; 
+            max-width: 300px; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+            cursor: pointer;
+            border: 1px solid #dee2e6;
+        }}
+        .sql-preview:hover {{ background-color: #e9ecef; }}
+        
+        /* 延迟指标样式 */
+        .delay-excellent {{ color: #28a745; font-weight: bold; }}
+        .delay-good {{ color: #20c997; font-weight: bold; }}
+        .delay-normal {{ color: #ffc107; font-weight: bold; }}
+        .delay-warning {{ color: #fd7e14; font-weight: bold; }}
+        .delay-danger {{ color: #dc3545; font-weight: bold; }}
+        .delay-critical {{ color: #6f42c1; font-weight: bold; }}
+        
+        /* 工具提示 */
+        .tooltip {{ position: relative; display: inline-block; }}
+        .tooltip .tooltiptext {{ 
+            visibility: hidden; 
+            width: 400px; 
+            background-color: #333; 
+            color: #fff; 
+            text-align: left; 
+            border-radius: 6px; 
+            padding: 10px; 
+            position: absolute; 
+            z-index: 1; 
+            bottom: 125%; 
+            left: 50%; 
+            margin-left: -200px; 
+            opacity: 0; 
+            transition: opacity 0.3s; 
+            font-family: 'Courier New', monospace; 
+            font-size: 10px; 
+            white-space: pre-wrap; 
+        }}
+        .tooltip:hover .tooltiptext {{ visibility: visible; opacity: 1; }}
+        
+        /* 筛选和搜索 */
+        .controls {{ margin: 20px 0; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        .filter-group {{ display: inline-block; margin-right: 20px; }}
+        .filter-group label {{ font-weight: bold; margin-right: 5px; }}
+        .filter-group select, .filter-group input {{ padding: 5px; border: 1px solid #ddd; border-radius: 4px; }}
+        
+        /* 响应式设计 */
+        @media (max-width: 1200px) {{
+            th, td {{ font-size: 10px; padding: 8px 4px; }}
+            .sql-preview {{ max-width: 200px; }}
+        }}
+    </style>
+    <script>
+        function filterTable() {{
+            const statusFilter = document.getElementById('statusFilter').value;
+            const sqlTypeFilter = document.getElementById('sqlTypeFilter').value;
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            const table = document.getElementById('resultsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < rows.length; i++) {{
+                const row = rows[i];
+                const status = row.cells[4].textContent;
+                const sqlType = row.cells[1].textContent;
+                const testName = row.cells[0].textContent.toLowerCase();
+                
+                let showRow = true;
+                
+                if (statusFilter && !status.includes(statusFilter)) showRow = false;
+                if (sqlTypeFilter && sqlType !== sqlTypeFilter) showRow = false;
+                if (searchTerm && !testName.includes(searchTerm)) showRow = false;
+                
+                row.style.display = showRow ? '' : 'none';
+            }}
+        }}
+        
+        function sortTable(columnIndex) {{
+            const table = document.getElementById('resultsTable');
+            const rows = Array.from(table.rows).slice(1);
+            const isNumeric = columnIndex === 5 || columnIndex === 7 || columnIndex === 8; // 耗时、CPU、内存列
+            
+            rows.sort((a, b) => {{
+                const aVal = a.cells[columnIndex].textContent;
+                const bVal = b.cells[columnIndex].textContent;
+                
+                if (isNumeric) {{
+                    return parseFloat(aVal) - parseFloat(bVal);
+                }} else {{
+                    return aVal.localeCompare(bVal);
+                }}
+            }});
+            
+            rows.forEach(row => table.appendChild(row));
+        }}
+    </script>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 TDengine 流计算批量测试详细报告</h1>
+        <p>📅 生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <p>⏰ 测试周期: {self.start_time} → {datetime.datetime.now().isoformat()}</p>
+        <p>🏗️ 测试配置: {self.fixed_params.get('deployment_mode', 'single')}模式 | 
+           {self.fixed_params.get('table_count', 1000)}张自表 | 
+           {self.fixed_params.get('real_time_batch_rows', 200)}条/轮 | 
+           每轮写入间隔{self.fixed_params.get('real_time_batch_sleep', 0)}秒</p>
+        <p>💻 测试环境: CPU核数{system_cpu_count or '未知'} | 总内存{system_total_memory or '未知'}</p>
+    </div>
+    
+    <div class="summary">
+        <div class="metric">
+            <h3>📊 总测试数</h3>
+            <h2>{self.total_tests}</h2>
+        </div>
+        <div class="metric success">
+            <h3>✅ 成功</h3>
+            <h2>{success_count}</h2>
+            <small>{(success_count/self.total_tests*100):.1f}%</small>
+        </div>
+        <div class="metric failed">
+            <h3>❌ 创建流语句失败，非流计算失败</h3>
+            <h2>{failed_count}</h2>
+            <small>{(failed_count/self.total_tests*100):.1f}%</small>
+        </div>
+        <div class="metric skipped">
+            <h3>⏭️ 跳过(已知失败)</h3>
+            <h2>{skipped_count}</h2>
+            <small>{(skipped_count/total_tests*100):.1f}%</small>
+        </div>
+        <div class="metric info">
+            <h3>⏱️ 总耗时</h3>
+            <h2>{total_duration/3600:.1f}h</h2>
+            <small>平均{total_duration/self.total_tests/60:.1f}分钟/测试</small>
+        </div>
+        <div class="metric info">
+            <h3>💪 效率</h3>
+            <h2>{self.total_tests/(total_duration/3600):.1f}</h2>
+            <small>测试场景个数/小时</small>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <div class="filter-group">
+            <label for="statusFilter">状态筛选:</label>
+            <select id="statusFilter" onchange="filterTable()">
+                <option value="">全部</option>
+                <option value="SUCCESS">成功</option>
+                <option value="FAILED">失败</option>
+                <option value="SKIPPED">跳过</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="sqlTypeFilter">SQL类型筛选:</label>
+            <select id="sqlTypeFilter" onchange="filterTable()">
+                <option value="">全部</option>
+"""
+        
+        # 获取所有SQL类型用于筛选
+        sql_types = set()
+        for result in self.test_results:
+            sql_types.add(result['config']['sql_type'])
+        
+        for sql_type in sorted(sql_types):
+            html_content += f'                <option value="{sql_type}">{sql_type}</option>\n'
+        
+        html_content += f"""
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="searchInput">搜索测试名称:</label>
+            <input type="text" id="searchInput" placeholder="输入关键词..." onkeyup="filterTable()">
+        </div>
+    </div>
+    
+    <div class="table-container">
+        <h2 style="margin: 0; padding: 20px; border-bottom: 1px solid #eee;">📋 详细测试结果</h2>
+        <table id="resultsTable">
+            <tr>
+                <th onclick="sortTable(0)" style="cursor: pointer;">📝 测试名称</th>
+                <th onclick="sortTable(1)" style="cursor: pointer;">🔧 SQL类型</th>
+                <th onclick="sortTable(2)" style="cursor: pointer;">📊 查询类型</th>
+                <th onclick="sortTable(3)" style="cursor: pointer;">📂 FROM类型</th>
+                <th onclick="sortTable(4)" style="cursor: pointer;">🎯 状态</th>
+                <th onclick="sortTable(5)" style="cursor: pointer;">⏱️ 耗时(秒)</th>
+                <th>🔍 SQL预览</th>
+                <th onclick="sortTable(7)" style="cursor: pointer;">💻 CPU峰值范围(%)</th>
+                <th onclick="sortTable(8)" style="cursor: pointer;">🧠 内存峰值范围(MB)</th>
+                <th onclick="sortTable(9)" style="cursor: pointer;">📊 CPU平均值(%)</th>
+                <th onclick="sortTable(10)" style="cursor: pointer;">📈 内存平均值(MB)</th>
+                <th>📈 延迟统计</th>
+                <th>❌ 错误信息</th>
+            </tr>
+"""
+        
+        for result_index, result in enumerate(self.test_results):
+            config = result['config']
+            
+            if result['status'] == 'SUCCESS':
+                status_class = 'status-success'
+                status_badge = 'badge-success'
+            elif result['status'] == 'FAILED':
+                status_class = 'status-failed'
+                status_badge = 'badge-failed'
+            elif result['status'] == 'SKIPPED':
+                status_class = 'status-skipped'
+                status_badge = 'badge-skipped'
+            else:
+                status_class = ''
+                status_badge = ''
+            
+            print(f"调试: 处理第 {result_index + 1}/{len(self.test_results)} 个测试结果: {result['test_name']}")
+            
+            # 获取SQL预览
+            sql_preview = "N/A"
+            sql_full = "无SQL信息"
+            try:
+                # 从StreamSQLTemplates获取SQL
+                sql_obj = StreamSQLTemplates.get_sql(
+                    config['sql_type'],
+                    agg_or_select=config.get('agg_or_select', 'agg'),
+                    tbname_or_trows_or_sourcetable=config.get('tbname_or_trows_or_sourcetable', 'sourcetable')
+                )
+                
+                if isinstance(sql_obj, dict):
+                    # 如果是字典，取第一个SQL作为预览
+                    first_key = list(sql_obj.keys())[0]
+                    sql_full = sql_obj[first_key]
+                    sql_preview = f"批量({len(sql_obj)}个) - {first_key}"
+                else:
+                    sql_full = str(sql_obj)
+                    # 格式化SQL用于显示
+                    formatted_sql = format_sql_for_display(sql_full)
+                    
+                    # 提取流名称作为预览
+                    import re
+                    match = re.search(r'create\s+stream\s+([^\s|]+)', formatted_sql, re.IGNORECASE)
+                    if match:
+                        stream_name = match.group(1)
+                        # 创建简洁的预览，显示流名称和主要子句
+                        preview_parts = []
+                        preview_parts.append(f"CREATE STREAM {stream_name}")
+                        
+                        # 提取窗口类型
+                        if 'interval(' in formatted_sql.lower():
+                            interval_match = re.search(r'interval\([^)]+\)', formatted_sql, re.IGNORECASE)
+                            if interval_match:
+                                preview_parts.append(interval_match.group(0).upper())
+                        elif 'sliding(' in formatted_sql.lower():
+                            sliding_match = re.search(r'sliding\([^)]+\)', formatted_sql, re.IGNORECASE)
+                            if sliding_match:
+                                preview_parts.append(sliding_match.group(0).upper())
+                        elif 'session(' in formatted_sql.lower():
+                            session_match = re.search(r'session\([^)]+\)', formatted_sql, re.IGNORECASE)
+                            if session_match:
+                                preview_parts.append(session_match.group(0).upper())
+                        elif 'period(' in formatted_sql.lower():
+                            period_match = re.search(r'period\([^)]+\)', formatted_sql, re.IGNORECASE)
+                            if period_match:
+                                preview_parts.append(period_match.group(0).upper())
+                        elif 'count_window(' in formatted_sql.lower():
+                            count_match = re.search(r'count_window\([^)]+\)', formatted_sql, re.IGNORECASE)
+                            if count_match:
+                                preview_parts.append(count_match.group(0).upper())
+                        
+                        sql_preview = " ".join(preview_parts)
+                    else:
+                        # 如果无法提取流名称，显示前50个字符
+                        sql_preview = formatted_sql[:50] + "..." if len(formatted_sql) > 50 else formatted_sql
+                    
+                    # 使用格式化后的SQL作为完整SQL
+                    sql_full = formatted_sql
+                        
+                        
+            except Exception as e:
+                sql_preview = f"获取失败: {str(e)[:30]}"
+                sql_full = f"SQL获取错误: {str(e)}"
+            
+            # 清理SQL中的特殊字符
+            sql_full_escaped = sql_full.replace('"', '&quot;').replace("'", '&#39;').replace('\n', '\\n').replace('\r', '\\r')
+            
+            # 读取性能数据
+            cpu_peak, memory_peak = "N/A", "N/A"
+            cpu_range_info = ""
+            memory_range_info = ""
+            cpu_peak_value = None
+            memory_peak_value = None
+            cpu_avg_value = None
+            memory_avg_value = None
+            memory_avg_percentage = None
+            cpu_avg_info = ""
+            memory_avg_info = ""
+            
+            
+            # 只有测试成功时才尝试读取性能数据
+            if result['status'] == 'SUCCESS':
+                try:
+                    perf_file = config.get('perf_file', '')
+                    print(f"调试: 第 {result_index + 1} 个测试，尝试读取性能文件: {perf_file}")
+                    
+                    # 检查各种可能的性能文件路径
+                    possible_files = []
+                    if perf_file:
+                        # 原始文件路径
+                        possible_files.append(perf_file)
+                        # 去掉扩展名加-all.log
+                        base_name = os.path.splitext(perf_file)[0]
+                        possible_files.append(f"{base_name}-all.log")
+                        # 直接加-all.log
+                        possible_files.append(f"{perf_file}-all.log")
+                    
+                    # 添加一些常见的性能文件路径
+                    possible_files.extend([
+                        '/tmp/perf-taosd-all.log',
+                        '/tmp/perf-stream-test-all.log', 
+                        '/tmp/perf-all.log'
+                    ])
+                    
+                    print(f"调试: 第 {result_index + 1} 个测试，检查文件路径: {possible_files}")
+                    
+                    # 尝试读取第一个存在的文件
+                    perf_content = None
+                    used_file = None
+                    for file_path in possible_files:
+                        if os.path.exists(file_path):
+                            print(f"调试: 第 {result_index + 1} 个测试，找到性能文件: {file_path}")
+                            try:
+                                with open(file_path, 'r') as f:
+                                    perf_content = f.read()
+                                    used_file = file_path
+                                    break
+                            except Exception as e:
+                                print(f"调试: 第 {result_index + 1} 个测试，读取文件 {file_path} 失败: {str(e)}")
+                                continue
+                    
+                    if perf_content:
+                        print(f"调试: 第 {result_index + 1} 个测试，成功读取性能文件 {used_file}, 内容长度: {len(perf_content)}")
+                        
+                        # 解析性能数据
+                        cpu_values = []
+                        memory_values = []
+                        memory_percentages = []
+                        
+                        lines = perf_content.split('\n')
+                        print(f"调试: 第 {result_index + 1} 个测试，文件总行数: {len(lines)}")
+                        
+                        valid_lines_count = 0
+                        warm_up_lines_count = 0  
+                        formal_monitoring_started = False 
+                        warm_up_end_detected = False 
+                    
+                        for line_num, line in enumerate(lines):
+                            line = line.strip()
+                            if not line:
+                                continue
+                            
+                            # 检查是否是预热期结束标记
+                            if '=== 预热期结束，正式监控开始 ===' in line or '正式监控开始' in line:
+                                formal_monitoring_started = True
+                                warm_up_end_detected = True
+                                print(f"调试: 第 {result_index + 1} 个测试，在第{line_num+1}行发现正式监控开始标记")
+                                continue
+                                
+                            # 查找包含CPU和Memory的行
+                            # 格式: 2025-09-01 17:34:18 [dnode1] CPU: 271.4%, Memory: 787.64MB (1.23%), Read: 0.00MB (7492031), Write: 665.98MB (13546146)
+                            if 'CPU:' in line and 'Memory:' in line and '%' in line and 'MB' in line:
+                                
+                                # 检查是否是预热期数据
+                                is_warm_up_data = '[预热期数据]' in line
+                                
+                                if is_warm_up_data:
+                                    warm_up_lines_count += 1
+                                    # 跳过预热期数据，不统计
+                                    continue
+                                
+                                # 新增逻辑：如果设置了预热时间但没有检测到预热期结束标记
+                                # 则根据时间戳判断或者放宽统计条件
+                                if config.get('monitor_warm_up_time', 0) > 0:
+                                    if not warm_up_end_detected and not formal_monitoring_started:
+                                        # 根据行数判断：前面的行可能是预热期数据
+                                        warm_up_cycles = config.get('monitor_warm_up_time', 0) // config.get('monitor_interval', 5)
+                                        # 可能是标记格式问题，尝试更宽松的匹配
+                                        if warm_up_lines_count > 0:
+                                            # 已经开始有预热期数据，继续等待结束标记
+                                            continue
+                                        elif line_num < 10:
+                                            # 前10行可能还在预热期
+                                            continue
+                                        else:
+                                            # 超过10行后，如果没有预热期标记，可能是正式数据
+                                            formal_monitoring_started = True
+                                            print(f"调试: 第 {result_index + 1} 个测试，未找到明确的预热期结束标记，从第{line_num+1}行开始统计")
+                                
+                                # 统计正式监控期的数据
+                                valid_lines_count += 1
+                                
+                                try:
+                                    import re
+                                    
+                                    # 提取CPU使用率
+                                    cpu_match = re.search(r'CPU:\s*([\d.]+)%', line)
+                                    if cpu_match:
+                                        cpu_value = float(cpu_match.group(1))
+                                        cpu_values.append(cpu_value)
+                                        #print(f"调试: 提取CPU值: {cpu_value}")
+                                    
+                                    # 提取内存使用量(MB)
+                                    memory_match = re.search(r'Memory:\s*([\d.]+)MB\s*\(([\d.]+)%\)', line)
+                                    if memory_match:
+                                        memory_value = float(memory_match.group(1))
+                                        memory_percentage = float(memory_match.group(2))
+                                        memory_values.append(memory_value)
+                                        memory_percentages.append(memory_percentage)
+                                        #print(f"调试: 提取内存值: {memory_value}")
+                                        
+                                except Exception as e:
+                                    print(f"调试: 第 {result_index + 1} 个测试，解析第{line_num+1}行出错: {str(e)}")
+                                    continue
+                        
+                        print(f"调试: 第 {result_index + 1} 个测试，预热期数据行数: {warm_up_lines_count}")
+                        print(f"调试: 第 {result_index + 1} 个测试，正式监控期数据行数: {valid_lines_count}")
+                        print(f"调试: 第 {result_index + 1} 个测试，预热期结束检测: {warm_up_end_detected}")
+                        print(f"调试: 收集到CPU峰值: {max(cpu_values) if cpu_values else 'N/A'}")
+                        print(f"调试: 收集到内存峰值: {max(memory_values) if memory_values else 'N/A'}")
+                        
+                        if cpu_values:
+                            cpu_peak_value = max(cpu_values)
+                            cpu_min_value = min(cpu_values)
+                            cpu_avg_value = sum(cpu_values) / len(cpu_values) 
+                            
+                            # 构建CPU范围信息，包含系统核数
+                            cpu_core_info = f"(CPU(s):{system_cpu_count})" if system_cpu_count else ""
+                            cpu_range_info = f"{cpu_min_value:.1f}% -> {cpu_peak_value:.1f}%{cpu_core_info}"
+                            cpu_peak = f"{cpu_peak_value:.1f}"
+                            cpu_avg_info = f"avg:{cpu_avg_value:.1f}%"
+                            
+                            print(f"调试: 第 {result_index + 1} 个测试，正式监控期CPU峰值: {cpu_peak}%, 平均值: {cpu_avg_value:.1f}%")
+                            print(f"调试: 第 {result_index + 1} 个测试，正式监控期CPU范围: {cpu_range_info}")
+                            
+                        else:
+                            print(f"调试: 第 {result_index + 1} 个测试，未收集到CPU数据")
+                            cpu_range_info = "无正式监控期数据"
+                            cpu_avg_info = ""
+                        
+                        if memory_values and memory_percentages:
+                            memory_peak_value = max(memory_values)
+                            memory_min_value = min(memory_values)
+                            memory_avg_value = sum(memory_values) / len(memory_values)  # 新增：计算平均值
+                            memory_avg_percentage = sum(memory_percentages) / len(memory_percentages)  # 新增：平均百分比
+                            
+                            memory_peak_percentage = memory_percentages[memory_values.index(memory_peak_value)]
+                            memory_min_percentage = memory_percentages[memory_values.index(memory_min_value)]
+                            
+                            memory_peak = f"{memory_peak_value:.0f}"
+                            
+                            # 构建内存范围信息，包含总内存和百分比
+                            memory_total_info = f"({system_total_memory})" if system_total_memory else ""
+                            memory_range_info = f"{memory_min_value:.0f}MB({memory_min_percentage:.1f}%) -> {memory_peak_value:.0f}MB({memory_peak_percentage:.1f}%){memory_total_info}"
+                            # 新增：内存平均值信息
+                            memory_avg_info = f"avg:{memory_avg_value:.0f}MB({memory_avg_percentage:.1f}%){memory_total_info}"
+                        
+                            print(f"调试: 第 {result_index + 1} 个测试，正式监控期内存峰值: {memory_peak}MB, 平均值: {memory_avg_value:.0f}MB({memory_avg_percentage:.1f}%)")
+                            print(f"调试: 第 {result_index + 1} 个测试，正式监控期内存范围: {memory_range_info}")
+                            
+                        else:
+                            print(f"调试: 第 {result_index + 1} 个测试，未收集到内存数据")
+                            memory_range_info = "无正式监控期数据"
+                            memory_avg_value = None
+                            memory_avg_percentage = None
+                            memory_avg_info = ""
+                            
+                        # 数据质量检查
+                        if valid_lines_count == 0:
+                            print(f"警告: 第 {result_index + 1} 个测试，未找到正式监控期数据")
+                            for line_num, line in enumerate(lines):
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                    
+                                if 'CPU:' in line and 'Memory:' in line and '%' in line and 'MB' in line:
+                                    valid_lines_count += 1
+                                    
+                                    try:
+                                        import re
+                                        
+                                        cpu_match = re.search(r'CPU:\s*([\d.]+)%', line)
+                                        if cpu_match:
+                                            cpu_value = float(cpu_match.group(1))
+                                            cpu_values.append(cpu_value)
+                                        
+                                        memory_match = re.search(r'Memory:\s*([\d.]+)MB\s*\(([\d.]+)%\)', line)
+                                        if memory_match:
+                                            memory_value = float(memory_match.group(1))
+                                            memory_percentage = float(memory_match.group(2))
+                                            memory_values.append(memory_value)
+                                            memory_percentages.append(memory_percentage)
+                                            
+                                    except Exception as e:
+                                        continue
+                            
+                            print(f"调试: 第 {result_index + 1} 个测试，兜底处理后收集到数据行数: {valid_lines_count}")
+                        elif valid_lines_count < 5:
+                            print(f"警告: 第 {result_index + 1} 个测试，正式监控期数据点过少({valid_lines_count}个)，可能影响统计准确性")
+                            
+                    else:
+                        print(f"调试: 第 {result_index + 1} 个测试，未找到任何可用的性能文件")
+                        cpu_range_info = "性能文件不存在"
+                        memory_range_info = "性能文件不存在"
+                        cpu_avg_value = None
+                        memory_avg_value = None
+                        memory_avg_percentage = None
+                        cpu_avg_info = ""
+                        memory_avg_info = ""
+                        
+                except Exception as e:
+                    print(f"调试: 第 {result_index + 1} 个测试，读取性能数据时出错: {str(e)}")
+                    cpu_range_info = f"读取失败: {str(e)}"
+                    memory_range_info = f"读取失败: {str(e)}"
+                    cpu_avg_value = None
+                    memory_avg_value = None
+                    memory_avg_percentage = None
+                    cpu_avg_info = ""
+                    memory_avg_info = ""
+            else:
+                print(f"调试: 第 {result_index + 1} 个测试失败，跳过性能数据读取")
+                cpu_range_info = "N/A"
+                memory_range_info = "N/A"
+                cpu_avg_value = None
+                memory_avg_value = None
+                memory_avg_percentage = None
+                cpu_avg_info = ""
+                memory_avg_info = ""
+            
+            
+            # CPU和内存的颜色样式
+            cpu_class = ""
+            if cpu_peak != "N/A" and cpu_peak_value is not None:
+                try:
+                    # 计算实际的CPU使用率百分比
+                    if system_cpu_count:
+                        try:
+                            total_cpu_cores = int(system_cpu_count)
+                            # 计算实际CPU使用率：当前使用率 / 总核数 
+                            actual_cpu_usage_percent = cpu_peak_value / total_cpu_cores
+                            print(f"调试: CPU峰值颜色计算 - 峰值: {cpu_peak_value}%, 总核数: {total_cpu_cores}, 实际使用率: {actual_cpu_usage_percent:.1f}%")
+                            
+                            # 基于实际使用率判断颜色
+                            if actual_cpu_usage_percent < 30:      # 实际使用率低于30%
+                                cpu_class = "perf-good"
+                                print(f"调试: CPU峰值颜色判断 -> 绿色 (实际使用率 {actual_cpu_usage_percent:.1f}% < 30%)")
+                            elif actual_cpu_usage_percent < 70:   # 实际使用率30%-70%
+                                cpu_class = "perf-warning"
+                                print(f"调试: CPU峰值颜色判断 -> 黄色 (实际使用率 {actual_cpu_usage_percent:.1f}% 在30%-70%)")
+                            else:                                  # 实际使用率超过70%
+                                cpu_class = "perf-danger"
+                                print(f"调试: CPU峰值颜色判断 -> 红色 (实际使用率 {actual_cpu_usage_percent:.1f}% > 70%)")
+                                
+                        except (ValueError, TypeError) as e:
+                            print(f"调试: 第 {result_index + 1} 个测试，解析CPU核数失败: {e}")
+                            if cpu_peak_value < 500:
+                                cpu_class = "perf-good"
+                            elif cpu_peak_value < 1000:
+                                cpu_class = "perf-warning"
+                            else:
+                                cpu_class = "perf-danger"
+                    else:
+                        print(f"调试: 未获取到CPU核数，使用原始值判断")
+                        # 没有获取到CPU核数，使用更宽松的判断标准
+                        # 假设是多核系统，适当放宽标准
+                        if cpu_peak_value < 500:      # 假设至少16核，500%以下为良好
+                            cpu_class = "perf-good"
+                        elif cpu_peak_value < 1000:   # 500%-1000%为警告
+                            cpu_class = "perf-warning"
+                        else:                  # 超过1000%为危险
+                            cpu_class = "perf-danger"
+                            
+                except Exception as e:
+                    print(f"调试:第 {result_index + 1} 个测试，CPU颜色判断出错: {e}")
+                    cpu_class = ""
+            else:
+                print(f"调试: CPU数据无效，跳过颜色判断 - cpu_peak: {cpu_peak}, cpu_peak_value: {cpu_peak_value}")
+            
+            
+            # ========== CPU平均值的颜色样式（新增独立判断） ==========
+            cpu_avg_class = ""
+            if cpu_avg_value is not None:  # 使用平均值进行独立的颜色判断
+                try:
+                    if system_cpu_count:
+                        try:
+                            total_cpu_cores = int(system_cpu_count)
+                            # 使用平均值计算实际CPU使用率
+                            actual_cpu_avg_usage_percent = cpu_avg_value / total_cpu_cores
+                            print(f"调试: CPU平均值颜色计算 - 平均值: {cpu_avg_value:.1f}%, 总核数: {total_cpu_cores}, 实际平均使用率: {actual_cpu_avg_usage_percent:.1f}%")
+                            
+                            # 基于平均使用率判断颜色
+                            if actual_cpu_avg_usage_percent < 30:
+                                cpu_avg_class = "perf-good"
+                                print(f"调试: CPU平均值颜色判断 -> 绿色 (平均使用率 {actual_cpu_avg_usage_percent:.1f}% < 30%)")
+                            elif actual_cpu_avg_usage_percent < 70:
+                                cpu_avg_class = "perf-warning"
+                                print(f"调试: CPU平均值颜色判断 -> 黄色 (平均使用率 {actual_cpu_avg_usage_percent:.1f}% 在30%-70%)")
+                            else:
+                                cpu_avg_class = "perf-danger"
+                                print(f"调试: CPU平均值颜色判断 -> 红色 (平均使用率 {actual_cpu_avg_usage_percent:.1f}% > 70%)")
+                                
+                        except (ValueError, TypeError) as e:
+                            print(f"调试: 第 {result_index + 1} 个测试，解析CPU核数失败: {e}")
+                            # 使用平均值的备用判断
+                            if cpu_avg_value < 500:
+                                cpu_avg_class = "perf-good"
+                            elif cpu_avg_value < 1000:
+                                cpu_avg_class = "perf-warning"
+                            else:
+                                cpu_avg_class = "perf-danger"
+                    else:
+                        print(f"调试: 未获取到CPU核数，使用平均值判断")
+                        if cpu_avg_value < 500:
+                            cpu_avg_class = "perf-good"
+                        elif cpu_avg_value < 1000:
+                            cpu_avg_class = "perf-warning"
+                        else:
+                            cpu_avg_class = "perf-danger"
+                            
+                except Exception as e:
+                    print(f"调试:第 {result_index + 1} 个测试，CPU平均值颜色判断出错: {e}")
+                    cpu_avg_class = ""
+            else:
+                print(f"调试: CPU平均值数据无效，跳过颜色判断 - cpu_avg_value: {cpu_avg_value}")
+            
+            
+            memory_class = ""
+            if memory_range_info and "MB" in memory_range_info:
+                try:
+                    import re
+                    # 提取内存峰值和百分比，匹配 "96MB(0.1%) -> 787MB(1.2%)(62.5GB)" 中的 787MB(1.2%) 部分
+                    match = re.search(r'(\d+)MB\(([\d.]+)%\)', memory_range_info.split('->')[-1])
+                    if match:
+                        memory_peak_mb = float(match.group(1))
+                        memory_peak_percentage = float(match.group(2))
+                        
+                        print(f"调试: 第 {result_index + 1} 个测试内存判断 - 峰值: {memory_peak_mb}MB, 占用率: {memory_peak_percentage}%")
+                        
+                        # 基于内存使用率的判断
+                        if memory_peak_percentage < 25.0:         # 使用率 < 25%
+                            memory_class = "perf-good"
+                            judgment_reason = f"内存使用良好 (使用率{memory_peak_percentage:.1f}%, 绝对值{memory_peak_mb:.0f}MB)"
+                        elif memory_peak_percentage < 50.0:      # 使用率 25%-50%
+                            memory_class = "perf-warning" 
+                            judgment_reason = f"内存使用一般 (使用率{memory_peak_percentage:.1f}%, 绝对值{memory_peak_mb:.0f}MB)"
+                        else:                                     # 使用率 > 50%
+                            memory_class = "perf-danger"
+                            judgment_reason = f"内存使用过高 (使用率{memory_peak_percentage:.1f}%, 绝对值{memory_peak_mb:.0f}MB)"
+                                                    
+                        print(f"调试: 第 {result_index + 1} 个测试内存颜色判断 -> {memory_class} ({judgment_reason})")
+                        
+                        # 特殊情况处理
+                        # 如果系统内存很大(>32GB)但使用率很低，即使绝对值大也认为是好的
+                        if system_total_memory:
+                            try:
+                                total_memory_gb = float(system_total_memory.replace('GB', ''))
+                                if total_memory_gb > 32 and memory_peak_percentage < 10.0:
+                                    memory_class = "perf-good"
+                                    print(f"调试: 大内存系统特殊处理 -> 绿色 (系统{total_memory_gb}GB, 使用率仅{memory_peak_percentage:.1f}%)")
+                            except Exception as e:
+                                print(f"调试: 第 {result_index + 1} 个测试解析系统总内存失败: {str(e)}")
+                        
+                        # 极端情况警告
+                        if memory_peak_mb > 49152:  # > 48GB
+                            print(f"调试: ⚠️  内存使用量过大警告: {memory_peak_mb:.0f}MB，建议检查是否有内存泄漏")
+                            
+                    else:
+                        print(f"调试: 第 {result_index + 1} 个测试无法从内存范围信息中解析峰值和百分比")
+                        print(f"调试: 内存范围信息内容: {memory_range_info}")
+                        
+                except Exception as e:
+                    print(f"调试:第 {result_index + 1} 个测试内存颜色判断出错: {str(e)}")
+                    import traceback
+                    print(f"调试: 异常详情: {traceback.format_exc()}")
+                    memory_class = ""
+                    
+            else:
+                print(f"调试: 第 {result_index + 1} 个测试内存数据无效，跳过颜色判断 - memory_range_info: {memory_range_info}")
+            
+            
+            # ========== 内存平均值的颜色样式（新增独立判断） ==========
+            memory_avg_class = ""
+            if memory_avg_value is not None and memory_avg_percentage is not None:  
+                try:
+                    print(f"调试: 第 {result_index + 1} 个测试内存平均值判断 - 平均值: {memory_avg_value:.0f}MB, 平均占用率: {memory_avg_percentage:.1f}%")
+                    
+                    # 基于内存平均使用率的判断
+                    if memory_avg_percentage < 25.0:
+                        memory_avg_class = "perf-good"
+                        judgment_reason = f"内存使用良好 (平均使用率{memory_avg_percentage:.1f}%, 平均值{memory_avg_value:.0f}MB)"
+                    elif memory_avg_percentage < 50.0:
+                        memory_avg_class = "perf-warning" 
+                        judgment_reason = f"内存使用一般 (平均使用率{memory_avg_percentage:.1f}%, 平均值{memory_avg_value:.0f}MB)"
+                    else:
+                        memory_avg_class = "perf-danger"
+                        judgment_reason = f"内存使用过高 (平均使用率{memory_avg_percentage:.1f}%, 平均值{memory_avg_value:.0f}MB)"
+                                                
+                    print(f"调试: 第 {result_index + 1} 个测试内存平均值颜色判断 -> {memory_avg_class} ({judgment_reason})")
+                    
+                    # 特殊情况处理
+                    if system_total_memory:
+                        try:
+                            total_memory_gb = float(system_total_memory.replace('GB', ''))
+                            if total_memory_gb > 32 and memory_avg_percentage < 10.0:
+                                memory_avg_class = "perf-good"
+                                print(f"调试: 大内存系统特殊处理 -> 绿色 (系统{total_memory_gb}GB, 平均使用率仅{memory_avg_percentage:.1f}%)")
+                        except Exception as e:
+                            print(f"调试: 第 {result_index + 1} 个测试解析系统总内存失败: {str(e)}")
+                    
+                    # 极端情况警告
+                    if memory_avg_value > 49152:  # > 48GB
+                        print(f"调试: ⚠️  内存平均使用量过大警告: {memory_avg_value:.0f}MB，建议检查是否有内存泄漏")
+                        
+                except Exception as e:
+                    print(f"调试:第 {result_index + 1} 个测试内存平均值颜色判断出错: {str(e)}")
+                    memory_avg_class = ""
+                    
+            else:
+                print(f"调试: 第 {result_index + 1} 个测试内存平均值数据无效，跳过颜色判断 - memory_avg_value: {memory_avg_value}, memory_avg_percentage: {memory_avg_percentage}")
+            
+            # 读取延迟统计
+            delay_stats = "N/A"
+            delay_stats_html = "N/A"
+            delay_class = ""
+            
+            if result['status'] == 'SUCCESS':
+                try:
+                    delay_file = config.get('delay_log_file', '')
+                    print(f"调试: 第 {result_index + 1} 个测试，尝试读取延迟文件: {delay_file}")
+                    
+                    # 验证这是否是当前测试的文件（通过测试名称匹配）
+                    test_name = result.get('test_name', '')
+                    if delay_file and test_name:
+                        # 检查延迟文件路径是否包含当前测试名称
+                        if test_name.replace('test_', '').replace('_', '') not in delay_file.replace('_', '').replace('-', ''):
+                            print(f"调试: 第 {result_index + 1} 个测试，延迟文件路径与测试名称不匹配")
+                            print(f"  测试名称: {test_name}")
+                            print(f"  延迟文件: {delay_file}")
+                            # 尝试根据测试名称重新构建正确的延迟文件路径
+                            result_dir_from_perf = os.path.dirname(os.path.dirname(config.get('perf_file', '')))
+                            if result_dir_from_perf:
+                                corrected_delay_file = os.path.join(result_dir_from_perf, 'logs', f'{test_name}_delay.log')
+                                if os.path.exists(corrected_delay_file):
+                                    delay_file = corrected_delay_file
+                                    print(f"调试: 第 {result_index + 1} 个测试，使用修正的延迟文件: {delay_file}")
+                    
+                    # 检查文件是否存在
+                    if not delay_file:
+                        print(f"调试: 第 {result_index + 1} 个测试，延迟文件路径为空")
+                        delay_stats = "配置错误：延迟文件路径为空"
+                        delay_stats_html = "配置错误：延迟文件路径为空"
+                    elif not os.path.exists(delay_file):
+                        print(f"调试: 第 {result_index + 1} 个测试，延迟文件不存在: {delay_file}")
+                        delay_stats = "延迟文件不存在"
+                        delay_stats_html = "延迟文件不存在"
+                        
+                        # 尝试查找可能的延迟文件
+                        possible_delay_files = []
+                        delay_dir = os.path.dirname(delay_file)
+                        if os.path.exists(delay_dir):
+                            try:
+                                files = os.listdir(delay_dir)
+                                # 查找包含当前测试名称的延迟文件
+                                test_specific_files = [f for f in files if 'delay' in f and test_name in f]
+                                if test_specific_files:
+                                    possible_delay_files.extend([os.path.join(delay_dir, f) for f in test_specific_files])
+                                    print(f"调试: 第 {result_index + 1} 个测试，找到可能的延迟文件: {test_specific_files}")
+                            except Exception as e:
+                                print(f"调试: 第 {result_index + 1} 个测试，读取目录失败: {str(e)}")
+                        
+                        # 尝试使用找到的延迟文件
+                        for possible_file in possible_delay_files:
+                            if os.path.exists(possible_file):
+                                delay_file = possible_file
+                                print(f"调试: 第 {result_index + 1} 个测试，使用找到的延迟文件: {possible_file}")
+                                break
+                    
+                    # 读取延迟文件
+                    if delay_file and os.path.exists(delay_file):
+                        print(f"调试: 第 {result_index + 1} 个测试，开始读取延迟文件: {delay_file}")
+                        
+                        with open(delay_file, 'r') as f:
+                            content = f.read()
+                            
+                            if len(content) > 0:
+                                print(f"调试: 第 {result_index + 1} 个测试，延迟文件内容前200字符: {content[:200]}")
+                            
+                            # 统计延迟分布
+                            delay_counts = {
+                                '优秀': content.count('延迟等级: 优秀'),
+                                '良好': content.count('延迟等级: 良好'), 
+                                '正常': content.count('延迟等级: 正常'),
+                                '轻微延迟': content.count('延迟等级: 轻微延迟'),
+                                '明显延迟': content.count('延迟等级: 明显延迟'),
+                                '严重延迟': content.count('延迟等级: 严重延迟')
+                            }
+                            
+                            print(f"调试: 第 {result_index + 1} 个测试，延迟分布统计: {delay_counts}")
+                            
+                            # 构建延迟统计字符串
+                            total_checks = sum(delay_counts.values())
+                            print(f"调试: 第 {result_index + 1} 个测试，总检查次数: {total_checks}")
+                            
+                            if total_checks > 0:
+                                # 定义延迟级别对应的CSS类
+                                delay_level_classes = {
+                                    '优秀': 'delay-excellent',
+                                    '良好': 'delay-good',
+                                    '正常': 'delay-normal',
+                                    '轻微延迟': 'delay-warning',
+                                    '明显延迟': 'delay-danger',
+                                    '严重延迟': 'delay-critical'
+                                }
+                            
+                                # 构建纯文本版本（用于导出等）
+                                delay_parts = []
+                                # 构建HTML版本（每个级别有自己的颜色）
+                                delay_parts_html = []
+                                
+                                for level, count in delay_counts.items():
+                                    if count > 0:
+                                        percentage = count / total_checks * 100
+                                        text_part = f"{level}:{count}({percentage:.0f}%)"
+                                        delay_parts.append(text_part)
+                                        
+                                        # HTML版本：每个级别用对应的CSS类包装
+                                        css_class = delay_level_classes.get(level, 'delay-normal')
+                                        html_part = f'<span class="{css_class}">{level}:{count}({percentage:.0f}%)</span>'
+                                        delay_parts_html.append(html_part)
+                                
+                                # 纯文本版本
+                                delay_stats = " | ".join(delay_parts) if delay_parts else "无有效延迟数据"
+                                
+                                # HTML版本（多颜色显示）
+                                delay_stats_html = " | ".join(delay_parts_html) if delay_parts_html else "无有效延迟数据"
+                                
+                                print(f"调试: 第 {result_index + 1} 个测试，生成的延迟统计: {delay_stats}")
+                                print(f"调试: 第 {result_index + 1} 个测试，生成的HTML延迟统计: {delay_stats_html}")
+                                
+                                # 根据主要延迟级别设置颜色
+                                if delay_counts['优秀'] > total_checks * 0.8:
+                                    delay_class = "delay-excellent"
+                                elif delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.7:
+                                    delay_class = "delay-good"
+                                elif delay_counts['正常'] + delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.6:
+                                    delay_class = "delay-normal"
+                                elif delay_counts['轻微延迟'] > 0:
+                                    delay_class = "delay-warning"
+                                elif delay_counts['明显延迟'] > 0:
+                                    delay_class = "delay-danger"
+                                else:
+                                    delay_class = "delay-critical"
+                                    
+                                print(f"调试: 第 {result_index + 1} 个测试，延迟颜色类: {delay_class}")
+                            else:
+                                print(f"调试: 第 {result_index + 1} 个测试，总检查次数为0，延迟监控可能未正常工作")
+                                delay_stats = "延迟监控未生成有效数据"
+                                delay_stats_html = "延迟监控未生成有效数据"
+                    else:
+                        print(f"调试: 第 {result_index + 1} 个测试，最终未找到有效的延迟文件")
+                        delay_stats = "N/A"
+                        delay_stats_html = "N/A"
+                            
+                except Exception as e:
+                    print(f"调试: 第 {result_index + 1} 个测试，读取延迟统计时出错: {str(e)}")
+                    delay_stats = f"读取失败: {str(e)}"
+                    delay_stats_html = f"读取失败: {str(e)}"
+            else:
+                print(f"调试: 第 {result_index + 1} 个测试状态为 {result['status']}，跳过延迟数据读取")
+                delay_stats = "N/A"
+                delay_stats_html = "N/A"
+            
+             # 调试：打印每个结果的错误信息
+            print(f"调试HTML报告 - 测试 {result['test_name']}:")
+            print(f"  状态: {result['status']}")
+            print(f"  错误字段存在: {'error' in result}")
+            if 'error' in result:
+                error_content = result.get('error', '')
+                print(f"  错误内容: {str(error_content)[:100]}..." if error_content else "  错误内容: 空")
+                
+            # 错误信息处理
+            error_msg = result.get('error', '')
+            print(f"调试: 原始error_msg = {repr(error_msg)}")
+            
+            if error_msg:
+                # 如果错误信息太长，截断但保留关键信息
+                if len(error_msg) > 300:
+                    error_msg = error_msg[:300] + "..."
+                error_msg = error_msg.replace('<', '&lt;').replace('>', '&gt;')
+                print(f"调试: HTML转义后error_msg = {repr(error_msg[:300])}")
+            else:
+                error_msg = ""
+                print(f"调试: error_msg为空")
+                
+            # 处理跳过原因显示
+            if result['status'] == 'SKIPPED':
+                skip_reason = result.get('skip_reason', '未知原因')
+                error_msg = f"跳过原因: {skip_reason}"
+ 
+            cpu_peak_display = f"{cpu_peak_value:.1f}" if cpu_peak_value is not None else "N/A"
+            memory_peak_display = f"{memory_peak_value:.0f}" if memory_peak_value else "N/A"
+            # 修改平均值显示，包含完整的单位和百分比信息
+            if cpu_avg_value is not None:
+                cpu_avg_display = f"{cpu_avg_value:.1f}%{cpu_core_info}"
+            else:
+                cpu_avg_display = "N/A"
+                
+            if memory_avg_value is not None and memory_avg_percentage is not None:
+                memory_avg_display = f"{memory_avg_value:.0f}MB({memory_avg_percentage:.1f}%){memory_total_info}"
+            else:
+                memory_avg_display = "N/A"
+                   
+            
+            html_content += f"""
+            <tr class="{status_class}">
+                <td><strong>{result['test_name']}</strong></td>
+                <td>{config['sql_type']}</td>
+                <td>{config['agg_or_select']}</td>
+                <td>{config['tbname_or_trows_or_sourcetable']}</td>
+                <td><span class="status-badge {status_badge}">{result['status']}</span></td>
+                <td>{result.get('duration', 0):.1f}</td>
+                <td>
+                    <div class="tooltip">
+                        <div class="sql-preview">{sql_preview}</div>
+                        <span class="tooltiptext">{sql_full_escaped}</span>
+                    </div>
+                </td>
+                <td class="{cpu_class}">
+                    {cpu_range_info if cpu_range_info else 'N/A'}
+                </td>
+                <td class="{memory_class}">
+                    {memory_range_info if memory_range_info else 'N/A'}
+                </td>
+                <td class="{cpu_class}">
+                    {cpu_avg_display}
+                </td>
+                <td class="{memory_class}">
+                    {memory_avg_display}
+                </td>
+                <td style="font-size: 10px;">{delay_stats_html}</td>
+                <td style="color: #dc3545; font-size: 10px;">{error_msg}</td>
+            </tr>
+"""
+        
+        print(f"调试: HTML行生成完成，错误列内容: {error_msg[:300]}...")
+        
+        
+        html_content += f"""
+        </table>
+    </div>
+    
+    <div style="margin-top: 30px; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <h3>📊 使用说明</h3>
+        <ul>
+            <li><strong>状态说明</strong>: 
+                <span class="badge-success">成功</span> - 流创建成功并正常运行
+                <span class="badge-failed">失败</span> - 流创建失败，通常为SQL语法或功能限制
+                <span class="badge-skipped">跳过</span> - 已知失败场景，被过滤器跳过测试
+            </li>
+            <li><strong>SQL预览</strong>: 鼠标悬停查看完整SQL语句</li>
+            <li><strong>性能指标</strong>: 
+                CPU/内存 - <span class="perf-good">绿色(优秀)</span> 
+                <span class="perf-warning">黄色(一般)</span> 
+                <span class="perf-danger">红色(较高)</span>
+                <br>显示格式: 资源消耗范围(最小->最大) + 系统信息
+                <br><strong>CPU颜色判断</strong>: 基于实际CPU使用率 (显示值÷总核数) 
+                <br>　　绿色: 实际使用率 < 30% | 黄色: 30%-70% | 红色: > 70%
+                <br><strong>内存颜色判断</strong>: 综合考虑使用率和绝对值
+                <br>　　绿色: 使用率<25% | 黄色: 使用率25%-50% | 红色: 使用率>50%
+                <br>　　特殊: 大内存系统(>32GB)且使用率<10%时优先判为优秀
+            </li>
+            <li><strong>性能范围说明</strong>:
+                <br>CPU峰值范围: 显示测试期间的CPU使用率范围(最小->最大)，括号内为系统CPU核数
+                <br>内存峰值范围: 显示内存使用量范围(最小->最大)和占系统总内存百分比，括号内为系统总内存
+                <br>CPU平均值: 显示测试期间的CPU平均值
+                <br>内存平均值: 显示内存使用平均值
+            </li>
+            <li><strong>延迟等级</strong> (基于最大延迟阈值{self.fixed_params.get('max_delay_threshold', 30000)}ms进行分级):                  
+                <br>• 延迟时间 = 源数据表的Last（Ts）- 流生成数据表的Last（Ts）
+                <br>• 延迟倍数 = 延迟时间 / 最大延迟阈值 
+                <br><span class="delay-excellent">🟢 优秀 (< 0.1倍间隔)</span>: 延迟 < {self.fixed_params.get('max_delay_threshold', 30000) * 0.1}秒，流计算非常及时
+                <br><span class="delay-good">🟢 良好 (0.1-0.5倍间隔)</span>: 延迟 {self.fixed_params.get('max_delay_threshold', 30000) * 0.1}-{self.fixed_params.get('max_delay_threshold', 30000) * 0.5}秒，流计算及时
+                <br><span class="delay-normal">🟡 正常 (0.5-1倍间隔)</span>: 延迟 {self.fixed_params.get('max_delay_threshold', 30000) * 0.5}-{self.fixed_params.get('max_delay_threshold', 30000)}秒，在检查间隔内
+                <br><span class="delay-warning">🟡 轻微延迟 (1-6倍间隔)</span>: 延迟 {self.fixed_params.get('max_delay_threshold', 30000)}-{self.fixed_params.get('max_delay_threshold', 30000) * 6}秒，略有滞后
+                <br><span class="delay-danger">🟠 明显延迟 (6-30倍间隔)</span>: 延迟 {self.fixed_params.get('max_delay_threshold', 30000) * 6}-{self.fixed_params.get('max_delay_threshold', 30000) * 30}秒，需要关注
+                <br><span class="delay-critical">🔴 严重延迟 (> 30倍间隔)</span>: 延迟 > {self.fixed_params.get('max_delay_threshold', 30000) * 30}秒，需要优化
+            </li>
+            <li><strong>交互功能</strong>: 点击表头排序，使用筛选器快速查找</li>
+        </ul>
+    </div>
+    
+    <div style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
+        <p>📁 详细日志文件位置: {result_dir}</p>
+        <p>🏃‍♂️ TDengine 流计算性能测试工具 | 生成时间: {current_time}</p>
+    </div>
+</body>
+</html>
+"""
+        
+        with open(report_file, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        print(f"详细HTML报告已生成: {report_file}")
+
+
+        
+    def run_batch_tests(self, test_time_minutes=5, max_parallel=1, start_from=0, test_limit=None):
+        """运行批量测试
+        
+        Args:
+            test_time_minutes: 每个测试的运行时间（分钟）
+            max_parallel: 最大并行测试数（当前只支持1）
+            start_from: 从第几个测试开始
+            test_limit: 限制测试数量
+        """
+        print("开始批量流计算测试...")
+        
+        # 获取所有测试组合
+        combinations = self.get_test_combinations()
+        combinations = self.filter_combinations(combinations)
+        
+        # 检查过滤后是否还有测试
+        if not combinations:
+            print(f"\n❌ 错误: 过滤后没有有效的测试组合!")
+            print(f"当前过滤模式: {self.filter_mode}")
+            print(f"指定的SQL类型: {self.specified_sql_types}")
+            print(f"\n💡 建议:")
+            print(f"  1. 检查 --batch-filter-mode 参数设置")
+            print(f"  2. 检查 --batch-sql-types 参数是否正确")
+            print(f"  3. 尝试使用 --batch-filter-mode all 运行所有测试")
+            print(f"  4. 使用 --batch-filter-mode skip-known-failures 运行成功的测试")
+            
+            # 仍然创建结果目录和生成报告
+            result_dir = self.create_batch_result_dir()
+            print(f"结果目录已创建: {result_dir}")
+            self.start_time = datetime.datetime.now().isoformat()
+            self.total_tests = 0
+            self.generate_final_report(result_dir)
+            return
+        
+        
+        # 应用启动位置和限制
+        if test_limit:
+            combinations = combinations[start_from:start_from + test_limit]
+        else:
+            combinations = combinations[start_from:]
+        
+        self.total_tests = len(combinations)
+        self.start_time = datetime.datetime.now().isoformat()
+        
+        print(f"总测试组合数: {self.total_tests}")
+        print(f"每个测试运行时间: {test_time_minutes}分钟")
+        
+        # 防止除零错误
+        if self.total_tests > 0:
+            print(f"预计总耗时: {(self.total_tests * test_time_minutes / 60):.1f}小时")
+        else:
+            print(f"预计总耗时: 0小时 (没有测试要执行)")
+        
+        print(f"\n批量测试固定配置:")
+        print(f"  流延迟检查: {'启用' if self.fixed_params.get('check_stream_delay', False) else '禁用'}")
+        if self.fixed_params.get('check_stream_delay', False):
+            print(f"  延迟检查间隔: {self.fixed_params.get('delay_check_interval', 10)}秒")
+            print(f"  最大延迟阈值: {self.fixed_params.get('max_delay_threshold', 30000)}ms")
+        print(f"  子表数量: {self.fixed_params.get('table_count', 1000)}")
+        print(f"  每轮写入记录数: {self.fixed_params.get('real_time_batch_rows', 200)}")
+        print(f"  数据写入间隔: {self.fixed_params.get('real_time_batch_sleep', 0)}秒")
+        print(f"  部署模式: {self.fixed_params.get('deployment_mode', 'single')}")
+        
+        if start_from > 0:
+            print(f"从第 {start_from + 1} 个测试开始")
+        if test_limit:
+            print(f"限制测试数量: {test_limit}")
+        
+        # 创建结果目录
+        result_dir = self.create_batch_result_dir()
+        print(f"测试结果将保存到: {result_dir}")
+        
+        # 如果没有测试要执行，直接生成报告并返回
+        if self.total_tests == 0:
+            print(f"\n⚠️ 没有测试需要执行，直接生成报告")
+            self.generate_final_report(result_dir)
+            return
+        
+        # 确认开始测试
+        if self.total_tests > 10:
+            response = input(f"\n将要执行 {self.total_tests} 个测试，预计耗时 {(self.total_tests * test_time_minutes / 60):.1f} 小时，是否继续？(y/N): ")
+            if response.lower() != 'y':
+                print("测试已取消")
+                return
+        
+        # 执行测试
+        for i, combination in enumerate(combinations, 1):
+            self.current_test_index = start_from + i
+            
+            # 生成测试配置
+            config = self.generate_test_config(combination, self.current_test_index, result_dir)
+            config['time'] = test_time_minutes
+            
+            # 保存测试配置
+            self.save_test_config(config, result_dir)
+            
+            # 执行测试
+            result = self.execute_single_test(config)
+            self.test_results.append(result)
+            
+            # 生成进度报告
+            self.generate_progress_report(result_dir)
+            
+            # 显示进度
+            remaining_tests = self.total_tests - len(self.test_results)
+            estimated_remaining_time = remaining_tests * test_time_minutes
+            
+            # 统计各种状态
+            success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
+            failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
+            skipped_count = len([r for r in self.test_results if r['status'] == 'SKIPPED'])
+            
+            print(f"\n进度总结:")
+            print(f"  已完成: {len(self.test_results)}/{self.total_tests}")
+            print(f"  成功: {success_count}")
+            print(f"  失败: {failed_count}")
+            if skipped_count > 0:
+                print(f"  跳过: {skipped_count}")
+            print(f"  剩余估计时间: {estimated_remaining_time:.0f}分钟 ({estimated_remaining_time/60:.1f}小时)")
+            
+            # 在测试之间添加短暂休息
+            if i < len(combinations):
+                print("等待2秒后开始下一个测试...")
+                time.sleep(2)
+        
+        # 生成最终报告
+        self.generate_final_report(result_dir)
+        
+        print(f"\n{'='*80}")
+        print("批量测试完成!")
+        print(f"总测试数: {self.total_tests}")
+        
+        if self.total_tests > 0:
+            success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
+            failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
+            skipped_count = len([r for r in self.test_results if r['status'] == 'SKIPPED'])
+            
+            print(f"成功: {success_count}")
+            print(f"失败: {failed_count}")
+            if skipped_count > 0:
+                print(f"跳过: {skipped_count}")
+            print(f"成功率: {(success_count/self.total_tests*100):.1f}%")
+            
+            if self.filter_mode != 'all':
+                print(f"过滤模式: {self.filter_mode}")
+                if skipped_count > 0:
+                    print(f"过滤效果: 成功跳过 {skipped_count} 个测试")
+        else:
+            print(f"没有执行任何测试")
+            
+        print(f"结果目录: {result_dir}")
+        print(f"{'='*80}")
+
         
         
 class StreamStarter:
@@ -2377,7 +5214,7 @@ class StreamStarter:
                 debug_flag=131, num_of_log_lines=500000, 
                 agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None,
                 check_stream_delay=False, max_delay_threshold=30000, delay_check_interval=10,
-                real_time_batch_sleep=0) -> None:
+                real_time_batch_sleep=0, delay_log_file=None, auto_combine=False, monitor_warm_up_time=None) -> None:
         
         self.stream_perf_test_dir = stream_perf_test_dir if stream_perf_test_dir else '/home/taos_stream_cluster'        
         self.table_count = table_count      
@@ -2394,6 +5231,8 @@ class StreamStarter:
         self.deployment_mode = deployment_mode
         self.debug_flag = debug_flag
         self.num_of_log_lines = num_of_log_lines
+        self.auto_combine = auto_combine
+        self.monitor_warm_up_time = monitor_warm_up_time
         
         self.sql_type = sql_type
         self.stream_num = stream_num
@@ -2404,9 +5243,11 @@ class StreamStarter:
         print(f"调试信息: sql_type = {sql_type}")
         print(f"调试信息: agg_or_select = {agg_or_select}")
         print(f"调试信息:数据写入间隔: {real_time_batch_sleep}秒")
+        print(f"调试信息: auto_combine = {auto_combine}")
         self.stream_sql = stream_sql if stream_sql else StreamSQLTemplates.get_sql(
             sql_type, 
             stream_num=stream_num, 
+            auto_combine=auto_combine, 
             agg_or_select=agg_or_select,
             tbname_or_trows_or_sourcetable=tbname_or_trows_or_sourcetable,
             custom_columns=custom_columns
@@ -2416,7 +5257,16 @@ class StreamStarter:
         self.check_stream_delay = check_stream_delay
         self.max_delay_threshold = max_delay_threshold  # 毫秒
         self.delay_check_interval = delay_check_interval  # 秒
-        self.delay_log_file = f"{os.path.splitext(perf_file)[0]}-stream-delay.log"
+        
+        # 延迟日志文件路径设置
+        if delay_log_file:
+            # 如果外部指定了延迟日志文件路径，使用指定的路径
+            self.delay_log_file = delay_log_file
+            print(f"调试: 使用外部指定的延迟日志文件: {self.delay_log_file}")
+        else:
+            # 如果没有指定，使用默认路径
+            self.delay_log_file = f"{os.path.splitext(perf_file)[0]}-stream-delay.log"
+            print(f"调试: 使用默认延迟日志文件: {self.delay_log_file}")
         
         print(f"流延迟检查: {'启用' if check_stream_delay else '禁用'}")
         if check_stream_delay:
@@ -2639,7 +5489,7 @@ class StreamStarter:
                     print(f"警告: {dnode} 进程可能未正常启动")
             
             # 等待服务完全启动
-            wait_time = 5 if self.deployment_mode == 'single' else 10
+            wait_time = 3 if self.deployment_mode == 'single' else 10
             print(f"\n等待服务启动 ({wait_time}秒)...")
             time.sleep(wait_time)             
             self.check_taosd_status()
@@ -3062,14 +5912,12 @@ class StreamStarter:
                         
                     except Exception as e:
                         failed_count += 1
-                        print(f"  ✗ 创建失败: {str(e)}")
-                        # 显示失败的SQL（用于调试）
-                        print(f"  失败SQL预览:")
-                        preview_lines = sql_template.strip().split('\n')[:10]  # 只显示前10行
-                        for line in preview_lines:
-                            if line.strip():
-                                print(f"    {line.strip()}")
-                        print(f"    ...")
+                    
+                        # 提取TDengine的具体错误信息
+                        error_message = str(e)
+                        tdengine_error = extract_stream_creation_error(error_message)
+                        
+                        print(f"执行错误: {tdengine_error}")
                 
                 # 显示批量创建结果摘要
                 print(f"\n=== 批量创建结果摘要 ===")
@@ -3098,20 +5946,40 @@ class StreamStarter:
                 print(sql_templates)
                 print("-" * 60)
                 
-                start_time = time.time()
-                cursor.execute(sql_templates)
-                create_time = time.time() - start_time
-                
-                print(f"✓ 流 {actual_stream_name} 创建完成! 耗时: {create_time:.2f}秒")
+                try:
+                    start_time = time.time()
+                    cursor.execute(sql_templates)
+                    create_time = time.time() - start_time
+                    
+                    print(f"✓ 流 {actual_stream_name} 创建完成! 耗时: {create_time:.2f}秒")
+                    
+                except Exception as e:
+                    # 提取TDengine的具体错误信息
+                    error_message = str(e)
+                    tdengine_error = extract_stream_creation_error(error_message)
+                    
+                    print(f"执行错误: {tdengine_error}")
+                    raise
             
             # 启动系统监控
             print("\n开始监控系统资源使用情况...")
+        
+            # 计算预热时间
+            if hasattr(self, 'monitor_warm_up_time') and self.monitor_warm_up_time is not None:
+                warm_up_time = self.monitor_warm_up_time
+                print(f"使用用户设置的预热时间: {warm_up_time}秒")
+            else:
+                warm_up_time = 60 if self.runtime >= 2 else 0
+                if warm_up_time > 0:
+                    print(f"使用自动计算的预热时间: {warm_up_time}秒")
+                    
             loader = MonitorSystemLoad(
                 name_pattern='taosd -c', 
                 count=self.runtime * 60,
                 perf_file='/tmp/perf-stream-test.log',
                 interval=self.monitor_interval,
-                deployment_mode=self.deployment_mode
+                deployment_mode=self.deployment_mode,
+                warm_up_time=warm_up_time
             )
             
             # 在新线程中运行监控
@@ -3394,7 +6262,7 @@ EOF
                     raise
             
             # 等待服务完全启动
-            wait_time = 5 if self.deployment_mode == 'single' else 10
+            wait_time = 3 if self.deployment_mode == 'single' else 10
             print(f"等待服务启动 ({wait_time}秒)...")
             time.sleep(wait_time)             
             self.check_taosd_status()
@@ -4057,15 +6925,6 @@ EOF
                     except Exception as e:
                         print(f"目标表 {target_table} 不存在或无法访问")
                         
-                        # # 尝试查看目标数据库中的所有表
-                        # target_db = table_info['target_db']
-                        # try:
-                        #     cursor.execute(f"show tables in {target_db}")
-                        #     tables_in_db = cursor.fetchall()
-                        #     print(f"数据库 {target_db} 中的表: {[t[0] for t in tables_in_db]}")
-                        # except Exception as db_e:
-                        #     print(f"无法查看数据库 {target_db}: {str(db_e)}")
-                        
                         stream_result = {
                             'stream_name': stream_name,
                             'target_table': target_table,
@@ -4138,7 +6997,17 @@ EOF
         if not delay_results:
             return
             
-        try:
+        try:           
+            # 基于 max_delay_threshold 计算动态阈值
+            base_threshold_ms = self.max_delay_threshold
+            
+            # 定义倍数阈值
+            excellent_threshold = base_threshold_ms * 0.1    # 0.1倍检查间隔 - 优秀
+            good_threshold = base_threshold_ms * 0.5         # 0.5倍检查间隔 - 良好  
+            normal_threshold = base_threshold_ms * 1.0       # 1倍检查间隔 - 正常
+            mild_delay_threshold = base_threshold_ms * 6.0   # 6倍检查间隔 - 轻微延迟
+            obvious_delay_threshold = base_threshold_ms * 30.0  # 30倍检查间隔 - 明显延迟
+            
             with open(self.delay_log_file, 'a') as f:
                 # 写入检查时间和源表信息
                 f.write(f"\n{'='*80}\n")
@@ -4146,6 +7015,7 @@ EOF
                 f.write(f"源表最新时间: {delay_results['source_last_ts']}\n")
                 f.write(f"源表时间戳(ms): {delay_results['source_ts_ms']}\n")
                 f.write(f"延迟阈值: {format_delay_time(self.max_delay_threshold)}\n")
+                f.write(f"检查频率: {self.delay_check_interval}秒\n")
                 f.write(f"-" * 80 + "\n")
                 
                 # 写入每个流的延迟信息
@@ -4156,13 +7026,48 @@ EOF
                     
                     if stream['status'] == 'OK' or stream['status'] == 'LAGGING':
                         f.write(f"目标表最新时间: {stream['target_last_ts']}\n")
-                        f.write(f"延迟: {format_delay_time(stream['delay_ms'])}\n")
+                        delay_ms = stream['delay_ms']
+                        f.write(f"延迟: {format_delay_time(delay_ms)}\n")
+                        
+                        # 计算延迟倍数并添加中文延迟等级判断和记录
+                        delay_multiplier = delay_ms / base_threshold_ms
+                        
+                        # 添加中文延迟等级判断和记录
+                        if delay_ms < excellent_threshold:  # 优秀
+                            delay_level = "优秀"
+                            delay_desc = f"(< 0.1倍间隔, {delay_multiplier:.2f}倍)"
+                        elif delay_ms < good_threshold:  # 良好
+                            delay_level = "良好"
+                            delay_desc = f"(0.1-0.5倍间隔, {delay_multiplier:.2f}倍)"
+                        elif delay_ms < normal_threshold:  # 正常
+                            delay_level = "正常"
+                            delay_desc = f"(0.5-1倍间隔, {delay_multiplier:.2f}倍)"
+                        elif delay_ms < mild_delay_threshold:  # 轻微延迟
+                            delay_level = "轻微延迟"
+                            delay_desc = f"(1-6倍间隔, {delay_multiplier:.2f}倍)"
+                        elif delay_ms < obvious_delay_threshold:  # 明显延迟
+                            delay_level = "明显延迟"
+                            delay_desc = f"(6-30倍间隔, {delay_multiplier:.2f}倍)"
+                        else:  # 严重延迟
+                            delay_level = "严重延迟"
+                            delay_desc = f"(> 30倍间隔, {delay_multiplier:.2f}倍)"
+                        
+                        # 写入中文延迟等级
+                        f.write(f"延迟等级: {delay_level}\n")
+                        f.write(f"延迟倍数: {delay_desc}\n")
+                        
                         if stream['is_lagging']:
-                            f.write(f"警告: 延迟超过阈值!\n")
+                            f.write(f"警告: 延迟超过配置阈值 {format_delay_time(self.max_delay_threshold)}!\n")
+                            
                     elif stream['status'] == 'NO_DATA':
                         f.write(f"警告: 目标表无数据\n")
+                        f.write(f"延迟等级: 严重延迟\n")  # 无数据也算严重延迟
+                        f.write(f"延迟倍数: (无数据状态)\n")
+                        
                     elif stream['status'] == 'ERROR':
                         f.write(f"错误: {stream.get('error', '未知错误')}\n")
+                        f.write(f"延迟等级: 严重延迟\n")  # 错误也算严重延迟
+                        f.write(f"延迟倍数: (错误状态)\n")
                     
                     f.write(f"-" * 40 + "\n")
                     
@@ -4177,19 +7082,19 @@ EOF
         c = Colors.get_colors()
         
         # 基于 delay_check_interval 计算动态阈值
-        check_interval_ms = self.delay_check_interval * 1000  # 转换为毫秒
+        base_threshold_ms = self.max_delay_threshold
         
         # 定义倍数阈值
-        excellent_threshold = check_interval_ms * 0.1    # 0.1倍检查间隔 - 优秀
-        good_threshold = check_interval_ms * 0.5         # 0.5倍检查间隔 - 良好  
-        normal_threshold = check_interval_ms * 1.0       # 1倍检查间隔 - 正常
-        mild_delay_threshold = check_interval_ms * 6.0   # 6倍检查间隔 - 轻微延迟
-        obvious_delay_threshold = check_interval_ms * 30.0  # 30倍检查间隔 - 明显延迟
+        excellent_threshold = base_threshold_ms * 0.1    # 0.1倍检查间隔 - 优秀
+        good_threshold = base_threshold_ms * 0.5         # 0.5倍检查间隔 - 良好  
+        normal_threshold = base_threshold_ms * 1.0       # 1倍检查间隔 - 正常
+        mild_delay_threshold = base_threshold_ms * 6.0   # 6倍检查间隔 - 轻微延迟
+        obvious_delay_threshold = base_threshold_ms * 30.0  # 30倍检查间隔 - 明显延迟
             
         print(f"\n=== 流计算延迟检查 ({delay_results['check_time']}) ===")
         print(f"源表最新时间: {delay_results['source_last_ts']}")
         print(f"配置信息: 子表数量({self.table_count}) | 每轮插入记录数({self.real_time_batch_rows}) | vgroups({self.vgroups}) | 数据乱序({self.disorder_ratio})")
-        print(f"延迟判断基准: 检查间隔 {self.delay_check_interval}s | 部署模式({self.deployment_mode}) | SQL类型({self.sql_type})")
+        print(f"延迟判断基准: 最大延迟阈值 {format_delay_time(self.max_delay_threshold)} | 检查频率 {self.delay_check_interval}s | 部署模式({self.deployment_mode}) | SQL类型({self.sql_type})")
             
         ok_count = 0
         lagging_count = 0
@@ -4259,11 +7164,13 @@ EOF
                 
             elif status == 'NO_DATA':
                 no_data_count += 1
+                severe_delay_count += 1
                 status_icon = "❌" if Colors.supports_color() else "✗"
                 print(f"{c.RED}{status_icon} {stream_name}: 目标表未生成数据{c.END}")
                 
             elif status == 'ERROR':
                 error_count += 1
+                severe_delay_count += 1
                 status_icon = "💥" if Colors.supports_color() else "✗"
                 print(f"{c.RED}{c.BOLD}{status_icon} {stream_name}: 目标表不存在或检查出错{c.END}")
                 error_msg = stream.get('error', '未知错误')
@@ -4345,13 +7252,14 @@ EOF
                 print(f"  💥 目标表不存在: {error_count} ({error_percent}) ")
            
         # 显示阈值参考信息
-        print(f"\n{c.CYAN}延迟等级参考 (基于检查间隔 {self.delay_check_interval}s):{c.END}")
+        print(f"\n{c.CYAN}延迟等级参考 (基于检查间隔 {format_delay_time(self.max_delay_threshold)}):{c.END}")
         print(f"  🟢 优秀: < {format_delay_time(excellent_threshold)} (0.1倍间隔)")
         print(f"  🟢 良好: {format_delay_time(excellent_threshold)} - {format_delay_time(good_threshold)} (0.1-0.5倍间隔)")
         print(f"  🟡 正常: {format_delay_time(good_threshold)} - {format_delay_time(normal_threshold)} (0.5-1倍间隔)")
         print(f"  🟡 轻微延迟: {format_delay_time(normal_threshold)} - {format_delay_time(mild_delay_threshold)} (1-6倍间隔)")
         print(f"  🟠 明显延迟: {format_delay_time(mild_delay_threshold)} - {format_delay_time(obvious_delay_threshold)} (6-30倍间隔)")
         print(f"  🔴 严重延迟: > {format_delay_time(obvious_delay_threshold)} (>30倍间隔)")
+        print(f"\n{c.CYAN}监控频率: 每 {self.delay_check_interval}秒 检查一次延迟状态{c.END}")
         
         # 状态评估
         healthy_count = ok_count  # 只有正常状态才算健康
@@ -4436,6 +7344,17 @@ EOF
         def delay_monitor():
             """延迟监控线程函数"""
             print(f"启动流延迟监控 (间隔: {self.delay_check_interval}秒)")
+            print(f"延迟日志文件: {self.delay_log_file}")
+            
+            # 确保延迟日志文件的目录存在
+            delay_log_dir = os.path.dirname(self.delay_log_file)
+            if not os.path.exists(delay_log_dir):
+                try:
+                    os.makedirs(delay_log_dir, exist_ok=True)
+                    print(f"创建延迟日志目录: {delay_log_dir}")
+                except Exception as e:
+                    print(f"创建延迟日志目录失败: {str(e)}")
+                    return
             
             # 初始化日志文件
             try:
@@ -4498,9 +7417,12 @@ EOF
             
             final_msg = f"流延迟监控结束，共执行了 {check_count} 次检查"
             print(final_msg)
-            with open(self.delay_log_file, 'a') as f:
-                f.write(f"\n{final_msg}\n")
-                f.write(f"结束时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            try:
+                with open(self.delay_log_file, 'a') as f:
+                    f.write(f"\n{final_msg}\n")
+                    f.write(f"结束时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            except Exception as e:
+                print(f"写入延迟日志结束信息失败: {str(e)}")
         
         # 创建并启动监控线程
         monitor_thread = threading.Thread(target=delay_monitor, name="StreamDelayMonitor")
@@ -4509,7 +7431,7 @@ EOF
         
         return monitor_thread
             
-    def do_test_stream_with_realtime_data(self):
+    def do_test_stream_with_realtime_data_ooo(self):
         self.prepare_env()
         self.prepare_source_from_data()
         self.insert_source_from_data()
@@ -4539,6 +7461,23 @@ EOF
                 print("数据准备失败，退出测试")
                 return
             
+            
+            # ✅ 计算预热时间和流创建延迟
+            if hasattr(self, 'monitor_warm_up_time') and self.monitor_warm_up_time is not None:
+                warm_up_time = self.monitor_warm_up_time
+                stream_creation_delay = self.monitor_warm_up_time  # 流创建延迟等于预热时间
+                print(f"使用用户设置的预热时间: {warm_up_time}秒")
+                print(f"✨ 流创建延迟: {stream_creation_delay}秒 (将在预热结束后创建流)")
+            else:
+                warm_up_time = 60 if self.runtime >= 2 else 0
+                stream_creation_delay = warm_up_time  # 流创建延迟等于预热时间
+                if warm_up_time > 0:
+                    print(f"使用自动计算的预热时间: {warm_up_time}秒")
+                    print(f"✨ 流创建延迟: {stream_creation_delay}秒 (将在预热结束后创建流)")
+                else:
+                    print(f"运行时间较短({self.runtime}分钟)，跳过预热，立即创建流")
+                    
+                    
             # 获取新连接执行流式查询
             conn, cursor = self.get_connection()
             
@@ -4558,6 +7497,7 @@ EOF
                 total_streams = len(sql_templates)
                 success_count = 0
                 failed_count = 0
+                failed_errors = [] 
                 
                 for index, (sql_name, sql_template) in enumerate(sql_templates.items(), 1):
                     try:
@@ -4586,14 +7526,13 @@ EOF
                         
                     except Exception as e:
                         failed_count += 1
-                        print(f"  ✗ 创建失败: {str(e)}")
-                        # 显示失败的SQL（用于调试）
-                        print(f"  失败SQL预览:")
-                        preview_lines = sql_template.strip().split('\n')[:10]  # 只显示前10行
-                        for line in preview_lines:
-                            if line.strip():
-                                print(f"    {line.strip()}")
-                        print(f"    ...")
+                        
+                        # 提取TDengine的具体错误信息
+                        error_message = str(e)
+                        tdengine_error = extract_stream_creation_error(error_message)
+                        
+                        print(f"执行错误: {tdengine_error}")
+                        failed_errors.append(f"{sql_name}: {tdengine_error}")
                 
                 # 显示批量创建结果摘要
                 print(f"\n=== 批量创建结果摘要 ===")
@@ -4601,6 +7540,26 @@ EOF
                 print(f"成功: {success_count}")
                 print(f"失败: {failed_count}")
                 print(f"成功率: {(success_count/total_streams*100):.1f}%")
+            
+                if failed_count > 0:
+                    # 构建详细的错误信息
+                    error_summary = f"流创建失败统计: {failed_count}/{total_streams} 个流失败"
+                    if len(failed_errors) > 0:
+                        # 只保留前5个错误详情，避免信息过长
+                        error_details = "; ".join(failed_errors[:5])
+                        if len(failed_errors) > 5:
+                            error_details += f"; 还有{len(failed_errors)-5}个错误..."
+                        error_summary += f" | 错误详情: {error_details}"
+                    print(f"⚠️  {failed_count} 个流创建失败，请检查错误信息")
+                    
+                    if success_count == 0:
+                        # 如果所有流都失败了，抛出异常
+                        raise Exception(f"所有 {total_streams} 个流创建都失败了")
+                    else:
+                        # 如果部分失败，记录警告但继续执行
+                        print(f"⚠️  注意: {failed_count}/{total_streams} 个流创建失败，将使用 {success_count} 个成功的流继续测试")
+                else:
+                    print("所有流创建成功！")
                 
             else:
                 # 单个流的创建
@@ -4617,23 +7576,57 @@ EOF
                 print(sql_templates)
                 print("-" * 80)
                 
-                start_time = time.time()
-                cursor.execute(sql_templates)
-                create_time = time.time() - start_time
-                
-                print(f"✓ 流 {actual_stream_name} 创建完成! 耗时: {create_time:.2f}秒")
+                try:
+                    start_time = time.time()
+                    cursor.execute(sql_templates)
+                    create_time = time.time() - start_time
+                    
+                    print(f"✓ 流 {actual_stream_name} 创建完成! 耗时: {create_time:.2f}秒")
+                    
+                except Exception as e:
+                    # 提取TDengine的具体错误信息
+                    error_message = str(e)
+                    tdengine_error = extract_stream_creation_error(error_message)
+                    
+                    print(f"realtime_data提取TDengine执行错误2: {tdengine_error}")
+                    raise Exception(tdengine_error)
             
             print("流式查询已创建,开始监控系统负载")
             cursor.close()
             conn.close()
             
             # 监控系统负载 - 同时监控三个节点
+            print(f"调试: 使用性能文件路径: {self.perf_file}")
+            
+            # 优先使用用户设置的值
+            if hasattr(self, 'monitor_warm_up_time') and self.monitor_warm_up_time is not None:
+                # 如果用户明确设置了预热时间，使用用户设置的值
+                warm_up_time = self.monitor_warm_up_time
+                print(f"使用用户设置的预热时间: {warm_up_time}秒")
+            else:
+                # 如果用户未设置，使用自动计算逻辑
+                warm_up_time = 60 if self.runtime >= 2 else 0
+                if warm_up_time > 0:
+                    print(f"使用自动计算的预热时间: {warm_up_time}秒 (运行时间>=2分钟)")
+                else:
+                    print(f"运行时间较短({self.runtime}分钟)，跳过预热直接开始监控")
+            
+            if warm_up_time > 0:
+                print(f"\n=== 启动性能监控 (包含{warm_up_time}秒预热期) ===")
+                print(f"监控阶段划分:")
+                print(f"  📊 预热期 (0-{warm_up_time}秒): 纯数据写入 + 系统稳定")
+                print(f"  🔄 流计算期 ({warm_up_time}秒-{self.runtime*60}秒): 数据写入 + 流计算")
+                print(f"总运行时间: {self.runtime}分钟")
+            else:
+                print(f"运行时间较短({self.runtime}分钟)，跳过预热直接开始监控")
+                
             loader = MonitorSystemLoad(
                 name_pattern='taosd -c', 
                 count=self.runtime * 60,
-                perf_file='/tmp/perf-taosd.log',  # 基础文件名,会自动添加dnode编号
+                perf_file=self.perf_file,  # 基础文件名,会自动添加dnode编号
                 interval=self.monitor_interval,
-                deployment_mode=self.deployment_mode 
+                deployment_mode=self.deployment_mode,
+                warm_up_time=warm_up_time
             )
                         
             # 在新线程中运行监控
@@ -4670,10 +7663,6 @@ EOF
                         
                         if not self.update_insert_config():
                             raise Exception("更新写入配置失败")
-                        
-                        # cmd = "taosBenchmark -f /tmp/stream_from_insertdata.json"
-                        # if subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True).returncode != 0:
-                        #     raise Exception("写入新数据失败")
                         
                         cmd = "taosBenchmark -f /tmp/stream_from_insertdata.json"
                         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
@@ -4745,10 +7734,612 @@ EOF
                 if result.stdout:
                     print("\ntaosd进程仍在运行")
                     print("如需停止taosd进程，请手动执行: pkill taosd")
+                    
+                    
+        
+            print("\n流计算测试完成!")
+            
+            # 如果有部分流创建失败，在测试完成时报告
+            if hasattr(self, 'partial_stream_creation_errors'):
+                print(f"\n⚠️  测试完成，但存在流创建问题:")
+                print(f"    {self.partial_stream_creation_errors}")
+                # 作为警告而不是错误，不中断测试但记录问题
+                # 可以选择是否抛出异常
+                # raise Exception(self.partial_stream_creation_errors)
                 
         except Exception as e:
-            print(f"执行错误: {str(e)}")            
+            print(f"流计算测试失败: {str(e)}")      
+            raise      
 
+
+    def do_test_stream_with_realtime_data(self):
+        self.prepare_env()
+        self.prepare_source_from_data()
+        self.insert_source_from_data()
+        
+        conn = taos.connect(
+            host=self.host,
+            user=self.user,
+            password=self.passwd,
+            config=self.conf
+        )
+        cursor = conn.cursor()
+
+        try:
+            # ✅ 启动初始数据生成进程
+            print("启动初始数据生成...")
+            data_process = subprocess.Popen('taosBenchmark --f /tmp/stream_from.json', 
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
+            
+            # 创建stream_to数据库
+            if not self.create_database('stream_to'):
+                raise Exception("创建stream_to数据库失败")
+            
+            time.sleep(5)
+            print("数据库已创建,等待数据写入...")
+            
+            # 等待数据准备就绪
+            if not self.wait_for_data_ready(cursor, self.table_count, self.histroy_rows):
+                print("数据准备失败，退出测试")
+                return
+            
+            # ✅ 计算预热时间和流创建延迟
+            if hasattr(self, 'monitor_warm_up_time') and self.monitor_warm_up_time is not None:
+                warm_up_time = self.monitor_warm_up_time
+                stream_creation_delay = self.monitor_warm_up_time
+                print(f"使用用户设置的预热时间: {warm_up_time}秒")
+                print(f"✨ 流创建延迟: {stream_creation_delay}秒 (将在预热结束后创建流)")
+            else:
+                warm_up_time = 60 if self.runtime >= 2 else 0
+                stream_creation_delay = warm_up_time
+                if warm_up_time > 0:
+                    print(f"使用自动计算的预热时间: {warm_up_time}秒")
+                    print(f"✨ 流创建延迟: {stream_creation_delay}秒 (将在预热结束后创建流)")
+                else:
+                    print(f"运行时间较短({self.runtime}分钟)，跳过预热，立即创建流")
+            
+            # ✅ 启动系统监控 (包含预热期)
+            print(f"调试: 使用性能文件路径: {self.perf_file}")
+            
+            if warm_up_time > 0:
+                print(f"\n=== 启动性能监控 (包含{warm_up_time}秒预热期) ===")
+                print(f"监控阶段划分:")
+                print(f"  📊 预热期 (0-{warm_up_time}秒): 持续数据写入 + 系统稳定 + 不创建流")
+                print(f"  🔄 流计算期 ({warm_up_time}秒-{self.runtime*60}秒): 创建流 + 数据写入 + 流计算")
+                print(f"总运行时间: {self.runtime}分钟")
+                print(f"⚠️  预热期目的: 观察纯数据写入性能基线，与流计算期对比")
+            else:
+                print(f"运行时间较短({self.runtime}分钟)，跳过预热直接开始监控")
+                
+            loader = MonitorSystemLoad(
+                name_pattern='taosd -c', 
+                count=self.runtime * 60,
+                perf_file=self.perf_file,
+                interval=self.monitor_interval,
+                deployment_mode=self.deployment_mode,
+                warm_up_time=warm_up_time
+            )
+                        
+            # 在新线程中运行监控
+            monitor_thread = threading.Thread(
+                target=loader.get_proc_status,
+                name="TaosdMonitor"
+            )
+            monitor_thread.daemon = True
+            monitor_thread.start()
+            print("✅ 系统资源监控已启动...")
+            
+            # ✅ 用于标记流创建是否成功的变量
+            stream_creation_success = False
+            stream_creation_error = None
+            
+            # ✅ 延迟创建流的线程
+            stream_creation_thread = None
+            if stream_creation_delay > 0:
+                def delayed_stream_creation():
+                    """延迟创建流的函数"""
+                    nonlocal stream_creation_success, stream_creation_error
+                    
+                    print(f"\n⏰ 等待 {stream_creation_delay} 秒后创建流...")
+                    print(f"📊 预热期: 持续数据写入阶段 ({stream_creation_delay}秒)")
+                    print(f"   在此期间持续写入数据观察纯写入性能基线")
+                    time.sleep(stream_creation_delay)
+                    
+                    print(f"\n🔄 预热期结束，开始创建流...")
+                    print(f"=" * 80)
+                    
+                    try:
+                        # 获取新的数据库连接用于创建流
+                        stream_conn, stream_cursor = self.get_connection()
+                        stream_cursor.execute('use stream_from')
+                        
+                        # 获取 SQL 模板并创建流
+                        sql_templates = self.stream_sql 
+                        
+                        # 判断是否为批量执行
+                        if isinstance(sql_templates, dict):
+                            print("\n=== 开始批量创建流 ===")
+                            total_streams = len(sql_templates)
+                            success_count = 0
+                            failed_count = 0
+                            failed_errors = [] 
+                            
+                            for index, (sql_name, sql_template) in enumerate(sql_templates.items(), 1):
+                                try:
+                                    print(f"\n[{index}/{total_streams}] 创建流: {sql_name}")
+                                    
+                                    # 提取实际的流名称（从SQL中解析）
+                                    import re
+                                    match = re.search(r'create\s+stream\s+([^\s]+)', sql_template, re.IGNORECASE)
+                                    actual_stream_name = match.group(1) if match else sql_name
+                                    
+                                    print(f"  SQL流名称: {actual_stream_name}")
+                                    # 显示完整的流SQL语句
+                                    print(f"  流SQL语句:")
+                                    # 格式化SQL显示，去掉多余的空行和缩进
+                                    formatted_sql = '\n'.join([
+                                        '    ' + line.strip() 
+                                        for line in sql_template.strip().split('\n') 
+                                        if line.strip()
+                                    ])
+                                    print(formatted_sql)
+                                    
+                                    print(f"  执行创建...")
+                                    stream_cursor.execute(sql_template)
+                                    success_count += 1
+                                    print(f"  ✓ 创建成功")
+                                    
+                                except Exception as e:
+                                    failed_count += 1
+                                    
+                                    # 提取TDengine的具体错误信息
+                                    error_message = str(e)
+                                    tdengine_error = extract_stream_creation_error(error_message)
+                                    
+                                    print(f"执行错误: {tdengine_error}")
+                                    failed_errors.append(f"{sql_name}: {tdengine_error}")
+                            
+                            # 显示批量创建结果摘要
+                            print(f"\n=== 批量创建结果摘要 ===")
+                            print(f"总流数: {total_streams}")
+                            print(f"成功: {success_count}")
+                            print(f"失败: {failed_count}")
+                            print(f"成功率: {(success_count/total_streams*100):.1f}%")
+                        
+                            if failed_count > 0:
+                                error_summary = f"流创建失败统计: {failed_count}/{total_streams} 个流失败"
+                                if len(failed_errors) > 0:
+                                    error_details = "; ".join(failed_errors[:5])
+                                    if len(failed_errors) > 5:
+                                        error_details += f"; 还有{len(failed_errors)-5}个错误..."
+                                    error_summary += f" | 错误详情: {error_details}"
+                                print(f"⚠️  {failed_count} 个流创建失败，请检查错误信息")
+                                
+                                if success_count == 0:
+                                    # ✅ 如果所有流都失败了，设置错误标记并返回
+                                    stream_creation_error = f"所有 {total_streams} 个流创建都失败了"
+                                    stream_creation_success = False
+                                    print(f"❌ 所有流创建失败，停止测试")
+                                    return
+                                else:
+                                    # 部分失败，仍然算作成功，继续测试
+                                    stream_creation_success = True
+                                    print(f"⚠️  注意: {failed_count}/{total_streams} 个流创建失败，将使用 {success_count} 个成功的流继续测试")
+                            else:
+                                stream_creation_success = True
+                                print("✅ 所有流创建成功！")
+                            
+                        else:
+                            # 单个流的创建
+                            print("\n=== 开始创建流 ===")
+                            
+                            # 提取实际的流名称
+                            import re
+                            match = re.search(r'create\s+stream\s+([^\s]+)', sql_templates, re.IGNORECASE)
+                            actual_stream_name = match.group(1) if match else "未知流名称"
+                            
+                            print(f"流名称: {actual_stream_name}")
+                            print("流SQL语句:")
+                            print("-" * 80)
+                            print(sql_templates)
+                            print("-" * 80)
+                            
+                            try:
+                                start_time = time.time()
+                                stream_cursor.execute(sql_templates)
+                                create_time = time.time() - start_time
+                                
+                                print(f"✅ 流 {actual_stream_name} 创建完成! 耗时: {create_time:.2f}秒")
+                                stream_creation_success = True
+                                
+                            except Exception as e:
+                                # ✅ 单个流创建失败，设置错误标记
+                                error_message = str(e)
+                                tdengine_error = extract_stream_creation_error(error_message)
+                                
+                                print(f"❌ 流创建失败: {tdengine_error}")
+                                stream_creation_error = tdengine_error
+                                stream_creation_success = False
+                                return
+                        
+                        if stream_creation_success:
+                            print(f"\n🔄 流计算期开始 - 数据写入 + 流计算")
+                            print(f"=" * 80)
+                        
+                        # 关闭流创建连接
+                        stream_cursor.close()
+                        stream_conn.close()
+                        
+                    except Exception as e:
+                        print(f"❌ 延迟创建流时出错: {str(e)}")
+                        stream_creation_error = str(e)
+                        stream_creation_success = False
+                
+                # 创建并启动延迟流创建线程
+                stream_creation_thread = threading.Thread(
+                    target=delayed_stream_creation,
+                    name="DelayedStreamCreation"
+                )
+                stream_creation_thread.daemon = True
+                stream_creation_thread.start()
+                print(f"✅ 延迟流创建线程已启动 (将在{stream_creation_delay}秒后执行)")
+                
+            else:
+                # 立即创建流 (原有逻辑保持不变)
+                print("\n=== 立即创建流 ===")
+    
+                try:
+                    # 获取新的数据库连接用于创建流
+                    stream_conn, stream_cursor = self.get_connection()
+                    stream_cursor.execute('use stream_from')
+                    
+                    # 获取 SQL 模板并创建流
+                    sql_templates = self.stream_sql 
+                    
+                    # 判断是否为批量执行
+                    if isinstance(sql_templates, dict):
+                        print("\n=== 开始批量创建流 ===")
+                        total_streams = len(sql_templates)
+                        success_count = 0
+                        failed_count = 0
+                        failed_errors = [] 
+                        
+                        for index, (sql_name, sql_template) in enumerate(sql_templates.items(), 1):
+                            try:
+                                print(f"\n[{index}/{total_streams}] 创建流: {sql_name}")
+                                
+                                # 提取实际的流名称（从SQL中解析）
+                                import re
+                                match = re.search(r'create\s+stream\s+([^\s]+)', sql_template, re.IGNORECASE)
+                                actual_stream_name = match.group(1) if match else sql_name
+                                
+                                print(f"  SQL流名称: {actual_stream_name}")
+                                # 显示完整的流SQL语句
+                                print(f"  流SQL语句:")
+                                # 格式化SQL显示，去掉多余的空行和缩进
+                                formatted_sql = '\n'.join([
+                                    '    ' + line.strip() 
+                                    for line in sql_template.strip().split('\n') 
+                                    if line.strip()
+                                ])
+                                print(formatted_sql)
+                                
+                                print(f"  执行创建...")
+                                stream_cursor.execute(sql_template)
+                                success_count += 1
+                                print(f"  ✓ 创建成功")
+                                
+                            except Exception as e:
+                                failed_count += 1
+                                
+                                # 提取TDengine的具体错误信息
+                                error_message = str(e)
+                                tdengine_error = extract_stream_creation_error(error_message)
+                                
+                                print(f"❌ 执行错误: {tdengine_error}")
+                                failed_errors.append(f"{sql_name}: {tdengine_error}")
+                        
+                        # 显示批量创建结果摘要
+                        print(f"\n=== 批量创建结果摘要 ===")
+                        print(f"总流数: {total_streams}")
+                        print(f"成功: {success_count}")
+                        print(f"失败: {failed_count}")
+                        print(f"成功率: {(success_count/total_streams*100):.1f}%")
+                    
+                        if failed_count > 0:
+                            error_summary = f"流创建失败统计: {failed_count}/{total_streams} 个流失败"
+                            if len(failed_errors) > 0:
+                                error_details = "; ".join(failed_errors[:5])
+                                if len(failed_errors) > 5:
+                                    error_details += f"; 还有{len(failed_errors)-5}个错误..."
+                                error_summary += f" | 错误详情: {error_details}"
+                            print(f"⚠️  {failed_count} 个流创建失败，请检查错误信息")
+                            
+                            if success_count == 0:
+                                # 如果所有流都失败了，设置错误标记并抛出异常
+                                stream_creation_error = f"所有 {total_streams} 个流创建都失败了"
+                                stream_creation_success = False
+                                print(f"❌ 所有流创建失败，停止测试")
+                                raise Exception(stream_creation_error)
+                            else:
+                                # 部分失败，仍然算作成功，继续测试
+                                stream_creation_success = True
+                                print(f"⚠️  注意: {failed_count}/{total_streams} 个流创建失败，将使用 {success_count} 个成功的流继续测试")
+                        else:
+                            stream_creation_success = True
+                            print("✅ 所有流创建成功！")
+                        
+                    else:
+                        # 单个流的创建
+                        print("\n=== 开始创建单个流 ===")
+                        
+                        # 提取实际的流名称
+                        import re
+                        match = re.search(r'create\s+stream\s+([^\s]+)', sql_templates, re.IGNORECASE)
+                        actual_stream_name = match.group(1) if match else "未知流名称"
+                        
+                        print(f"流名称: {actual_stream_name}")
+                        print("流SQL语句:")
+                        print("-" * 80)
+                        print(sql_templates)
+                        print("-" * 80)
+                        
+                        try:
+                            start_time = time.time()
+                            stream_cursor.execute(sql_templates)
+                            create_time = time.time() - start_time
+                            
+                            print(f"✅ 流 {actual_stream_name} 创建完成! 耗时: {create_time:.2f}秒")
+                            stream_creation_success = True
+                            
+                        except Exception as e:
+                            # 单个流创建失败，设置错误标记并抛出异常
+                            error_message = str(e)
+                            tdengine_error = extract_stream_creation_error(error_message)
+                            
+                            print(f"❌ 流创建失败: {tdengine_error}")
+                            stream_creation_error = tdengine_error
+                            stream_creation_success = False
+                            raise Exception(tdengine_error)
+                    
+                    if stream_creation_success:
+                        print(f"\n🔄 流计算开始 - 数据写入 + 流计算")
+                        print(f"=" * 80)
+                    
+                    # 关闭流创建连接
+                    stream_cursor.close()
+                    stream_conn.close()
+                    
+                except Exception as e:
+                    print(f"❌ 立即创建流时出错: {str(e)}")
+                    stream_creation_error = str(e)
+                    stream_creation_success = False
+                    # 对于立即创建流的情况，如果失败就直接抛出异常
+                    raise Exception(f"流创建失败: {str(e)}")
+            
+            # ✅ 立即启动数据写入线程（预热期数据写入）
+            write_thread = None
+            write_stop_flag = threading.Event()
+            
+            def continuous_data_writing():
+                """持续数据写入线程函数"""
+                write_cycle = 0
+                while not write_stop_flag.is_set():
+                    write_cycle += 1
+                    current_time = time.time()
+                    
+                    # 判断当前阶段
+                    if stream_creation_delay > 0:
+                        if current_time - test_start_time <= stream_creation_delay:
+                            stage = "预热期"
+                            stage_desc = "纯数据写入负载 (观察基线性能)"
+                        else:
+                            stage = "流计算期"
+                            stage_desc = "数据写入 + 流计算负载"
+                    else:
+                        stage = "正常期"
+                        stage_desc = "数据写入 + 流计算"
+                    
+                    print(f"\n=== 第 {write_cycle} 轮数据写入 - {stage} ===")
+                    print(f"📝 {stage_desc}")
+                    
+                    # 应用写入间隔控制
+                    if self.real_time_batch_sleep > 0:
+                        print(f"等待 {self.real_time_batch_sleep} 秒后开始写入数据...")
+                        if write_stop_flag.wait(self.real_time_batch_sleep):
+                            break  # 如果收到停止信号，退出
+                    
+                    write_start_time = time.time()
+                    
+                    try:
+                        # 更新写入配置
+                        if not self.update_insert_config():
+                            print("❌ 更新写入配置失败")
+                            break
+                        
+                        # 执行数据写入
+                        cmd = "taosBenchmark -f /tmp/stream_from_insertdata.json"
+                        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
+                        
+                        write_end_time = time.time()
+                        write_duration = write_end_time - write_start_time
+                        
+                        if result.returncode != 0:
+                            print(f"❌ 写入数据失败: {result.stderr}")
+                            break
+                        else:
+                            total_records = self.table_count * self.real_time_batch_rows
+                            write_speed = total_records / write_duration if write_duration > 0 else 0
+                            print(f"✅ 数据写入完成: {total_records} 条记录, 耗时 {write_duration:.2f}秒, 速度 {write_speed:.0f} 条/秒")
+                            
+                            # 显示写入控制信息
+                            if self.real_time_batch_sleep > 0:
+                                print(f"⏳ 写入间隔控制: {self.real_time_batch_sleep}秒")
+                    
+                    except Exception as e:
+                        print(f"❌ 数据写入出错: {str(e)}")
+                        break
+                    
+                    # 检查是否应该停止
+                    if write_stop_flag.is_set():
+                        break
+            
+            # 启动数据写入线程
+            test_start_time = time.time()
+            write_thread = threading.Thread(target=continuous_data_writing, name="ContinuousDataWriter")
+            write_thread.daemon = True
+            write_thread.start()
+            print("✅ 持续数据写入线程已启动...")
+            
+            # ✅ 等待流创建完成（如果是延迟创建）
+            if stream_creation_thread:
+                print("等待流创建完成...")
+                # 等待足够的时间让流创建完成
+                max_wait_time = stream_creation_delay + 60  # 预热时间 + 60秒缓冲时间
+                stream_creation_thread.join(timeout=max_wait_time)
+                
+                # 检查流创建结果
+                if not stream_creation_success:
+                    if stream_creation_error:
+                        print(f"❌ 流创建失败，停止测试: {stream_creation_error}")
+                        raise Exception(f"流创建失败: {stream_creation_error}")
+                    else:
+                        print("❌ 流创建状态未知，停止测试")
+                        raise Exception("流创建状态未知")
+                
+                print("✅ 流创建完成，继续数据写入和流计算测试")
+            
+            # ✅ 只有在流创建成功后才启动延迟监控
+            delay_monitor_thread = None
+            if stream_creation_success and self.check_stream_delay:
+                print("流创建成功，启动延迟监控...")
+                delay_monitor_thread = self.start_stream_delay_monitor()
+            elif not stream_creation_success:
+                print("⚠️  流创建失败，跳过延迟监控")
+            elif not self.check_stream_delay:
+                print("⚠️  延迟监控未启用")
+            else:
+                print("⚠️  未知状态，跳过延迟监控")
+        
+            try:            
+                # ✅ 等待测试完成
+                total_test_time = self.runtime * 60
+                print(f"\n=== 开始等待测试完成 (总时间: {self.runtime}分钟) ===")
+                
+                time.sleep(total_test_time)
+                
+                print(f"\n✅ 已达到运行时间限制 ({self.runtime} 分钟)，停止测试")
+            
+            except Exception as e:
+                print(f"测试执行出错: {str(e)}")
+            finally:
+                # 停止数据写入线程
+                if write_thread and write_thread.is_alive():
+                    print("停止数据写入线程...")
+                    write_stop_flag.set()
+                    write_thread.join(timeout=10)
+                    if write_thread.is_alive():
+                        print("数据写入线程未在预期时间内结束")
+                    else:
+                        print("数据写入线程已停止")
+                
+                print("测试主体操作完成")
+        
+                # 主动停止监控
+                print("主动停止系统监控...")
+                loader.stop()
+                
+            # 等待监控线程结束
+            print("等待监控数据收集完成...")
+            monitor_thread.join(timeout=15)  # 最多等待15秒
+                
+            if monitor_thread.is_alive():
+                print("监控线程未在预期时间内结束，强制继续...")
+            else:
+                print("监控线程已正常结束")
+        
+            if delay_monitor_thread:
+                print("等待延迟监控完成...")
+                delay_monitor_thread.join(timeout=10)  # 最多等待10秒
+                if delay_monitor_thread.is_alive():
+                    print("延迟监控线程未在预期时间内结束，强制继续...")
+                else:
+                    print("延迟监控线程已正常结束")
+                
+            # ✅ 增强的最终报告
+            if self.check_stream_delay and stream_creation_success:
+                print(f"\n流延迟监控报告已保存到: {self.delay_log_file}")
+                self.print_final_delay_summary_enhanced(stream_creation_delay)
+            else:
+                self.print_final_test_summary_enhanced(stream_creation_delay)
+                            
+            print("\n流计算测试完成!")
+            
+        except Exception as e:
+            print(f"流计算测试失败: {str(e)}")      
+            raise       
+
+    def print_final_delay_summary_enhanced(self, stream_creation_delay):
+        """增强的最终延迟测试摘要，包含阶段划分信息"""
+        try:
+            c = Colors.get_colors()
+            
+            print_title("\n=== 流计算延迟测试总结 (增强版) ===")
+            
+            # ✅ 显示测试阶段信息
+            if stream_creation_delay > 0:
+                print(f"🔄 测试阶段划分:")
+                print(f"  📊 预热期 (0-{stream_creation_delay}秒): 持续数据写入 + 系统稳定 + 不创建流")
+                print(f"      - 系统资源监控: 启动")
+                print(f"      - 数据写入: 启动 (观察纯写入性能基线)")
+                print(f"      - 流计算: 未启动")
+                print(f"      - 延迟监控: 未开始")
+                print(f"  🔄 流计算期 ({stream_creation_delay}-{self.runtime*60}秒): 创建流 + 数据写入 + 流计算")
+                print(f"      - 系统资源监控: 继续")
+                print(f"      - 数据写入: 继续")
+                print(f"      - 流计算: 启动")
+                print(f"      - 延迟监控: 开始")
+                print(f"  📏 总运行时间: {self.runtime*60}秒 ({self.runtime}分钟)")
+                
+                # 计算实际流计算时间
+                actual_stream_time = self.runtime * 60 - stream_creation_delay
+                print(f"  ⏱️  实际流计算时间: {actual_stream_time}秒 ({actual_stream_time/60:.1f}分钟)")
+                print(f"  🔍 性能对比: 预热期为纯写入基线，流计算期为写入+流计算负载")
+            else:
+                print(f"🔄 测试模式: 立即启动流计算 (无预热延迟)")
+                print(f"  📏 总运行时间: {self.runtime*60}秒 ({self.runtime}分钟)")
+                print(f"  ⏱️  流计算时间: {self.runtime*60}秒 ({self.runtime}分钟)")
+            
+            # ... 其余代码保持不变 ...
+            
+        except Exception as e:
+            print(f"生成增强摘要时出错: {str(e)}")
+
+    def print_final_test_summary_enhanced(self, stream_creation_delay):
+        """增强的最终测试摘要（无延迟监控时使用）"""
+        try:
+            c = Colors.get_colors()
+            
+            print_title("\n=== 流计算性能测试总结 ===")
+            
+            # 显示测试阶段信息
+            if stream_creation_delay > 0:
+                print(f"🔄 测试阶段划分:")
+                print(f"  📊 预热期 (0-{stream_creation_delay}秒): 纯数据写入阶段")
+                print(f"  🔄 流计算期 ({stream_creation_delay}-{self.runtime*60}秒): 数据写入 + 流计算阶段")
+                actual_stream_time = self.runtime * 60 - stream_creation_delay
+                print(f"  ⏱️  实际流计算时间: {actual_stream_time}秒 ({actual_stream_time/60:.1f}分钟)")
+            else:
+                print(f"🔄 测试模式: 立即启动流计算")
+                print(f"  ⏱️  流计算时间: {self.runtime*60}秒 ({self.runtime}分钟)")
+            
+            print(f"\n✅ 测试已完成!")
+            print(f"📄 性能监控数据: /tmp/perf-taosd-*.log")
+            print(f"🔍 建议启用 --check-stream-delay 参数获得延迟分析")
+            
+        except Exception as e:
+            print(f"生成测试摘要时出错: {str(e)}")
+    
 
     def print_final_delay_summary(self):
         """打印最终的延迟测试摘要"""
@@ -4911,12 +8502,18 @@ EOF
         
         try:
             # 启动性能监控线程
+            if hasattr(self, 'monitor_warm_up_time') and self.monitor_warm_up_time is not None:
+                warm_up_time = self.monitor_warm_up_time
+            else:
+                warm_up_time = 60 if self.runtime >= 2 else 0
+        
             loader = MonitorSystemLoad(
                 name_pattern='taosd -c', 
                 count=self.runtime * 60,
                 perf_file='/tmp/perf-taosd-query.log',
                 interval=self.monitor_interval,
-                deployment_mode=self.deployment_mode 
+                deployment_mode=self.deployment_mode,
+                warm_up_time=warm_up_time  
             )
             
             # 在新线程中运行监控
@@ -5628,16 +9225,37 @@ def main():
                             '    tbname: from %%tbname where ts >= _twstart and ts <= _twend\n'
                             '    trows:  from %%trows ')
     
+    sql_group.add_argument('--auto-combine', action='store_true',
+                    help='''自动生成参数组合，创建6个流(忽略 --agg-or-select 和 --tbname-or-trows-or-sourcetable 参数):
+  
+功能: 对指定的单个流类型，自动生成所有参数组合
+  ├─ tbname + agg:         使用 %%tbname + 聚合查询
+  ├─ tbname + select:      使用 %%tbname + 投影查询  
+  ├─ trows + agg:          使用 %%trows + 聚合查询
+  ├─ trows + select:       使用 %%trows + 投影查询
+  ├─ sourcetable + agg:    使用具体表名 + 聚合查询
+  └─ sourcetable + select: 使用具体表名 + 投影查询
+
+适用范围: 仅对单个流类型有效 (如 intervalsliding_stb)
+不适用于: 组合模板 (*_detailed) 和固定参数模板 (tbname_agg等)
+
+示例用法:
+  --sql-type intervalsliding_stb --auto-combine    # 生成6个组合
+  --sql-type session_stb --auto-combine           # 生成6个组合
+  
+注意: 使用此参数时会忽略 --agg-or-select 和 --tbname-or-trows-or-sourcetable 设置''')
+    
     # todo
     sql_group.add_argument('--sql-file', type=str,
                         help='从文件读取流式查询SQL，todo\n'
                             '''    示例: --sql-file ./my_stream.sql\n
 示例用法1:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_stb --time 60\n
-示例用法2:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --time 60\n
-示例用法3:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type tbname_agg --time 60\n
-示例用法4:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --tbname-or-trows-or-sourcetable trows\n
-示例用法5:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --agg-or-select select\n
-示例用法6:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_stb --stream-num 100\n\n''')
+示例用法2:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_stb --auto-combine --time 60\n
+示例用法3:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --time 60\n
+示例用法4:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type tbname_agg --time 60\n
+示例用法5:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --tbname-or-trows-or-sourcetable trows\n
+示例用法6:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_detailed --agg-or-select select\n
+示例用法7:%(prog)s --table-count 10000 \n --real-time-batch-rows 500 --real-time-batch-sleep 5 --sql-type intervalsliding_stb --stream-num 100\n\n''')
     
     # 流性能监控参数
     stream_monitor_group = parser.add_argument_group('流性能监控和流计算延迟检测')
@@ -5657,7 +9275,117 @@ def main():
     stream_monitor_group.add_argument('--delay-check-interval', type=int, default=10,
                                     help='''延迟检查间隔(秒), 默认10秒, 目前是粗粒度的检查生成目标表超级表的last(ts), 而非每个生成子表的last(ts)\n
 示例用法:%(prog)s --check-stream-delay \n--max-delay-threshold 60000 --delay-check-interval 5 --sql-type intervalsliding_stb \n\n''')
+ 
+    # 批量测试参数
+    batch_group = parser.add_argument_group('批量测试，自动执行多种参数组合')
+    batch_group.add_argument('--batch-test', action='store_true',
+                            help='''启用批量测试模式:
+执行流程:
+  1. 自动生成所有有效的参数组合 (约168种，其中成功102种，失败66种)
+  2. 为每个组合依次执行完整的测试流程
+  3. 每次测试前自动清理环境和重启服务
+  4. 生成详细的HTML测试报告和性能数据
+  5. 支持测试中断后从指定位置继续
+
+特点:
+  ├─ 全自动化: 无需人工干预，自动处理所有组合
+  ├─ 环境隔离: 每次测试前完全清理环境，避免干扰
+  ├─ 详细报告: HTML格式报告，包含成功率、耗时等统计
+  ├─ 流延迟监控: 批量测试自动启用流延迟检查 
+  └─ 断点续传: 支持从指定测试编号开始执行
+
+注意: 批量测试会覆盖其他相关参数设置，并强制启用流延迟监控''')
     
+    batch_group.add_argument('--batch-sql-types', type=str, nargs='+',
+                        help='''指定批量测试的SQL类型，支持多个类型空格分隔:
+
+单个窗口类型模板:
+  intervalsliding_stb, intervalsliding_stb_partition_by_tbname, intervalsliding_stb_partition_by_tag, intervalsliding_tb
+  sliding_stb, sliding_stb_partition_by_tbname, sliding_stb_partition_by_tag, sliding_tb
+  session_stb, session_stb_partition_by_tbname, session_stb_partition_by_tag, session_tb
+  count_stb, count_stb_partition_by_tbname, count_stb_partition_by_tag, count_tb
+  event_stb, event_stb_partition_by_tbname, event_stb_partition_by_tag, event_tb
+  state_stb, state_stb_partition_by_tbname, state_stb_partition_by_tag, state_tb
+  period_stb, period_stb_partition_by_tbname, period_stb_partition_by_tag, period_tb
+
+固定参数组合模板(所有窗口类型):
+  tbname_agg:        所有窗口类型 + tbname + 聚合查询 (28种组合)
+  tbname_select:     所有窗口类型 + tbname + 投影查询 (28种组合)
+  trows_agg:         所有窗口类型 + trows + 聚合查询 (28种组合)
+  trows_select:      所有窗口类型 + trows + 投影查询 (28种组合)
+  sourcetable_agg:   所有窗口类型 + sourcetable + 聚合查询 (28种组合)
+  sourcetable_select: 所有窗口类型 + sourcetable + 投影查询 (28种组合)
+
+组合模板(每组4种组合):
+  intervalsliding_detailed: 时间窗口的24种组合
+  sliding_detailed:        滑动窗口的24种组合  
+  session_detailed:        会话窗口的24种组合
+  count_detailed:          计数窗口的24种组合
+  event_detailed:          事件窗口的24种组合
+  state_detailed:          状态窗口的24种组合
+  period_detailed:         定时触发的24种组合
+
+特殊类型:
+  all_detailed:            所有窗口类型的detailed组合 (168种)
+
+示例用法:
+  --batch-sql-types tbname_agg                    # 只测试tbname+agg的所有窗口类型
+  --batch-sql-types intervalsliding_detailed      # 只测试时间窗口的24种组合
+  --batch-sql-types tbname_agg trows_agg          # 测试tbname_agg和trows_agg
+  --batch-sql-types sliding_stb session_stb       # 测试指定的两个单个模板
+  
+默认: 如果不指定此参数，则测试所有有效组合(168种)''')
+    
+    batch_group.add_argument('--batch-single-template-mode', type=str, 
+                        choices=['default', 'all-combinations'], 
+                        default='default',
+                        help='''批量测试中单个模板的处理方式:
+    default: 只测试默认参数组合 (sourcetable + agg)
+    all-combinations: 测试所有6种参数组合 (3个from类型 × 2个查询类型)
+    
+示例:
+    --batch-sql-types intervalsliding_stb --batch-single-template-mode default
+        只测试 1 个组合: intervalsliding_stb + sourcetable + agg        
+    --batch-sql-types intervalsliding_stb --batch-single-template-mode all-combinations  
+        测试 6 个组合: intervalsliding_stb 的所有参数组合
+        
+注意: 详细模板 (*_detailed) 和固定参数模板 (tbname_agg等) 不受此参数影响''')
+    
+    batch_group.add_argument('--batch-test-time', type=int, default=5,
+                            help='批量测试中每个测试的运行时间(分钟), 默认5分钟\n'
+                                '总耗时 = 组合数 × 每个测试时间\n'
+                                '例如168个组合×5分钟 = 14小时')
+    
+    batch_group.add_argument('--batch-start-from', type=int, default=0,
+                            help='从第几个测试开始(从0开始计数), 默认0\n'
+                                '用于断点续传，例如 --batch-start-from 50')
+    
+    batch_group.add_argument('--batch-filter-mode', type=str, choices=['all', 'skip-known-failures', 'only-known-failures'], default='all',
+                        help='''批量测试过滤模式，控制是否运行已知失败的测试场景:
+    all: 运行所有168个测试场景 (默认)
+    skip-known-failures: 跳过已知会失败的66个场景，只运行102个成功场景
+    only-known-failures: 只运行已知会失败的66个场景，用于调试失败原因
+  
+说明: 基于历史测试数据统计，某些参数组合由于TDengine限制会固定失败
+      使用此参数可以避免浪费时间在已知问题上，专注测试有效场景''')
+    
+    batch_group.add_argument('--batch-test-limit', type=int,
+                            help='''限制测试数量，用于测试部分组合\n
+示例用法1:测试所有组合 (168种)%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-test-time 3\n
+示例用法2:测试特定的固定参数组合%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-sql-types tbname_agg \n
+示例用法3:测试特定的固定参数组合%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-sql-types tbname_agg trows_agg \n
+示例用法4:测试特定窗口类型的详细组合%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-sql-types intervalsliding_detailed --batch-test-time 3\n
+示例用法5:测试特定窗口类型的详细组合%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-sql-types sliding_detailed session_detailed --batch-test-time 3\n
+示例用法6:测试指定的单个模板%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-sql-types intervalsliding_stb sliding_stb \n
+示例用法7:混合测试模式%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-sql-types tbname_agg intervalsliding_detailed sliding_stb \n
+示例用法8:断点续传%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-start-from 50 --batch-test-limit 20 --batch-test-time 3\n
+示例用法9:限制测试数量%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-sql-types all_detailed --batch-test-limit 10\n
+示例用法10:只运行成功的测试%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-filter-mode skip-known-failures \n
+示例用法11:只运行失败的测试%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-filter-mode only-known-failures \n
+示例用法12:成功/失败的组合%(prog)s --monitor-interval 10 \n--deployment-mode single --batch-test --batch-sql-types intervalsliding_detailed --batch-filter-mode skip-known-failures\n\n''')
+     
+
+   
     # 系统配置参数
     system_group = parser.add_argument_group('系统配置，配置TDengine部署架构和系统参数')
     system_group.add_argument('--stream-perf-test-dir', type=str, 
@@ -5677,6 +9405,12 @@ def main():
     system_group.add_argument('--debug-flag', type=int, default=131,
                             help='TDengine调试级别, 默认131\n'
                                 '    常用值: 131(默认), 135, 143')
+    system_group.add_argument('--monitor-warm-up-time', type=int, default=0,
+                            help='性能监控预热时间(秒), 默认0秒\n'
+                             '    在此期间收集数据但不打印到控制台，等待系统稳定\n'
+                             '    当运行时间 >= 2分钟时，自动设置为60秒\n'
+                             '    当运行时间 < 2分钟时，自动设置为0秒\n'
+                             '    也可手动指定: --monitor-warm-up-time 120')
     system_group.add_argument('--num-of-log-lines', type=int, default=5000000,
                             help='''TDengine日志文件最大行数, 默认5000000,最大值不能超过2000000000\n
 示例用法:%(prog)s --monitor-interval 10 \n--deployment-mode single --debug-flag 135 --num-of-log-lines 1000\n\n''')
@@ -5691,7 +9425,7 @@ def main():
   3. 自动备份到 --stream-perf-test-dir/data_bak
   4. 保留环境供后续测试历史数据流计算使用
 建议: 测试多组历史数据流计算前先执行此操作\n
-示例用法:%(prog)s --create-data 
+示例用法:创建并备份测试数据%(prog)s --create-data 
 --deployment-mode single --table-count 500 --histroy-rows 10000000\n\n''')
     
     data_mgmt_group.add_argument('--restore-data', action='store_true',
@@ -5702,7 +9436,7 @@ def main():
   3. 恢复数据文件
   4. 重启服务并验证
 适用: 快速恢复到已知数据状态，避免重复数据生成，节省时间\n如果测试历史数据进行流计算，建议用-m 2模式\n
-示例用法:%(prog)s --restore-data --deployment-mode single''')
+示例用法:恢复数据并测试%(prog)s --restore-data --deployment-mode single''')
     
     args = parser.parse_args()
     
@@ -5774,8 +9508,95 @@ def main():
             custom_columns=custom_columns,
             check_stream_delay=args.check_stream_delay,
             max_delay_threshold=args.max_delay_threshold,
-            delay_check_interval=args.delay_check_interval 
+            delay_check_interval=args.delay_check_interval,
+            auto_combine=args.auto_combine,
+            monitor_warm_up_time=args.monitor_warm_up_time
         )
+        
+        # 处理批量测试
+        if args.batch_test:
+            print("启动批量测试模式...")
+            
+            # 准备基础参数
+            base_args = {
+                'time': args.batch_test_time,
+                'stream_perf_test_dir': args.stream_perf_test_dir,
+                'table_count': args.table_count,
+                'histroy_rows': args.histroy_rows,
+                'real_time_batch_rows': args.real_time_batch_rows,
+                'real_time_batch_sleep': args.real_time_batch_sleep,
+                'disorder_ratio': args.disorder_ratio,
+                'vgroups': args.vgroups,
+                'monitor_interval': args.monitor_interval,
+                'deployment_mode': args.deployment_mode,
+                'debug_flag': args.debug_flag,
+                'num_of_log_lines': args.num_of_log_lines,
+                'max_delay_threshold': args.max_delay_threshold,
+                'delay_check_interval': args.delay_check_interval,
+                'stream_num': args.stream_num,
+                'monitor_warm_up_time': args.monitor_warm_up_time  
+            }
+        
+            print(f"批量测试基础配置:")
+            print(f"  每个测试运行时间: {args.batch_test_time}分钟")
+            print(f"  子表数量: {args.table_count}")
+            print(f"  每轮写入记录数: {args.real_time_batch_rows}")
+            print(f"  数据写入间隔: {args.real_time_batch_sleep}秒")
+            print(f"  部署模式: {args.deployment_mode}")
+            print(f"  过滤模式: {args.batch_filter_mode}")
+            print(f"  流数量: {args.stream_num}") 
+            print(f"  监控预热时间: {args.monitor_warm_up_time}秒") 
+            
+            # 处理SQL类型参数
+            if args.batch_sql_types:
+                print(f"  指定SQL类型: {', '.join(args.batch_sql_types)}")
+                # 验证指定的SQL类型是否有效
+                valid_types = [
+                    'tbname_agg', 'tbname_select', 'trows_agg', 'trows_select', 
+                    'sourcetable_agg', 'sourcetable_select',
+                    'intervalsliding_detailed', 'sliding_detailed', 'session_detailed', 
+                    'count_detailed', 'event_detailed', 'state_detailed', 'period_detailed',
+                    'all_detailed',
+                    'intervalsliding_stb', 'intervalsliding_stb_partition_by_tbname', 
+                    'intervalsliding_stb_partition_by_tag', 'intervalsliding_tb',
+                    'sliding_stb', 'sliding_stb_partition_by_tbname',
+                    'sliding_stb_partition_by_tag', 'sliding_tb',
+                    'session_stb', 'session_stb_partition_by_tbname',
+                    'session_stb_partition_by_tag', 'session_tb',
+                    'count_stb', 'count_stb_partition_by_tbname',
+                    'count_stb_partition_by_tag', 'count_tb',
+                    'event_stb', 'event_stb_partition_by_tbname',
+                    'event_stb_partition_by_tag', 'event_tb',
+                    'state_stb', 'state_stb_partition_by_tbname',
+                    'state_stb_partition_by_tag', 'state_tb',
+                    'period_stb', 'period_stb_partition_by_tbname',
+                    'period_stb_partition_by_tag', 'period_tb'
+                ]
+                
+                invalid_types = [t for t in args.batch_sql_types if t not in valid_types]
+                if invalid_types:
+                    print(f"错误: 无效的SQL类型: {', '.join(invalid_types)}")
+                    print(f"有效类型请参考 --help 中的 --batch-sql-types 说明")
+                    return
+            else:
+                print(f"  SQL类型: 全部组合 (默认)")
+            
+            # 创建批量测试器
+            batch_tester = StreamBatchTester(
+                base_args, 
+                args.batch_sql_types,
+                filter_mode=args.batch_filter_mode,
+                single_template_mode=args.batch_single_template_mode
+            )
+            
+            # 执行批量测试
+            batch_tester.run_batch_tests(
+                test_time_minutes=args.batch_test_time,
+                start_from=args.batch_start_from,
+                test_limit=args.batch_test_limit
+            )
+            
+            return
         
         if args.create_data:
             print("\n=== 开始创建测试数据 ===")
