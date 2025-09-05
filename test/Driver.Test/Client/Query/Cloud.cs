@@ -12,7 +12,7 @@ namespace Driver.Test.Client.Query
     {
         private void RunCloudTest(Action<string, string> testAction, string testName)
         {
-            var db = "cs_test";
+            const string db = "cs_test";
             if (string.IsNullOrEmpty(this._cloudConnectString))
             {
                 _output.WriteLine($"Cloud connection string is not set. Skipping {testName}.");

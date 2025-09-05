@@ -85,7 +85,7 @@ namespace TDengine.Driver
             for (int i = 0; i < _cols - 1; i++)
             {
                 var colLength = BitConverter.ToInt32(block, _lengthOffset + TDengineConstant.Int32Size * i);
-                if (IsVarDataType(_colType[i]))
+                if (TDengineConstant.IsVarDataType(_colType[i]))
                 {
                     _colHeadOffset[i + 1] = _colHeadOffset[i] + TDengineConstant.Int32Size * _rows + colLength;
                 }
@@ -141,21 +141,6 @@ namespace TDengine.Driver
 
         private bool ItemIsNull(int headOffset, int row) =>
             TDengineConstant.BitmapIsNull(_block[headOffset + TDengineConstant.CharOffset(row)], row);
-
-        private static bool IsVarDataType(byte colType)
-        {
-            switch ((TDengineDataType)colType)
-            {
-                case TDengineDataType.TSDB_DATA_TYPE_BINARY:
-                case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
-                case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
-                case TDengineDataType.TSDB_DATA_TYPE_VARBINARY:
-                case TDengineDataType.TSDB_DATA_TYPE_GEOMETRY:
-                    return true;
-                default:
-                    return false;
-            }
-        }
 
         public object Read(int row, int col)
         {
@@ -416,7 +401,7 @@ namespace TDengine.Driver
 
         public long GetChars(int row, int col, long dataOffset, char[] buffer, int bufferOffset, int length)
         {
-            if (!IsVarDataType(_colType[col]))
+            if (!TDengineConstant.IsVarDataType(_colType[col]))
             {
                 throw new Exception("GetBytes cannot be used on non-character columns");
             }
@@ -449,7 +434,7 @@ namespace TDengine.Driver
 
         public char GetChar(int row, int col)
         {
-            if (!IsVarDataType(_colType[col]))
+            if (!TDengineConstant.IsVarDataType(_colType[col]))
             {
                 throw new Exception("GetChar cannot be used on non-character columns");
             }
@@ -469,7 +454,7 @@ namespace TDengine.Driver
 
         public long GetBytes(int row, int col, long dataOffset, byte[] buffer, int bufferOffset, int length)
         {
-            if (!IsVarDataType(_colType[col]))
+            if (!TDengineConstant.IsVarDataType(_colType[col]))
             {
                 throw new Exception("GetBytes cannot be used on non-character columns");
             }
@@ -507,7 +492,7 @@ namespace TDengine.Driver
 
         public bool IsDBNull(int row, int col)
         {
-            return IsVarDataType(_colType[col]) ? VarDataTypeIsNull(row, col) : ItemIsNull(_colHeadOffset[col], row);
+            return TDengineConstant.IsVarDataType(_colType[col]) ? VarDataTypeIsNull(row, col) : ItemIsNull(_colHeadOffset[col], row);
         }
 
         private void CheckNull(int row, int col)

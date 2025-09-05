@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.SqlTypes;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TDengine.Driver;
 using TDengine.Driver.Client;
@@ -16,9 +16,12 @@ namespace Driver.Test.Client.Query
         private readonly string _nativeConnectString;
         private readonly string _wsConnectString;
         private readonly string _cloudConnectString;
+        private readonly bool _is3360Test;
 
         public Client(ITestOutputHelper output)
         {
+            this._is3360Test = Environment.GetEnvironmentVariable("TD_3360_TEST") == "true";
+            // _is3360Test = true;
             this._output = output;
             this._nativeConnectString = "host=localhost;port=6030;username=root;password=taosdata";
             this._wsConnectString =
@@ -140,21 +143,112 @@ namespace Driver.Test.Client.Query
                     break;
             }
 
-            if (withDecimal)
+            if (!_is3360Test)
             {
+                if (withDecimal)
+                {
+                    sql = $"values" +
+                          $"({timeStampes[0]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10:G9},{v11:G17},'test_binary','test_nchar','中文','POINT(100 100)',{v16},{v17})" +
+                          $"({timeStampes[1]},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)" +
+                          $"({timeStampes[2]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'中文','中文','中文','POINT(100 100)',{v16},{v17})" +
+                          $"({timeStampes[3]},{v1_3},{v2_3},{v3_3},{v4_3},{v5_3},{v6_3},{v7_3},{v8_3},{v9_3},{v10_3},{v11_3},'中文','中文','中文','POINT(100 100)',{v16_3},{v17_3})" +
+                          $"({timeStampes[4]},{v1_4},{v2_4},{v3_4},{v4_4},{v5_4},{v6_4},{v7_4},{v8_4},{v9_4},{v10_4},{v11_4},'中文','中文','中文','POINT(100 100)',{v16_4},{v17_4})";
+                    return new object[][]
+                    {
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[0], precision), v1, v2, v3, v4, v5,
+                            v6,
+                            v7,
+                            v8, v9, v10,
+                            v11,
+                            Encoding.UTF8.GetBytes("test_binary"),
+                            "test_nchar", Encoding.UTF8.GetBytes("中文"),
+                            new byte[]
+                            {
+                                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00,
+                                0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                            },
+                            v16, v17,
+                        },
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[1], precision), null, null, null,
+                            null,
+                            null,
+                            null,
+                            null, null, null, null, null, null, null, null, null, null, null
+                        },
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[2], precision), v1, v2, v3, v4, v5,
+                            v6,
+                            v7,
+                            v8, v9, v10,
+                            v11,
+                            Encoding.UTF8.GetBytes("中文"),
+                            "中文", Encoding.UTF8.GetBytes("中文"),
+                            new byte[]
+                            {
+                                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00,
+                                0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                            },
+                            v16, v17,
+                        },
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[3], precision), v1_3, v2_3, v3_3,
+                            v4_3,
+                            v5_3,
+                            v6_3, v7_3, v8_3, v9_3, v10_3,
+                            v11_3,
+                            Encoding.UTF8.GetBytes("中文"),
+                            "中文", Encoding.UTF8.GetBytes("中文"),
+                            new byte[]
+                            {
+                                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00,
+                                0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                            },
+                            v16_3, v17_3,
+                        },
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[4], precision), v1_4, v2_4, v3_4,
+                            v4_4,
+                            v5_4,
+                            v6_4, v7_4, v8_4, v9_4, v10_4,
+                            v11_4,
+                            Encoding.UTF8.GetBytes("中文"),
+                            "中文", Encoding.UTF8.GetBytes("中文"),
+                            new byte[]
+                            {
+                                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00,
+                                0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                            },
+                            v16_4, v17_4,
+                        },
+                    };
+                }
+
                 sql = $"values" +
-                      $"({timeStampes[0]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10:G9},{v11:G17},'test_binary','test_nchar','中文','POINT(100 100)',{v16},{v17})" +
+                      $"({timeStampes[0]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'test_binary','test_nchar','中文','POINT(100 100)')" +
                       $"({timeStampes[1]},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)" +
-                      $"({timeStampes[2]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'中文','中文','中文','POINT(100 100)',{v16},{v17})" +
-                      $"({timeStampes[3]},{v1_3},{v2_3},{v3_3},{v4_3},{v5_3},{v6_3},{v7_3},{v8_3},{v9_3},{v10_3},{v11_3},'中文','中文','中文','POINT(100 100)',{v16_3},{v17_3})" +
-                      $"({timeStampes[4]},{v1_4},{v2_4},{v3_4},{v4_4},{v5_4},{v6_4},{v7_4},{v8_4},{v9_4},{v10_4},{v11_4},'中文','中文','中文','POINT(100 100)',{v16_4},{v17_4})";
+                      $"({timeStampes[2]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'中文','中文','中文','POINT(100 100)')" +
+                      $"({timeStampes[3]},{v1_3},{v2_3},{v3_3},{v4_3},{v5_3},{v6_3},{v7_3},{v8_3},{v9_3},{v10_3},{v11_3},'中文','中文','中文','POINT(100 100)')" +
+                      $"({timeStampes[4]},{v1_4},{v2_4},{v3_4},{v4_4},{v5_4},{v6_4},{v7_4},{v8_4},{v9_4},{v10_4},{v11_4},'中文','中文','中文','POINT(100 100)')";
                 return new object[][]
                 {
                     new object[]
                     {
-                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[0], precision), v1, v2, v3, v4, v5, v6,
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[0], precision, tz), v1, v2, v3, v4, v5,
+                        v6,
                         v7,
-                        v8, v9, v10,
+                        v8,
+                        v9, v10,
                         v11,
                         Encoding.UTF8.GetBytes("test_binary"),
                         "test_nchar", Encoding.UTF8.GetBytes("中文"),
@@ -163,20 +257,22 @@ namespace Driver.Test.Client.Query
                             0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
                             0x00, 0x00, 0x00, 0x00, 0x59, 0x40
                         },
-                        v16, v17,
                     },
                     new object[]
                     {
-                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[1], precision), null, null, null, null,
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[1], precision, tz), null, null, null,
                         null,
                         null,
-                        null, null, null, null, null, null, null, null, null, null, null
+                        null,
+                        null, null, null, null, null, null, null, null, null
                     },
                     new object[]
                     {
-                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[2], precision), v1, v2, v3, v4, v5, v6,
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[2], precision, tz), v1, v2, v3, v4, v5,
+                        v6,
                         v7,
-                        v8, v9, v10,
+                        v8,
+                        v9, v10,
                         v11,
                         Encoding.UTF8.GetBytes("中文"),
                         "中文", Encoding.UTF8.GetBytes("中文"),
@@ -185,11 +281,11 @@ namespace Driver.Test.Client.Query
                             0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
                             0x00, 0x00, 0x00, 0x00, 0x59, 0x40
                         },
-                        v16, v17,
                     },
                     new object[]
                     {
-                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[3], precision), v1_3, v2_3, v3_3, v4_3,
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[3], precision, tz), v1_3, v2_3, v3_3,
+                        v4_3,
                         v5_3,
                         v6_3, v7_3, v8_3, v9_3, v10_3,
                         v11_3,
@@ -200,11 +296,11 @@ namespace Driver.Test.Client.Query
                             0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
                             0x00, 0x00, 0x00, 0x00, 0x59, 0x40
                         },
-                        v16_3, v17_3,
                     },
                     new object[]
                     {
-                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[4], precision), v1_4, v2_4, v3_4, v4_4,
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[4], precision, tz), v1_4, v2_4, v3_4,
+                        v4_4,
                         v5_4,
                         v6_4, v7_4, v8_4, v9_4, v10_4,
                         v11_4,
@@ -215,88 +311,139 @@ namespace Driver.Test.Client.Query
                             0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
                             0x00, 0x00, 0x00, 0x00, 0x59, 0x40
                         },
-                        v16_4, v17_4,
                     },
                 };
             }
-
-            sql = $"values" +
-                  $"({timeStampes[0]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'test_binary','test_nchar','中文','POINT(100 100)')" +
-                  $"({timeStampes[1]},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)" +
-                  $"({timeStampes[2]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'中文','中文','中文','POINT(100 100)')" +
-                  $"({timeStampes[3]},{v1_3},{v2_3},{v3_3},{v4_3},{v5_3},{v6_3},{v7_3},{v8_3},{v9_3},{v10_3},{v11_3},'中文','中文','中文','POINT(100 100)')" +
-                  $"({timeStampes[4]},{v1_4},{v2_4},{v3_4},{v4_4},{v5_4},{v6_4},{v7_4},{v8_4},{v9_4},{v10_4},{v11_4},'中文','中文','中文','POINT(100 100)')";
-            return new object[][]
+            else
             {
-                new object[]
+                if (withDecimal)
                 {
-                    TDengineConstant.ConvertTimestampToDateTime(timeStampes[0], precision, tz), v1, v2, v3, v4, v5, v6,
-                    v7,
-                    v8,
-                    v9, v10,
-                    v11,
-                    Encoding.UTF8.GetBytes("test_binary"),
-                    "test_nchar", Encoding.UTF8.GetBytes("中文"),
-                    new byte[]
+                    sql = $"values" +
+                          $"({timeStampes[0]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10:G9},{v11:G17},'test_binary','test_nchar','中文',{v16},{v17})" +
+                          $"({timeStampes[1]},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)" +
+                          $"({timeStampes[2]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'中文','中文','中文',{v16},{v17})" +
+                          $"({timeStampes[3]},{v1_3},{v2_3},{v3_3},{v4_3},{v5_3},{v6_3},{v7_3},{v8_3},{v9_3},{v10_3},{v11_3},'中文','中文','中文',{v16_3},{v17_3})" +
+                          $"({timeStampes[4]},{v1_4},{v2_4},{v3_4},{v4_4},{v5_4},{v6_4},{v7_4},{v8_4},{v9_4},{v10_4},{v11_4},'中文','中文','中文',{v16_4},{v17_4})";
+                    return new object[][]
                     {
-                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
-                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
-                    },
-                },
-                new object[]
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[0], precision), v1, v2, v3, v4, v5,
+                            v6,
+                            v7,
+                            v8, v9, v10,
+                            v11,
+                            Encoding.UTF8.GetBytes("test_binary"),
+                            "test_nchar", Encoding.UTF8.GetBytes("中文"),
+                            v16, v17,
+                        },
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[1], precision), null, null, null,
+                            null,
+                            null,
+                            null,
+                            null, null, null, null, null, null, null, null, null, null
+                        },
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[2], precision), v1, v2, v3, v4, v5,
+                            v6,
+                            v7,
+                            v8, v9, v10,
+                            v11,
+                            Encoding.UTF8.GetBytes("中文"),
+                            "中文", Encoding.UTF8.GetBytes("中文"),
+                            v16, v17,
+                        },
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[3], precision), v1_3, v2_3, v3_3,
+                            v4_3,
+                            v5_3,
+                            v6_3, v7_3, v8_3, v9_3, v10_3,
+                            v11_3,
+                            Encoding.UTF8.GetBytes("中文"),
+                            "中文", Encoding.UTF8.GetBytes("中文"),
+                            v16_3, v17_3,
+                        },
+                        new object[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(timeStampes[4], precision), v1_4, v2_4, v3_4,
+                            v4_4,
+                            v5_4,
+                            v6_4, v7_4, v8_4, v9_4, v10_4,
+                            v11_4,
+                            Encoding.UTF8.GetBytes("中文"),
+                            "中文", Encoding.UTF8.GetBytes("中文"),
+                            v16_4, v17_4,
+                        },
+                    };
+                }
+
+                sql = $"values" +
+                      $"({timeStampes[0]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'test_binary','test_nchar','中文')" +
+                      $"({timeStampes[1]},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)" +
+                      $"({timeStampes[2]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'中文','中文','中文')" +
+                      $"({timeStampes[3]},{v1_3},{v2_3},{v3_3},{v4_3},{v5_3},{v6_3},{v7_3},{v8_3},{v9_3},{v10_3},{v11_3},'中文','中文','中文')" +
+                      $"({timeStampes[4]},{v1_4},{v2_4},{v3_4},{v4_4},{v5_4},{v6_4},{v7_4},{v8_4},{v9_4},{v10_4},{v11_4},'中文','中文','中文')";
+                return new object[][]
                 {
-                    TDengineConstant.ConvertTimestampToDateTime(timeStampes[1], precision, tz), null, null, null, null,
-                    null,
-                    null,
-                    null, null, null, null, null, null, null, null, null
-                },
-                new object[]
-                {
-                    TDengineConstant.ConvertTimestampToDateTime(timeStampes[2], precision, tz), v1, v2, v3, v4, v5, v6,
-                    v7,
-                    v8,
-                    v9, v10,
-                    v11,
-                    Encoding.UTF8.GetBytes("中文"),
-                    "中文", Encoding.UTF8.GetBytes("中文"),
-                    new byte[]
+                    new object[]
                     {
-                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
-                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[0], precision, tz), v1, v2, v3, v4, v5,
+                        v6,
+                        v7,
+                        v8,
+                        v9, v10,
+                        v11,
+                        Encoding.UTF8.GetBytes("test_binary"),
+                        "test_nchar", Encoding.UTF8.GetBytes("中文"),
                     },
-                },
-                new object[]
-                {
-                    TDengineConstant.ConvertTimestampToDateTime(timeStampes[3], precision, tz), v1_3, v2_3, v3_3, v4_3,
-                    v5_3,
-                    v6_3, v7_3, v8_3, v9_3, v10_3,
-                    v11_3,
-                    Encoding.UTF8.GetBytes("中文"),
-                    "中文", Encoding.UTF8.GetBytes("中文"),
-                    new byte[]
+                    new object[]
                     {
-                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
-                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[1], precision, tz), null, null, null,
+                        null,
+                        null,
+                        null,
+                        null, null, null, null, null, null, null, null
                     },
-                },
-                new object[]
-                {
-                    TDengineConstant.ConvertTimestampToDateTime(timeStampes[4], precision, tz), v1_4, v2_4, v3_4, v4_4,
-                    v5_4,
-                    v6_4, v7_4, v8_4, v9_4, v10_4,
-                    v11_4,
-                    Encoding.UTF8.GetBytes("中文"),
-                    "中文", Encoding.UTF8.GetBytes("中文"),
-                    new byte[]
+                    new object[]
                     {
-                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
-                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[2], precision, tz), v1, v2, v3, v4, v5,
+                        v6,
+                        v7,
+                        v8,
+                        v9, v10,
+                        v11,
+                        Encoding.UTF8.GetBytes("中文"),
+                        "中文", Encoding.UTF8.GetBytes("中文"),
                     },
-                },
-            };
+                    new object[]
+                    {
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[3], precision, tz), v1_3, v2_3, v3_3,
+                        v4_3,
+                        v5_3,
+                        v6_3, v7_3, v8_3, v9_3, v10_3,
+                        v11_3,
+                        Encoding.UTF8.GetBytes("中文"),
+                        "中文", Encoding.UTF8.GetBytes("中文"),
+                    },
+                    new object[]
+                    {
+                        TDengineConstant.ConvertTimestampToDateTime(timeStampes[4], precision, tz), v1_4, v2_4, v3_4,
+                        v4_4,
+                        v5_4,
+                        v6_4, v7_4, v8_4, v9_4, v10_4,
+                        v11_4,
+                        Encoding.UTF8.GetBytes("中文"),
+                        "中文", Encoding.UTF8.GetBytes("中文"),
+                    },
+                };
+            }
         }
 
-        private static string GenerateCreateTableSql(string tableName, bool withDecimal)
+        private string GenerateCreateTableSql(string tableName, bool withDecimal)
         {
             var commonColumns = new StringBuilder()
                 .Append($"create table if not exists {tableName} (ts timestamp,")
@@ -313,8 +460,11 @@ namespace Driver.Test.Client.Query
                 .Append("c11 double,")
                 .Append("c12 binary(20),")
                 .Append("c13 nchar(20),")
-                .Append("c14 varbinary(20),")
-                .Append("c15 geometry(100)");
+                .Append("c14 varbinary(20)");
+            if (!_is3360Test)
+            {
+                commonColumns.Append(",c15 geometry(100)");
+            }
 
             if (withDecimal)
             {
@@ -328,14 +478,11 @@ namespace Driver.Test.Client.Query
             return commonColumns.ToString();
         }
 
-        private static Array[] TransposeToTypedArrays(object[][] data)
+        private Array[] TransposeToTypedArrays(object[][] data)
         {
             if (data == null || data.Length == 0)
                 throw new ArgumentException("Data cannot be null or empty", nameof(data));
-
-            int rowCount = data.Length;
-
-            return new Array[]
+            var array = new Array[]
             {
                 CreateColumnArray<DateTime>(data, 0, o => (DateTime)o),
                 CreateNullableColumnArray<bool>(data, 1, o => (bool)o),
@@ -352,8 +499,19 @@ namespace Driver.Test.Client.Query
                 CreateColumnArray<byte[]>(data, 12, o => (byte[])o),
                 CreateColumnArray<string>(data, 13, o => (string)o),
                 CreateColumnArray<byte[]>(data, 14, o => (byte[])o),
-                CreateColumnArray<byte[]>(data, 15, o => (byte[])o)
             };
+            if (!_is3360Test)
+            {
+                array = new Array[]
+                {
+                    array[0], array[1], array[2], array[3], array[4], array[5],
+                    array[6], array[7], array[8], array[9], array[10], array[11],
+                    array[12], array[13], array[14],
+                    CreateColumnArray<byte[]>(data, 15, o => (byte[])o),
+                };
+            }
+
+            return array;
         }
 
         private static T[] CreateColumnArray<T>(object[][] data, int columnIndex, Func<object, T> converter)
@@ -414,16 +572,16 @@ namespace Driver.Test.Client.Query
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
-                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                        DoExec(client, $"drop database if exists {db}");
+                        DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'");
                     }
 
-                    client.Exec($"use {db}");
+                    DoExec(client, $"use {db}");
                     var createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
-                    client.Exec(createTableSql);
+                    DoExec(client, createTableSql);
                     string insertQuery =
                         $"insert into {subTableName} using {superTableName} tags('{{\"a\":\"b\"}}') {insertSql}";
-                    client.Exec(insertQuery);
+                    DoExec(client, insertQuery);
                     string query = $"select * from {superTableName} order by ts asc";
                     using (var rows = client.Query(query))
                     {
@@ -438,10 +596,10 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop table if exists {superTableName}");
+                    DoExec(client, $"drop table if exists {superTableName}");
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
+                        DoExec(client, $"drop database if exists {db}");
                     }
                 }
             }
@@ -462,16 +620,17 @@ namespace Driver.Test.Client.Query
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'",
+                            ReqId.GetReqId());
                     }
 
-                    client.Exec($"use {db}", ReqId.GetReqId());
+                    DoExec(client, $"use {db}", ReqId.GetReqId());
                     string createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
-                    client.Exec(createTableSql, ReqId.GetReqId());
+                    DoExec(client, createTableSql, ReqId.GetReqId());
                     string insertQuery =
                         $"insert into {subTableName} using {superTableName} tags('{{\"a\":\"b\"}}') {insertSql}";
-                    client.Exec(insertQuery, ReqId.GetReqId());
+                    DoExec(client, insertQuery, ReqId.GetReqId());
                     string query = $"select * from {superTableName} order by ts asc";
                     using (var rows = client.Query(query, ReqId.GetReqId()))
                     {
@@ -486,10 +645,10 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop table if exists {superTableName}", ReqId.GetReqId());
+                    DoExec(client, $"drop table if exists {superTableName}", ReqId.GetReqId());
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
                     }
                 }
             }
@@ -511,13 +670,13 @@ namespace Driver.Test.Client.Query
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
-                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                        DoExec(client, $"drop database if exists {db}");
+                        DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'");
                     }
 
-                    client.Exec($"use {db}");
+                    DoExec(client, $"use {db}");
                     var createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
-                    client.Exec(createTableSql);
+                    DoExec(client, createTableSql);
                     var stmt = client.StmtInit();
                     StringBuilder questionMarks = new StringBuilder();
                     var count = data[0].Length;
@@ -531,6 +690,12 @@ namespace Driver.Test.Client.Query
                     }
 
                     var values = questionMarks.ToString();
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"insert into ? using {superTableName} tags(?) values({values})");
                     var isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
@@ -546,6 +711,12 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)rowCount, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -557,6 +728,8 @@ namespace Driver.Test.Client.Query
                         this.AssertColumn(rows, withDecimal);
                         this.AssertValue(rows, data, precision);
                     }
+
+                    stmt.Dispose();
                 }
                 catch (Exception e)
                 {
@@ -565,10 +738,10 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop table if exists {superTableName}");
+                    DoExec(client, $"drop table if exists {superTableName}");
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
+                        DoExec(client, $"drop database if exists {db}");
                     }
                 }
             }
@@ -582,223 +755,238 @@ namespace Driver.Test.Client.Query
                 var now = DateTime.Now;
                 try
                 {
-                    client.Exec($"drop database if exists {db}");
-                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                    DoExec(client, $"drop database if exists {db}");
+                    DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'");
 
-                    client.Exec($"use {db}");
+                    DoExec(client, $"use {db}");
                     // timestamp
-                    client.Exec($"create table if not exists test_ts (ts timestamp, c1 timestamp)");
+                    DoExec(client, $"create table if not exists test_ts (ts timestamp, c1 timestamp)");
                     // bool
-                    client.Exec($"create table if not exists test_bool (ts timestamp, c1 bool)");
+                    DoExec(client, $"create table if not exists test_bool (ts timestamp, c1 bool)");
                     // tinyint
-                    client.Exec($"create table if not exists test_i8 (ts timestamp, ci tinyint)");
+                    DoExec(client, $"create table if not exists test_i8 (ts timestamp, c1 tinyint)");
                     // smallint
-                    client.Exec($"create table if not exists test_i16 (ts timestamp, ci smallint)");
+                    DoExec(client, $"create table if not exists test_i16 (ts timestamp, c1 smallint)");
                     // int
-                    client.Exec($"create table if not exists test_i32 (ts timestamp, ci int)");
+                    DoExec(client, $"create table if not exists test_i32 (ts timestamp, c1 int)");
                     // bigint
-                    client.Exec($"create table if not exists test_i64 (ts timestamp, ci bigint)");
+                    DoExec(client, $"create table if not exists test_i64 (ts timestamp, c1 bigint)");
                     // tinyint unsigned
-                    client.Exec($"create table if not exists test_u8 (ts timestamp, ci tinyint unsigned)");
+                    DoExec(client, $"create table if not exists test_u8 (ts timestamp, c1 tinyint unsigned)");
                     // smallint unsigned
-                    client.Exec($"create table if not exists test_u16 (ts timestamp, ci smallint unsigned)");
+                    DoExec(client, $"create table if not exists test_u16 (ts timestamp, c1 smallint unsigned)");
                     // int unsigned
-                    client.Exec($"create table if not exists test_u32 (ts timestamp, ci int unsigned)");
+                    DoExec(client, $"create table if not exists test_u32 (ts timestamp, c1 int unsigned)");
                     // bigint unsigned
-                    client.Exec($"create table if not exists test_u64 (ts timestamp, ci bigint unsigned)");
+                    DoExec(client, $"create table if not exists test_u64 (ts timestamp, c1 bigint unsigned)");
                     // float
-                    client.Exec($"create table if not exists test_f32 (ts timestamp, c1 float)");
+                    DoExec(client, $"create table if not exists test_f32 (ts timestamp, c1 float)");
                     // double
-                    client.Exec($"create table if not exists test_f64 (ts timestamp, c1 double)");
+                    DoExec(client, $"create table if not exists test_f64 (ts timestamp, c1 double)");
                     // binary
-                    client.Exec($"create table if not exists test_binary (ts timestamp, c1 binary(100))");
+                    DoExec(client, $"create table if not exists test_binary (ts timestamp, c1 binary(100))");
                     // nchar
-                    client.Exec($"create table if not exists test_nchar (ts timestamp, c1 nchar(100))");
+                    DoExec(client, $"create table if not exists test_nchar (ts timestamp, c1 nchar(100))");
                     // varbinary
-                    client.Exec($"create table if not exists test_varbinary (ts timestamp, c1 varbinary(100))");
+                    DoExec(client, $"create table if not exists test_varbinary (ts timestamp, c1 varbinary(100))");
                     // geometry
-                    client.Exec($"create table if not exists test_geometry (ts timestamp, c1 geometry(100))");
+                    DoExec(client, $"create table if not exists test_geometry (ts timestamp, c1 geometry(100))");
                     // json
-                    client.Exec($"create table if not exists test_json_stb (ts timestamp, c1 int) tags(t json)");
-                    using (var stmt = client.StmtInit())
+                    DoExec(client, $"create table if not exists test_json_stb (ts timestamp, c1 int) tags(t json)");
+                    var stmt = client.StmtInit();
+                    // json
+                    var sql = $"insert into ? using test_json_stb tags(?) values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    stmt.Prepare(sql);
+                    stmt.SetTableName("test_json");
+                    stmt.SetTags(new object[] { "{\"a\":\"b\"}" });
+                    stmt.BindRow(new object[] { DateTime.Now, 1 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    var affected = stmt.Affected();
+                    Assert.Equal(1, affected);
+                    using (var rows = client.Query("select count(*) from test_json_stb"))
                     {
-                        // json
-                        var sql = $"insert into ? using test_json_stb tags(?) values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        stmt.Prepare(sql);
-                        stmt.SetTableName("test_json");
-                        stmt.SetTags(new object[] { "{\"a\":\"b\"}" });
-                        stmt.BindRow(new object[] { DateTime.Now, 1 });
-                        stmt.AddBatch();
-                        stmt.Exec();
-                        var affected = stmt.Affected();
-                        Assert.Equal(1, affected);
-                        using (var rows = client.Query("select count(*) from test_json_stb"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(1, rows.GetInt32(0));
-                        }
-                        stmt.SetTableName("test_json_null");
-                        stmt.SetTags(new object[] { null });
-                        stmt.BindRow(new object[] { DateTime.Now, 1 });
-                        stmt.AddBatch();
-                        stmt.Exec();
-                        affected = stmt.Affected();
-                        Assert.Equal(1, affected);
-                        using (var rows = client.Query("select count(*) from test_json_stb"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(2, rows.GetInt32(0));
-                        }
-                        // ts
-                        sql = $"insert into test_ts values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
-                        using (var rows = client.Query("select count(*) from test_ts"))
-                        {
-                            Assert.True(rows.Read());
-                            // null + DateTime * 3 + long * 3 + DateTimeOffset * 3
-                            Assert.Equal(10, rows.GetInt32(0));
-                        }
-                        // bool
-                        sql = $"insert into test_bool values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BOOL);
-                        using (var rows = client.Query("select count(*) from test_bool"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // tinyint
-                        sql = $"insert into test_i8 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_TINYINT);
-                        using (var rows = client.Query("select count(*) from test_i8"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // smallint
-                        sql = $"insert into test_i16 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_SMALLINT);
-                        using (var rows = client.Query("select count(*) from test_i16"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // int
-                        sql = $"insert into test_i32 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_INT);
-                        using (var rows = client.Query("select count(*) from test_i32"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // bigint
-                        sql = $"insert into test_i64 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BIGINT);
-                        using (var rows = client.Query("select count(*) from test_i64"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // tinyint unsigned
-                        sql = $"insert into test_u8 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UTINYINT);
-                        using (var rows = client.Query("select count(*) from test_u8"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // smallint unsigned
-                        sql = $"insert into test_u16 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_USMALLINT);
-                        using (var rows = client.Query("select count(*) from test_u16"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // int unsigned
-                        sql = $"insert into test_u32 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UINT);
-                        using (var rows = client.Query("select count(*) from test_u32"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // bigint unsigned
-                        sql = $"insert into test_u64 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UBIGINT);
-                        using (var rows = client.Query("select count(*) from test_u64"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // float
-                        sql = $"insert into test_f32 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_FLOAT);
-                        using (var rows = client.Query("select count(*) from test_f32"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // double
-                        sql = $"insert into test_f64 values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_DOUBLE);
-                        using (var rows = client.Query("select count(*) from test_f64"))
-                        {
-                            Assert.True(rows.Read());
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // binary
-                        sql = $"insert into test_binary values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BINARY);
-                        using (var rows = client.Query("select count(*) from test_binary"))
-                        {
-                            Assert.True(rows.Read());
-                            // null + byte[] * 3 + string * 3
-                            Assert.Equal(7, rows.GetInt32(0));
-                        }
-                        // nchar
-                        sql = $"insert into test_nchar values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_NCHAR);
-                        using (var rows = client.Query("select count(*) from test_nchar"))
-                        {
-                            Assert.True(rows.Read());
-                            // null + string * 3
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
-                        // varbinary
-                        sql = $"insert into test_varbinary values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_VARBINARY);
-                        using (var rows = client.Query("select count(*) from test_varbinary"))
-                        {
-                            Assert.True(rows.Read());
-                            // null + byte[] * 3 + string * 3
-                            Assert.Equal(7, rows.GetInt32(0));
-                        }
-                        // geometry
-                        sql = $"insert into test_geometry values(?,?)";
-                        _output.WriteLine($"{sql}");
-                        doStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_GEOMETRY);
-                        using (var rows = client.Query("select count(*) from test_geometry"))
-                        {
-                            Assert.True(rows.Read());
-                            // null + byte[] * 3
-                            Assert.Equal(4, rows.GetInt32(0));
-                        }
+                        Assert.True(rows.Read());
+                        Assert.Equal(1, rows.GetInt32(0));
+                    }
+
+                    stmt.SetTableName("test_json_null");
+                    stmt.SetTags(new object[] { null });
+                    stmt.BindRow(new object[] { DateTime.Now, 1 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    affected = stmt.Affected();
+                    Assert.Equal(1, affected);
+                    using (var rows = client.Query("select count(*) from test_json_stb"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(2, rows.GetInt32(0));
+                    }
+
+                    // ts
+                    sql = $"insert into test_ts values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP);
+                    using (var rows = client.Query("select count(*) from test_ts"))
+                    {
+                        Assert.True(rows.Read());
+                        // null + DateTime * 3 + long * 3 + DateTimeOffset * 3
+                        Assert.Equal(10, rows.GetInt32(0));
+                    }
+
+                    // bool
+                    sql = $"insert into test_bool values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BOOL);
+                    using (var rows = client.Query("select count(*) from test_bool"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // tinyint
+                    sql = $"insert into test_i8 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_TINYINT);
+                    using (var rows = client.Query("select count(*) from test_i8"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // smallint
+                    sql = $"insert into test_i16 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_SMALLINT);
+                    using (var rows = client.Query("select count(*) from test_i16"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // int
+                    sql = $"insert into test_i32 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_INT);
+                    using (var rows = client.Query("select count(*) from test_i32"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // bigint
+                    sql = $"insert into test_i64 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BIGINT);
+                    using (var rows = client.Query("select count(*) from test_i64"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // tinyint unsigned
+                    sql = $"insert into test_u8 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UTINYINT);
+                    using (var rows = client.Query("select count(*) from test_u8"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // smallint unsigned
+                    sql = $"insert into test_u16 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_USMALLINT);
+                    using (var rows = client.Query("select count(*) from test_u16"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // int unsigned
+                    sql = $"insert into test_u32 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UINT);
+                    using (var rows = client.Query("select count(*) from test_u32"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // bigint unsigned
+                    sql = $"insert into test_u64 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_UBIGINT);
+                    using (var rows = client.Query("select count(*) from test_u64"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // float
+                    sql = $"insert into test_f32 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_FLOAT);
+                    using (var rows = client.Query("select count(*) from test_f32"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // double
+                    sql = $"insert into test_f64 values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_DOUBLE);
+                    using (var rows = client.Query("select count(*) from test_f64"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // binary
+                    sql = $"insert into test_binary values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_BINARY);
+                    using (var rows = client.Query("select count(*) from test_binary"))
+                    {
+                        Assert.True(rows.Read());
+                        // null + byte[] * 3 + string * 3
+                        Assert.Equal(7, rows.GetInt32(0));
+                    }
+
+                    // nchar
+                    sql = $"insert into test_nchar values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_NCHAR);
+                    using (var rows = client.Query("select count(*) from test_nchar"))
+                    {
+                        Assert.True(rows.Read());
+                        // null + string * 3
+                        Assert.Equal(4, rows.GetInt32(0));
+                    }
+
+                    // varbinary
+                    sql = $"insert into test_varbinary values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_VARBINARY);
+                    using (var rows = client.Query("select count(*) from test_varbinary"))
+                    {
+                        Assert.True(rows.Read());
+                        // null + byte[] * 3 + string * 3
+                        Assert.Equal(7, rows.GetInt32(0));
+                    }
+
+                    // geometry
+                    sql = $"insert into test_geometry values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    DoStmtTest(client, stmt, sql, TDengineDataType.TSDB_DATA_TYPE_GEOMETRY);
+                    using (var rows = client.Query("select count(*) from test_geometry"))
+                    {
+                        Assert.True(rows.Read());
+                        // null + byte[] * 3
+                        Assert.Equal(4, rows.GetInt32(0));
                     }
                 }
                 catch (Exception e)
@@ -808,14 +996,61 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop database if exists {db}");
+                    DoExec(client, $"drop database if exists {db}");
                 }
             }
         }
 
-        private void doStmtTest(ITDengineClient client, IStmt stmt, string sql, TDengineDataType dataType)
+        private void StmtTestBindTagWithoutTable(string connectString, string db)
+        {
+            var builder = new ConnectionStringBuilder(connectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                try
+                {
+                    DoExec(client, $"drop database if exists {db}");
+                    DoExec(client, $"create database {db}");
+
+                    DoExec(client, $"use {db}");
+                    DoExec(client, $"create table if not exists stb (ts timestamp, c1 int) tags(tag1 int)");
+                    var stmt = client.StmtInit();
+
+                    var sql = $"insert into ctb using stb tags(?) values(?,?)";
+                    _output.WriteLine($"{sql}");
+                    stmt.Prepare(sql);
+                    stmt.SetTags(new object[] { (int)123 });
+                    stmt.BindRow(new object[] { DateTime.Now, 1 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    var affected = stmt.Affected();
+                    Assert.Equal(1, affected);
+                    using (var rows = client.Query("select * from stb"))
+                    {
+                        Assert.True(rows.Read());
+                        Assert.Equal(1, rows.GetInt32(1));
+                        Assert.Equal(123, rows.GetInt32(2));
+                    }
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
+                    throw;
+                }
+                finally
+                {
+                    DoExec(client, $"drop database if exists {db}");
+                }
+            }
+        }
+
+        private void DoStmtTest(ITDengineClient client, IStmt stmt, string sql, TDengineDataType dataType)
         {
             var now = DateTime.UtcNow;
+            if (_is3360Test)
+            {
+                stmt = client.StmtInit();
+            }
+
             stmt.Prepare(sql);
             var isInsert = stmt.IsInsert();
             Assert.True(isInsert);
@@ -830,7 +1065,7 @@ namespace Driver.Test.Client.Query
             stmt.AddBatch();
             stmt.Exec();
             Assert.Equal((long)1, stmt.Affected());
-            
+
             // DateTime
             now = now.AddSeconds(1);
             rowData = new List<object>
@@ -849,6 +1084,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             var colData = new Array[2]
             {
@@ -866,6 +1102,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -902,6 +1139,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -919,6 +1157,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -955,6 +1194,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -972,6 +1212,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -989,6 +1230,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             // sbyte
             now = now.AddSeconds(1);
             rowData = new List<object>
@@ -1007,6 +1249,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1024,6 +1267,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1060,6 +1304,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1077,6 +1322,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1113,6 +1359,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1130,6 +1377,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1167,6 +1415,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1185,7 +1434,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
-            
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1223,6 +1472,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1240,7 +1490,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
-            
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1277,6 +1527,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1294,7 +1545,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
-            
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1331,6 +1582,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1348,6 +1600,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1384,6 +1637,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1401,6 +1655,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1438,6 +1693,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1492,6 +1748,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1509,6 +1766,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1547,6 +1805,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1566,6 +1825,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1610,6 +1870,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindRow(rowData.ToArray()));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1636,6 +1897,7 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
             now = now.AddSeconds(1);
             colData = new Array[2]
             {
@@ -1658,6 +1920,11 @@ namespace Driver.Test.Client.Query
             {
                 Assert.Throws<ArgumentException>(() => stmt.BindColumn(colFields, colData));
             }
+
+            if (_is3360Test)
+            {
+                stmt.Dispose();
+            }
         }
 
 
@@ -1676,13 +1943,14 @@ namespace Driver.Test.Client.Query
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'",
+                            ReqId.GetReqId());
                     }
 
-                    client.Exec($"use {db}", ReqId.GetReqId());
+                    DoExec(client, $"use {db}", ReqId.GetReqId());
                     var createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
-                    client.Exec(createTableSql, ReqId.GetReqId());
+                    DoExec(client, createTableSql, ReqId.GetReqId());
                     var stmt = client.StmtInit(ReqId.GetReqId());
                     StringBuilder questionMarks = new StringBuilder();
                     var count = data[0].Length;
@@ -1711,6 +1979,12 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)rowCount, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -1722,6 +1996,8 @@ namespace Driver.Test.Client.Query
                         this.AssertColumn(rows, withDecimal);
                         this.AssertValue(rows, data, precision);
                     }
+
+                    stmt.Dispose();
                 }
                 catch (Exception e)
                 {
@@ -1730,10 +2006,10 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop table if exists {superTableName}", ReqId.GetReqId());
+                    DoExec(client, $"drop table if exists {superTableName}", ReqId.GetReqId());
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
+                        DoExec(client, $"drop database if exists {db}");
                     }
                 }
             }
@@ -1758,16 +2034,29 @@ namespace Driver.Test.Client.Query
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'",
+                            ReqId.GetReqId());
                     }
 
-                    client.Exec($"use {db}");
+                    DoExec(client, $"use {db}");
                     var createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
-                    client.Exec(createTableSql);
+                    DoExec(client, createTableSql);
                     var stmt = client.StmtInit(ReqId.GetReqId());
+                    StringBuilder questionMarks = new StringBuilder();
+                    var count = data[0].Length;
+                    for (int i = 0; i < count; i++)
+                    {
+                        questionMarks.Append("?");
+                        if (i < count - 1)
+                        {
+                            questionMarks.Append(", ");
+                        }
+                    }
+
+                    var values = questionMarks.ToString();
                     stmt.Prepare(
-                        $"insert into ? using {superTableName} tags(?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        $"insert into ? using {superTableName} tags(?) values({values})");
                     var isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
                     stmt.SetTableName(subTableName);
@@ -1778,6 +2067,12 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)data.Length, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -1789,6 +2084,8 @@ namespace Driver.Test.Client.Query
                         this.AssertColumn(result, withDecimal);
                         this.AssertValue(result, data, precision);
                     }
+
+                    stmt.Dispose();
                 }
                 catch (Exception e)
                 {
@@ -1797,10 +2094,10 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop table if exists {superTableName}");
+                    DoExec(client, $"drop table if exists {superTableName}");
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
                     }
                 }
             }
@@ -1822,12 +2119,12 @@ namespace Driver.Test.Client.Query
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                        client.Exec($"create database {db} precision 'ms'");
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"create database {db} precision 'ms'");
                     }
 
-                    client.Exec($"use {db}");
-                    client.Exec($"create table if not exists {tableName}(ts timestamp,c1 varbinary(65517))");
+                    DoExec(client, $"use {db}");
+                    DoExec(client, $"create table if not exists {tableName}(ts timestamp,c1 varbinary(65517))");
                     var stmt = client.StmtInit(ReqId.GetReqId());
                     stmt.Prepare($"insert into {tableName} values(?,?)");
                     var isInsert = stmt.IsInsert();
@@ -1845,6 +2142,12 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)1, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"select * from {tableName} where c1 = ?");
                     stmt.BindRow(new object[] { data });
                     stmt.AddBatch();
@@ -1856,6 +2159,8 @@ namespace Driver.Test.Client.Query
                         Assert.Equal(now, resut.GetValue(0));
                         Assert.Equal(data, resut.GetValue(1));
                     }
+
+                    stmt.Dispose();
                 }
                 catch (Exception e)
                 {
@@ -1864,10 +2169,10 @@ namespace Driver.Test.Client.Query
                 }
                 finally
                 {
-                    client.Exec($"drop table if exists {tableName}");
+                    DoExec(client, $"drop table if exists {tableName}");
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
+                        DoExec(client, $"drop database if exists {db}");
                     }
                 }
             }
@@ -1885,11 +2190,11 @@ namespace Driver.Test.Client.Query
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
-                        client.Exec($"create database {db} precision 'ns'");
+                        DoExec(client, $"drop database if exists {db}");
+                        DoExec(client, $"create database {db} precision 'ns'");
                     }
 
-                    client.Exec($"use {db}");
+                    DoExec(client, $"use {db}");
                     var data =
                         @"http_response,host=host161,method=GET,result=success,server=http://localhost,status_code=404 response_time=0.003226372,http_response_code=404i,content_length=19i,result_type=""success"",result_code=0i 1648090640000000000
 request_histogram_latency_seconds_max,aaa=bb,api_range=all,host=host161,url=http://192.168.17.148:8080/actuator/prometheus gauge=0 1648090640000000000
@@ -1993,7 +2298,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
+                        DoExec(client, $"drop database if exists {db}");
                     }
                 }
             }
@@ -2010,11 +2315,11 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
-                        client.Exec($"create database {db} precision 'ns'");
+                        DoExec(client, $"drop database if exists {db}");
+                        DoExec(client, $"create database {db} precision 'ns'");
                     }
 
-                    client.Exec($"use {db}");
+                    DoExec(client, $"use {db}");
                     var data = new string[]
                     {
                         "sys_if_bytes_out 1479496100 1.3E3 host=web01 interface=eth0",
@@ -2032,7 +2337,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
+                        DoExec(client, $"drop database if exists {db}");
                     }
                 }
             }
@@ -2049,11 +2354,11 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
-                        client.Exec($"create database {db} precision 'ns'");
+                        DoExec(client, $"drop database if exists {db}");
+                        DoExec(client, $"create database {db} precision 'ns'");
                     }
 
-                    client.Exec($"use {db}");
+                    DoExec(client, $"use {db}");
                     var data = new string[]
                     {
                         @"{
@@ -2078,7 +2383,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
+                        DoExec(client, $"drop database if exists {db}");
                     }
                 }
             }
@@ -2088,41 +2393,79 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
         {
             Assert.Equal(1, result.GetOrdinal("c1"));
             var fieldCount = result.FieldCount;
-            if (withDecimal)
+            if (!_is3360Test)
             {
-                Assert.Equal(19, fieldCount);
+                if (withDecimal)
+                {
+                    Assert.Equal(19, fieldCount);
+                }
+                else
+                {
+                    Assert.Equal(17, fieldCount);
+                }
             }
             else
             {
-                Assert.Equal(17, fieldCount);
+                if (withDecimal)
+                {
+                    Assert.Equal(18, fieldCount);
+                }
+                else
+                {
+                    Assert.Equal(16, fieldCount);
+                }
             }
 
-            Assert.Equal("ts", result.GetName(0));
-            Assert.Equal("c1", result.GetName(1));
-            Assert.Equal("c2", result.GetName(2));
-            Assert.Equal("c3", result.GetName(3));
-            Assert.Equal("c4", result.GetName(4));
-            Assert.Equal("c5", result.GetName(5));
-            Assert.Equal("c6", result.GetName(6));
-            Assert.Equal("c7", result.GetName(7));
-            Assert.Equal("c8", result.GetName(8));
-            Assert.Equal("c9", result.GetName(9));
-            Assert.Equal("c10", result.GetName(10));
-            Assert.Equal("c11", result.GetName(11));
-            Assert.Equal("c12", result.GetName(12));
-            Assert.Equal("c13", result.GetName(13));
-            Assert.Equal("c14", result.GetName(14));
-            Assert.Equal("c15", result.GetName(15));
+            var index = 0;
+            Assert.Equal("ts", result.GetName(index));
+            index++;
+            Assert.Equal("c1", result.GetName(index));
+            index++;
+            Assert.Equal("c2", result.GetName(index));
+            index++;
+            Assert.Equal("c3", result.GetName(index));
+            index++;
+            Assert.Equal("c4", result.GetName(index));
+            index++;
+            Assert.Equal("c5", result.GetName(index));
+            index++;
+            Assert.Equal("c6", result.GetName(index));
+            index++;
+            Assert.Equal("c7", result.GetName(index));
+            index++;
+            Assert.Equal("c8", result.GetName(index));
+            index++;
+            Assert.Equal("c9", result.GetName(index));
+            index++;
+            Assert.Equal("c10", result.GetName(index));
+            index++;
+            Assert.Equal("c11", result.GetName(index));
+            index++;
+            Assert.Equal("c12", result.GetName(index));
+            index++;
+            Assert.Equal("c13", result.GetName(index));
+            index++;
+            Assert.Equal("c14", result.GetName(index));
+            index++;
+            if (!_is3360Test)
+            {
+                Assert.Equal("c15", result.GetName(index));
+                index++;
+            }
+
             if (withDecimal)
             {
-                Assert.Equal("c16", result.GetName(16));
-                Assert.Equal("c17", result.GetName(17));
-                Assert.Equal("t", result.GetName(18));
+                Assert.Equal("c16", result.GetName(index));
+                index++;
+                Assert.Equal("c17", result.GetName(index));
+                index++;
+                Assert.Equal("t", result.GetName(index));
             }
             else
             {
-                Assert.Equal("t", result.GetName(16));
+                Assert.Equal("t", result.GetName(index));
             }
+
 
             Assert.Equal(-1, result.AffectRows);
         }
@@ -2224,12 +2567,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
             {
                 if (!inCloud)
                 {
-                    client.Exec($"drop database if exists {db}");
-                    client.Exec($"create database {db} precision '{PrecisionString(precision)}'");
+                    DoExec(client, $"drop database if exists {db}");
+                    DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'");
                 }
 
-                client.Exec($"use {db}");
-                client.Exec($"create table if not exists {tableName} (ts timestamp, a int, b float, c binary(10))");
+                DoExec(client, $"use {db}");
+                DoExec(client, $"create table if not exists {tableName} (ts timestamp, a int, b float, c binary(10))");
                 var ts = new long[count];
                 var dateTime = DateTime.Now;
                 var tsv = new DateTime[count];
@@ -2246,7 +2589,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     valuesStr += $"({ts[i]}, {i}, {i}, '中文')";
                 }
 
-                client.Exec($"insert into {tableName} values {valuesStr}");
+                DoExec(client, $"insert into {tableName} values {valuesStr}");
                 var tasks = new List<Task>();
                 for (var i = 0; i < count; i++)
                 {
@@ -2282,10 +2625,10 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
             }
             finally
             {
-                client.Exec($"drop table if exists {tableName}");
+                DoExec(client, $"drop table if exists {tableName}");
                 if (!inCloud)
                 {
-                    client.Exec($"drop database if exists {db}");
+                    DoExec(client, $"drop database if exists {db}");
                 }
 
                 client.Dispose();
@@ -2336,15 +2679,16 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'",
+                            ReqId.GetReqId());
                     }
 
-                    client.Exec($"use {db}", ReqId.GetReqId());
-                    utcClient.Exec($"use {db}", ReqId.GetReqId());
+                    DoExec(client, $"use {db}", ReqId.GetReqId());
+                    DoExec(utcClient, $"use {db}", ReqId.GetReqId());
                     var createTableSql =
                         $"create table if not exists {superTableName} (ts timestamp,v int) tags (tg int)";
-                    client.Exec(createTableSql, ReqId.GetReqId());
+                    DoExec(client, createTableSql, ReqId.GetReqId());
 
                     var ts = TDengineConstant.ConvertDateTimeToTimestamp(now, precision);
                     var targetTime = TDengineConstant.ConvertTimestampToDateTime(ts, precision, tz);
@@ -2369,7 +2713,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     string insertQuery =
                         $"insert into {subTableName} using {superTableName} tags('1') values('{insertTime}',1)";
                     _output.WriteLine("SQL: " + insertQuery);
-                    utcClient.Exec(insertQuery, ReqId.GetReqId());
+                    DoExec(utcClient, insertQuery, ReqId.GetReqId());
                     string query = $"select * from {superTableName} order by ts asc";
                     using (var rows = client.Query(query, ReqId.GetReqId()))
                     {
@@ -2392,10 +2736,10 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 }
                 finally
                 {
-                    client.Exec($"drop table if exists {superTableName}", ReqId.GetReqId());
+                    DoExec(client, $"drop table if exists {superTableName}", ReqId.GetReqId());
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
                     }
                 }
             }
@@ -2404,6 +2748,376 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 utcClient?.Dispose();
 
                 client?.Dispose();
+            }
+        }
+
+        private void StmtQuery(string connectString, string db)
+        {
+            var builder = new ConnectionStringBuilder(connectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                var now = DateTime.Now;
+                try
+                {
+                    DoExec(client, $"drop database if exists {db}");
+                    DoExec(client, $"create database {db}");
+
+                    DoExec(client, $"use {db}");
+                    // timestamp
+                    DoExec(client, $"create table if not exists test_ts (ts timestamp, c1 timestamp)");
+                    DoExec(client, $"insert into test_ts values(now, 123)");
+                    // bool
+                    DoExec(client, $"create table if not exists test_bool (ts timestamp, c1 bool)");
+                    DoExec(client, $"insert into test_bool values(now, true)");
+                    DoExec(client, $"insert into test_bool values(now+1s, false)");
+                    // bigint
+                    DoExec(client, $"create table if not exists test_i64 (ts timestamp, c1 bigint)");
+                    DoExec(client, $"insert into test_i64 values(now, 8)");
+                    // bigint unsigned
+                    DoExec(client, $"create table if not exists test_u64 (ts timestamp, c1 bigint unsigned)");
+                    DoExec(client, $"insert into test_u64 values(now, 8)");
+                    // float
+                    DoExec(client, $"create table if not exists test_f32 (ts timestamp, c1 float)");
+                    DoExec(client, $"insert into test_f32 values(now, 1.23)");
+                    // double
+                    DoExec(client, $"create table if not exists test_f64 (ts timestamp, c1 double)");
+                    DoExec(client, $"insert into test_f64 values(now, 2.34)");
+                    // binary
+                    DoExec(client, $"create table if not exists test_binary (ts timestamp, c1 binary(100))");
+                    DoExec(client, $"insert into test_binary values(now,'abc')");
+                    DoExec(client, $"insert into test_binary values(now+1s,'中文')");
+                    // nchar
+                    DoExec(client, $"create table if not exists test_nchar (ts timestamp, c1 nchar(100))");
+                    DoExec(client, $"insert into test_nchar values(now,'abc')");
+                    DoExec(client, $"insert into test_nchar values(now+1s,'中文')");
+                    // varbinary
+                    DoExec(client, $"create table if not exists test_varbinary (ts timestamp, c1 varbinary(100))");
+                    DoExec(client, $"insert into test_varbinary values(now,'abc')");
+                    DoExec(client, $"insert into test_varbinary values(now+1s,'中文')");
+
+                    // multi
+                    DoExec(client, $"create table if not exists test_multi (ts timestamp, c1 int, c2 binary(100))");
+                    DoExec(client, $"insert into test_multi values(now, 123, 'abc')");
+
+
+                    // prepare statement
+                    var stmt = client.StmtInit();
+                    // query timestamp
+                    stmt.Prepare("select * from test_ts where c1 = ?");
+                    var isInsert = stmt.IsInsert();
+                    Assert.False(isInsert);
+                    // bind int
+                    stmt.BindRow(new object[] { (int)123 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    var count = 0;
+                    using (var rows = stmt.Result())
+                    {
+                        while (rows.Read())
+                        {
+                            count += 1;
+                            Assert.Equal(123, rows.GetInt64(1));
+                        }
+                    }
+
+                    Assert.Equal(1, count);
+                    // bind long
+                    stmt.BindRow(new object[] { (long)123 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    count = 0;
+                    using (var rows = stmt.Result())
+                    {
+                        while (rows.Read())
+                        {
+                            count += 1;
+                            Assert.Equal(123, rows.GetInt64(1));
+                        }
+                    }
+
+                    Assert.Equal(1, count);
+                    // query bool
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare("select * from test_bool where c1 = ?");
+                    // true
+                    stmt.BindRow(new object[] { true });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    count = 0;
+                    using (var rows = stmt.Result())
+                    {
+                        while (rows.Read())
+                        {
+                            count += 1;
+                            Assert.True(rows.GetBoolean(1));
+                        }
+                    }
+
+                    Assert.Equal(1, count);
+                    // false
+                    stmt.BindRow(new object[] { false });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    count = 0;
+                    using (var rows = stmt.Result())
+                    {
+                        while (rows.Read())
+                        {
+                            count += 1;
+                            Assert.False(rows.GetBoolean(1));
+                        }
+                    }
+
+                    Assert.Equal(1, count);
+                    Assert.Throws<ArgumentException>(() => stmt.BindRow(new object[] { null }));
+                    // query bigint
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare("select * from test_i64 where c1 = ?");
+                    var bindData = new object[]
+                    {
+                        (sbyte)8,
+                        (byte)8,
+                        (short)8,
+                        (ushort)8,
+                        (int)8,
+                        (uint)8,
+                        (long)8,
+                        (ulong)8,
+                    };
+                    foreach (var d in bindData)
+                    {
+                        stmt.BindRow(new object[] { d });
+                        stmt.AddBatch();
+                        stmt.Exec();
+                        count = 0;
+                        using (var rows = stmt.Result())
+                        {
+                            while (rows.Read())
+                            {
+                                count += 1;
+                                Assert.Equal(8, rows.GetInt64(1));
+                            }
+                        }
+
+                        Assert.Equal(1, count);
+                    }
+
+                    // query bigint unsigned
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare("select * from test_u64 where c1 = ?");
+                    foreach (var d in bindData)
+                    {
+                        stmt.BindRow(new object[] { d });
+                        stmt.AddBatch();
+                        stmt.Exec();
+                        count = 0;
+                        using (var rows = stmt.Result())
+                        {
+                            while (rows.Read())
+                            {
+                                count += 1;
+                                Assert.Equal(8, rows.GetInt64(1));
+                            }
+                        }
+
+                        Assert.Equal(1, count);
+                    }
+
+                    // query float
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare("select * from test_f32 where c1 = ?");
+                    bindData = new object[]
+                    {
+                        (float)1.23,
+                        (double)1.23,
+                    };
+                    foreach (var d in bindData)
+                    {
+                        stmt.BindRow(new object[] { d });
+                        stmt.AddBatch();
+                        stmt.Exec();
+                        count = 0;
+                        using (var rows = stmt.Result())
+                        {
+                            while (rows.Read())
+                            {
+                                count += 1;
+                                CheckValue(1.23f, rows.GetFloat(1));
+                            }
+                        }
+
+                        Assert.Equal(1, count);
+                    }
+
+                    // query double
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare("select * from test_f64 where c1 = ?");
+                    bindData = new object[]
+                    {
+                        (double)2.34,
+                    };
+                    foreach (var d in bindData)
+                    {
+                        stmt.BindRow(new object[] { d });
+                        stmt.AddBatch();
+                        stmt.Exec();
+                        count = 0;
+                        using (var rows = stmt.Result())
+                        {
+                            while (rows.Read())
+                            {
+                                count += 1;
+                                CheckValue(2.34, rows.GetDouble(1));
+                            }
+                        }
+
+                        Assert.Equal(1, count);
+                    }
+                    // query string
+
+
+                    var stringDatabases = new string[]
+                    {
+                        "test_binary",
+                        "test_nchar",
+                        "test_varbinary",
+                    };
+                    var stringValues = new string[]
+                    {
+                        "abc",
+                        "中文",
+                    };
+                    var bytesValues = new byte[][]
+                    {
+                        Encoding.UTF8.GetBytes("abc"),
+                        Encoding.UTF8.GetBytes("中文"),
+                    };
+                    foreach (var dbName in stringDatabases)
+                    {
+                        if (_is3360Test)
+                        {
+                            stmt.Dispose();
+                            stmt = client.StmtInit();
+                        }
+
+                        stmt.Prepare($"select * from {dbName} where c1 = ?");
+                        for (int i = 0; i < stringValues.Length; i++)
+                        {
+                            // _output.WriteLine($"{stringValues[i]},{dbName}");
+                            stmt.BindRow(new object[] { stringValues[i] });
+                            stmt.AddBatch();
+                            stmt.Exec();
+                            count = 0;
+                            using (var rows = stmt.Result())
+                            {
+                                while (rows.Read())
+                                {
+                                    count += 1;
+                                    Assert.Equal(stringValues[i], rows.GetString(1));
+                                }
+                            }
+
+                            Assert.Equal(1, count);
+                        }
+
+                        for (int i = 0; i < bytesValues.Length; i++)
+                        {
+                            stmt.BindRow(new object[] { bytesValues[i] });
+                            stmt.AddBatch();
+                            stmt.Exec();
+                            count = 0;
+                            using (var rows = stmt.Result())
+                            {
+                                while (rows.Read())
+                                {
+                                    count += 1;
+                                    Assert.Equal(stringValues[i], rows.GetString(1));
+                                }
+                            }
+
+                            Assert.Equal(1, count);
+                        }
+                    }
+
+                    // query multi
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare("select * from test_multi where c1 = ? and c2 = ?");
+                    // wrong length 
+                    Assert.Throws<ArgumentException>(() => stmt.BindRow(new object[] { 'a', 'a', 'a' }));
+                    // bind twice
+                    stmt.BindRow(new object[] { 123, "abc" });
+                    Assert.Throws<InvalidOperationException>(() => stmt.BindRow(new object[] { 123, "abc" }));
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    count = 0;
+                    using (var rows = stmt.Result())
+                    {
+                        while (rows.Read())
+                        {
+                            count += 1;
+                            Assert.Equal(123, rows.GetInt32(1));
+                            Assert.Equal("abc", rows.GetString(2));
+                        }
+                    }
+
+                    Assert.Equal(1, count);
+                    // bind wrong type
+                    Assert.Throws<ArgumentException>(() => stmt.BindRow(new object[] { 123, new TAOS_STMT2_BIND() }));
+                    stmt.BindRow(new object[] { 123, "abc" });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    count = 0;
+                    using (var rows = stmt.Result())
+                    {
+                        while (rows.Read())
+                        {
+                            count += 1;
+                            Assert.Equal(123, rows.GetInt32(1));
+                            Assert.Equal("abc", rows.GetString(2));
+                        }
+                    }
+
+                    Assert.Equal(1, count);
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
+                    throw;
+                }
+                finally
+                {
+                    DoExec(client, $"drop database if exists {db}");
+                }
             }
         }
 
@@ -2421,20 +3135,23 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 var next2SecondTs = TDengineConstant.ConvertDateTimeToTimestamp(next2Second, precision);
                 var next3Second = now.AddSeconds(3);
                 var next3SecondTs = TDengineConstant.ConvertDateTimeToTimestamp(next3Second, precision);
+                var next4Second = now.AddSeconds(4);
+                var next4SecondTs = TDengineConstant.ConvertDateTimeToTimestamp(next4Second, precision);
                 var superTableName = $"timestamp_stb_{now.Ticks}";
                 var subTableName = $"timestamp_ctb_{now.Ticks}";
                 try
                 {
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}", ReqId.GetReqId());
-                        client.Exec($"create database {db} precision '{PrecisionString(precision)}'", ReqId.GetReqId());
+                        DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                        DoExec(client, $"create database {db} precision '{PrecisionString(precision)}'",
+                            ReqId.GetReqId());
                     }
 
-                    client.Exec($"use {db}", ReqId.GetReqId());
+                    DoExec(client, $"use {db}", ReqId.GetReqId());
                     var createTableSql =
                         $"create table if not exists {superTableName} (ts timestamp, v int) tags (t_tag timestamp)";
-                    client.Exec(createTableSql, ReqId.GetReqId());
+                    DoExec(client, createTableSql, ReqId.GetReqId());
                     var stmt = client.StmtInit(ReqId.GetReqId());
                     // bind row
                     stmt.Prepare($"insert into ? using {superTableName} tags(?) values(?,?)");
@@ -2449,6 +3166,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     stmt.Exec();
                     var affected = stmt.Affected();
                     Assert.Equal((long)1, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"select * from {superTableName} where ts = ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -2471,6 +3194,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
 
 
                     // bind column
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"insert into ? using {superTableName} tags(?) values(?,?)");
                     isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
@@ -2487,6 +3216,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     stmt.Exec();
                     affected = stmt.Affected();
                     Assert.Equal((long)1, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"select * from {superTableName} where ts = ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -2511,6 +3246,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     }
 
                     // bind column with DateTimeOffset?[]
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"insert into ? using {superTableName} tags(?) values(?,?)");
                     isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
@@ -2528,6 +3269,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     stmt.Exec();
                     affected = stmt.Affected();
                     Assert.Equal((long)1, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"select * from {superTableName} where ts = ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -2553,6 +3300,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
 
 
                     // bind row with long
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"insert into ? using {superTableName} tags(?) values(?,?)");
                     isInsert = stmt.IsInsert();
                     Assert.True(isInsert);
@@ -2564,6 +3317,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     stmt.Exec();
                     affected = stmt.Affected();
                     Assert.Equal((long)1, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
                     stmt.Prepare($"select * from {superTableName} where ts = ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -2586,6 +3345,61 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                             precision), next3SecondTs);
                         CheckValue(rows.GetInt64(0), next3SecondTs);
                     }
+
+                    // bind column with DateTime?[]
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare($"insert into ? using {superTableName} tags(?) values(?,?)");
+                    isInsert = stmt.IsInsert();
+                    Assert.True(isInsert);
+                    stmt.SetTableName(subTableName);
+                    stmt.SetTags(new object[]
+                        { TDengineConstant.ConvertTimestampToDateTime(ts, precision, TimeZoneInfo.Utc) });
+                    stmt.BindColumn(stmt.GetColFields(),
+                        new DateTime?[]
+                        {
+                            TDengineConstant.ConvertTimestampToDateTime(next4SecondTs, precision,
+                                TimeZoneInfo.Utc)
+                        },
+                        new int?[] { 1 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    affected = stmt.Affected();
+                    Assert.Equal((long)1, affected);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare($"select * from {superTableName} where ts = ? order by ts asc");
+                    isInsert = stmt.IsInsert();
+                    Assert.False(isInsert);
+                    stmt.BindRow(new object[]
+                    {
+                        TDengineConstant.ConvertTimestampToDateTimeOffset(next4SecondTs, precision, TimeZoneInfo.Utc)
+                    });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    using (var rows = stmt.Result())
+                    {
+                        var haveNext = rows.Read();
+                        Assert.True(haveNext);
+                        Assert.Equal("ts", rows.GetName(0));
+                        Assert.Equal("v", rows.GetName(1));
+                        Assert.Equal("t_tag", rows.GetName(2));
+                        CheckValue(TDengineConstant.ConvertDateTimeToTimestamp(rows.GetDateTime(0), precision),
+                            next4SecondTs);
+                        CheckValue(TDengineConstant.ConvertDateTimeOffsetToTimestamp(rows.GetDateTimeOffset(0),
+                            precision), next4SecondTs);
+                        CheckValue(rows.GetInt64(0), next4SecondTs);
+                    }
+
+                    stmt.Dispose();
                 }
                 catch (Exception e)
                 {
@@ -2594,12 +3408,578 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 }
                 finally
                 {
-                    client.Exec($"drop table if exists {superTableName}", ReqId.GetReqId());
+                    DoExec(client, $"drop table if exists {superTableName}", ReqId.GetReqId());
                     if (!inCloud)
                     {
-                        client.Exec($"drop database if exists {db}");
+                        DoExec(client, $"drop database if exists {db}");
                     }
                 }
+            }
+        }
+
+        private void StmtErrorProcessTest(string connectString, string db)
+        {
+            var builder = new ConnectionStringBuilder(connectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                var now = DateTime.Now;
+                try
+                {
+                    DoExec(client, $"drop database if exists {db}");
+                    DoExec(client, $"create database {db}");
+
+                    DoExec(client, $"use {db}");
+                    // create table
+                    DoExec(client, $"create table if not exists test (ts timestamp, c1 int)");
+                    DoExec(client, $"create table if not exists stb (ts timestamp, c1 int) tags (t1 int)");
+                    DoExec(client, $"create table if not exists bind_cols (ts timestamp, c1 int)");
+
+                    var stmt = client.StmtInit();
+                    // not prepare statement
+                    Assert.Throws<InvalidOperationException>(() => stmt.IsInsert());
+                    Assert.Throws<InvalidOperationException>(() => stmt.GetColFields());
+                    Assert.Throws<InvalidOperationException>(() => stmt.GetTagFields());
+                    Assert.Throws<InvalidOperationException>(() => stmt.BindRow(new object[] { now, 1 }));
+                    Assert.Throws<InvalidOperationException>(() => stmt.BindColumn(null, new long[1], new int[] { 1 }));
+                    Assert.Throws<InvalidOperationException>(() => stmt.AddBatch());
+                    Assert.Throws<InvalidOperationException>(() => stmt.Exec());
+                    Assert.Throws<InvalidOperationException>(() => stmt.Result());
+                    // prepare statement
+                    stmt.Prepare("insert into test values(?,?)");
+                    var isInsert = stmt.IsInsert();
+                    Assert.True(isInsert);
+                    var tagFields = stmt.GetTagFields();
+                    Assert.Empty(tagFields);
+                    var colFields = stmt.GetColFields();
+                    Assert.Equal(2, colFields.Length);
+                    Assert.Equal("ts", colFields[0].name);
+                    Assert.Equal((sbyte)TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP, colFields[0].type);
+                    Assert.Equal("c1", colFields[1].name);
+                    Assert.Equal((sbyte)TDengineDataType.TSDB_DATA_TYPE_INT, colFields[1].type);
+                    Assert.Throws<InvalidOperationException>(() => stmt.SetTableName("wrong"));
+                    Assert.Throws<InvalidOperationException>(() => stmt.SetTags(new object[] { "wrong" }));
+                    Assert.Throws<InvalidOperationException>(() => stmt.AddBatch());
+                    Assert.Throws<InvalidOperationException>(() => stmt.Exec());
+                    stmt.BindRow(new object[] { now, 1 });
+                    stmt.BindColumn(null, new DateTime[] { now.AddSeconds(1) }, new int[] { 2 });
+                    Assert.Throws<InvalidOperationException>(() => stmt.Exec());
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal(2, stmt.Affected());
+                    stmt.Dispose();
+                    stmt = client.StmtInit();
+                    stmt.Prepare("select * from test where ts = ?");
+                    isInsert = stmt.IsInsert();
+                    Assert.False(isInsert);
+                    Assert.Throws<InvalidOperationException>(() =>
+                        stmt.BindColumn(null, new DateTime[] { now.AddSeconds(1) }));
+                    Assert.Throws<InvalidOperationException>(() => stmt.SetTableName("wrong"));
+                    Assert.Throws<InvalidOperationException>(() => stmt.SetTags(new object[] { "wrong" }));
+                    Assert.Throws<InvalidOperationException>(() => stmt.AddBatch());
+                    Assert.Throws<InvalidOperationException>(() => stmt.Exec());
+                    stmt.BindRow(new object[] { now.AddSeconds(1) });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    var queryCount = 0;
+                    using (var result = stmt.Result())
+                    {
+                        Assert.True(result.HasRows);
+                        while (result.Read())
+                        {
+                            queryCount += 1;
+                            Assert.Equal(2, result.GetInt32(1));
+                        }
+                    }
+
+                    Assert.Equal(1, queryCount);
+                    stmt.Dispose();
+
+                    stmt = client.StmtInit();
+                    stmt.Prepare("insert into ? using stb tags(?) values(?,?)");
+                    isInsert = stmt.IsInsert();
+                    Assert.True(isInsert);
+                    // no table name set
+                    Assert.Throws<InvalidOperationException>(() => stmt.SetTags(new object[] { 1 }));
+                    Assert.Throws<InvalidOperationException>(() => stmt.BindRow(new object[] { now, 100 }));
+                    Assert.Throws<InvalidOperationException>(() => stmt.BindColumn(null,new DateTime[] { now },new int[]{100}));
+                    Assert.Throws<InvalidOperationException>(() => stmt.AddBatch());
+                    // set empty table name
+                    Assert.Throws<ArgumentException>(() => stmt.SetTableName(""));
+                    Assert.Throws<ArgumentException>(() => stmt.SetTableName(null));
+                    // duplicate set table name
+                    stmt.SetTableName("ctb");
+                    Assert.Throws<InvalidOperationException>(() => stmt.SetTableName("ctb2"));
+                    // no tag set
+                    Assert.Throws<InvalidOperationException>(() => stmt.AddBatch());
+                    // wrong tags length
+                    Assert.Throws<ArgumentException>(() => stmt.SetTags(new object[] { 1, 2 }));
+                    // empty tags
+                    Assert.Throws<ArgumentException>(() => stmt.SetTags(new object[] { }));
+                    // null tags
+                    Assert.Throws<ArgumentException>(() => stmt.SetTags(null));
+                    // duplicate set tags
+                    stmt.SetTags(new object[] { 1 });
+                    stmt.SetTags(new object[] { 2 }); // will be ignored
+                    // no row bound
+                    Assert.Throws<InvalidOperationException>(() => stmt.AddBatch());
+                    // wrong row length
+                    Assert.Throws<ArgumentException>(() => stmt.BindRow(new object[] { now }));
+                    // null row
+                    Assert.Throws<ArgumentException>(() => stmt.BindRow(null));
+                    // empty row
+                    Assert.Throws<ArgumentException>(() => stmt.BindRow(new object[] { }));
+                    // wrong row type
+                    Assert.Throws<ArgumentException>(() => stmt.BindRow(new object[] { new TaosFieldE(), 1 }));
+                    stmt.BindRow(new object[] { now, 100 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)1, stmt.Affected());
+                    stmt.Dispose();
+                    using (var result = client.Query("select *,tbname from stb"))
+                    {
+                        var count = 0;
+                        while (result.Read())
+                        {
+                            count += 1;
+                            // col
+                            Assert.Equal(100, result.GetInt32(1));
+                            // tag
+                            Assert.Equal(1, result.GetInt32(2));
+                            // tbname
+                            Assert.Equal("ctb", result.GetString(3));
+                        }
+
+                        Assert.Equal(1, count);
+                    }
+
+                    stmt = client.StmtInit();
+                    stmt.Prepare("insert into bind_cols values(?,?)");
+                    // bind arrow null
+                    Assert.Throws<ArgumentException>(() => stmt.BindColumn(null));
+                    // wrong columns count
+                    Assert.Throws<ArgumentException>(() => stmt.BindColumn(null, new DateTime[] { now.AddSeconds(1) }));
+                    // wrong row count
+                    Assert.Throws<ArgumentException>(() => stmt.BindColumn(null,
+                        new DateTime[] { now.AddSeconds(1), now.AddSeconds(2) }, new int[] { 1 }));
+                    // wrong row type
+                    Assert.Throws<ArgumentException>(() =>
+                        stmt.BindColumn(null, new object[] { new TaosFieldE(), new TaosFieldE() }, new int[] { 2 }));
+                    // row count zero
+                    Assert.Throws<ArgumentException>(() => stmt.BindColumn(null, new DateTime[] { }, new int[] { }));
+                    // correct bind column
+                    stmt.BindColumn(null, new DateTime[] { now.AddSeconds(1), now.AddSeconds(2) }, new int[] { 1, 2 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)2, stmt.Affected());
+                    stmt.Dispose();
+                    using (var result = client.Query("select * from bind_cols"))
+                    {
+                        var count = 0;
+                        while (result.Read())
+                        {
+                            count += 1;
+                            // col
+                            Assert.Equal(count, result.GetInt32(1));
+                        }
+
+                        Assert.Equal(2, count);
+                    }
+
+                    stmt = client.StmtInit();
+                    stmt.Prepare("select * from bind_cols where ts = ?");
+                    Assert.Throws<InvalidOperationException>(() => stmt.BindColumn(null, new[] { now.AddSeconds(1) }));
+                    stmt.BindRow(new object[] { now.AddSeconds(2) });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    using (var result = stmt.Result())
+                    {
+                        var count = 0;
+                        while (result.Read())
+                        {
+                            count += 1;
+                            // col
+                            Assert.Equal(2, result.GetInt32(1));
+                        }
+
+                        Assert.Equal(1, count);
+                    }
+
+                    stmt.Dispose();
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
+                    throw;
+                }
+                finally
+                {
+                    DoExec(client, $"drop database if exists {db}");
+                }
+            }
+        }
+
+        private void StmtBindTagsTest(string connectString, string db)
+        {
+            var builder = new ConnectionStringBuilder(connectString);
+            var inCloud = IsCloudTest(builder);
+            using (var client = DbDriver.Open(builder))
+            {
+                try
+                {
+                    DoExec(client, $"drop database if exists {db}", ReqId.GetReqId());
+                    DoExec(client, $"create database {db}", ReqId.GetReqId());
+                    DoExec(client, $"use {db}", ReqId.GetReqId());
+
+                    DoExec(client,
+                        $"create table stb_all(ts timestamp,v int) tags(" +
+                        $"t1 bool," +
+                        $"t2 tinyint," +
+                        $"t3 smallint," +
+                        $"t4 int," +
+                        $"t5 bigint," +
+                        $"t6 tinyint unsigned," +
+                        $"t7 smallint unsigned," +
+                        $"t8 int unsigned," +
+                        $"t9 bigint unsigned," +
+                        $"t10 float," +
+                        $"t11 double," +
+                        $"t12 binary(20)," +
+                        $"t13 nchar(20)," +
+                        $"t14 varbinary(20)," +
+                        $"t15 geometry(100)," +
+                        $"t16 timestamp," +
+                        $"t17 timestamp," +
+                        $"t18 timestamp)");
+                    var now = TDengineConstant.ConvertDateTimeToTimestamp(DateTime.Now,
+                        TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    var tag1 = new object[]
+                    {
+                        true,
+                        sbyte.MaxValue,
+                        short.MaxValue,
+                        int.MaxValue,
+                        long.MaxValue,
+                        byte.MaxValue,
+                        ushort.MaxValue,
+                        uint.MaxValue,
+                        ulong.MaxValue,
+                        1.23f,
+                        4.56,
+                        "tag_binary_标签",
+                        "tag_nchar_标签",
+                        Encoding.UTF8.GetBytes("tag_varbinary_标签"),
+                        new byte[]
+                        {
+                            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        },
+                        now,
+                        TDengineConstant.ConvertTimestampToDateTime(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
+                        TDengineConstant.ConvertTimestampToDateTimeOffset(now,
+                            TDenginePrecision.TSDB_TIME_PRECISION_MILLI, TimeZoneInfo.Utc)
+                    };
+                    var tag2 = new object[]
+                    {
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                    };
+                    var tag3 = new object[]
+                    {
+                        false,
+                        sbyte.MinValue,
+                        short.MinValue,
+                        int.MinValue,
+                        long.MinValue,
+                        byte.MinValue,
+                        ushort.MinValue,
+                        uint.MinValue,
+                        ulong.MinValue,
+                        1.23f,
+                        4.56,
+                        "tag_binary_标签",
+                        "tag_nchar_标签",
+                        Encoding.UTF8.GetBytes("tag_varbinary_标签"),
+                        new byte[]
+                        {
+                            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        },
+                        now,
+                        TDengineConstant.ConvertTimestampToDateTime(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI),
+                        TDengineConstant.ConvertTimestampToDateTimeOffset(now,
+                            TDenginePrecision.TSDB_TIME_PRECISION_MILLI, TimeZoneInfo.Utc)
+                    };
+                    DoExec(client, $"create table stb_json(ts timestamp ,v int) tags(t1 json)");
+                    var stmt = client.StmtInit(ReqId.GetReqId());
+                    stmt.Prepare($"insert into ? using stb_all tags(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?)");
+                    var isInsert = stmt.IsInsert();
+                    Assert.True(isInsert);
+                    stmt.SetTableName("ctb_1");
+                    stmt.SetTags(tag1);
+                    stmt.BindRow(new object[] { DateTime.Now, 1 });
+                    stmt.AddBatch();
+                    stmt.SetTableName("ctb_2");
+                    stmt.SetTags(tag2);
+                    stmt.BindRow(new object[] { DateTime.Now.Add(TimeSpan.FromSeconds(1)), 1 });
+                    stmt.AddBatch();
+                    stmt.SetTableName("ctb_3");
+                    stmt.SetTags(tag3);
+                    stmt.BindRow(new object[] { DateTime.Now.Add(TimeSpan.FromSeconds(2)), 1 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)3, stmt.Affected());
+                    var hasValue = false;
+                    using (var result = client.Query("select * from stb_all where tbname = 'ctb_1'"))
+                    {
+                        while (result.Read())
+                        {
+                            Assert.True(result.GetBoolean(2));
+                            Assert.Equal(sbyte.MaxValue, (sbyte)result.GetValue(3));
+                            Assert.Equal(short.MaxValue, (short)result.GetValue(4));
+                            Assert.Equal(int.MaxValue, (int)result.GetValue(5));
+                            Assert.Equal(long.MaxValue, (long)result.GetValue(6));
+                            Assert.Equal(byte.MaxValue, (byte)result.GetValue(7));
+                            Assert.Equal(ushort.MaxValue, (ushort)result.GetValue(8));
+                            Assert.Equal(uint.MaxValue, (uint)result.GetValue(9));
+                            Assert.Equal(ulong.MaxValue, (ulong)result.GetValue(10));
+                            CheckValue(1.23f, (float)result.GetValue(11));
+                            CheckValue(4.56, (double)result.GetValue(12));
+                            Assert.Equal("tag_binary_标签", result.GetString(13));
+                            Assert.Equal("tag_nchar_标签", result.GetString(14));
+                            Assert.Equal("tag_varbinary_标签", Encoding.UTF8.GetString((byte[])result.GetValue(15)));
+                            Assert.Equal(new byte[]
+                            {
+                                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00,
+                                0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                            }, (byte[])result.GetValue(16));
+                            Assert.Equal(now, result.GetInt64(17));
+                            Assert.Equal(now, result.GetInt64(18));
+                            Assert.Equal(now, result.GetInt64(19));
+                            hasValue = true;
+                        }
+                    }
+
+                    Assert.True(hasValue);
+                    hasValue = false;
+                    using (var result = client.Query("select * from stb_all where tbname = 'ctb_2'"))
+                    {
+                        while (result.Read())
+                        {
+                            for (int i = 2; i < 20; i++)
+                            {
+                                Assert.Null(result.GetValue(i));
+                            }
+
+                            hasValue = true;
+                        }
+                    }
+
+                    Assert.True(hasValue);
+                    hasValue = false;
+                    using (var result = client.Query("select * from stb_all where tbname = 'ctb_3'"))
+                    {
+                        while (result.Read())
+                        {
+                            Assert.False(result.GetBoolean(2));
+                            Assert.Equal(sbyte.MinValue, (sbyte)result.GetValue(3));
+                            Assert.Equal(short.MinValue, (short)result.GetValue(4));
+                            Assert.Equal(int.MinValue, (int)result.GetValue(5));
+                            Assert.Equal(long.MinValue, (long)result.GetValue(6));
+                            Assert.Equal(byte.MinValue, (byte)result.GetValue(7));
+                            Assert.Equal(ushort.MinValue, (ushort)result.GetValue(8));
+                            Assert.Equal(uint.MinValue, (uint)result.GetValue(9));
+                            Assert.Equal(ulong.MinValue, (ulong)result.GetValue(10));
+                            CheckValue(1.23f, (float)result.GetValue(11));
+                            CheckValue(4.56, (double)result.GetValue(12));
+                            Assert.Equal("tag_binary_标签", result.GetString(13));
+                            Assert.Equal("tag_nchar_标签", result.GetString(14));
+                            Assert.Equal("tag_varbinary_标签", Encoding.UTF8.GetString((byte[])result.GetValue(15)));
+                            Assert.Equal(new byte[]
+                            {
+                                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00,
+                                0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                            }, (byte[])result.GetValue(16));
+                            Assert.Equal(now, result.GetInt64(17));
+                            Assert.Equal(now, result.GetInt64(18));
+                            Assert.Equal(now, result.GetInt64(19));
+                            hasValue = true;
+                        }
+                    }
+
+                    Assert.True(hasValue);
+                    // duplicate table
+                    stmt.SetTableName("ctb_4");
+                    stmt.SetTags(tag1);
+                    stmt.BindRow(new object[] { DateTime.Now, 1 });
+                    stmt.AddBatch();
+                    stmt.SetTableName("ctb_4");
+                    stmt.SetTags(tag2);
+                    stmt.BindRow(new object[] { DateTime.Now.Add(TimeSpan.FromSeconds(1)), 1 });
+                    stmt.AddBatch();
+                    stmt.SetTableName("ctb_4");
+                    stmt.SetTags(tag3);
+                    stmt.BindRow(new object[] { DateTime.Now.Add(TimeSpan.FromSeconds(2)), 1 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)3, stmt.Affected());
+                    hasValue = false;
+                    using (var result = client.Query("select * from stb_all where tbname = 'ctb_4'"))
+                    {
+                        while (result.Read())
+                        {
+                            Assert.True(result.GetBoolean(2));
+                            Assert.Equal(sbyte.MaxValue, (sbyte)result.GetValue(3));
+                            Assert.Equal(short.MaxValue, (short)result.GetValue(4));
+                            Assert.Equal(int.MaxValue, (int)result.GetValue(5));
+                            Assert.Equal(long.MaxValue, (long)result.GetValue(6));
+                            Assert.Equal(byte.MaxValue, (byte)result.GetValue(7));
+                            Assert.Equal(ushort.MaxValue, (ushort)result.GetValue(8));
+                            Assert.Equal(uint.MaxValue, (uint)result.GetValue(9));
+                            Assert.Equal(ulong.MaxValue, (ulong)result.GetValue(10));
+                            CheckValue(1.23f, (float)result.GetValue(11));
+                            CheckValue(4.56, (double)result.GetValue(12));
+                            Assert.Equal("tag_binary_标签", result.GetString(13));
+                            Assert.Equal("tag_nchar_标签", result.GetString(14));
+                            Assert.Equal("tag_varbinary_标签", Encoding.UTF8.GetString((byte[])result.GetValue(15)));
+                            Assert.Equal(new byte[]
+                            {
+                                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00,
+                                0x00,
+                                0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                            }, (byte[])result.GetValue(16));
+                            Assert.Equal(now, result.GetInt64(17));
+                            Assert.Equal(now, result.GetInt64(18));
+                            Assert.Equal(now, result.GetInt64(19));
+                            hasValue = true;
+                        }
+                    }
+
+                    Assert.True(hasValue);
+                    if (_is3360Test)
+                    {
+                        stmt.Dispose();
+                        stmt = client.StmtInit();
+                    }
+
+                    stmt.Prepare("insert into ? using stb_json tags(?) values(?,?)");
+                    isInsert = stmt.IsInsert();
+                    Assert.True(isInsert);
+                    stmt.SetTableName("jtb_1");
+                    stmt.SetTags(new object[] { "{\"tag1\":1,\"tag2\":\"标签\",\"tag3\":true}" });
+                    stmt.BindRow(new object[] { DateTime.Now, 1 });
+                    stmt.AddBatch();
+                    stmt.SetTableName("jtb_2");
+                    stmt.SetTags(new object[] { null });
+                    stmt.BindRow(new object[] { DateTime.Now.Add(TimeSpan.FromSeconds(1)), 1 });
+                    stmt.AddBatch();
+                    stmt.SetTableName("jtb_3");
+                    stmt.SetTags(new object[] { "{}" });
+                    stmt.BindRow(new object[] { DateTime.Now.Add(TimeSpan.FromSeconds(2)), 1 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)3, stmt.Affected());
+                    hasValue = false;
+                    using (var result = client.Query("select * from stb_json where tbname = 'jtb_1'"))
+                    {
+                        while (result.Read())
+                        {
+                            Assert.Equal("{\"tag1\":1,\"tag2\":\"标签\",\"tag3\":true}", result.GetString(2));
+                            hasValue = true;
+                        }
+                    }
+
+                    Assert.True(hasValue);
+                    hasValue = false;
+                    using (var result = client.Query("select * from stb_json where tbname = 'jtb_2'"))
+                    {
+                        while (result.Read())
+                        {
+                            Assert.Equal("null", result.GetString(2));
+                            hasValue = true;
+                        }
+                    }
+
+                    Assert.True(hasValue);
+                    hasValue = false;
+                    using (var result = client.Query("select * from stb_json where tbname = 'jtb_3'"))
+                    {
+                        while (result.Read())
+                        {
+                            Assert.Null(result.GetValue(2));
+                            hasValue = true;
+                        }
+                    }
+
+                    Assert.True(hasValue);
+                    // duplicate table
+                    stmt.SetTableName("jtb_4");
+                    stmt.SetTags(new object[] { "{\"tag1\":1,\"tag2\":\"标签\",\"tag3\":true}" });
+                    stmt.BindRow(new object[] { DateTime.Now, 1 });
+                    stmt.AddBatch();
+                    stmt.SetTableName("jtb_4");
+                    stmt.SetTags(new object[] { null });
+                    stmt.BindRow(new object[] { DateTime.Now.Add(TimeSpan.FromSeconds(1)), 1 });
+                    stmt.AddBatch();
+                    stmt.SetTableName("jtb_4");
+                    stmt.SetTags(new object[] { "{}" });
+                    stmt.BindRow(new object[] { DateTime.Now.Add(TimeSpan.FromSeconds(2)), 1 });
+                    stmt.AddBatch();
+                    stmt.Exec();
+                    Assert.Equal((long)3, stmt.Affected());
+                    hasValue = false;
+                    using (var result = client.Query("select * from stb_json where tbname = 'jtb_4'"))
+                    {
+                        while (result.Read())
+                        {
+                            Assert.Equal("{\"tag1\":1,\"tag2\":\"标签\",\"tag3\":true}", result.GetString(2));
+                            hasValue = true;
+                        }
+                    }
+
+                    Assert.True(hasValue);
+                    stmt.Dispose();
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
+                    throw;
+                }
+                finally
+                {
+                    DoExec(client, $"drop database if exists {db}");
+                }
+            }
+        }
+
+        private long DoExec(ITDengineClient client, string sql, long reqId = 0)
+        {
+            try
+            {
+                return reqId != 0 ? client.Exec(sql) : client.Exec(sql, reqId);
+            }
+            catch (TDengineError e)
+            {
+                if (e.Code != 0x3d3) throw;
+                Thread.Sleep(100);
+                return DoExec(client, sql);
             }
         }
     }

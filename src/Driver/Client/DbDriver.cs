@@ -1,5 +1,4 @@
-﻿using System;
-using TDengine.Driver.Client.Native;
+﻿using TDengine.Driver.Client.Native;
 using TDengine.Driver.Client.Websocket;
 
 namespace TDengine.Driver.Client

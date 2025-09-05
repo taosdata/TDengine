@@ -49,7 +49,7 @@ namespace WindowsFormsApp4._8
         private void Connect(object sender, EventArgs e)
         {
             var builder = new ConnectionStringBuilder(
-                "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false;username=root;password=taosdata");
+                "protocol=WebSocket;host=localhost;port=6041;useSSL=false;username=root;password=taosdata");
             client = DbDriver.Open(builder);
             MessageBox.Show("connected");
             button_show.Enabled = true;

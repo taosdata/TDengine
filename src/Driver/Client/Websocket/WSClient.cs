@@ -11,6 +11,8 @@ namespace TDengine.Driver.Client.Websocket
         private readonly ConnectionStringBuilder _builder;
         private readonly object _reconnectLock = new object();
 
+        internal bool AutoReconnect => _builder.AutoReconnect;
+
 
         public WSClient(ConnectionStringBuilder builder)
         {
@@ -18,7 +20,7 @@ namespace TDengine.Driver.Client.Websocket
             _tz = builder.GetTimeZone();
             _connection = new Connection(GetUrl(builder), builder.Username, builder.Password,
                 builder.Database, builder.ConnTimeout, builder.ReadTimeout, builder.WriteTimeout,
-                builder.EnableCompression,builder.ConnectionTimezone);
+                builder.EnableCompression, builder.ConnectionTimezone);
 
             _connection.Connect();
             _builder = builder;
@@ -70,14 +72,17 @@ namespace TDengine.Driver.Client.Websocket
             }
         }
 
-        private void Reconnect()
+        private void Reconnect(bool force = false, Connection old = null)
         {
-            if (!_builder.AutoReconnect)
+            if (!AutoReconnect)
                 return;
             lock (_reconnectLock)
             {
                 if (_connection != null && _connection.IsAvailable()) // connection is available, no need to reconnect
-                    return;
+                {
+                    if (!force) return;
+                    if (old != null && _connection != old) return; // another thread has reconnected
+                }
 
                 Connection connection = null;
                 for (int i = 0; i < _builder.ReconnectRetryCount; i++)
@@ -88,7 +93,7 @@ namespace TDengine.Driver.Client.Websocket
                         System.Threading.Thread.Sleep(_builder.ReconnectIntervalMs);
                         connection = new Connection(GetUrl(_builder), _builder.Username, _builder.Password,
                             _builder.Database, _builder.ConnTimeout, _builder.ReadTimeout, _builder.WriteTimeout,
-                            _builder.EnableCompression,_builder.ConnectionTimezone);
+                            _builder.EnableCompression, _builder.ConnectionTimezone);
                         connection.Connect();
                         break;
                     }
@@ -142,8 +147,9 @@ namespace TDengine.Driver.Client.Websocket
 
         private IStmt DoStmtInit(long reqId)
         {
-            var resp = _connection.StmtInit((ulong)reqId);
-            return new WSStmt(resp.StmtId, _tz, _connection);
+            var connection = _connection;
+            var resp = connection.Stmt2Init((ulong)reqId);
+            return new WSStmt(this, resp.StmtId, _tz, connection);
         }
 
         public IRows Query(string query)
@@ -171,13 +177,14 @@ namespace TDengine.Driver.Client.Websocket
 
         private IRows DoQuery(string query, long reqId)
         {
-            var resp = _connection.BinaryQuery(query, (ulong)reqId);
+            var connection = _connection;
+            var resp = connection.BinaryQuery(query, (ulong)reqId);
             if (resp.IsUpdate)
             {
                 return new WSRows(resp.AffectedRows);
             }
 
-            return new WSRows(resp.ResultId, resp, _connection, _tz);
+            return new WSRows(resp.ResultId, resp, connection, _tz);
         }
 
         public long Exec(string query)
@@ -240,6 +247,32 @@ namespace TDengine.Driver.Client.Websocket
         {
             var line = string.Join("\n", lines);
             _connection.SchemalessInsert(line, protocol, precision, ttl, reqId);
+        }
+
+        public bool ConnectionAvailable()
+        {
+            var connection = _connection;
+            return connection != null && connection.IsAvailable();
+        }
+
+        public Connection TryReconnectOrGetConnection(Connection old)
+        {
+            var currentConnection = _connection;
+            // first check if the current connection is available
+            if (currentConnection != old && currentConnection != null && currentConnection.IsAvailable())
+            {
+                return currentConnection;
+            }
+            // force reconnect, new connection must not be old one.
+            Reconnect(true,old);
+            currentConnection = _connection;
+            if (currentConnection != null && currentConnection.IsAvailable())
+            {
+                return currentConnection;
+            }
+
+            throw new TDengineError((int)TDengineError.InternalErrorCode.WS_RECONNECT_FAILED,
+                "websocket connection reconnect failed");
         }
     }
 }

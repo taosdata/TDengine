@@ -78,6 +78,7 @@ jobs:
         env:
           TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
           TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+          TD_3360_TEST: 'true'
         run: |
           dotnet test -f ${{ matrix.tfm }} --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
         timeout-minutes: 15
@@ -193,6 +194,22 @@ jobs:
         env:
           TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
           TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+          TD_3360_TEST: 'true'
         run: |
           dotnet test -f ${{ matrix.tfm }} --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
         timeout-minutes: 15
+        
+      - name: get coverage files
+        id: get_coverage_files
+        run: |
+          $coverageFiles = Get-ChildItem -Path ./testresults -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object { $_.FullName }
+          $coverageFilesString = $coverageFiles -join ";"
+          echo "files=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "files=${COVERAGE_FILES}" >> $Env:GITHUB_OUTPUT
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ${{ steps.get_coverage_files.outputs.files }}
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}

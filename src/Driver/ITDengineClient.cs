@@ -13,6 +13,8 @@ namespace TDengine.Driver
 
         void SchemalessInsert(string[] lines, TDengineSchemalessProtocol protocol,
             TDengineSchemalessPrecision precision, int ttl, long reqId);
+
+        bool ConnectionAvailable();
     }
 
     public interface IStmt : IDisposable
@@ -24,7 +26,7 @@ namespace TDengine.Driver
         TaosFieldE[] GetTagFields();
         TaosFieldE[] GetColFields();
         void BindRow(object[] row);
-        void BindColumn( TaosFieldE[] fields,params Array[] arrays);
+        void BindColumn( TaosFieldE[] _,params Array[] arrays);
         void AddBatch();
         void Exec();
         long Affected();

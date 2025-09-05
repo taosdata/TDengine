@@ -26,7 +26,7 @@ namespace WSADO
                                               "VALUES " +
                                               "(?,?,?,?)";
                         var parameters = command.Parameters;
-                        parameters.Add(new TDengineParameter("@0", new DateTime(2023,10,03,14,38,05,000)));
+                        parameters.Add(new TDengineParameter("@0", DateTime.Now));
                         parameters.Add(new TDengineParameter("@1", (float)10.30000));
                         parameters.Add(new TDengineParameter("@2", (int)219));
                         parameters.Add(new TDengineParameter("@3", (float)0.31000));

@@ -5,7 +5,10 @@
         <NoWarn>NETSDK1138</NoWarn>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
-
+    <ItemGroup Condition="'$(TargetFramework)' == 'net46'">
+        <Reference Include="System.Net.Http"/>
+        <Reference Include="System.Threading.Tasks"/>
+    </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.3" />
         <PackageReference Include="xunit" Version="2.4.1" />

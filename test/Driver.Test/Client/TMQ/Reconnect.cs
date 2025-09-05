@@ -14,84 +14,13 @@ namespace Driver.Test.Client.TMQ
 {
     public partial class Consumer
     {
-        private Process NewTaosAdapter(string port)
-        {
-            string exec;
-            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
-            {
-                exec = "C:\\TDengine\\taosadapter.exe";
-            }
-            else
-            {
-                exec = "taosadapter";
-            }
-
-            ProcessStartInfo startInfo = new ProcessStartInfo(exec, $"--port {port}");
-            Process process = new Process { StartInfo = startInfo };
-            return process;
-        }
-
-        private async Task Start(Process process, string port)
-        {
-            process.Start();
-            await WaitForStart(port);
-        }
-
-        private void Stop(Process process)
-        {
-            if (process.HasExited)
-            {
-                return;
-            }
-
-            process.Kill();
-        }
-
-        private async Task WaitForStart(string port)
-        {
-            HttpClient client = new HttpClient();
-            string url = $"http://127.0.0.1:{port}/-/ping";
-            bool success = await WaitForPingSuccess(client, url);
-            if (!success)
-            {
-                throw new Exception("Failed to start taosadapter");
-            }
-        }
-
-        static async Task<bool> WaitForPingSuccess(HttpClient client, string url)
-        {
-            bool success = false;
-            int retryCount = 20;
-            int retryDelayMs = 100;
-
-            for (int i = 0; i < retryCount; i++)
-            {
-                try
-                {
-                    HttpResponseMessage response = await client.GetAsync(url);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        success = true;
-                        break;
-                    }
-                }
-                catch (Exception e)
-                {
-                    // ignored
-                }
-
-                await Task.Delay(retryDelayMs);
-            }
-
-            return success;
-        }
 
         [Fact]
         public void SubscribeReconnect()
         {
             var port = "36041";
-            var process = NewTaosAdapter(port);
-            Start(process, port).Wait();
+            var process = Tools.TaosAdapterTools.NewTaosAdapter(port);
+            Tools.TaosAdapterTools.StartTaosAdapter(process, port).Wait();
             try
             {
                 var connStr =
@@ -122,17 +51,18 @@ namespace Driver.Test.Client.TMQ
                     { "ws.reconnect.interval.ms", "2000" }
                 };
                 var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
-                Stop(process);
+                Tools.TaosAdapterTools.StopTaosAdapter(process);
                 Task.Run(() =>
                 {
                     Thread.Sleep(3000);
-                    Start(process, port).Wait();
+                    Tools.TaosAdapterTools.StartTaosAdapter(process, port).Wait();
                 });
                 consumer.Subscribe("topic_subscribe_reconnect");
             }
             finally
             {
-                Stop(process);
+                Tools.TaosAdapterTools.StopTaosAdapter(process);
+                process.Dispose();
             }
         }
 
@@ -140,8 +70,8 @@ namespace Driver.Test.Client.TMQ
         public void ConsumeReconnect()
         {
             var port = "36042";
-            var process = NewTaosAdapter(port);
-            Start(process, port).Wait();
+            var process = Tools.TaosAdapterTools.NewTaosAdapter(port);
+            Tools.TaosAdapterTools.StartTaosAdapter(process, port).Wait();
             try
             {
                 var connStr =
@@ -176,18 +106,19 @@ namespace Driver.Test.Client.TMQ
                 };
                 var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
                 consumer.Subscribe("topic_consume_reconnect");
-                Stop(process);
+                Tools.TaosAdapterTools.StopTaosAdapter(process);
                 Task.Run(() =>
                 {
                     Thread.Sleep(3000);
-                    Start(process, port).Wait();
+                    Tools.TaosAdapterTools.StartTaosAdapter(process, port).Wait();
                 });
                 var data = consumer.Consume(1000);
                 Assert.NotNull(data);
             }
             finally
             {
-                Stop(process);
+                Tools.TaosAdapterTools.StopTaosAdapter(process);
+                process.Dispose();
             }
         }
     }

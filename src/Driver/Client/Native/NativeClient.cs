@@ -43,7 +43,7 @@ namespace TDengine.Driver.Client.Native
 
         public IStmt StmtInit(long reqId)
         {
-            var stmt = NativeMethods.StmtInitWithReqid(_conn, reqId);
+            var stmt = NativeMethods.TaosStmt2Init(_conn, reqId, true, true);
             return new NativeStmt(stmt, _tz);
         }
 
@@ -96,6 +96,11 @@ namespace TDengine.Driver.Client.Native
             var error = new TDengineError(errNo, NativeMethods.Error(result));
             NativeMethods.FreeResult(result);
             throw error;
+        }
+        
+        public bool ConnectionAvailable()
+        {
+            return _conn != IntPtr.Zero;
         }
     }
 }

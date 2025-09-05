@@ -3,24 +3,23 @@ using TDengine.Driver.Impl.WebSocketMethods;
 
 namespace TDengine.Driver.Client.Websocket
 {
-    public class WSStmt : IStmt
+    public class WSStmt : AbstractStmt
     {
-        private readonly ulong _stmt;
+        private readonly WSClient _client;
         private readonly TimeZoneInfo _tz;
-        private readonly Connection _connection;
+        private Connection _connection;
+        private ulong _stmt;
         private bool _closed;
-        private long _lastAffected;
-        private bool _isInsert;
 
-        public WSStmt(ulong stmt, TimeZoneInfo tz, Connection connection)
+        public WSStmt(WSClient client, ulong stmt, TimeZoneInfo tz, Connection connection) : base(30)
         {
+            _client = client;
             _stmt = stmt;
             _tz = tz;
             _connection = connection;
         }
 
-
-        public void Dispose()
+        public override void Dispose()
         {
             if (_closed) return;
 
@@ -28,227 +27,81 @@ namespace TDengine.Driver.Client.Websocket
             if (_connection == null || !_connection.IsAvailable()) return;
             try
             {
-                _connection.StmtClose(_stmt);
+                _connection.Stmt2Close(_stmt);
             }
             catch (Exception)
             {
                 // ignored
             }
+            finally
+            {
+                _connection = null;
+            }
         }
 
-        public void Prepare(string query)
+        protected override void PrepareInternal(string query, out bool isInsert, out int count,
+            out TaosFieldAll[] fields)
         {
-            var resp = _connection.StmtPrepare(_stmt, query);
-            _isInsert = resp.IsInsert;
-        }
+            var resp = _connection.Stmt2Prepare(_stmt, query);
+            isInsert = resp.IsInsert;
+            count = resp.FieldsCount;
+            if (!isInsert)
+            {
+                fields = null;
+                return;
+            }
 
-        public bool IsInsert()
-        {
-            return _isInsert;
-        }
-
-        public void SetTableName(string tableName)
-        {
-            _connection.StmtSetTableName(_stmt, tableName);
-        }
-
-        public void SetTags(object[] tags)
-        {
-            var fields = GetTagFields();
-            _connection.StmtSetTags(_stmt, fields, tags);
-        }
-
-        public TaosFieldE[] GetTagFields()
-        {
-            var resp = _connection.StmtGetTagFields(_stmt);
-            TaosFieldE[] fields = new TaosFieldE[resp.Fields.Count];
+            fields = new TaosFieldAll[resp.Fields.Count];
             for (int i = 0; i < resp.Fields.Count; i++)
             {
-                fields[i] = new TaosFieldE
+                fields[i] = new TaosFieldAll
                 {
                     name = resp.Fields[i].Name,
                     type = resp.Fields[i].FieldType,
                     precision = resp.Fields[i].Precision,
                     scale = resp.Fields[i].Scale,
-                    bytes = resp.Fields[i].Bytes
+                    bytes = resp.Fields[i].Bytes,
+                    field_type = resp.Fields[i].BindType
                 };
             }
-
-            return fields;
         }
 
-        public TaosFieldE[] GetColFields()
+        protected override void BindBinaryInternal(byte[] data, out int affectedRows)
         {
-            var resp = _connection.StmtGetColFields(_stmt);
-            TaosFieldE[] fields = new TaosFieldE[resp.Fields.Count];
-            for (int i = 0; i < resp.Fields.Count; i++)
-            {
-                fields[i] = new TaosFieldE
-                {
-                    name = resp.Fields[i].Name,
-                    type = resp.Fields[i].FieldType,
-                    precision = resp.Fields[i].Precision,
-                    scale = resp.Fields[i].Scale,
-                    bytes = resp.Fields[i].Bytes
-                };
-            }
-
-            return fields;
+            _connection.Stmt2Bind(_stmt, data);
+            var resp = _connection.Stmt2Exec(_stmt);
+            affectedRows = resp.Affected;
         }
 
-        public void BindRow(object[] row)
+        protected override bool IsConnectionAvailable(Exception exception)
         {
-            if (IsInsert())
-            {
-                _connection.StmtBind(_stmt, GetColFields(), row);
-            }
-            else
-            {
-                var tmpRow = new object[row.Length];
-                Array.Copy(row, tmpRow, row.Length);
-                _connection.StmtBind(_stmt, GenerateStmtQueryColFields(tmpRow), tmpRow);
-            }
+            return _connection != null && _connection.IsAvailable(exception);
         }
 
-        private TaosFieldE[] GenerateStmtQueryColFields(object[] row)
+        protected override  void ReconnectInternal()
         {
-            var result = new TaosFieldE[row.Length];
-            for (int i = 0; i < row.Length; i++)
-            {
-                switch (row[i])
-                {
-                    case bool _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BOOL
-                        };
-                        break;
-                    case sbyte _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_TINYINT
-                        };
-                        break;
-                    case short _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_SMALLINT
-                        };
-                        break;
-                    case int _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_INT
-                        };
-                        break;
-                    case long _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BIGINT
-                        };
-                        break;
-                    case byte _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_UTINYINT
-                        };
-                        break;
-                    case ushort _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_USMALLINT
-                        };
-                        break;
-                    case uint _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_UINT
-                        };
-                        break;
-                    case ulong _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_UBIGINT
-                        };
-                        break;
-                    case float _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_FLOAT
-                        };
-                        break;
-                    case double _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_DOUBLE
-                        };
-                        break;
-                    case byte[] _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BINARY
-                        };
-                        break;
-                    case DateTime val:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BINARY
-                        };
-                        var time = val.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffffK");
-                        row[i] = time;
-                        break;
-                    case DateTimeOffset val:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BINARY
-                        };
-                        var timeOffset = val.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffffK");
-                        row[i] = timeOffset;
-                        break;
-                    case string _:
-                        result[i] = new TaosFieldE
-                        {
-                            type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_BINARY
-                        };
-                        break;
-                    default:
-                        throw new ArgumentException("Unsupported type, only support basic types and DateTime");
-                }
-            }
-
-            return result;
+            _stmt = 0;
+            var newConnection = _client.TryReconnectOrGetConnection(_connection);
+            _connection = newConnection;
+            // init again
+            var resp = _connection.Stmt2Init((ulong)ReqId.GetReqId());
+            _stmt = resp.StmtId;
+        }
+        
+        protected override bool AutoReconnectInternal()
+        {
+            return _client.AutoReconnect;
         }
 
-        public void BindColumn(TaosFieldE[] field, params Array[] arrays)
+        protected override IRows QueryResultInternal()
         {
-            _connection.StmtBind(_stmt, field, arrays);
-        }
-
-        public void AddBatch()
-        {
-            _connection.StmtAddBatch(_stmt);
-        }
-
-        public void Exec()
-        {
-            var resp = _connection.StmtExec(_stmt);
-            _lastAffected = resp.Affected;
-        }
-
-        public long Affected()
-        {
-            return _lastAffected;
-        }
-
-        public IRows Result()
-        {
-            if (IsInsert())
-            {
-                return new WSRows((int)Affected());
-            }
-
-            var resp = _connection.StmtUseResult(_stmt);
+            var resp = _connection.Stmt2UseResult(_stmt);
             return new WSRows(resp.ResultId, resp, _connection, _tz);
+        }
+
+        protected override IRows InsertResultInternal(int affectedRows)
+        {
+            return new WSRows(affectedRows);
         }
     }
 }

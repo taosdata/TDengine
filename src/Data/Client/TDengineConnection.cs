@@ -12,7 +12,9 @@ namespace TDengine.Data.Client
     {
         private string _connectionString;
         private ConnectionState _state;
-        internal ITDengineClient client;
+
+        internal ITDengineClient Client;
+
         // internal object connection;
         public TDengineConnectionStringBuilder ConnectionStringBuilder { get; set; }
 
@@ -28,16 +30,16 @@ namespace TDengine.Data.Client
 
         public override void ChangeDatabase(string databaseName)
         {
-            client.Exec("use `" + databaseName + "`;");
+            Client.Exec("use `" + databaseName + "`;");
         }
 
         public override void Close()
         {
             if (State == ConnectionState.Closed) return;
-            if (client != null)
+            if (Client != null)
             {
-                client.Dispose();
-                client = null;
+                Client.Dispose();
+                Client = null;
             }
 
             SetState(ConnectionState.Closed);
@@ -59,7 +61,7 @@ namespace TDengine.Data.Client
         public override void Open()
         {
             if (State == ConnectionState.Open) return;
-            client = DbDriver.Open(ConnectionStringBuilder);
+            Client = DbDriver.Open(ConnectionStringBuilder);
             SetState(ConnectionState.Open);
         }
 
@@ -78,16 +80,57 @@ namespace TDengine.Data.Client
             }
         }
 
-        public override string Database => ConnectionStringBuilder.Database;
-        public override ConnectionState State => _state;
+        public override string Database
+        {
+            get
+            {
+                if (State != ConnectionState.Open) return ConnectionStringBuilder.Database;
+                try
+                {
+                    using (var rows = Client.Query("select database();"))
+                    {
+                        return rows.Read() ? rows.GetString(0) : string.Empty;
+                    }
+                }
+                catch
+                {
+                    return string.Empty;
+                }
+            }
+        }
+
+        public override ConnectionState State
+        {
+            get
+            {
+                if (_state != ConnectionState.Open) return _state;
+                var client = Client;
+                if (client != null && !client.ConnectionAvailable())
+                {
+                    SetState(ConnectionState.Broken);
+                }
+
+                return _state;
+            }
+        }
+
         public override string DataSource => ConnectionStringBuilder.Host;
 
         public override string ServerVersion
         {
             get
             {
-                var rows = client.Query("select server_version();");
-                return Encoding.UTF8.GetString((byte[])rows.GetValue(0));
+                try
+                {
+                    using (var rows = Client.Query("select server_version();"))
+                    {
+                        return rows.Read() ? rows.GetString(0) : string.Empty;
+                    }
+                }
+                catch
+                {
+                    return string.Empty;
+                }
             }
         }
     }
