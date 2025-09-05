@@ -360,19 +360,19 @@ class TaosD:
                 else:
                     if "asanDir" in i:
                         if fqdn == "localhost":
-                            killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
+                            killCmd = ["ps -efww | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
                             env = os.environ.copy()
                             env.pop('LD_PRELOAD', None)
                             subprocess.run(killCmd, shell=True, text=True, env=env)
                         else:
-                            killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
+                            killCmd = ["ps -efww | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
                             self._remote.cmd(fqdn, killCmd)
                     else:
-                        check_cmd = f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | wc -l"
+                        check_cmd = f"ps -efww | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | wc -l"
                         result = self._remote.cmd(fqdn, [check_cmd])
                         if int(result[0].strip()) > 0:
                             killCmd = [
-                                f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"]
+                                f"ps -efww | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"]
                             self._remote.cmd(fqdn, killCmd)
 
                     # if "system" in i.keys() and i["system"].lower() == "darwin":
