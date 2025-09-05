@@ -2087,6 +2087,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_NULL(pContext->pDropBlock, code, lino, _end, terrno);
   pContext->pTempSlices = taosArrayInit(0, sizeof(int64_t) * 3);
   QUERY_CHECK_NULL(pContext->pTempSlices, code, lino, _end, terrno);
+  pContext->pRanges = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(pContext->pRanges, code, lino, _end, terrno);
   pContext->pSlices = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pContext->pSlices, code, lino, _end, terrno);
 
@@ -2167,6 +2169,10 @@ static void stRealtimeContextDestroy(void *ptr) {
   if (pContext->pTempSlices != NULL) {
     taosArrayDestroy(pContext->pTempSlices);
     pContext->pTempSlices = NULL;
+  }
+  if (pContext->pRanges != NULL) {
+    tSimpleHashCleanup(pContext->pRanges);
+    pContext->pRanges = NULL;
   }
   if (pContext->pSlices != NULL) {
     tSimpleHashCleanup(pContext->pSlices);
@@ -2270,6 +2276,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerWalDataNewRequest *pReq = &pProgress->pullReq.walDataNewReq;
       pReq->versions = pProgress->pVersions;
+      pReq->ranges = pContext->pRanges;
       break;
     }
 
@@ -2290,8 +2297,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerWalDataNewRequest *pReq = &pProgress->pullReq.walDataNewReq;
       pReq->versions = pProgress->pVersions;
-      SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
-      QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+      pReq->ranges = pContext->pRanges;
       // todo(kjq): fill ranges
       break;
     }
