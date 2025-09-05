@@ -1763,15 +1763,12 @@ int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {
 void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableListInfo); }
 
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid) { return tableListGetTableGroupId(pTableListInfo, uid); }
+int32_t  qStreamRevmoeUidFromTableList(void* pTableListInfo, int64_t uid) { return tableListRemoveTable(pTableListInfo, uid); }
 
 int32_t qStreamGetTableListGroupNum(const void* pTableList) { return ((STableListInfo*)pTableList)->numOfOuputGroups; }
 SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListInfo*)pTableList)->pTableList; }
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo) { return doFilter(pBlock, pFilterInfo, NULL); }
-
-bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
-  return tableListGetTableGroupId(pTableListInfo, uid) != -1;
-}
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
   qInfo("streamDestroyExecTask called, task:%p", tInfo);
@@ -1890,23 +1887,27 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
       dst.columnData = pInfo;
       dst.numOfRows = rowIdx;
       dst.colAlloced = false;
-      code = streamCalcOneScalarExprInRange(pNode, &dst, rowIdx,  rowIdx, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
+      code = streamCalcOneScalarExprInRange(pNode, &dst, rowIdx, rowIdx, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
     }
     ++idx;
     // TODO sclFreeParam(&dst);
     nodesDestroyNode(pNode);
     if (code != 0) break;
   }
+  if (code == TSDB_CODE_SUCCESS) {
+    (*pRes)->info.rows++;
+  }
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = tmpWinIdx;
-  (*pRes)->info.rows++;
   return code;
 }
 
-int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
+int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
   int32_t      code = 0;
   const char*  pVal = NULL;
   SScalarParam dst = {0};
   int32_t      len = 0;
+  int32_t      nextIdx = pStreamRuntimeInfo->curIdx;
+  pStreamRuntimeInfo->curIdx = 0;  // always use the first window to calc tbname
   // execute the expr
   switch (pExpr->type) {
     case QUERY_NODE_VALUE: {
@@ -1989,6 +1990,7 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
   }
   // TODO free dst
   sclFreeParam(&dst);
+  pStreamRuntimeInfo->curIdx = nextIdx; // restore
   return code;
 }
 

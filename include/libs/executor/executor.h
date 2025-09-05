@@ -257,12 +257,13 @@ int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t u
 int32_t  qStreamSetTableList(void** pTableListInfo, STableKeyInfo* pKeyInfo);
 int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid);
+int32_t  qStreamRevmoeUidFromTableList(void* pTableListInfo, int64_t uid);
 void     qStreamDestroyTableList(void* pTableListInfo);
+void     qStreamDupTableList(void* pTableListInfo);
 int32_t  qStreamGetTableListGroupNum(const void* pTableList);
 SArray*  qStreamGetTableArrayList(const void* pTableList);
 int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
 int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
-bool     qStreamUidInTableList(void* pTableListInfo, uint64_t uid);
 
 int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
@@ -273,7 +274,7 @@ int32_t setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData,
 int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer);
 
 
-int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeFuncInfo *pPartColVals);
+int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, SStreamRuntimeFuncInfo *pPartColVals);
 
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);

@@ -750,6 +750,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
     SStreamReaderDeployFromTrigger* pTrigger = &pMsg->msg.trigger;
     pTrigger->triggerTblName = pInfo->pCreate->triggerTblName;
     pTrigger->triggerTblUid = pInfo->pCreate->triggerTblUid;
+    pTrigger->triggerTblSuid = pInfo->pCreate->triggerTblSuid;
     pTrigger->triggerTblType = pInfo->pCreate->triggerTblType;
     pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
     pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
@@ -844,7 +845,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
 
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
-  pMsg->notifyErrorHandle = pStream->pCreate->notifyErrorHandle;
+  pMsg->addOptions = pStream->pCreate->addOptions;
   pMsg->notifyHistory = pStream->pCreate->notifyHistory;
 
   pMsg->maxDelay = pStream->pCreate->maxDelay;
@@ -918,7 +919,7 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->calcNotifyOnly = pStream->pCreate->calcNotifyOnly;
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
-  pMsg->notifyErrorHandle = pStream->pCreate->notifyErrorHandle;
+  pMsg->addOptions = pStream->pCreate->addOptions;
   pMsg->outCols = pInfo->pCreate->outCols;
   pMsg->outTags = pInfo->pCreate->outTags;
   pMsg->outStbUid = pStream->pCreate->outStbUid;

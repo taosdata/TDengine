@@ -998,6 +998,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     taosMemoryFree(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
+    bool needStreamPesudoFuncVals = true;
     SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
     req.sId = pSource->sId;
@@ -1008,9 +1009,18 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (pTaskInfo->pStreamRuntimeInfo) {
       req.dynTbname = pExchangeInfo->dynTbname;
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
-      if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER)
-        qDebug("doSendFetchDataRequest to execId:%d, %p", req.execId, pTaskInfo->pStreamRuntimeInfo);
       req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+      if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
+        qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
+      } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
+        SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
+        req.pStRtFuncInfo->curWindow.skey = pParam->wstart;
+        req.pStRtFuncInfo->curWindow.ekey = pParam->wend;
+        needStreamPesudoFuncVals = false;
+        qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]", 
+            GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, pParam->wstart, pParam->wend);
+      }
       if (!pDataInfo->fetchSent) {
         req.reset = pDataInfo->fetchSent = true;
       }
@@ -1048,7 +1058,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       }
     }
 
-    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
+    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals);
     if (msgSize < 0) {
       pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
@@ -1064,7 +1074,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       return pTaskInfo->code;
     }
 
-    msgSize = tSerializeSResFetchReq(msg, msgSize, &req);
+    msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamPesudoFuncVals);
     if (msgSize < 0) {
       pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
