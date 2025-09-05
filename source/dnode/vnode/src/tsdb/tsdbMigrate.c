@@ -1068,21 +1068,21 @@ int32_t tsdbAsyncSsMigrateFileSet(STsdb *tsdb, SSsMigrateFileSetReq *pReq) {
 
 
 void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId) {
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
 
   if (tsdb->pSsMigrateMonitor == NULL) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
     return;
   }
 
   if (tsdb->pSsMigrateMonitor->ssMigrateId != ssMigrateId) {
     tsdbInfo("vgId:%d, ssMigrateId:%d, migration task not found", TD_VID(tsdb->pVnode), ssMigrateId);
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
     return;
   }
 
   if (tsdb->pSsMigrateMonitor->state != SSMIGRATE_FILESET_STATE_IN_PROGRESS) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
     return;
   }
 
@@ -1094,7 +1094,7 @@ void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId) {
     }
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 }
 
 #endif
