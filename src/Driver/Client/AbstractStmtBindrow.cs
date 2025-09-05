@@ -217,7 +217,6 @@ namespace TDengine.Driver.Client
                                 fields[i] = new TaosFieldE
                                 {
                                     type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_TINYINT,
-                                    bytes = 1
                                 };
                                 break;
                             case short _:
@@ -225,7 +224,6 @@ namespace TDengine.Driver.Client
                                 fields[i] = new TaosFieldE
                                 {
                                     type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_SMALLINT,
-                                    bytes = 2
                                 };
                                 break;
                             case int _:
@@ -233,7 +231,6 @@ namespace TDengine.Driver.Client
                                 fields[i] = new TaosFieldE
                                 {
                                     type = (sbyte)TDengineDataType.TSDB_DATA_TYPE_INT,
-                                    bytes = 4
                                 };
                                 break;
                             case long _:
@@ -311,6 +308,7 @@ namespace TDengine.Driver.Client
                         {
                             _currentTableInfo.Cols[j].RemoveAt(_currentTableInfo.Cols[j].Count - 1);
                         }
+
                         throw;
                     }
                 }
