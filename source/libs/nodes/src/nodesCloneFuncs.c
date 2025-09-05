@@ -803,10 +803,14 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
   COPY_OBJECT_FIELD(stbJoin.srcScan, sizeof(pDst->stbJoin.srcScan));
   COPY_SCALAR_FIELD(vtbScan.scanAllCols);
+  COPY_SCALAR_FIELD(vtbScan.isSuperTable);
+  COPY_SCALAR_FIELD(vtbScan.rversion);
   COPY_SCALAR_FIELD(vtbScan.suid);
+  COPY_SCALAR_FIELD(vtbScan.uid);
   COPY_CHAR_ARRAY_FIELD(vtbScan.dbName);
-  COPY_CHAR_ARRAY_FIELD(vtbScan.stbName);
+  COPY_CHAR_ARRAY_FIELD(vtbScan.tbName);
   CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
+  CLONE_NODE_LIST_FIELD(vtbScan.pOrgVgIds);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -796,7 +796,7 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
       if (pReq && pReq->reqId == pRsp->reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->pMgmtReq, pReq, NULL)) {
         taosWLockLatch(&pTask->mgmtReqLock);
-        stmDestroySStreamMgmtReq(pReq);
+        tFreeSStreamMgmtReq(pReq);
         taosWUnLockLatch(&pTask->mgmtReqLock);
         taosMemoryFree(pReq);
       }
@@ -806,6 +806,18 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
     case STREAM_MSG_UPDATE_RUNNER:
     case STREAM_MSG_USER_RECALC: {
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
+      break;
+    }
+    case STREAM_MSG_RUNNER_ORIGTBL_READER: {
+      SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
+      if (pReq && pReq->reqId == pRsp->reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->pMgmtReq, pReq, NULL)) {
+        taosWLockLatch(&pTask->mgmtReqLock);
+        tFreeSStreamMgmtReq(pReq);
+        taosWUnLockLatch(&pTask->mgmtReqLock);
+        taosMemoryFree(pReq);
+      }
+
+      STM_CHK_SET_ERROR_EXIT(stRunnerSetMgmtRsp((SStreamRunnerTask*)pTask, pRsp->cont.execRspList));
       break;
     }
     default:
