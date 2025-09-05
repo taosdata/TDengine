@@ -2358,3 +2358,6 @@ int32_t metaDropMultipleTables(SMeta *pMeta, int64_t version, SArray *uidArray) 
   }
   return code;
 }
+
+int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) { return TSDB_CODE_SUCCESS; }
+int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) { return TSDB_CODE_SUCCESS; }

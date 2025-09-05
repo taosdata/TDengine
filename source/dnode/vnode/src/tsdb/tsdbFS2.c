@@ -923,7 +923,7 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
         fset->numWaitCommit--;
       }
       if (fset->numWaitCommit == 0) {
-        (void)tThreadCondDestroy(&fset->canCommit);
+        (void)taosThreadCondDestroy(&fset->canCommit);
       }
     });
   }

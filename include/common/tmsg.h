@@ -4504,6 +4504,11 @@ typedef struct {
 int32_t tSerializeSMDropRsmaReq(void* buf, int32_t bufLen, SMDropRsmaReq* pReq);
 int32_t tDeserializeSMDropRsmaReq(void* buf, int32_t bufLen, SMDropRsmaReq* pReq);
 
+typedef SMDropRsmaReq SVDropRsmaReq;
+
+int32_t tSerializeSVDropRsmaReq(void* buf, int32_t bufLen, SVDropRsmaReq* pReq);
+int32_t tDeserializeSVDropRsmaReq(void* buf, int32_t bufLen, SVDropRsmaReq* pReq);
+
 typedef struct {
   char   dbFName[TSDB_DB_FNAME_LEN];
   char   stbName[TSDB_TABLE_NAME_LEN];

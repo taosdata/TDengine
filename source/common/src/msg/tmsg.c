@@ -1501,6 +1501,13 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSVDropRsmaReq(void* buf, int32_t bufLen, SVDropRsmaReq* pReq) {
+  return tSerializeSMDropRsmaReq(buf, bufLen, (SMDropRsmaReq*)pReq);
+}
+int32_t tDeserializeSVDropRsmaReq(void* buf, int32_t bufLen, SVDropRsmaReq* pReq) {
+  return tDeserializeSMDropRsmaReq(buf, bufLen, (SMDropRsmaReq*)pReq);
+}
+
 int32_t tSerializeSCreateTagIdxReq(void *buf, int32_t bufLen, SCreateTagIndexReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

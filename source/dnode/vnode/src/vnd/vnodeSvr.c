@@ -1550,7 +1550,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   SDecoder     decoder = {0};
   SArray      *tbUidList = NULL;
 
-  pRsp->msgType = TDMT_VND_DROP_STB_RSP;
+  pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
@@ -1777,6 +1777,33 @@ _exit:
   tEncoderClear(&encoder);
   taosArrayDestroy(rsp.pArray);
   taosArrayDestroy(tbNames);
+  return 0;
+}
+
+static int32_t vnodeProcessCreateRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t         code = 0, lino = 0;
+  SVCreateRsmaReq req = {0};
+  TAOS_CHECK_EXIT(tDeserializeSVCreateRsmaReq(pReq, len, &req));
+  TAOS_CHECK_EXIT(metaCreateRsma(pVnode->pMeta, ver, &req));
+_exit:
+  pRsp->msgType = TDMT_VND_CREATE_RSMA_RSP;
+  pRsp->pCont = NULL;
+  pRsp->code = code;
+  pRsp->contLen = 0;
+  tFreeSVCreateRsmaReq(&req);
+  return code;
+}
+
+static int32_t vnodeProcessDropRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t       code = 0, lino = 0;
+  SVDropRsmaReq req = {0};
+  TAOS_CHECK_EXIT(tDeserializeSVDropRsmaReq(pReq, len, &req));
+  TAOS_CHECK_EXIT(metaDropRsma(pVnode->pMeta, ver, &req));
+_exit:
+  pRsp->msgType = TDMT_VND_DROP_RSMA_RSP;
+  pRsp->pCont = NULL;
+  pRsp->code = code;
+  pRsp->contLen = 0;
   return 0;
 }
 
