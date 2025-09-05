@@ -268,7 +268,6 @@ bool fmIsNotNullOutputFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_LAST == funcMgtBuiltins[funcId].type ||
-         FUNCTION_TYPE_CACHE_LAST == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_LAST_PARTIAL == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
