@@ -268,8 +268,8 @@ TMQ DSN 参数：
 - `with.meta`: 是否同步元数据，如创建表，删除表，修改表，删除数据等操作，默认值为 `false` 表示不同步元数据。
 - `with.meta.delete`: 是否同步元数据中的删除数据事件，此参数仅当 `with.meta` 参数启用时有效。
 - `with.meta.drop`: 是否同步元数据中的删除表事件，此参数仅当 `with.meta` 参数启用时有效。
-- `group_id`: TMQ 订阅参数，必填项，订阅的组 ID。
-- `client_id`: TMQ 订阅参数，选填项，订阅的客户端 ID。
+- `group.id`: TMQ 订阅参数，必填项，订阅的组 ID。
+- `client.id`: TMQ 订阅参数，选填项，订阅的客户端 ID。
 - `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
 - `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
 
