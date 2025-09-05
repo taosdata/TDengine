@@ -58,7 +58,9 @@ int32_t mndInitRsma(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_RSMA, mndProcessCreateRsmaReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_RSMA, mndProcessDropRsmaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_RSMA_RSP, mndTransProcessRsp);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RSMAS, mndRetrieveRsma);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMAS, mndCancelRetrieveRsma);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RSMA_TASKS, mndRetrieveRsmaTask);
@@ -350,12 +352,13 @@ void *mndBuildVCreateRsmaReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, SRs
 
   int32_t contLen = tSerializeSVCreateRsmaReq(NULL, 0, &req);
   TAOS_CHECK_EXIT(contLen);
-  TSDB_CHECK_NULL((pBuf = rpcMallocCont(contLen)), code, lino, _exit, terrno);
+  TSDB_CHECK_NULL((pBuf = taosMemoryMalloc(contLen)), code, lino, _exit, terrno);
   TAOS_CHECK_EXIT(tSerializeSVCreateRsmaReq(pBuf, contLen, &req));
 _exit:
   if (code < 0) {
-    rpcFreeCont(pBuf);
+    taosMemoryFreeClear(pBuf);
     terrno = code;
+    *pContLen = 0;
     return NULL;
   }
   *pContLen = contLen;
@@ -367,7 +370,6 @@ static int32_t mndSetCreateRsmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbOb
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
   void   *pIter = NULL;
-  int32_t contLen = 0;
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
     if (!mndVgroupInDb(pVgroup, pDb->uid)) {
@@ -375,6 +377,7 @@ static int32_t mndSetCreateRsmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbOb
       continue;
     }
 
+    int32_t contLen = 0;
     void *pReq = mndBuildVCreateRsmaReq(pMnode, pVgroup, pStb, pObj, pCreate, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
@@ -389,7 +392,7 @@ static int32_t mndSetCreateRsmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbOb
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_VND_CREATE_RSMA;
-    action.acceptableCode = TSDB_CODE_RSMA_ALREADY_EXISTS;  // check with rsma uid
+    action.acceptableCode = TSDB_CODE_RSMA_ALREADY_EXISTS;  // check whether the rsma uid exist
     action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;         // retry if relative table not exist
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);

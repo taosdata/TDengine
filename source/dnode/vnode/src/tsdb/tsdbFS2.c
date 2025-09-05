@@ -922,6 +922,9 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
         (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
         fset->numWaitCommit--;
       }
+      if (fset->numWaitCommit == 0) {
+        (void)tThreadCondDestroy(&fset->canCommit);
+      }
     });
   }
   if (blockCommit) {
