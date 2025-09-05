@@ -250,6 +250,17 @@ function run_thread() {
     if [ $ent -ne 0 ]; then
         local script="${workdirs[index]}/TDinternal/community/test/ci/run_container.sh -e"
     fi
+
+    # 为每个线程创建独立的 GCOV 输出目录
+    local gcov_output_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/gcov_data"
+    local cmd=""
+    if ! is_local_host "${hosts[index]}"; then
+        cmd="${runcase_script} \"mkdir -p ${gcov_output_dir}\""
+    else
+        cmd="mkdir -p ${gcov_output_dir}"
+    fi
+    bash -c "$cmd"
+
     local cmd="${runcase_script} ${script}"
 
     # script="echo"
@@ -337,7 +348,10 @@ function run_thread() {
         if [ -n "$case_path" ]; then
             mkdir -p "$log_dir"/"$case_path"
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
+        
+        # 修改执行命令，添加 GCOV 环境变量
+        local gcov_env_vars="GCOV_PREFIX=${gcov_output_dir} GCOV_PREFIX_STRIP=0"
+        cmd="${runcase_script}  env ${gcov_env_vars} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
