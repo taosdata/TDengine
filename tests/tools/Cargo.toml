@@ -58,3 +58,7 @@ workspace = true
 [[bin]]
 name = "read-parquet"
 path = "src/bin/read_parquet.rs"
+
+[[bin]]
+name = "perf-report"
+path = "src/bin/perf_report.rs"

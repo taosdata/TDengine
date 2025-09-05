@@ -8823,6 +8823,7 @@ dependencies = [
  "csv",
  "csv-async",
  "dashmap 6.1.0",
+ "deadpool",
  "dotenv",
  "flume",
  "fundu",

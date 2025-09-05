@@ -1,0 +1,519 @@
+name: performance test
+on:
+  # push:
+  #   branches:
+  #     - feat/ts-6669
+  workflow_dispatch:
+  schedule:
+    - cron: "0 16 * * *" # 每天 UTC+8 零点触发 (GitHub Actions 使用 UTC)
+
+env:
+  BASE_DIR: /root/performance_test
+
+jobs:
+  prepare_env:
+    name: Prepare Environment
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    steps:
+      - name: Clean and Initialize Base Directory
+        run: |
+          # Remove runtime directories
+          rm -rf "$BASE_DIR/taosd" "$BASE_DIR/taosx" "$BASE_DIR/report"
+          # Recreate required structure
+          mkdir -p \
+            "$BASE_DIR/taosd/etc" \
+            "$BASE_DIR/taosd/bin" \
+            "$BASE_DIR/taosd/data" \
+            "$BASE_DIR/taosd/log" \
+            "$BASE_DIR/taosx/data" \
+            "$BASE_DIR/taosx/log" \
+            "$BASE_DIR/report" \
+            "$BASE_DIR/records"
+          echo "Initialized (and cleaned) performance test base dir structure under: $BASE_DIR"
+          find "$BASE_DIR" -maxdepth 3 -type d -print
+
+  build_tdengine:
+    name: Build TDengine
+    needs: prepare_env
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    steps:
+      - name: Set ENV
+        run: |
+          echo "Runner: ${{ runner.name }}"
+          echo "OS: ${{ runner.os }}"
+          echo "IP: $(hostname -I || ip addr show | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)"
+      - name: Checkout TDengine
+        uses: actions/checkout@v4
+        with:
+          repository: taosdata/TDengine
+          path: TDengine
+          clean: false
+      - name: Build TDengine
+        run: |
+          cd TDengine
+          echo "build TDengine at dir: $(pwd)"
+          mkdir -p debug && cd debug
+          cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
+          make -j"$(nproc || echo 16)"
+          echo "Built binaries:"
+          ls -l build/bin || find . -maxdepth 5 -type f -name 'taos*' -printf '%p\n' 2>/dev/null || true
+      - name: Check TDengine
+        run: |
+          TD_BIN_DIR=TDengine/debug/build/bin
+          [ -d "$TD_BIN_DIR" ] || { echo "Bin dir $TD_BIN_DIR not found"; ls -R TDengine/debug || true; exit 1; }
+          chmod +x $TD_BIN_DIR/taos* || true
+          $TD_BIN_DIR/taos -V
+          $TD_BIN_DIR/taosd -V
+          $TD_BIN_DIR/taosBenchmark -V
+          echo "Move binaries to $BASE_DIR/taosd/bin"
+          mv $TD_BIN_DIR/taos $TD_BIN_DIR/taosd $TD_BIN_DIR/taosBenchmark $BASE_DIR/taosd/bin/
+          ls -l $BASE_DIR/taosd/bin
+
+  setup_taosd:
+    name: Setup TDengine
+    needs: build_tdengine
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    steps:
+      - name: Prepare TDengine directories
+        run: |
+          echo "Checking binaries:"
+          ls -l "$BASE_DIR/taosd/bin"
+      - name: Generate taos.cfg
+        run: |
+          CFG="$BASE_DIR/taosd/etc/taos.cfg"
+          cat > "$CFG" <<EOF
+          fqdn                      $(hostname)
+          logDir                    $BASE_DIR/taosd/log
+          dataDir                   $BASE_DIR/taosd/data
+          supportVnodes             2048
+          forceReadConfig           1
+          queryUseMemoryPool        0
+          monitorFQDN               $(hostname)
+          EOF
+          echo "Generated config at $CFG:"; cat "$CFG"
+
+  run_td2td:
+    name: Run TD2TD Performance Test
+    needs: setup_taosd
+    timeout-minutes: 1440
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    steps:
+      - name: Checkout taosx repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Prepare test environment
+        run: |
+          rm -rf "$BASE_DIR/taosx/data"/* || true
+          echo "Cleaned taosx data directories"
+          rm -rf "$BASE_DIR/taosd/log"/* || true
+          rm -rf "$BASE_DIR/taosd/data"/* || true
+          echo "Cleaned TDengine log/data directories"
+      - name: Start taosd
+        run: |
+          CFG="$BASE_DIR/taosd/etc/taos.cfg"
+          echo "Starting taosd with config $CFG"
+          nohup $BASE_DIR/taosd/bin/taosd -c "$CFG" > /dev/null 2>&1 &
+          TAOSD_PID=$!
+          echo $TAOSD_PID > "$BASE_DIR/taosd/taosd.pid"
+          echo "Started taosd with PID: $TAOSD_PID"
+          sleep 5
+          if ps -p $TAOSD_PID > /dev/null 2>&1; then
+            echo "taosd is running successfully"
+            echo "Checking taosd log files:"
+            ls -la "$BASE_DIR/taosd/log/" || true
+          else
+            echo "taosd failed to start"
+            echo "Checking taosd log files:"
+            ls -la "$BASE_DIR/taosd/log/" || true
+            echo "Latest log content:"
+            find "$BASE_DIR/taosd/log/" -name "*.log" -type f -exec tail -n 20 {} \; 2>/dev/null || true
+            exit 1
+          fi
+      - name: Run Tests
+        run: |
+          LOG_FILE=$BASE_DIR/taosx/log/td2td_history.log
+          PERF_CASES=td2td_history CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE  2>&1
+
+      - name: Collect test records
+        run: |
+          echo "Collecting test records to $BASE_DIR/records"
+          echo "Test records in $BASE_DIR/records:"
+          ls -la "$BASE_DIR/records/"
+
+      - name: Stop taosd
+        if: always()
+        run: |
+          PID_FILE="$BASE_DIR/taosd/taosd.pid"
+          if [ -f "$PID_FILE" ]; then
+            PID=$(cat "$PID_FILE")
+            if ps -p $PID >/dev/null 2>&1; then
+              echo "Stopping taosd PID $PID"
+              kill $PID || true
+              sleep 5
+              if ps -p $PID >/dev/null 2>&1; then
+                echo "Process still running, force killing"
+                kill -9 $PID || true
+              fi
+            else
+              echo "No running taosd process with PID $PID"
+            fi
+          else
+            echo "PID file $PID_FILE not found"
+          fi
+          echo "Remaining taos* processes:"; ps -ef | grep -E 'taosd|taosBenchmark' | grep -v grep || true
+
+  run_tmq2td:
+    name: Run Tmq2Td Performance Test
+    needs: run_td2td
+    timeout-minutes: 1440
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    steps:
+      - name: Checkout taosx repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Prepare test environment
+        run: |
+          rm -rf "$BASE_DIR/taosx/data"/* || true
+          echo "Cleaned taosx data directories"
+          rm -rf "$BASE_DIR/taosd/log"/* || true
+          rm -rf "$BASE_DIR/taosd/data"/* || true
+          echo "Cleaned TDengine log/data directories"
+      - name: Start taosd
+        run: |
+          CFG="$BASE_DIR/taosd/etc/taos.cfg"
+          echo "Starting taosd with config $CFG"
+          nohup $BASE_DIR/taosd/bin/taosd -c "$CFG" > /dev/null 2>&1 &
+          TAOSD_PID=$!
+          echo $TAOSD_PID > "$BASE_DIR/taosd/taosd.pid"
+          echo "Started taosd with PID: $TAOSD_PID"
+          sleep 5
+          if ps -p $TAOSD_PID > /dev/null 2>&1; then
+            echo "taosd is running successfully"
+            echo "Checking taosd log files:"
+            ls -la "$BASE_DIR/taosd/log/" || true
+          else
+            echo "taosd failed to start"
+            echo "Checking taosd log files:"
+            ls -la "$BASE_DIR/taosd/log/" || true
+            echo "Latest log content:"
+            find "$BASE_DIR/taosd/log/" -name "*.log" -type f -exec tail -n 20 {} \; 2>/dev/null || true
+            exit 1
+          fi
+      - name: Run Tests
+        run: |
+          LOG_FILE=$BASE_DIR/taosx/log/tmq2td.log
+          PERF_CASES=tmq2td CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE  2>&1
+
+      - name: Collect test records
+        run: |
+          echo "Collecting test records to $BASE_DIR/records"
+          echo "Test records in $BASE_DIR/records:"
+          ls -la "$BASE_DIR/records/"
+
+      - name: Stop taosd
+        if: always()
+        run: |
+          PID_FILE="$BASE_DIR/taosd/taosd.pid"
+          if [ -f "$PID_FILE" ]; then
+            PID=$(cat "$PID_FILE")
+            if ps -p $PID >/dev/null 2>&1; then
+              echo "Stopping taosd PID $PID"
+              kill $PID || true
+              sleep 5
+              if ps -p $PID >/dev/null 2>&1; then
+                echo "Process still running, force killing"
+                kill -9 $PID || true
+              fi
+            else
+              echo "No running taosd process with PID $PID"
+            fi
+          else
+            echo "PID file $PID_FILE not found"
+          fi
+          echo "Remaining taos* processes:"; ps -ef | grep -E 'taosd|taosBenchmark' | grep -v grep || true
+
+  run_tmq2local:
+    name: Run Tmq2Local Performance Test
+    needs: run_tmq2td
+    timeout-minutes: 1440
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    steps:
+      - name: Checkout taosx repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Prepare test environment
+        run: |
+          rm -rf "$BASE_DIR/taosx/data"/* || true
+          echo "Cleaned taosx data directories"
+          rm -rf "$BASE_DIR/taosd/log"/* || true
+          rm -rf "$BASE_DIR/taosd/data"/* || true
+          echo "Cleaned TDengine log/data directories"
+
+      - name: Start taosd
+        run: |
+          CFG="$BASE_DIR/taosd/etc/taos.cfg"
+          echo "Starting taosd with config $CFG"
+          nohup $BASE_DIR/taosd/bin/taosd -c "$CFG" > /dev/null 2>&1 &
+          TAOSD_PID=$!
+          echo $TAOSD_PID > "$BASE_DIR/taosd/taosd.pid"
+          echo "Started taosd with PID: $TAOSD_PID"
+          sleep 5
+          if ps -p $TAOSD_PID > /dev/null 2>&1; then
+            echo "taosd is running successfully"
+            echo "Checking taosd log files:"
+            ls -la "$BASE_DIR/taosd/log/" || true
+          else
+            echo "taosd failed to start"
+            echo "Checking taosd log files:"
+            ls -la "$BASE_DIR/taosd/log/" || true
+            echo "Latest log content:"
+            find "$BASE_DIR/taosd/log/" -name "*.log" -type f -exec tail -n 20 {} \; 2>/dev/null || true
+            exit 1
+          fi
+
+      - name: Run Tests
+        run: |
+          LOG_FILE=$BASE_DIR/taosx/log/tmq2local.log
+          PERF_CASES=tmq2local CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE  2>&1
+
+      - name: Collect test records
+        run: |
+          echo "Collecting test records to $BASE_DIR/records"
+          echo "Test records in $BASE_DIR/records:"
+          ls -la "$BASE_DIR/records/"
+
+      - name: Stop taosd
+        if: always()
+        run: |
+          PID_FILE="$BASE_DIR/taosd/taosd.pid"
+          if [ -f "$PID_FILE" ]; then
+            PID=$(cat "$PID_FILE")
+            if ps -p $PID >/dev/null 2>&1; then
+              echo "Stopping taosd PID $PID"
+              kill $PID || true
+              sleep 5
+              if ps -p $PID >/dev/null 2>&1; then
+                echo "Process still running, force killing"
+                kill -9 $PID || true
+              fi
+            else
+              echo "No running taosd process with PID $PID"
+            fi
+          else
+            echo "PID file $PID_FILE not found"
+          fi
+          echo "Remaining taos* processes:"; ps -ef | grep -E 'taosd|taosBenchmark' | grep -v grep || true
+
+  run_csv2td:
+    name: Run Csv2Td Performance Test
+    needs: run_tmq2local
+    timeout-minutes: 1440
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    steps:
+      - name: Checkout taosx repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Prepare test environment
+        run: |
+          rm -rf "$BASE_DIR/taosx/data"/* || true
+          echo "Cleaned taosx data directories"
+          rm -rf "$BASE_DIR/taosd/log"/* || true
+          rm -rf "$BASE_DIR/taosd/data"/* || true
+          echo "Cleaned TDengine log/data directories"
+
+      - name: Start taosd
+        run: |
+          CFG="$BASE_DIR/taosd/etc/taos.cfg"
+          echo "Starting taosd with config $CFG"
+          nohup $BASE_DIR/taosd/bin/taosd -c "$CFG" > /dev/null 2>&1 &
+          TAOSD_PID=$!
+          echo $TAOSD_PID > "$BASE_DIR/taosd/taosd.pid"
+          echo "Started taosd with PID: $TAOSD_PID"
+          sleep 5
+          if ps -p $TAOSD_PID > /dev/null 2>&1; then
+            echo "taosd is running successfully"
+            echo "Checking taosd log files:"
+            ls -la "$BASE_DIR/taosd/log/" || true
+          else
+            echo "taosd failed to start"
+            echo "Checking taosd log files:"
+            ls -la "$BASE_DIR/taosd/log/" || true
+            echo "Latest log content:"
+            find "$BASE_DIR/taosd/log/" -name "*.log" -type f -exec tail -n 20 {} \; 2>/dev/null || true
+            exit 1
+          fi
+
+      - name: Run Tests
+        run: |
+          LOG_FILE=$BASE_DIR/taosx/log/csv2td.log
+          PERF_CASES=csv2td CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance  --nocapture 1>$LOG_FILE  2>&1
+
+      - name: Collect test records
+        run: |
+          echo "Collecting test records to $BASE_DIR/records"
+          echo "Test records in $BASE_DIR/records:"
+          ls -la "$BASE_DIR/records/"
+      - name: Stop taosd
+        if: always()
+        run: |
+          PID_FILE="$BASE_DIR/taosd/taosd.pid"
+          if [ -f "$PID_FILE" ]; then
+            PID=$(cat "$PID_FILE")
+            if ps -p $PID >/dev/null 2>&1; then
+              echo "Stopping taosd PID $PID"
+              kill $PID || true
+              sleep 5
+              if ps -p $PID >/dev/null 2>&1; then
+                echo "Process still running, force killing"
+                kill -9 $PID || true
+              fi
+            else
+              echo "No running taosd process with PID $PID"
+            fi
+          else
+            echo "PID file $PID_FILE not found"
+          fi
+          echo "Remaining taos* processes:"; ps -ef | grep -E 'taosd|taosBenchmark' | grep -v grep || true
+
+      - name: Copy report config file
+        run: |
+          # Copy report configuration files
+          cp tests/tools/sample/perf_cases.toml "$BASE_DIR/records/" || true
+
+  generate_report:
+    name: Generate Performance Report
+    needs: [run_td2td, run_tmq2td, run_tmq2local, run_csv2td]
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    if: always()
+    steps:
+      - name: Checkout taosx repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Generate performance report
+        run: |
+          echo "Generating performance report using perf_report.rs"
+          cargo run -p taosx-tools --bin perf-report -- -i "$BASE_DIR/records" -o "$BASE_DIR/report"
+          echo "Generated reports:"
+          ls -la "$BASE_DIR/report/"
+      - name: Archive results
+        run: |
+          echo "Performance test completed at $(date)"
+          echo "Results available at: $BASE_DIR/report"
+          echo "Test records available at: $BASE_DIR/records"
+
+  publish_report:
+    name: Publish Report via Nginx
+    needs: generate_report
+    if: always()
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    outputs:
+      report_url: ${{ steps.report_url.outputs.report_url }}
+    steps:
+      - name: Ensure nginx installed
+        run: |
+          if ! command -v nginx >/dev/null 2>&1; then
+            echo "nginx not found, installing..."
+            if command -v apt-get >/dev/null 2>&1; then
+              sudo apt-get update -y
+              sudo apt-get install -y nginx rsync
+            elif command -v yum >/dev/null 2>&1; then
+              sudo yum install -y epel-release || true
+              sudo yum install -y nginx rsync
+              sudo systemctl enable nginx || true
+            else
+              echo "No supported package manager found to install nginx"; exit 1
+            fi
+          else
+            echo "nginx already installed: $(nginx -v 2>&1)"
+            command -v rsync >/dev/null 2>&1 || { echo "Installing rsync"; (command -v apt-get && sudo apt-get install -y rsync) || (command -v yum && sudo yum install -y rsync) || true; }
+          fi
+      - name: Sync report to web root (Plan B)
+        run: |
+          SRC="$BASE_DIR/report"
+          WEB_ROOT="/usr/share/nginx/html"
+          DEST_DIR="$WEB_ROOT/performance-report"
+          if [ ! -d "$SRC" ]; then
+            echo "Source report dir $SRC not found"; ls -la "$BASE_DIR" || true; exit 1; fi
+          sudo mkdir -p "$DEST_DIR"
+          sudo rsync -a "$SRC/" "$DEST_DIR/"
+          # Permissions
+          sudo find "$DEST_DIR" -type d -exec chmod 755 {} \;
+          sudo find "$DEST_DIR" -type f -exec chmod 644 {} \;
+          echo "Synced report to $DEST_DIR"
+      - name: Configure nginx site
+        run: |
+          PORT=18080
+          SITE_CONF="/etc/nginx/conf.d/taosx_performance.conf"
+          sudo rm -f "$SITE_CONF" || true
+          echo "Writing nginx config to $SITE_CONF"
+          cat <<'EOF' > /tmp/taosx_performance.conf
+          server {
+            listen 18080;
+            server_name _;
+            charset utf-8;
+            root /usr/share/nginx/html;
+            location /performance-report/ {
+              alias /usr/share/nginx/html/performance-report/;
+              autoindex on;
+              add_header Cache-Control "no-cache";
+              try_files $uri $uri/ =404;
+            }
+            location = /performance-report { return 301 /performance-report/; }
+            location / { return 302 /performance-report/; }
+          }
+          EOF
+          sudo mv /tmp/taosx_performance.conf "$SITE_CONF"
+          sudo nginx -t
+      - name: Reload/start nginx
+        run: |
+          if command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl restart nginx || { echo "systemctl restart failed, trying nginx -s reload"; sudo nginx -s reload || sudo nginx; }
+          else
+            if pgrep -x nginx >/dev/null 2>&1; then
+              sudo nginx -s reload || true
+            else
+              sudo nginx || true
+            fi
+          fi
+          echo "Nginx processes:"; ps -ef | grep nginx | grep -v grep || true
+      - name: Output access URL
+        id: report_url
+        run: |
+          IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+          [ -z "$IP" ] && IP=$(ip addr show | grep 'inet ' | awk '{print $2}' | cut -d/ -f1 | head -n1)
+          URL="http://${IP}:18080/performance-report/"
+          echo "Report URL: $URL"
+          echo "REPORT_URL=$URL" >> $GITHUB_ENV
+          echo "report_url=$URL" >> $GITHUB_OUTPUT
+
+  feishu_notify:
+    name: Feishu Notify
+    needs: publish_report
+    if: always()
+    runs-on: [self-hosted, Linux, X64, qa, perf]
+    steps:
+      - name: Send Feishu Message
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+
+          REPORT_URL='${{ needs.publish_report.outputs.report_url }}'
+          PR_INFO="taosX 性能测试报告已生成，请查看: $REPORT_URL"
+          post_to_feishu "$PR_INFO"

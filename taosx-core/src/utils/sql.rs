@@ -34,6 +34,19 @@ pub async fn connect_taos(host: &str, ws_enable: bool) -> anyhow::Result<Taos, t
     }
 }
 
+pub async fn connect_taos_pool(
+    host: &str,
+    ws_enable: bool,
+) -> anyhow::Result<deadpool::managed::Pool<Manager<TaosBuilder>>> {
+    let builder = if ws_enable {
+        TaosBuilder::from_dsn(format!("taos+ws://{host}:6041"))?
+    } else {
+        TaosBuilder::from_dsn(format!("taos://{host}"))?
+    };
+    let pool = builder.pool()?;
+    Ok(pool)
+}
+
 pub async fn get_v2_precision(taos: &taos::Taos) -> Result<taos::Precision, TaosError> {
     let database = taos
         .query_one::<_, String>(SQL_CURRENT_DATABASE)

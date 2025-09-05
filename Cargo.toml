@@ -384,6 +384,7 @@ assert_cmd.workspace = true
 shlex = "1"
 opendal = { workspace = true, features = ["services-s3"] }
 urlencoding = { workspace = true }
+deadpool = { workspace = true }
 
 [features]
 default = ["rustls", "mimalloc"]
