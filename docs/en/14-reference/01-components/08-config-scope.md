@@ -101,9 +101,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | numOfVnodeFetchThreads | taosd | Number of Fetch threads for vnode |
 | numOfVnodeRsmaThreads | taosd | Number of Rsma threads for vnode |
 | numOfQnodeQueryThreads | taosd | Number of Query threads for qnode |
-| numOfSnodeSharedThreads | taosd | Number of shared threads for snode |
-| numOfSnodeUniqueThreads | taosd | Number of exclusive threads for snode |
-| ratioOfVnodeStreamThreads | taosd | Ratio of stream computing using vnode threads |
 | ttlUnit | taosd | Unit for ttl parameter |
 | ttlPushInterval | taosd | Frequency of ttl timeout checks |
 | ttlChangeOnWrite | taosd | Whether ttl expiration time changes with table modification |
