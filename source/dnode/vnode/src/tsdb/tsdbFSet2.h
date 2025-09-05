@@ -82,9 +82,9 @@ struct SSttLvl {
 };
 
 struct STFileSetCond {
-  bool         running;
-  int32_t      numWait;
-  TdThreadCond cond;
+  bool        running;
+  int32_t     numWait;
+  TThreadCond cond;
 };
 
 struct STFileSet {
@@ -101,9 +101,9 @@ struct STFileSet {
   SVATaskID retentionTask;
 
   // block commit variables
-  TdThreadCond canCommit;
-  int32_t      numWaitCommit;
-  bool         blockCommit;
+  TThreadCond canCommit;
+  int32_t     numWaitCommit;
+  bool        blockCommit;
 
   // conditions
   struct STFileSetCond conds[2];

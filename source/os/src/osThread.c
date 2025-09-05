@@ -281,6 +281,78 @@ int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const 
 #endif
 }
 
+int32_t tThreadCheckInit(TThreadCond *cond) {
+  int32_t code = 0;
+  int8_t  old;
+  int32_t nLoops = 0;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&cond->inited, 0, 2);
+    if (old != 2) break;
+    if (++nLoops > 1000) {
+      TAOS_UNUSED(sched_yield());
+      nLoops = 0;
+    }
+  }
+  if (old == 0) {
+    code = tThreadCondInit(cond, NULL);
+    if (code != 0) {
+      atomic_store_8(&cond->inited, 0);
+      return (terrno = code);
+    }
+    atomic_store_8(&cond->inited, 1);
+  }
+  return (terrno = code);
+}
+
+int32_t tThreadCondDestroy(TThreadCond *cond) {
+  OS_PARAM_CHECK(cond);
+  if (atomic_load_8(&cond->inited) == 0) {
+    return 0;
+  }
+  int32_t code = 0;
+  if (atomic_load_8(&cond->inited) == 1) {
+    code = pthread_cond_destroy(&cond->cond);
+    if (code) {
+      return (terrno = TAOS_SYSTEM_ERROR(code));
+    }
+  } else {
+    code = TSDB_CODE_INTERNAL_ERROR;
+  }
+  return code;
+}
+
+int32_t tThreadCondInit(TThreadCond *cond, const TdThreadCondAttr *attr) {
+  OS_PARAM_CHECK(cond);
+  int32_t code = pthread_cond_init(&cond->cond, attr);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  return code;
+}
+
+int32_t tThreadCondSignal(TThreadCond *cond) {
+  OS_PARAM_CHECK(cond);
+  int32_t code = tThreadCheckInit(cond);
+  if (code) return (terrno = code);
+  code = pthread_cond_signal(&cond->cond);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  return (terrno = code);
+}
+
+int32_t tThreadCondWait(TThreadCond *cond, TdThreadMutex *mutex) {
+  OS_PARAM_CHECK(cond);
+  OS_PARAM_CHECK(mutex);
+  int32_t code = tThreadCheckInit(cond);
+  if (code) return (terrno = code);
+  code = pthread_cond_wait(&cond->cond, mutex);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  return (terrno = code);
+}
+
 int32_t taosThreadCondAttrDestroy(TdThreadCondAttr *attr) {
 #ifdef __USE_WIN_THREAD
   return 0;
@@ -428,7 +500,40 @@ int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) {
 #endif
 }
 
+int32_t tThreadMutexDestroy(TdThreadMutex *mutex, const char *func, int32_t line) {
+  OS_PARAM_CHECK(mutex);
+#ifdef __USE_WIN_THREAD
+  DeleteCriticalSection(mutex);
+  return 0;
+#else
+  int32_t code = pthread_mutex_destroy(mutex);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  return code;
+#endif
+}
+
 int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr) {
+  OS_PARAM_CHECK(mutex);
+#ifdef __USE_WIN_THREAD
+  /**
+   * Windows Server 2003 and Windows XP:  In low memory situations, InitializeCriticalSection can raise a
+   * STATUS_NO_MEMORY exception. Starting with Windows Vista, this exception was eliminated and
+   * InitializeCriticalSection always succeeds, even in low memory situations.
+   */
+  InitializeCriticalSection(mutex);
+  return 0;
+#else
+  int32_t code = pthread_mutex_init(mutex, attr);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  return code;
+#endif
+}
+
+int32_t tThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr, const char *func, int32_t line) {
   OS_PARAM_CHECK(mutex);
 #ifdef __USE_WIN_THREAD
   /**

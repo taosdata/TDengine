@@ -902,7 +902,7 @@ static void tsdbFSSetBlockCommit(STFileSet *fset, bool block) {
   } else {
     fset->blockCommit = false;
     if (fset->numWaitCommit > 0) {
-      (void)taosThreadCondSignal(&fset->canCommit);
+      (void)tThreadCondSignal(&fset->canCommit);
     }
   }
 }
@@ -921,6 +921,9 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
         fset->numWaitCommit++;
         (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
         fset->numWaitCommit--;
+      }
+      if (fset->numWaitCommit == 0) {
+        (void)tThreadCondDestroy(&fset->canCommit);
       }
     });
   }
@@ -1242,11 +1245,14 @@ void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task, STFileSet *
   while (1) {
     if (cond->running) {
       cond->numWait++;
-      (void)taosThreadCondWait(&cond->cond, &tsdb->mutex);
+      (void)tThreadCondWait(&cond->cond, &tsdb->mutex);
       cond->numWait--;
     } else {
       cond->running = true;
       break;
+    }
+    if(cond->numWait == 0) {
+      (void)tThreadCondDestroy(&cond->cond);
     }
   }
 
@@ -1273,7 +1279,7 @@ void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task) {
 
   cond->running = false;
   if (cond->numWait > 0) {
-    (void)taosThreadCondSignal(&cond->cond);
+    (void)tThreadCondSignal(&cond->cond);
   }
 
   tsdbTrace("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
