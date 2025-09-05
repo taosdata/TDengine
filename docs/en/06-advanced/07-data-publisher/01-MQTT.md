@@ -39,7 +39,7 @@ Users can use `taosx` to publish TDengine topic data to MQTT:
 taosx run -f "tmq+ws://username:password@ip:port/topic?param=value..." -t "mqtt://ip:port?param=value..."
 ```
 
-Here, `-f` specifies the TMQ subscription DSN, and `-t` specifies the MQTT broker DSN. For details on using taosx and DSN, refer to the [taosX Component Documentation](../../14-references/01-components/04-taosx.md).
+Here, `-f` specifies the TMQ subscription DSN, and `-t` specifies the MQTT broker DSN. For details on using taosx and DSN, refer to the [taosX Component Documentation](../../14-reference/01-components/04-taosx.md).
 
 TMQ DSN parameters:
 
