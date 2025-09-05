@@ -178,6 +178,7 @@ class Test_IDMP_Meters:
     #
     def writeTriggerData(self):
         print("writeTriggerData ...")
+        self.trigger_stream5()
 
     #
     # 5. verify results
