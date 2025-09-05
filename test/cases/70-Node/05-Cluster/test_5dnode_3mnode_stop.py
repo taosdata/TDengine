@@ -44,7 +44,7 @@ class Test5dnode3mnodeStop:
 
     @pytest.mark.cluster
     def test_five_dnode_three_mnode(self):
-        """cluster mnode status
+        """replica 3: cluster mnode status
 
         5dnodes start/stop each dnode, then check mnode status
 

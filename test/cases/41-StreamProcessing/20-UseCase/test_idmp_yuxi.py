@@ -12,7 +12,7 @@ class Test_IDMP_Meters:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_em(self):
-        """YuXi: TS-7142
+        """IDMP: YuXi scenario
 
         Refer: https://taosdata.feishu.cn/wiki/G8mSwPK20iLpPrk9MmOc9g95nLe
 
@@ -23,7 +23,7 @@ class Test_IDMP_Meters:
 
         Labels: common,ci
 
-        Jira: https://jira.taosdata.com:18080/browse/TS-7152
+        Jira: TS-7152
 
         History:
             - 2025-8-28 MINGMING WANG Created

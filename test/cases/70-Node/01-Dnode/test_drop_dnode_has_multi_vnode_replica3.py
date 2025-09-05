@@ -8,9 +8,9 @@ class TestDropDnodeHasMultiVnodeReplica3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_drop_dnode_has_multi_vnode_replica3(self):
-        """drop dnode has multi vnode replica3
+        """Dnode: drop with replca-3 vnodes
 
-        1. -
+        Drop the dnode containing a three-replica vnode, and test the integrity of the data after vnode migration.
 
         Catalog:
             - Database:Sync

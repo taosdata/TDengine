@@ -8,9 +8,13 @@ class TestUserPassword:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_user_password(self):
-        """user password
+        """Password: basic test
 
-        1. -
+        1. Creation and modification of users with various password formats (valid/invalid patterns)
+        2. Verification of password complexity requirements (length/special characters)
+        3. Testing cross-user permission restrictions during password changes
+        4. Validation of system behavior with maximum password length boundaries
+        5. Special character handling in passwords and error case verification
 
         Catalog:
             - User

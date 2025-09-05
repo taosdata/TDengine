@@ -8,9 +8,11 @@ class TestCreateDnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_create_dnode(self):
-        """create dnode
+        """Dnode: create
 
-        1. -
+        1. Create dnode2
+        2. Check system tables such as ins_dnodes and ins_mnodes
+        3. Create database tables on these two dnodes and perform basic write and query operations
 
         Catalog:
             - Database:Sync
