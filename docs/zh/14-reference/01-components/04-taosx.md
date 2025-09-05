@@ -1,6 +1,7 @@
 ---
 title: taosX 参考手册
 sidebar_label: taosX
+toc_max_heading_level: 4
 ---
 
 taosX 是 TDengine TSDB Enterprise 中的一个核心组件，提供零代码数据接入的能力，taosX 支持两种运行模式：服务模式和命令行模式。本节讲述如何以这两种方式使用 taosX。要想使用 taosX 需要先安装 TDengine TSDB Enterprise 安装包。
@@ -264,10 +265,11 @@ TMQ DSN 参数：
 - `password`: 数据库密码。
 - `ip` 和 `port`: 数据库连接使用的 IP 和端口。
 - `topic`: TMQ 订阅的 topic 名称。
-- `concurrency`: 任务运行时启动的消费者个数，默认为当前系统 CPU 核数。
-- `with_meta`: 是否同步元数据，如创建表，删除表，修改表，删除数据等操作，默认不同步。
-- `group_id`: TMQ 订阅参数，必填项，订阅的组 ID。
-- `client_id`: TMQ 订阅参数，选填项，订阅的客户端 ID。当指定了此 ID 且 `concurrency` 选项大于 1 时，会自动添加后缀用于区分不同的客户端。
+- `with.meta`: 是否同步元数据，如创建表，删除表，修改表，删除数据等操作，默认值为 `false` 表示不同步元数据。
+- `with.meta.delete`: 是否同步元数据中的删除数据事件，此参数仅当 `with.meta` 参数启用时有效。
+- `with.meta.drop`: 是否同步元数据中的删除表事件，此参数仅当 `with.meta` 参数启用时有效。
+- `group.id`: TMQ 订阅参数，必填项，订阅的组 ID。
+- `client.id`: TMQ 订阅参数，选填项，订阅的客户端 ID。
 - `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
 - `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
 

@@ -2,6 +2,7 @@
 title: taosX Reference
 sidebar_label: taosX
 slug: /tdengine-reference/components/taosx
+toc_max_heading_level: 4
 ---
 
 import Image from '@theme/IdealImage';
