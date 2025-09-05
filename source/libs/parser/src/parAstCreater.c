@@ -1837,6 +1837,16 @@ _err:
   return NULL;
 }
 
+static int32_t debugPrintNode(SNode* pNode) {
+  char*   pStr = NULL;
+  int32_t code = nodesNodeToString(pNode, false, &pStr, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)printf("%s\n", pStr);
+    taosMemoryFree(pStr);
+  }
+  return code;
+}
+
 SNode* createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhenThenList, SNode* pElse) {
   CHECK_PARSER_STATUS(pCxt);
   SCaseWhenNode* pCaseWhen = NULL;
@@ -1847,11 +1857,48 @@ SNode* createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhe
   pCaseWhen->pElse = pElse;
   pCaseWhen->tz = pCxt->pQueryCxt->timezone;
   pCaseWhen->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  // debugPrintNode((SNode*)pCaseWhen);
   return (SNode*)pCaseWhen;
 _err:
   nodesDestroyNode(pCase);
   nodesDestroyList(pWhenThenList);
   nodesDestroyNode(pElse);
+  return NULL;
+}
+
+SNode* createNullIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2) {
+  SNode *    pCase = NULL, *pEqual = NULL, *pThen = NULL;
+  SNode *    pWhenThenNode = NULL, *pElse = NULL;
+  SNodeList* pWhenThenList = NULL;
+  SNode*     pCaseWhen = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  pEqual = createOperatorNode(pCxt, OP_TYPE_EQUAL, pExpr1, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  SToken nullToken = {
+      .n = 4,
+      .type = TK_NULL,
+      .z = "null",
+  };
+  pThen = createValueNode(pCxt, TSDB_DATA_TYPE_NULL, &nullToken);
+  CHECK_PARSER_STATUS(pCxt);
+  pWhenThenNode = createWhenThenNode(pCxt, pEqual, pThen);
+  CHECK_PARSER_STATUS(pCxt);
+  pWhenThenList = createNodeList(pCxt, pWhenThenNode);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesCloneNode(pExpr1, &pElse);
+  CHECK_PARSER_STATUS(pCxt);
+  pCaseWhen = createCaseWhenNode(pCxt, pCase, pWhenThenList, pElse);
+  CHECK_PARSER_STATUS(pCxt);
+  // debugPrintNode((SNode*)pCaseWhen);
+  return (SNode*)pCaseWhen;
+_err:
+  nodesDestroyNode(pCase);
+  nodesDestroyNode(pEqual);
+  nodesDestroyNode(pThen);
+  nodesDestroyNode(pWhenThenNode);
+  nodesDestroyNode(pElse);
+  nodesDestroyList(pWhenThenList);
   return NULL;
 }
 
