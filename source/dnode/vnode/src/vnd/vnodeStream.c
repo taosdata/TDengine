@@ -2098,10 +2098,10 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     STREAM_CHECK_NULL_GOTO(pLast, terrno);
 
     if (!node->needCalc) {
-    handle->winRange.skey = pFirst->wstart;
-    handle->winRange.ekey = pLast->wend;
-    handle->winRangeValid = true;
-  } else {
+      handle->winRange.skey = pFirst->wstart;
+      handle->winRange.ekey = pLast->wend;
+      handle->winRangeValid = true;
+    } else {
       SSTriggerCalcParam* pTmp = taosArrayGet(sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals, 0);
       memcpy(pTmp, pFirst, sizeof(*pTmp));
 
@@ -2125,7 +2125,7 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
       handle->winRangeValid = true;
     } else {
       STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid, 3));
-  }
+    }
   }
 
   if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {

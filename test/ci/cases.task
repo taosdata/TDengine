@@ -336,6 +336,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/stream_checkname.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/stream_long_name.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/stream_samename.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/stream_td37724.py
 
 ## 03-TriggerMode
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/03-TriggerMode/test_state.py
