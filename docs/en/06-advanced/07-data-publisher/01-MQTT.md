@@ -47,10 +47,11 @@ TMQ DSN parameters:
 - `password`: Database password.
 - `ip` and `port`: IP and port for database connection.
 - `topic`: TMQ subscription topic name.
-- `concurrency`: Number of consumers started when the task runs, defaults to the number of CPU cores.
-- `with_meta`: Whether to synchronize metadata such as table creation, deletion, modification, and data deletion. Default is not to synchronize.
+- `with.meta`: Whether to synchronize metadata such as table creation, deletion, modification, and data deletion. The default value is `false`, which means metadata is not synchronized.
+- `with.meta.delete`: Whether to synchronize delete data events in the metadata. This parameter is only effective when the `with.meta` parameter is enabled.
+- `with.meta.drop`: Whether to synchronize drop table events in the metadata. This parameter is only effective when the `with.meta` parameter is enabled.
 - `group_id`: TMQ subscription parameter, required, the group ID for the subscription.
-- `client_id`: TMQ subscription parameter, optional, the client ID for the subscription. If specified and `concurrency` is greater than 1, a suffix will be automatically added to distinguish different clients.
+- `client_id`: TMQ subscription parameter, optional, the client ID for the subscription.
 - `auto.offset.reset`: TMQ subscription parameter, starting position for the subscription.
 - `experimental.snapshot.enable`: TMQ subscription parameter. If enabled, data already persisted to TSDB storage files (not in WAL) can be synchronized. If disabled, only data still in WAL will be synchronized.
 
