@@ -919,7 +919,7 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
     METRICS_TIMING_BLOCK(tsdb->pVnode->writeMetrics.block_commit_time, METRIC_LEVEL_HIGH, {
       while (fset->blockCommit) {
         fset->numWaitCommit++;
-        (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
+        (void)tThreadCondWait(&fset->canCommit, &tsdb->mutex);
         fset->numWaitCommit--;
       }
       if (fset->numWaitCommit == 0) {
