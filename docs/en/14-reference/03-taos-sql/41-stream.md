@@ -757,7 +757,7 @@ Apart from the operations explicitly restricted or specially handled in the tabl
 
 ### Configuration Parameters
 
-Stream processing–related configuration parameters are listed below. For full details, see [taosd](../01-components/01-taosd.md).
+Stream processing–related configuration parameters are listed below. For full details, see [taosd](https://docs.tdengine.com/tdengine-reference/components/taosd/).
 
 - numOfMnodeStreamMgmtThreads: Number of stream management threads on mnodes.
 - numOfStreamMgmtThreads: Number of stream management threads on vnodes/snodes.
@@ -807,7 +807,6 @@ Compared with version 3.3.6.0, stream processing has been completely redesigned.
   - The snode directory under the dataDir configuration path (default: /var/lib/taos/snode).
   - The directory specified by the former checkpointBackupDir configuration option (default: /var/lib/taos/backup/checkpoint/).
 - Delete all result tables.
-  
 
 Note: If the above steps are not performed, taosd will fail to start.
 
