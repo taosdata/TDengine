@@ -8,9 +8,9 @@ class TestOfflineReason:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_offline_reason(self):
-        """dnode offline reason
+        """Dnode: check offline reason
 
-        1. -
+        Check whether the offline_reason field of the offline dnode is correct.
 
         Catalog:
             - Database:Sync

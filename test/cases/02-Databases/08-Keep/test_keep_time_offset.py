@@ -17,13 +17,14 @@ class TestKeepTimeOffset:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
 
-    def test_create_db(self):
-        """create db using keep_time_offset
+    def test_all(self):
+        """Keep Time Offset
 
-        1. create db using keep_time_offset
-        2. query keep_time_offset
-        3. alter keep_time_offset
-        4. query keep_time_offset
+        1. Create db using keep_time_offset
+        2. Query keep_time_offset
+        3. Alter keep_time_offset
+        4. Query keep_time_offset
+        5. Alter dnode 1 'keeptimeoffset 10'; return error
 
         Since: v3.0.0.0
 
@@ -32,6 +33,11 @@ class TestKeepTimeOffset:
             - 2025-5-13 Huo Hong Migrated to new test framework
 
         """
+
+        self.check_old_syntax()
+        self.check_create_db()
+            
+    def check_create_db(self):
         hours = 8
         # create
         keep_str = f"KEEP_TIME_OFFSET {hours}"
@@ -51,19 +57,7 @@ class TestKeepTimeOffset:
         tdSql.checkData(0, 0, hours)
         tdLog.info("%s successfully executed" % __file__)
 
-
-    def test_check_old_syntax(self):
-        """alter keeptimeoffset using old syntax
-
-        1. alter dnode 1 'keeptimeoffset 10'; return error
-
-        Since: v3.0.0.0
-
-        History:
-            - 2023-9-27 Alex Duan Created
-            - 2025-5-13 Huo Hong Migrated to new test framework
-
-        """
+    def check_old_syntax(self):
         # old syntax would not support again
         tdSql.error("alter dnode 1 'keeptimeoffset 10';")
         tdLog.info("%s successfully executed" % __file__)

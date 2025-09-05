@@ -7,11 +7,11 @@ class TestDnodeAlterDebugFlag:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_dnode_alter_debugflag(self):
-        """子表创建、读写
+        """Dnode: alter
 
-        1. 仅启动一个 dnode
-        2. 修改在线 dnode 的 monitor、debugflag 参数
-        3. 修改不在线 dnode 参数（报错）
+        1. Start only one dnode
+        2. Modify the monitor and debugflag parameters of the online dnode
+        3. Modify parameters of an offline dnode (error expected)
 
         Catalog:
             - ManageNodes:Dnode
