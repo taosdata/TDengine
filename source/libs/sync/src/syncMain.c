@@ -666,7 +666,9 @@ int32_t syncResetTimer(int64_t rid, int32_t electInterval, int32_t heartbeatInte
   syncNodeResetElectTimer(pSyncNode);
 
   sInfo("vgId:%d, sync Reset Timer, rid:%" PRId64, pSyncNode->vgId, rid);
-  TAOS_CHECK_RETURN(syncNodeRestartHeartbeatTimer(pSyncNode, heartbeatInterval));
+  code = syncNodeRestartHeartbeatTimer(pSyncNode, heartbeatInterval);
+
+  syncNodeRelease(pSyncNode);
   return code;
 }
 
