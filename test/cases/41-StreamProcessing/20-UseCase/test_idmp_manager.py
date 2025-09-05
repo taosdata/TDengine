@@ -103,8 +103,10 @@ class Test_IDMP_Meters:
     #
     def prepare(self):
 
+        # start for history time
+        self.start1 = 1752570000000
+        # start for real time
         self.start2 = 1752574200000
-
 
         # create database and table
         sql = "create database test vgroups 2"
@@ -122,6 +124,8 @@ class Test_IDMP_Meters:
             # test.t2 create dynamic
             "create table test.t3 using test.st(gid) tags(3)",
             "create table test.t4 using test.st(gid) tags(3)",
+            "create table test.t5 using test.st(gid) tags(5)",
+            "create table test.t6 using test.st(gid) tags(5)",
         ]
         tdSql.executes(sqls)
 
@@ -132,6 +136,8 @@ class Test_IDMP_Meters:
     #
     def fillHistory(self):
         print("start fill history data ...")
+        self.history_stream6()
+        print("fill history data successfully.")
 
     #
     #  create vtables
@@ -140,10 +146,13 @@ class Test_IDMP_Meters:
         print("start create vtables ...")
         sqls = [
             "use test",
-            "CREATE STABLE vst_1 (ts TIMESTAMP , `电流` FLOAT, `电压` INT, `功率` BIGINT , `相位` SMALLINT ) TAGS (`地址` VARCHAR(50), `单元` TINYINT, `楼层` TINYINT, `设备ID` VARCHAR(20)) SMA(ts,`电流`) VIRTUAL 1;",
-            "CREATE VTABLE vt_1  (`电流` FROM test.t1.fc,  `电压` FROM test.t1.ic,  `功率` FROM test.t1.bi,  `相位` FROM test.t1.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 1, '10001');",
+            "CREATE STABLE vst_1 (ts TIMESTAMP , `电流` FLOAT, `电压` INT, `功率` BIGINT , `相位` SMALLINT ) TAGS (`地址` VARCHAR(50), `单元` TINYINT, `楼层` TINYINT, `设备ID` VARCHAR(20)) SMA(ts,`电流`) VIRTUAL 1",
+            "CREATE VTABLE vt_1  (`电流` FROM test.t1.fc,  `电压` FROM test.t1.ic,  `功率` FROM test.t1.bi,  `相位` FROM test.t1.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 1, '10001')",
             # CREATE VTABLE vt_2 by dynamic
-            "CREATE VTABLE vt_3  (`电流` FROM test.t3.fc,  `电压` FROM test.t3.ic,  `功率` FROM test.t3.bi,  `相位` FROM test.t3.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 3, '10003');",
+            "CREATE VTABLE vt_3  (`电流` FROM test.t3.fc,  `电压` FROM test.t3.ic,  `功率` FROM test.t3.bi,  `相位` FROM test.t3.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 3, '10003')",
+            "CREATE VTABLE vt_4  (`电流` FROM test.t4.fc,  `电压` FROM test.t4.ic,  `功率` FROM test.t4.bi,  `相位` FROM test.t4.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 4, '10004')",
+            "CREATE VTABLE vt_5  (`电流` FROM test.t5.fc,  `电压` FROM test.t5.ic,  `功率` FROM test.t5.bi,  `相位` FROM test.t5.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 5, '10005')",
+            "CREATE VTABLE vt_6  (`电流` FROM test.t6.fc,  `电压` FROM test.t6.ic,  `功率` FROM test.t6.bi,  `相位` FROM test.t6.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 6, '10006')",
         ]
 
         tdSql.executes(sqls)
@@ -171,7 +180,13 @@ class Test_IDMP_Meters:
               # stream4
               "CREATE TABLE test.o4 (ts TIMESTAMP , sum_cnt BIGINT, sum_power BIGINT)",
               "CREATE STREAM test.stream4      INTERVAL(5s)  SLIDING(5s)  FROM test.t4  INTO test.o4                  AS SELECT _twstart AS ts, _twrownum as sum_cnt,                          sum(bi)        as sum_power     FROM %%trows",
-              "CREATE STREAM test.stream4_sub1 INTERVAL(10s) SLIDING(10s) FROM test.o4  INTO test.result_stream4_sub1 AS SELECT _twstart AS ts, _twrownum as cnt,     sum(sum_cnt) as cnt_all, sum(sum_power) as sum_power_all FROM %%trows"
+              "CREATE STREAM test.stream4_sub1 INTERVAL(10s) SLIDING(10s) FROM test.o4  INTO test.result_stream4_sub1 AS SELECT _twstart AS ts, _twrownum as cnt,     sum(sum_cnt) as cnt_all, sum(sum_power) as sum_power_all FROM %%trows",
+
+              # stream5
+              "CREATE STREAM test.stream5 EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_5  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream5')  ON(WINDOW_OPEN|WINDOW_CLOSE) INTO test.result_stream5 AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
+
+              # stream6
+              "CREATE STREAM test.stream6 EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_5  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream6')  ON(WINDOW_OPEN|WINDOW_CLOSE) INTO test.result_stream6 AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -225,6 +240,7 @@ class Test_IDMP_Meters:
         self.trigger_stream2()
         self.trigger_stream3()
         self.trigger_stream4()
+        self.trigger_stream5()
 
     #
     # 5. verify results
@@ -236,6 +252,10 @@ class Test_IDMP_Meters:
         self.verify_stream1()
         self.verify_stream3()
         self.verify_stream4()
+        # ***** bug5 *****
+        #self.verify_stream5()
+        # ***** bug6 *****
+        #self.verify_stream6()
 
     #
     # execute operation
@@ -483,7 +503,68 @@ class Test_IDMP_Meters:
         # insert
         count = 20
         vals  = "5,5,5,10,'aaaaa'"
-        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)           
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+    #
+    #  trigger stream5
+    #
+    def trigger_stream5(self):
+        ts    = self.start1
+        table = "test.t5"
+        step  = 1000 # 1s
+        cols  = "ts,fc,ic,bi,si,bin"
+
+        # trigger
+        count = 6
+        vals  = "51,251,10,1,'abcde'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+        # close trigger
+        count = 4
+        vals  = "49,249,10,2,'abcde'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+        # trigger
+        count = 6
+        vals  = "52,252,10,3,'abcde'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+        # close trigger
+        count = 4
+        vals  = "48,248,10,4,'abcde'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        
+
+    #
+    #  history stream6
+    #
+    def history_stream6(self):
+        ts    = self.start1
+        table = "test.t6"
+        step  = 1000 # 1s
+        cols  = "ts,fc,ic,bi,si,bin"
+
+        # trigger
+        count = 6
+        vals  = "51,251,10,1,'abcde'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+        # close trigger
+        count = 4
+        vals  = "49,249,10,2,'abcde'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+        # trigger
+        count = 6
+        vals  = "52,252,10,3,'abcde'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+        # close trigger
+        count = 4
+        vals  = "48,248,10,4,'abcde'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+
 
     #
     # ---------------------  verify     ----------------------
@@ -525,15 +606,15 @@ class Test_IDMP_Meters:
 
     def verify_stream1_sub2(self):
         # check
-        result_sql = f"select * from test.result_stream1_sub2 order by tag_tbname"
+        result_sql = f"select * from test.result_stream1_sub2 where tag_tbname in('vt_1','vt_2','vt_3') order by tag_tbname"
         tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 3)
 
         # check data
         data = [
             # ts           cnt  power tbname
-            [1752574200000, 5, 50, "vt_1"],
+            [1752574200000, 5, 50,  "vt_1"],
             [1752574200000, 5, 100, "vt_2"],
-            [1752574200000, 5, 25, "vt_3"],
+            [1752574200000, 5, 25,  "vt_3"],
         ]
         tdSql.checkDataMem(result_sql, data)
         print("verify stream1 sub2 ............................ successfully.")
@@ -683,3 +764,38 @@ class Test_IDMP_Meters:
         tdSql.checkDataMem(result_sql, data)
 
         print("verify stream4 again ........................... successfully.")
+
+
+    #
+    #  verify stream5
+    #
+    def verify_stream5(self):
+        # mem
+        data = [
+            # ts           cnt  min_cur  max_cur  min_vol  max_vol  sum_power
+            [1752574200000, 7,  49,  51,  249,  251,  70],
+            [1752574210000, 7,  48,  52,  248,  252,  70]
+        ]
+        result_sql = f"select * from test.result_stream5"
+        tdSql.checkResultsByFunc (
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        tdSql.checkDataMem(result_sql, data)       
+
+    #
+    #  verify stream6
+    #
+    def verify_stream6(self):
+        # mem
+        data = [
+            # ts           cnt  min_cur  max_cur  min_vol  max_vol  sum_power
+            [1752570000000, 7,  49,  51,  249,  251,  70],
+            [1752570010000, 7,  48,  52,  248,  252,  70]
+        ]
+        result_sql = f"select * from test.result_stream6"
+        tdSql.checkResultsByFunc (
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        tdSql.checkDataMem(result_sql, data)   
