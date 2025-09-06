@@ -51,7 +51,7 @@ subquery: SELECT select_list
     
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
+  | STATE_WINDOW(col [, extend])
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
   | COUNT_WINDOW(count_val[, sliding_val])

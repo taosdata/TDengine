@@ -148,7 +148,7 @@ Query OK, 10 row(s) in set (2.415961s)
 <img src={win} width="500" alt="常用窗口划分逻辑" />
 
 - 时间窗口（time window）：根据时间间隔划分数据，支持滑动时间窗口和翻转时间窗口，适用于按固定时间周期进行数据聚合。
-- 状态窗口（status window）：基于设备状态值的变化划分窗口，相同状态值的数据归为一个窗口，状态值改变时窗口关闭。
+- 状态窗口（state window）：基于设备状态值的变化划分窗口，相同状态值的数据归为一个窗口，状态值改变时窗口关闭。
 - 会话窗口（session window）：根据记录的时间戳差异划分会话，时间戳间隔小于预设值的记录属于同一会话。
 - 事件窗口（event window）：基于事件的开始条件和结束条件动态划分窗口，满足开始条件时窗口开启，满足结束条件时窗口关闭。
 - 计数窗口（count window）：根据数据行数划分窗口，每达到指定行数即为一个窗口，并进行聚合计算。
@@ -158,7 +158,7 @@ Query OK, 10 row(s) in set (2.415961s)
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
+  | STATE_WINDOW(col [, extend]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
   | COUNT_WINDOW(count_val[, sliding_val])

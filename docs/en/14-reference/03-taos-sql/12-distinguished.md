@@ -46,14 +46,14 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## Window Partitioning Queries
 
-TDengine supports aggregation result queries using time window partitioning, such as when a temperature sensor collects data every second, but the average temperature every 10 minutes is needed. In such scenarios, a window clause can be used to obtain the desired query results. The window clause is used to divide the data set being queried into subsets for aggregation based on the window, including time window, status window, session window, event window, and count window. Time windows can further be divided into sliding time windows and tumbling time windows.
+TDengine supports aggregation result queries using time window partitioning, such as when a temperature sensor collects data every second, but the average temperature every 10 minutes is needed. In such scenarios, a window clause can be used to obtain the desired query results. The window clause is used to divide the data set being queried into subsets for aggregation based on the window, including time window, state window, session window, event window, and count window. Time windows can further be divided into sliding time windows and tumbling time windows.
 
 The syntax for the window clause is as follows:
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -175,6 +175,37 @@ TDengine also supports using CASE expressions in state quantities, which can exp
 
 ```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
+```
+
+The `Extend` parameter can set the extension strategy for the start and end of a window, with optional values of 0 (default), 1, and 2. 
+
+- By default, the start and end times of the window are the timestamps corresponding to the first and last piece of data in that state.
+- When the `extend` value is 1, the window start time remains unchanged, and the window end time is extended backward to just before the start of the next window.
+- When the `extend` value is 2, the window start time is extended forward to just after the end of the previous window, while the window end time remains unchanged.
+
+Data with a NULL status value at the start of the entire query result set will be included in the first window. Similarly, data with a NULL status value at the end of the entire query result set will be included in the last window. Take the following data as an example:
+
+```
+select * from state_window_test;
+
+```
+
+When `extend` is 0:
+
+```
+select _wstart, _wduration, _wend, count(*) from state_window_test state_window(status, 0);
+```
+
+When `extend` is 1:
+
+```
+select _wstart, _wduration, _wend, count(*) from state_window_test state_window(status, 1);
+```
+
+When `extend` is 2:
+
+```
+select _wstart, _wduration, _wend, count(*) from state_window_test state_window(status, 2);
 ```
 
 The state window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
