@@ -433,7 +433,7 @@ static int32_t mndSetDropRsmaPrepareLogs(SMnode *pMnode, STrans *pTrans, SRsmaOb
     if (terrno != 0) code = terrno;
     return -1;
   }
-  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(mndTransAppendPrepareLog(pTrans, pRedoRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
 
   return 0;
@@ -621,7 +621,7 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
   SDbObj    *pDbs = NULL;
   SStbObj   *pStbs = NULL;
   STrans    *pTrans = NULL;
-#if 1
+
   (void)snprintf(obj.name, TSDB_TABLE_FNAME_LEN, "%s", pCreate->name);
   (void)snprintf(obj.db, TSDB_DB_FNAME_LEN, "%s", pDb->name);
   (void)snprintf(obj.tbname, TSDB_TABLE_FNAME_LEN, "%s", pCreate->tbName);
@@ -663,16 +663,15 @@ _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("rsma:%s, failed at line %d to create rsma, since %s", obj.name, lino, tstrerror(code));
   }
+  mndTransDrop(pTrans);
   mndReleaseDnode(pMnode, pDnode);
   mndRsmaFreeObj(&obj);
-  mndTransDrop(pTrans);
   if (pStbs) {
     for (int32_t i = 0; i < nStbs; ++i) {
       mndFreeStb(pStbs + i);
     }
     taosMemFreeClear(pStbs);
   }
-#endif
   TAOS_RETURN(code);
 }
 
