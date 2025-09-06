@@ -250,6 +250,7 @@ typedef enum {
   L1_XOR,
   L1_RLE,
   L1_DELTAD,
+  L1_BSS,
   L1_DISABLED = 0xFF,
 } TCmprL1Type;
 

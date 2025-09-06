@@ -145,7 +145,7 @@
   TD_DEF_MSG_TYPE(TDMT_DND_RETRIEVE_MOUNT_PATH, "retrieve-mount-path", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_MOUNT_VNODE, "mount-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_KILL_SSMIGRATE, "kill-ssmigrate", NULL, NULL) // placeholder for future use
-  TD_DEF_MSG_TYPE(TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER, "query-ssmigrate-progress-tmr", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER, "update-ssmigrate-progress-tmr", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -330,7 +330,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_DISABLE_WRITE, "vnode-disable-write", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_COMPACT_PROGRESS, "vnode-query-compact-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_COMPACT, "kill-compact", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_SSMIGRATE, "vnode-ssmigrate", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_LIST_SSMIGRATE_FILESETS, "vnode-list-ssmigrate-filesets", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ARB_HEARTBEAT, "vnode-arb-hb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ARB_CHECK_SYNC, "vnode-arb-check-sync", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FETCH_TTL_EXPIRED_TBS, "vnode-fetch-ttl-expired-tbs", NULL, NULL)
@@ -338,6 +338,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_VSUBTABLES_META, "vnode-virtual_stables-meta", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_VSTB_REF_DBS, "vnode-virtual-stables-ref-dbs", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_SSMIGRATE_PROGRESS, "vnode-query-ssmigrate-progress", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_SSMIGRATE_FILESET, "vnode-ssmigrate-fileset", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FOLLOWER_SSMIGRATE, "vnode-follower-ssmigrate", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL) // placeholder for future use
   TD_DEF_MSG_TYPE(TDMT_VND_START_RSMA, "vnode-start-rsma", NULL, NULL)

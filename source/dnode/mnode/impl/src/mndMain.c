@@ -160,11 +160,11 @@ static void mndPullupSsMigrateDb(SMnode *pMnode) {
   }
 }
 
-static void mndPullupQuerySsMigrateProgress(SMnode *pMnode) {
-  mTrace("pullup query ssmigrate progress");
+static void mndPullupUpdateSsMigrateProgress(SMnode *pMnode) {
+  mTrace("pullup update ssmigrate progress");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER, .pCont = pReq, .contLen = contLen};
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
   }
@@ -369,7 +369,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 #ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
     if (sec % 10 == 0) { // TODO: make 10 to be configurable
-      mndPullupQuerySsMigrateProgress(pMnode);
+      mndPullupUpdateSsMigrateProgress(pMnode);
     }
     if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
       mndPullupSsMigrateDb(pMnode);
@@ -884,7 +884,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
       pMsg->msgType == TDMT_MND_SSMIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
-      pMsg->msgType == TDMT_MND_QUERY_SSMIGRATE_PROGRESS_TIMER) {
+      pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);

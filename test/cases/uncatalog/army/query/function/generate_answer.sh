@@ -32,7 +32,7 @@ done
 sed -i 's/;\s*$//' "$sqlfile"
 
 # 执行SQL文件并生成query_result_file文件
-taos -f "$sqlfile" | grep -v 'Query OK' | grep -v 'Copyright' | grep -v 'Welcome to the TDengine Command' > "$query_result_file"
+taos -f "$sqlfile" | grep -v 'Query OK' | grep -v 'Copyright' | grep -v 'Welcome to the TDengine TSDB Command' > "$query_result_file"
 # echo  $(cat "$query_result_file")
 # echo "1"
 # sed -i 's/ ([^()]*)$//' "$query_result_file"

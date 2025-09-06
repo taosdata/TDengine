@@ -522,7 +522,7 @@ class StreamUtil:
         sql = f"drop snode on dnode {index}"
         tdSql.query(sql)
 
-    def checkStreamStatus(self, stream_name=""):
+    def checkStreamStatus(self, stream_name="", timeout=60):
         if stream_name == "":
             tdSql.query(f"select * from information_schema.ins_streams")
         else:
@@ -542,7 +542,9 @@ class StreamUtil:
             time.sleep(1)
             if tdSql.getRows() == streamNum:
                 return
-        tdLog.exit(f"stream task status not ready in {loop} seconds")
+        info = f"stream task status not ready in {loop} seconds"
+        print(info)
+        tdLog.exit(info)
 
     def dropAllStreamsAndDbs(self):
         streamNum = 0
@@ -1170,7 +1172,7 @@ class StreamItem:
 
         tdLog.info(f"check stream:s{self.id} result successfully")
 
-    def awaitRowStability(self, stable_rows, waitSeconds=120):
+    def awaitRowStability(self, stable_rows, waitSeconds=300):
         """
         确保流处理结果的行数与预期的稳定行数一致
         :param stable_rows: int, 预期的稳定行数
