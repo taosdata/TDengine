@@ -2473,11 +2473,12 @@ int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) {
     if (pEntry->stbEntry.rsmaParam.uid != pReq->uid ||
         strncmp(pEntry->stbEntry.rsmaParam.name, pReq->name, TSDB_TABLE_NAME_LEN) != 0) {
       metaError(
-          "vgId:%d, %s no need to create rsma %s since table %s is rollup table with same rsma name and uid:" PRIi64
-          ", version:%" PRId64,
-          TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pReq->uid, version);
+          "vgId:%d, %s failed at line %d to drop %s since table %s is rollup table with different rsma name %s or "
+          "uid:" PRIi64 ", version:%" PRId64,
+          TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pEntry->stbEntry.rsmaParam.name,
+          pReq->uid, version);
       metaFetchEntryFree(&pEntry);
-      TAOS_RETURN(TSDB_CODE_RSMA_ALREADY_EXISTS);
+      TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
     }
     taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcColIds);
     taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcIds);
@@ -2496,7 +2497,6 @@ int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) {
   entry.stbEntry.rsmaParam.nFuncs = 0;
   entry.stbEntry.rsmaParam.funcColIds = NULL;
   entry.stbEntry.rsmaParam.funcIds = NULL;
-  
 
   // do handle the entry
   code = metaHandleEntry2(pMeta, &entry);
