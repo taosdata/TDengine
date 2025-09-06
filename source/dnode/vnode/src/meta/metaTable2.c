@@ -323,7 +323,7 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
       if (tTagGet(pTag, &tagVal)) {
         if (pTagSchema->pSchema[i].type != tagVal.type) {
           metaError("vgId:%d, %s failed at %s:%d since child table %s tag type does not match the expected type, version:%" PRId64,
-                    TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, version);
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, version);
           metaFetchEntryFree(&pStbEntry);
           return TSDB_CODE_INVALID_MSG;
         }
@@ -487,18 +487,18 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
   }
 
   SMetaEntry entry = {
-    .version = version,
-    .type = TSDB_NORMAL_TABLE,
-    .uid = pReq->uid,
-    .name = pReq->name,
-    .ntbEntry.btime = pReq->btime,
-    .ntbEntry.ttlDays = pReq->ttl,
-    .ntbEntry.commentLen = pReq->commentLen,
-    .ntbEntry.comment = pReq->comment,
-    .ntbEntry.schemaRow = pReq->ntb.schemaRow,
-    .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
-    .colCmpr = pReq->colCmpr,
-    .pExtSchemas = pReq->pExtSchemas,
+      .version = version,
+      .type = TSDB_NORMAL_TABLE,
+      .uid = pReq->uid,
+      .name = pReq->name,
+      .ntbEntry.btime = pReq->btime,
+      .ntbEntry.ttlDays = pReq->ttl,
+      .ntbEntry.commentLen = pReq->commentLen,
+      .ntbEntry.comment = pReq->comment,
+      .ntbEntry.schemaRow = pReq->ntb.schemaRow,
+      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+      .colCmpr = pReq->colCmpr,
+      .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
 
@@ -555,15 +555,15 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
 
   SMetaEntry entry = {
       .version = version,
-      .type = TSDB_VIRTUAL_NORMAL_TABLE,
-      .uid = pReq->uid,
-      .name = pReq->name,
-      .ntbEntry.btime = pReq->btime,
-      .ntbEntry.ttlDays = pReq->ttl,
-      .ntbEntry.commentLen = pReq->commentLen,
-      .ntbEntry.comment = pReq->comment,
-      .ntbEntry.schemaRow = pReq->ntb.schemaRow,
-      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+                      .type = TSDB_VIRTUAL_NORMAL_TABLE,
+                      .uid = pReq->uid,
+                      .name = pReq->name,
+                      .ntbEntry.btime = pReq->btime,
+                      .ntbEntry.ttlDays = pReq->ttl,
+                      .ntbEntry.commentLen = pReq->commentLen,
+                      .ntbEntry.comment = pReq->comment,
+                      .ntbEntry.schemaRow = pReq->ntb.schemaRow,
+                      .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
       .colRef = pReq->colRef
   };
 
@@ -623,15 +623,15 @@ static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCrea
 
   SMetaEntry entry = {
       .version = version,
-      .type = TSDB_VIRTUAL_CHILD_TABLE,
-      .uid = pReq->uid,
-      .name = pReq->name,
-      .ctbEntry.btime = pReq->btime,
-      .ctbEntry.ttlDays = pReq->ttl,
-      .ctbEntry.commentLen = pReq->commentLen,
-      .ctbEntry.comment = pReq->comment,
-      .ctbEntry.suid = pReq->ctb.suid,
-      .ctbEntry.pTags = pReq->ctb.pTag,
+                      .type = TSDB_VIRTUAL_CHILD_TABLE,
+                      .uid = pReq->uid,
+                      .name = pReq->name,
+                      .ctbEntry.btime = pReq->btime,
+                      .ctbEntry.ttlDays = pReq->ttl,
+                      .ctbEntry.commentLen = pReq->commentLen,
+                      .ctbEntry.comment = pReq->comment,
+                      .ctbEntry.suid = pReq->ctb.suid,
+                      .ctbEntry.pTags = pReq->ctb.pTag,
       .colRef = pReq->colRef
   };
 
@@ -2384,7 +2384,7 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   }
 
   if (pEntry->uid != pReq->tbUid) {
-    metaError("vgId:%d, %s failed at %d to create rsma %s since table %s uid %" PRId64 " is not equal to %" PRId64
+    metaError("vgId:%d, %s failed at %d %s since table %s uid %" PRId64 " is not equal to %" PRId64
               ", version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pEntry->uid, pReq->tbUid, version);
     metaFetchEntryFree(&pEntry);
@@ -2394,10 +2394,9 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   if (TABLE_IS_ROLLUP(pEntry->flags)) {
     if (pEntry->stbEntry.rsmaParam.uid == pReq->uid &&
         strncmp(pEntry->stbEntry.rsmaParam.name, pReq->name, TSDB_TABLE_NAME_LEN) == 0) {
-      metaInfo(
-          "vgId:%d, %s no need to create rsma %s since table %s is rollup table with same rsma name and uid:" PRIi64
-          ", version:%" PRId64,
-          TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pReq->uid, version);
+      metaInfo("vgId:%d, %s no need at %s since table %s is rollup table with same rsma name and uid:" PRIi64
+               ", version:%" PRId64,
+               TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pReq->uid, version);
       metaFetchEntryFree(&pEntry);
       TAOS_RETURN(TSDB_CODE_RSMA_ALREADY_EXISTS);
     }
@@ -2419,8 +2418,8 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   // do handle the entry
   code = metaHandleEntry2(pMeta, &entry);
   if (code) {
-    metaError("vgId:%d, %s failed at %d to create rsma %s since %s, uid:%" PRId64 ", version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, tstrerror(code), pReq->tbUid, version);
+    metaError("vgId:%d, %s failed at %d %s since %s, uid:%" PRId64 ", version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __LINE__, pReq->name, tstrerror(code), pReq->tbUid, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(code);
   } else {
@@ -2431,4 +2430,86 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);
 }
-int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) { return TSDB_CODE_SUCCESS; }
+
+int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->name || pReq->name[0] == 0) {
+    metaError("vgId:%d, %s failed at %d since invalid rsma name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  if (NULL == pReq->tbName || pReq->tbName[0] == 0) {
+    metaError("vgId:%d, %s failed at %d since invalid table name, version:%" PRId64, TD_VID(pMeta->pVnode), __func__,
+              __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code) {
+    metaWarn("vgId:%d, %s no need at %d to drop %s since table %s not found, version:%" PRId64, TD_VID(pMeta->pVnode),
+             __func__, __LINE__, pReq->name, pReq->tbName, version);
+    TAOS_RETURN(TSDB_CODE_RSMA_NOT_EXIST);
+  }
+
+  if (pEntry->type != pReq->tbType) {
+    metaError("vgId:%d, %s failed at %d to drop %s since table %s type %d is invalid, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pEntry->type, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  if (pEntry->uid != pReq->tbUid) {
+    metaError("vgId:%d, %s failed at %d %s since table %s uid %" PRId64 " is not equal to %" PRId64
+              ", version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pEntry->uid, pReq->tbUid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  if (TABLE_IS_ROLLUP(pEntry->flags)) {
+    if (pEntry->stbEntry.rsmaParam.uid != pReq->uid ||
+        strncmp(pEntry->stbEntry.rsmaParam.name, pReq->name, TSDB_TABLE_NAME_LEN) != 0) {
+      metaError(
+          "vgId:%d, %s no need to create rsma %s since table %s is rollup table with same rsma name and uid:" PRIi64
+          ", version:%" PRId64,
+          TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pReq->uid, version);
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_RSMA_ALREADY_EXISTS);
+    }
+    taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcColIds);
+    taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcIds);
+  } else {
+    metaWarn("vgId:%d, %s no need at %d to drop %s since table %s is not rollup table, version:%" PRId64,
+             TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_RSMA_NOT_EXIST);
+  }
+
+  SMetaEntry entry = *pEntry;
+  entry.version = version;
+  TABLE_RESET_ROLLUP(entry.flags);
+  entry.stbEntry.rsmaParam.uid = 0;
+  entry.stbEntry.rsmaParam.name = NULL;
+  entry.stbEntry.rsmaParam.nFuncs = 0;
+  entry.stbEntry.rsmaParam.funcColIds = NULL;
+  entry.stbEntry.rsmaParam.funcIds = NULL;
+  
+
+  // do handle the entry
+  code = metaHandleEntry2(pMeta, &entry);
+  if (code) {
+    metaError("vgId:%d, %s failed at %d to drop %s since %s, uid:%" PRId64 ", version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __LINE__, pReq->name, tstrerror(code), pReq->uid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
+  } else {
+    metaInfo("vgId:%d, table %s uid %" PRId64 " is updated since rsma created %s:%" PRIi64 ", version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName, pReq->tbUid, pReq->name, pReq->uid, version);
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}

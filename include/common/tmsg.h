@@ -4510,7 +4510,13 @@ typedef struct {
 int32_t tSerializeSMDropRsmaReq(void* buf, int32_t bufLen, SMDropRsmaReq* pReq);
 int32_t tDeserializeSMDropRsmaReq(void* buf, int32_t bufLen, SMDropRsmaReq* pReq);
 
-typedef SMDropRsmaReq SVDropRsmaReq;
+typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char    tbName[TSDB_TABLE_FNAME_LEN];
+  int64_t uid;
+  int64_t tbUid;
+  int8_t  tbType;
+} SVDropRsmaReq;
 
 int32_t tSerializeSVDropRsmaReq(void* buf, int32_t bufLen, SVDropRsmaReq* pReq);
 int32_t tDeserializeSVDropRsmaReq(void* buf, int32_t bufLen, SVDropRsmaReq* pReq);

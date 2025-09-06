@@ -369,6 +369,7 @@ struct SVnodeCfg {
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)
 #define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
 #define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
+#define TABLE_RESET_ROLLUP(FLG) ((FLG) &= ~TABLE_ROLLUP_ON)
 
 #define TABLE_COL_COMPRESSED          ((int8_t)0x2)
 #define TABLE_IS_COL_COMPRESSED(FLG)  (((FLG) & (TABLE_COL_COMPRESSED)) != 0)

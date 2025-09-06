@@ -463,8 +463,15 @@ static void *mndBuildVDropRsmaReq(SMnode *pMnode, SVgObj *pVgroup, SRsmaObj *pOb
   int32_t       code = 0, lino = 0;
   SMsgHead     *pHead = NULL;
   SVDropRsmaReq req = {0};
-  req.igNotExists = 1;
+
+  SName name = {0};
+  if ((terrno = tNameFromString(&name, pObj->tbname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
+    return NULL;
+  }
+  (void)snprintf(req.tbName, sizeof(req.tbName), "%s", (char *)tNameGetTableName(&name));
   (void)snprintf(req.name, sizeof(req.name), "%s", pObj->name);
+  req.tbType = pObj->tbType;
+  req.uid = pObj->uid;
 
   int32_t contLen = tSerializeSVDropRsmaReq(NULL, 0, &req);
   TAOS_CHECK_EXIT(contLen);
