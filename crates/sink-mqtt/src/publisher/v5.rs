@@ -134,16 +134,12 @@ impl Publisher {
 impl super::Publisher for Publisher {
     type Error = Error;
 
-    async fn publish(
-        &self,
-        topic: &str,
-        payload: Vec<u8>,
-        cancel: &CancellationToken,
-    ) -> Result<()> {
-        if cancel
-            .run_until_cancelled(self.client.publish(topic, self.qos, false, payload))
+    async fn publish(&self, topic: &str, payload: Vec<u8>) -> Result<()> {
+        if self
+            .client
+            .publish(topic, self.qos, false, payload)
             .await
-            .is_none_or(|e| e.is_err())
+            .is_err()
         {
             return ConnectionTaskExitSnafu.fail();
         };
