@@ -2411,7 +2411,7 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   entry.name = pReq->name;
   entry.version = version;
   entry.stbEntry.rsmaParam.uid = pReq->uid;
-  tstrncpy(entry.stbEntry.rsmaParam.name, pReq->name, TSDB_TABLE_NAME_LEN);
+  entry.stbEntry.rsmaParam.name = pReq->name;
   entry.stbEntry.rsmaParam.nFuncs = pReq->nFuncs;
   entry.stbEntry.rsmaParam.funcColIds = pReq->funcColIds;
   entry.stbEntry.rsmaParam.funcIds = pReq->funcIds;

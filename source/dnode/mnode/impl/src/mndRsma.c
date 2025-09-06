@@ -376,6 +376,12 @@ static int32_t mndSetCreateRsmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbOb
   SVgObj *pVgroup = NULL;
   void   *pIter = NULL;
 
+  SName name = {0};
+  if ((code = tNameFromString(&name, pCreate->tbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
+    return code;
+  }
+  tstrncpy(pCreate->tbName, (char *)tNameGetTableName(&name), sizeof(pCreate->name));
+
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
     if (!mndVgroupInDb(pVgroup, pDb->uid)) {
       sdbRelease(pSdb, pVgroup);
