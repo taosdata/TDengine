@@ -567,28 +567,6 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
     p->id = pStb->pCmpr[i].id;
   }
 
-/*
-  if (req.rollup) {
-    req.rsmaParam.maxdelay[0] = pStb->maxdelay[0];
-    req.rsmaParam.maxdelay[1] = pStb->maxdelay[1];
-    req.rsmaParam.watermark[0] = pStb->watermark[0];
-    req.rsmaParam.watermark[1] = pStb->watermark[1];
-    if (pStb->ast1Len > 0) {
-      if (mndConvertRsmaTask(&req.rsmaParam.qmsg[0], &req.rsmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0],
-                             req.rsmaParam.deleteMark[0]) < 0) {
-        goto _err;
-      }
-    }
-    if (pStb->ast2Len > 0) {
-      if (mndConvertRsmaTask(&req.rsmaParam.qmsg[1], &req.rsmaParam.qmsgLen[1], pStb->pAst2, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[1],
-                             req.rsmaParam.deleteMark[1]) < 0) {
-        goto _err;
-      }
-    }
-  }
-*/  
   req.pExtSchemas = pStb->pExtSchemas; // only reference to it.
   // get length
   int32_t ret = 0;
@@ -618,13 +596,15 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   tEncoderClear(&encoder);
 
   *pContLen = contLen;
-  taosMemoryFreeClear(req.rsmaParam.qmsg[0]);
-  taosMemoryFreeClear(req.rsmaParam.qmsg[1]);
+  taosMemoryFreeClear(req.rsmaParam.name);
+  taosMemoryFreeClear(req.rsmaParam.funcColIds);
+  taosMemoryFreeClear(req.rsmaParam.funcIds);
   taosMemoryFreeClear(req.colCmpr.pColCmpr);
   return pHead;
 _err:
-  taosMemoryFreeClear(req.rsmaParam.qmsg[0]);
-  taosMemoryFreeClear(req.rsmaParam.qmsg[1]);
+  taosMemoryFreeClear(req.rsmaParam.name);
+  taosMemoryFreeClear(req.rsmaParam.funcColIds);
+  taosMemoryFreeClear(req.rsmaParam.funcIds);
   taosMemoryFreeClear(req.colCmpr.pColCmpr);
   return NULL;
 }

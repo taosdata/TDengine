@@ -11644,32 +11644,52 @@ int32_t tDecodeSVDeleteRsp(SDecoder *pCoder, SVDeleteRsp *pReq) {
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {
-  int32_t code = 0;
-  int32_t lino;
-  for (int32_t i = 0; i < 2; ++i) {
-    TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pRSmaParam->maxdelay[i]));
-    TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pRSmaParam->watermark[i]));
-    TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pRSmaParam->qmsgLen[i]));
-    if (pRSmaParam->qmsgLen[i] > 0) {
-      TAOS_CHECK_EXIT(tEncodeBinary(pCoder, pRSmaParam->qmsg[i], (uint64_t)pRSmaParam->qmsgLen[i]));
+  int32_t code = 0, lino = 0;
+  if (pRSmaParam->name && pRSmaParam->name[0] != '\0') {
+    TAOS_CHECK_EXIT(tEncodeCStr(pCoder, pRSmaParam->name));
+  } else {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
+  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pRSmaParam->uid));
+  TAOS_CHECK_EXIT(tEncodeI8(pCoder, pRSmaParam->intervalUnit));
+  TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pRSmaParam->interval[0]));
+  TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pRSmaParam->interval[1]));
+  TAOS_CHECK_EXIT(tEncodeI16v(pCoder, pRSmaParam->nFuncs));
+  if (pRSmaParam->nFuncs > 0) {
+    if (pRSmaParam->funcColIds == NULL || pRSmaParam->funcIds == NULL) {
+      TAOS_CHECK_EXIT(terrno = EINVAL);
+    }
+    for (int16_t i = 0; i < pRSmaParam->nFuncs; ++i) {
+      TAOS_CHECK_EXIT(tEncodeI16v(pCoder, pRSmaParam->funcColIds[i]));
+      TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pRSmaParam->funcIds[i]));
     }
   }
-
 _exit:
   return code;
 }
 
 int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
-  int32_t code = 0;
-  int32_t lino;
-  for (int32_t i = 0; i < 2; ++i) {
-    TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->maxdelay[i]));
-    TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->watermark[i]));
-    TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pRSmaParam->qmsgLen[i]));
-    if (pRSmaParam->qmsgLen[i] > 0) {
-      TAOS_CHECK_EXIT(tDecodeBinary(pCoder, (uint8_t **)&pRSmaParam->qmsg[i], NULL));  // qmsgLen contains len of '\0'
-    } else {
-      pRSmaParam->qmsg[i] = NULL;
+  int32_t code = 0, lino = 0;
+  TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pRSmaParam->name));
+  if (pRSmaParam->name[0] == '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
+  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pRSmaParam->uid));
+  TAOS_CHECK_EXIT(tDecodeI8(pCoder, (int8_t *)&pRSmaParam->intervalUnit));
+  TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->interval[0]));
+  TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->interval[1]));
+  TAOS_CHECK_EXIT(tDecodeI16v(pCoder, &pRSmaParam->nFuncs));
+  if (pRSmaParam->nFuncs > 0) {
+    pRSmaParam->funcColIds = (col_id_t *)taosMemoryCalloc(pRSmaParam->nFuncs, sizeof(col_id_t));
+    pRSmaParam->funcIds = (func_id_t *)taosMemoryCalloc(pRSmaParam->nFuncs, sizeof(func_id_t));
+    if (pRSmaParam->funcColIds == NULL || pRSmaParam->funcIds == NULL) {
+      taosMemFreeClear(pRSmaParam->funcColIds);
+      taosMemFreeClear(pRSmaParam->funcIds);
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int16_t i = 0; i < pRSmaParam->nFuncs; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI16v(pCoder, &pRSmaParam->funcColIds[i]));
+      TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pRSmaParam->funcIds[i]));
     }
   }
 

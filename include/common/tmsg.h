@@ -3660,11 +3660,21 @@ typedef struct {
 } SDDropTopicReq;
 
 typedef struct {
+#if 0
   int64_t maxdelay[2];
   int64_t watermark[2];
   int64_t deleteMark[2];
   int32_t qmsgLen[2];
   char*   qmsg[2];  // pAst:qmsg:SRetention => trigger aggr task1/2
+#else
+  char*      name;
+  int64_t    uid;
+  int64_t    interval[2];
+  int8_t     intervalUnit;
+  int16_t    nFuncs;
+  col_id_t*  funcColIds;  // column ids specified by user
+  func_id_t* funcIds;     // function ids specified by user
+#endif
 } SRSmaParam;
 
 int32_t tEncodeSRSmaParam(SEncoder* pCoder, const SRSmaParam* pRSmaParam);
