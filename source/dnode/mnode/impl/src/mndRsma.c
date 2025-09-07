@@ -713,7 +713,8 @@ static int32_t mndCheckRsmaConflicts(SMnode *pMnode, SDbObj *pDbObj, SMCreateRsm
   while ((pIter = sdbFetch(pSdb, SDB_RSMA, pIter, (void **)&pObj))) {
     if (pObj->tbUid == pCreate->tbUid && pObj->dbUid == pDbObj->uid) {
       sdbCancelFetch(pSdb, (pIter));
-      mError("rsma:%s, conflict with existing rsma:%s on same table uid:%ld", pCreate->name, pObj->name, pObj->tbUid);
+      mError("rsma:%s, conflict with existing rsma %s on same table %s:%" PRIi64, pCreate->name, pObj->name,
+             pObj->tbname, pObj->tbUid);
       return TSDB_CODE_QRY_DUPLICATED_OPERATION;
     }
     sdbRelease(pSdb, pObj);
