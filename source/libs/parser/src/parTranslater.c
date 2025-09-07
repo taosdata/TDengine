@@ -16240,15 +16240,15 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   numOfTags = pTableMeta->tableInfo.numOfTags;
   pCols = pTableMeta->schema;
   if (nFuncs < 0 || nFuncs > (numOfCols - 1)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                   "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1);
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                         "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1));
   }
-  if(pTableMeta->tableType != TSDB_SUPER_TABLE) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Rsma must be created on super table");
+  if (pTableMeta->tableType != TSDB_SUPER_TABLE) {
+    PAR_ERR_JRET(
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Rsma must be created on super table"));
   }
 
   pReq->tbUid = pTableMeta->uid;
-  assert(pTableMeta->uid == pTableMeta->suid);
 
   if (nFuncs > 0) {
     PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));
