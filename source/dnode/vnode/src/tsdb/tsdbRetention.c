@@ -148,6 +148,7 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
   int32_t  lino = 0;
   STFileOp op = {0};
   int32_t  lcn = fobj->f->lcn;
+  bool     rollup = VND_IS_RSMA(rtner->tsdb->pVnode);
 
   // remove old
   op = (STFileOp){
@@ -236,6 +237,16 @@ static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, int32_t expLevel, STFil
 
   if (fobj == NULL) {
     return code;
+  }
+
+  int32_t nSleep = 0;
+  while (true) {
+    printf("expLevel:%d, fobj level:%d, sleep 1s and retry\n", expLevel, fobj->f->did.level);
+    taosSsleep(1);
+    if(++nSleep > 30) {
+      tsdbError("vgId:%d, fid:%d, expLevel:%d, fobj level:%d, wait too long, exit", TD_VID(rtner->tsdb->pVnode), fobj->f->fid, expLevel, fobj->f->did.level);
+      break;
+    }
   }
 
   if (expLevel < 0) {

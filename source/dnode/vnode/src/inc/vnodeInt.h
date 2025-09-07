@@ -546,7 +546,7 @@ struct SVnode {
 // #define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
 // #define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
 // #define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
-// #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
+#define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
 // #define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
 
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)

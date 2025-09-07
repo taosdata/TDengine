@@ -95,6 +95,7 @@ struct STFileSet {
   TSKEY        lastCompact;
   TSKEY        lastCommit;
   TSKEY        lastMigrate;
+  TSKEY        lastRollup;  // recalc only if lastRollup > lastCommit or expLevel increased
 
   SVATaskID mergeTask;
   SVATaskID compactTask;

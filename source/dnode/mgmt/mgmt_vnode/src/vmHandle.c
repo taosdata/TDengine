@@ -218,13 +218,6 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keepTimeOffset = pCreate->keepTimeOffset;
   pCfg->tsdbCfg.minRows = pCreate->minRows;
   pCfg->tsdbCfg.maxRows = pCreate->maxRows;
-  for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {
-    SRetention *pRetention = &pCfg->tsdbCfg.retentions[i];
-    memcpy(pRetention, taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
-    if (i == 0) {
-      if ((pRetention->freq >= 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
-    }
-  }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   pCfg->tsdbCfg.encryptAlgorithm = pCreate->encryptAlgorithm;
   if (pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4) {
