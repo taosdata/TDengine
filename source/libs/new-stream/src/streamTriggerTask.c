@@ -4297,6 +4297,8 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
           goto _end;
         } else {
           QUERY_CHECK_CONDITION(pContext->pMetaToFetch == NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          pContext->calcDataBlockIdx = 0;
+          taosArrayClearP(pContext->pCalcDataBlocks, (FDelete)blockDataDestroy);
           for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
                pContext->curReaderIdx++) {
             code = stHistoryContextSendPullReq(
