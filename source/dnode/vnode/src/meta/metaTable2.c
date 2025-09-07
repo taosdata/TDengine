@@ -2407,10 +2407,12 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   }
 
   SMetaEntry entry = *pEntry;
-  entry.name = pReq->name;
   entry.version = version;
-  entry.stbEntry.rsmaParam.uid = pReq->uid;
   entry.stbEntry.rsmaParam.name = pReq->name;
+  entry.stbEntry.rsmaParam.uid = pReq->uid;
+  entry.stbEntry.rsmaParam.interval[0] = pReq->interval[0];
+  entry.stbEntry.rsmaParam.interval[1] = pReq->interval[1];
+  entry.stbEntry.rsmaParam.intervalUnit = pReq->intervalUnit;
   entry.stbEntry.rsmaParam.nFuncs = pReq->nFuncs;
   entry.stbEntry.rsmaParam.funcColIds = pReq->funcColIds;
   entry.stbEntry.rsmaParam.funcIds = pReq->funcIds;

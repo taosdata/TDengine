@@ -452,9 +452,48 @@ static int32_t metaCloneSchema(const SSchemaWrapper *pSrc, SSchemaWrapper *pDst)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t metaCloneRsmaParam(const SRSmaParam *pSrc, SRSmaParam *pDst) {
+  if (pSrc == NULL || pDst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  memcpy(pDst, pSrc, sizeof(SRSmaParam));
+  pDst->name = tstrdup(pSrc->name);
+  if (pDst->name == NULL) {
+    return terrno;
+  }
+  if (pSrc->nFuncs > 0) {
+    pDst->nFuncs = pSrc->nFuncs;
+    pDst->funcColIds = (col_id_t *)taosMemoryMalloc(pSrc->nFuncs * sizeof(col_id_t));
+    if (pDst->funcColIds == NULL) {
+      return terrno;
+    }
+    memcpy(pDst->funcColIds, pSrc->funcColIds, pSrc->nFuncs * sizeof(col_id_t));
+
+    pDst->funcIds = (func_id_t *)taosMemoryMalloc(pSrc->nFuncs * sizeof(func_id_t));
+    if (pDst->funcIds == NULL) {
+      return terrno;
+    }
+    memcpy(pDst->funcIds, pSrc->funcIds, pSrc->nFuncs * sizeof(func_id_t));
+  } else {
+    pDst->nFuncs = 0;
+    pDst->funcColIds = NULL;
+    pDst->funcIds = NULL;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static void metaCloneSchemaFree(SSchemaWrapper *pSchema) {
   if (pSchema) {
     taosMemoryFreeClear(pSchema->pSchema);
+  }
+}
+
+static void metaCloneRsmaParamFree(SRSmaParam *pParam) {
+  if (pParam) {
+    taosMemoryFreeClear(pParam->name);
+    taosMemoryFreeClear(pParam->funcColIds);
+    taosMemoryFreeClear(pParam->funcIds);
   }
 }
 
@@ -473,6 +512,9 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
   if (TSDB_SUPER_TABLE == (*ppEntry)->type) {
     metaCloneSchemaFree(&(*ppEntry)->stbEntry.schemaRow);
     metaCloneSchemaFree(&(*ppEntry)->stbEntry.schemaTag);
+    if (TABLE_IS_ROLLUP((*ppEntry)->flags)) {
+      metaCloneRsmaParamFree(&(*ppEntry)->stbEntry.rsmaParam);
+    }
   } else if (TSDB_CHILD_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_CHILD_TABLE == (*ppEntry)->type) {
     taosMemoryFreeClear((*ppEntry)->ctbEntry.comment);
     taosMemoryFreeClear((*ppEntry)->ctbEntry.pTags);
@@ -532,6 +574,13 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     if (code) {
       metaCloneEntryFree(ppEntry);
       return code;
+    }
+    if (TABLE_IS_ROLLUP(pEntry->flags)) {
+      code = metaCloneRsmaParam(&pEntry->stbEntry.rsmaParam, &(*ppEntry)->stbEntry.rsmaParam);
+      if (code) {
+        metaCloneEntryFree(ppEntry);
+        return code;
+      }
     }
     (*ppEntry)->stbEntry.keep = pEntry->stbEntry.keep;
   } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
