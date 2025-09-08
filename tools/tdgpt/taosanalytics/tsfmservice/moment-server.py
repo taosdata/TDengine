@@ -24,7 +24,7 @@ _model_list = [
 ]
 
 model = MOMENTPipeline.from_pretrained(
-    _model_list[2],
+    _model_list[0],
     model_kwargs={'task_name': 'reconstruction'} # For imputation, we will load MOMENT in `reconstruction` mode
     # local_files_only=True,  # Whether or not to only look at local files (i.e., do not try to download the model).
 )
@@ -289,7 +289,7 @@ def convert_ts(ts_list, precision):
 if __name__ == '__main__':
     app.run(
         host='0.0.0.0',
-        port=5005,
+        port=6062,
         threaded=True,
         debug=False
     )

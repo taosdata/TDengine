@@ -268,3 +268,24 @@ pip install flask
 ```shell
 nohup python timesfm-server.py > service_output.out 2>&1 &
 ```
+
+### 启动 moment 服务
+
+在干净的 python 虚拟环境中安装依赖库。
+
+```shell
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install transformers=4.33.3
+pip install numpy==1.25.2
+pip install matplotlib
+pip install pandas==1.5
+pip install scikit-learn
+pip install flask
+pip install momentfm
+```
+
+调整 moment-server.py 文件中设置服务地址（如果需要）。然后执行下述命令启动服务。
+
+```shell
+nohup python moment-server.py > service_output.out 2>&1 &
+```
