@@ -26,12 +26,14 @@ pub fn is_cloud(to: &taos::Dsn) -> bool {
         && to.get("token").is_some()
 }
 
+#[derive(Debug, Clone)]
+pub struct LicenseKindGood {
+    pub cluster_id: Option<i64>,
+    pub connector: Option<ConnectorLicense>,
+}
 #[derive(Debug)]
 pub enum LicenseKind {
-    Good {
-        cluster_id: Option<i64>,
-        connector: Option<ConnectorLicense>,
-    },
+    Good(LicenseKindGood),
     Edition(anyhow::Error),
     Feature(anyhow::Error),
     Connector(anyhow::Error),
@@ -39,15 +41,15 @@ pub enum LicenseKind {
 
 impl LicenseKind {
     pub fn good() -> Self {
-        LicenseKind::Good {
+        LicenseKind::Good(LicenseKindGood {
             cluster_id: None,
             connector: None,
-        }
+        })
     }
 
     pub fn ok(self) -> Result<()> {
         match self {
-            LicenseKind::Good { .. } => Ok(()),
+            LicenseKind::Good(_good) => Ok(()),
             LicenseKind::Edition(err) => anyhow::bail!(format!("License error: {:#}", err)),
             LicenseKind::Feature(err) => anyhow::bail!(format!("License error: {:#}", err)),
             LicenseKind::Connector(err) => anyhow::bail!(format!("License error: {:#}", err)),
@@ -56,10 +58,17 @@ impl LicenseKind {
 
     pub fn is_err(&self) -> bool {
         match self {
-            LicenseKind::Good { .. } => false,
+            LicenseKind::Good(_good) => false,
             LicenseKind::Edition(_) => true,
             LicenseKind::Feature(_) => true,
             LicenseKind::Connector(_) => true,
+        }
+    }
+
+    pub fn as_good(&self) -> Option<&LicenseKindGood> {
+        match self {
+            LicenseKind::Good(good) => Some(good),
+            _ => None,
         }
     }
 }
@@ -189,10 +198,10 @@ async fn check_connector_grant_of(
     if license.r#type.is_none() {
         license.r#type.replace(connector.to_string());
     }
-    Ok(LicenseKind::Good {
+    Ok(LicenseKind::Good(LicenseKindGood {
         cluster_id,
         connector: Some(license),
-    })
+    }))
 }
 
 #[allow(dead_code)]
