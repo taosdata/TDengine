@@ -2832,6 +2832,7 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
     return terrno;
   }
   pExternal->isSingleTable = pWindowLogicNode->isSingleTable;
+  pExternal->inputHasOrder = pWindowLogicNode->inputHasOrder;
   PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pTimeRange, &pExternal->pTimeRange));
 
   PLAN_ERR_JRET(createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode));

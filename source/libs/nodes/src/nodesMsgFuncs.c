@@ -3713,7 +3713,8 @@ enum { PHY_EXT_CODE_WINDOW = 1,
        PHY_EXT_CODE_SKEY,
        PHY_EXT_CODE_EKEY,
        PHY_EXT_CODE_TIME_RANGE_EXPR,
-       PHY_EXT_CODE_IS_SINGLE_TABLE};
+       PHY_EXT_CODE_IS_SINGLE_TABLE,
+       PHY_EXT_CODE_INPUT_HAS_ORDER};
 
 static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3729,6 +3730,9 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_IS_SINGLE_TABLE, pNode->isSingleTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_INPUT_HAS_ORDER, pNode->inputHasOrder);
   }
 
   return code;
@@ -3755,6 +3759,9 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_IS_SINGLE_TABLE:
         code = tlvDecodeBool(pTlv, &pNode->isSingleTable);
+        break;
+      case PHY_EXT_CODE_INPUT_HAS_ORDER:
+        code = tlvDecodeBool(pTlv, &pNode->inputHasOrder);
         break;
       default:
         break;

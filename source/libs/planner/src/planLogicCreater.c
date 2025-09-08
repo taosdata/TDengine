@@ -1688,6 +1688,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   // no agg func
   if (!pSelect->hasAggFuncs) {
     if (pSelect->hasIndefiniteRowsFunc) {
+      pWindow->node.requireDataOrder = getRequireDataOrder(pSelect->hasTimeLineFunc, pSelect);
+      pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
       nodesDestroyList(pWindow->pFuncs);
       pWindow->pFuncs = NULL;
       PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsStreamVectorFunc, &pWindow->pFuncs));
@@ -1696,12 +1698,16 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
       pWindow->indefRowsFunc = true;
       pSelect->hasIndefiniteRowsFunc = false;
     } else {
+      pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+      pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
       PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
       PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
       PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
     }
   } else {
     // has agg func, collect again with placeholder func
+    pWindow->node.requireDataOrder = getRequireDataOrder(pSelect->hasTimeLineFunc, pSelect);
+    pWindow->node.resultDataOrder = pSelect->onlyHasKeepOrderFunc ? pWindow->node.requireDataOrder : DATA_ORDER_LEVEL_NONE;
     nodesDestroyList(pWindow->pFuncs);
     pWindow->pFuncs = NULL;
     PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsStreamWindowClauseFunc, &pWindow->pFuncs));
@@ -1709,6 +1715,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
     pSelect->hasAggFuncs = false;
   }
+
+  pWindow->inputHasOrder = (pWindow->isSingleTable || pWindow->node.requireDataOrder == DATA_ORDER_LEVEL_GLOBAL);
 
   *pLogicNode = (SLogicNode*)pWindow;
 

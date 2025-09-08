@@ -366,6 +366,7 @@ typedef struct SWindowLogicNode {
   SNodeList*       pColList;  // use for count window
   SNodeList*       pProjs;  // for external window
   bool             isSingleTable; // for external window
+  bool             inputHasOrder; // for external window, whether input data is ordered
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -798,6 +799,7 @@ typedef struct SExternalWindowPhysiNode {
   STimeWindow      timeRange;
   SNode*           pTimeRange;
   bool             isSingleTable;
+  bool             inputHasOrder;
 } SExternalWindowPhysiNode;
 
 typedef struct SSortPhysiNode {

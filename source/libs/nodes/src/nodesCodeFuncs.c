@@ -3342,6 +3342,7 @@ static const char* jkExternalPhysiPlanStartTime = "StartTime";
 static const char* jkExternalPhysiPlanEndTime = "EndTime";
 static const char* jkExternalPhysiPlanTimeRangeExpr = "TimeRangeExpr";
 static const char* jkExternalPhysiPlanIsSingleTable = "IsSingleTable";
+static const char* jkExternalPhysiPlanInputHasOrder = "InputHasOrder";
 
 static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3358,6 +3359,9 @@ static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanIsSingleTable, pNode->isSingleTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanInputHasOrder, pNode->inputHasOrder);
   }
 
   return code;
@@ -3378,6 +3382,9 @@ static int32_t jsonToPhysiExternalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanIsSingleTable, &pNode->isSingleTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanInputHasOrder, &pNode->inputHasOrder);
   }
 
   return code;
