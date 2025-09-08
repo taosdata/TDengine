@@ -43,6 +43,7 @@ typedef struct SExternalWindowOperator {
   int32_t            primaryTsIndex;
   EExtWinMode        mode;
   bool               multiTableMode;
+  bool               inputHasOrder;
   SArray*            pWins;           // SArray<SExtWinTimeWindow>
   SArray*            pPseudoColInfo;  
   STimeRangeNode*    timeRangeExpr;
@@ -1150,7 +1151,7 @@ static int32_t extWinAggDo(SOperatorInfo* pOperator, int32_t startPos, int32_t f
 }
 
 static bool extWinLastWinClosed(SExternalWindowOperator* pExtW) {
-  if (pExtW->outWinIdx <= 0) {
+  if (pExtW->outWinIdx <= 0 || (pExtW->multiTableMode && !pExtW->inputHasOrder)) {
     return false;
   }
 
@@ -1711,6 +1712,9 @@ _exit:
 }
 
 static bool extWinNonAggGotResBlock(SExternalWindowOperator* pExtW) {
+  if (pExtW->multiTableMode && !pExtW->inputHasOrder) {
+    return false;
+  }
   int32_t remainWin = pExtW->outWinIdx - pExtW->outputWinId;
   if (remainWin > 1 && (NULL == pExtW->timeRangeExpr || !pExtW->timeRangeExpr->needCalc)) {
     return true;
@@ -2022,9 +2026,12 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
   if (pPhynode->isSingleTable) {
     pExtW->getWinFp = (pExtW->timeRangeExpr && pExtW->timeRangeExpr->needCalc) ? extWinGetOvlpWin : extWinGetNoOvlpWin;
+    pExtW->multiTableMode = false;
   } else {
     pExtW->getWinFp = (pExtW->timeRangeExpr && pExtW->timeRangeExpr->needCalc) ? extWinGetMultiTbOvlpWin : extWinGetMultiTbNoOvlpWin;
+    pExtW->multiTableMode = true;
   }
+  pExtW->inputHasOrder = pPhynode->inputHasOrder;
 
   pOperator->fpSet = createOperatorFpSet(extWinOpen, extWinNext, NULL, destroyExternalWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
