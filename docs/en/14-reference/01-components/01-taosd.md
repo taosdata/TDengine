@@ -208,13 +208,24 @@ The effective value of charset is UTF-8.
 | enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter           |
 | syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13 |
 | syncApplyQueueSize         |                   | supported, effective immediately   | Size of apply queue for sync log, range 32-2048, default is 512  |
+| statusIntervalMs           |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| statusSRTimeoutMs          |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| statusTimeoutMs            |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | syncElectInterval          |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
 | syncHeartbeatInterval      |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
+| syncVnodeElectIntervalMs   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| syncVnodeHeartbeatIntervalMs|                  | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| syncMnodeElectIntervalMs   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| syncMnodeHeartbeatIntervalMs|                  | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | syncHeartbeatTimeout       |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
 | syncSnapReplMaxWaitN       |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | arbHeartBeatIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | arbCheckSyncIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | arbSetAssignedTimeoutSec   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| arbHeartBeatIntervalMs     |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| arbCheckSyncIntervalMs     |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| arbSetAssignedTimeoutMs    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| syncTimeout                |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | mndSdbWriteDelta           |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module               |
 | mndLogRetention            |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module               |
 | skipGrant                  |                   | Not supported                      | Internal parameter, for authorization checks                 |
