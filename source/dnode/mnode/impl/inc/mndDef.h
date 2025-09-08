@@ -505,6 +505,7 @@ typedef struct {
   int64_t  stateTs;
   int64_t  compactStartTime;
   int32_t  tsmaVersion;
+  int64_t  scanStartTime;
 } SDbObj;
 
 typedef struct {

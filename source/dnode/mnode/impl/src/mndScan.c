@@ -929,7 +929,257 @@ static int32_t mndScanDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, 
   return 0;
 }
 
-extern int32_t mndScanDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds, bool metaOnly);
+static int32_t mndBuildScanDbRsp(SScanDbRsp *pScanRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+  int32_t code = 0;
+  int32_t rspLen = tSerializeSScanDbRsp(NULL, 0, pScanRsp);
+  void   *pRsp = NULL;
+  if (useRpcMalloc) {
+    pRsp = rpcMallocCont(rspLen);
+  } else {
+    pRsp = taosMemoryMalloc(rspLen);
+  }
+
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
+  }
+
+  (void)tSerializeSScanDbRsp(pRsp, rspLen, pScanRsp);
+  *pRspLen = rspLen;
+  *ppRsp = pRsp;
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetScanDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t scanTs) {
+  int32_t code = 0;
+  SDbObj  dbObj = {0};
+  memcpy(&dbObj, pDb, sizeof(SDbObj));
+  dbObj.scanStartTime = scanTs;
+
+  SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    TAOS_RETURN(code);
+  }
+
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_RETURN(code);
+}
+
+static void *mndBuildScanVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, int64_t scanTs,
+                                  STimeWindow tw) {
+  SScanVnodeReq scanReq = {0};
+  scanReq.dbUid = pDb->uid;
+  scanReq.scanStartTime = scanTs;
+  scanReq.tw = tw;
+  tstrncpy(scanReq.db, pDb->name, TSDB_DB_FNAME_LEN);
+
+  mInfo("vgId:%d, build scan vnode config req", pVgroup->vgId);
+  int32_t contLen = tSerializeSScanVnodeReq(NULL, 0, &scanReq);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  contLen += sizeof(SMsgHead);
+
+  void *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  SMsgHead *pHead = pReq;
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(pVgroup->vgId);
+
+  if (tSerializeSScanVnodeReq((char *)pReq + sizeof(SMsgHead), contLen, &scanReq) < 0) {
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  *pContLen = contLen;
+  return pReq;
+}
+
+static int32_t mndBuildScanVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t scanTs,
+                                        STimeWindow tw) {
+  int32_t      code = 0;
+  STransAction action = {0};
+  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildScanVnodeReq(pMnode, pDb, pVgroup, &contLen, scanTs, tw);
+  if (pReq == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_VND_SCAN;
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+extern int32_t mndAddScanDetailToTran(SMnode *pMnode, STrans *pTrans, SScanObj *pScan, SVgObj *pVgroup,
+                                      SVnodeGid *pVgid, int32_t index);
+
+static int32_t mndSetScanDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t scanTs, STimeWindow tw,
+                                       SArray *vgroupIds, SScanDbRsp *pScanRsp) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  SScanObj scan;
+  if ((code = mndAddScanToTran(pMnode, pTrans, &scan, pDb, pScanRsp)) != 0) {
+    TAOS_RETURN(code);
+  }
+
+  int32_t j = 0;
+  int32_t numOfVgroups = taosArrayGetSize(vgroupIds);
+  if (numOfVgroups > 0) {
+    for (int32_t i = 0; i < numOfVgroups; i++) {
+      int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+
+      if (pVgroup == NULL) {
+        mError("db:%s, vgroup:%" PRId64 " not exist", pDb->name, vgId);
+        TAOS_RETURN(TSDB_CODE_MND_VGROUP_NOT_EXIST);
+      } else if (pVgroup->dbUid != pDb->uid) {
+        mError("db:%s, vgroup:%" PRId64 " not belong to db:%s", pDb->name, vgId, pDb->name);
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(TSDB_CODE_MND_VGROUP_NOT_EXIST);
+      }
+    }
+
+    for (int32_t i = 0; i < numOfVgroups; i++) {
+      int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+
+      if ((code = mndBuildScanVgroupAction(pMnode, pTrans, pDb, pVgroup, scanTs, tw)) != 0) {
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(code);
+      }
+
+      for (int32_t i = 0; i < pVgroup->replica; i++) {
+        SVnodeGid *gid = &pVgroup->vnodeGid[i];
+        if ((code = mndAddScanDetailToTran(pMnode, pTrans, &scan, pVgroup, gid, j)) != 0) {
+          sdbRelease(pSdb, pVgroup);
+          TAOS_RETURN(code);
+        }
+        j++;
+      }
+      sdbRelease(pSdb, pVgroup);
+    }
+  } else {
+    while (1) {
+      SVgObj *pVgroup = NULL;
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+      if (pIter == NULL) break;
+
+      if (pVgroup->dbUid == pDb->uid) {
+        if ((code = mndBuildScanVgroupAction(pMnode, pTrans, pDb, pVgroup, scanTs, tw)) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pVgroup);
+          TAOS_RETURN(code);
+        }
+
+        for (int32_t i = 0; i < pVgroup->replica; i++) {
+          SVnodeGid *gid = &pVgroup->vnodeGid[i];
+          if ((code = mndAddScanDetailToTran(pMnode, pTrans, &scan, pVgroup, gid, j)) != 0) {
+            sdbCancelFetch(pSdb, pIter);
+            sdbRelease(pSdb, pVgroup);
+            TAOS_RETURN(code);
+          }
+          j++;
+        }
+      }
+
+      sdbRelease(pSdb, pVgroup);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t mndScanDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds) {
+  int32_t    code = 0;
+  int32_t    lino;
+  SScanDbRsp scanRsp = {0};
+
+  bool  isExist = false;
+  void *pIter = NULL;
+  while (1) {
+    SScanObj *pScan = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_SCAN, pIter, (void **)&pScan);
+    if (pIter == NULL) break;
+
+    if (strcmp(pScan->dbname, pDb->name) == 0) {
+      isExist = true;
+    }
+    sdbRelease(pMnode->pSdb, pScan);
+  }
+  if (isExist) {
+    mInfo("scan db:%s already exist", pDb->name);
+
+    if (pReq) {
+      int32_t rspLen = 0;
+      void   *pRsp = NULL;
+      scanRsp.scanId = 0;
+      scanRsp.bAccepted = false;
+      code = mndBuildScanDbRsp(&scanRsp, &rspLen, &pRsp, true);
+      TSDB_CHECK_CODE(code, lino, _OVER);
+
+      pReq->info.rsp = pRsp;
+      pReq->info.rspLen = rspLen;
+    }
+
+    return TSDB_CODE_MND_SCAN_ALREADY_EXIST;
+  }
+
+  int64_t scanTs = taosGetTimestampMs();
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "scan-db");
+  if (pTrans == NULL) goto _OVER;
+
+  mInfo("trans:%d, used to scan db:%s", pTrans->id, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
+  code = mndTransCheckConflict(pMnode, pTrans);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  code = mndSetScanDbCommitLogs(pMnode, pTrans, pDb, scanTs);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  code = mndSetScanDbRedoActions(pMnode, pTrans, pDb, scanTs, tw, vgroupIds, &scanRsp);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  if (pReq) {
+    int32_t rspLen = 0;
+    void   *pRsp = NULL;
+    scanRsp.bAccepted = true;
+    code = mndBuildScanDbRsp(&scanRsp, &rspLen, &pRsp, false);
+    TSDB_CHECK_CODE(code, lino, _OVER);
+    mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndScanDispatch(SRpcMsg *pReq) {
   int32_t code = 0;
 #if 0
@@ -1014,9 +1264,43 @@ static int32_t mndProcessScanTimer(SRpcMsg *pReq) {
   mTrace("start to process scan timer");
   mndScanPullup(pReq->info.node);
   TAOS_UNUSED(mndScanDispatch(pReq));
+  return 0;
 }
 
 int32_t mndProcessScanDbReq(SRpcMsg *pReq) {
-  // TODO
-  return TSDB_CODE_OPS_NOT_SUPPORT;
+  SMnode    *pMnode = pReq->info.node;
+  int32_t    code = -1;
+  SDbObj    *pDb = NULL;
+  SScanDbReq scanReq = {0};
+
+  if (tDeserializeSScanDbReq(pReq->pCont, pReq->contLen, &scanReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("db:%s, start to scan", scanReq.db);
+
+  pDb = mndAcquireDb(pMnode, scanReq.db);
+  if (pDb == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SCAN_DB, pDb), NULL, _OVER);
+
+  code = mndScanDb(pMnode, pReq, pDb, scanReq.timeRange, scanReq.vgroupIds);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  SName name = {0};
+  (void)tNameFromString(&name, scanReq.db, T_NAME_ACCT | T_NAME_DB);
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed to process scan db req since %s", scanReq.db, terrstr());
+  }
+
+  mndReleaseDb(pMnode, pDb);
+  tFreeSScanDbReq(&scanReq);
+  TAOS_RETURN(code);
 }

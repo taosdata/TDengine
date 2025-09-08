@@ -5405,6 +5405,18 @@ typedef struct {
 
 int32_t tSerializeSQueryScanProgressReq(void* buf, int32_t bufLen, SQueryScanProgressReq* pReq);
 int32_t tDeserializeSQueryScanProgressReq(void* buf, int32_t bufLen, SQueryScanProgressReq* pReq);
+
+typedef struct {
+  int64_t     dbUid;
+  char        db[TSDB_DB_FNAME_LEN];
+  int64_t     scanStartTime;
+  STimeWindow tw;
+  int32_t     scanId;
+} SScanVnodeReq;
+
+int32_t tSerializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq);
+int32_t tDeserializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq);
+
 #ifdef __cplusplus
 }
 #endif

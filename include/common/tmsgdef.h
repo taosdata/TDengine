@@ -346,6 +346,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL) // placeholder for future use
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_SCAN_PROGRESS, "vnode-query-scan-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_SCAN, "kill-scan", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_SCAN, "vnode-scan", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8

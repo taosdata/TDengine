@@ -15441,3 +15441,59 @@ _exit:
 }
 
 void tFreeSKillScanReq(SKillScanReq *pReq) { FREESQL(); }
+
+int32_t tSerializeSScanVnodeReq(void *buf, int32_t bufLen, SScanVnodeReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->dbUid));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->db));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->scanStartTime));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->tw.skey));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->tw.ekey));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->scanId));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSScanVnodeReq(void *buf, int32_t bufLen, SScanVnodeReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->dbUid));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->db));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->scanStartTime));
+
+  if (tDecodeIsEnd(&decoder)) {
+    pReq->tw.skey = TSKEY_MIN;
+    pReq->tw.ekey = TSKEY_MAX;
+  } else {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->tw.skey));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->tw.ekey));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->scanId));
+  }
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
