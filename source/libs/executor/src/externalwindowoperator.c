@@ -610,35 +610,32 @@ _error:
 
 
 static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
+  int32_t code = 0, lino = 0;
   SExternalWindowOperator* pExtW = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   SExternalWindowPhysiNode* pPhynode = (SExternalWindowPhysiNode*)pOperator->pPhyNode;
   pOperator->status = OP_NOT_OPENED;
 
-  resetBasicOperatorState(&pExtW->binfo);
+  //resetBasicOperatorState(&pExtW->binfo);
+  initResultRowInfo(&pExtW->binfo.resultRowInfo);
+
   pExtW->outputWinId = 0;
   pExtW->lastWinId = -1;
   taosArrayClear(pExtW->pWins);
   extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
 
-  int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
 /*
+  int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
   if (code == 0) {
     code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
                        sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
                        &pTaskInfo->storageAPI.functionStore);
   }
 */  
-  if (code == 0) {
-    code = resetExprSupp(&pExtW->scalarSupp, pTaskInfo, pPhynode->window.pProjs, NULL,
-                         &pTaskInfo->storageAPI.functionStore);
-  }
-  if (code == 0) {
-    colDataDestroy(&pExtW->twAggSup.timeWindowData);
-    code = initExecTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pTaskInfo->window);
-  }
-  //blockDataDestroy(pExtW->pTmpBlock);
-  //pExtW->pTmpBlock = NULL;
+  TAOS_CHECK_EXIT(resetExprSupp(&pExtW->scalarSupp, pTaskInfo, pPhynode->window.pProjs, NULL,
+                       &pTaskInfo->storageAPI.functionStore));
+  colDataDestroy(&pExtW->twAggSup.timeWindowData);
+  TAOS_CHECK_EXIT(initExecTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pTaskInfo->window));
 
   pExtW->outWinIdx = 0;
   pExtW->lastSKey = INT64_MIN;
@@ -646,6 +643,12 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   qDebug("%s ext window stat at reset, created:%" PRId64 ", destroyed:%" PRId64 ", recycled:%" PRId64 ", reused:%" PRId64 ", append:%" PRId64, 
       pTaskInfo->id.str, pExtW->stat.resBlockCreated, pExtW->stat.resBlockDestroyed, pExtW->stat.resBlockRecycled, 
       pExtW->stat.resBlockReused, pExtW->stat.resBlockAppend);
+
+_exit:
+
+  if (code) {
+    qError("%s %s failed at line %d since %s", pTaskInfo->id.str, __func__, lino, tstrerror(code));
+  }
   
   return code;
 }
@@ -1852,7 +1855,9 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 #endif      
   }
 
-  pOperator->resultInfo.totalRows += pExtW->binfo.pRes->info.rows;
+  if (*ppRes) {
+    pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
+  }
   
 _exit:
 
@@ -1935,7 +1940,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     }
     
     size_t keyBufSize = sizeof(int64_t) * 2 + POINTER_BYTES;
-    initResultSizeInfo(&pOperator->resultInfo, 100000);
+    initResultSizeInfo(&pOperator->resultInfo, 4096);
     code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
     QUERY_CHECK_CODE(code, lino, _error);
 
@@ -1975,12 +1980,6 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
       }
     }
     
-    pOperator->resultInfo.capacity = STREAM_CALC_REQ_MAX_WIN_NUM;
-    pOperator->resultInfo.threshold = STREAM_CALC_REQ_MAX_WIN_NUM;
-    pOperator->resultInfo.totalRows = 0;
-    code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
-    TSDB_CHECK_CODE(code, lino, _error);
-    
     int32_t    numOfExpr = 0;
     SExprInfo* pExprInfo = NULL;
     code = createExprInfo(pPhynode->window.pFuncs, NULL, &pExprInfo, &numOfExpr);
@@ -2001,7 +2000,6 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
                               pTaskInfo->pStreamRuntimeInfo);
     TSDB_CHECK_CODE(code, lino, _error);
     
-    pExtW->binfo.pRes = pResBlock;
     pExtW->binfo.inputTsOrder = pNode->inputTsOrder;
     pExtW->binfo.outputTsOrder = pNode->outputTsOrder;
     code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfExpr, &pExtW->pPseudoColInfo);
