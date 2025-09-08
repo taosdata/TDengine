@@ -731,10 +731,15 @@ struct SSchema {
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
 };
+
 struct SSchemaExt {
   col_id_t colId;
   uint32_t compress;
   STypeMod typeMod;
+};
+
+struct SSchemaRsma {
+  func_id_t funcId;
 };
 
 //
@@ -852,9 +857,10 @@ typedef struct {
 bool hasExtSchema(const SExtSchema* pExtSchema);
 
 typedef struct {
-  int32_t  nCols;
-  int32_t  version;
-  SSchema* pSchema;
+  int32_t      nCols;
+  int32_t      version;
+  SSchema*     pSchema;
+  SSchemaRsma* pRsma;
 } SSchemaWrapper;
 
 typedef struct {
@@ -947,7 +953,7 @@ static FORCE_INLINE void tDeleteSColCmprWrapper(SColCmprWrapper* pWrapper) {
 static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper->pSchema == NULL) return NULL;
 
-  SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
+  SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
   if (pSW == NULL) {
     return NULL;
   }
@@ -966,14 +972,14 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
 static FORCE_INLINE void tDeleteSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper) {
     taosMemoryFree(pSchemaWrapper->pSchema);
+    taosMemoryFree(pSchemaWrapper->pRsma);
     taosMemoryFree(pSchemaWrapper);
   }
 }
 
 static FORCE_INLINE void tDeleteSSchemaWrapperForHash(void* pSchemaWrapper) {
   if (pSchemaWrapper != NULL && *(SSchemaWrapper**)pSchemaWrapper != NULL) {
-    taosMemoryFree((*(SSchemaWrapper**)pSchemaWrapper)->pSchema);
-    taosMemoryFree(*(SSchemaWrapper**)pSchemaWrapper);
+    tDeleteSchemaWrapper(*(SSchemaWrapper**)pSchemaWrapper);
   }
 }
 

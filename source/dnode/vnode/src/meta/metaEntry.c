@@ -117,6 +117,42 @@ SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
   return NULL;
 }
 
+int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
+  if ((pME->type != TSDB_SUPER_TABLE) || !TABLE_IS_ROLLUP(pME->flags)) {
+    *rsmaSchema = NULL;
+    return 0;
+  }
+
+  const SRSmaParam *pParam = &pME->stbEntry.rsmaParam;
+  const SSchema    *pSchema = pME->stbEntry.schemaRow.pSchema;
+  int32_t           nCols = pME->stbEntry.schemaRow.nCols;
+  *rsmaSchema = (SSchemaRsma *)taosMemoryMalloc(sizeof(SSchemaRsma) * nCols);
+  if (*rsmaSchema == NULL) {
+    return terrno;
+  }
+  int32_t i = 0, j = 0;
+  for (i = 0; i < nCols; ++i) {
+    for (j = 0; j < pParam->nFuncs;) {
+      if (pParam->funcColIds[j] == pSchema[i].colId) {
+        (*rsmaSchema)[i].funcId = pParam->funcIds[j];
+        ++j;
+        break;
+      } else if (pParam->funcColIds[j] > pSchema[i].colId) {
+        (*rsmaSchema)[i].funcId = FUNCTION_TYPE_LAST;  // use last if not specified
+        break;
+      } else {
+        ++j;
+      }
+    }
+    if (j >= pParam->nFuncs) {
+      memset(&(*rsmaSchema)[i], FUNCTION_TYPE_LAST, sizeof(SSchemaRsma) * (nCols - i));  // use last if not specified
+      break;
+    }
+  }
+
+  return 0;
+}
+
 int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   SColRefWrapper *pWrapper = &pME->colRef;
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nCols));

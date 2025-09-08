@@ -286,7 +286,7 @@ void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid) {
     return;
   }
   bool            ret = false;
-  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1, NULL);
+  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1, NULL, 0);
   if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     ret = true;
   }
@@ -725,7 +725,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
       (pReader->cachedSchemaVer != sversion)) {
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
     taosMemoryFree(pReader->extSchema);
-    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &pReader->extSchema);
+    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &pReader->extSchema, 0);
     if (pReader->pSchemaWrapper == NULL) {
       tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64
              "version %d, possibly dropped table",
@@ -1142,7 +1142,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
 
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
   taosMemoryFreeClear(pReader->extSchema);
-  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &pReader->extSchema);
+  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &pReader->extSchema, 0);
   if (pReader->pSchemaWrapper == NULL) {
     tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
            pReader->pWalReader->pWal->cfg.vgId, uid, pReader->cachedSchemaVer);

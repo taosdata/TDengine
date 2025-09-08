@@ -379,7 +379,11 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   return 0;
 }
 
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema) {
+/**
+ * @param type 0x01 fetchRsmaSchema if table is rsma
+ */
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema,
+                                   int32_t type) {
   void           *pData = NULL;
   int             nData = 0;
   int64_t         version;
@@ -411,6 +415,12 @@ _query:
     if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
       if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
+      if ((type == 0x01) && TABLE_IS_ROLLUP(me.flags)) {
+        if ((terrno = metaGetRsmaSchema(&me, &pSchema->pRsma)) != 0) {
+          tDecoderClear(&dc);
+          goto _err;
+        }
+      }
       tDecoderClear(&dc);
       goto _exit;
     }
@@ -453,6 +463,10 @@ _err:
     metaULock(pMeta);
   }
   tdbFree(pData);
+  tDeleteSchemaWrapper(pSchema);
+  if (extSchema != NULL) {
+    taosMemoryFreeClear(*extSchema);
+  }
   return NULL;
 }
 
@@ -668,13 +682,12 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
 
-  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL);
+  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0);
   if (!pSW) return NULL;
 
   pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
-  taosMemoryFree(pSW->pSchema);
-  taosMemoryFree(pSW);
+  tDeleteSchemaWrapper(pSW);
   return pTSchema;
 }
 

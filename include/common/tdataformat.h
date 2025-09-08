@@ -29,19 +29,20 @@
 extern "C" {
 #endif
 
-typedef struct SSchema    SSchema;
-typedef struct SSchema2   SSchema2;
-typedef struct SSchemaExt SSchemaExt;
-typedef struct STColumn   STColumn;
-typedef struct STSchema   STSchema;
-typedef struct SValue     SValue;
-typedef struct SColVal    SColVal;
-typedef struct SRow       SRow;
-typedef struct SRowIter   SRowIter;
-typedef struct STagVal    STagVal;
-typedef struct STag       STag;
-typedef struct SColData   SColData;
-typedef struct SBlobSet   SBlobSet;
+typedef struct SSchema     SSchema;
+typedef struct SSchema2    SSchema2;
+typedef struct SSchemaExt  SSchemaExt;
+typedef struct SSchemaRsma SSchemaRsma;
+typedef struct STColumn    STColumn;
+typedef struct STSchema    STSchema;
+typedef struct SValue      SValue;
+typedef struct SColVal     SColVal;
+typedef struct SRow        SRow;
+typedef struct SRowIter    SRowIter;
+typedef struct STagVal     STagVal;
+typedef struct STag        STag;
+typedef struct SColData    SColData;
+typedef struct SBlobSet    SBlobSet;
 
 typedef struct SRowKey           SRowKey;
 typedef struct SValueColumn      SValueColumn;
@@ -270,6 +271,9 @@ struct STColumn {
   int8_t   flags;
   int32_t  bytes;
   int32_t  offset;
+  union {
+    int32_t funcId;
+  };
 };
 
 struct STSchema {
