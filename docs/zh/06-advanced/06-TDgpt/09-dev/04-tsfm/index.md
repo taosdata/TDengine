@@ -6,7 +6,7 @@ sidebar_label: "部署时序基础模型"
 由众多研究机构及企业开源时序基础模型极大地简化了时序数据分析的复杂程度，在数据分析算法、机器学习和深度学习模型之外，
 提供了一个时间序列数据高级分析的新选择。本章介绍部署并使用开源时序基础模型（Time Series Foundation Model, TSFM）。
 
-TDgpt 在 3.3.6.4 版本原生支持五种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm。
+TDgpt 在 3.3.6.4 版本原生支持六种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm, moment。
 在官方的安装包中，内置了 TDtsfm 和 time-moe 两个时序模型，如果使用其他的模型，需要您在本地部署服务。部署其他时序基础模型服务的文件，位于
 `< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含四个文件，分别用于本地部署启动对应的时序基础模型。TDgpt 适配了以下的时序模型的功能，对于不支持的功能，可能模型本身无法支持也可能是 TDgpt 没有适配该时序基础模型的功能。
 
@@ -64,7 +64,7 @@ def time_moe():
 ```Python
     app.run(
             host='0.0.0.0',
-            port=5001,
+            port=6037,
             threaded=True,  
             debug=False     
         )
@@ -94,7 +94,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 ```text
 Running on all addresses (0.0.0.0)
-Running on http://127.0.0.1:5001
+Running on http://127.0.0.1:6037
 ```
 
 # 检查服务状态
@@ -102,7 +102,7 @@ Running on http://127.0.0.1:5001
 使用 Shell 命令可以验证服务是否正常
 
 ```shell
-curl 127.0.0.1:5001/ds_predict
+curl 127.0.0.1:6037/ds_predict
 ```
 
 如果看到如下返回信息表明服务正常，自此部署 Time-MoE 完成。
@@ -136,7 +136,7 @@ class _TimeMOEService(TsfmBaseService):
 
         # 如果  taosanode.ini 配置文件中没有设置服务 URL 地址，这里使用默认地址
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:5001/timemoe'
+            self.service_host = 'http://127.0.0.1:6037/timemoe'
 
     def execute(self):
         # 检查是否支持历史协变量分析，如果不支持，触发异常。time-moe 不支持历史协变量分析，因此触发异常
@@ -157,7 +157,7 @@ TDgpt 已经内置 Time-MoE 模型的支持，能够使用 Time-MoE 的能力进
 
 ```ini
 [tsfm-service]
-timemoe-fc = http://127.0.0.1:5001/ds_predict
+timemoe-fc = http://127.0.0.1:6037/ds_predict
 ```
 
 添加服务的地址。此时的 `key` 是模型的名称，此时即为 `timemoe-fc`，`value` 是 Time-MoE 本地服务的地址:`http://127.0.0.1:5001/ds_predict`。
@@ -225,7 +225,7 @@ pip install flask
 def main():
     app.run(
         host='0.0.0.0',
-        port=5002,
+        port=6038,
         threaded=True,
         debug=False
     )
@@ -260,7 +260,7 @@ nohup python chronos-server.py > service_output.out 2>&1 &
 pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install timesfm
 pip install jax
-pip install flask
+pip install flask==3.0.3
 ```
 
 调整 timesfm-server.py 文件中设置服务地址（如果需要）。然后执行下述命令启动服务。
@@ -280,7 +280,7 @@ pip install numpy==1.25.2
 pip install matplotlib
 pip install pandas==1.5
 pip install scikit-learn
-pip install flask
+pip install flask==3.0.3
 pip install momentfm
 ```
 
