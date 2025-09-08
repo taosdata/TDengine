@@ -14,7 +14,7 @@ def do_imputation(input_list, ts_list, algo_name, params):
     s = loader.get_service(algo_name)
 
     if s is None:
-        s = loader.get_service("moment-imputation")
+        s = loader.get_service("moment")
 
     if s is None:
         raise ValueError(f"failed to load {algo_name} analysis service")

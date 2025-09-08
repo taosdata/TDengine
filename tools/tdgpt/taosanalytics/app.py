@@ -204,7 +204,7 @@ def handle_imputation_req():
         app_logger.log_inst.error("invalid fc params: %s", e)
         return {"msg": f"{e}", "rows": -1}
 
-    algo = req_json['algo'].lower() if 'algo' in req_json else 'moment-imputation'
+    algo = req_json['algo'].lower() if 'algo' in req_json else 'moment'
 
     try:
         res1 = do_imputation(payload[data_index], payload[ts_index], algo, params)

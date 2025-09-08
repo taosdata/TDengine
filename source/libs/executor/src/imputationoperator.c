@@ -40,6 +40,7 @@ typedef struct {
   int32_t      tsSlot;
   int32_t      tsPrecision;
   int32_t      numOfCols;
+  char         freq[2];         // frequency of data
   SAnalyticBuf analyBuf;
   STimeWindow  win;
 } SImputationSupp;
@@ -218,7 +219,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  (*ppRes) = /*(pBInfo->pRes->info.rows == 0) ? NULL : */ pBInfo->pRes;
+  (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
   return code;
 }
 
@@ -375,6 +376,9 @@ static int32_t finishBuildRequest(SImputationOperatorInfo* pInfo, SImputationSup
   code = taosAnalyBufWriteOptStr(pBuf, "algo", pInfo->algoName);
   if (code != 0) return code;
 
+  code = taosAnalyBufWriteOptStr(pBuf, "freq", pSupp->freq);
+  if (code != 0) return code;
+
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
   if (pSupp->tsPrecision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pSupp->tsPrecision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
@@ -398,6 +402,7 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       resCurRow = pBlock->info.rows;
   int64_t       tmpI64 = 0;
+  int32_t       tmpI32 = 0;
   float         tmpFloat = 0;
   double        tmpDouble = 0;
   int32_t       code = 0;
@@ -432,17 +437,23 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
     goto _OVER;
   }
 
-  SJson* res = tjsonGetObjectItem(pJson, "res");
-  if (res == NULL) goto _OVER;
+  SJson* pTarget = tjsonGetObjectItem(pJson, "target");
+  if (pTarget == NULL) goto _OVER;
+
+  SJson* pTsList = tjsonGetObjectItem(pJson, "ts");
+  if (pTsList == NULL) goto _OVER;
+
+  SJson* pMask = tjsonGetObjectItem(pJson, "mask");
+  if (pMask == NULL) goto _OVER;
+
+  int32_t listLen = tjsonGetArraySize(pTarget);
+  if (listLen != rows) {
+    goto _OVER;
+  }
 
   if (pResTsCol != NULL) {
-    resCurRow = pBlock->info.rows;
-    SJson* tsJsonArray = tjsonGetArrayItem(res, 0);
-    if (tsJsonArray == NULL) goto _OVER;
-    int32_t tsSize = tjsonGetArraySize(tsJsonArray);
-    if (tsSize != rows) goto _OVER;
-    for (int32_t i = 0; i < tsSize; ++i) {
-      SJson* tsJson = tjsonGetArrayItem(tsJsonArray, i);
+    for (int32_t i = 0; i < rows; ++i) {
+      SJson* tsJson = tjsonGetArrayItem(pTsList, i);
       tjsonGetObjectValueBigInt(tsJson, &tmpI64);
       colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
       resCurRow++;
@@ -450,17 +461,66 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
   }
 
   resCurRow = pBlock->info.rows;
-  SJson* valJsonArray = tjsonGetArrayItem(res, 1);
-  if (valJsonArray == NULL) goto _OVER;
-  int32_t valSize = tjsonGetArraySize(valJsonArray);
-  if (valSize != rows) goto _OVER;
-  for (int32_t i = 0; i < valSize; ++i) {
-    SJson* valJson = tjsonGetArrayItem(valJsonArray, i);
-    tjsonGetObjectValueDouble(valJson, &tmpDouble);
+  if (pResTargetCol->info.type == TSDB_DATA_TYPE_DOUBLE) {
+    for (int32_t i = 0; i < rows; ++i) {
+      SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+      tjsonGetObjectValueDouble(targetJson, &tmpDouble);
+      colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
+      resCurRow++;
+    }
+  } else if (pResTargetCol->info.type == TSDB_DATA_TYPE_INT) {
+    for (int32_t i = 0; i < rows; ++i) {
+      SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+      tjsonGetObjectValueDouble(targetJson, &tmpDouble);
+      int32_t t = tmpDouble;
+      colDataSetInt32(pResTargetCol, resCurRow, &t);
+      resCurRow++;
+    }
+  }  else if (pResTargetCol->info.type == TSDB_DATA_TYPE_FLOAT) {
+    for (int32_t i = 0; i < rows; ++i) {
+      SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+      tjsonGetObjectValueDouble(targetJson, &tmpDouble);
+      float t = tmpDouble;
+      colDataSetFloat(pResTargetCol, resCurRow, &t);
+      resCurRow++;
+    }
+  }
 
-    colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
+  resCurRow = pBlock->info.rows;
+  for (int32_t i = 0; i < rows; ++i) {
+    SJson* maskJson = tjsonGetArrayItem(pMask, i);
+    tjsonGetObjectValueBigInt(maskJson, &tmpI64);
+    // colDataSetInt32(pResMaskCol, resCurRow, &tmpDouble); // todo
     resCurRow++;
   }
+
+
+  // if (pResTsCol != NULL) {
+  //   resCurRow = pBlock->info.rows;
+  //   SJson* tsJsonArray = tjsonGetArrayItem(pTarget, 0);
+  //   if (tsJsonArray == NULL) goto _OVER;
+  //   int32_t tsSize = tjsonGetArraySize(tsJsonArray);
+  //   if (tsSize != rows) goto _OVER;
+  //   for (int32_t i = 0; i < tsSize; ++i) {
+  //     SJson* tsJson = tjsonGetArrayItem(tsJsonArray, i);
+  //     tjsonGetObjectValueBigInt(tsJson, &tmpI64);
+  //     colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
+  //     resCurRow++;
+  //   }
+  // }
+
+  // resCurRow = pBlock->info.rows;
+  // SJson* valJsonArray = tjsonGetArrayItem(res, 1);
+  // if (valJsonArray == NULL) goto _OVER;
+  // int32_t valSize = tjsonGetArraySize(valJsonArray);
+  // if (valSize != rows) goto _OVER;
+  // for (int32_t i = 0; i < valSize; ++i) {
+  //   SJson* valJson = tjsonGetArrayItem(valJsonArray, i);
+  //   tjsonGetObjectValueDouble(valJson, &tmpDouble);
+
+  //   colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
+  //   resCurRow++;
+  // }
 
   pBlock->info.rows += rows;
 
@@ -496,7 +556,7 @@ static int32_t doImputation(SImputationOperatorInfo* pInfo, SExecTaskInfo* pTask
   //   return TSDB_CODE_SUCCESS;
   // }
 
-  // int32_t code = blockDataEnsureCapacity(pBlock, newRowsNum);
+  // code = blockDataEnsureCapacity(pRes, newRowsNum);
   // if (code != TSDB_CODE_SUCCESS) {
   //   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   //   return code;
@@ -507,7 +567,7 @@ static int32_t doImputation(SImputationOperatorInfo* pInfo, SExecTaskInfo* pTask
   code = doImputationImpl(pInfo, pSupp, pRes, id);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  uInfo("%s block:%d, forecast finalize", id, pSupp->numOfBlocks);
+  uInfo("%s block:%d, imputation finalize", id, pSupp->numOfBlocks);
 
 _end:
   pSupp->numOfBlocks = 0;
@@ -528,6 +588,9 @@ static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
   pSupp->targetSlot = -1;
   pSupp->targetType = -1;
   pSupp->tsPrecision = -1;
+
+  pSupp->freq[0] = 's';  // H,s,T,D
+  pSupp->freq[1] = '\0';
 
   FOREACH(pNode, pFuncs) {
     if ((nodeType(pNode) == QUERY_NODE_TARGET) && (nodeType(((STargetNode*)pNode)->pExpr) == QUERY_NODE_FUNCTION)) {
@@ -553,7 +616,7 @@ static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
           pSupp->targetType = pTargetNode->node.resType.type;
 
           // let's set the moment as the default imputation algorithm
-          pInfo->options = taosStrdup("algo=moment-imputation");
+          pInfo->options = taosStrdup("algo=moment");
         } else {
           // column, options, ts
           SColumnNode* pTargetNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -626,9 +689,10 @@ static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
 }
 
 static void doInitOptions(SImputationSupp* pSupp) {
-  // pSupp->win = TIMEWINDOW;
   pSupp->numOfRows = 0;
   pSupp->wncheck = ANALY_DEFAULT_WNCHECK;
+  pSupp->freq[0] = 's';
+  pSupp->freq[1] = '\0';
 }
 
 int32_t doParseOption(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, const char* id) {
@@ -656,6 +720,16 @@ int32_t doParseOption(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, co
   // extract the timeout parameter
   pSupp->timeout = taosAnalysisParseTimout(pHashMap, id);
   pSupp->wncheck = taosAnalysisParseWncheck(pHashMap, id);
+
+  // extract data freq
+  char* pFreq = taosHashGet(pHashMap, "freq", strlen("freq"));
+  if (pFreq != NULL) {
+    pSupp->freq[0] = ((char*) pFreq)[0];
+    pSupp->freq[1] = '\0';
+    qDebug("%s data freq:%s", id, pSupp->freq);
+  } else {
+    qDebug("%s not specify data freq, default: %s", id, pSupp->freq);
+  }
 
   // extract the forecast rows
   // char* pRows = taosHashGet(pHashMap, ALGO_OPT_FORECASTROWS_NAME, strlen(ALGO_OPT_FORECASTROWS_NAME));
@@ -703,11 +777,11 @@ _end:
 
 static int32_t doCreateBuf(SImputationSupp* pSupp, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
-  int64_t       ts = 0;  // taosGetTimestampMs();
+  int64_t       ts = taosGetTimestampNs();
   int32_t       index = 0;
 
   pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
-  snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-imput-%" PRId64, tsTempDir, ts);
+  snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-imput-%p-%" PRId64, tsTempDir, pSupp, ts);
 
   int32_t code = tsosAnalyBufOpen(pBuf, pSupp->numOfCols, pId);
   if (code != 0) goto _OVER;

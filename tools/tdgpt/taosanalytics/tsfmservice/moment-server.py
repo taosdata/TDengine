@@ -243,7 +243,7 @@ def do_handle_input_data(value_list, ts_list, precision, freq):
 
     print(f"Shapes: preds={preds.shape} | trues={trues.shape} | masks={masks.shape}")
 
-    draw_imputation_stride_result(trues, preds, masks)
+    # draw_imputation_stride_result(trues, preds, masks)
 
     padding_len = input_data.timeseries_padding_length
     comp_len = input_data.timeseries_complete_length

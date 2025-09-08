@@ -10,7 +10,7 @@ from taosanalytics.service import AbstractImputationService
 
 class _MomentImputationService(AbstractImputationService):
     """moment imputation service class"""
-    name = 'moment-imputation'
+    name = 'moment'
     desc = "Time-Series Foundation Model by CMU"
 
     def __init__(self):
@@ -23,7 +23,7 @@ class _MomentImputationService(AbstractImputationService):
         self.precision = 'ms'
 
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:5005/imputation'
+            self.service_host = 'http://127.0.0.1:6062/imputation'
 
 
     def execute(self):
