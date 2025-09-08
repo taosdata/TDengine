@@ -1245,7 +1245,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   pStmt->sql.sqlStr = taosStrndup(sql, length);
   if (!pStmt->sql.sqlStr) {
     STMT2_ELOG("fail to allocate memory for sqlStr:%s", tstrerror(terrno));
-    return terrno;
+    STMT_ERR_RET(terrno);
   }
   pStmt->sql.sqlLen = length;
   STMT_ERR_RET(stmtCreateRequest(pStmt));
@@ -1260,7 +1260,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
       taosMemoryFreeClear(pStmt->exec.pRequest->pDb);
       pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
       if (pStmt->exec.pRequest->pDb == NULL) {
-        return terrno;
+        STMT_ERR_RET(terrno);
       }
       (void)strdequote(pStmt->exec.pRequest->pDb);
 

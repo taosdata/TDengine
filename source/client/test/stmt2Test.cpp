@@ -1795,6 +1795,33 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   taos_close(taos);
 }
 
+void taos_retrieve_call_back(void* param, TAOS_RES* tres, int numOfRows) {
+  if (numOfRows > 0) {
+    // synchronous API to retrieve a row from batch of records
+    TAOS_ROW row = taos_fetch_row(tres);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(strncmp((char*)row[0], "tb1", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[1], "abc", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+
+    row = taos_fetch_row(tres);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(strncmp((char*)row[0], "tb2", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[1], "xyz", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+    taos_fetch_rows_a(tres, taos_retrieve_call_back, param);
+
+  } else {
+    ASSERT_EQ(tsem_post(&((AsyncArgs*)param)->sem), TSDB_CODE_SUCCESS);
+  }
+}
+
+void asyncExec(void* param, TAOS_RES* res, int code) {
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  taos_fetch_rows_a(res, taos_retrieve_call_back, param);
+  return;
+}
+
 TEST(stmt2Case, stmt2_query) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
@@ -1809,63 +1836,75 @@ TEST(stmt2Case, stmt2_query) {
            "'abc'),(1591060628001,'def'),(1591060628004, 'hij')");
   do_query(taos, "use stmt2_testdb_7");
 
-  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  // sync query
+  {
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
-  TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
-  ASSERT_NE(stmt, nullptr);
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
 
-  const char* sql = "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? order by tbname";
-  int         code = taos_stmt2_prepare(stmt, sql, 0);
-  checkError(stmt, code, __FILE__, __LINE__);
+    const char* sql = "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? order by tbname";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  int             fieldNum = 0;
-  TAOS_FIELD_ALL* pFields = NULL;
-  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-  checkError(stmt, code, __FILE__, __LINE__);
-  ASSERT_EQ(fieldNum, 1);
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(fieldNum, 1);
 
-  int              t64_len = sizeof(int64_t);
-  int64_t          ts = 1591060628000;
-  TAOS_STMT2_BIND  params = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, 1};
-  TAOS_STMT2_BIND* paramv = &params;
-  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
-  code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  checkError(stmt, code, __FILE__, __LINE__);
+    int              t64_len = sizeof(int64_t);
+    int64_t          ts = 1591060628000;
+    TAOS_STMT2_BIND  params = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, 1};
+    TAOS_STMT2_BIND* paramv = &params;
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  taos_stmt2_exec(stmt, NULL);
-  checkError(stmt, code, __FILE__, __LINE__);
+    taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  TAOS_RES* pRes = taos_stmt2_result(stmt);
-  ASSERT_NE(pRes, nullptr);
+    taos_stmt2_close(stmt);
+  }
 
-  TAOS_ROW row = taos_fetch_row(pRes);
-  ASSERT_NE(row, nullptr);
-  ASSERT_EQ(strncmp((char*)row[0], "tb1", 3), 0);
-  ASSERT_EQ(strncmp((char*)row[1], "abc", 3), 0);
-  ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+  // async query with async fetch
+  {
+    AsyncArgs* aa = (AsyncArgs*)taosMemMalloc(sizeof(AsyncArgs));
+    aa->async_affected_rows = 0;
+    ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
 
-  row = taos_fetch_row(pRes);
-  ASSERT_NE(row, nullptr);
-  ASSERT_EQ(strncmp((char*)row[0], "tb2", 3), 0);
-  ASSERT_EQ(strncmp((char*)row[1], "xyz", 3), 0);
-  ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+    TAOS_STMT2_OPTION option = {0, true, true, asyncExec, (void*)aa};
 
-  // test 1 result
-  ts = 1591060628004;
-  code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  checkError(stmt, code, __FILE__, __LINE__);
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
 
-  taos_stmt2_exec(stmt, NULL);
-  checkError(stmt, code, __FILE__, __LINE__);
+    const char* sql = "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? order by tbname";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  pRes = taos_stmt2_result(stmt);
-  ASSERT_NE(pRes, nullptr);
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(fieldNum, 1);
 
-  row = taos_fetch_row(pRes);
-  ASSERT_NE(row, nullptr);
-  ASSERT_EQ(strncmp((char*)row[0], "tb2", 3), 0);
-  ASSERT_EQ(strncmp((char*)row[1], "xyz", 3), 0);
-  ASSERT_EQ(strncmp((char*)row[2], "hij", 3), 0);
+    int              t64_len = sizeof(int64_t);
+    int64_t          ts = 1591060628000;
+    TAOS_STMT2_BIND  params = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, 1};
+    TAOS_STMT2_BIND* paramv = &params;
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    tsem_wait(&aa->sem);
+    tsem_destroy(&aa->sem);
+    taosMemFree(aa);
+
+    taos_stmt2_close(stmt);
+  }
 
   // int code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = ?", 0);
   // checkError(stmt, code, __FILE__, __LINE__);
@@ -1896,7 +1935,6 @@ TEST(stmt2Case, stmt2_query) {
   // ASSERT_EQ(strncmp((char*)row[1], "abc", 3), 0);
   // ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
 
-  taos_stmt2_close(stmt);
   do_query(taos, "drop database if exists stmt2_testdb_7");
   taos_close(taos);
 }
