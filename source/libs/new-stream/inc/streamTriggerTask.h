@@ -129,6 +129,7 @@ typedef struct SSTriggerRealtimeContext {
   SSHashObj *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
   int32_t    curReaderIdx;
   bool       getWalMetaThisRound;
+  bool       continueToFetch;
 
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;

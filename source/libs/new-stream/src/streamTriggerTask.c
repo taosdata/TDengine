@@ -3199,11 +3199,26 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       } else {
         pProgress->lastScanVer = lastScanVer;
       }
+      if (blockDataGetNumOfRows(pContext->pMetaBlock) >= STREAM_RETURN_ROWS_NUM) {
+        pContext->continueToFetch = true;
+      }
 
       // todo(smj): process dropped tables in pContext->pDropBlock
 
       if (--pContext->curReaderIdx > 0) {
         ST_TASK_DLOG("wait for response from other %d readers", pContext->curReaderIdx);
+        goto _end;
+      }
+
+      if (pContext->continueToFetch) {
+        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIzu,
+                     TARRAY_SIZE(pTask->readerList));
+        for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
+             pContext->curReaderIdx++) {
+          code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META_NEW);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        pContext->continueToFetch = false;
         goto _end;
       }
 
