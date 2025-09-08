@@ -120,7 +120,7 @@ Example of custom data type query result:
 </details> 
 
 - ResultBean is a custom inner class used to define the data type of the Source query results.
-- ResultSoureDeserialization is a custom inner class that inherits `TDengine` RecordDesrialization and implements convert and getProducedType methods.
+- ResultSourceDeserialization is a custom inner class that inherits `TDengine` RecordDesrialization and implements convert and getProducedType methods.
 
 ### CDC Data Subscription
 

@@ -121,7 +121,7 @@ Properties 中配置参数如下：
 </details> 
 
 - ResultBean 自定义的一个内部类，用于定义 Source 查询结果的数据类型。
-- ResultSoureDeserialization 是自定义的一个内部类，通过继承 `TDengineRecordDeserialization` 并实现 `convert` 和 `getProducedType` 方法。
+- ResultSourceDeserialization 是自定义的一个内部类，通过继承 `TDengineRecordDeserialization` 并实现 `convert` 和 `getProducedType` 方法。
 
 ### CDC 数据订阅
 
