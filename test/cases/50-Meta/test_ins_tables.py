@@ -95,7 +95,7 @@ class TestTableCount:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, 47)
+        tdSql.checkData(0, 1, 48)
 
         tdSql.checkData(1, 1, 10)
 

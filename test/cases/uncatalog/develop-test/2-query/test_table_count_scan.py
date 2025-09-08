@@ -81,7 +81,7 @@ class TestTableCountScan:
         for i in range(0, 3):
             db_name = tdSql.getData(i, 1)
             if db_name == 'information_schema':
-                tdSql.checkData(i, 0, 41)
+                tdSql.checkData(i, 0, 42)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'performance_schema':
                 tdSql.checkData(i, 0, 5)
@@ -94,7 +94,7 @@ class TestTableCountScan:
         
         tdSql.query('select count(1) v,db_name, stable_name from information_schema.ins_tables group by db_name, stable_name order by v desc;')
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 41)
+        tdSql.checkData(0, 0, 42)
         tdSql.checkData(0, 1, 'information_schema')
         tdSql.checkData(0, 2, None)
         tdSql.checkData(1, 0, 5)
