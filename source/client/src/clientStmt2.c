@@ -380,14 +380,12 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t resetRequest(STscStmt2* pStmt) {
+static void resetRequest(STscStmt2* pStmt) {
   if (pStmt->exec.pRequest) {
     taos_free_result(pStmt->exec.pRequest);
     pStmt->exec.pRequest = NULL;
   }
   pStmt->asyncResultAvailable = false;
-
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t stmtCleanBindInfo(STscStmt2* pStmt) {
