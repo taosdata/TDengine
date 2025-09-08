@@ -2163,7 +2163,9 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
         return code;
       }
       if (pTsdb) {
-        TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type));
+        TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type,
+                                                   (SSchemaWrapper *)&pOldEntry->stbEntry.schemaRow,
+                                                   (SSchemaWrapper *)&pEntry->stbEntry.schemaRow));
       }
     } else if (deltaCol == -1) {
       int16_t cid = -1;
@@ -2186,7 +2188,9 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
           return code;
         }
         if (pTsdb) {
-          TAOS_CHECK_RETURN(tsdbCacheDropSTableColumn(pTsdb, uids, cid, hasPrimaryKey));
+          TAOS_CHECK_RETURN(tsdbCacheDropSTableColumn(pTsdb, uids, cid,
+                                                      (SSchemaWrapper *)&pOldEntry->stbEntry.schemaRow,
+                                                      (SSchemaWrapper *)&pEntry->stbEntry.schemaRow, hasPrimaryKey));
         }
       }
     }
