@@ -140,7 +140,9 @@ void dmMetricsCleanExpiredSamples();
 void dmSendAuditRecords();
 void dmGetVnodeLoads(SMonVloadInfo *pInfo);
 void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo);
+void dmSetVnodeSyncTimeout();
 void dmGetMnodeLoads(SMonMloadInfo *pInfo);
+void dmSetMnodeSyncTimeout();
 void dmGetQnodeLoads(SQnodeLoad *pInfo);
 
 #ifdef __cplusplus

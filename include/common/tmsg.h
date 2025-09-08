@@ -2120,6 +2120,7 @@ typedef struct {
   int8_t        encryptionKeyStat;
   uint32_t      encryptionKeyChksum;
   SMonitorParas monitorParas;
+  int32_t       statusIntervalMs;
 } SClusterCfg;
 
 typedef struct {
