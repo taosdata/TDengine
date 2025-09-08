@@ -116,10 +116,13 @@ def handle_ad_request():
 
 
 def do_check_before_exec(request):
+    if not request.is_json:
+        app_logger.log_inst.error('recv invalid request, %s', request.data)
+        raise ValueError("invalid request format")
+
     try:
         req_json = request.json
     except Exception as e:
-        app_logger.log_inst.error('recv invalid json req, %s, %s', e, request.data)
         raise ValueError(e)
 
     app_logger.log_inst.debug('req payload: %s', req_json)
@@ -156,7 +159,7 @@ def do_check_before_exec(request):
 def handle_forecast_req():
     """handle the fc request """
     app_logger.log_inst.info('recv fc from %s', request.remote_addr)
-    req_json, payload, options, data_index, ts_index = do_check_before_exec(request.json)
+    req_json, payload, options, data_index, ts_index = do_check_before_exec(request)
 
     params = parse_options(options)
 
