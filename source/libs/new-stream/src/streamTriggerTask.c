@@ -2815,7 +2815,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         // fetch wal meta from all readers
         for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
              pContext->curReaderIdx++) {
-          code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
+          code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META_NEW);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         goto _end;
