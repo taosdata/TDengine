@@ -191,9 +191,6 @@ The effective value of charset is UTF-8.
 | numOfVnodeFetchThreads     |                   | Supported, effective after restart | Number of Fetch threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4) |
 | numOfVnodeRsmaThreads      |                   | Supported, effective after restart | Number of Rsma threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4) |
 | numOfQnodeQueryThreads     |                   | Supported, effective after restart | Number of Query threads for qnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16) |
-| numOfSnodeSharedThreads    |                   | Supported, effective after restart | Number of shared threads for snode, range 0-1024, default value is one quarter of the CPU cores (not less than 2, not exceeding 4) |
-| numOfSnodeUniqueThreads    |                   | Supported, effective after restart | Number of exclusive threads for snode, range 0-1024, default value is one quarter of the CPU cores (not less than 2, not exceeding 4) |
-| ratioOfVnodeStreamThreads  |                   | Supported, effective after restart | Ratio of stream computing using vnode threads, range 0.01-4, default value 4 |
 | ttlUnit                    |                   | Not supported                      | Unit for ttl parameter, range 1-31572500, in seconds, default value 86400 |
 | ttlPushInterval            |                   | Supported, effective immediately   | Frequency of ttl timeout checks, range 1-100000, in seconds, default value 10 |
 | ttlChangeOnWrite           |                   | Supported, effective immediately   | Whether ttl expiration time changes with table modification; 0: no change, 1: change; default value 0 |
