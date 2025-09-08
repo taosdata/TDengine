@@ -8,7 +8,8 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
 
 RUN pip3 install --upgrade pip && \
     pip3 install --no-cache-dir --ignore-installed blinker && \
-    pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip3 install --no-cache-dir torch==2.3.1+cpu --index-url https://download.pytorch.org/whl/cpu && \
+    # arm64 use: pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip3 install --no-cache-dir \
                     numpy==1.26.4 \
                     pandas==1.5.0 \
@@ -22,12 +23,13 @@ RUN pip3 install --upgrade pip && \
                     taospy \
                     uwsgi==2.0.30 \
                     accelerate==1.8.1 \
-                    tensorflow==2.15.0 \
+                    tensorflow-cpu==2.15.0
+                    # arm64 use: tensorflow==2.15.0 \
                     uni2ts \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip install --upgrade keras -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
-    find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
+    find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
+    find /usr/local/lib/python3.10 -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python3.10 -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true
 
 FROM python:3.10-slim AS venv1-builder
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
