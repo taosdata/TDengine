@@ -23,12 +23,12 @@ extern "C" {
 #endif
 
 static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
-  int64_t  bsize = 0, oldSize = 0;
+  int64_t  bsize = 0;
   uint8_t *pBuf = NULL;
 
   if (*ppBuf) {
     pBuf = (*ppBuf) - sizeof(int64_t);
-    bsize = oldSize = *(int64_t *)pBuf;
+    bsize = *(int64_t *)pBuf;
   }
 
   if (bsize >= size) return 0;
@@ -37,7 +37,7 @@ static FORCE_INLINE int32_t tRealloc(uint8_t **ppBuf, int64_t size) {
   while (bsize < size) {
     bsize *= 2;
   }
-#if 0
+#if 1
   pBuf = (uint8_t *)taosMemoryRealloc(pBuf, bsize + sizeof(int64_t));
   if (pBuf == NULL) {
     return terrno;
