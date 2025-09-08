@@ -24,6 +24,8 @@ extern "C" {
 #include "tlog.h"
 #include "executor.h"
 
+extern void* pDnodeStmMetricHandle;
+
 #define STREAM_HB_INTERVAL_MS 600
 
 #define STREAM_MAX_GROUP_NUM  5
@@ -44,6 +46,55 @@ extern "C" {
 
 #define STREAM_CALC_REQ_MAX_WIN_NUM 4096
 
+
+#define STMM_TRIGGER (1<<0)
+#define STMM_READER  (1<<1)
+#define STMM_RUNNER  (1<<2)
+#define STMM_MGMT    (1<<3)
+#define STMM_MNODE   (1<<4)
+#define STMM_DNODE   (1<<5)
+
+
+typedef enum ESTMM_DNODE_MSG {
+  ESTMM_DNODE_MGMT_HB_REQ = 0,
+  ESTMM_DNODE_MGMT_HB_RSP,
+
+} ESTMM_DNODE_MSG;
+
+typedef enum ESTMM_MNODE_MSG {
+  ESTMM_MNODE_HB = 0,
+  ESTMM_MNODE_CREATE_STREAM,
+  ESTMM_MNODE_DROP_STREAM,
+  ESTMM_MNODE_START_STREAM,
+  ESTMM_MNODE_STOP_STREAM,
+  ESTMM_MNODE_RECALC_STREAM,
+} ESTMM_MNODE_MSG;
+
+
+typedef enum ESTMM_OP {
+  ESTMM_OP_CREATE_STM = 0,
+  ESTMM_OP_STOP_STM, 
+  ESTMM_OP_START_STM, 
+  ESTMM_OP_RECALC_STM, 
+} ESTMM_OP;
+
+
+typedef enum ESTMM_DNODE_VAL_TYPE {
+  ESTMM_THREAD_PROC_BEGIN_TS,
+  ESTMM_THREAD_PROC_END_TS,
+  ESTMM_DNODE_MSG_PROC_TIME,
+  ESTMM_MSG_IN_QUEUE_NUM,
+  ESTMM_MSG_RECV_NUM
+} ESTMM_DNODE_VAL_TYPE;
+
+typedef enum ESTMM_MND_VAL_TYPE {
+  ESTMM_STREAM_DEPLOY_NUM,
+  ESTMM_STREAM_ERROR_NUM,
+  ESTMM_STREAM_OPERATIONS,
+  ESTMM_STREAM_STATUS_TIME,
+  ESTMM_STREAM_LAST_OPES,
+  ESTMM_MND_MSG_PROC_TIME
+} ESTMM_MND_VAL_TYPE;
 
 typedef enum EStreamTriggerType {
   STREAM_TRIGGER_PERIOD = 0,
@@ -286,6 +337,8 @@ void    streamDeleteAllCheckpoints();
 void    smUndeploySnodeTasks(bool cleanup);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
+int32_t stmmLogMetric(void* pHandle, int32_t type, int64_t value, int32_t subType);
+int32_t stmmInitForModule(void** ppHandle, int32_t module);
 
 #ifdef __cplusplus
 }

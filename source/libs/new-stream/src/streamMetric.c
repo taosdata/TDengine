@@ -44,12 +44,12 @@ SStmMsgConfig gStmReaderMsg[] = {
 };
 
 SStmMsgConfig gStmRunnerMsg[] = {
-  {ESTMM_FETCH_FROM_READER, "FetchFromReader"},
+  //{ESTMM_FETCH_FROM_READER, "FetchFromReader"},
 };
 
 
 SStmMsgConfig gStmTriggerMsg[] = {
-  {ESTMM_FETCH_FROM_READER, "FetchFromReader"},
+  //{ESTMM_FETCH_FROM_READER, "FetchFromReader"},
 };
 
 
@@ -240,7 +240,7 @@ void stmmDestroyCumuValue(int64_t* pValue, int32_t num) {
   taosMemoryFree(pValue);
 }
 
-int32_t stmmBuildInitCumuValue(int64** ppRes, SStmMetricConfig* pCfg, int32_t keepNum) {
+int32_t stmmBuildInitCumuValue(int64_t** ppRes, SStmMetricConfig* pCfg, int32_t keepNum) {
   int32_t code = 0, lino = 0;
   int64_t* pCumu = taosMemoryCalloc(1, pCfg->subtype_num * keepNum * sizeof(int64_t));
   TSDB_CHECK_NULL(pCumu, code, lino, _exit, terrno);
@@ -360,9 +360,8 @@ _exit:
   return code;
 }
 
-int32_t stmmLogMetric(void* pHandle, int32_t type, int64_t* pValue, int32_t subType) {
+int32_t stmmLogMetric(void* pHandle, int32_t type, int64_t value, int32_t subType) {
   int32_t code = 0, lino = 0;
-  int64_t value = pValue ? *pValue : 1;
   SArray* pRes = (SArray*)pHandle;
   SStmTimeDuraStat* pStat = NULL;
   SStmMetric* pCMetric = (SStmMetric*)taosArrayGet(pRes, type);

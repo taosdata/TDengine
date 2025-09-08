@@ -69,8 +69,7 @@ _exit:
   tCleanupStreamHbMsg(&req, true);
   tFreeSMStreamHbRspMsg(&rsp);
 
-  int64_t usedTime = taosGetTimestampMs() - currTs;
-  newCode = stmmLogMetric(mStreamMgmt.pMetricHandle, ESTMM_MND_MSG_PROC_TIME, &usedTime, ESTMM_MNODE_HB);
+  newCode = stmmLogMetric(mStreamMgmt.pMetricHandle, ESTMM_MND_MSG_PROC_TIME, taosGetTimestampMs() - currTs, ESTMM_MNODE_HB);
   if (TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }

@@ -133,6 +133,7 @@ void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastT
 void streamTmrStop(tmr_h tmrId);
 void smEnableVgDeploy(int32_t vgId);
 void smUndeployStreamTriggerTasks(SStreamInfo* pStream, int64_t streamId);
+int32_t stmmInit();
 
 #ifdef __cplusplus
 }

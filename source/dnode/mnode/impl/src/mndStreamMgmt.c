@@ -116,7 +116,7 @@ void msmStopStreamByError(int64_t streamId, SStmStatus* pStatus, int32_t errCode
     goto _exit;
   }
 
-  TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_ERROR_NUM, NULL, 0));
+  TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_ERROR_NUM, 1, 0));
 
   if (pStatus->triggerTask && pStatus->triggerTask->runningStartTs && (currTs - pStatus->triggerTask->runningStartTs) > 2 * MST_ISOLATION_DURATION) {
     pStatus->fatalRetryTimes = 0;
@@ -2055,7 +2055,7 @@ static int32_t msmInitStmStatus(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStreamOb
   TAOS_CHECK_EXIT(stmmInitForModule(&pStatus->pMetricHandle, STMM_MNODE));
 
   if (isCreate) {
-    TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_OPERATIONS, NULL, ESTMM_OP_CREATE_STM));
+    TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_OPERATIONS, 1, ESTMM_OP_CREATE_STM));
     TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_LAST_OPES, ESTMM_OP_CREATE_STM, 0));
   }
 
@@ -2100,10 +2100,10 @@ static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmS
     pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   }
 
-  TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_DEPLOY_NUM, NULL, 0));
+  TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_DEPLOY_NUM, 1, 0));
 
   if (isStart) {
-    TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_OPERATIONS, NULL, ESTMM_OP_START_STM));
+    TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_OPERATIONS, 1, ESTMM_OP_START_STM));
     TAOS_CHECK_EXIT(stmmLogMetric(pStatus->pMetricHandle, ESTMM_STREAM_LAST_OPES, ESTMM_OP_START_STM, 0));
   }
   
@@ -2601,7 +2601,7 @@ void msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName, bool 
   atomic_store_8(&pStream->stopped, 2);
 
   if (isStop) {
-    TAOS_CHECK_EXIT(stmmLogMetric(pStream->pMetricHandle, ESTMM_STREAM_OPERATIONS, NULL, ESTMM_OP_STOP_STM));
+    TAOS_CHECK_EXIT(stmmLogMetric(pStream->pMetricHandle, ESTMM_STREAM_OPERATIONS, 1, ESTMM_OP_STOP_STM));
     TAOS_CHECK_EXIT(stmmLogMetric(pStream->pMetricHandle, ESTMM_STREAM_LAST_OPES, ESTMM_OP_STOP_STM, 0));
   }
 
@@ -2635,7 +2635,7 @@ int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange
     goto _exit;
   }
 
-  TAOS_CHECK_EXIT(stmmLogMetric(pStream->pMetricHandle, ESTMM_STREAM_OPERATIONS, NULL, ESTMM_OP_RECALC_STM));
+  TAOS_CHECK_EXIT(stmmLogMetric(pStream->pMetricHandle, ESTMM_STREAM_OPERATIONS, 1, ESTMM_OP_RECALC_STM));
   TAOS_CHECK_EXIT(stmmLogMetric(pStream->pMetricHandle, ESTMM_STREAM_LAST_OPES, ESTMM_OP_RECALC_STM, 0));
 
   TAOS_CHECK_EXIT(mstAppendNewRecalcRange(streamId, pStream, timeRange));

@@ -303,6 +303,7 @@ extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int32_t tsStreamBufferSize;
 extern int64_t tsStreamBufferSizeBytes;
+extern int32_t tsStreamMetricKeepNum;
 extern bool    tsFilterScalarMode;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsStreamNotifyMessageSize;

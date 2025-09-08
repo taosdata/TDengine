@@ -793,9 +793,7 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 _exit:
 
-  int64_t usedTime = taosGetTimestampMs() - currTs;
-
-  newCode = stmmLogMetric(pDnodeStmMetricHandle, ESTMM_DNODE_MSG_PROC_TIME, &usedTime, ESTMM_DNODE_MGMT_HB_RSP);
+  newCode = stmmLogMetric(pDnodeStmMetricHandle, ESTMM_DNODE_MSG_PROC_TIME, taosGetTimestampMs() - currTs, ESTMM_DNODE_MGMT_HB_RSP);
   if (TSDB_CODE_SUCCESS == code) {
     code = newCode;
   }

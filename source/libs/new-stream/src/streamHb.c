@@ -20,6 +20,7 @@
 #include "stream.h"
 #include "ttimer.h"
 #include "wal.h"
+#include "streamMetric.h"
 
 static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   int32_t code = 0;
@@ -127,8 +128,7 @@ _exit:
 
   tCleanupStreamHbMsg(&reqMsg, true);
 
-  int64_t usedTime = taosGetTimestampMs() - currTs;
-  code = stmmLogMetric(pDnodeStmMetricHandle, ESTMM_DNODE_MSG_PROC_TIME, &usedTime, ESTMM_DNODE_MGMT_HB_REQ);
+  code = stmmLogMetric(pDnodeStmMetricHandle, ESTMM_DNODE_MSG_PROC_TIME, taosGetTimestampMs() - currTs, ESTMM_DNODE_MGMT_HB_REQ);
 
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

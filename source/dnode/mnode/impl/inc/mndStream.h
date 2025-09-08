@@ -510,7 +510,7 @@ int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 bool mstWaitLock(SRWLatch* pLock, bool readLock);
 void msmHealthCheck(SMnode *pMnode);
-void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, bool userAction, int32_t action, int32_t userAction);
+void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, bool isUserAction, int32_t action, int32_t userAction);
 void mstPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
 int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId);
 int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes);
