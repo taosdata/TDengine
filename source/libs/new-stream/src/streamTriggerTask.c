@@ -3501,7 +3501,16 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         pContext->continueToFetch = true;
       }
 
-      // todo(smj): process dropped tables in pContext->pDropBlock
+      nrows = blockDataGetNumOfRows(pContext->pDropBlock);
+      if (nrows > 0) {
+        SColumnInfoData *pGidCol = taosArrayGet(pContext->pDropBlock->pDataBlock, 0);
+        QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
+        int64_t *pGids = (int64_t *)pGidCol->pData;
+        for (int32_t i = 0; i < nrows; i++) {
+          void* px =taosArrayPush(pContext->groupsToDelete, &pGids[i]);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        }
+      }
 
       if (--pContext->curReaderIdx > 0) {
         ST_TASK_DLOG("wait for response from other %d readers", pContext->curReaderIdx);
@@ -3620,7 +3629,16 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             }
           }
         }
-        // todo(smj): process dropped tables in pContext->pDropBlock
+        nrows = blockDataGetNumOfRows(pContext->pDropBlock);
+        if (nrows > 0) {
+          SColumnInfoData *pGidCol = taosArrayGet(pContext->pDropBlock->pDataBlock, 0);
+          QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
+          int64_t         *pGids = (int64_t *)pGidCol->pData;
+          for (int32_t i = 0; i < nrows; i++) {
+            void* px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
+            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+          }
+        }
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
