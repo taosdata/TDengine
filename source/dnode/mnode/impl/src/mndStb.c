@@ -23,6 +23,7 @@
 #include "mndMnode.h"
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
+#include "mndRsma.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndStb.h"
@@ -2873,6 +2874,7 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   TAOS_CHECK_GOTO(mndSetDropStbCommitLogs(pMnode, pTrans, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDropIdxsByStb(pMnode, pTrans, pDb, pStb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDropRsmaByStb(pMnode, pTrans, pDb, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndUserRemoveStb(pMnode, pTrans, pStb->name), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;

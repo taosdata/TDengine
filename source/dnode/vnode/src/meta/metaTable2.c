@@ -236,6 +236,7 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
     metaInfo("vgId:%d, super table %s uid:%" PRId64 " is dropped, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
              pReq->suid, verison);
   }
+  // TODO: destroy the rsma calculation tasks related with the stable if exists
   TAOS_RETURN(code);
 }
 
@@ -2517,6 +2518,8 @@ int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) {
     metaInfo("vgId:%d, table %s uid %" PRId64 " is updated since rsma created %s:%" PRIi64 ", version:%" PRId64,
              TD_VID(pMeta->pVnode), pReq->tbName, pReq->tbUid, pReq->name, pReq->uid, version);
   }
+
+  // TODO: destroy the rsma calculation tasks if exists
 
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);

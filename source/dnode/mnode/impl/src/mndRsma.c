@@ -1016,3 +1016,23 @@ int32_t mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 #endif
   TAOS_RETURN(code);
 }
+
+int32_t mndDropRsmaByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  int32_t   code = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SRsmaObj *pObj = NULL;
+  void     *pIter = NULL;
+
+  while ((pIter = sdbFetch(pSdb, SDB_RSMA, pIter, (void **)&pObj))) {
+    if (pObj->tbUid == pStb->uid && pObj->dbUid == pStb->dbUid) {
+      if ((code = mndSetDropRsmaCommitLogs(pMnode, pTrans, pObj)) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pObj);
+        TAOS_RETURN(code);
+      }
+    }
+    sdbRelease(pSdb, pObj);
+  }
+
+  TAOS_RETURN(code);
+}

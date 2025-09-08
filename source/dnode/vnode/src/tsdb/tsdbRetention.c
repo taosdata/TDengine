@@ -243,7 +243,7 @@ static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, int32_t expLevel, STFil
   while (true) {
     printf("expLevel:%d, fobj level:%d, sleep 1s and retry\n", expLevel, fobj->f->did.level);
     taosSsleep(1);
-    if(++nSleep > 30) {
+    if(++nSleep > 10) {
       tsdbError("vgId:%d, fid:%d, expLevel:%d, fobj level:%d, wait too long, exit", TD_VID(rtner->tsdb->pVnode), fobj->f->fid, expLevel, fobj->f->did.level);
       break;
     }
