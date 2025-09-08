@@ -13,7 +13,7 @@ class TestStreamOldCaseInterpPartitionBy:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_interp_partitionby(self):
-        """Stream interp partition by
+        """OldTsim: interp partition by
 
         Validate the calculation results of the ​​interp​​ function under ​​PARTITION BY​​ clauses
 

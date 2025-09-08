@@ -42,7 +42,7 @@ class Test_checkpoint_info_Case:
     
     
     def test_checkpoint_info(self):
-        """Stream basic test 1
+        """OldPy: checkpoint
 
         1. create snode
         2. create stream and restart stream
@@ -56,7 +56,7 @@ class Test_checkpoint_info_Case:
         10. check checkpoint file
 
         Catalog:
-            - Streams:OldStreamCases
+            - Streams:OldPyCases
 
         Since: v3.0.0.0
 
