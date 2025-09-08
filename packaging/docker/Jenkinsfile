@@ -1,0 +1,131 @@
+def pre_test_win(){
+    bat '''
+        hostname
+        ipconfig
+        set
+        date /t
+        time /t
+        taskkill /f /t /im python.exe
+        taskkill /f /t /im bash.exe
+        taskkill /f /t /im taosd.exe
+        rd /s /Q %WIN_INTERNAL_ROOT%\\debug || echo "no debug folder"
+        echo "clean environment done"
+        exit 0
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git config --global --add safe.directory %WIN_INTERNAL_ROOT%
+        git reset --hard
+        git remote prune origin
+        git fetch || git fetch
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git config --global --add safe.directory %WIN_COMMUNITY_ROOT%
+        git reset --hard
+        git remote prune origin
+        git fetch || git fetch
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git checkout %BRANCH_NAME%
+        git remote prune origin
+        git clean -f
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git checkout %BRANCH_NAME%
+        git remote prune origin
+        git clean -f
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git pull origin %BRANCH_NAME%
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git pull origin %BRANCH_NAME%
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git branch
+        git log -5
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git branch
+        git log -5
+    '''
+}
+def pre_test_build_win() {
+    bat '''
+        echo "building ..."
+        time /t
+        cd %WIN_INTERNAL_ROOT%
+        mkdir debug
+        cd debug
+        rm -rf %WIN_INTERNAL_ROOT%/debug/*
+        time /t
+        call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true -DBUILD_TOOLS=true -DBUILD_HTTP=internal "
+        time /t
+        cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true -DBUILD_TOOLS=true -DBUILD_HTTP=internal  || exit 7
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 10 "
+        time /t
+        jom -j 10  || exit 8
+        jom install || exit 8
+        time /t
+    '''
+    bat '''
+        cd %WIN_TEST_ROOT%
+        python3 -m pip install --upgrade pip
+        python3 -m pip uninstall taospy -y
+        python3 -m pip install taospy
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taos.dll C:\\Windows\\System32
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taosnative.dll C:\\Windows\\System32
+    '''
+    return 1
+}
+def run_win_test_python() {
+    bat '''
+        echo "windows test ..."
+        ls -l C:\\Windows\\System32\\taos.dll
+    '''
+    bat '''
+        time /t
+        cd %WIN_TEST_ROOT%
+        echo "python testing ..."
+        python3 ci\\run_win_cases.py ci\\cases.task
+        time /t
+    '''
+}
+pipeline {
+    agent none
+    stages {
+        stage('run test') {
+            parallel {
+                stage('windows test') {
+                    agent {label " u1-83 "}
+                    environment{
+                        WIN_INTERNAL_ROOT="D:\\TDinternal"
+                        WIN_COMMUNITY_ROOT="D:\\TDinternal\\community"
+                        WIN_TEST_ROOT="D:\\TDinternal\\community\\test"
+                        WIN_SYSTEM_TEST_ROOT="D:\\TDinternal\\community\\test"
+                        BRANCH_NAME="${params.TEST_BRANCH}"
+                    }
+                    steps {
+                        timeout(time: 4800, unit: 'MINUTES') {
+                            script {
+                                pre_test_win()
+                                pre_test_build_win()
+                                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                    run_win_test_python()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
