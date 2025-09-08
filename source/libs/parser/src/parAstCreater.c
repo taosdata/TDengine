@@ -5177,19 +5177,31 @@ _err:
   return NULL;
 }
 
-SNode* createRecalcRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNodeList* pScope,
-                            SNode* pWhere) {
+SNode* createRecalcRsmaStmt(SAstCreateContext* pCxt, STokenPair* pLevel, SNodeList* pScope, SNode* pWhere) {
   SRecalcRsmaStmt* pStmt = NULL;
-
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkRsmaName(pCxt, rsmaName));
+  if (pLevel->first.type == TK_NK_NIL) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "db or rsma name is required");
+    goto _err;
+  }
+  if (pLevel->second.type == TK_NK_NIL) {
+    CHECK_NAME(checkRsmaName(pCxt, &pLevel->first));
+  } else {
+    CHECK_NAME(checkDbName(pCxt, &pLevel->first, false));
+    CHECK_NAME(checkRsmaName(pCxt, &pLevel->second));
+  }
   pCxt->errCode = nodesMakeNode(QUERY_NODE_RECALC_RSMA_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
-  pStmt->ignoreExists = ignoreExists;
   pStmt->pScope = pScope;
   pStmt->pWhere = pWhere;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->rsmaName, rsmaName);
+  if (pLevel->second.type == TK_NK_NIL) {
+    tstrncpy(pStmt->dbName, pCxt->pQueryCxt->db, TSDB_DB_NAME_LEN);
+    COPY_STRING_FORM_ID_TOKEN(pStmt->rsmaName, &pLevel->first);
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, &pLevel->first);
+    COPY_STRING_FORM_ID_TOKEN(pStmt->rsmaName, &pLevel->second);
+  }
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode((SNode*)pStmt);

@@ -595,6 +595,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_RSMA_STMT:
       code = makeNode(type, sizeof(SDropRsmaStmt), &pNode);
       break;
+    case QUERY_NODE_RECALC_RSMA_STMT:
+      code = makeNode(type, sizeof(SRecalcRsmaStmt), &pNode);
+      break;
     case QUERY_NODE_START_RSMA_STMT:
       code = makeNode(type, sizeof(SStartRsmaStmt), &pNode);
       break;
@@ -1608,6 +1611,12 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_DROP_RSMA_STMT:  // no pointer field
       break;
+    case QUERY_NODE_RECALC_RSMA_STMT: {
+      SRecalcRsmaStmt* pStmt = (SRecalcRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pScope);
+      nodesDestroyNode(pStmt->pWhere);
+      break;
+    }
     case QUERY_NODE_ALTER_RSMA_STMT: {
       SAlterRsmaStmt* pStmt = (SAlterRsmaStmt*)pNode;
       nodesDestroyList(pStmt->pFuncs);

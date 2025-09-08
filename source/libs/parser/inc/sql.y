@@ -741,11 +741,16 @@ cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) DROP FUNCTION func_list(D).  
 cmd ::= SHOW db_name_cond_opt(B) RSMAS.                                           { pCxt->pRootNode = createShowRsmasStmt(pCxt, B); }
 cmd ::= SHOW db_name_cond_opt(B) RSMA_TASKS.                                      { pCxt->pRootNode = createShowRsmaTasksStmt(pCxt, B); }
 cmd ::= KILL RSMA_TASKS IN NK_LP integer_list(B) NK_RP.                           { pCxt->pRootNode = createKillRsmaTasksStmt(pCxt, B); }
-cmd ::= RECALCULATE RSMA exists_opt(B) rsma_name(C) action_scope(D) where_clause_opt(E). { pCxt->pRootNode = createRecalcRsmaStmt(pCxt, B, &C, D, E); }
+cmd ::= RECALCULATE RSMA ON action_level(C) action_scope(D) where_clause_opt(E).  { pCxt->pRootNode = createRecalcRsmaStmt(pCxt, &C, D, E); }
 
 full_rsma_name(A) ::= rsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }
 full_rsma_name(A) ::= db_name(B) NK_DOT rsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
 
+%type action_level                                                                { STokenPair }
+%destructor action_level                                                          { }
+action_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                 { A.first = B; A.second = C; }
+action_level(A) ::= db_name(B) NK_DOT rsma_name(C).                               { A.first = B; A.second = C; }
+action_level(A) ::= rsma_name(B).                                                 { A.first = B; A.second = nil_token; }
 
 %type rsma_func_list                                                              { SNodeList* }
 %destructor rsma_func_list                                                        { }
