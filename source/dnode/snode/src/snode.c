@@ -71,6 +71,10 @@ _exit:
 
   streamReleaseTask(taskAddr);
 
+  if(code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
+    code = 0; // not real error, just notify trigger the table is not created
+  }
+
   if (code) {
     sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
@@ -261,9 +265,9 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   readInfo.taskInfo.taskId = req.taskId;
   readInfo.taskInfo.sessionId = req.pStRtFuncInfo->sessionId;
   readInfo.gid = req.pStRtFuncInfo->groupId;
-  SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
-  readInfo.start = pParam->wstart;
-  readInfo.end = pParam->wend;
+  //SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
+  readInfo.start = req.pStRtFuncInfo->curWindow.skey;
+  readInfo.end = req.pStRtFuncInfo->curWindow.ekey;
   bool finished;
   TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo,&finished));
 
@@ -271,7 +275,11 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 
 _exit:
 
-  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d", req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size);  
+  printDataBlock(readInfo.pBlock, __func__, "fetchFromCache");
+
+  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d, time range:[%" PRId64 ", %" PRId64 "]", 
+      req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size, readInfo.start, readInfo.end);  
+      
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
 

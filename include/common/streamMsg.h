@@ -22,6 +22,16 @@
 extern "C" {
 #endif
 
+
+typedef enum EStreamTriggerType {
+  STREAM_TRIGGER_PERIOD = 0,
+  STREAM_TRIGGER_SLIDING,  // sliding is 1 , can not change, because used in doOpenExternalWindow
+  STREAM_TRIGGER_SESSION,
+  STREAM_TRIGGER_COUNT,
+  STREAM_TRIGGER_STATE,
+  STREAM_TRIGGER_EVENT,
+} EStreamTriggerType;
+
 typedef struct SStreamRetrieveReq SStreamRetrieveReq;
 typedef struct SStreamDispatchReq SStreamDispatchReq;
 typedef struct STokenBucket       STokenBucket;
@@ -251,7 +261,7 @@ typedef struct {
   // notify options
   SArray* pNotifyAddrUrls;
   int32_t notifyEventTypes;
-  int32_t notifyErrorHandle;
+  int32_t addOptions;
   int8_t  notifyHistory;
 
   void*          triggerFilterCols;     // nodelist of SColumnNode
@@ -473,6 +483,7 @@ void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg, bool deepClean);
 typedef struct {
   char*   triggerTblName;
   int64_t triggerTblUid;  // suid or uid
+  int64_t triggerTblSuid;
   int8_t  triggerTblType;
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
@@ -533,7 +544,7 @@ typedef struct {
   // notify options
   SArray* pNotifyAddrUrls;
   int32_t notifyEventTypes;
-  int32_t notifyErrorHandle;
+  int32_t addOptions;
   int8_t  notifyHistory;
 
   int64_t        maxDelay;              // precision is ms
@@ -570,7 +581,7 @@ typedef struct SStreamRunnerDeployMsg {
 
   // notify options
   SArray* pNotifyAddrUrls;
-  int32_t notifyErrorHandle;
+  int32_t addOptions;
 
   SArray*  outCols;  // array of SFieldWithOptions
   SArray*  outTags;  // array of SFieldWithOptions
@@ -721,6 +732,10 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_VTABLE_INFO,
   STRIGGER_PULL_VTABLE_PSEUDO_COL,
   STRIGGER_PULL_OTABLE_INFO,
+  STRIGGER_PULL_WAL_META_NEW,
+  STRIGGER_PULL_WAL_DATA_NEW,
+  STRIGGER_PULL_WAL_META_DATA_NEW,
+  STRIGGER_PULL_WAL_CALC_DATA_NEW,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
 
@@ -743,6 +758,7 @@ typedef struct SSTriggerLastTsRequest {
 
 typedef struct SSTriggerFirstTsRequest {
   SSTriggerPullRequest base;
+  int64_t              gid;  // optional, 0 by default
   int64_t              startTime;
   int64_t              ver;
 } SSTriggerFirstTsRequest;
@@ -807,6 +823,30 @@ typedef struct SSTriggerWalDataRequest {
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
 } SSTriggerWalDataRequest;
 
+typedef struct SSTriggerWalMetaNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              lastVer;
+  int64_t              ctime;
+} SSTriggerWalMetaNewRequest;
+
+typedef struct SSTriggerWalNewRsp {
+  void*                dataBlock;
+  void*                metaBlock;
+  void*                deleteBlock;
+  void*                dropBlock;
+} SSTriggerWalNewRsp;
+
+typedef struct SSTriggerWalDataNewRequest {
+  SSTriggerPullRequest base;
+  SArray*              versions;  // SArray<int64_t>
+  SSHashObj*           ranges;    // SSHash<gid, {skey, ekey}>
+} SSTriggerWalDataNewRequest;
+
+typedef struct SSTriggerWalMetaDataNewRequest {
+  SSTriggerPullRequest base;
+  int64_t              lastVer;
+} SSTriggerWalMetaDataNewRequest;
+
 typedef struct SSTriggerGroupColValueRequest {
   SSTriggerPullRequest base;
   int64_t              gid;
@@ -858,6 +898,9 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbDataRequest            tsdbDataReq;
   SSTriggerWalMetaRequest             walMetaReq;
   SSTriggerWalDataRequest             walDataReq;
+  SSTriggerWalMetaNewRequest          walMetaNewReq;
+  SSTriggerWalDataNewRequest          walDataNewReq;
+  SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
@@ -869,21 +912,26 @@ int32_t tDeserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPull
 void    tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq);
 
 typedef struct SSTriggerCalcParam {
-  // These fields only have values when used in the statement, otherwise they are 0
-  // Placeholder for Sliding Trigger
-  int64_t prevTs;
-  int64_t currentTs;
-  int64_t nextTs;
-
-  // Placeholder for Window Trigger
-  int64_t wstart;
-  int64_t wend;
-  int64_t wduration;
-  int64_t wrownum;
-
-  // Placeholder for Period Trigger
-  int64_t prevLocalTime;
-  int64_t nextLocalTime;
+  union {
+    struct {
+      // Placeholder for Sliding Trigger
+      int64_t prevTs;
+      int64_t currentTs;
+      int64_t nextTs;
+    };
+    struct {
+      // Placeholder for Window Trigger
+      int64_t wstart;
+      int64_t wend;
+      int64_t wduration;
+      int64_t wrownum;
+    };
+    struct {
+      // Placeholder for Period Trigger
+      int64_t prevLocalTime;
+      int64_t nextLocalTime;
+    };
+  };
 
   // General Placeholder
   int64_t triggerTime;  // _tlocaltime
@@ -935,16 +983,19 @@ int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrl
 typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncVals;
   SArray* pStreamPartColVals;
+  SArray* pStreamBlkWinIdx;  // no serialize, SArray<int64_t->winOutIdx+rowStartIdx>
+  STimeWindow curWindow;
+//  STimeWindow wholeWindow;
   int64_t groupId;
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
   bool    withExternalWindow;
-  int32_t curOutIdx; // to indicate the window index for current block
+  int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
   bool    extWinProjMode; // true if proj mode for external window, else agg mode
   int32_t triggerType;
 } SStreamRuntimeFuncInfo;
 
-int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo);
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 typedef struct STsInfo {
@@ -976,8 +1027,19 @@ typedef struct SStreamTsResponse {
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
+typedef struct SStreamWalDataSlice {
+  uint64_t gId;
+  int32_t startRowIdx;  // start row index of current slice in DataBlock
+  int32_t numRows;      // number of rows in current slice
+} SStreamWalDataSlice;
 
+typedef struct SStreamWalDataResponse {
+  void*      pDataBlock;
+  SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
+} SStreamWalDataResponse;
 
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock, SSHashObj* indexHash);
+int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* pRsp, SArray* pSlices);
 
 typedef struct SStreamGroupValue {
   SValue        data;

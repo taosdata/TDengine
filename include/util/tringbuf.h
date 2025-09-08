@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_RING_BUF_H
-#define _TD_UTIL_RING_BUF_H
+#ifndef _TD_UTIL_RING_BUF_H_
+#define _TD_UTIL_RING_BUF_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,8 +31,8 @@ extern "C" {
 
 #define TRINGBUF_CAPACITY(rbuf) ((rbuf)->capacity)
 #define TRINGBUF_SIZE(rbuf)     ((rbuf)->size)
-#define TRINGBUF_IS_EMPTY(rbuf) ((rbuf)->size == 0)
-#define TRINGBUF_IS_FULL(rbuf)  ((rbuf)->size == (rbuf)->capacity)
+#define TRINGBUF_IS_EMPTY(rbuf) (TRINBUG_SIZE(rbuf) == 0)
+#define TRINGBUF_IS_FULL(rbuf)  (TRINBUG_SIZE(rbuf) >= TRINGBUF_CAPACITY(rbuf))
 #define TRINGBUF_HEAD(rbuf)     (&(rbuf)->data[(rbuf)->head])
 #define TRINGBUF_TAIL(rbuf)     (&(rbuf)->data[(rbuf)->tail])
 #define TRINGBUF_MOVE_NEXT(rbuf, ptr)               \
@@ -46,7 +46,8 @@ extern "C" {
 static FORCE_INLINE int32_t tringbufExtend(void *rbuf, int32_t expSize, int32_t eleSize) {
   TRINGBUF(void) *rb = rbuf;
 
-  int32_t capacity = rb->capacity;
+  int32_t capacity = TRINGBUF_CAPACITY(rb);
+  if (expSize <= capacity) return 0;
   if (capacity == 0) {
     capacity = TMAX(64 / eleSize, 1);  // at least 1 element
   }
@@ -66,7 +67,7 @@ static FORCE_INLINE int32_t tringbufExtend(void *rbuf, int32_t expSize, int32_t 
     memmove(dst, src, nele * eleSize);
     rb->head = capacity - nele;
   }
-  rb->capacity = capacity;
+  TRINGBUF_CAPACITY(rb) = capacity;
   return 0;
 }
 
@@ -116,7 +117,6 @@ static FORCE_INLINE int32_t tringbufPushBatch(void *rbuf, const void *elePtr, in
   do {                                   \
     if ((rbuf)->data) {                  \
       taosMemoryFreeClear((rbuf)->data); \
-      (rbuf)->data = NULL;               \
     }                                    \
     (rbuf)->capacity = 0;                \
     (rbuf)->head = 0;                    \
