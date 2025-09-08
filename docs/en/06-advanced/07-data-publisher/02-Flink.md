@@ -191,7 +191,7 @@ Parameter configuration instructions:
 |-----------------------| :-----: | ------------ |
 | connector             | string | connector identifier, set `tdengine-connector`|
 | td.jdbc.url           | string | url of the connection |
-| td.jdbc.mode          | strng  | connector type: `source`, `sink`|
+| td.jdbc.mode          | string  | connector type: `source`, `sink`|
 | table.name            | string | original or target table name |
 | scan.query            | string | SQL statement to retrieve data|
 | sink.db.name          | string | target database name|
@@ -221,7 +221,7 @@ Parameter configuration instructions:
 | password          | string | password, default taosdata                                                           |
 | bootstrap. servers| string | server address                                                                       |
 | topic             | string | subscribe to topic                                                                   |
-| td.jdbc.mode      | strng  | connector type: `cdc`, `sink`                                                        |
+| td.jdbc.mode      | string  | connector type: `cdc`, `sink`                                                        |
 | group.id          | string | consumption group ID, sharing consumption progress within the same consumption group |
 | auto.offset.reset | string | initial position for consumer group subscription. <br/> `earliest`: subscribe from the beginning <br/> `latest` subscribe from the latest data <br/>default `latest`|
 | poll.interval_mas | integer | pull data interval, default 500ms                                                   |

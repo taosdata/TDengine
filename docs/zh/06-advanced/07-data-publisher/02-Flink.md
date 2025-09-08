@@ -193,7 +193,7 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 | ----------------------- | :-----: | ------------ |
 | connector  | string | 连接器标识，设置 `tdengine-connector` 。|
 | td.jdbc.url| string | 连接的 url 。| 
-| td.jdbc.mode | strng | 连接器类型, 设置 `source`, `sink`。|
+| td.jdbc.mode | string | 连接器类型, 设置 `source`, `sink`。|
 | table.name| string| 原表或目标表名称。|
 | scan.query| string| 获取数据的 SQL 语句。|
 | sink.db.name|string| 目标数据库名称。|
@@ -224,7 +224,7 @@ CDC 连接器会根据用户设置的并行度进行创建 consumer，因此用�
 | password | string | 密码， 默认taosdata。| 
 | bootstrap.servers| string | 服务器地址。| 
 | topic | string | 订阅主题。||
-| td.jdbc.mode | strng | 连接器类型, cdc, sink。| 
+| td.jdbc.mode | string | 连接器类型, cdc, sink。| 
 | group.id| string| 消费组 ID，同一消费组共享消费进度。| 
 | auto.offset.reset| string| 消费组订阅的初始位置。<br/>`earliest`: 从头开始订阅 <br/> `latest`: 仅从最新数据开始订阅。<br/> 默认 `latest`。|
 | poll.interval_ms| integer| 拉取数据间隔, 默认 500ms。|
