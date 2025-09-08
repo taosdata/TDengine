@@ -610,8 +610,8 @@ _exit:
     mError("rsma:%s, failed at line %d to drop since %s", dropReq.name, lino, tstrerror(code));
   }
 
-  mndReleaseRsma(pMnode, pObj);
   mndReleaseDb(pMnode, pDb);
+  mndReleaseRsma(pMnode, pObj);
   TAOS_RETURN(code);
 }
 
@@ -631,7 +631,6 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
   int32_t    code = 0, lino = 0;
   SRsmaObj   obj = {0};
   int32_t    nDbs = 0, nVgs = 0, nStbs = 0;
-  SDnodeObj *pDnode = NULL;
   SDbObj    *pDbs = NULL;
   SStbObj   *pStbs = NULL;
   STrans    *pTrans = NULL;
@@ -678,7 +677,6 @@ _exit:
     mError("rsma:%s, failed at line %d to create rsma, since %s", obj.name, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
-  mndReleaseDnode(pMnode, pDnode);
   mndRsmaFreeObj(&obj);
   if (pStbs) {
     for (int32_t i = 0; i < nStbs; ++i) {
@@ -713,6 +711,7 @@ static int32_t mndCheckRsmaConflicts(SMnode *pMnode, SDbObj *pDbObj, SMCreateRsm
   while ((pIter = sdbFetch(pSdb, SDB_RSMA, pIter, (void **)&pObj))) {
     if (pObj->tbUid == pCreate->tbUid && pObj->dbUid == pDbObj->uid) {
       sdbCancelFetch(pSdb, (pIter));
+      sdbRelease(pSdb, pObj);
       mError("rsma:%s, conflict with existing rsma %s on same table %s:%" PRIi64, pCreate->name, pObj->name,
              pObj->tbname, pObj->tbUid);
       return TSDB_CODE_QRY_DUPLICATED_OPERATION;
@@ -993,27 +992,24 @@ int32_t dumpRsmaInfoFromSmaObj(const SRsmaObj *pSma, const SStbObj *pDestStb, ST
   TAOS_RETURN(code);
 }
 
-int32_t mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t code = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-#if 0
-  while (1) {
-    SRsmaObj *pSma = NULL;
-    pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
-    if (pIter == NULL) break;
 
-    if (pSma->dbUid == pDb->uid) {
-      if ((code = mndSetDropSmaCommitLogs(pMnode, pTrans, pSma)) != 0) {
-        sdbRelease(pSdb, pSma);
-        sdbCancelFetch(pSdb, pSma);
+int32_t mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  int32_t   code = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SRsmaObj *pObj = NULL;
+  void     *pIter = NULL;
+
+  while ((pIter = sdbFetch(pSdb, SDB_RSMA, pIter, (void **)&pObj))) {
+    if (pObj->dbUid == pDb->uid) {
+      if ((code = mndSetDropRsmaCommitLogs(pMnode, pTrans, pObj)) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pObj);
         TAOS_RETURN(code);
       }
     }
-
-    sdbRelease(pSdb, pSma);
+    sdbRelease(pSdb, pObj);
   }
-#endif
+
   TAOS_RETURN(code);
 }
 
