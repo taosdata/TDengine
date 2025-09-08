@@ -157,6 +157,7 @@ class Test_IDMP_Meters:
 
         tdSql.executes(sqls)
         tdLog.info(f"create {len(sqls)} vtable successfully.")
+        
 
     #
     #  create streams
@@ -192,8 +193,9 @@ class Test_IDMP_Meters:
               "CREATE STREAM test.stream6      EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_6  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream6')        ON(WINDOW_OPEN|WINDOW_CLOSE)        INTO test.result_stream6      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
         ]
 
+        self.streamCount = len(sqls) - 2
         tdSql.executes(sqls)
-        print(f"create {len(sqls)} streams successfully.")
+        print(f"create {self.streamCount} streams successfully.")
 
     #
     #  check errors
@@ -252,6 +254,7 @@ class Test_IDMP_Meters:
         print("wait 10s ...")
         time.sleep(10)
         print("verifyResults ...")
+        self.verify_stream_status()
         self.verify_stream1()
         self.verify_stream3()
         self.verify_stream4()
@@ -354,8 +357,7 @@ class Test_IDMP_Meters:
             "show snodes"
         ]
         for sql in sqls:
-            self.exec(sql)  
-
+            self.exec(sql)
 
     def getSlidingWindow(self, start, step, cnt):
         wins = []
@@ -401,6 +403,29 @@ class Test_IDMP_Meters:
                 print(f"verify taos.cfg thread:{key} expect: {expect} <= actual: {actual}.")
 
         print("verify taos.cfg config ......................... successfully.")
+
+    #
+    # verify stream status
+    #
+    def verify_stream_status(self):
+        # show streams
+        tdSql.checkResultsByFunc (
+            sql  = "show test.streams", 
+            func = lambda: tdSql.getRows() == self.streamCount
+        )
+
+        # system tables
+        tdSql.checkResultsByFunc (
+            sql  = "select * from information_schema.ins_streams where db_name='test'", 
+            func = lambda: tdSql.getRows() == self.streamCount
+        )
+        tdSql.checkResultsByFunc (
+            sql  = "select * from information_schema.ins_stream_tasks where db_name='test'", 
+            func = lambda: tdSql.getRows() >= self.streamCount
+        )        
+
+        print("verify stream status ........................... successfully.")
+
 
 
     #
