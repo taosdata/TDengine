@@ -21,7 +21,6 @@ SELECT imputation(col_val)
 FROM (SELECT timetruncate(val) from )
 ```
 
-
 ### 语法
 
 ```SQL
