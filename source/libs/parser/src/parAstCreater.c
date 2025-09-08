@@ -1924,6 +1924,33 @@ _err:
   return NULL;
 }
 
+SNode* createNvlNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2) {
+  SNode *    pThen = NULL, *pEqual = NULL;
+  SNode*     pWhenThenNode = NULL;
+  SNodeList* pWhenThenList = NULL;
+  SNode*     pCaseWhen = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  pEqual = createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, pExpr1, NULL);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesCloneNode(pExpr1, &pThen);
+  CHECK_PARSER_STATUS(pCxt);
+  pWhenThenNode = createWhenThenNode(pCxt, pEqual, pThen);
+  CHECK_PARSER_STATUS(pCxt);
+  pWhenThenList = createNodeList(pCxt, pWhenThenNode);
+  CHECK_PARSER_STATUS(pCxt);
+  pCaseWhen = createCaseWhenNode(pCxt, NULL, pWhenThenList, pExpr2);
+  CHECK_PARSER_STATUS(pCxt);
+  // debugPrintNode((SNode*)pCaseWhen);
+  return (SNode*)pCaseWhen;
+_err:
+  nodesDestroyNode(pEqual);
+  nodesDestroyNode(pThen);
+  nodesDestroyNode(pWhenThenNode);
+  nodesDestroyList(pWhenThenList);
+  return NULL;
+}
+
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
   trimEscape(pCxt, pAlias);

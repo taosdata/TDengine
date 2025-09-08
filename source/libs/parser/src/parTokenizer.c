@@ -140,6 +140,8 @@ static SKeyword keywordTable[] = {
     {"HAVING",               TK_HAVING},
     {"HOST",                 TK_HOST},
     {"IF",                   TK_IF},
+    {"IFNULL",               TK_IFNULL},
+    {"NVL",                  TK_NVL},
     {"IGNORE",               TK_IGNORE},
     {"IGNORE_DISORDER",      TK_IGNORE_DISORDER},
     {"IGNORE_NODATA_TRIGGER", TK_IGNORE_NODATA_TRIGGER},
