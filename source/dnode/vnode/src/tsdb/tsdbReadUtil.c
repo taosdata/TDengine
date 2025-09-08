@@ -283,8 +283,11 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
       }
     } else {
       pKey->pks[0].nData = 0;
-      pKey->pks[0].pData = taosMemoryCalloc(1, len);
-      TSDB_CHECK_NULL(pKey->pks[0].pData, code, lino, _end, terrno);
+
+      if (pKey->pks[0].pData == NULL) {
+        pKey->pks[0].pData = taosMemoryCalloc(1, len);
+        TSDB_CHECK_NULL(pKey->pks[0].pData, code, lino, _end, terrno);
+      }
 
       if (!asc) {
         pKey->numOfPKs = 2;
@@ -304,6 +307,7 @@ void clearRowKey(SRowKey* pKey) {
     return;
   }
   taosMemoryFreeClear(pKey->pks[0].pData);
+  taosMemoryFreeClear(pKey->pks[1].pData);
 }
 
 static int32_t initLastProcKey(STableBlockScanInfo* pScanInfo, const STsdbReader* pReader) {

@@ -51,6 +51,7 @@
 // use 256 as normal buffer length
 #define BUFFER_LEN                 256
 
+#define MAX_LINE_LENGTH            1024
 #define VALUE_BUF_LEN              4096
 #define MAX_RECORDS_PER_REQ        32766
 #define NEED_CALC_COUNT            UINT64_MAX

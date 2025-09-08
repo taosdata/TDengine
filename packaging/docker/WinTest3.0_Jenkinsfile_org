@@ -1,0 +1,273 @@
+def pre_test_win(){
+    bat '''
+        hostname
+        ipconfig
+        set
+        date /t
+        time /t
+        taskkill /f /t /im python.exe
+        taskkill /f /t /im bash.exe
+        taskkill /f /t /im taosd.exe
+        rd /s /Q %WIN_INTERNAL_ROOT%\\debug || echo "no debug folder"
+        echo "clean environment done"
+        exit 0
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git config --global --add safe.directory %WIN_INTERNAL_ROOT%
+        git reset --hard
+        git remote prune origin
+        git fetch || git fetch
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git config --global --add safe.directory %WIN_COMMUNITY_ROOT%
+        git reset --hard
+        git remote prune origin
+        git fetch || git fetch
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git checkout %BRANCH_NAME%
+        git remote prune origin
+        git clean -f
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git checkout %BRANCH_NAME%
+        git remote prune origin
+        git clean -f
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git pull origin %BRANCH_NAME%
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git pull origin %BRANCH_NAME%
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git branch
+        git log -5
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git branch
+        git log -5
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git rm --cached tools/taos-tools 2>nul
+        git rm --cached tools/taosadapter 2>nul
+        git rm --cached tools/taosws-rs 2>nul
+        exit 0
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+    '''
+    bat '''
+        cd %WIN_CONNECTOR_ROOT%
+        git branch
+        git reset --hard
+
+        git pull
+    '''
+    bat '''
+        cd %WIN_CONNECTOR_ROOT%
+        git log -5
+    '''
+}
+def pre_test_build_win() {
+    bat '''
+        echo "building ..."
+        time /t
+        cd %WIN_INTERNAL_ROOT%
+        mkdir debug
+        cd debug
+        rm -rf %WIN_INTERNAL_ROOT%/debug/*
+        time /t
+        call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
+        set CL=/MP8
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true  -DBUILD_TAOSX=false -DCMAKE_BUILD_TYPE=release "
+        time /t
+        cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true  -DBUILD_TAOSX=false -DCMAKE_BUILD_TYPE=debug  || exit 7
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
+        time /t
+        jom -j 10  || exit 8
+        jom install || exit 8
+        time /t
+    '''
+    bat '''
+        cd %WIN_CONNECTOR_ROOT%
+        python.exe -m pip install --upgrade pip
+        python -m pip uninstall taospy -y
+        python -m pip install taospy
+        xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+    '''
+    return 1
+}
+def run_win_test_python() {
+    case_file=""
+    if (env.FAILED_ONLY == "y") {
+        case_file="case_to_run.txt"
+        bat '''
+            copy /y %WIN_SYSTEM_TEST_ROOT%\\failed.txt %WIN_SYSTEM_TEST_ROOT%\\case_to_run.txt
+        '''
+        bat '''
+            echo "***** cases to run *****"
+            cat %WIN_SYSTEM_TEST_ROOT%\\case_to_run.txt
+        '''
+    }
+    bat '''
+        echo "windows test ..."
+        ls -l C:\\Windows\\System32\\taos.dll
+    '''
+    if (env.RUN_PYTHON == "y") {
+        bat '''
+            time /t
+            cd %WIN_SYSTEM_TEST_ROOT%
+            echo "python testing ..."
+            test-win.bat full ''' + case_file + '''
+            time /t
+        '''
+    }
+}
+def run_win_test_sim() {
+    if (env.RUN_SIM == "y") {
+        bat '''
+            time /t
+            cd %WIN_TEST_ROOT%
+            echo "sim testing ..."
+            test-win.bat
+            time /t
+        '''
+    }
+}
+def check_cases_to_run_win() {
+    if (env.FAILED_ONLY == "y") {
+        result = bat(script: "if exist %WIN_SYSTEM_TEST_ROOT%\\failed.txt echo there are failed cases", returnStdout: true).trim()
+        result = result.readLines().drop(1).join(" ")
+        if (result == "") {
+            echo "no case to run"
+            return 1
+        } else {
+            bat '''
+                copy /y %WIN_SYSTEM_TEST_ROOT%\\failed.txt %WIN_SYSTEM_TEST_ROOT%\\case_to_run.txt
+            '''
+        }
+    }
+    return 0
+}
+pipeline {
+    agent none
+    stages {
+        stage('run test') {
+            parallel {
+                stage('windows test') {
+                    agent {label " windows11 "}
+                    environment{
+                        WIN_INTERNAL_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal"
+                        WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
+                        WIN_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\script"
+                        WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
+                        WIN_CONNECTOR_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\taos-connector-python"
+                        BRANCH_NAME="${env.TEST_BRANCH}"
+                    }
+                    steps {
+                        timeout(time: 4800, unit: 'MINUTES') {
+                            script {
+                                if (check_cases_to_run_win() == 0) {
+                                    pre_test_win()
+                                    pre_test_build_win()
+                                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                        run_win_test_python()
+                                    }
+                                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                        run_win_test_sim()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        success {
+            emailext (
+                subject: "${env.JOB_NAME}-RESULT: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
+                body: """<!DOCTYPE html>
+                    <html>
+                        <head>
+                            <meta charset="UTF-8">
+                        </head>
+                        <body leftmargin="8" marginwidth="0" topmargin="8" marginheight="4" offset="0">
+                            <table width="95%" cellpadding="0" cellspacing="0" style="font-size: 16pt; font-family: Tahoma, Arial, Helvetica, sans-serif">
+                                <tr>
+                                    <td>
+                                        <br/>
+                                        <b><font color="#0B610B"><font size="6">WinTest构建信息</font></font></b>
+                                        <hr size="2" width="100%" align="center" />
+                                     </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <ul>
+                                            <div style="font-size:18px">
+                                                <li>构建结果：<span style="color:green"> Successful </span></li>
+                                                <li>构建编号：${BUILD_NUMBER}</li>
+                                                <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
+                                                <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
+                                                <li>构建详情：<a href=http://ci.bl.taosdata.com:8080/blue/organizations/jenkins/${JOB_NAME}/detail/${JOB_NAME}/${BUILD_NUMBER}/pipeline>http://ci.bl.taosdata.com:8080/blue/organizations/jenkins/${JOB_NAME}/detail/${JOB_NAME}/${BUILD_NUMBER}/pipeline</a></li>
+                                            </div>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+                        </body>
+                    </html>""",
+                to: "fztang@taosdata.com, huili@taosdata.com, wxzhang@taosdata.com, zqwang@taosdata.com",
+                from: "support@taosdata.com"
+            )
+        }
+        failure {
+            emailext (
+                subject: "${env.JOB_NAME}-RESULT: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' FAILURE",
+                body: """<!DOCTYPE html>
+                    <html>
+                        <head>
+                            <meta charset="UTF-8">
+                        </head>
+                        <body leftmargin="8" marginwidth="0" topmargin="8" marginheight="4" offset="0">
+                            <table width="95%" cellpadding="0" cellspacing="0" style="font-size: 16pt; font-family: Tahoma, Arial, Helvetica, sans-serif">
+                                <tr>
+                                    <td>
+                                        <br/>
+                                        <b><font color="#0B610B"><font size="6">WinTest构建信息</font></font></b>
+                                        <hr size="2" width="100%" align="center" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <ul>
+                                            <div style="font-size:18px">
+                                                <li>构建结果：<span style="color:red"> Failure </span></li>
+                                                <li>构建编号：${BUILD_NUMBER}</li>
+                                                <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
+                                                <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
+                                                <li>构建详情：<a href=http://ci.bl.taosdata.com:8080/blue/organizations/jenkins/${JOB_NAME}/detail/${JOB_NAME}/${BUILD_NUMBER}/pipeline>http://ci.bl.taosdata.com:8080/blue/organizations/jenkins/${JOB_NAME}/detail/${JOB_NAME}/${BUILD_NUMBER}/pipeline</a></li>
+                                            </div>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+                        </body>
+                    </html>""",
+                to: "fztang@taosdata.com, huili@taosdata.com, wxzhang@taosdata.com, zqwang@taosdata.com",
+                from: "support@taosdata.com"
+            )
+        }
+    }
+}

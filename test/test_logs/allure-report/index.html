@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html dir="ltr" lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Allure Report</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" type="text/css" href="styles.css">
+    <link rel="stylesheet" type="text/css" href="plugin/screen-diff/styles.css">
+</head>
+<body>
+    <div id="alert"></div>
+    <div id="content">
+        <span class="spinner">
+            <span class="spinner__circle"></span>
+        </span>
+    </div>
+    <div id="popup"></div>
+    <script src="app.js"></script>
+    <script src="plugin/behaviors/index.js"></script>
+    <script src="plugin/packages/index.js"></script>
+    <script src="plugin/screen-diff/index.js"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FVWC4GKEYS"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-FVWC4GKEYS', {
+          'allureVersion': '2.34.0',
+          'reportUuid': '723cb9c2-2f14-48a8-8d95-101cd689a712',
+          'single_file': false
+        });
+    </script>
+</body>
+</html>
