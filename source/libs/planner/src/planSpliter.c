@@ -15,6 +15,7 @@
 
 #include "functionMgt.h"
 #include "planInt.h"
+#include "taoserror.h"
 #include "tglobal.h"
 
 #define SPLIT_FLAG_MASK(n) (1 << n)
@@ -2068,9 +2069,17 @@ static int32_t dynVirtualScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
   if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)dynVirtualScanFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
-  splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pDyn, info.pSubplan->subplanType, false);
-  nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)info.pDyn, 0));
+  
+  code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pDyn, info.pSubplan->subplanType, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _return;
+  }
 
+  code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)info.pDyn, 0));
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _return;
+  }
+  
   info.pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   ++(pCxt->groupId);
 
