@@ -70,20 +70,11 @@ static int32_t saveOneRowForLastRaw(SLastCol* pColVal, SCacheRowsReader* pReader
       colDataSetNULL(pColInfoData, numOfRows);
     } else {
       TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
-      if (IS_STR_DATA_BLOB(pColVal->colVal.value.type)) {
-        blobDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
+      varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
 
-        memcpy(blobDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
-        code = colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
-        TSDB_CHECK_CODE(code, lino, _end);
-
-      } else {
-        varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
-
-        memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
-        code = colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
-        TSDB_CHECK_CODE(code, lino, _end);
-      }
+      memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
+      code = colDataSetVal(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
   } else {
     code = colDataSetVal(pColInfoData, numOfRows, VALUE_GET_DATUM(&pVal->value, pColVal->colVal.value.type),
@@ -171,17 +162,10 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       // allNullRow = p->isNull & allNullRow;
       if (!p->isNull) {
         if (IS_VAR_DATA_TYPE(pColVal->colVal.value.type)) {
-          if (IS_STR_DATA_BLOB(pColVal->colVal.value.type)) {
-            blobDataSetLen(p->buf, pColVal->colVal.value.nData);
+          varDataSetLen(p->buf, pColVal->colVal.value.nData);
 
-            memcpy(blobDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
-            p->bytes = pColVal->colVal.value.nData + BLOBSTR_HEADER_SIZE;  // binary needs to plus the header size
-          } else {
-            varDataSetLen(p->buf, pColVal->colVal.value.nData);
-
-            memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
-            p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
-          }
+          memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+          p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
         } else {
           memcpy(p->buf, VALUE_GET_DATUM(&pColVal->colVal.value, pColVal->colVal.value.type),
                  pReader->pSchema->columns[slotId].bytes);

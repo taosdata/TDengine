@@ -4297,6 +4297,8 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
           goto _end;
         } else {
           QUERY_CHECK_CONDITION(pContext->pMetaToFetch == NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          taosArrayClearP(pContext->pCalcDataBlocks, (FDelete)blockDataDestroy); 
+          pContext->calcDataBlockIdx = 0;
           for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
                pContext->curReaderIdx++) {
             code = stHistoryContextSendPullReq(
@@ -5645,6 +5647,8 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
   pAddedUids = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pAddedUids, code, lino, _end, terrno);
 
+  bool hasData = false;
+
   for (int32_t i = 0; i < TARRAY_SIZE(pMetadatas); i++) {
     SSDataBlock *pBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pMetadatas, i);
     int32_t      vgId = *(int32_t *)TARRAY_GET_ELEM(pVgIds, i);
@@ -5688,6 +5692,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
       if (!inGroup) {
         continue;
       }
+      hasData = true;
 
       if (pSkeys[i] <= pGroup->oldThreshold &&
           ((pTypes[i] == WAL_DELETE_DATA) || (pTypes[i] == WAL_SUBMIT_DATA && !pTask->ignoreDisorder))) {
@@ -5806,7 +5811,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
   }
 
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
-    pGroup->newThreshold = INT64_MAX;
+    if(hasData) pGroup->newThreshold = INT64_MAX;
     goto _end;
   }
 

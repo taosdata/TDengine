@@ -14,6 +14,7 @@
 from new_test_framework.utils import tdLog, tdSql, etool, eos
 import os
 import json
+import platform
 
 
 class TestTaosdumpCommandline:
@@ -141,7 +142,7 @@ class TestTaosdumpCommandline:
 
         # dump in
         newdb = "new" + db
-        self.taosdump(f"{mode} -W '{db}={newdb}' -i {tmpdir}")
+        self.taosdump(f"{mode} -W \"{db}={newdb}\" -i {tmpdir}")
 
         # check same
         self.verifyResult(db, newdb, json)
@@ -301,7 +302,7 @@ class TestTaosdumpCommandline:
         tdSql.execute(sql)
 
         cmds = [
-            f"-u{user} -p'{pwd}'      -D test -o {tmpdir}",  # command pass
+            f"-u{user} -p\"{pwd}\"      -D test -o {tmpdir}",  # command pass
             f"-u{user} -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
         ]
 
