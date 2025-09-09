@@ -90,6 +90,7 @@ def zip_dir(dir_path, zip_path):
 def safe_rmtree(path, retries=5, delay=1):
     """
     安全删除目录，支持重试机制。
+
     :param path: 要删除的目录路径。
     :param retries: 重试次数。
     :param delay: 每次重试之间的延迟时间（秒）。
@@ -98,11 +99,12 @@ def safe_rmtree(path, retries=5, delay=1):
         try:
             if os.path.exists(path):
                 shutil.rmtree(path)
-            return
+            break
         except Exception as e:
             logger.warning(f"Retry {i + 1}/{retries}: Failed to remove {path}. Error: {e}")
             time.sleep(delay)
-    raise Exception(f"Failed to remove {path} after {retries} retries.")
+    else:
+        raise Exception(f"Failed to remove {path} after {retries} retries.")
 
 
 def process_pytest_file(input_file, log_path="C:\\CI_logs",
