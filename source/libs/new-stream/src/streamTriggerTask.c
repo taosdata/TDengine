@@ -3123,13 +3123,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-      int64_t lastScanVer = 0;
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
-        lastScanVer = *(int64_t *)pRsp->pCont;
         blockDataEmpty(pContext->pMetaBlock);
         blockDataEmpty(pContext->pDeleteBlock);
         blockDataEmpty(pContext->pDropBlock);
+        pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
         SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock,
@@ -3137,9 +3136,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                                   .dropBlock = pContext->pDropBlock};
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
+        pContext->pMetaBlock->info.version = rsp.ver;
       }
 
       // update reader wal progress
+      pProgress->lastScanVer = pContext->pMetaBlock->info.version;
+
       int32_t nrows = blockDataGetNumOfRows(pContext->pMetaBlock);
       int32_t vgId = pProgress->pTaskAddr->nodeId;
       if (nrows > 0) {
@@ -3180,9 +3182,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
           }
         }
-        pProgress->lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, nrows - 1);
-      } else {
-        pProgress->lastScanVer = lastScanVer;
       }
       if (blockDataGetNumOfRows(pContext->pMetaBlock) >= STREAM_RETURN_ROWS_NUM) {
         pContext->continueToFetch = true;
@@ -3239,14 +3238,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-      int64_t lastScanVer = 0;
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
-        lastScanVer = *(int64_t *)pRsp->pCont;
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           blockDataEmpty(pContext->pMetaBlock);
           blockDataEmpty(pContext->pDeleteBlock);
           blockDataEmpty(pContext->pDropBlock);
+          pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
         }
         blockDataEmpty(pProgress->pDataBlock);
         taosArrayClear(pContext->pTempSlices);
@@ -3260,10 +3258,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pContext->pTempSlices);
         QUERY_CHECK_CODE(code, lino, _end);
-        lastScanVer = pProgress->pDataBlock->info.version;
+        if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
+          pContext->pMetaBlock->info.version = rsp.ver;
+        }
       }
 
       if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
+        pProgress->lastScanVer = pContext->pMetaBlock->info.version;
         int32_t nrows = blockDataGetNumOfRows(pContext->pMetaBlock);
         int32_t vgId = pProgress->pTaskAddr->nodeId;
         if (nrows > 0) {
@@ -3305,7 +3306,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             }
           }
         }
-        pProgress->lastScanVer = lastScanVer;
         // todo(smj): process dropped tables in pContext->pDropBlock
       }
 
@@ -4241,7 +4241,7 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
           goto _end;
         } else {
           QUERY_CHECK_CONDITION(pContext->pMetaToFetch == NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-          taosArrayClearP(pContext->pCalcDataBlocks, (FDelete)blockDataDestroy); 
+          taosArrayClearP(pContext->pCalcDataBlocks, (FDelete)blockDataDestroy);
           pContext->calcDataBlockIdx = 0;
           for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
                pContext->curReaderIdx++) {
