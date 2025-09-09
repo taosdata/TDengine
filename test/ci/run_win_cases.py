@@ -13,6 +13,7 @@ logging.basicConfig(level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
+failed_cases = 0  # 全局变量，记录失败用例数量
 
 def get_git_commit_id():
     try:
@@ -44,26 +45,33 @@ def get_work_dir():
         projPath = selfPath.split("test")[0]
     return os.path.join(projPath, "sim")
 
-def clean_taos_process():
-    pid = None
+def clean_taos_process(keywords=None):
+    """
+    清理与指定关键字模糊匹配的进程，并确认进程被成功删除。
+    
+    :param keywords: List[str]，用于匹配进程命令行的关键字列表。如果为 None，则默认匹配 'taos'。
+    """
+    if keywords is None:
+        keywords = ['taos']  # 默认关键字为 'taos'
+
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-        if ('mintty' in  proc.info['name']
-            and proc.info['cmdline']  # 确保 cmdline 非空
-            and any('taos' in arg for arg in proc.info['cmdline'])
-        ):
-            logger.debug(proc.info)
-            logger.debug("Found taos process with PID: %s", proc.info['pid'])
-            pid = proc.info['pid']
-            killCmd = f"taskkill /PID {pid} /T /F"
-            os.system(killCmd)
-        if ('python' in  proc.info['name']
-            and proc.info['cmdline']  # 确保 cmdline 非空
-            and any('test' in arg for arg in proc.info['cmdline'])
-        ):
-            logger.debug(proc.info)
-            logger.debug("Found taos process with PID: %s", proc.info['pid'])
-            pid = proc.info['pid']
-            killCmd = f"taskkill /PID {pid} /T /F"
+        try:
+            # 检查进程命令行是否包含指定关键字
+            if proc.info['cmdline'] and any(keyword in ' '.join(proc.info['cmdline']) for keyword in keywords):
+                logger.debug(f"Found matching process: {proc.info}")
+                proc.terminate()  # 优雅终止进程
+                try:
+                    proc.wait(timeout=5)  # 等待进程终止
+                    logger.info(f"Process {proc.info['pid']} terminated successfully.")
+                except psutil.TimeoutExpired:
+                    logger.warning(f"Process {proc.info['pid']} did not terminate in time. Forcing termination.")
+                    proc.kill()  # 强制终止进程
+                    proc.wait(timeout=5)  # 再次等待进程终止
+                    logger.info(f"Process {proc.info['pid']} killed successfully.")
+        except psutil.NoSuchProcess:
+            logger.info(f"Process {proc.info.get('pid')} does not exist or already terminated.")
+        except Exception as e:
+            logger.error(f"Error while terminating process {proc.info.get('pid')}: {e}")
 
 def zip_dir(dir_path, zip_path):
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -73,12 +81,28 @@ def zip_dir(dir_path, zip_path):
                 rel_path = os.path.relpath(abs_path, dir_path)
                 zipf.write(abs_path, rel_path)
 
+def safe_rmtree(path, retries=5, delay=1):
+    """
+    安全删除目录，支持重试机制。
+    :param path: 要删除的目录路径。
+    :param retries: 重试次数。
+    :param delay: 每次重试之间的延迟时间（秒）。
+    """
+    for i in range(retries):
+        try:
+            if os.path.exists(path):
+                shutil.rmtree(path)
+            return
+        except Exception as e:
+            logger.warning(f"Retry {i+1}/{retries}: Failed to remove {path}. Error: {e}")
+            time.sleep(delay)
+    raise Exception(f"Failed to remove {path} after {retries} retries.")
 
-def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.path.join(os.path.dirname(__file__), "win_ignore_cases")):
+def process_pytest_file(input_file, log_path="C:\\CI_logs", exclusion_file=os.path.join(os.path.dirname(__file__), "win_ignore_cases")):
+    global failed_cases  # 声明使用全局变量
     # 初始化统计变量
     total_cases = 0
     success_cases = 0
-    failed_cases = 0
     skipped_cases = 0
     failed_case_list = []
     start_time = time.time()
@@ -134,7 +158,7 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.pa
                 # 清理环境，kill残留进程，删除sim目录
                 clean_taos_process()
                 if os.path.exists(work_dir):
-                    shutil.rmtree(work_dir)
+                    safe_rmtree(work_dir)
                 
                 # 执行pytest命令，设置超时为300秒（5分钟）
                 with open(log_file, 'w') as log:
@@ -223,3 +247,6 @@ if __name__ == "__main__":
         process_pytest_file(input_file, log_path)
     else:
         process_pytest_file(input_file)
+        
+    # 根据 failed_cases 的值决定退出码
+    sys.exit(1 if failed_cases > 0 else 0)

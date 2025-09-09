@@ -9,9 +9,9 @@ class TestUserPrivilegeSysinfo:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_user_privilege_sysinfo(self):
-        """user privilege sysinfo
+        """Privilege: sysinfo
 
-        1. -
+        Verify user privileges related to sysinfo operation, including grant, revoke, and query privileges.
 
         Catalog:
             - User

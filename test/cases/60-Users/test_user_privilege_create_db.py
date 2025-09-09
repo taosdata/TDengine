@@ -8,9 +8,9 @@ class TestUserPrivilegeCreateDb:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_user_privilege_create_db(self):
-        """user privilege create db
+        """Privilege: create db
 
-        1. -
+        Verify user privileges for database creation, including grant, revoke, and query operations.
 
         Catalog:
             - User

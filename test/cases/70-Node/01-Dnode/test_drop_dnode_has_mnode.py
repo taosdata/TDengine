@@ -8,9 +8,9 @@ class TestDropDnodeHasMnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_drop_dnode_has_mnode(self):
-        """drop dnode has mnode
+        """Drop: drop with mnode
 
-        1. -
+        Drop the dnode containing the mnode
 
         Catalog:
             - Database:Sync

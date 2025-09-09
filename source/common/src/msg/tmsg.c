@@ -1635,6 +1635,8 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->bufferSegmentSize));
   }
 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->clusterCfg.statusIntervalMs));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -1786,6 +1788,9 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     }
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->clusterCfg.statusIntervalMs));
+  }
   tEndDecode(&decoder);
 
 _exit:

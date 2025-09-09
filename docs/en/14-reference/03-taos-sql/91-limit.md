@@ -9,13 +9,13 @@ slug: /tdengine-reference/sql-manual/names
 1. Legal characters: English letters, numbers, and underscores.
 1. Allowed to start with English letters or underscores, not allowed to start with numbers.
 1. Case insensitive.
-1. Cannot be [reserved keywords](./20-keywords.md).
+1. Cannot be [reserved keywords](./92-keywords.md).
 1. Escaped table (column) name rules:
    To support more forms of table (column) names, TDengine introduces a new escape character "`". After using the escape character:
    - The content within the escape characters is not unified in case, meaning the case specified by the user is retained, for example: \`aBc\` and \`abc\` are different table (column) names, but abc and aBc are the same table (column) name.
    - It is possible to create table (column) names containing characters other than letters, numbers, and underscores, for example: \`abc@TD\`, but the escaped name still cannot contain `.`, otherwise it will prompt `The table name cannot contain '.'`.
    - It is possible to create table (column) names starting with numbers, for example \`1970\`.
-   - It is possible to create table (column) names using [reserved keywords](./20-keywords.md), for example \`select\`.
+   - It is possible to create table (column) names using [reserved keywords](./92-keywords.md), for example \`select\`.
 
 ## Legal Character Set for Passwords
 

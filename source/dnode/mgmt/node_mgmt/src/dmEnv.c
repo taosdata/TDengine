@@ -493,7 +493,9 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,
+      .setVnodeSyncTimeoutFp = dmSetVnodeSyncTimeout,
       .getMnodeLoadsFp = dmGetMnodeLoads,
+      .setMnodeSyncTimeoutFp = dmSetMnodeSyncTimeout,
       .getQnodeLoadsFp = dmGetQnodeLoads,
       .stopDnodeFp = dmStop,
   };

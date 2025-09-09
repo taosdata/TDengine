@@ -8,9 +8,9 @@ class TestUserWhiteList:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_user_whitelist(self):
-        """user whitelist
+        """Whitelist: basic test
 
-        1. -
+        Verify basic usage of whitelist functionality, including creation and display operations.
 
         Catalog:
             - User
