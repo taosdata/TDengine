@@ -6768,7 +6768,7 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
     pCxt->hasPhOrConst = true;
   } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode *pFunc = (SFunctionNode*)pNode;
-    if (fmIsPlaceHolderFunc(pFunc->funcId) || pFunc->funcType == FUNCTION_TYPE_NOW || pFunc->funcType == FUNCTION_TYPE_TODAY) {
+    if (fmIsPlaceHolderFunc(pFunc->funcId) || pFunc->funcType == FUNCTION_TYPE_NOW || pFunc->funcType == FUNCTION_TYPE_TODAY || fmIsScalarFunc(pFunc->funcId)) {
       pCxt->onlyPhAndConst &= true;
       pCxt->hasPhOrConst = true;
     } else {
@@ -6940,6 +6940,9 @@ static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr, bool l
   SFilterExtractTsContext pCxt = {0};
 
   nodesRewriteExpr(pCond, filterExtractTsCondImpl, &pCxt);
+  if (!pCxt.pStart && !pCxt.pEnd) {
+    return TSDB_CODE_SUCCESS;
+  }
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_TIME_RANGE, pTimeRangeExpr));
   STimeRangeNode* pRange = (STimeRangeNode*)*pTimeRangeExpr;
   bool leftSame = false;
