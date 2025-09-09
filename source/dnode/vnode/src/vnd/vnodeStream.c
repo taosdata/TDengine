@@ -681,7 +681,7 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
 
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
-  STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, lastVer + 1) != 0, TSDB_CODE_SUCCESS);
+  STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, lastVer) != 0, TSDB_CODE_SUCCESS);
 
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->metaBlock, STREAM_RETURN_ROWS_NUM));
   while (1) {
@@ -2487,7 +2487,7 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo,
                                 req->walMetaNewReq.lastVer, req->walMetaNewReq.ctime, &lastVer, &totalRows));
 
-  ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, sStreamReaderInfo->metaBlock->info.rows);
+  ST_TASK_DLOG("vgId:%d %s get result last ver:"PRId64" rows:%" PRId64, TD_VID(pVnode), __func__, lastVer, totalRows);
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
   resultRsp.ver = lastVer;
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, NULL);
@@ -2537,6 +2537,7 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
 
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, req->walMetaDataNewReq.lastVer, &resultRsp, &lastVer, &totalRows));
 
+  ST_TASK_DLOG("vgId:%d %s get result last ver:"PRId64" rows:%" PRId64, TD_VID(pVnode), __func__, lastVer, totalRows);
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
   resultRsp.ver = lastVer;
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, sStreamReaderInfo->indexHash);
@@ -2579,6 +2580,8 @@ static int32_t vnodeProcessStreamWalDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   resultRsp.dataBlock = sStreamReaderInfo->resultBlock;
   STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, &resultRsp, &lastVer, &totalRows));
+  ST_TASK_DLOG("vgId:%d %s get result last ver:"PRId64" rows:%" PRId64, TD_VID(pVnode), __func__, lastVer, totalRows);
+
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
 
   resultRsp.ver = lastVer;
