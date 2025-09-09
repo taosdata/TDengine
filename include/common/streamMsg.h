@@ -834,6 +834,7 @@ typedef struct SSTriggerWalNewRsp {
   void*                metaBlock;
   void*                deleteBlock;
   void*                dropBlock;
+  int64_t              ver;
 } SSTriggerWalNewRsp;
 
 typedef struct SSTriggerWalDataNewRequest {

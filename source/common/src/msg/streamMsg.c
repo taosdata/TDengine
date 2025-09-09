@@ -4332,7 +4332,6 @@ static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash)
     }
   }
   encoder->pos += len;
-  TAOS_CHECK_EXIT(tEncodeI64(encoder, ((SSDataBlock*)pBlock)->info.version));
 
   if (indexHash == NULL) {
     goto _exit;
@@ -4394,6 +4393,7 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWal
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));  // no drop table data
   }
 
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, rsp->ver));
   tEndEncode(&encoder);
 
 _exit:
@@ -4424,7 +4424,6 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
     const char* pEndPos = NULL;
     TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
     decoder.pos = (uint8_t*)pEndPos - decoder.data;
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->info.version));
 
     int32_t nSlices = 0;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nSlices));
@@ -4460,7 +4459,6 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
     const char* pEndPos = NULL;
     TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
     decoder.pos = (uint8_t*)pEndPos - decoder.data;
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->info.version));
   } else if (pBlock != NULL) {
     blockDataEmpty(pBlock);
   }
@@ -4473,7 +4471,6 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
     const char* pEndPos = NULL;
     TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
     decoder.pos = (uint8_t*)pEndPos - decoder.data;
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->info.version));
   } else if (pBlock != NULL) {
     blockDataEmpty(pBlock);
   }
@@ -4486,10 +4483,10 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
     const char* pEndPos = NULL;
     TAOS_CHECK_EXIT(blockDecode(pBlock, (char*)decoder.data + decoder.pos, &pEndPos));
     decoder.pos = (uint8_t*)pEndPos - decoder.data;
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pBlock->info.version));
   } else if (pBlock != NULL) {
     blockDataEmpty(pBlock);
   }
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ver));
 
   tEndDecode(&decoder);
 
