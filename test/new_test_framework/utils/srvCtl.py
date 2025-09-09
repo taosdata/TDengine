@@ -215,4 +215,22 @@ class srvCtl:
             return clusterDnodes.getDnodeLogPath(idx)
         return tdDnodes.getDnodeLogPath(idx)
 
+    #
+    # add sim cfg option
+    # 
+    def addSimExtraCfg(self, option, value):
+        """
+        add new option to taos.cfg
+        Args:
+            option (string): option key
+            value  (string): option value
+        Returns:
+            bool: True if add ok, False if failed
+        """
+        if clusterDnodes.getModel() == "cluster":
+            return clusterDnodes.addSimExtraCfg(option, value)
+
+        return tdDnodes.addSimExtraCfg(option, value)
+
+
 sc = srvCtl()
