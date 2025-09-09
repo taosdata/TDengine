@@ -148,9 +148,11 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     return TSDB_CODE_INVALID_PARA;
   }
   if (!(colValArray[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+    uError("colVal: %d, %d", colValArray[0].cid, colValArray[0].value.type);
     return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
   if (!(colValArray[0].value.type == TSDB_DATA_TYPE_TIMESTAMP)) {
+    uError("colVal: %d, %d", colValArray[0].cid, colValArray[0].value.type);
     return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
 

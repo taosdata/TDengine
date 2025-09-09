@@ -2163,6 +2163,8 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
         return code;
       }
       if (pTsdb) {
+        metaInfo("vgId:%d, old schema version: %d, new schema version: %d", TD_VID(pMeta->pVnode),
+                 pOldEntry->stbEntry.schemaRow.version, pEntry->stbEntry.schemaRow.version);
         TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type,
                                                    (SSchemaWrapper *)&pOldEntry->stbEntry.schemaRow,
                                                    (SSchemaWrapper *)&pEntry->stbEntry.schemaRow));
@@ -2173,11 +2175,18 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
       if (onCols >= 2) {
         hasPrimaryKey = (pOldEntry->stbEntry.schemaRow.pSchema[1].flags & COL_IS_KEY) ? true : false;
       }
-      for (int i = 0, j = 0; i < nCols && j < onCols; ++i, ++j) {
+      for (int i = 0, j = 0; j < onCols; ++j) {
+        // If we've gone through all new columns, the remaining old column is the deleted one
+        if (i >= nCols) {
+          cid = pOldEntry->stbEntry.schemaRow.pSchema[j].colId;
+          break;
+        }
+
         if (pEntry->stbEntry.schemaRow.pSchema[i].colId != pOldEntry->stbEntry.schemaRow.pSchema[j].colId) {
           cid = pOldEntry->stbEntry.schemaRow.pSchema[j].colId;
           break;
         }
+        ++i;
       }
 
       if (cid != -1) {
