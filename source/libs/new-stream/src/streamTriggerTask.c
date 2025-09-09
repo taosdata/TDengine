@@ -1980,7 +1980,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
       }
     }
   }
-  pContext->pGroupRunning = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pContext->pGroupRunning = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pContext->pGroupRunning, code, lino, _end, terrno);
 
   pContext->lastCheckpointTime = taosGetTimestampNs();
@@ -3821,7 +3821,7 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
       }
     }
   }
-  pContext->pGroupRunning = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pContext->pGroupRunning = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pContext->pGroupRunning, code, lino, _end, terrno);
 
 _end:
@@ -4582,8 +4582,7 @@ static int32_t stHistoryContextAllCalcFinish(SSTriggerHistoryContext *pContext, 
   int32_t iter = 0;
   void   *px = tSimpleHashIterate(pContext->pGroupRunning, NULL, &iter);
   while (px != NULL) {
-    int64_t *pSession = tSimpleHashGetKey(px, NULL);
-    if ((*pSession == pContext->sessionId) && *(bool *)px) {
+    if (*(bool *)px) {
       *pFinished = false;
       break;
     }
