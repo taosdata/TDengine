@@ -4,7 +4,7 @@ title: Flink
 toc_max_heading_level: 4
 ---
 
-import FlinkCommonInfo from '../../10-third-party/01-collection/flink/flink-common-info.mdx'
+import FlinkCommonInfo from '../../10-third-party/01-collection/assets/_flink-common-info.mdx'
 
 Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批一体化处理框架，可用于流处理、批处理、复杂事件处理、实时数据仓库构建及为机器学习提供实时数据支持等诸多大数据处理场景。与此同时，Flink 拥有丰富的连接器与各类工具，可对接众多不同类型的数据源实现数据的读取与写入。在数据处理的过程中，Flink 还提供了一系列可靠的容错机制，有力保障任务即便遭遇意外状况，依然能稳定、持续运行。
 
