@@ -476,16 +476,6 @@ static int32_t mndKillScan(SMnode *pMnode, SRpcMsg *pReq, SScanObj *pScan) {
       }
 
       mndReleaseVgroup(pMnode, pVgroup);
-
-      /*
-      SSdbRaw *pCommitRaw = mndScanDetailActionEncode(pDetail);
-      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-        mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-        mndTransDrop(pTrans);
-        return -1;
-      }
-      sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
-      */
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
@@ -526,6 +516,7 @@ static int32_t mndProcessKillScanReq(SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+#if 0
   char    obj[TSDB_INT32_ID_LEN] = {0};
   int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pScan->scanId);
   if ((uint32_t)nBytes < sizeof(obj)) {
@@ -533,6 +524,7 @@ static int32_t mndProcessKillScanReq(SRpcMsg *pReq) {
   } else {
     mError("scan:%" PRId32 " failed to audit since %s", pScan->scanId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
   }
+#endif
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to kill scan %" PRId32 " since %s", killScanReq.scanId, terrstr());
