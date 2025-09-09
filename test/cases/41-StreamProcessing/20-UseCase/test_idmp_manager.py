@@ -1104,5 +1104,10 @@ class Test_IDMP_Meters:
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == len(data)
         )
-        tdSql.checkDataMem(result_sql, data)   
+        tdSql.checkDataMem(result_sql, data)
+
+        # drop stream
+        tdStream.dropStream("test", "stream8")
+
         print("verify stream8 again ........................... successfully.")
+

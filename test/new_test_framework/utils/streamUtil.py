@@ -1142,6 +1142,18 @@ class StreamUtil:
         tdSql.execute(sql)
         self.waitStreamStatus(dbname, stream, "Stopped")
 
+    # drop stream
+    def dropStream(self, dbname, stream):
+        # drop
+        sql = f"drop stream {dbname}.{stream}"
+        print(sql)
+        tdSql.execute(sql)
+        # check drop ok
+        sql = f"select count(*) from information_schema.ins_streams where db_name='{dbname}' and stream_name='{stream}'"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 0)
+
+
 tdStream = StreamUtil()
 
 
