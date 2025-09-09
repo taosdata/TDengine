@@ -5624,6 +5624,15 @@ static int32_t stRealtimeGroupAddSingleMeta(SSTriggerRealtimeGroup *pGroup, int3
     pMetas = *(SArray **)px;
     QUERY_CHECK_NULL(pMetas, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   }
+
+  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+    void *px = taosArrayPush(pMetas, pMeta);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    pGroup->oldThreshold = INT64_MIN;
+    pGroup->newThreshold = INT64_MAX;
+    goto _end;
+  }
+
   if (pMeta->skey <= pGroup->oldThreshold && !pTask->ignoreDisorder) {
     STimeWindow range = {.skey = pMeta->skey, .ekey = pMeta->ekey};
     if (pTask->expiredTime > 0) {
