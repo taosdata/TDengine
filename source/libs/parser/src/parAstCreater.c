@@ -1974,6 +1974,47 @@ _err:
   return NULL;
 }
 
+SNode* createCoalesceNode(SAstCreateContext* pCxt, SNodeList* pParamList) {
+  int32_t    sizeParam = LIST_LENGTH(pParamList);
+  SNode *    pNotNullCond = NULL, *pWhenThenNode = NULL, *pExpr = NULL;
+  SNodeList* pWhenThenList = NULL;
+  SNode *    pCaseWhen = NULL, *pThen = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+
+  for (int i = 0; i < sizeParam; ++i) {
+    pExpr = nodesListGetNode(pParamList, i);
+
+    pCxt->errCode = nodesCloneNode(pExpr, &pThen);
+    CHECK_PARSER_STATUS(pCxt);
+
+    pNotNullCond = createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, pExpr, NULL);
+    CHECK_PARSER_STATUS(pCxt);
+
+    pWhenThenNode = createWhenThenNode(pCxt, pNotNullCond, pThen);
+    CHECK_PARSER_STATUS(pCxt);
+
+    if (!pWhenThenList) {
+      pWhenThenList = createNodeList(pCxt, pWhenThenNode);
+    } else {
+      pCxt->errCode = nodesListAppend(pWhenThenList, pWhenThenNode);
+    }
+    CHECK_PARSER_STATUS(pCxt);
+  }
+
+  pCaseWhen = createCaseWhenNode(pCxt, NULL, pWhenThenList, NULL);
+  CHECK_PARSER_STATUS(pCxt);
+  // debugPrintNode((SNode*)pCaseWhen);
+  return (SNode*)pCaseWhen;
+_err:
+  nodesDestroyNode(pExpr);
+  nodesDestroyNode(pNotNullCond);
+  nodesDestroyNode(pThen);
+  nodesDestroyNode(pWhenThenNode);
+  nodesDestroyList(pWhenThenList);
+  return NULL;
+}
+
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
   trimEscape(pCxt, pAlias);

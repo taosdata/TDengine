@@ -218,6 +218,7 @@ SNode*     createIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2, S
 SNode*     createNullIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2);
 SNode*     createNvlNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2);
 SNode*     createNvl2Node(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2, SNode* pExpr3);
+SNode*     createCoalesceNode(SAstCreateContext* pCxt, SNodeList* pParamList);
 SNode*     createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* token, SNode* pVal);
 SNode*     createCountWindowArgs(SAstCreateContext* pCtx, const SToken* countToken, const SToken* slidingToken,
                                  SNodeList* colList);

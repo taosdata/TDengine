@@ -1588,6 +1588,8 @@ if_expression(A) ::=
 if_expression(A) ::=
   //NULLIF(B) NK_LP common_expression(C) NK_COMMA common_expression(D) NK_RP(E).    { A = createRawExprNodeExt(pCxt, &B, &E, createNullIfNode(pCxt, C, D)); }
   NULLIF(B) NK_LP common_expression(C) NK_COMMA common_expression(D) NK_RP(E).    { A = createRawExprNodeExt(pCxt, &B, &E, createNullIfNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D))); }
+if_expression(A) ::=
+  COALESCE(B) NK_LP expression_list(C) NK_RP(E).                                  { A = createRawExprNodeExt(pCxt, &B, &E, createCoalesceNode(pCxt, C)); }
 
 case_when_expression(A) ::=
   CASE(E) when_then_list(C) case_when_else_opt(D) END(F).                         { A = createRawExprNodeExt(pCxt, &E, &F, createCaseWhenNode(pCxt, NULL, C, D)); }
