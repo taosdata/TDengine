@@ -221,7 +221,7 @@ class TestTableCountScan:
         tdSql.checkData(2, 0, 5)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, 41)
+        tdSql.checkData(3, 0, 42)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -245,7 +245,7 @@ class TestTableCountScan:
 
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 50)
+        tdSql.checkData(0, 0, 51)
 
 
         tdSql.execute('drop database tbl_count')
