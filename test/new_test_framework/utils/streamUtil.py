@@ -1112,6 +1112,35 @@ class StreamUtil:
 
         tdLog.info(f"total:{len(streams)} streams check successfully", color='yellow')
 
+    # get stream status
+    def getStreamStatus(self, dbname, stream):
+        tdSql.query(f"select status from information_schema.ins_streams where stream_name='{stream}' and db_name='{dbname}' ")
+        return tdSql.getData(0, 0)
+
+    #  check stream status
+    def waitStreamStatus(self, dbname, stream, status, waitSeconds = 60):
+        val = ""
+        for i in range(waitSeconds):
+            val = self.getStreamStatus(dbname, stream)
+            #print(f"i={i} {stream} current status {val} ... ")
+            if val == status:
+                return
+            time.sleep(1)
+        tdLog.exit(f"stream:{stream} expect status:{status} actual:{val}.")
+
+    # start stream
+    def startStream(self, dbname, stream):
+        sql = f"start stream {dbname}.{stream}"
+        print(sql)
+        tdSql.execute(sql)
+        self.waitStreamStatus(dbname, stream, "Running")
+
+    # stop stream
+    def stopStream(self, dbname, stream):
+        sql = f"stop stream {dbname}.{stream}"
+        print(sql)
+        tdSql.execute(sql)
+        self.waitStreamStatus(dbname, stream, "Stopped")
 
 tdStream = StreamUtil()
 
