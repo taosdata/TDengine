@@ -1218,33 +1218,25 @@ static int32_t tsdbRowCachePutToRocksdb(STsdb *pTsdb, SLastRowKey *pLastRowKey, 
 static int32_t tsdbCacheGetValuesFromRocks(STsdb *pTsdb, size_t numKeys, const char *const *ppKeysList,
                                            size_t *pKeysListSizes, char ***pppValuesList, size_t **ppValuesListSizes);
 
-static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_t col_type, int8_t lflag, 
-                                       SSchemaWrapper *pOldSchemaWrapper, SSchemaWrapper *pNewSchemaWrapper) {
-  int32_t code = 0, lino = 0;
+// Create table cache for row-based cache (both LRU and RocksDB)
+static int32_t tsdbRowCacheCreateTable(STsdb *pTsdb, int64_t uid, STSchema *pTSchema) {
+  int32_t code = 0;
 
-  // If schema wrappers are NULL, use simple creation (for creating entire table)
-  if (pOldSchemaWrapper == NULL || pNewSchemaWrapper == NULL) {
-#if TSDB_CACHE_ROW_BASED
-    // Create empty column similar to line 1242-1244, then encode to row and write to LRU
-    STSchema *pTSchema = NULL;
-    code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, 0, uid, -1, &pTSchema);
-    if (code != 0) {
-      TAOS_RETURN(code);
-    }
+  // Create empty row cache entries for both LAST_ROW and LAST flags
+  SLastRowKey rowKeys[2] = {{.lflag = LFLAG_LAST_ROW, .uid = uid}, {.lflag = LFLAG_LAST, .uid = uid}};
 
-    // Create empty column for the new column
-    SRowKey  emptyRowKey = {.ts = TSKEY_MIN, .numOfPKs = 0};
-    SLastCol emptyCol = {
-        .rowKey = emptyRowKey, .colVal = COL_VAL_NONE(cid, col_type), .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
-
-    // Create array with just this one column to build row
-    SArray *colVals = taosArrayInit(1, sizeof(SColVal));
+  for (int i = 0; i < 2; i++) {
+    // Create array with all columns to build row
+    SArray *colVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
     if (!colVals) {
-      taosMemoryFree(pTSchema);
-      TAOS_RETURN(terrno);
+      continue;
     }
 
-    taosArrayPush(colVals, &emptyCol.colVal);
+    // Add all columns as empty values
+    for (int j = 0; j < pTSchema->numOfCols; j++) {
+      SColVal emptyCol = COL_VAL_NONE(pTSchema->columns[j].colId, pTSchema->columns[j].type);
+      taosArrayPush(colVals, &emptyCol);
+    }
 
     // Build SRow from the column values
     SRow             *pRow = NULL;
@@ -1253,58 +1245,139 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
 
     taosArrayDestroy(colVals);
 
-    if (code != 0) {
-      taosMemoryFree(pTSchema);
-      TAOS_RETURN(code);
-    }
+    if (code == 0 && pRow) {
+      // Create row cache entry with the built row
+      SRowKey     emptyRowKey = {.ts = TSKEY_MIN, .numOfPKs = 0};
+      STsdbRowKey rowKey = {.key = emptyRowKey};
+      SLastRow    newRow = {.rowKey = rowKey, .pRow = pRow, .dirty = 1, .numCols = 0, .colStatus = NULL};
 
-    // Create row cache entry with the built row
-    STsdbRowKey rowKey = {.key = emptyRowKey};
-    SLastRow    newRow = {.rowKey = rowKey, .pRow = pRow, .dirty = 1, .numCols = 0, .colStatus = NULL};
-
-    // Initialize column status for the new row
-    code = tsdbLastRowInitColStatus(&newRow, pTSchema);
-    if (code != 0) {
-      taosMemoryFree(pTSchema);
-      if (pRow) taosMemoryFree(pRow);
-      TAOS_RETURN(code);
-    }
-
-    // Set this specific column as valid
-    tsdbLastRowSetColStatus(&newRow, cid, TSDB_LAST_CACHE_VALID);
-
-    // Write to LRU for both LAST_ROW and LAST flags
-    SLastRowKey lastRowKey = {.lflag = LFLAG_LAST_ROW, .uid = uid};
-    code = tsdbRowCachePutToLRU(pTsdb, &lastRowKey, &newRow, 1);
-    if (code) {
-      tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
-      taosMemoryFree(pTSchema);
-      if (pRow) taosMemoryFree(pRow);
-      if (newRow.colStatus) taosMemoryFree(newRow.colStatus);
-      TAOS_RETURN(code);
-    }
-
-    SLastRowKey lastKey = {.lflag = LFLAG_LAST, .uid = uid};
-    code = tsdbRowCachePutToLRU(pTsdb, &lastKey, &newRow, 1);
-    if (code) {
-      tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
-    }
-
-    taosMemoryFree(pTSchema);
-#else
-    // Original column-based cache logic for NULL schema case
-    SLRUCache *pCache = pTsdb->lruCache;
-    SRowKey  emptyRowKey = {.ts = TSKEY_MIN, .numOfPKs = 0};
-    SLastCol emptyCol = {
-        .rowKey = emptyRowKey, .colVal = COL_VAL_NONE(cid, col_type), .dirty = 1, .cacheStatus = TSDB_LAST_CACHE_VALID};
-
-    SLastKey *pLastKey = &(SLastKey){.lflag = lflag, .uid = uid, .cid = cid};
-    code = tsdbCachePutToLRU(pTsdb, pLastKey, &emptyCol, 1);
-    if (code) {
-      tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
-    }
+      // Initialize column status for the new row
+      code = tsdbLastRowInitColStatus(&newRow, pTSchema);
+      if (code == 0) {
+        // Write to RocksDB first
+#ifdef USE_ROCKSDB
+        rocksMayWrite(pTsdb, true);
+        code = tsdbRowCachePutToRocksdb(pTsdb, &rowKeys[i], &newRow);
+        if (code != 0) {
+          tsdbError("vgId:%d, %s put to rocksdb failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+                    tstrerror(code));
+        }
 #endif
-    TAOS_RETURN(code);
+
+        // Write to LRU cache
+        if (code == 0) {
+          code = tsdbRowCachePutToLRU(pTsdb, &rowKeys[i], &newRow, 1);
+          if (code != 0) {
+            // Cleanup on error
+            if (newRow.colStatus) taosMemoryFree(newRow.colStatus);
+            if (pRow) taosMemoryFree(pRow);
+          }
+        } else {
+          // Cleanup on error
+          if (newRow.colStatus) taosMemoryFree(newRow.colStatus);
+          if (pRow) taosMemoryFree(pRow);
+        }
+      } else {
+        // Cleanup on error
+        if (pRow) taosMemoryFree(pRow);
+      }
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+// Create table cache for column-based cache
+static int32_t tsdbColCacheCreateTable(STsdb *pTsdb, int64_t uid, STSchema *pTSchema) {
+  int32_t code = 0;
+
+  // Create cache entries for all columns
+  for (int j = 0; j < pTSchema->numOfCols; j++) {
+    int16_t cid = pTSchema->columns[j].colId;
+    int8_t  col_type = pTSchema->columns[j].type;
+
+    SLastKey lastKeys[2] = {{.lflag = LFLAG_LAST, .uid = uid, .cid = cid},
+                            {.lflag = LFLAG_LAST_ROW, .uid = uid, .cid = cid}};
+
+    for (int i = 0; i < 2; i++) {
+      // Create new empty column cache entry
+      SRowKey  emptyRowKey = {.ts = TSKEY_MIN, .numOfPKs = 0};
+      SLastCol emptyCol = {.rowKey = emptyRowKey,
+                           .colVal = COL_VAL_NONE(cid, col_type),
+                           .dirty = 1,
+                           .cacheStatus = TSDB_LAST_CACHE_VALID};
+
+      SLastKey *pLastKey = &lastKeys[i];
+      code = tsdbCachePutToLRU(pTsdb, pLastKey, &emptyCol, 1);
+      if (code) {
+        tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
+      }
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+// Delete table cache for row-based cache (both LRU and RocksDB)
+static int32_t tsdbRowCacheDeleteTable(STsdb *pTsdb, int64_t uid) {
+  int32_t code = 0;
+
+  // Delete row cache entries for both LAST_ROW and LAST flags
+  SLastRowKey rowKeys[2] = {{.lflag = LFLAG_LAST_ROW, .uid = uid}, {.lflag = LFLAG_LAST, .uid = uid}};
+
+  for (int i = 0; i < 2; i++) {
+#ifdef USE_ROCKSDB
+    char  *rowKey = (char *)&rowKeys[i];
+    size_t rowKeySize = ROCKS_ROW_KEY_LEN;
+    rocksMayWrite(pTsdb, true);
+    rocksdb_writebatch_delete(pTsdb->rCache.writebatch, rowKey, rowKeySize);
+#endif
+    // Handle LRU cache
+    LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, &rowKeys[i], ROCKS_ROW_KEY_LEN);
+    if (h) {
+      tsdbLRUCacheRelease(pTsdb->lruCache, h, true);
+      taosLRUCacheErase(pTsdb->lruCache, &rowKeys[i], ROCKS_ROW_KEY_LEN);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+// Delete table cache for column-based cache
+static int32_t tsdbColCacheDeleteTable(STsdb *pTsdb, int64_t uid, STSchema *pTSchema) {
+  int32_t code = 0;
+
+  // Delete cache entries for all columns
+  for (int j = 0; j < pTSchema->numOfCols; j++) {
+    int16_t cid = pTSchema->columns[j].colId;
+
+    SLastKey lastKeys[2] = {{.lflag = LFLAG_LAST, .uid = uid, .cid = cid},
+                            {.lflag = LFLAG_LAST_ROW, .uid = uid, .cid = cid}};
+
+    for (int i = 0; i < 2; i++) {
+#ifdef USE_ROCKSDB
+      rocksdb_writebatch_delete(pTsdb->rCache.writebatch, (char *)&lastKeys[i], TSDB_CACHE_KEY_LEN);
+#endif
+      LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, &lastKeys[i], TSDB_CACHE_KEY_LEN);
+      if (h) {
+        tsdbLRUCacheRelease(pTsdb->lruCache, h, true);
+        taosLRUCacheErase(pTsdb->lruCache, &lastKeys[i], TSDB_CACHE_KEY_LEN);
+      }
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_t col_type, int8_t lflag,
+                                       SSchemaWrapper *pOldSchemaWrapper, SSchemaWrapper *pNewSchemaWrapper) {
+  int32_t code = 0, lino = 0;
+
+  // Schema wrappers are required for column operations
+  if (pOldSchemaWrapper == NULL || pNewSchemaWrapper == NULL) {
+    tsdbError("vgId:%d, %s failed: schema wrappers are required for column operations", TD_VID(pTsdb->pVnode),
+              __func__);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
   // Schema-based column addition logic for existing tables
@@ -1608,43 +1681,11 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
                                         SSchemaWrapper *pNewSchemaWrapper, bool hasPrimaryKey) {
   int32_t code = 0;
 
-  // If schema wrappers are NULL, this is for dropping entire table, use simple deletion
+  // Schema wrappers are required for column operations
   if (pOldSchemaWrapper == NULL || pNewSchemaWrapper == NULL) {
-#if TSDB_CACHE_ROW_BASED
-    // For row-based cache when dropping entire table, just delete the keys
-    SLastRowKey rowKeys[2] = {{.lflag = LFLAG_LAST_ROW, .uid = uid}, {.lflag = LFLAG_LAST, .uid = uid}};
-
-    for (int i = 0; i < 2; i++) {
-#ifdef USE_ROCKSDB
-      char  *rowKey = (char *)&rowKeys[i];
-      size_t rowKeySize = ROCKS_ROW_KEY_LEN;
-      rocksMayWrite(pTsdb, true);
-      rocksdb_writebatch_delete(pTsdb->rCache.writebatch, rowKey, rowKeySize);
-#endif
-      // Handle LRU cache
-      LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, &rowKeys[i], ROCKS_ROW_KEY_LEN);
-      if (h) {
-        tsdbLRUCacheRelease(pTsdb->lruCache, h, true);
-        taosLRUCacheErase(pTsdb->lruCache, &rowKeys[i], ROCKS_ROW_KEY_LEN);
-      }
-    }
-#else
-    // Original column-based cache implementation
-    SLastKey lastKeys[2] = {{.lflag = LFLAG_LAST, .uid = uid, .cid = cid},
-                            {.lflag = LFLAG_LAST_ROW, .uid = uid, .cid = cid}};
-
-    for (int i = 0; i < 2; i++) {
-#ifdef USE_ROCKSDB
-      rocksdb_writebatch_delete(pTsdb->rCache.writebatch, (char *)&lastKeys[i], TSDB_CACHE_KEY_LEN);
-#endif
-      LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, &lastKeys[i], TSDB_CACHE_KEY_LEN);
-      if (h) {
-        tsdbLRUCacheRelease(pTsdb->lruCache, h, true);
-        taosLRUCacheErase(pTsdb->lruCache, &lastKeys[i], TSDB_CACHE_KEY_LEN);
-      }
-    }
-#endif
-    TAOS_RETURN(TSDB_CODE_SUCCESS);
+    tsdbError("vgId:%d, %s failed: schema wrappers are required for column operations", TD_VID(pTsdb->pVnode),
+              __func__);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
 #if TSDB_CACHE_ROW_BASED
@@ -2007,19 +2048,22 @@ int32_t tsdbCacheNewTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, const SSche
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
   if (suid < 0) {
-    for (int i = 0; i < pSchemaRow->nCols; ++i) {
-      int16_t cid = pSchemaRow->pSchema[i].colId;
-      int8_t  col_type = pSchemaRow->pSchema[i].type;
-
-      code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, LFLAG_LAST_ROW, NULL, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
-      }
-      code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, LFLAG_LAST, NULL, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
+    // For normal table, create schema from pSchemaRow
+    if (pSchemaRow->nCols > 0) {
+      // Build STSchema from SSchemaWrapper for consistency
+      STSchema *pTSchema = NULL;
+      code = metaBuildTSchemaFromSchemaWrapper((SSchemaWrapper *)pSchemaRow, &pTSchema);
+      if (code == TSDB_CODE_SUCCESS && pTSchema) {
+#if TSDB_CACHE_ROW_BASED
+        code = tsdbRowCacheCreateTable(pTsdb, uid, pTSchema);
+#else
+        code = tsdbColCacheCreateTable(pTsdb, uid, pTSchema);
+#endif
+        if (code != TSDB_CODE_SUCCESS) {
+          tsdbTrace("vgId:%d, %s create table cache failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
+                    __LINE__, tstrerror(code));
+        }
+        taosMemoryFree(pTSchema);
       }
     }
   } else {
@@ -2031,19 +2075,16 @@ int32_t tsdbCacheNewTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, const SSche
       TAOS_RETURN(code);
     }
 
-    for (int i = 0; i < pTSchema->numOfCols; ++i) {
-      int16_t cid = pTSchema->columns[i].colId;
-      int8_t  col_type = pTSchema->columns[i].type;
-
-      code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, LFLAG_LAST_ROW, NULL, NULL);
+    // For super table, create table cache using the schema
+    if (pTSchema->numOfCols > 0) {
+#if TSDB_CACHE_ROW_BASED
+      code = tsdbRowCacheCreateTable(pTsdb, uid, pTSchema);
+#else
+      code = tsdbColCacheCreateTable(pTsdb, uid, pTSchema);
+#endif
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
-      }
-      code = tsdbCacheNewTableColumn(pTsdb, uid, cid, col_type, LFLAG_LAST, NULL, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        tsdbTrace("vgId:%d, %s new table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
+        tsdbTrace("vgId:%d, %s create table cache failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
+                  __LINE__, tstrerror(code));
       }
     }
 
@@ -2067,19 +2108,21 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
   }
 
   if (pSchemaRow != NULL) {
-    bool hasPrimayKey = false;
-    int  nCols = pSchemaRow->nCols;
-    if (nCols >= 2) {
-      hasPrimayKey = (pSchemaRow->pSchema[1].flags & COL_IS_KEY) ? true : false;
-    }
-    for (int i = 0; i < nCols; ++i) {
-      int16_t cid = pSchemaRow->pSchema[i].colId;
-      int8_t  col_type = pSchemaRow->pSchema[i].type;
-
-      code = tsdbCacheDropTableColumn(pTsdb, uid, cid, NULL, NULL, hasPrimayKey);
-      if (code != TSDB_CODE_SUCCESS) {
-        tsdbTrace("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
+    // For normal table, build schema and delete
+    if (pSchemaRow->nCols > 0) {
+      STSchema *pTSchema = NULL;
+      code = metaBuildTSchemaFromSchemaWrapper(pSchemaRow, &pTSchema);
+      if (code == TSDB_CODE_SUCCESS && pTSchema) {
+#if TSDB_CACHE_ROW_BASED
+        code = tsdbRowCacheDeleteTable(pTsdb, uid);
+#else
+        code = tsdbColCacheDeleteTable(pTsdb, uid, pTSchema);
+#endif
+        if (code != TSDB_CODE_SUCCESS) {
+          tsdbTrace("vgId:%d, %s delete table cache failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
+                    __LINE__, tstrerror(code));
+        }
+        taosMemoryFree(pTSchema);
       }
     }
   } else {
@@ -2091,19 +2134,16 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
       TAOS_RETURN(code);
     }
 
-    bool hasPrimayKey = false;
-    int  nCols = pTSchema->numOfCols;
-    if (nCols >= 2) {
-      hasPrimayKey = (pTSchema->columns[1].flags & COL_IS_KEY) ? true : false;
-    }
-    for (int i = 0; i < nCols; ++i) {
-      int16_t cid = pTSchema->columns[i].colId;
-      int8_t  col_type = pTSchema->columns[i].type;
-
-      code = tsdbCacheDropTableColumn(pTsdb, uid, cid, NULL, NULL, hasPrimayKey);
+    // For super table, delete using schema
+    if (pTSchema->numOfCols > 0) {
+#if TSDB_CACHE_ROW_BASED
+      code = tsdbRowCacheDeleteTable(pTsdb, uid);
+#else
+      code = tsdbColCacheDeleteTable(pTsdb, uid, pTSchema);
+#endif
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbTrace("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
+        tsdbTrace("vgId:%d, %s delete table cache failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
+                  __LINE__, tstrerror(code));
       }
     }
 
@@ -2139,20 +2179,16 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
   for (int i = 0; i < TARRAY_SIZE(uids); ++i) {
     int64_t uid = ((tb_uid_t *)TARRAY_DATA(uids))[i];
 
-    bool hasPrimayKey = false;
-    int  nCols = pTSchema->numOfCols;
-    if (nCols >= 2) {
-      hasPrimayKey = (pTSchema->columns[1].flags & COL_IS_KEY) ? true : false;
-    }
-
-    for (int i = 0; i < nCols; ++i) {
-      int16_t cid = pTSchema->columns[i].colId;
-      int8_t  col_type = pTSchema->columns[i].type;
-
-      code = tsdbCacheDropTableColumn(pTsdb, uid, cid, NULL, NULL, hasPrimayKey);
+    // For each subtable, delete using appropriate cache method
+    if (pTSchema->numOfCols > 0) {
+#if TSDB_CACHE_ROW_BASED
+      code = tsdbRowCacheDeleteTable(pTsdb, uid);
+#else
+      code = tsdbColCacheDeleteTable(pTsdb, uid, pTSchema);
+#endif
       if (code != TSDB_CODE_SUCCESS) {
-        tsdbTrace("vgId:%d, %s drop table column failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                  tstrerror(code));
+        tsdbTrace("vgId:%d, %s delete table cache failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__,
+                  __LINE__, tstrerror(code));
       }
     }
   }
