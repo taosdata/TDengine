@@ -32,16 +32,6 @@ class TestWebsiteCase:
         taosBenchmark query->Basic test cases
         """
 
-    def runSeconds(self, command, timeout = 180):
-        tdLog.info(f"runSeconds {command} ...")
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        process.wait(timeout)
-
-        # get output
-        output = process.stdout.read().decode(encoding="gbk")
-        error  = process.stderr.read().decode(encoding="gbk")
-        return output, error
-
     def getKeyValue(self, content, key, end):
         # find key
         s = content.find(key)
@@ -102,7 +92,7 @@ class TestWebsiteCase:
     def checkAfterRun(self, benchmark, jsonFile, specMode, tbCnt):
         # run
         cmd = f"{benchmark} -f {jsonFile}"
-        output, error = self.runSeconds(cmd)
+        output, error, code = frame.eos.run(cmd, True)
 
         if specMode :
             label = "specified_table_query"
@@ -143,7 +133,7 @@ class TestWebsiteCase:
 
         totalQueries  = 0
         threadQueries = 0
-        QPS           = 10
+        QPS           = 1
 
         if continueIfFail.lower() == "yes":
             allEnd = " "
@@ -167,7 +157,7 @@ class TestWebsiteCase:
                 if batchQuery.lower() == "yes":
                     # batch
                     threadQueries = len(sqls)
-                    QPS           = 2
+                    QPS           = 1
                 else:
                     threadQueries = totalQueries
             else:
@@ -186,7 +176,7 @@ class TestWebsiteCase:
 
         items = [
             [threadKey, " ", threadQueries, True],
-            [qpsKey, " ",  5, False],  # qps need > 1
+            [qpsKey, " ",  1, False],  # qps need > 1
             [avgKey, "s",  0, False],
             [minKey, "s",  0, False],
             ["max: ", "s", 0, False],

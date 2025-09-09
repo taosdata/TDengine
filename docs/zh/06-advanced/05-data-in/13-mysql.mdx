@@ -3,11 +3,11 @@ title: "MySQL"
 sidebar_label: "MySQL"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 MySQL 迁移数据到当前 TDengine 集群。
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从 MySQL 迁移数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
 
-MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在使用 MySQL 数据库存储物联网、工业互联网等设备上报的数据。但随着接入系统的设备量日益增长、用户对数据实时性反馈的要求也越来越高，MySQL 已经无法满足业务需求。从 TDengine 企业版 3.3.0.0 开始，TDengine 可以高效地从 MySQL 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步，解决业务面临的技术痛点。
+MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在使用 MySQL 数据库存储物联网、工业互联网等设备上报的数据。但随着接入系统的设备量日益增长、用户对数据实时性反馈的要求也越来越高，MySQL 已经无法满足业务需求。从 TDengine TSDB 企业版 3.3.0.0 开始，TDengine TSDB 可以高效地从 MySQL 读取数据并将其写入 TDengine TSDB，以实现历史数据迁移或实时数据同步，解决业务面临的技术痛点。
 
 ## 创建任务
 
@@ -88,9 +88,9 @@ MySQL 是最流行的关系型数据库之一。很多系统都曾经或正在�
 
 在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 vValue 字段拆分成 `vValue_0` 和 `vValue_1` 这 2 个字段，选择 split 提取器，separator 填写分割符 `,`, number 填写 2。
 
-在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine。
+在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine TSDB。
 
-在 **映射** 中，选择要映射到 TDengine 的超级表，以及映射到超级表的列。
+在 **映射** 中，选择要映射到 TDengine TSDB 的超级表，以及映射到超级表的列。
 
 点击 **预览**，可以查看映射的结果。
 
@@ -110,4 +110,4 @@ import Contributing from './_03-exception-handling-strategy.mdx'
 
 ### 10. 创建完成
 
-点击 **提交** 按钮，完成创建  MySQL 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建  MySQL 到 TDengine TSDB 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

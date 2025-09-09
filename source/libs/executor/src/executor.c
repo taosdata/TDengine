@@ -168,7 +168,7 @@ int32_t doSetTaskId(SOperatorInfo* pOperator, SStorageAPI* pAPI) {
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   SExecTaskInfo* pTaskInfo = tinfo;
   pTaskInfo->id.queryId = queryId;
-  buildTaskId(taskId, queryId, pTaskInfo->id.str);
+  buildTaskId(taskId, queryId, pTaskInfo->id.str, 64);
 
   // set the idstr for tsdbReader
   return doSetTaskId(pTaskInfo->pRoot, &pTaskInfo->storageAPI);
@@ -1782,7 +1782,8 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
   return streamCalcOneScalarExprInRange(pExpr, pDst, -1, -1, pExtraParams);
 }
 
-int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx, const SStreamRuntimeFuncInfo* pExtraParams) {
+int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,
+                                       const SStreamRuntimeFuncInfo* pExtraParams) {
   int32_t      code = 0;
   SNode*       pNode = 0;
   SNodeList*   pList = NULL;
@@ -1828,8 +1829,13 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
     SSDataBlock block = {0};
     block.info.rows = 1;
     SSDataBlock* pBlock = &block;
-    taosArrayPush(pBlockList, &pBlock);
-    if (code == 0) code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
+    void*        tmp = taosArrayPush(pBlockList, &pBlock);
+    if (tmp == NULL) {
+      code = terrno;
+    }
+    if (code == 0) {
+      code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
+    }
     taosArrayDestroy(pBlockList);
   }
   nodesDestroyList(pList);
@@ -1860,7 +1866,11 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
     }
   }
 
-  blockDataEnsureCapacity(*pRes, (*pRes)->info.rows + 1);
+  code = blockDataEnsureCapacity(*pRes, (*pRes)->info.rows + 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to ensure capacity for force output, code:%s", tstrerror(code));
+    return code;
+  }
 
   // loop all exprs for force output, execute all exprs
   int32_t idx = 0;
@@ -1936,11 +1946,20 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       pCol->info.bytes = ((SExprNode*)pExpr)->resType.bytes;
       pCol->info.precision = ((SExprNode*)pExpr)->resType.precision;
       pCol->info.scale = ((SExprNode*)pExpr)->resType.scale;
-      colInfoDataEnsureCapacity(pCol, 1, true);
+      code = colInfoDataEnsureCapacity(pCol, 1, true);
+      if (code != 0) {
+        qError("failed to ensure capacity for col info data at: %s, %d", __func__, __LINE__);
+        taosMemoryFree(pCol);
+        break;
+      }
       dst.columnData = pCol;
       dst.numOfRows = 1;
       dst.colAlloced = true;
       code = streamCalcOneScalarExpr(pExpr, &dst, pStreamRuntimeInfo);
+      if (colDataIsNull_var(dst.columnData, 0)) {
+        qInfo("invalid sub tb expr with null value");
+        code = TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED;
+      }
       if (code == 0) {
         pVal = varDataVal(colDataGetVarData(dst.columnData, 0));
         len = varDataLen(colDataGetVarData(dst.columnData, 0));
@@ -1994,10 +2013,6 @@ void destroyStreamInserterParam(SStreamInserterParam* pParam) {
     if (pParam->pTagFields) {
       taosArrayDestroy(pParam->pTagFields);
       pParam->pTagFields = NULL;
-    }
-    if (pParam->pSchema) {
-      taosMemFree(pParam->pSchema);
-      pParam->pSchema = NULL;
     }
     taosMemFree(pParam);
   }

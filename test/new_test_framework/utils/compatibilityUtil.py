@@ -24,6 +24,7 @@ from .sql import *
 from .server.dnodes import *
 from .common import *
 from taos.tmq import Consumer
+from new_test_framework.utils import clusterComCheck
 
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
@@ -69,18 +70,19 @@ class CompatibilityBase:
     # Modified installTaosd to accept version parameter
     def installTaosdForRollingUpgrade(self, dnodePaths, base_version):
         packagePath = "/usr/local/src/"
-        packageType = "server"
-            
+        
+        # New download URL format
         if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
+            packageName = f"tdengine-tsdb-oss-{base_version}-linux-arm64.tar.gz"
+            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
         else:
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+            packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
+            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
             
-        # Determine download URL
-        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
         tdLog.info(f"wget {download_url}")
         
-        packageTPath = packageName.split("-Linux-")[0]
+        # Extract package name without extension for installation
+        packageTPath = packageName.replace("-linux-x64.tar.gz", "")
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
             print(f"{packageName} is not exists")
@@ -118,7 +120,6 @@ class CompatibilityBase:
         
         return True
 
-    # Modified installTaosd to accept version parameter
     def installTaosd(self, bPath, cPath, base_version):
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
@@ -203,6 +204,7 @@ class CompatibilityBase:
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
+        time.sleep(5)
         global dbname, stb, first_consumer_rows
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
@@ -216,7 +218,7 @@ class CompatibilityBase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
 
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database curdb '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'alter database curdb  cachemodel \"both\" '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select count(*) from curdb.meters '")
@@ -267,12 +269,12 @@ class CompatibilityBase:
 
         consumer.close()
         
-        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
+        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
 
         # os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f cases/13-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f cases/41-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
 
         # add deleted  data
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{deletedDataSql}" ')
@@ -297,10 +299,14 @@ class CompatibilityBase:
                 found_pids = [pid for pid in output.strip().split('\n') if pid] 
             tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
 
-            pid_to_kill_for_this_dnode = found_pids[0]
-            tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
-            os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-            cb.checkProcessPid(pid_to_kill_for_this_dnode)
+            if len(found_pids) == 0:
+                tdLog.info("No taosd process found keep going")
+            else: 
+                pid_to_kill_for_this_dnode = found_pids[0]
+                tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
+                os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
+                self.checkProcessPid(pid_to_kill_for_this_dnode)
+
             tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
             tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
             os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
@@ -330,7 +336,7 @@ class CompatibilityBase:
                     os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
                 else:
                     tdLog.info(f"No running taosd PID found to kill for cPaths[{i}] (or fewer PIDs found than cPaths entries).")
-                cb.checkProcessPid(pid_to_kill_for_this_dnode)
+                self.checkProcessPid(pid_to_kill_for_this_dnode)
                 tdLog.info(f"Starting taosd using cPath: {cPaths[i]}")
                 tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
                 os.system(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")

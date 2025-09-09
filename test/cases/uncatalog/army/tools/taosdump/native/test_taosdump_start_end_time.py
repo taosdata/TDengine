@@ -20,37 +20,16 @@ class TestTaosdumpStartEndTime:
         case1<sdsang>: [TS-2769] taosdump start-time end-time test
         """
 
-
-
-
-    def test_taosdump_start_end_time(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-        """
-        binPath = etool.taosDumpFile()
-        if binPath == "":
-            tdLog.exit("taosdump not found!")
-        else:
-            tdLog.info("taosdump found in %s" % binPath)
-
+    def prepare(self, time_unit='', precision=''):
+        
         tdSql.prepare()
+        if time_unit != '':
+            time_unit = f"precision '{time_unit}'"
+
+        tdLog.info("taosdump start time end time test, precision: %s" % precision)
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
+        tdSql.execute(f"create database db  keep 3649 {time_unit} ")
 
         tdSql.execute("use db")
         tdSql.execute(
@@ -63,14 +42,56 @@ class TestTaosdumpStartEndTime:
             "create table t3 (ts timestamp, n int)"
         )
         tdSql.execute(
-            "insert into t1 values('2023-02-28 12:00:00.997',11)('2023-02-28 12:00:01.997',12)('2023-02-28 12:00:02.997',15)('2023-02-28 12:00:03.997',16)('2023-02-28 12:00:04.997',17)"
+            f"insert into t1 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
         )
         tdSql.execute(
-            "insert into t2 values('2023-02-28 12:00:00.997',11)('2023-02-28 12:00:01.997',12)('2023-02-28 12:00:02.997',15)('2023-02-28 12:00:03.997',16)('2023-02-28 12:00:04.997',17)"
+            f"insert into t2 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
         )
         tdSql.execute(
-            "insert into t3 values('2023-02-28 12:00:00.997',11)('2023-02-28 12:00:01.997',12)('2023-02-28 12:00:02.997',15)('2023-02-28 12:00:03.997',16)('2023-02-28 12:00:04.997',17)"
+            f"insert into t3 values('2023-02-28 12:00:00.{precision}',11)('2023-02-28 12:00:01.{precision}',12)('2023-02-28 12:00:02.{precision}',15)('2023-02-28 12:00:03.{precision}',16)('2023-02-28 12:00:04.{precision}',17)"
         )
+
+    def test_taosdump_start_end_time(self):
+        """summary: taosdump time filtering import and export testing
+
+        description: taosdump import and export testing of time filtering with different time accuracies
+
+        Since: 3.3.7.2
+
+        Labels: taosdump
+
+        Jira: https://jira.taosdata.com:18080/browse/TS-7053
+
+        Catalog:
+            - taos-tool:taosdump
+
+        History:
+            - 2025-08-13: Created
+        """
+        self.taosdump_start_end_time("ns")
+        self.taosdump_start_end_time("us")
+        self.taosdump_start_end_time("ms")
+        self.taosdump_start_end_time()
+
+    def taosdump_start_end_time(self, time_unit=''):
+        precision = ''
+        if time_unit == "ns":
+            precision = '997000000'
+        elif time_unit == "us":
+            precision = '997000'
+        elif time_unit == "ms":
+            precision = '997'
+        else:
+            precision = '0'    
+
+        self.prepare(time_unit, precision)
+        tdLog.info("taosdump start time end time test, precision: %s" % precision)
+
+        binPath = etool.taosDumpFile()
+        if binPath == "":
+            tdLog.exit("taosdump not found!")
+        else:
+            tdLog.info("taosdump found in %s" % binPath)
 
         #        sys.exit(1)
 
@@ -81,7 +102,7 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t1 -o %s -T 1 -S 2023-02-28T12:00:01.997+0800 -E 2023-02-28T12:00:03.997+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t1 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 -E 2023-02-28T12:00:03.%s+0800 " % (binPath, self.tmpdir, precision, precision))
 
         tdSql.execute("drop table t1")
 
@@ -97,7 +118,7 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t2 -o %s -T 1 -S 2023-02-28T12:00:01.997+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t2 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 " % (binPath, self.tmpdir, precision))
 
         tdSql.execute("drop table t2")
         os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
@@ -112,7 +133,7 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t3 -o %s -T 1 -E 2023-02-28T12:00:03.997+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t3 -o %s -T 1 -E 2023-02-28T12:00:03.%s+0800 " % (binPath, self.tmpdir, precision))
 
         tdSql.execute("drop table t3")
 

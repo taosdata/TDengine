@@ -42,16 +42,17 @@ typedef struct SStreamHbInfo {
 typedef struct SStreamInfo {
   SRWLatch            lock;
   int32_t             taskNum;
+  int8_t              destroyed;
   
   SList*              readerList;        // SStreamReaderTask
   int64_t             triggerTaskId;
-  SStreamTriggerTask* triggerTask;
+  SList*              triggerList;       // SStreamTriggerTask
   SList*              runnerList;        // SArray<SStreamRunnerTask>
 
   SRWLatch            undeployLock;
 
   SArray*             undeployReaders;        // SArray<taskId+seriousId>
-  int64_t             undeployTriggerId;
+  SArray*             undeployTriggers;       // SArray<taskId+seriousId>
   SArray*             undeployRunners;        // SArray<taskId+seriousId>
 } SStreamInfo;
 
@@ -111,7 +112,7 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
 int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
-void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, bool isReader);
+void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, EStreamTaskType type, SArray* pUndeployList, SList* pTaskList);
 void smUndeployVgTasks(int32_t vgId, bool cleanup);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamInfo(void* param);
@@ -131,6 +132,7 @@ void streamTimerCleanUp();
 void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
 void streamTmrStop(tmr_h tmrId);
 void smEnableVgDeploy(int32_t vgId);
+void smUndeployStreamTriggerTasks(SStreamInfo* pStream, int64_t streamId);
 
 #ifdef __cplusplus
 }

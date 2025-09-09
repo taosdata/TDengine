@@ -8,12 +8,17 @@ class TestDatabaseShowCreateTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_show_create_table(self):
-        """show create table
+        """Show create table
 
-        1. -
+        1. Create a normal table
+        2. Create a super table
+        3. Create child tables
+        4. Execute SHOW CREATE TABLE and verify the output
+        5. Change the showFullCreateTableColumn parameter
+        6. Execute SHOW CREATE TABLE again and verify the new output
 
         Catalog:
-            - Database:Create
+            - Database:Query
 
         Since: v3.0.0.0
 

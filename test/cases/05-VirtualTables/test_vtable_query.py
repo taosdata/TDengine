@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
-import time
+import os
 
 class TestVTableQuery:
 
@@ -58,15 +58,15 @@ class TestVTableQuery:
             tdSql.execute(f"CREATE TABLE `vtb_org_normal_{i}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32)) SMA(u_tinyint_col)")
 
         tdLog.info(f"insert data into org tables.")
-        datafile = etool.curFile(__file__, "data/data1.csv")
+        datafile = etool.getFilePath(__file__, "data", "data1.csv")
         tdSql.execute("insert into vtb_org_normal_0 file '%s';" % datafile)
         tdSql.execute("insert into vtb_org_child_0 file '%s';" % datafile)
 
-        datafile = etool.curFile(__file__, "data/data2.csv")
+        datafile = etool.getFilePath(__file__, "data", "data2.csv")
         tdSql.execute("insert into vtb_org_normal_1 file '%s';" % datafile)
         tdSql.execute("insert into vtb_org_child_1 file '%s';" % datafile)
 
-        datafile = etool.curFile(__file__, "data/data3.csv")
+        datafile = etool.getFilePath(__file__, "data", "data3.csv")
         tdSql.execute("insert into vtb_org_normal_2 file '%s';" % datafile)
         tdSql.execute("insert into vtb_org_child_2 file '%s';" % datafile)
 
@@ -208,26 +208,29 @@ class TestVTableQuery:
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
         tdLog.info(f"test case : {testCase}.")
-        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
-        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.ans")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", f"{testCase}.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", f"{testCase}.ans")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
 
     def test_select_virtual_normal_table(self):
-        """test select virtual normal table.
+        """Query: virtual normal table
 
-        1 test vstable select normal table projection
-        2 test vstable select normal table projection filter
-        3 test vstable select normal table interval
-        4 test vstable select normal table state
-        5 test vstable select normal table session
-        6 test vstable select normal table event
-        7 test vstable select normal table count
-        8 test vstable select normal table partition
-        9 test vstable select normal table group
-        10 test vstable select chnormalild table orderby
+        1. test vstable select normal table projection
+        2. test vstable select normal table projection filter
+        3. test vstable select normal table interval
+        4. test vstable select normal table state
+        5. test vstable select normal table session
+        6. test vstable select normal table event
+        7. test vstable select normal table count
+        8. test vstable select normal table partition
+        9. test vstable select normal table group
+        10. test vstable select chnormalild table orderby
 
+        Catalog:
+            - VirtualTable
+ 
         Since: v3.3.6.0
 
         Labels: virtual
@@ -254,18 +257,21 @@ class TestVTableQuery:
         self.run_normal_query("test_vtable_select_test_orderby")
 
     def test_select_virtual_child_table(self):
-        """test select virtual child table.
+        """Query: virtual child table
 
-        1 test vstable select child table projection
-        2 test vstable select child table projection filter
-        3 test vstable select child table interval
-        4 test vstable select child table state
-        5 test vstable select child table session
-        6 test vstable select child table event
-        7 test vstable select child table count
-        8 test vstable select child table partition
-        9 test vstable select child table group
-        10 test vstable select child table orderby
+        1. test vstable select child table projection
+        2. test vstable select child table projection filter
+        3. test vstable select child table interval
+        4. test vstable select child table state
+        5. test vstable select child table session
+        6. test vstable select child table event
+        7. test vstable select child table count
+        8. test vstable select child table partition
+        9. test vstable select child table group
+        10. test vstable select child table orderby
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -293,18 +299,21 @@ class TestVTableQuery:
         self.run_normal_query("test_vctable_select_test_orderby")
 
     def test_select_virtual_super_table(self):
-        """test select virtual super table.
+        """Query: virtual super table
 
-        1 test vstable select super table projection
-        2 test vstable select super table projection filter
-        3 test vstable select super table interval
-        4 test vstable select super table state
-        5 test vstable select super table session
-        6 test vstable select super table event
-        7 test vstable select super table count
-        8 test vstable select super table partition
-        9 test vstable select super table group
-        10 test vstable select super table orderby
+        1. test vstable select super table projection
+        2. test vstable select super table projection filter
+        3. test vstable select super table interval
+        4. test vstable select super table state
+        5. test vstable select super table session
+        6. test vstable select super table event
+        7. test vstable select super table count
+        8. test vstable select super table partition
+        9. test vstable select super table group
+        10. test vstable select super table orderby
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

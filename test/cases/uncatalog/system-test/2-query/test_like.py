@@ -160,6 +160,33 @@ class TestLike:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "_c")
 
+    def like_wildcard_test3(self):
+        tdSql.execute("create table db.t9x (ts timestamp, c1 varchar(100))")
+        
+        # insert test data
+        tdSql.execute("insert into db.t9x values (now(), '\\\\')")      # \
+        tdSql.execute("insert into db.t9x values (now+1s, '%')")        # %
+        tdSql.execute("insert into db.t9x values (now+2s, '\\\\\\\\')") # \\
+        tdSql.execute("insert into db.t9x values (now+3s, '\\%')")      # \%
+        tdSql.execute("insert into db.t9x values (now+4s, '%\\\\')")    # %\
+        tdSql.execute("insert into db.t9x values (now+5s, '\\%\\%')")   # \%\%
+
+        # query with like
+        tdSql.query("select * from db.t9x where c1 like '%\\%'", show=True)             # pattern: '%\%' => ends with %
+        tdSql.checkRows(3)
+
+        tdSql.query("select * from db.t9x where c1 like '%\\\\%'", show=True)           # pattern: '%\\%' => ends with %
+        tdSql.checkRows(3)
+
+        tdSql.query("select * from db.t9x where c1 like '%\\\\\\%'", show=True)         # pattern: '%\\\%' => contains \
+        tdSql.checkRows(5)
+
+        tdSql.query("select * from db.t9x where c1 like '%\\\\\\\\%'", show=True)       # pattern: '%\\\\%' => contains \
+        tdSql.checkRows(5)
+
+        tdSql.query("select * from db.t9x where c1 like '%\\\\\\\\\\%'", show=True)     # pattern: '%\\\\\%' => contains \ and ends with %
+        tdSql.checkRows(2)
+
     def test_like(self):
         """summary: xxx
 
@@ -188,6 +215,7 @@ class TestLike:
         self.like_cnc_wildcard_test()
         self.like_multi_wildcard_test()
         self.like_wildcard_test2()
+        self.like_wildcard_test3()
         tdLog.printNoPrefix("==========end like_wildcard_test run ...............")
         
         self.stopTest()

@@ -8,8 +8,7 @@ from enum import Enum
 import os
 import taos
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from tmqCommon import tmqCom
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tmqCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0

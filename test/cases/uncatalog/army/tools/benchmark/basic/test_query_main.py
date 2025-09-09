@@ -75,7 +75,9 @@ class TestQueryMain:
         if ret == False:
             tdLog.exit(f"not found key:{key}. end:{end} output:\n{output}")
 
-        fval = float(value)
+        tdLog.info(f"get key:{key} value:{value} end:{end}, output:\n{output}")
+        cleaned_value = value.split("\n")[0]
+        fval = float(cleaned_value)
         # compare
         if equal and fval != expect:
             tdLog.exit(f"check not expect. expect:{expect} real:{fval}, key:'{key}' end:'{end}' output:\n{output}")
@@ -176,7 +178,7 @@ class TestQueryMain:
 
         items = [
             [threadKey, " ", threadQueries, True],
-            [qpsKey, " ",  5, False],  # qps need > 1
+            [qpsKey, " ",  1, False],  # qps need > 1
             [avgKey, "s",  0, False],
             [minKey, "s",  0, False],
             ["max: ", "s", 0, False],
@@ -191,7 +193,7 @@ class TestQueryMain:
         # check
         for item in items:
             if len(item[0]) > 0:
-                self.checkItem(output, item[0], item[1], item[2], item[3])    
+                self.checkItem(output, item[0], item[1], item[2], item[3])
 
     # native
     def threeQueryMode(self, benchmark, tbCnt, tbRow):

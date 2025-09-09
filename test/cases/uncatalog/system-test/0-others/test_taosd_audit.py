@@ -16,7 +16,7 @@ import threading
 
 telemetryPort = '6043'
 serverPort = '6030'
-hostname = socket.gethostname()
+hostname = "localhost" #socket.gethostname()
 threadisExit = False
 
 class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):

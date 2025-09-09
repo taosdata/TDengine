@@ -172,7 +172,7 @@ taos> select table_name, db_name, columns, stable_name, type from information_sc
  vtb_virtual_ntb8               | test_vtable_meta               |          20 | NULL                           | VIRTUAL_NORMAL_TABLE    |
  vtb_virtual_ntb9               | test_vtable_meta               |          20 | NULL                           | VIRTUAL_NORMAL_TABLE    |
 
-taos> select * from information_schema.ins_columns where table_type = 'VIRTUAL_NORMAL_TABLE' or table_type = 'VIRTUAL_CHILD_TABLE' order by table_name, col_name, table_type
+taos> select table_name, db_name, table_type, col_name, col_type, col_length, col_precision, col_scale, col_nullable, col_source from information_schema.ins_columns where table_type = 'VIRTUAL_NORMAL_TABLE' or table_type = 'VIRTUAL_CHILD_TABLE' order by table_name, col_name, table_type
            table_name           |            db_name             |       table_type        |            col_name            |            col_type            | col_length  | col_precision |  col_scale  | col_nullable |           col_source           |
 ==========================================================================================================================================================================================================================================================
  vtb_virtual_ctb0               | test_vtable_meta               | VIRTUAL_CHILD_TABLE     | bigint_col                     | BIGINT                         |           8 | NULL          | NULL        | NULL         | NULL                           |

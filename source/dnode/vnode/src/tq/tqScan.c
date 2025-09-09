@@ -436,7 +436,7 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       }
     }
     if (pHandle->fetchMeta == WITH_DATA || pSubmitTbData->ctimeMs > createTime){
-      tDestroySVCreateTbReq(pSubmitTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
+      tDestroySVSubmitCreateTbReq(pSubmitTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
       taosMemoryFreeClear(pSubmitTbData->pCreateTbReq);
     } else{
       taosArrayDestroy(*rawList);
@@ -448,6 +448,7 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, const SMqPollReq* pRequest) {
   int32_t code = 0;
   int32_t lino = 0;
+  SDecoder decoder = {0};
   STqExecHandle* pExec = &pHandle->execHandle;
   STqReader* pReader = pExec->pTqReader;
   SArray *rawList = NULL;
@@ -455,7 +456,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
     rawList = taosArrayInit(0, POINTER_BYTES);
     TSDB_CHECK_NULL(rawList, code, lino, END, terrno);
   }
-  code = tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver, rawList);
+  code = tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver, rawList, &decoder);
   TSDB_CHECK_CODE(code, lino, END);
   preProcessSubmitMsg(pHandle, pRequest, &rawList);
   // data could not contains same uid data in rawdata mode
@@ -488,6 +489,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
   }
 
 END:
+  tDecoderClear(&decoder);
   tqReaderClearSubmitMsg(pReader);
   taosArrayDestroy(rawList);
   if (code != 0){

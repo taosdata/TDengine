@@ -11,6 +11,7 @@ TDengine TSDB 核心是一款高性能、集群开源、云原生的时序数据
 ## TDengine TSDB 产品分类
 
 TDengine 包括开源版 TDengine TSDB-OSS、企业版 TDengine TSDB-Enterprise 以及云服务 TDengine Cloud。
+
 - TDengine TSDB-OSS 是一款开源、高性能、云原生的时序数据库，具有极强的弹性伸缩能力，同时带有内建的缓存、流式计算、数据订阅等功能，能大幅减少系统设计的复杂度，降低研发和运营成本，是一个极简的时序数据处理平台。更多细节请看 [TDengine TSDB-OSS](https://www.taosdata.com/tdengine-oss)。
 - TDengine TSDB-Enterprise 是私有化部署的 TDengine TSDB，可部署在边缘侧、本地、公有云/私有云上，具备开源版本所不具备的诸多企业版功能，细节请看 [TDengine TSDB-Enterprise](https://www.taosdata.com/tdengine-enterprise)。
 - TDengine Cloud 是一个全托管的物联网、工业大数据云服务平台，尤其适合尤其适合中小规模的用户使用，细节请看 [TDengine Cloud](https://cloud.taosdata.com)。

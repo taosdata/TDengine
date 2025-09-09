@@ -807,7 +807,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 
     int32_t numOfComma = 0;
     char    t = str[*i];
-    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == ',') {
+    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == '\b' || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;

@@ -67,7 +67,10 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
 
   // timer replicate
   sDebug("vgId:%d, timer routine, node replicate", ths->vgId);
-  TAOS_CHECK_RETURN(syncNodeReplicate(ths));
+  int32_t ret = 0;
+  if((ret = syncNodeReplicate(ths)) != 0){
+    sWarn("vgId:%d, failed to replicate node since %s", ths->vgId, tstrerror(ret));
+  }
 
   // clean mnode index
   sDebug("vgId:%d, timer routine, clean config index", ths->vgId);
@@ -93,7 +96,9 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
           snapshotSenderStop(pSender, false);
         } else {
           sSWarn(pSender, "snap replication resend.");
-          TAOS_CHECK_RETURN(snapshotReSend(pSender));
+          if((ret = snapshotReSend(pSender)) != 0){
+            sWarn("vgId:%d, failed to snapshot resend in timer routine since %s", ths->vgId, tstrerror(ret));
+          }
         }
       }
     }

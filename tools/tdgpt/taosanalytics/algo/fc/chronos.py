@@ -11,4 +11,4 @@ class _ChronosService(TsfmBaseService):
         super().__init__()
 
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:5002/ds_predict'
+            self.service_host = 'http://127.0.0.1:6073/ds_predict'

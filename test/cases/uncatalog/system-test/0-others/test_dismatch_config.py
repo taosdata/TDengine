@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+import platform
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 import re
 import time
@@ -24,6 +25,7 @@ class TestDismatchConfig:
     def update_cfg_success(self):
         tdLog.info("start to update cfg")
         tdDnodes.stop(1)
+        time.sleep(3)
         tdDnodes.cfg(1, 'timezone', 'UTC')
         tdDnodes.cfg(1, 'arbSetAssignedTimeoutSec', '17')
         tdDnodes.cfg(1, 'rpcQueueMemoryAllowed', '20971520')
@@ -31,7 +33,15 @@ class TestDismatchConfig:
         time.sleep(10)
         # global cfg use values from cluster
         tdSql.query("show dnode 1 variables like 'timezone'")
-        tdSql.checkData(0, 2, "Asia/Shanghai (CST, +0800)")
+
+        # It is hard to get the abbr. of the timezone on Windows, so TDengine behaves differently
+        # on Windows, it is better to not include the abbr. of the timezone and always return
+        # something like 'Asia/Shanghai (UTC+0800)' in the future, this could make things easier.
+        if platform.system().lower() == 'windows':
+            tdSql.checkData(0, 2, "Asia/Shanghai (UTC, +0800)")
+        else:
+            tdSql.checkData(0, 2, "Asia/Shanghai (CST, +0800)")
+
         tdSql.query("show dnode 1 variables like 'arbSetAssignedTimeoutSec'")
         tdSql.checkData(0, 2, "10")
 

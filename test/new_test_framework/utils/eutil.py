@@ -20,7 +20,8 @@ import os
 import time
 import datetime
 import psutil
-
+from .srvCtl import *
+from .eos    import *
 
 # cpu frequent as random
 def cpuRand(max):
@@ -35,3 +36,24 @@ def removeQuota(origin):
             value += c
 
     return value
+
+def findTaosdLog(key, dnodeIdx=1, retry=60):
+    logPath = sc.dnodeLogPath(dnodeIdx)
+    logFile = logPath + "/taosdlog.0"
+    return findLog(logFile, key, retry)
+
+
+# find string in log
+def findLog(logFile, key, retry = 60):
+    for i in range(retry):
+        cmd = f"grep '{key}' {logFile} | wc -l"
+        output, error = run(cmd)
+        try:
+            cnt = int(output)
+            if cnt > 0:
+                return cnt
+        except ValueError:
+            print(f"cmd ={cmd} out={output} err={error}")
+        print(f"not found string: {key} in {logFile} , retry again {i} ...")    
+        time.sleep(1)
+    return 0

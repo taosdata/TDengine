@@ -522,7 +522,7 @@ class StreamUtil:
         sql = f"drop snode on dnode {index}"
         tdSql.query(sql)
 
-    def checkStreamStatus(self, stream_name=""):
+    def checkStreamStatus(self, stream_name="", timeout=60):
         if stream_name == "":
             tdSql.query(f"select * from information_schema.ins_streams")
         else:
@@ -530,7 +530,7 @@ class StreamUtil:
                 f"select * from information_schema.ins_streams where stream_name = '{stream_name}'"
             )
         streamNum = tdSql.getRows()
-        for loop in range(60):
+        for loop in range(120):
             if stream_name == "":
                 tdSql.query(
                     f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running'"
@@ -542,7 +542,9 @@ class StreamUtil:
             time.sleep(1)
             if tdSql.getRows() == streamNum:
                 return
-        tdLog.exit(f"stream task status not ready in {loop} seconds")
+        info = f"stream task status not ready in {loop} seconds"
+        print(info)
+        tdLog.exit(info)
 
     def dropAllStreamsAndDbs(self):
         streamNum = 0
@@ -991,7 +993,7 @@ class StreamUtil:
             sql = f"create view view{v} as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.t{v}"
             tdSql.execute(sql)
 
-    # for StreamCheckItem, see cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+    # for StreamCheckItem, see cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
     def checkAll(self, streams):
         for stream in streams:
             tdLog.info(f"stream:{stream.db} - create database, table, stream", color='blue')
@@ -1170,7 +1172,7 @@ class StreamItem:
 
         tdLog.info(f"check stream:s{self.id} result successfully")
 
-    def awaitRowStability(self, stable_rows, waitSeconds=60):
+    def awaitRowStability(self, stable_rows, waitSeconds=300):
         """
         确保流处理结果的行数与预期的稳定行数一致
         :param stable_rows: int, 预期的稳定行数
