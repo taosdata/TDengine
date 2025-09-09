@@ -83,8 +83,8 @@ async fn gen_hist_cases() -> anyhow::Result<Vec<TD2TDFactors>> {
             database_options: db_options.clone(),
         },
         data_params: DataFactors {
-            tables: TABLES_BASE_LINE * 100,
-            rows: ROWS_BASE_LINE / 100,
+            tables: TABLES_BASE_LINE * 10,
+            rows: ROWS_BASE_LINE / 10,
             cols: 1,
             interval: INTERVAL_BASE_LINE,
         },

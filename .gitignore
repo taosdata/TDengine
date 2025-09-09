@@ -52,3 +52,4 @@ issues
 output.txt
 *.log
 tests/tools/dist/
+tests/tools/sample/*.z
