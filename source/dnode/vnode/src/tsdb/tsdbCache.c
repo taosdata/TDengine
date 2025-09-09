@@ -1375,29 +1375,33 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
                 .rowKey = pLastRow->rowKey, .pRow = pNewRow, .dirty = 1, 
                 .numCols = pLastRow->numCols + 1, .colStatus = NULL};
 
-            // Extend colStatus array
+            // Extend colStatus array - allocate new memory instead of realloc to avoid double free
             if (pLastRow->colStatus) {
-              newLastRow.colStatus = taosMemoryRealloc(pLastRow->colStatus, 
-                                                      newLastRow.numCols * sizeof(SColCacheStatus));
+              newLastRow.colStatus = taosMemoryMalloc(newLastRow.numCols * sizeof(SColCacheStatus));
               if (newLastRow.colStatus) {
-                // Copy existing status and add new column status
-                newLastRow.colStatus[newLastRow.numCols - 1] = (SColCacheStatus){
-                  .cid = cid, .status = TSDB_LAST_CACHE_VALID};
+                // Copy existing status entries
+                memcpy(newLastRow.colStatus, pLastRow->colStatus, pLastRow->numCols * sizeof(SColCacheStatus));
+                // Add new column status
+                newLastRow.colStatus[newLastRow.numCols - 1] =
+                    (SColCacheStatus){.cid = cid, .status = TSDB_LAST_CACHE_VALID};
               }
             } else {
               // Initialize colStatus for the first time
               code = tsdbLastRowInitColStatus(&newLastRow, pNewTSchema);
             }
 
-            if (newLastRow.colStatus) {
-              // Serialize and write back to RocksDB
-              code = tsdbRowCachePutToRocksdb(pTsdb, &rowKeys[i], &newLastRow);
-            }
+                if (code == TSDB_CODE_SUCCESS && newLastRow.colStatus) {
+                  // Serialize and write back to RocksDB
+                  code = tsdbRowCachePutToRocksdb(pTsdb, &rowKeys[i], &newLastRow);
+                }
 
-            // Clean up new row structure - don't free colStatus as it's reused from original
-            if (pNewRow) {
-              taosMemoryFree(pNewRow);
-            }
+                // Clean up - free the new colStatus we allocated and the new row
+                if (newLastRow.colStatus && newLastRow.colStatus != pLastRow->colStatus) {
+                  taosMemoryFree(newLastRow.colStatus);
+                }
+                if (pNewRow) {
+                  taosMemoryFree(pNewRow);
+                }
           }
 
           taosArrayDestroy(colVals);
@@ -1407,12 +1411,14 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
         taosMemoryFree(pNewTSchema);
       }
 
-      // Clean up
+      // Clean up the deserialized row from RocksDB
       if (pLastRow) {
         if (pLastRow->pRow) {
           taosMemoryFree(pLastRow->pRow);
         }
-        // Don't free colStatus here as it might be reused
+        if (pLastRow->colStatus) {
+          taosMemoryFree(pLastRow->colStatus);
+        }
         taosMemoryFree(pLastRow);
       }
 
@@ -1427,74 +1433,101 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
     }
 #endif
 
-    // 2. Handle LRU row cache
+    // 2. Handle LRU row cache - correct approach: get, decode, modify, re-encode
     LRUHandle *h = taosLRUCacheLookup(pTsdb->lruCache, &rowKeys[i], ROCKS_ROW_KEY_LEN);
     if (h) {
       SLastRow *pLastRow = (SLastRow *)taosLRUCacheValue(pTsdb->lruCache, h);
       if (pLastRow && pLastRow->pRow) {
-        // Similar logic as RocksDB handling
+        // Get schemas for decoding and encoding
         STSchema *pOldTSchema = NULL;
+        STSchema *pNewTSchema = NULL;
         code = metaBuildTSchemaFromSchemaWrapper(pOldSchemaWrapper, &pOldTSchema);
         if (code == TSDB_CODE_SUCCESS && pOldTSchema) {
-          STSchema *pNewTSchema = NULL;
           code = metaBuildTSchemaFromSchemaWrapper(pNewSchemaWrapper, &pNewTSchema);
-          if (code == TSDB_CODE_SUCCESS && pNewTSchema) {
-            // Build new row with added column
-            SArray *colVals = taosArrayInit(pNewTSchema->numOfCols, sizeof(SColVal));
-            if (colVals) {
-              // Copy existing columns
-              for (int j = 0; j < pOldTSchema->numOfCols; j++) {
-                SColVal colVal = {0};
-                code = tRowGet(pLastRow->pRow, pOldTSchema, j, &colVal);
-                if (code == TSDB_CODE_SUCCESS) {
-                  taosArrayPush(colVals, &colVal);
-                }
+        }
+        
+        if (code == TSDB_CODE_SUCCESS && pNewTSchema) {
+          // Decode existing row data into column values
+          SArray *colVals = taosArrayInit(pNewTSchema->numOfCols, sizeof(SColVal));
+          if (colVals) {
+            // Extract existing columns from current row
+            for (int j = 0; j < pOldTSchema->numOfCols; j++) {
+              SColVal colVal = {0};
+              code = tRowGet(pLastRow->pRow, pOldTSchema, j, &colVal);
+              if (code == TSDB_CODE_SUCCESS) {
+                taosArrayPush(colVals, &colVal);
               }
-
-              // Add the new column
-              SColVal newColVal = COL_VAL_NONE(cid, col_type);
-              taosArrayPush(colVals, &newColVal);
-
-              // Build new row
-              SRow             *pNewRow = NULL;
-              SRowBuildScanInfo scanInfo = {0};
-              code = tRowBuild(colVals, pNewTSchema, &pNewRow, &scanInfo);
-              if (code == TSDB_CODE_SUCCESS && pNewRow) {
-                // Update the cached row
-                SLastRow newLastRow = {
-                    .rowKey = pLastRow->rowKey, .pRow = pNewRow, .dirty = 1, 
-                    .numCols = pLastRow->numCols + 1, .colStatus = NULL};
-
-                // Extend colStatus array
-                if (pLastRow->colStatus) {
-                  newLastRow.colStatus = taosMemoryRealloc(pLastRow->colStatus, 
-                                                          newLastRow.numCols * sizeof(SColCacheStatus));
-                  if (newLastRow.colStatus) {
-                    // Add new column status
-                    newLastRow.colStatus[newLastRow.numCols - 1] = (SColCacheStatus){
-                      .cid = cid, .status = TSDB_LAST_CACHE_VALID};
-                  }
-                } else {
-                  // Initialize colStatus for the first time
-                  code = tsdbLastRowInitColStatus(&newLastRow, pNewTSchema);
-                }
-
-                if (newLastRow.colStatus) {
-                  // Update LRU cache
-                  code = tsdbRowCachePutToLRU(pTsdb, &rowKeys[i], &newLastRow, 1);
-                }
-
-                // Note: don't free pNewRow here as it's now owned by the cache
-              }
-
-              taosArrayDestroy(colVals);
             }
-          }
 
-          taosMemoryFree(pNewTSchema);
+            // Add the new empty column
+            SColVal newColVal = COL_VAL_NONE(cid, col_type);
+            taosArrayPush(colVals, &newColVal);
+
+            // Re-encode into new row with updated schema
+            SRow             *pNewRow = NULL;
+            SRowBuildScanInfo scanInfo = {0};
+            code = tRowBuild(colVals, pNewTSchema, &pNewRow, &scanInfo);
+            
+            if (code == TSDB_CODE_SUCCESS && pNewRow) {
+              // Create updated row structure
+              SLastRow newLastRow = {
+                  .rowKey = pLastRow->rowKey, 
+                  .pRow = pNewRow, 
+                  .dirty = 1, 
+                  .numCols = pLastRow->numCols + 1, 
+                  .colStatus = NULL
+              };
+
+              // Handle column status array - allocate new memory to avoid double free
+              if (pLastRow->colStatus) {
+                newLastRow.colStatus = taosMemoryMalloc(newLastRow.numCols * sizeof(SColCacheStatus));
+                if (newLastRow.colStatus) {
+                  // Copy existing status entries
+                  memcpy(newLastRow.colStatus, pLastRow->colStatus, pLastRow->numCols * sizeof(SColCacheStatus));
+                  // Add new column status
+                  newLastRow.colStatus[newLastRow.numCols - 1] = (SColCacheStatus){
+                    .cid = cid, .status = TSDB_LAST_CACHE_VALID};
+                }
+              } else {
+                // Initialize colStatus for the first time
+                code = tsdbLastRowInitColStatus(&newLastRow, pNewTSchema);
+              }
+
+              if (code == TSDB_CODE_SUCCESS && newLastRow.colStatus) {
+                // Put the updated row back to LRU cache - cache takes ownership
+                code = tsdbRowCachePutToLRU(pTsdb, &rowKeys[i], &newLastRow, 1);
+                if (code != TSDB_CODE_SUCCESS) {
+                  // If LRU put failed, clean up our allocated memory
+                  if (newLastRow.colStatus && newLastRow.colStatus != pLastRow->colStatus) {
+                    taosMemoryFree(newLastRow.colStatus);
+                  }
+                  if (pNewRow) {
+                    taosMemoryFree(pNewRow);
+                  }
+                }
+                // Note: if LRU put succeeded, cache owns pNewRow and colStatus - don't free them
+              } else {
+                // Clean up on error
+                if (newLastRow.colStatus && newLastRow.colStatus != pLastRow->colStatus) {
+                  taosMemoryFree(newLastRow.colStatus);
+                }
+                if (pNewRow) {
+                  taosMemoryFree(pNewRow);
+                }
+              }
+            }
+
+            taosArrayDestroy(colVals);
+          }
         }
 
-        taosMemoryFree(pOldTSchema);
+        // Clean up schemas
+        if (pNewTSchema) {
+          taosMemoryFree(pNewTSchema);
+        }
+        if (pOldTSchema) {
+          taosMemoryFree(pOldTSchema);
+        }
       }
 
       tsdbLRUCacheRelease(pTsdb->lruCache, h, false);
