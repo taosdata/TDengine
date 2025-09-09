@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
 import time
+import platform
 
 
 class TestKillBalanceLeader:
@@ -39,9 +40,11 @@ class TestKillBalanceLeader:
             - xxx
         """
         tdLog.debug(f"start to excute {__file__}")
+        vgroups = 160
+        if platform.system() == "Windows":
+            vgroups = 1
 
-        tdSql.execute('CREATE DATABASE db vgroups 160 replica 3;')
-
+        tdSql.execute(f'CREATE DATABASE db vgroups {vgroups} replica 3;')
         tdSql.execute('balance vgroup leader')
 
         sql ="show transactions;"
