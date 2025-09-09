@@ -740,7 +740,7 @@ static int extWinTsWinCompare(const void* pLeft, const void* pRight) {
   if (ts < pWin->tw.skey) {
     return -1;
   }
-  if (ts > pWin->tw.ekey) {
+  if (ts >= pWin->tw.ekey) {
     return 1;
   }
 
