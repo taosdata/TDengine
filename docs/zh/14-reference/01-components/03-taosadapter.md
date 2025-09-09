@@ -999,26 +999,26 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 <details>
 <summary>详细信息</summary>
 
-| field              | type         | is\_tag | comment                     |
-|:-------------------|:-------------|:--------|:----------------------------|
-| ts                 | TIMESTAMP    |         | 数据采集时间戳                     |
-| total              | INT UNSIGNED |         | 总请求数                        |
-| query              | INT UNSIGNED |         | 查询请求数                       |
-| write              | INT UNSIGNED |         | 写入请求数                       |
-| other              | INT UNSIGNED |         | 其他请求数                       |
-| in\_process        | INT UNSIGNED |         | 正在处理请求数                     |
-| success            | INT UNSIGNED |         | 成功请求数                       |
-| fail               | INT UNSIGNED |         | 失败请求数                       |
-| query\_success     | INT UNSIGNED |         | 查询成功请求数                     |
-| query\_fail        | INT UNSIGNED |         | 查询失败请求数                     |
-| write\_success     | INT UNSIGNED |         | 写入成功请求数                     |
-| write\_fail        | INT UNSIGNED |         | 写入失败请求数                     |
-| other\_success     | INT UNSIGNED |         | 其他成功请求数                     |
-| other\_fail        | INT UNSIGNED |         | 其他失败请求数                     |
-| query\_in\_process | INT UNSIGNED |         | 正在处理查询请求数                   |
-| write\_in\_process | INT UNSIGNED |         | 正在处理写入请求数                   |
-| endpoint           | VARCHAR      |         | 请求端点                        |
-| req\_type          | NCHAR        | TAG     | 请求类型：0 为 REST，1 为 WebSocket |
+| field              | type             | is\_tag | comment                     |
+|:-------------------|:-----------------|:--------|:----------------------------|
+| ts                 | TIMESTAMP        |         | 数据采集时间戳                     |
+| total              | INT UNSIGNED     |         | 总请求数                        |
+| query              | INT UNSIGNED     |         | 查询请求数                       |
+| write              | INT UNSIGNED     |         | 写入请求数                       |
+| other              | INT UNSIGNED     |         | 其他请求数                       |
+| in\_process        | INT UNSIGNED     |         | 正在处理请求数                     |
+| success            | INT UNSIGNED     |         | 成功请求数                       |
+| fail               | INT UNSIGNED     |         | 失败请求数                       |
+| query\_success     | INT UNSIGNED     |         | 查询成功请求数                     |
+| query\_fail        | INT UNSIGNED     |         | 查询失败请求数                     |
+| write\_success     | INT UNSIGNED     |         | 写入成功请求数                     |
+| write\_fail        | INT UNSIGNED     |         | 写入失败请求数                     |
+| other\_success     | INT UNSIGNED     |         | 其他成功请求数                     |
+| other\_fail        | INT UNSIGNED     |         | 其他失败请求数                     |
+| query\_in\_process | INT UNSIGNED     |         | 正在处理查询请求数                   |
+| write\_in\_process | INT UNSIGNED     |         | 正在处理写入请求数                   |
+| endpoint           | VARCHAR          | TAG     | 请求端点                        |
+| req\_type          | TINYINT UNSIGNED | TAG     | 请求类型：0 为 REST，1 为 WebSocket |
 
 </details>
 
@@ -1059,6 +1059,7 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | ws_ws_sql_result_count    | DOUBLE    |         | /ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）      |
 | ws_ws_stmt_count          | DOUBLE    |         | /ws 接口当前持有 stmt 数量（3.3.6.10 及以上）         |
 | ws_ws_stmt2_count         | DOUBLE    |         | /ws 接口当前持有 stmt2 数量（3.3.6.10 及以上）        |
+| cpu_percent               | DOUBLE    |         | cpu 占用百分比（v3.3.6.24及以上 /v3.3.7.7 及以上）    |
 | endpoint                  | NCHAR     | TAG     | 请求端点                                     |
 
 </details>

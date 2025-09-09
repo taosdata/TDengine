@@ -1007,26 +1007,26 @@ The `adapter_requests` table records taosAdapter monitoring data:
 <details>
 <summary>Details</summary>
 
-| field            | type         | is_tag | comment                                   |
-|:-----------------|:-------------|:-------|:------------------------------------------|
-| ts               | TIMESTAMP    |        | data collection timestamp                 |
-| total            | INT UNSIGNED |        | total number of requests                  |
-| query            | INT UNSIGNED |        | number of query requests                  |
-| write            | INT UNSIGNED |        | number of write requests                  |
-| other            | INT UNSIGNED |        | number of other requests                  |
-| in_process       | INT UNSIGNED |        | number of requests in process             |
-| success          | INT UNSIGNED |        | number of successful requests             |
-| fail             | INT UNSIGNED |        | number of failed requests                 |
-| query_success    | INT UNSIGNED |        | number of successful query requests       |
-| query_fail       | INT UNSIGNED |        | number of failed query requests           |
-| write_success    | INT UNSIGNED |        | number of successful write requests       |
-| write_fail       | INT UNSIGNED |        | number of failed write requests           |
-| other_success    | INT UNSIGNED |        | number of successful other requests       |
-| other_fail       | INT UNSIGNED |        | number of failed other requests           |
-| query_in_process | INT UNSIGNED |        | number of query requests in process       |
-| write_in_process | INT UNSIGNED |        | number of write requests in process       |
-| endpoint         | VARCHAR      |        | request endpoint                          |
-| req_type         | NCHAR        | tag    | request type: 0 for REST, 1 for WebSocket |
+| field            | type             | is_tag | comment                                   |
+|:-----------------|:-----------------|:-------|:------------------------------------------|
+| ts               | TIMESTAMP        |        | data collection timestamp                 |
+| total            | INT UNSIGNED     |        | total number of requests                  |
+| query            | INT UNSIGNED     |        | number of query requests                  |
+| write            | INT UNSIGNED     |        | number of write requests                  |
+| other            | INT UNSIGNED     |        | number of other requests                  |
+| in_process       | INT UNSIGNED     |        | number of requests in process             |
+| success          | INT UNSIGNED     |        | number of successful requests             |
+| fail             | INT UNSIGNED     |        | number of failed requests                 |
+| query_success    | INT UNSIGNED     |        | number of successful query requests       |
+| query_fail       | INT UNSIGNED     |        | number of failed query requests           |
+| write_success    | INT UNSIGNED     |        | number of successful write requests       |
+| write_fail       | INT UNSIGNED     |        | number of failed write requests           |
+| other_success    | INT UNSIGNED     |        | number of successful other requests       |
+| other_fail       | INT UNSIGNED     |        | number of failed other requests           |
+| query_in_process | INT UNSIGNED     |        | number of query requests in process       |
+| write_in_process | INT UNSIGNED     |        | number of write requests in process       |
+| endpoint         | VARCHAR          | TAG    | request endpoint                          |
+| req_type         | TINYINT UNSIGNED | TAG    | request type: 0 for REST, 1 for WebSocket |
 
 </details>
 
@@ -1035,39 +1035,40 @@ The `adapter_status` table records the status data of taosAdapter:
 <details>
 <summary>Details</summary>
 
-| field                       | type      | is\_tag | comment                                                                            |
-|:----------------------------|:----------|:--------|:-----------------------------------------------------------------------------------|
-| _ts                         | TIMESTAMP |         | data collection timestamp                                                          |
-| go_heap_sys                 | DOUBLE    |         | heap memory allocated by Go runtime (bytes)                                        |
-| go_heap_inuse               | DOUBLE    |         | heap memory in use by Go runtime (bytes)                                           |
-| go_stack_sys                | DOUBLE    |         | stack memory allocated by Go runtime (bytes)                                       |
-| go_stack_inuse              | DOUBLE    |         | stack memory in use by Go runtime (bytes)                                          |
-| rss                         | DOUBLE    |         | actual physical memory occupied by the process (bytes)                             |
-| ws_query_conn               | DOUBLE    |         | current WebSocket connections for `/rest/ws` endpoint                              |
-| ws_stmt_conn                | DOUBLE    |         | current WebSocket connections for `/rest/stmt` endpoint                            |
-| ws_sml_conn                 | DOUBLE    |         | current WebSocket connections for `/rest/schemaless` endpoint                      |
-| ws_ws_conn                  | DOUBLE    |         | current WebSocket connections for `/ws` endpoint                                   |
-| ws_tmq_conn                 | DOUBLE    |         | current WebSocket connections for `/rest/tmq` endpoint                             |
-| async_c_limit               | DOUBLE    |         | total concurrency limit for the C asynchronous interface                           |
-| async_c_inflight            | DOUBLE    |         | current concurrency for the C asynchronous interface                               |
-| sync_c_limit                | DOUBLE    |         | total concurrency limit for the C synchronous interface                            |
-| sync_c_inflight             | DOUBLE    |         | current concurrency for the C synchronous interface                                |
-| `ws_query_conn_inc`         | DOUBLE    |         | New connections on `/rest/ws` interface (Available since v3.3.6.10)                |
-| `ws_query_conn_dec`         | DOUBLE    |         | Closed connections on `/rest/ws` interface (Available since v3.3.6.10)             |
-| `ws_stmt_conn_inc`          | DOUBLE    |         | New connections on `/rest/stmt` interface (Available since v3.3.6.10)              |
-| `ws_stmt_conn_dec`          | DOUBLE    |         | Closed connections on `/rest/stmt` interface (Available since v3.3.6.10)           |
-| `ws_sml_conn_inc`           | DOUBLE    |         | New connections on `/rest/schemaless` interface (Available since v3.3.6.10)        |
-| `ws_sml_conn_dec`           | DOUBLE    |         | Closed connections on `/rest/schemaless` interface (Available since v3.3.6.10)     |
-| `ws_ws_conn_inc`            | DOUBLE    |         | New connections on `/ws` interface (Available since v3.3.6.10)                     |
-| `ws_ws_conn_dec`            | DOUBLE    |         | Closed connections on `/ws` interface (Available since v3.3.6.10)                  |
-| `ws_tmq_conn_inc`           | DOUBLE    |         | New connections on `/rest/tmq` interface (Available since v3.3.6.10)               |
-| `ws_tmq_conn_dec`           | DOUBLE    |         | Closed connections on `/rest/tmq` interface (Available since v3.3.6.10)            |
-| `ws_query_sql_result_count` | DOUBLE    |         | Current SQL query results held by `/rest/ws` interface (Available since v3.3.6.10) |
-| `ws_stmt_stmt_count`        | DOUBLE    |         | Current stmt objects held by `/rest/stmt` interface (Available since v3.3.6.10)    |
-| `ws_ws_sql_result_count`    | DOUBLE    |         | Current SQL query results held by `/ws` interface (Available since v3.3.6.10)      |
-| `ws_ws_stmt_count`          | DOUBLE    |         | Current stmt objects held by `/ws` interface (Available since v3.3.6.10)           |
-| `ws_ws_stmt2_count`         | DOUBLE    |         | Current stmt2 objects held by `/ws` interface (Available since v3.3.6.10)          |
-| endpoint                    | NCHAR     | TAG     | request endpoint                                                                   |
+| field                     | type      | is\_tag | comment                                                                            |
+|:--------------------------|:----------|:--------|:-----------------------------------------------------------------------------------|
+| _ts                       | TIMESTAMP |         | data collection timestamp                                                          |
+| go_heap_sys               | DOUBLE    |         | heap memory allocated by Go runtime (bytes)                                        |
+| go_heap_inuse             | DOUBLE    |         | heap memory in use by Go runtime (bytes)                                           |
+| go_stack_sys              | DOUBLE    |         | stack memory allocated by Go runtime (bytes)                                       |
+| go_stack_inuse            | DOUBLE    |         | stack memory in use by Go runtime (bytes)                                          |
+| rss                       | DOUBLE    |         | actual physical memory occupied by the process (bytes)                             |
+| ws_query_conn             | DOUBLE    |         | current WebSocket connections for `/rest/ws` endpoint                              |
+| ws_stmt_conn              | DOUBLE    |         | current WebSocket connections for `/rest/stmt` endpoint                            |
+| ws_sml_conn               | DOUBLE    |         | current WebSocket connections for `/rest/schemaless` endpoint                      |
+| ws_ws_conn                | DOUBLE    |         | current WebSocket connections for `/ws` endpoint                                   |
+| ws_tmq_conn               | DOUBLE    |         | current WebSocket connections for `/rest/tmq` endpoint                             |
+| async_c_limit             | DOUBLE    |         | total concurrency limit for the C asynchronous interface                           |
+| async_c_inflight          | DOUBLE    |         | current concurrency for the C asynchronous interface                               |
+| sync_c_limit              | DOUBLE    |         | total concurrency limit for the C synchronous interface                            |
+| sync_c_inflight           | DOUBLE    |         | current concurrency for the C synchronous interface                                |
+| ws_query_conn_inc         | DOUBLE    |         | New connections on `/rest/ws` interface (Available since v3.3.6.10)                |
+| ws_query_conn_dec         | DOUBLE    |         | Closed connections on `/rest/ws` interface (Available since v3.3.6.10)             |
+| ws_stmt_conn_inc          | DOUBLE    |         | New connections on `/rest/stmt` interface (Available since v3.3.6.10)              |
+| ws_stmt_conn_dec          | DOUBLE    |         | Closed connections on `/rest/stmt` interface (Available since v3.3.6.10)           |
+| ws_sml_conn_inc           | DOUBLE    |         | New connections on `/rest/schemaless` interface (Available since v3.3.6.10)        |
+| ws_sml_conn_dec           | DOUBLE    |         | Closed connections on `/rest/schemaless` interface (Available since v3.3.6.10)     |
+| ws_ws_conn_inc            | DOUBLE    |         | New connections on `/ws` interface (Available since v3.3.6.10)                     |
+| ws_ws_conn_dec            | DOUBLE    |         | Closed connections on `/ws` interface (Available since v3.3.6.10)                  |
+| ws_tmq_conn_inc           | DOUBLE    |         | New connections on `/rest/tmq` interface (Available since v3.3.6.10)               |
+| ws_tmq_conn_dec           | DOUBLE    |         | Closed connections on `/rest/tmq` interface (Available since v3.3.6.10)            |
+| ws_query_sql_result_count | DOUBLE    |         | Current SQL query results held by `/rest/ws` interface (Available since v3.3.6.10) |
+| ws_stmt_stmt_count        | DOUBLE    |         | Current stmt objects held by `/rest/stmt` interface (Available since v3.3.6.10)    |
+| ws_ws_sql_result_count    | DOUBLE    |         | Current SQL query results held by `/ws` interface (Available since v3.3.6.10)      |
+| ws_ws_stmt_count          | DOUBLE    |         | Current stmt objects held by `/ws` interface (Available since v3.3.6.10)           |
+| ws_ws_stmt2_count         | DOUBLE    |         | Current stmt2 objects held by `/ws` interface (Available since v3.3.6.10)          |
+| cpu_percent               | DOUBLE    |         | CPU usage percentage (Available since v3.3.6.24/v3.3.7.7)                          |
+| endpoint                  | NCHAR     | TAG     | request endpoint                                                                   |
 
 </details>
 
