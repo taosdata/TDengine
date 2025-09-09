@@ -101,9 +101,6 @@ toc_max_heading_level: 4
 | numOfVnodeFetchThreads | taosd | vnode 的 Fetch 线程数目 |
 | numOfVnodeRsmaThreads | taosd | vnode 的 Rsma 线程数目 |
 | numOfQnodeQueryThreads | taosd | qnode 的 Query 线程数目 |
-| numOfSnodeSharedThreads | taosd | snode 的共享线程数目 |
-| numOfSnodeUniqueThreads | taosd | snode 的独占线程数目 |
-| ratioOfVnodeStreamThreads | taosd | 流计算使用 vnode 线程的比例 |
 | ttlUnit | taosd | ttl 参数的单位 |
 | ttlPushInterval | taosd | ttl 检测超时频率 |
 | ttlChangeOnWrite | taosd | ttl 到期时间是否伴随表的修改操作改变 |

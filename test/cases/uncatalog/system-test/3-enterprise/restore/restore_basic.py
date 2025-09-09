@@ -119,6 +119,7 @@ class RestoreBasic:
         # stop dnode
         tdLog.info(f"stop dnode {index}")
         dnode.stoptaosd()
+        time.sleep(1)
 
         # remove dnode folder
         try:
@@ -173,6 +174,7 @@ class RestoreBasic:
         # stop dnode
         tdLog.info(f"stop dnode {index}")
         dnode.stoptaosd()
+        time.sleep(1)
         
         # remove dnode folder
         try:
@@ -224,6 +226,7 @@ class RestoreBasic:
         # stop dnode
         tdLog.info(f"stop dnode {index}")
         dnode.stoptaosd()
+        time.sleep(1)
 
         # remove dnode folder
         try:
@@ -250,6 +253,7 @@ class RestoreBasic:
         # stop dnode
         tdLog.info(f"stop dnode {index}")
         dnode.stoptaosd()
+        time.sleep(1)
 
         # remove dnode folder
         try:
