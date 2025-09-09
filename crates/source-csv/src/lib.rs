@@ -25,7 +25,7 @@ use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span, info, instrument, warn};
 
-use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_from_i64};
+use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_or, insert_metrics};
 use taosx_core::sink::channel_based_transformer;
 use taosx_core::sink::ipc_metric::IpcMetrics;
 use taosx_core::utils::breakpoints;
@@ -158,10 +158,18 @@ async fn csv_to_taos_with_channel(
     notify: TaskNotifySender,
 ) -> Result<()> {
     // load metrics
-    let metrics_arc = get_metrics_arc_from_i64(task_id).await;
+    let metrics_arc = get_metrics_arc_or(task_id, || {
+        // task_id is None if taosx run
+        Arc::new(CoreMetrics::IPC(IpcMetrics::new(
+            "taosx_task_csv".to_string(),
+            -1,
+            None,
+        )))
+    })
+    .await;
+    insert_metrics(-1, metrics_arc.clone()).await;
 
     tracing::info!("CSV to Taos, from: {from}, to: {to}");
-
     let builder = taos::TaosBuilder::from_dsn(to)?;
     let pool = builder.pool()?;
     let worker_cancel = cancel.child_token();

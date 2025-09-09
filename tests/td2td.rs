@@ -4,6 +4,7 @@ use itertools::Itertools;
 use legacy_to_taos::legacy_to_taos;
 use std::time::Duration;
 use taos::{AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
+use taosx_core::utils::sql::connect_taos;
 use taosx_core::{core_metrics::clear_metrics, get_data_dir};
 use tokio_util::sync::CancellationToken;
 
@@ -662,15 +663,7 @@ async fn test_sync_time_range_with_taos() -> anyhow::Result<()> {
     const N: i64 = 10;
 
     // create databases and stables
-    let taos = if ws_enable {
-        TaosBuilder::from_dsn(format!("taos+ws://{host}:6041").into_dsn()?)?
-            .build()
-            .await?
-    } else {
-        TaosBuilder::from_dsn(format!("taos://{host}").into_dsn()?)?
-            .build()
-            .await?
-    };
+    let taos = connect_taos(&host, ws_enable).await?;
     taos.exec_many(vec![
         format!("drop database if exists `{DB_SRC}`;"),
         format!("drop database if exists `{DB_DST}`;"),

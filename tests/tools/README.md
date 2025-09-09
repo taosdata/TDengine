@@ -8,18 +8,18 @@ $ cargo run --bin mqtt_pub -- -h
 Usage: mqtt_pub [OPTIONS] --schema <SCHEMA> --topic <TOPIC>
 
 Options:
-  -f, --schema <SCHEMA>          
+  -f, --schema <SCHEMA>
       --host <BROKER_HOST>       [default: localhost]
       --port <BROKER_PORT>       [default: 1883]
-  -u, --username <USERNAME>      
-  -p, --password <PASSWORD>      
+  -u, --username <USERNAME>
+  -p, --password <PASSWORD>
   -k, --keep_alive <KEEP_ALIVE>  [default: 5s]
   -c, --client_id <CLIENT_ID>    [default: mqtt_pub_tool_1WgBwKACZL]
-  -t, --topic <TOPIC>            
+  -t, --topic <TOPIC>
   -q, --qos <QOS>                [default: 0]
   -l, --perallel <PERALLEL>      [default: 12]
       --interval <INTERVAL>      [default: 100ms]
-      --stdin                    
+      --stdin
       --compress <COMPRESS>      payload compression, support: gzip, lz4, snappy, zstd
       --encoding <ENCODING>      payload encoding, support GBK, GB18030, BIG5
   -h, --help                     Print help
@@ -33,12 +33,12 @@ $ cargo run --bin kafka_pub -- -h
 Usage: kafka_pub [OPTIONS] --schema <SCHEMA> --topic <TOPIC>
 
 Options:
-  -f, --schema <SCHEMA>      
+  -f, --schema <SCHEMA>
   -s, --servers <SERVERS>    [default: localhost:9092]
-  -t, --topic <TOPIC>        
+  -t, --topic <TOPIC>
   -l, --perallel <PARALLEL>  [default: 12]
       --interval <INTERVAL>  [default: 100ms]
-      --stdin                
+      --stdin
       --compress <COMPRESS>  payload compression, support: gzip, lz4, snappy, zstd
       --encoding <ENCODING>  payload encoding, support GBK, GB18030, BIG5
   -h, --help                 Print help
@@ -135,3 +135,26 @@ type = "array"
 type = "string"
 fixed = "abcde"
 ```
+
+# Performance Testing Report
+
+perf_report generates static HTML pages for taosX performance testing.
+
+Input directory must contain:
+- perf_cases.toml
+- All CSV files declared in perf_cases.toml
+## Run
+1. From workspace root:
+
+```
+$ cargo run -p taosx-tools --bin perf-report -- -i tests/tools/sample -o tests/tools/dist/perf_report
+```
+
+Or run inside the sub crate:
+
+```
+$ cd tests/tools
+$ cargo run --bin perf-report -- -i ./sample -o ./dist/perf_report
+```
+
+1. Open the index.html in the output directory with a browser.
