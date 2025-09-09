@@ -967,15 +967,15 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
       data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
       len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
       STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamInfo, rsp->metaBlock, data, len, ver));
-      *totalRows = ((SSDataBlock*)rsp->metaBlock)->info.rows;
     } else {
       STREAM_CHECK_RET_GOTO(processMeta(wCont->msgType, sStreamInfo, data, len, rsp, ver));
-      if (rsp->deleteBlock != NULL && ((SSDataBlock*)rsp->deleteBlock)->info.rows > 0){
-        *totalRows += ((SSDataBlock*)rsp->deleteBlock)->info.rows;
-      }
-      if (rsp->dropBlock != NULL && ((SSDataBlock*)rsp->dropBlock)->info.rows > 0) {
-        *totalRows += ((SSDataBlock*)rsp->dropBlock)->info.rows;
-      }
+    }
+
+    *totalRows = ((SSDataBlock*)rsp->metaBlock)->info.rows;
+    if (rsp->deleteBlock != NULL && ((SSDataBlock*)rsp->deleteBlock)->info.rows > 0){
+      *totalRows += ((SSDataBlock*)rsp->deleteBlock)->info.rows;
+    }else if (rsp->dropBlock != NULL && ((SSDataBlock*)rsp->dropBlock)->info.rows > 0) {
+      *totalRows += ((SSDataBlock*)rsp->dropBlock)->info.rows;
     }
 
     if (*totalRows >= STREAM_RETURN_ROWS_NUM) {
@@ -1091,8 +1091,8 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, SStora
 
       char* data = NULL;
       const char* p = NULL;
+      STagVal tagVal = {0};
       if (uidData == NULL) {
-        STagVal tagVal = {0};
         tagVal.cid = pExpr1->base.pParam[0].pCol->colId;
         p = api->metaFn.extractTagVal(mr.me.ctbEntry.pTags, pColInfoData->info.type, &tagVal);
 
@@ -1105,10 +1105,10 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, SStora
         if (data == NULL) {
           STREAM_CHECK_NULL_GOTO(taosArrayPush(tagCache, &data), terrno);
         } else {
-        int32_t len = pColInfoData->info.bytes;
-        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          len = calcStrBytesByType(pColInfoData->info.type, (char*)data);
-        }
+          int32_t len = pColInfoData->info.bytes;
+          if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+            len = calcStrBytesByType(pColInfoData->info.type, (char*)data);
+          }
           char* pData = taosMemoryCalloc(1, len);
           STREAM_CHECK_NULL_GOTO(pData, terrno);
           (void)memcpy(pData, data, len);
