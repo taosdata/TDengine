@@ -2357,6 +2357,18 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pCoutCol->type.bytes));
   }
 
+  switch (pReq->triggerType) {
+    case WINDOW_TYPE_STATE: {
+      // state trigger
+      int32_t stateExprLen = pReq->trigger.stateWin.expr == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.stateWin.expr) + 1;
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.stateWin.expr, stateExprLen));
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+
 _exit:
 
   if (code) {
@@ -2635,6 +2647,19 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       }
     }
   }
+
+  switch (pReq->triggerType) {
+    case WINDOW_TYPE_STATE: {
+      // state trigger
+      if (!tDecodeIsEnd(pDecoder)) {
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.stateWin.expr, NULL));
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
 
 _exit:
 
