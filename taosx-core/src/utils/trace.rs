@@ -32,7 +32,7 @@ pub fn qid_db_init() -> anyhow::Result<()> {
             anyhow::bail!("qid db file has been locked")
         }
         Err(e) => {
-            tracing::error!("open qid database error: {e:#}");
+            tracing::error!("open qid database {} error: {e:#}", db_path.display());
             return Ok(());
         }
     };

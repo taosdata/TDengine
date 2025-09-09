@@ -5,8 +5,8 @@ use tokio_util::sync::CancellationToken;
 use super::{config::MqttConfig, metrics::Metrics};
 use source_mqtt::client::Version;
 
-mod v3;
-mod v5;
+pub mod v3;
+pub mod v5;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
@@ -24,7 +24,6 @@ pub trait Publisher {
         &self,
         topic: &str,
         payload: Vec<u8>,
-        cancel: &CancellationToken,
     ) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }
 
@@ -57,21 +56,14 @@ impl GenericPublisher {
 impl Publisher for GenericPublisher {
     type Error = Error;
 
-    async fn publish(
-        &self,
-        topic: &str,
-        payload: Vec<u8>,
-        cancel: &CancellationToken,
-    ) -> Result<(), Self::Error> {
+    async fn publish(&self, topic: &str, payload: Vec<u8>) -> Result<(), Self::Error> {
         match self {
-            GenericPublisher::V3(publisher) => publisher
-                .publish(topic, payload, cancel)
-                .await
-                .context(V3Snafu),
-            GenericPublisher::V5(publisher) => publisher
-                .publish(topic, payload, cancel)
-                .await
-                .context(V5Snafu),
+            GenericPublisher::V3(publisher) => {
+                publisher.publish(topic, payload).await.context(V3Snafu)
+            }
+            GenericPublisher::V5(publisher) => {
+                publisher.publish(topic, payload).await.context(V5Snafu)
+            }
         }
     }
 }

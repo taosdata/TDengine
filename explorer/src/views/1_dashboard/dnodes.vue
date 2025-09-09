@@ -71,9 +71,9 @@
 import { sendSQLReq } from '@/api/explorer';
 import { getClusterID } from '@/utils';
 import { t } from '@/lang/index';
-const { $IS_COMMUNITY} = inject('globalCustomProperties') as GlobalCustomProperties;
+const { $IS_COMMUNITY, $IS_TSDBLITE} = inject('globalCustomProperties') as GlobalCustomProperties;
 
-const isCommunity = $IS_COMMUNITY;
+const skipTaosXError = $IS_COMMUNITY || $IS_TSDBLITE;
 const grafanaDashboard = ref(null);
 const grafana_dashboards = localStorage.getItem('local_grafana');
 if (grafana_dashboards) {
@@ -160,7 +160,7 @@ async function loadDnodes() {
   let taosx_res;
   try {
     taosx_res = await sendSQLReq(
-      `select last_row(_ts, taosx_id) from log.taosx_sys where _ts > '${offline_limit}' partition by taosx_id;`, false, !isCommunity 
+      `select last_row(_ts, taosx_id) from log.taosx_sys where _ts > '${offline_limit}' partition by taosx_id;`, false, !skipTaosXError 
     );
   } catch (e) {
     console.log(e);

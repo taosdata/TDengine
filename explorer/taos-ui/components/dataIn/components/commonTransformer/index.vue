@@ -1009,8 +1009,14 @@ function getTopParserData() {
           plugin_params: parseruleForm.expression
         };
         break;
+      case 'udt':
+        expressionObj = {
+          [parseruleForm.type]: parseruleForm.expression,
+          early_break: true
+        };
+        break;
       default:
-        // regex udt
+        // regex 
         expressionObj = {
           [parseruleForm.type]: parseruleForm.expression
         };
@@ -1040,8 +1046,15 @@ async function handleParseResult(topParser: TopParseType) {
     return;
   }
 
+  const reqData = structuredClone(topParser);
+  if (parseruleForm.type == 'udt') {
+    const config = topParser?.parser?.parse?.value;
+    if (config && "early_break" in config) {
+      delete config.early_break;
+    }
+  }
   transformerState.topParse = topParser;
-  const result = await dataInProps.transform.api.getParser(topParser);
+  const result = await dataInProps.transform.api.getParser(reqData);
   if (result.message) {
     ElMessage.error(result.message);
     isbreak.value = true;

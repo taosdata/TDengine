@@ -87,6 +87,7 @@ export default {
       type: 'tabs',
       multiple: false,
       name: 'datasets',
+      valueField: 'only-choose-one$',
       children: [
         {
           label: 'Single column mode',
@@ -97,7 +98,6 @@ export default {
           radio: false,
           short_description:
             'The single column mode creates a super table based on the UOM of the point, with each point creating a sub table.',
-          field: 'single-column',
           type: 'dataset',
           accept: '.csv',
           children: [
@@ -157,7 +157,6 @@ export default {
           radio: true,
           short_description:
             'The multi column pattern creates a super table based on the AF Template, with each AF element creating a sub table.',
-          field: 'multi-column',
           type: 'dataset',
           accept: '.csv',
           selectable: false,
@@ -214,7 +213,6 @@ export default {
           defaultValue: ''
         }
       ],
-      valueField: 'a7dcf55a-a4ea-483b-8980-2db60cd2d8d6',
       defaultValue: 'single-column'
     },
     {

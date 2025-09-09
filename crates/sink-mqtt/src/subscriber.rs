@@ -1,28 +1,17 @@
 use std::time::Duration;
 
-use snafu::{OptionExt, ResultExt};
+use snafu::ResultExt;
 use taos::{
-    AsAsyncConsumer, AsyncTBuilder, Consumer, Data, IsAsyncMeta, MessageSet, Meta, Offset, Timeout,
-    TmqBuilder, taos_query::tmq::IsAsyncData,
+    AsAsyncConsumer, Consumer, Data, IsAsyncMeta, MessageSet, Meta, Offset, Timeout,
+    taos_query::tmq::IsAsyncData,
 };
 
-use crate::{
-    config::TmqConfig,
-    message::{Message, MessageOffset},
-};
+use crate::message::{Message, MessageOffset};
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
-    #[snafu(display("build from dsn error"))]
-    FromDsn { source: taos::Error },
-    #[snafu(display("build tmq subscriber error"))]
-    BuildTmq { source: taos::Error },
-    #[snafu(display("subscribe consumer error"))]
-    Subscribe { source: taos::Error },
     #[snafu(display("fetch new message error"))]
     FetchMessage { source: taos::Error },
-    #[snafu(display("subject in dsn not found"))]
-    SubjectNotFound,
     #[snafu(display("fetch raw block error"))]
     FetchRawBlock { source: taos::Error },
 }
@@ -32,36 +21,23 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct Subscriber {
     consumer: Consumer,
     with_meta: bool,
+    with_meta_delete: bool,
+    with_meta_drop: bool,
 }
 
 impl Subscriber {
-    pub async fn new(mut config: TmqConfig) -> Result<Self> {
-        if let Some(client_id) = config.dsn.get("client.id") {
-            if config.concurrency > 1 {
-                let client_id = format!("{client_id}_{}", uuid::Uuid::new_v4().simple());
-                config.dsn.set("client.id", client_id);
-            }
-        }
-        let topics = {
-            config
-                .dsn
-                .subject
-                .as_ref()
-                .context(SubjectNotFoundSnafu)?
-                .split(",")
-                .collect::<Vec<_>>()
-        };
-        let mut consumer = TmqBuilder::from_dsn(&config.dsn)
-            .context(FromDsnSnafu)?
-            .build()
-            .await
-            .context(BuildTmqSnafu)?;
-        consumer.subscribe(topics).await.context(SubscribeSnafu)?;
-
-        Ok(Self {
+    pub fn new(
+        consumer: Consumer,
+        with_meta: bool,
+        with_meta_delete: bool,
+        with_meta_drop: bool,
+    ) -> Self {
+        Self {
             consumer,
-            with_meta: config.with_meta,
-        })
+            with_meta,
+            with_meta_delete,
+            with_meta_drop,
+        }
     }
 
     pub async fn next(&self) -> Result<Option<(Offset, Vec<Message>)>> {
@@ -74,12 +50,17 @@ impl Subscriber {
             return Ok(None);
         };
         let messages = match message {
-            MessageSet::Meta(meta) if self.with_meta => process_meta(meta, &offset).await,
+            MessageSet::Meta(meta) if self.with_meta => {
+                process_meta(meta, &offset, self.with_meta_delete, self.with_meta_drop).await
+            }
             MessageSet::Data(data) => process_data(data, &offset).await?,
             MessageSet::MetaData(meta, data) => {
                 let mut messages = Vec::new();
                 if self.with_meta {
-                    messages.extend(process_meta(meta, &offset).await);
+                    messages.extend(
+                        process_meta(meta, &offset, self.with_meta_delete, self.with_meta_drop)
+                            .await,
+                    );
                 }
                 messages.extend(process_data(data, &offset).await?);
                 messages
@@ -90,14 +71,26 @@ impl Subscriber {
     }
 }
 
-async fn process_meta(meta: Meta, offset: &Offset) -> Vec<Message> {
+async fn process_meta(
+    meta: Meta,
+    offset: &Offset,
+    with_meta_delete: bool,
+    with_meta_drop: bool,
+) -> Vec<Message> {
     let Ok(meta) = meta.as_json_meta().await else {
         return vec![];
     };
 
     let offset: MessageOffset = offset.into();
     meta.into_iter()
-        .map(|meta| (meta, offset.clone()).into())
+        .filter_map(|meta| match meta {
+            m @ (taos::MetaUnit::Create(_) | taos::MetaUnit::Alter(_)) => {
+                Some((m, offset.clone()).into())
+            }
+            m @ taos::MetaUnit::Drop(_) if with_meta_drop => Some((m, offset.clone()).into()),
+            m @ taos::MetaUnit::Delete(_) if with_meta_delete => Some((m, offset.clone()).into()),
+            _ => None,
+        })
         .collect()
 }
 
