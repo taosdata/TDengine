@@ -163,6 +163,10 @@ typedef struct SSTriggerRealtimeContext {
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
 
+  // calc request pool
+  SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
+  SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
+
   bool    haveReadCheckpoint;
   int64_t lastCheckpointTime;
   int64_t lastVirtTableInfoTime;
@@ -225,6 +229,10 @@ typedef struct SSTriggerHistoryContext {
 
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
+
+  // calc request pool
+  SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
+  SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
 } SSTriggerHistoryContext;
 
 typedef enum ESTriggerEventType {
@@ -321,11 +329,6 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pRealtimeStartVer;  // SSHashObj<vgId, int64_t>
   SSHashObj *pHistoryCutoffTime;
 
-  // calc request pool
-  SRWLatch   calcPoolLock;
-  SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
-  SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
-
   SRWLatch recalcRequestLock;
   SList   *pRecalcRequests;  // SList<SSTriggerRecalcRequest>
 
@@ -340,10 +343,6 @@ typedef struct SStreamTriggerTask {
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread
-int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid,
-                                    SSTriggerCalcRequest **ppRequest);
-int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest);
-
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                       STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory);
 int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRecalcRequest **ppReq);
