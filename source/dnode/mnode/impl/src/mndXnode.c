@@ -453,7 +453,7 @@ static SXnodeTaskObj *mndAcquireXnodeTaskById(SMnode *pMnode, int32_t tid) {
   terrno = TSDB_CODE_MND_XNODE_NOT_EXIST;
   return NULL;
 }
-static SXnodeTaskObj *mndAcquireXnodeTaskByName(SMnode *pMnode, char *name) {
+static SXnodeTaskObj *mndAcquireXnodeTaskByName(SMnode *pMnode, const char *name) {
   SSdb *pSdb = pMnode->pSdb;
 
   void *pIter = NULL;
@@ -658,7 +658,9 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode-task");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
+    if (terrno != 0) {
+      code = terrno;
+    }
     mInfo("failed to create transaction for xnode-task:%s, code:0x%x:%s", pCreate->name, code, tstrerror(code));
     goto _OVER;
   }
@@ -679,6 +681,47 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+// Helper function to validate grant and permissions
+static int32_t mndValidateXnodeTaskPermissions(SMnode *pMnode, SRpcMsg *pReq) {
+  int32_t code = grantCheck(TSDB_GRANT_TD_GPT);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed to create xnode, code:%s", tstrerror(code));
+    return code;
+  }
+
+  return mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_XNODE);
+}
+
+// Helper function to parse and validate the request
+static int32_t mndParseCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq *pCreateReq) {
+  int32_t code = tDeserializeSMCreateXnodeTaskReq(pReq->pCont, pReq->contLen, pCreateReq);
+  if (code != 0) {
+    mError("failed to deserialize create xnode task request, code:%s", tstrerror(code));
+    return code;
+  }
+
+  mInfo("xnode task:%s, start to create", pCreateReq->name);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper function to check if xnode task already exists
+static int32_t mndCheckXnodeTaskExists(SMnode *pMnode, const char *name, SXnodeTaskObj **ppObj) {
+  *ppObj = mndAcquireXnodeTaskByName(pMnode, name);
+  if (*ppObj != NULL) {
+    mError("xnode task:%s already exists", name);
+    return TSDB_CODE_MND_XNODE_ALREADY_EXIST;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper function to handle the creation result
+static int32_t mndHandleCreateXnodeTaskResult(int32_t createCode) {
+  if (createCode == 0) {
+    return TSDB_CODE_ACTION_IN_PROGRESS;
+  }
+  return createCode;
+}
+
 static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   printf("xnode create task request received, contLen:%d", pReq->contLen);
   SMnode              *pMnode = pReq->info.node;
@@ -686,28 +729,31 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   SXnodeTaskObj       *pObj = NULL;
   SMCreateXnodeTaskReq createReq = {0};
 
-  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
-    mError("failed to create xnode, code:%s", tstrerror(code));
+  // Step 1: Validate permissions
+  code = mndValidateXnodeTaskPermissions(pMnode, pReq);
+  if (code != TSDB_CODE_SUCCESS) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeTaskReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
-
-  mInfo("xnode task:%s, start to create", createReq.name);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_XNODE), NULL, _OVER);
-
-  pObj = mndAcquireXnodeTaskByName(pMnode, createReq.name);
-  if (pObj != NULL) {
-    code = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
+  // Step 2: Parse and validate request
+  code = mndParseCreateXnodeTaskReq(pReq, &createReq);
+  if (code != TSDB_CODE_SUCCESS) {
     goto _OVER;
   }
 
+  // Step 3: Check if task already exists
+  code = mndCheckXnodeTaskExists(pMnode, createReq.name, &pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _OVER;
+  }
+
+  // Step 4: Create the xnode task
   code = mndCreateXnodeTask(pMnode, pReq, &createReq);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  code = mndHandleCreateXnodeTaskResult(code);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("xnode task:%s, failed to create since %s", createReq.name, tstrerror(code));
+    mError("xnode task:%s, failed to create since %s", createReq.name ? createReq.name : "unknown", tstrerror(code));
   }
 
   mndReleaseXnodeTask(pMnode, pObj);
