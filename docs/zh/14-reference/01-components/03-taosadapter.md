@@ -1027,40 +1027,40 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 <details>
 <summary>详细信息</summary>
 
-| field                     | type      | is\_tag | comment                                  |
-|:--------------------------|:----------|:--------|:-----------------------------------------|
-| _ts                       | TIMESTAMP |         | 数据采集时间戳                                  |
-| go_heap_sys               | DOUBLE    |         | Go 运行时系统分配的堆内存大小（字节）                     |
-| go_heap_inuse             | DOUBLE    |         | Go 运行时正在使用的堆内存大小（字节）                     |
-| go_stack_sys              | DOUBLE    |         | Go 运行时系统分配的栈内存大小（字节）                     |
-| go_stack_inuse            | DOUBLE    |         | Go 运行时正在使用的栈内存大小（字节）                     |
-| rss                       | DOUBLE    |         | 进程实际占用的物理内存大小（字节）                        |
-| ws_query_conn             | DOUBLE    |         | `/rest/ws` 接口当前 WebSocket 连接数            |
-| ws_stmt_conn              | DOUBLE    |         | `/rest/stmt` 接口当前 WebSocket 连接数          |
-| ws_sml_conn               | DOUBLE    |         | `/rest/schemaless` 接口当前 WebSocket 连接数    |
-| ws_ws_conn                | DOUBLE    |         | `/ws` 接口当前 WebSocket 连接数                 |
-| ws_tmq_conn               | DOUBLE    |         | `/rest/tmq` 接口当前 WebSocket 连接数           |
-| async_c_limit             | DOUBLE    |         | C 同步接口并发限制总数                             |
-| async_c_inflight          | DOUBLE    |         | C 同步接口当前并发数                              |
-| sync_c_limit              | DOUBLE    |         | C 异步接口并发限制总数                             |
-| sync_c_inflight           | DOUBLE    |         | C 异步接口当前并发数                              |
-| ws_query_conn_inc         | DOUBLE    |         | /rest/ws 接口新增连接（3.3.6.10 及以上）            |
-| ws_query_conn_dec         | DOUBLE    |         | /rest/ws 接口减少连接（3.3.6.10 及以上）            |
-| ws_stmt_conn_inc          | DOUBLE    |         | /rest/stmt 接口新增连接（3.3.6.10 及以上）          |
-| ws_stmt_conn_dec          | DOUBLE    |         | /rest/stmt 接口减少连接（3.3.6.10 及以上）          |
-| ws_sml_conn_inc           | DOUBLE    |         | /rest/schemaless 接口新增连接（3.3.6.10 及以上）    |
-| ws_sml_conn_dec           | DOUBLE    |         | /rest/schemaless 接口减少连接（3.3.6.10 及以上）    |
-| ws_ws_conn_inc            | DOUBLE    |         | /ws 接口新增连接（3.3.6.10 及以上）                 |
-| ws_ws_conn_dec            | DOUBLE    |         | /ws 接口减少连接（3.3.6.10 及以上）                 |
-| ws_tmq_conn_inc           | DOUBLE    |         | /rest/tmq 接口新增连接（3.3.6.10 及以上）           |
-| ws_tmq_conn_dec           | DOUBLE    |         | /rest/tmq 接口减少连接（3.3.6.10 及以上）           |
-| ws_query_sql_result_count | DOUBLE    |         | /rest/ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上） |
-| ws_stmt_stmt_count        | DOUBLE    |         | /rest/stmt 接口当前持有 stmt 数量（3.3.6.10 及以上）  |
-| ws_ws_sql_result_count    | DOUBLE    |         | /ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）      |
-| ws_ws_stmt_count          | DOUBLE    |         | /ws 接口当前持有 stmt 数量（3.3.6.10 及以上）         |
-| ws_ws_stmt2_count         | DOUBLE    |         | /ws 接口当前持有 stmt2 数量（3.3.6.10 及以上）        |
-| cpu_percent               | DOUBLE    |         | cpu 占用百分比（v3.3.6.24及以上 /v3.3.7.7 及以上）    |
-| endpoint                  | NCHAR     | TAG     | 请求端点                                     |
+| field                     | type      | is\_tag | comment                                             |
+|:--------------------------|:----------|:--------|:----------------------------------------------------|
+| _ts                       | TIMESTAMP |         | 数据采集时间戳                                             |
+| go_heap_sys               | DOUBLE    |         | Go 运行时系统分配的堆内存大小（字节）                                |
+| go_heap_inuse             | DOUBLE    |         | Go 运行时正在使用的堆内存大小（字节）                                |
+| go_stack_sys              | DOUBLE    |         | Go 运行时系统分配的栈内存大小（字节）                                |
+| go_stack_inuse            | DOUBLE    |         | Go 运行时正在使用的栈内存大小（字节）                                |
+| rss                       | DOUBLE    |         | 进程实际占用的物理内存大小（字节）                                   |
+| ws_query_conn             | DOUBLE    |         | `/rest/ws` 接口当前 WebSocket 连接数                       |
+| ws_stmt_conn              | DOUBLE    |         | `/rest/stmt` 接口当前 WebSocket 连接数                     |
+| ws_sml_conn               | DOUBLE    |         | `/rest/schemaless` 接口当前 WebSocket 连接数               |
+| ws_ws_conn                | DOUBLE    |         | `/ws` 接口当前 WebSocket 连接数                            |
+| ws_tmq_conn               | DOUBLE    |         | `/rest/tmq` 接口当前 WebSocket 连接数                      |
+| async_c_limit             | DOUBLE    |         | C 同步接口并发限制总数                                        |
+| async_c_inflight          | DOUBLE    |         | C 同步接口当前并发数                                         |
+| sync_c_limit              | DOUBLE    |         | C 异步接口并发限制总数                                        |
+| sync_c_inflight           | DOUBLE    |         | C 异步接口当前并发数                                         |
+| ws_query_conn_inc         | DOUBLE    |         | /rest/ws 接口新增连接（3.3.6.10 及以上）                       |
+| ws_query_conn_dec         | DOUBLE    |         | /rest/ws 接口减少连接（3.3.6.10 及以上）                       |
+| ws_stmt_conn_inc          | DOUBLE    |         | /rest/stmt 接口新增连接（3.3.6.10 及以上）                     |
+| ws_stmt_conn_dec          | DOUBLE    |         | /rest/stmt 接口减少连接（3.3.6.10 及以上）                     |
+| ws_sml_conn_inc           | DOUBLE    |         | /rest/schemaless 接口新增连接（3.3.6.10 及以上）               |
+| ws_sml_conn_dec           | DOUBLE    |         | /rest/schemaless 接口减少连接（3.3.6.10 及以上）               |
+| ws_ws_conn_inc            | DOUBLE    |         | /ws 接口新增连接（3.3.6.10 及以上）                            |
+| ws_ws_conn_dec            | DOUBLE    |         | /ws 接口减少连接（3.3.6.10 及以上）                            |
+| ws_tmq_conn_inc           | DOUBLE    |         | /rest/tmq 接口新增连接（3.3.6.10 及以上）                      |
+| ws_tmq_conn_dec           | DOUBLE    |         | /rest/tmq 接口减少连接（3.3.6.10 及以上）                      |
+| ws_query_sql_result_count | DOUBLE    |         | /rest/ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）            |
+| ws_stmt_stmt_count        | DOUBLE    |         | /rest/stmt 接口当前持有 stmt 数量（3.3.6.10 及以上）             |
+| ws_ws_sql_result_count    | DOUBLE    |         | /ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）                 |
+| ws_ws_stmt_count          | DOUBLE    |         | /ws 接口当前持有 stmt 数量（3.3.6.10 及以上）                    |
+| ws_ws_stmt2_count         | DOUBLE    |         | /ws 接口当前持有 stmt2 数量（3.3.6.10 及以上）                   |
+| cpu_percent               | DOUBLE    |         | taosAdapter 的 CPU 占用百分比（v3.3.6.24及以上 /v3.3.7.7 及以上） |
+| endpoint                  | NCHAR     | TAG     | 请求端点                                                |
 
 </details>
 

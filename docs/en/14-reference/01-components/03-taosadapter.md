@@ -1067,7 +1067,7 @@ The `adapter_status` table records the status data of taosAdapter:
 | ws_ws_sql_result_count    | DOUBLE    |         | Current SQL query results held by `/ws` interface (Available since v3.3.6.10)      |
 | ws_ws_stmt_count          | DOUBLE    |         | Current stmt objects held by `/ws` interface (Available since v3.3.6.10)           |
 | ws_ws_stmt2_count         | DOUBLE    |         | Current stmt2 objects held by `/ws` interface (Available since v3.3.6.10)          |
-| cpu_percent               | DOUBLE    |         | CPU usage percentage (Available since v3.3.6.24/v3.3.7.7)                          |
+| cpu_percent               | DOUBLE    |         | CPU usage percentage of taosAdapter (Available since v3.3.6.24/v3.3.7.7)           |
 | endpoint                  | NCHAR     | TAG     | request endpoint                                                                   |
 
 </details>
