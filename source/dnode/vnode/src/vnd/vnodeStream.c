@@ -681,11 +681,22 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
 
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
-  STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, lastVer) != 0, TSDB_CODE_SUCCESS);
+  code = walReaderSeekVer(pWalReader, lastVer);
+  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+    *nextVer = walGetFirstVer(pWalReader->pWal);
+    code = TSDB_CODE_SUCCESS;
+    goto end;
+  }
+  STREAM_CHECK_RET_GOTO(code);
 
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->metaBlock, STREAM_RETURN_ROWS_NUM));
   while (1) {
-    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, true) < 0, TSDB_CODE_SUCCESS);
+    code = walNextValidMsg(pWalReader, true);
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+      code = TSDB_CODE_SUCCESS;
+      goto end;
+    }
+    STREAM_CHECK_RET_GOTO(code);
     *nextVer = pWalReader->curVersion;
     SWalCont* wCont = &pWalReader->pHead->head;
     if (wCont->ingestTs / 1000 > ctime) break;
@@ -1324,9 +1335,21 @@ static void buildIndexHash(SSHashObj* indexHash){
 static int32_t prepareIndex(SWalReader* pWalReader, SStreamTriggerReaderInfo* sStreamInfo, SSTriggerWalNewRsp* metaRsp, int64_t *nextVer, int32_t *totalRows){
   int32_t      code = 0;
   int32_t      lino = 0;
-  STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, *nextVer) != 0, TDB_CODE_SUCCESS);
+  code = walReaderSeekVer(pWalReader, *nextVer);
+  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+    *nextVer = walGetFirstVer(pWalReader->pWal);
+    code = TSDB_CODE_SUCCESS;
+    goto end;
+  }
+  STREAM_CHECK_RET_GOTO(code);
+
   while (1) {
-    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, true) < 0, TDB_CODE_SUCCESS);
+    code = walNextValidMsg(pWalReader, true);
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+      code = TSDB_CODE_SUCCESS;
+      goto end;
+    }
+    STREAM_CHECK_RET_GOTO(code);
     *nextVer = pWalReader->curVersion;
     SWalCont* wCont = &pWalReader->pHead->head;
     void*   data = POINTER_SHIFT(wCont->body, sizeof(SMsgHead));
@@ -2487,7 +2510,7 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo,
                                 req->walMetaNewReq.lastVer, req->walMetaNewReq.ctime, &lastVer, &totalRows));
 
-  ST_TASK_DLOG("vgId:%d %s get result last ver:"PRId64" rows:%" PRId64, TD_VID(pVnode), __func__, lastVer, totalRows);
+  ST_TASK_DLOG("vgId:%d %s get result last ver:%"PRId64" rows:%d", TD_VID(pVnode), __func__, lastVer, totalRows);
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
   resultRsp.ver = lastVer;
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, NULL);
@@ -2537,7 +2560,7 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
 
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, req->walMetaDataNewReq.lastVer, &resultRsp, &lastVer, &totalRows));
 
-  ST_TASK_DLOG("vgId:%d %s get result last ver:"PRId64" rows:%" PRId64, TD_VID(pVnode), __func__, lastVer, totalRows);
+  ST_TASK_DLOG("vgId:%d %s get result last ver:%"PRId64" rows:%d", TD_VID(pVnode), __func__, lastVer, totalRows);
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
   resultRsp.ver = lastVer;
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, sStreamReaderInfo->indexHash);
@@ -2580,7 +2603,7 @@ static int32_t vnodeProcessStreamWalDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   resultRsp.dataBlock = sStreamReaderInfo->resultBlock;
   STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, &resultRsp, &lastVer, &totalRows));
-  ST_TASK_DLOG("vgId:%d %s get result last ver:"PRId64" rows:%" PRId64, TD_VID(pVnode), __func__, lastVer, totalRows);
+  ST_TASK_DLOG("vgId:%d %s get result last ver:%"PRId64" rows:%d", TD_VID(pVnode), __func__, lastVer, totalRows);
 
   STREAM_CHECK_CONDITION_GOTO(totalRows == 0, TDB_CODE_SUCCESS);
 
