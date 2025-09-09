@@ -1637,7 +1637,7 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       }
       if (needFreeSet) {
         taosMemoryFree(setstr);
-        needFreeSet = true;
+        needFreeSet = false;
       }
       setstr = varDataVal(colDataGetData(sets, i));
       setLen = varDataLen(colDataGetData(sets, i));
