@@ -23,6 +23,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tmsg.h"
+#include "tmsg.h"
 
 #ifdef USE_ANALYTICS
 
@@ -77,7 +78,7 @@ typedef struct SForecastOperatorInfo {
   SForecastSupp forecastSupp;
 } SForecastOperatorInfo;
 
-static void destroyForecastInfo(void* param);
+static void    destroyForecastInfo(void* param);
 static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id);
 
 static FORCE_INLINE int32_t forecastEnsureBlockCapacity(SSDataBlock* pBlock, int32_t newRowsNum) {
@@ -247,9 +248,6 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
 static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       resCurRow = pBlock->info.rows;
-  int8_t        tmpI8 = 0;
-  int16_t       tmpI16 = 0;
-  int32_t       tmpI32 = 0;
   int64_t       tmpI64 = 0;
   double        tmpDouble = 0;
   int32_t       code = 0;
@@ -690,7 +688,7 @@ static void initForecastOpt(SForecastSupp* pSupp) {
   pSupp->maxTs = 0;
   pSupp->minTs = INT64_MAX;
   pSupp->numOfRows = 0;
-  pSupp->wncheck = ANALY_FORECAST_DEFAULT_WNCHECK;
+  pSupp->wncheck = ANALY_DEFAULT_WNCHECK;
   pSupp->forecastRows = ANALY_FORECAST_DEFAULT_ROWS;
   pSupp->conf = ANALY_FORECAST_DEFAULT_CONF;
   pSupp->setEvery = 0;
