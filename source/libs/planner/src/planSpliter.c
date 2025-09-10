@@ -1931,6 +1931,13 @@ static bool virtualTableFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubpl
   return false;
 }
 
+static bool needProcessOneBlockEachTime(SVirtualScanLogicNode* pVirtual) {
+  if (pVirtual->node.pParent && QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pVirtual->node.pParent)) {
+    return true;
+  }
+  return false;
+}
+
 static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   int32_t                code = TSDB_CODE_SUCCESS;
   SVirtualTableSplitInfo info = {0};
@@ -1942,7 +1949,7 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   FOREACH(pChild, info.pVirtual->node.pChildren) {
     PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)pChild, info.pSubplan->subplanType, info.pVirtual->tableType == TSDB_SUPER_TABLE));
     SLogicSubplan *sub = splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0);
-    sub->processOneBlock = (info.pVirtual->tableType == TSDB_SUPER_TABLE);
+    sub->processOneBlock = needProcessOneBlockEachTime(info.pVirtual);
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)sub));
     ++(pCxt->groupId);
   }
@@ -2069,21 +2076,13 @@ static int32_t dynVirtualScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
   if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)dynVirtualScanFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
-  
-  code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pDyn, info.pSubplan->subplanType, false);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _return;
-  }
 
-  code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)info.pDyn, 0));
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _return;
-  }
+  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pDyn, info.pSubplan->subplanType, false));
+  PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)info.pDyn, 0)));
   
   info.pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
   ++(pCxt->groupId);
 
-_return:
   pCxt->split = true;
   return code;
 }
