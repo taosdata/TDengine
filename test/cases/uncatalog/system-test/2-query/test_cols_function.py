@@ -1376,6 +1376,19 @@ class TestColsFunction:
         self.stream_cols_test()
 
     def test_cols_function(self):
+        """ Test the functionality of the cols function.
+
+        This test covers:
+        1. test cols function in various scenarios
+        2. test last/last_row function with different cache models
+
+        Since: v3.3.6.0
+
+        Labels: cols, last, last_row, cachemodel
+
+        History:
+            - 2025-09-10 modifiedy by Tony Zhang, add cachemodel
+        """
         tdStream.createSnode()
         self.run_basic('none')
         self.run_basic('last_value')
