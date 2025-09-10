@@ -660,14 +660,14 @@ static int32_t processMeta(int16_t msgType, SStreamTriggerReaderInfo* sStreamInf
       STREAM_CHECK_RET_GOTO(createBlockForWalMetaNew((SSDataBlock**)&rsp->dropBlock));
     }
     STREAM_CHECK_RET_GOTO(scanDropTableNew(sStreamInfo, rsp->dropBlock, data, len, ver));
-  } else if (msgType == TDMT_VND_DROP_STB) {
-    STREAM_CHECK_RET_GOTO(scanDropSTableNew(sStreamInfo, data, len));
-  } else if (msgType == TDMT_VND_CREATE_TABLE) {
-    STREAM_CHECK_RET_GOTO(scanInsertTableNew(sStreamInfo, data, len));
-  } else if (msgType == TDMT_VND_ALTER_STB) {
-    STREAM_CHECK_RET_GOTO(scanAlterSTableNew(sStreamInfo, data, len));
-  } else if (msgType == TDMT_VND_ALTER_TABLE) {
-    STREAM_CHECK_RET_GOTO(scanAlterTableNew(sStreamInfo, data, len));
+  // } else if (msgType == TDMT_VND_DROP_STB) {
+  //   STREAM_CHECK_RET_GOTO(scanDropSTableNew(sStreamInfo, data, len));
+  // } else if (msgType == TDMT_VND_CREATE_TABLE) {
+  //   STREAM_CHECK_RET_GOTO(scanInsertTableNew(sStreamInfo, data, len));
+  // } else if (msgType == TDMT_VND_ALTER_STB) {
+  //   STREAM_CHECK_RET_GOTO(scanAlterSTableNew(sStreamInfo, data, len));
+  // } else if (msgType == TDMT_VND_ALTER_TABLE) {
+  //   STREAM_CHECK_RET_GOTO(scanAlterTableNew(sStreamInfo, data, len));
   }
 
   end:
@@ -683,7 +683,10 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
   code = walReaderSeekVer(pWalReader, lastVer);
   if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
-    *nextVer = walGetFirstVer(pWalReader->pWal);
+    if (lastVer < walGetFirstVer(pWalReader->pWal)) {
+      *nextVer = walGetFirstVer(pWalReader->pWal);
+    }
+    stWarn("vgId:%d %s scan wal error:%s", TD_VID(pVnode), __func__, tstrerror(code));
     code = TSDB_CODE_SUCCESS;
     goto end;
   }
@@ -692,7 +695,8 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->metaBlock, STREAM_RETURN_ROWS_NUM));
   while (1) {
     code = walNextValidMsg(pWalReader, true);
-    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){\
+      stWarn("vgId:%d %s scan wal error:%s", TD_VID(pVnode), __func__, tstrerror(code));
       code = TSDB_CODE_SUCCESS;
       goto end;
     }
@@ -1337,7 +1341,10 @@ static int32_t prepareIndex(SWalReader* pWalReader, SStreamTriggerReaderInfo* sS
   int32_t      lino = 0;
   code = walReaderSeekVer(pWalReader, *nextVer);
   if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
-    *nextVer = walGetFirstVer(pWalReader->pWal);
+    if (*nextVer < walGetFirstVer(pWalReader->pWal)) {
+      *nextVer = walGetFirstVer(pWalReader->pWal);
+    }
+    stWarn("%s scan wal error:%s",  __func__, tstrerror(code));
     code = TSDB_CODE_SUCCESS;
     goto end;
   }
@@ -1346,6 +1353,7 @@ static int32_t prepareIndex(SWalReader* pWalReader, SStreamTriggerReaderInfo* sS
   while (1) {
     code = walNextValidMsg(pWalReader, true);
     if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+      stWarn("%s scan wal error:%s", __func__, tstrerror(code));
       code = TSDB_CODE_SUCCESS;
       goto end;
     }
@@ -2094,7 +2102,7 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   } else {
     STREAM_CHECK_RET_GOTO(processTsNonVTable(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
   }
-  ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
+  ST_TASK_DLOG("vgId:%d %s get result, ver:%" PRId64, TD_VID(pVnode), __func__, lastTsRsp.ver);
   STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
 
 end:
@@ -2131,7 +2139,7 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
     STREAM_CHECK_RET_GOTO(processTsNonVTable(pVnode, &firstTsRsp, sStreamReaderInfo, pTaskInner));
   }
 
-  ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
+  ST_TASK_DLOG("vgId:%d %s get result, ver:%"PRId64, TD_VID(pVnode), __func__, firstTsRsp.ver);
   STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size));
 
 end:
@@ -2507,6 +2515,7 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   }
   sStreamReaderInfo->metaBlock->info.rows = 0;
   resultRsp.metaBlock = sStreamReaderInfo->metaBlock;
+  lastVer = req->walMetaNewReq.lastVer;
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo,
                                 req->walMetaNewReq.lastVer, req->walMetaNewReq.ctime, &lastVer, &totalRows));
 
@@ -2557,7 +2566,7 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   }
   resultRsp.metaBlock = sStreamReaderInfo->metaBlock;
   resultRsp.dataBlock = sStreamReaderInfo->resultBlock;
-
+  lastVer = req->walMetaDataNewReq.lastVer;
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, req->walMetaDataNewReq.lastVer, &resultRsp, &lastVer, &totalRows));
 
   ST_TASK_DLOG("vgId:%d %s get result last ver:%"PRId64" rows:%d", TD_VID(pVnode), __func__, lastVer, totalRows);
