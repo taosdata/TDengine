@@ -148,7 +148,6 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
   int32_t  lino = 0;
   STFileOp op = {0};
   int32_t  lcn = fobj->f->lcn;
-  bool     rollup = VND_IS_RSMA(rtner->tsdb->pVnode);
 
   // remove old
   op = (STFileOp){

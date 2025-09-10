@@ -421,6 +421,7 @@ struct SVnodeInfo {
   SVStatis  statis;
 };
 
+#if 0
 typedef enum {
   TSDB_TYPE_TSDB = 0,     // TSDB
   TSDB_TYPE_TSMA = 1,     // TSMA
@@ -428,6 +429,12 @@ typedef enum {
   TSDB_TYPE_RSMA_L1 = 3,  // RSMA Level 1
   TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
 } ETsdbType;
+#endif
+typedef enum {
+  TSDB_COMPACT_NORMAL = 0,
+  TSDB_COMPACT_SSMIGRATE = 1,
+  TSDB_COMPACT_ROLLUP = 2,
+} ECompactType;
 
 struct STsdbKeepCfg {
   int8_t  precision;  // precision always be used with below keep cfgs
