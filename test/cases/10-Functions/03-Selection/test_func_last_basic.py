@@ -2,7 +2,6 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestFuncLastBasic:
-
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
@@ -144,6 +143,14 @@ class TestFuncLastBasic:
         tdLog.info(f"===> {tdSql.getData(1,0)}")
         tdSql.checkData(1, 0, 1)
         tdSql.checkRows(50)
+
+        tdLog.info(f"=============== step12")
+        tdSql.execute(f"alter local 'keepColumnName' '1'")
+        tdSql.query(f"show local variables like 'keepColumnName'")
+        tdSql.checkData(0, 1, '1')
+        tdSql.query(f"select last(tbcol) - first(tbcol) from {mt} group by tgcol")
+        tdSql.checkData(0, 0, 19)
+        tdSql.checkData(1, 0, 19)
 
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")
