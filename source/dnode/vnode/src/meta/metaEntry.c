@@ -118,6 +118,7 @@ SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
 }
 
 int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
+  if (!rsmaSchema) return 0;
   if ((pME->type != TSDB_SUPER_TABLE) || !TABLE_IS_ROLLUP(pME->flags)) {
     *rsmaSchema = NULL;
     return 0;

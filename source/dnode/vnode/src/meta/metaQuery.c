@@ -383,7 +383,8 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
  * @param type 0x01 fetchRsmaSchema if table is rsma
  */
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema,
-                                   int32_t type) {
+                                   int8_t type) {
+  int32_t         code = 0;
   void           *pData = NULL;
   int             nData = 0;
   int64_t         version;
@@ -394,19 +395,20 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int
     metaRLock(pMeta);
   }
 _query:
-  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+  if ((code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData)) < 0) {
     goto _err;
   }
 
   version = ((SUidIdxVal *)pData)[0].version;
 
-  if (tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData) != 0) {
+  if ((code = tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData)) !=
+      0) {
     goto _err;
   }
 
   SMetaEntry me = {0};
   tDecoderInit(&dc, pData, nData);
-  int32_t code = metaDecodeEntry(&dc, &me);
+  code = metaDecodeEntry(&dc, &me);
   if (code) {
     tDecoderClear(&dc);
     goto _err;
@@ -416,7 +418,7 @@ _query:
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
       if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
       if ((type == 0x01) && TABLE_IS_ROLLUP(me.flags)) {
-        if ((terrno = metaGetRsmaSchema(&me, &pSchema->pRsma)) != 0) {
+        if ((code = metaGetRsmaSchema(&me, &pSchema->pRsma)) != 0) {
           tDecoderClear(&dc);
           goto _err;
         }
@@ -440,15 +442,19 @@ _query:
   tDecoderClear(&dc);
 
   // query from skm db
-  if (tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData) < 0) {
+  if ((code = tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData)) < 0) {
     goto _err;
   }
 
   tDecoderInit(&dc, pData, nData);
-  if (tDecodeSSchemaWrapperEx(&dc, &schema) != 0) {
+  if ((code = tDecodeSSchemaWrapperEx(&dc, &schema)) != 0) {
     goto _err;
   }
   pSchema = tCloneSSchemaWrapper(&schema);
+  if (pSchema == NULL) {
+    code = terrno;
+    goto _err;
+  }
   tDecoderClear(&dc);
 
 _exit:
@@ -456,6 +462,7 @@ _exit:
     metaULock(pMeta);
   }
   tdbFree(pData);
+  tDestroySchemaWrapper(&schema);
   return pSchema;
 
 _err:
@@ -463,10 +470,12 @@ _err:
     metaULock(pMeta);
   }
   tdbFree(pData);
+  tDestroySchemaWrapper(&schema);
   tDeleteSchemaWrapper(pSchema);
   if (extSchema != NULL) {
     taosMemoryFreeClear(*extSchema);
   }
+  terrno = code;
   return NULL;
 }
 
@@ -687,6 +696,27 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
 
   pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
+  tDeleteSchemaWrapper(pSW);
+  return pTSchema;
+}
+
+/**
+ * Fetch rsma schema if table is rsma
+ */
+STSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
+  STSchema       *pTSchema = NULL;
+  SSchemaWrapper *pSW = NULL;
+
+  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0x01))) return NULL;
+  if (!(pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version))) {
+    goto _exit;
+  }
+  if (pSW->pRsma) {
+    for (int32_t c = 0; c < pSW->nCols; ++c) {
+      pTSchema->columns[c].funcId = pSW->pRsma[c].funcId;
+    }
+  }
+_exit:
   tDeleteSchemaWrapper(pSW);
   return pTSchema;
 }
