@@ -275,6 +275,7 @@ typedef struct SStreamTriggerTask {
     struct {  // for state window
       int64_t stateSlotId;
       int64_t stateTrueFor;
+      SNode  *pStateExpr;
     };
     struct {  // for event window
       SNode     *pStartCond;

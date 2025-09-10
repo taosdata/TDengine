@@ -18,6 +18,7 @@
 #include "dataSink.h"
 #include "osMemPool.h"
 #include "plannodes.h"
+#include "scalar.h"
 #include "streamInt.h"
 #include "streamReader.h"
 #include "tarray.h"
@@ -1032,9 +1033,16 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   pTask->calcTsIndex = 0;
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    void *px = taosArrayGet(pTrigSlotids, pTask->stateSlotId);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-    pTask->stateSlotId = *(int32_t *)px;
+    if (pTask->stateSlotId != -1) {
+      void *px = taosArrayGet(pTrigSlotids, pTask->stateSlotId);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      pTask->stateSlotId = *(int32_t *)px;
+    }
+    if (pTask->pStateExpr != NULL) {
+      nodesWalkExpr(pTask->pStateExpr, nodeRewriteSlotid, &cxt);
+      code = cxt.errCode;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
     nodesWalkExpr(pTask->pStartCond, nodeRewriteSlotid, &cxt);
     code = cxt.errCode;
@@ -1197,6 +1205,11 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       const SStateWinTrigger *pState = &pMsg->trigger.stateWin;
       pTask->stateSlotId = pState->slotId;
       pTask->stateTrueFor = pState->trueForDuration;
+      code = nodesStringToNode(pState->expr, &pTask->pStateExpr);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pTask->pStateExpr != NULL && nodeType(pTask->pStateExpr) != QUERY_NODE_COLUMN) {
+        pTask->stateSlotId = -1;
+      }
       break;
     }
     case WINDOW_TYPE_EVENT: {
@@ -1387,7 +1400,12 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   }
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
 
-  if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+  if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    if (pTask->pStateExpr != NULL) {
+      nodesDestroyNode(pTask->pStateExpr);
+      pTask->pStateExpr = NULL;
+    }
+  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
     if (pTask->pStartCond != NULL) {
       nodesDestroyNode(pTask->pStartCond);
       pTask->pStartCond = NULL;
@@ -6428,6 +6446,8 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
   bool                      allTableProcessed = false;
   bool                      needFetchData = false;
   char                     *pExtraNotifyContent = NULL;
+  SArray                   *pList = NULL;
+  SScalarParam              output = {0};
 
   while (!allTableProcessed && !needFetchData) {
     //  read all data of the current table
@@ -6443,8 +6463,42 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t         *pTsData = (int64_t *)pTsCol->pData;
-    SColumnInfoData *pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateSlotId);
-    QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+    SColumnInfoData *pStateCol = NULL;
+    if (pTask->stateSlotId != -1) {
+      pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateSlotId);
+      QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+    } else {
+      if (pList == NULL) {
+        pList = taosArrayInit(1, POINTER_BYTES);
+        QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
+      } else {
+        taosArrayClear(pList);
+      }
+      void *px = taosArrayPush(pList, &pDataBlock);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+
+      if (output.columnData == NULL) {
+        SDataType       *pType = &((SExprNode *)pTask->pStateExpr)->resType;
+        SColumnInfoData *pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+        QUERY_CHECK_NULL(pColumnData, code, lino, _end, terrno);
+        pColumnData->info.type = pType->type;
+        pColumnData->info.bytes = pType->bytes;
+        pColumnData->info.scale = pType->scale;
+        pColumnData->info.precision = pType->precision;
+        output.columnData = pColumnData;
+        output.colAlloced = true;
+      }
+      SColumnInfoData *pColumnData = output.columnData;
+      int32_t          numOfRows = blockDataGetNumOfRows(pDataBlock);
+      code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
+      QUERY_CHECK_CODE(code, lino, _end);
+      output.numOfRows = numOfRows;
+
+      code = scalarCalculate(pTask->pStateExpr, pList, &output, NULL, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pStateCol = output.columnData;
+      QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+    }
     bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
     void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
     if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
@@ -6501,6 +6555,10 @@ _end:
   if (pExtraNotifyContent != NULL) {
     taosMemoryFreeClear(pExtraNotifyContent);
   }
+  if (pList != NULL) {
+    taosArrayDestroy(pList);
+  }
+  sclFreeParam(&output);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -7833,6 +7891,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
   char                    *pExtraNotifyContent = NULL;
+  SArray                   *pList = NULL;
+  SScalarParam              output = {0};
 
   while (!allTableProcessed && !needFetchData) {
     //  read all data of the current table
@@ -7848,8 +7908,42 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t         *pTsData = (int64_t *)pTsCol->pData;
-    SColumnInfoData *pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateSlotId);
-    QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+    SColumnInfoData *pStateCol = NULL;
+    if (pTask->stateSlotId != -1) {
+      pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateSlotId);
+      QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+    } else {
+      if (pList == NULL) {
+        pList = taosArrayInit(1, POINTER_BYTES);
+        QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
+      } else {
+        taosArrayClear(pList);
+      }
+      void *px = taosArrayPush(pList, &pDataBlock);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+
+      if (output.columnData == NULL) {
+        SDataType       *pType = &((SExprNode *)pTask->pStateExpr)->resType;
+        SColumnInfoData *pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+        QUERY_CHECK_NULL(pColumnData, code, lino, _end, terrno);
+        pColumnData->info.type = pType->type;
+        pColumnData->info.bytes = pType->bytes;
+        pColumnData->info.scale = pType->scale;
+        pColumnData->info.precision = pType->precision;
+        output.columnData = pColumnData;
+        output.colAlloced = true;
+      }
+      SColumnInfoData *pColumnData = output.columnData;
+      int32_t          numOfRows = blockDataGetNumOfRows(pDataBlock);
+      code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
+      QUERY_CHECK_CODE(code, lino, _end);
+      output.numOfRows = numOfRows;
+
+      code = scalarCalculate(pTask->pStateExpr, pList, &output, NULL, NULL);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pStateCol = output.columnData;
+      QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+    }
     bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
     void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
     if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
@@ -7907,6 +8001,10 @@ _end:
   if (pExtraNotifyContent != NULL) {
     taosMemoryFreeClear(pExtraNotifyContent);
   }
+  if (pList != NULL) {
+    taosArrayDestroy(pList);
+  }
+  sclFreeParam(&output);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

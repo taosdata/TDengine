@@ -949,6 +949,9 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
       // state trigger
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.stateWin.trueForDuration));
+      int32_t stateWindowExprLen =
+          pMsg->trigger.stateWin.expr == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.stateWin.expr) + 1;
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.stateWin.expr, stateWindowExprLen));
       break;
     }
     case WINDOW_TYPE_INTERVAL: {
@@ -1479,6 +1482,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
       // state trigger
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.stateWin.trueForDuration));
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.stateWin.expr, NULL));
       break;
     
     case WINDOW_TYPE_INTERVAL:
@@ -1914,6 +1918,9 @@ void tFreeSStreamTriggerDeployMsg(SStreamTriggerDeployMsg* pTrigger) {
   
   taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   switch (pTrigger->triggerType) {
+    case WINDOW_TYPE_STATE:
+      taosMemoryFree(pTrigger->trigger.stateWin.expr);
+      break;
     case WINDOW_TYPE_EVENT:
       taosMemoryFree(pTrigger->trigger.event.startCond);
       taosMemoryFree(pTrigger->trigger.event.endCond);
@@ -2778,6 +2785,9 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   pReq->outCols = NULL;
 
   switch (pReq->triggerType) {
+    case WINDOW_TYPE_STATE:
+      taosMemoryFreeClear(pReq->trigger.stateWin.expr);
+      break;
     case WINDOW_TYPE_EVENT:
       taosMemoryFreeClear(pReq->trigger.event.startCond);
       taosMemoryFreeClear(pReq->trigger.event.endCond);
@@ -2867,6 +2877,12 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   pDst->triggerType = pSrc->triggerType;
   
   switch (pSrc->triggerType) {
+    case WINDOW_TYPE_STATE:
+      if (pSrc->trigger.stateWin.expr) {
+        pDst->trigger.stateWin.expr = COPY_STR(pSrc->trigger.stateWin.expr);
+        TSDB_CHECK_NULL(pDst->trigger.stateWin.expr, code, lino, _exit, terrno);
+      }
+      break;
     case WINDOW_TYPE_EVENT:
       if (pSrc->trigger.event.startCond) {
         pDst->trigger.event.startCond = COPY_STR(pSrc->trigger.event.startCond);
