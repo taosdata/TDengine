@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 failed_cases = 0  # 全局变量，记录失败用例数量
 
-
 def get_git_commit_id():
     try:
         commit_id = subprocess.check_output(
@@ -77,7 +76,6 @@ def clean_taos_process(keywords=None):
         except Exception as e:
             logger.error(f"Error while terminating process {proc.info.get('pid')}: {e}")
 
-
 def zip_dir(dir_path, zip_path):
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(dir_path):
@@ -86,6 +84,22 @@ def zip_dir(dir_path, zip_path):
                 rel_path = os.path.relpath(abs_path, dir_path)
                 zipf.write(abs_path, rel_path)
 
+def safe_rmtree(path, retries=5, delay=1):
+    """
+    安全删除目录，支持重试机制。
+    :param path: 要删除的目录路径。
+    :param retries: 重试次数。
+    :param delay: 每次重试之间的延迟时间（秒）。
+    """
+    for i in range(retries):
+        try:
+            if os.path.exists(path):
+                shutil.rmtree(path)
+            return
+        except Exception as e:
+            logger.warning(f"Retry {i+1}/{retries}: Failed to remove {path}. Error: {e}")
+            time.sleep(delay)
+    raise Exception(f"Failed to remove {path} after {retries} retries.")
 
 def safe_rmtree(path, retries=5, delay=1):
     """
@@ -169,7 +183,6 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
                 clean_taos_process()
                 if os.path.exists(work_dir):
                     safe_rmtree(work_dir)
-
                 # 执行pytest命令，设置超时为300秒（5分钟）
                 with open(log_file, 'w') as log:
                     process = subprocess.Popen(
@@ -260,6 +273,5 @@ if __name__ == "__main__":
         process_pytest_file(input_file, log_path)
     else:
         process_pytest_file(input_file)
-
     # 根据 failed_cases 的值决定退出码
     sys.exit(1 if failed_cases > 0 else 0)

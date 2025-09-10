@@ -1099,6 +1099,11 @@ class Test_IDMP_Vehicle:
             [1752902400000,  10,120],
             [1752902700000,   5,120],
         ]
+        # wait row cnt ok
+        tdSql.checkResultsByFunc (
+            sql  = sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
 
         # mem
         tdSql.checkDataMem(sql, data)
@@ -1126,6 +1131,11 @@ class Test_IDMP_Vehicle:
             [1752901800000,   5,110],
             [1752902400000,   5,120]
         ]
+        # wait row cnt ok
+        tdSql.checkResultsByFunc (
+            sql  = sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
 
         # mem
         tdSql.checkDataMem(sql, data)
