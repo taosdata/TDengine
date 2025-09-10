@@ -1055,7 +1055,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
                                                 SLogicNode** pLogicNode) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   SLogicNode*             pRealTableScan = NULL;
-  SLogicNode*             pVtableMetaScan = NULL;
   SLogicNode*             pInsColumnsScan = NULL;
   SDynQueryCtrlLogicNode* pDynCtrl = NULL;
   SNode*                  pNode = NULL;
@@ -1148,7 +1147,6 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
                                                       SLogicNode** pLogicNode) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SNode*    pNode = NULL;
-  int32_t   slotId = 0;
   bool      scanAllCols = true;
   SHashObj* pRefTablesMap = NULL;
   SNode*    pTagScan = NULL;
@@ -2010,14 +2008,12 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return TSDB_CODE_FAILED;
 }
 
-
 typedef struct SConditionCheckContext {
-  bool hasNotBasicOp;
-  bool hasTwstart;
-  bool hasTwend;
-  bool hasNegativeConst;
-  bool hasOtherFunc;
-  bool placeholderAtRight;
+  bool    hasNotBasicOp;
+  bool    hasNegativeConst;
+  bool    hasOtherFunc;
+  bool    placeholderAtRight;
+  int32_t placeholderType;
 } SConditionCheckContext;
 
 static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
@@ -2029,11 +2025,18 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
     }
   } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode *pFunc = (SFunctionNode*)pNode;
-    if (pFunc->funcType == FUNCTION_TYPE_TWSTART) {
-      pCxt->hasTwstart = true;
-    } else if (pFunc->funcType == FUNCTION_TYPE_TWEND){
-      pCxt->hasTwend = true;
-    } else if (pFunc->funcType != FUNCTION_TYPE_NOW && pFunc->funcType != FUNCTION_TYPE_TODAY) {
+    if (pFunc->funcType == FUNCTION_TYPE_TWSTART ||
+      pFunc->funcType == FUNCTION_TYPE_TWEND ||
+      pFunc->funcType == FUNCTION_TYPE_TPREV_TS ||
+      pFunc->funcType == FUNCTION_TYPE_TNEXT_TS ||
+      pFunc->funcType == FUNCTION_TYPE_TCURRENT_TS ||
+      pFunc->funcType == FUNCTION_TYPE_TPREV_LOCALTIME ||
+      pFunc->funcType == FUNCTION_TYPE_TNEXT_LOCALTIME ||
+      pFunc->funcType == FUNCTION_TYPE_TLOCALTIME) {
+      pCxt->placeholderType = pFunc->funcType;
+    } else if (pFunc->funcType != FUNCTION_TYPE_NOW &&
+      pFunc->funcType != FUNCTION_TYPE_TODAY &&
+      pFunc->funcType != FUNCTION_TYPE_CAST) {
       pCxt->hasOtherFunc = true;
     }
   } else if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
@@ -2042,66 +2045,80 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
       pCxt->hasNotBasicOp = true;
     }
     if (pOp->opType == OP_TYPE_SUB || pOp->opType == OP_TYPE_DIV) {
-      if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_FUNCTION) {
-        SFunctionNode *pFunc = (SFunctionNode*)pOp->pRight;
-        if (pFunc->funcType == FUNCTION_TYPE_TWSTART || pFunc->funcType == FUNCTION_TYPE_TWEND) {
-          pCxt->placeholderAtRight = true;
-        }
+      if (pOp->pRight) {
+        SConditionCheckContext cxt = {.placeholderType = 0};
+        nodesWalkExpr(pOp->pRight, conditionOnlyPhAndConstImpl, &cxt);
+        pCxt->placeholderAtRight = (cxt.placeholderType != 0);
       }
     }
   }
   return DEAL_RES_CONTINUE;
 }
 
-static bool filterHasPlaceHolderRangeStart(SOperatorNode *pOperator) {
-  SNode* pLeft = pOperator->pLeft;
-  SNode* pRight = pOperator->pRight;
-
-  if (pLeft == NULL || pRight == NULL) {
-    return false;
-  }
-
-  if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
-    SColumnNode* pCol = (SColumnNode*)pLeft;
-    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+static bool placeHolderCanMakeExternalWindow(int32_t startType, int32_t endType) {
+  switch (startType) {
+    case FUNCTION_TYPE_TPREV_TS: {
+      return endType == FUNCTION_TYPE_TCURRENT_TS || endType == FUNCTION_TYPE_TNEXT_TS;
+    }
+    case FUNCTION_TYPE_TCURRENT_TS: {
+      return endType == FUNCTION_TYPE_TNEXT_TS;
+    }
+    case FUNCTION_TYPE_TWSTART: {
+      return endType == FUNCTION_TYPE_TWEND;
+    }
+    case FUNCTION_TYPE_TPREV_LOCALTIME: {
+      return endType == FUNCTION_TYPE_TNEXT_LOCALTIME || endType == FUNCTION_TYPE_TLOCALTIME;
+    }
+    case FUNCTION_TYPE_TLOCALTIME: {
+      return endType == FUNCTION_TYPE_TNEXT_LOCALTIME;
+    }
+    default: {
       return false;
     }
-    SConditionCheckContext cxt = {.hasNotBasicOp = false,
-                                  .hasTwstart = false,
-                                  .hasTwend = false,
-                                  .hasNegativeConst = false,
-                                  .hasOtherFunc = false,
-                                  .placeholderAtRight = false};
-    nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
-    if (!cxt.hasTwstart || cxt.hasNotBasicOp || cxt.hasNegativeConst || cxt.hasTwend || cxt.hasOtherFunc || cxt.placeholderAtRight) {
-      return false;
-    }
-    return true;
   }
-  return false;
 }
 
-static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator) {
-  SNode* pLeft = pOperator->pLeft;
-  SNode* pRight = pOperator->pRight;
+static bool filterHasPlaceHolderRange(SOperatorNode *pStart, SOperatorNode *pEnd) {
+  SNode* pStartLeft = pStart->pLeft;
+  SNode* pStartRight = pStart->pRight;
+  SNode* pEndLeft = pEnd->pLeft;
+  SNode* pEndRight = pEnd->pRight;
 
-  if (pLeft == NULL || pRight == NULL) {
+  if (pStartLeft == NULL || pStartRight == NULL || pEndLeft == NULL || pEndRight == NULL) {
     return false;
   }
 
-  if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
-    SColumnNode* pCol = (SColumnNode*)pLeft;
-    if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+  if (nodeType(pStartLeft) == QUERY_NODE_COLUMN && nodeType(pEndLeft) == QUERY_NODE_COLUMN) {
+    SColumnNode* pLeftCol = (SColumnNode*)pStartLeft;
+    SColumnNode* pRightCol = (SColumnNode*)pEndLeft;
+    if (pLeftCol->colType != COLUMN_TYPE_COLUMN || pLeftCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID ||
+        pRightCol->colType != COLUMN_TYPE_COLUMN || pRightCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
       return false;
     }
-    SConditionCheckContext cxt = {.hasNotBasicOp = false, .hasTwstart = false, .hasTwend = false, .hasNegativeConst = false, .hasOtherFunc = false};
-    nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
-    if (cxt.hasTwstart || cxt.hasNotBasicOp || cxt.hasNegativeConst || !cxt.hasTwend || cxt.hasOtherFunc || cxt.placeholderAtRight) {
-      return false;
-    }
-    return true;
+  } else {
+    return false;
   }
-  return false;
+
+  SConditionCheckContext startCxt = {.hasNotBasicOp = false,
+                                     .hasNegativeConst = false,
+                                     .hasOtherFunc = false,
+                                     .placeholderAtRight = false,
+                                     .placeholderType = 0};
+
+  SConditionCheckContext endCxt = {.hasNotBasicOp = false,
+                                   .hasNegativeConst = false,
+                                   .hasOtherFunc = false,
+                                   .placeholderAtRight = false,
+                                   .placeholderType = 0};
+
+  nodesWalkExpr(pStartRight, conditionOnlyPhAndConstImpl, &startCxt);
+  nodesWalkExpr(pEndRight, conditionOnlyPhAndConstImpl, &endCxt);
+  if (startCxt.hasNotBasicOp || startCxt.hasNegativeConst || startCxt.hasOtherFunc || startCxt.placeholderAtRight ||
+    endCxt.hasNotBasicOp || endCxt.hasNegativeConst || endCxt.hasOtherFunc || endCxt.placeholderAtRight ||
+    !placeHolderCanMakeExternalWindow(startCxt.placeholderType, endCxt.placeholderType)) {
+    return false;
+  }
+  return true;
 }
 
 static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
@@ -2114,12 +2131,7 @@ static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
   SOperatorNode *pStart = (SOperatorNode *)(pTimeRange->pStart);
   SOperatorNode *pEnd = (SOperatorNode *)(pTimeRange->pEnd);
 
-  if (!filterHasPlaceHolderRangeStart(pStart) ||
-      !filterHasPlaceHolderRangeEnd(pEnd)) {
-    return false;
-  }
-
-  return true;
+  return filterHasPlaceHolderRange(pStart, pEnd);
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -2134,7 +2146,6 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
   PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow));
   pCxt->pPlanCxt->withExtWindow = true;
   PLAN_RET(createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode));
