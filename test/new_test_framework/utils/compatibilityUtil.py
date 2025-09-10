@@ -266,6 +266,8 @@ class CompatibilityBase:
             break
 
         consumer.close()
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database curdb '")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
         
         tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
