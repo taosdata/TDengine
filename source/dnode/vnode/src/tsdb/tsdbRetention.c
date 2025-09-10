@@ -199,12 +199,11 @@ _exit:
 }
 
 
-static int32_t tsdbDoRetentionEnd(SRTNer *rtner, bool ssMigrate) {
+static int32_t tsdbDoRetentionEnd(SRTNer *rtner, EFEditT etype) {
   int32_t code = 0;
   int32_t lino = 0;
 
   if (TARRAY2_SIZE(&rtner->fopArr) > 0) {
-    EFEditT etype = ssMigrate ? TSDB_FEDIT_SSMIGRATE : TSDB_FEDIT_RETENTION;
     TAOS_CHECK_GOTO(tsdbFSEditBegin(rtner->tsdb->pFS, &rtner->fopArr, etype), &lino, _exit);
 
     (void)taosThreadMutexLock(&rtner->tsdb->mutex);
@@ -355,17 +354,20 @@ int32_t tsdbRetention(void *arg) {
 
   // do retention
   if (rtner.fset) {
+    EFEditT etype = TSDB_FEDIT_RETENTION;
     if (rtnArg->ssMigrate) {
+      etype = TSDB_FEDIT_SSMIGRATE;
       TAOS_CHECK_GOTO(tsdbDoSsMigrate(&rtner), &lino, _exit);
 #ifdef TD_ENTERPRISE
     } else if (VND_IS_RSMA(pVnode)) {
+      etype = TSDB_FEDIT_ROLLUP;
       TAOS_CHECK_GOTO(tsdbDoRollup(&rtner), &lino, _exit);
 #endif
     } else {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
     }
 
-    TAOS_CHECK_GOTO(tsdbDoRetentionEnd(&rtner, rtnArg->ssMigrate), &lino, _exit);
+    TAOS_CHECK_GOTO(tsdbDoRetentionEnd(&rtner, etype), &lino, _exit);
   }
 
 _exit:

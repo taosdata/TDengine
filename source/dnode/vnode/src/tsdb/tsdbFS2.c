@@ -724,6 +724,7 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT et
         fset->lastMigrate = now;
       } else if (etype == TSDB_FEDIT_ROLLUP) {
         fset->lastRollup = now;
+        fset->lastCompact = now;  // rollup implies compact
       }
     }
   }
