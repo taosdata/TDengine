@@ -738,7 +738,7 @@ static int32_t tsdbLastRowInitColStatus(SLastRow *pLastRow, STSchema *pTSchema) 
   return TSDB_CODE_SUCCESS;
 }
 
-static ELastCacheStatus tsdbLastRowGetColStatus(SLastRow *pLastRow, int16_t cid) {
+static ELastCacheStatus tsdbLastRowGetLastColValColStatus(SLastRow *pLastRow, int16_t cid) {
   if (!pLastRow || !pLastRow->colStatus) {
     return TSDB_LAST_CACHE_NO_CACHE;
   }
@@ -1422,7 +1422,7 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
           // Copy existing columns
           for (int j = 0; j < pOldTSchema->numOfCols; j++) {
             SColVal colVal = {0};
-            code = tRowGet(pLastRow->pRow, pOldTSchema, j, &colVal);
+            code = tRowGetLastColVal(pLastRow->pRow, pOldTSchema, j, &colVal);
             if (code == TSDB_CODE_SUCCESS) {
               taosArrayPush(colVals, &colVal);
             }
@@ -1521,7 +1521,7 @@ static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, i
             // Extract existing columns from current row
             for (int j = 0; j < pOldTSchema->numOfCols; j++) {
               SColVal colVal = {0};
-              code = tRowGet(pLastRow->pRow, pOldTSchema, j, &colVal);
+              code = tRowGetLastColVal(pLastRow->pRow, pOldTSchema, j, &colVal);
               if (code == TSDB_CODE_SUCCESS) {
                 taosArrayPush(colVals, &colVal);
               }
@@ -1731,7 +1731,7 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
               for (int j = 0; j < pTSchema->numOfCols; j++) {
                 if (pTSchema->columns[j].colId != cid) {
                   SColVal colVal = {0};
-                  code = tRowGet(pLastRow->pRow, pTSchema, j, &colVal);
+                  code = tRowGetLastColVal(pLastRow->pRow, pTSchema, j, &colVal);
                   if (code == TSDB_CODE_SUCCESS) {
                     taosArrayPush(colVals, &colVal);
                   }
@@ -1859,7 +1859,7 @@ static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, 
               for (int j = 0; j < pTSchema->numOfCols; j++) {
                 if (pTSchema->columns[j].colId != cid) {
                   SColVal colVal = {0};
-                  code = tRowGet(pLastRow->pRow, pTSchema, j, &colVal);
+                  code = tRowGetLastColVal(pLastRow->pRow, pTSchema, j, &colVal);
                   if (code == TSDB_CODE_SUCCESS) {
                     taosArrayPush(colVals, &colVal);
                   }
@@ -4136,8 +4136,8 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
       }
 
       // Check column-specific cache status
-      ELastCacheStatus colStatus = tsdbLastRowGetColStatus(pLastRow, cid);
-      
+      ELastCacheStatus colStatus = tsdbLastRowGetLastColValColStatus(pLastRow, cid);
+
       if (colStatus == TSDB_LAST_CACHE_NO_CACHE) {
         // Column is invalid in LRU cache, keep it in remainCols for RocksDB/TSDB loading
         int16_t  cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
@@ -4162,7 +4162,7 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
       if (pCol && colIndex >= 0) {
         // Extract column value from row
         SColVal colVal;
-        code = tRowGet(pLastRow->pRow, pTSchema, colIndex, &colVal);
+        code = tRowGetLastColVal(pLastRow->pRow, pTSchema, colIndex, &colVal);
         if (code == 0) {
           lastCol.colVal = colVal;
 
@@ -4252,7 +4252,7 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
             }
 
             // Check if this column is still invalid in the cached row
-            ELastCacheStatus colStatus = tsdbLastRowGetColStatus(pLastRow, cid);
+            ELastCacheStatus colStatus = tsdbLastRowGetLastColValColStatus(pLastRow, cid);
             if (colStatus == TSDB_LAST_CACHE_NO_CACHE) {
               // Column is still invalid, keep it in remainCols
               taosArrayPush(newRemainCols, idxKey);
@@ -4266,7 +4266,7 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
 
             if (pCol && colIndex >= 0) {
               SColVal colVal;
-              code = tRowGet(pLastRow->pRow, pTSchema, colIndex, &colVal);
+              code = tRowGetLastColVal(pLastRow->pRow, pTSchema, colIndex, &colVal);
               if (code == 0) {
                 lastCol.colVal = colVal;
                 if (IS_VAR_DATA_TYPE(colVal.value.type) && COL_VAL_IS_VALUE(&colVal)) {
@@ -4353,7 +4353,7 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
                   }
 
                   // Check column status in RocksDB row
-                  ELastCacheStatus colStatus = tsdbLastRowGetColStatus(pRocksRow, cid);
+                  ELastCacheStatus colStatus = tsdbLastRowGetLastColValColStatus(pRocksRow, cid);
                   if (colStatus == TSDB_LAST_CACHE_NO_CACHE) {
                     // Column is still invalid in RocksDB, keep it for TSDB loading
                     taosArrayPush(newRemainCols, idxKey);
@@ -4367,7 +4367,7 @@ static int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *p
 
                   if (pCol && colIndex >= 0) {
                     SColVal colVal;
-                    code = tRowGet(pRocksRow->pRow, pTSchema, colIndex, &colVal);
+                    code = tRowGetLastColVal(pRocksRow->pRow, pTSchema, colIndex, &colVal);
                     if (code == 0) {
                       lastCol.colVal = colVal;
                       if (IS_VAR_DATA_TYPE(colVal.value.type) && COL_VAL_IS_VALUE(&colVal)) {

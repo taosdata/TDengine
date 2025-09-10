@@ -1386,6 +1386,20 @@ _exit:
   return code;
 }
 
+int32_t tRowGetLastColVal(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  int32_t code = tRowGet(pRow, pTSchema, iCol, pColVal);
+  if (code != 0) {
+    return code;
+  }
+  if (pRow->flag == HAS_NONE) {
+    *pColVal = COL_VAL_NONE(pTSchema->columns[iCol].colId, pTSchema->columns[iCol].type);
+  }
+  if (pRow->flag == HAS_NULL) {
+    *pColVal = COL_VAL_NULL(pTSchema->columns[iCol].colId, pTSchema->columns[iCol].type);
+  }
+  return 0;
+}
+
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   if (!(iCol < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
   if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
