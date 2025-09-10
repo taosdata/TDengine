@@ -150,6 +150,7 @@ typedef struct {
 typedef struct {
   int16_t          cid;     // Column ID
   ELastCacheStatus status;  // Cache status for this column
+  TSKEY            lastTs;  // Timestamp of the last non-null value for this column
 } SColCacheStatus;
 
 // Row-based cache value structure with per-column cache status
@@ -557,6 +558,8 @@ static int32_t tsdbRowCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t
                                            SRow **aRow);
 static int32_t tsdbRowCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlockData *pBlockData);
 static int32_t tsdbRowCacheUpdateFromCtxArray(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray);
+static int32_t tsdbRowCacheUpdateLastCols(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray,
+                                          STSchema *pTSchema);
 static void    tsdbRowCacheDeleter(const void *key, size_t klen, void *value, void *ud);
 static void    tsdbRowCacheOverWriter(const void *key, size_t klen, void *value, void *ud);
 int            tsdbRowCacheFlushDirty(const void *key, size_t klen, void *value, void *ud);
@@ -733,6 +736,7 @@ static int32_t tsdbLastRowInitColStatus(SLastRow *pLastRow, STSchema *pTSchema) 
   for (int32_t i = 0; i < pLastRow->numCols; i++) {
     pLastRow->colStatus[i].cid = pTSchema->columns[i].colId;
     pLastRow->colStatus[i].status = TSDB_LAST_CACHE_VALID;
+    pLastRow->colStatus[i].lastTs = TSKEY_MIN;  // Initialize to minimum timestamp
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3137,38 +3141,10 @@ static int32_t tsdbRowCacheUpdateFromCtxArray(STsdb *pTsdb, tb_uid_t suid, tb_ui
     }
   }
 
-  // Process LAST updates
+  // Process LAST updates - handle each column's timestamp independently
   if (hasLast && pTSchema) {
-    lastColVals = taosArrayInit(16, sizeof(SColVal));
-    if (!lastColVals) {
-      TAOS_CHECK_GOTO(terrno, &lino, _exit);
-    }
-
-    // Collect all column values with the latest timestamp for LAST
-    for (int i = 0; i < num_keys; ++i) {
-      SLastUpdateCtx *updCtx = &((SLastUpdateCtx *)TARRAY_DATA(updCtxArray))[i];
-      if (updCtx->lflag == LFLAG_LAST && COL_VAL_IS_VALUE(&updCtx->colVal) &&
-          tRowKeyCompare(&updCtx->tsdbRowKey.key, &lastKey.key) == 0) {
-        if (!taosArrayPush(lastColVals, &updCtx->colVal)) {
-          TAOS_CHECK_GOTO(terrno, &lino, _exit);
-        }
-      }
-    }
-
-    // Build SRow and update cache
-    if (TARRAY_SIZE(lastColVals) > 0) {
-      SRow             *pRow = NULL;
-      SRowBuildScanInfo scanInfo = {0};
-
-      TAOS_CHECK_GOTO(tRowBuild(lastColVals, pTSchema, &pRow, &scanInfo), &lino, _exit);
-      if (pRow) {
-        code = tsdbRowCacheUpdate(pTsdb, suid, uid, &lastKey, pRow, LFLAG_LAST);
-        // Free pRow since tsdbRowCacheUpdate makes a copy
-        taosMemoryFree(pRow);
-        pRow = NULL;
-        TAOS_CHECK_GOTO(code, &lino, _exit);
-      }
-    }
+    code = tsdbRowCacheUpdateLastCols(pTsdb, suid, uid, updCtxArray, pTSchema);
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
 _exit:
@@ -3185,6 +3161,209 @@ _exit:
 
   if (code) {
     tsdbError("tsdb/rowcache: vgId:%d, update from ctx array failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino,
+              tstrerror(code));
+  }
+
+  TAOS_RETURN(code);
+}
+
+// Update LAST cache with proper column-level timestamp tracking
+static int32_t tsdbRowCacheUpdateLastCols(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray,
+                                          STSchema *pTSchema) {
+  int32_t    code = 0, lino = 0;
+  SLRUCache *pCache = pTsdb->lruCache;
+
+  if (!updCtxArray || !pTSchema) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  (void)taosThreadMutexLock(&pTsdb->lruMutex);
+
+  // Get the LAST cache entry
+  SLastRowKey key = {.uid = uid, .lflag = LFLAG_LAST};
+  LRUHandle  *h = taosLRUCacheLookup(pCache, &key, ROCKS_ROW_KEY_LEN);
+  SLastRow   *pLastRow = NULL;
+  bool        newEntry = false;
+
+  if (h) {
+    pLastRow = (SLastRow *)taosLRUCacheValue(pCache, h);
+  } else {
+    // Try to load from RocksDB
+    char   *keys_list[1];
+    size_t  keys_list_sizes[1];
+    char  **values_list = NULL;
+    size_t *values_list_sizes = NULL;
+
+    keys_list[0] = (char *)&key;
+    keys_list_sizes[0] = ROCKS_ROW_KEY_LEN;
+
+    rocksMayWrite(pTsdb, true);
+    code = tsdbCacheGetValuesFromRocks(pTsdb, 1, (const char *const *)keys_list, keys_list_sizes, &values_list,
+                                       &values_list_sizes);
+
+    if (code == TSDB_CODE_SUCCESS && values_list && values_list[0]) {
+      code = tsdbRowCacheDeserialize(values_list[0], values_list_sizes[0], &pLastRow);
+
+      // Cleanup RocksDB values
+      if (values_list) {
+#ifdef USE_ROCKSDB
+        for (int i = 0; i < 1; ++i) {
+          if (values_list[i]) {
+            rocksdb_free(values_list[i]);
+          }
+        }
+#endif
+        taosMemoryFree(values_list);
+      }
+      if (values_list_sizes) {
+        taosMemoryFree(values_list_sizes);
+      }
+    }
+
+    if (!pLastRow) {
+      // Create new entry
+      pLastRow = taosMemoryCalloc(1, sizeof(SLastRow));
+      if (!pLastRow) {
+        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+        TAOS_RETURN(terrno);
+      }
+      pLastRow->rowKey.key.ts = TSKEY_MIN;
+      pLastRow->dirty = 1;
+      newEntry = true;
+
+      // Initialize column status array
+      tsdbLastRowInitColStatus(pLastRow, pTSchema);
+    }
+  }
+
+  // Initialize lastColVals array with current values from pLastRow or NULL
+  SArray *lastColVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (!lastColVals) {
+    code = terrno;
+    goto _cleanup;
+  }
+
+  // Initialize array with existing values from pLastRow or NULL if no existing row
+  for (int j = 0; j < pTSchema->numOfCols; j++) {
+    STColumn *pCol = &pTSchema->columns[j];
+    SColVal   colVal = COL_VAL_NULL(pCol->colId, pCol->type);
+
+    if (pLastRow->pRow) {
+      // Get the existing value from the current row using tsdbRowGetColVal
+      TSDBROW row = {.type = TSDBROW_ROW_FMT, .pTSRow = pLastRow->pRow};
+      tsdbRowGetColVal(&row, pTSchema, pCol->colId, &colVal);
+    }
+
+    if (!taosArrayPush(lastColVals, &colVal)) {
+      code = terrno;
+      taosArrayDestroy(lastColVals);
+      goto _cleanup;
+    }
+  }
+
+  // Process each LAST update context and update the array as needed
+  int  num_keys = TARRAY_SIZE(updCtxArray);
+  bool hasUpdates = false;
+
+  for (int i = 0; i < num_keys; ++i) {
+    SLastUpdateCtx *updCtx = &((SLastUpdateCtx *)TARRAY_DATA(updCtxArray))[i];
+
+    if (updCtx->lflag != LFLAG_LAST || !COL_VAL_IS_VALUE(&updCtx->colVal)) {
+      continue;
+    }
+
+    // Find the column status for this column ID
+    SColCacheStatus *colStatus = NULL;
+    int              schemaColIdx = -1;
+    for (int j = 0; j < pLastRow->numCols; j++) {
+      if (pLastRow->colStatus[j].cid == updCtx->colVal.cid) {
+        colStatus = &pLastRow->colStatus[j];
+        break;
+      }
+    }
+
+    // Find the corresponding column in schema
+    for (int k = 0; k < pTSchema->numOfCols; k++) {
+      if (pTSchema->columns[k].colId == updCtx->colVal.cid) {
+        schemaColIdx = k;
+        break;
+      }
+    }
+
+    // If column status or schema column not found, skip
+    if (!colStatus || schemaColIdx == -1) {
+      continue;
+    }
+
+    // Check if this is a newer value for this column
+    if (updCtx->tsdbRowKey.key.ts > colStatus->lastTs) {
+      colStatus->lastTs = updCtx->tsdbRowKey.key.ts;
+      colStatus->status = TSDB_LAST_CACHE_VALID;
+
+      // Update the value in lastColVals array
+      SColVal *pColVal = taosArrayGet(lastColVals, schemaColIdx);
+      *pColVal = updCtx->colVal;
+      hasUpdates = true;
+    }
+  }
+
+  if (hasUpdates) {
+    // Build the new row
+    SRow             *pNewRow = NULL;
+    SRowBuildScanInfo scanInfo = {0};
+
+    code = tRowBuild(lastColVals, pTSchema, &pNewRow, &scanInfo);
+    taosArrayDestroy(lastColVals);
+    lastColVals = NULL;
+
+    if (code == TSDB_CODE_SUCCESS && pNewRow) {
+      // Free the old row if it exists
+      if (pLastRow->pRow) {
+        taosMemoryFree(pLastRow->pRow);
+      }
+      pLastRow->pRow = pNewRow;
+      pLastRow->dirty = 1;
+
+      // Update the row key timestamp to the latest timestamp among all columns
+      TSKEY maxTs = TSKEY_MIN;
+      for (int j = 0; j < pLastRow->numCols; j++) {
+        if (pLastRow->colStatus[j].lastTs > maxTs) {
+          maxTs = pLastRow->colStatus[j].lastTs;
+        }
+      }
+      pLastRow->rowKey.key.ts = maxTs;
+    }
+  }
+
+  // Update cache
+  if (hasUpdates) {
+    if (newEntry) {
+      code = tsdbRowCachePutToLRU(pTsdb, &key, pLastRow, 1);
+    } else {
+      pLastRow->dirty = 1;
+    }
+  }
+
+_cleanup:
+  if (lastColVals) {
+    taosArrayDestroy(lastColVals);
+  }
+  if (h) {
+    tsdbLRUCacheRelease(pCache, h, false);
+  } else if (newEntry && pLastRow) {
+    if (pLastRow->colStatus) {
+      taosMemoryFree(pLastRow->colStatus);
+    }
+    if (pLastRow->pRow) {
+      taosMemoryFree(pLastRow->pRow);
+    }
+    taosMemoryFree(pLastRow);
+  }
+
+  (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+
+  if (code) {
+    tsdbError("tsdb/rowcache: vgId:%d, update last cols failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino,
               tstrerror(code));
   }
 
