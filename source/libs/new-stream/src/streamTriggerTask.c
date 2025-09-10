@@ -21,6 +21,7 @@
 #include "scalar.h"
 #include "streamInt.h"
 #include "streamReader.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -5011,8 +5012,12 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
 
       pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
-      code = tDeserializeSStreamTsResponse(pRsp->pCont, pRsp->contLen, pDataBlock);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (pRsp->code != TSDB_CODE_SUCCESS) {
+        blockDataEmpty(pDataBlock);
+      } else {
+        code = tDeserializeSStreamTsResponse(pRsp->pCont, pRsp->contLen, pDataBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
 
       int32_t nrows = blockDataGetNumOfRows(pDataBlock);
       if (nrows > 0) {
