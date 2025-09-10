@@ -584,7 +584,7 @@ import { currentPageType, sourceForm, getDataRange, getWriteConfigData } from '.
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
 import { executeSqlFn } from 'components/api';
 import { isEn } from 'config';
-import { isEmpty } from 'lodash-es';
+import { isEmpty, cloneDeep } from 'lodash-es';
 import {
   SpbTopParseType,
   TableRow,
@@ -1046,7 +1046,7 @@ async function handleParseResult(topParser: TopParseType) {
     return;
   }
 
-  const reqData = structuredClone(topParser);
+  const reqData = cloneDeep(topParser);
   if (parseruleForm.type == 'udt') {
     const config = topParser?.parser?.parse?.value;
     if (config && "early_break" in config) {
