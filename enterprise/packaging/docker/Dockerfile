@@ -25,6 +25,11 @@ ENV LD_LIBRARY_PATH=/usr/lib \
 
 COPY ./bin/* /usr/bin/
 
+EXPOSE 6030 # taosd
+EXPOSE 6041 # taosAdapter
+EXPOSE 6043 # taosKeeper
+EXPOSE 6060 # taosExplorer
+
 ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
 
 VOLUME [ "/var/lib/taos", "/var/log/taos", "/etc/taos", "/corefile" ]
