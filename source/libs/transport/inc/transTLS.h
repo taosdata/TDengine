@@ -83,7 +83,7 @@ int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMod
 int8_t sslIsInited(STransTLS* pTls);
 
 int32_t sslBufferInit(SSslBuffer* buf, int32_t cap);
-int32_t sslBufferDestroy(SSslBuffer* buf);
+void    sslBufferDestroy(SSslBuffer* buf);
 void    sslBufferClear(SSslBuffer* buf);
 int32_t sslBufferAppend(SSslBuffer* buf, uint8_t* data, int32_t len);
 int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf);

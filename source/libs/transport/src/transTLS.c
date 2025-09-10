@@ -35,10 +35,26 @@ SSL_CTX* initSSLCtx(const char* certPath, const char* keyPath, const char* caPat
   int32_t lino = 0;
   int32_t code = 0;
   int     ret = 1;
+  long    retl = 1;
 
-  SSL_load_error_strings();
-  SSL_library_init();
-  OpenSSL_add_all_algorithms();
+  ret = SSL_load_error_strings();
+  if (ret != 1) {
+    tError("failed to load ssl error strings");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  ret = SSL_library_init();
+  if (ret != 1) {
+    tError("failed to init ssl library");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  ret = OpenSSL_add_all_algorithms();
+
+  if (ret != 1) {
+    tError("failed to add all ssl algorithms");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
 
   const SSL_METHOD* sslMode = cliMode ? TLS_client_method() : TLS_server_method();
 
@@ -47,8 +63,17 @@ SSL_CTX* initSSLCtx(const char* certPath, const char* keyPath, const char* caPat
     tError("failed to create ssl ctx");
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
-  SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
-  SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+  retl = SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
+  if (retl < 0) {
+    tError("failed to set min proto version");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
+
+  retl = SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+  if (retl < 0) {
+    tError("failed to set max proto version");
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
+  }
 
   if (cliMode) {
     ret = SSL_CTX_load_verify_locations(ctx, caPath, NULL);
@@ -468,16 +493,15 @@ void sslBufferClear(SSslBuffer* buf) {
   memset(buf->buf, 0, buf->cap);
 }
 
-int32_t sslBufferDestroy(SSslBuffer* buf) {
+void sslBufferDestroy(SSslBuffer* buf) {
   if (buf == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    return;
   }
 
   taosMemoryFree(buf->buf);
   buf->buf = NULL;
   buf->cap = 0;
   buf->len = 0;
-  return 0;
 }
 
 int32_t sslBufferAppend(SSslBuffer* buf, uint8_t* data, int32_t len) {

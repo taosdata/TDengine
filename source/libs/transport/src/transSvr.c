@@ -1213,14 +1213,18 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
   if (addr->sa_family == AF_INET) {
     struct sockaddr_in* addr_in = (struct sockaddr_in*)addr;
-    inet_ntop(AF_INET, &addr_in->sin_addr, ip->ipv4, INET_ADDRSTRLEN);
+    if (inet_ntop(AF_INET, &addr_in->sin_addr, ip->ipv4, INET_ADDRSTRLEN) == NULL) {
+      uInfo("failed to convert ipv4 address");
+    }
     ip->type = 0;
     ip->port = ntohs(addr_in->sin_port);
     ip->mask = 32;
   } else if (addr->sa_family == AF_INET6) {
     struct sockaddr_in6* addr_in = (struct sockaddr_in6*)addr;
     ip->port = ntohs(addr_in->sin6_port);
-    inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN);
+    if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
+      uInfo("failed to convert ipv6 address");
+    }
     ip->type = 1;
     ip->mask = 128;
   }
