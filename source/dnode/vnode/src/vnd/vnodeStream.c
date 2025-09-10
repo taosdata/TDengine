@@ -1386,7 +1386,7 @@ static int32_t prepareIndex(SWalReader* pWalReader, SStreamTriggerReaderInfo* sS
     }
 
     stTrace("stream reader prepare index wal ver:%" PRId64 ", totalRows:%d", *nextVer, *totalRows);
-    if (*totalRows >= STREAM_RETURN_ROWS_NUM_NEW) {
+    if (*totalRows >= STREAM_RETURN_ROWS_NUM) {
       break;
     }
   }
