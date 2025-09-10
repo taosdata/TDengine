@@ -133,7 +133,7 @@ jobs:
       - name: Run Tests
         run: |
           LOG_FILE=$BASE_DIR/taosx/log/td2td_history.log
-          PERF_CASES=td2td_history CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE  2>&1
+          PERF_CASES=td2td_history CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE 2>&1
 
       - name: Collect test records
         run: |
@@ -204,7 +204,7 @@ jobs:
       - name: Run Tests
         run: |
           LOG_FILE=$BASE_DIR/taosx/log/tmq2td.log
-          PERF_CASES=tmq2td CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE  2>&1
+          PERF_CASES=tmq2td CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.2 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE 2>&1
 
       - name: Collect test records
         run: |
@@ -278,7 +278,7 @@ jobs:
       - name: Run Tests
         run: |
           LOG_FILE=$BASE_DIR/taosx/log/tmq2local.log
-          PERF_CASES=tmq2local CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE  2>&1
+          PERF_CASES=tmq2local CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE 2>&1
 
       - name: Collect test records
         run: |
@@ -352,7 +352,7 @@ jobs:
       - name: Run Tests
         run: |
           LOG_FILE=$BASE_DIR/taosx/log/csv2td.log
-          PERF_CASES=csv2td CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance  --nocapture 1>$LOG_FILE  2>&1
+          PERF_CASES=csv2td CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.4 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE 2>&1
 
       - name: Collect test records
         run: |
