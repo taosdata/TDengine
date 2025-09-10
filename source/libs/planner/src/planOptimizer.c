@@ -4675,7 +4675,11 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
       int32_t exprId = pAggFunc->node.bindExprID;
       if (exprId > 0) {
         if (NULL == taosHashGet(pSplitExprId, (void*)&exprId, sizeof(int32_t))) {
-          taosHashPut(pSplitExprId, (void*)&exprId, sizeof(int32_t), NULL, 0);
+          int32_t code = taosHashPut(pSplitExprId, (void*)&exprId, sizeof(int32_t), NULL, 0);
+          if (code != TSDB_CODE_SUCCESS) {
+            qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+            return false;
+          }
           *hasOtherFunc = true;
           needSplitFuncCount++;
           // when a basic function needs to be split, 
