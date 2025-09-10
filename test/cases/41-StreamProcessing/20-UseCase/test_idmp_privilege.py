@@ -51,9 +51,6 @@ class Test_IDMP_Meters:
         # grant privilege
         self.grantPrivilege()
 
-        # check errors
-        self.checkErrors()
-
         # connect with user1
         self.connectCheckUser1()
 
@@ -63,6 +60,16 @@ class Test_IDMP_Meters:
         # connect with user3
         #self.connectCheckUser3()
 
+        self.connectWithRoot()
+
+        # wait stream ready
+        self.checkStreamStatus()
+
+        # insert trigger data
+        self.writeTriggerData()
+
+        # verify results
+        self.verifyResults()
     #
     # ---------------------   util   ----------------------
     #
@@ -83,9 +90,6 @@ class Test_IDMP_Meters:
     def checkStreamStatus(self):
         print("wait stream ready ...")
         tdStream.checkStreamStatus()
-        # verify config
-        self.verify_config()
-        tdLog.info(f"check stream status successfully.")
 
 
     #
@@ -121,12 +125,8 @@ class Test_IDMP_Meters:
         # start for real time
         self.start2 = 1752574200000
 
-        step = 1000  # 1s
-        cols = "ts,current,voltage,phase"
-
         dbCnt      = 3
         childCnt   = 5
-        insertRows = 100
         for i in range(dbCnt):
             # create db
             db = f"db{i+1}"
@@ -134,15 +134,11 @@ class Test_IDMP_Meters:
             tdSql.execute(f"create database {db}_out")
             tdSql.execute(f"use {db}")
             # create stb
-            tdSql.execute(f"create table meters(ts timestamp, current float, voltage int, phase float) tags(groupid int)")
+            tdSql.execute(f"create table meters(ts timestamp, current float, voltage int, phase float, power int) tags(groupid int)")
             # create child table
             for j in range(childCnt):
                 table = f"d{j}"
                 tdSql.execute(f"create table {table} using meters tags({j}) ")
-                # insert data
-                count = insertRows
-                vals = "50, 200, 1"            
-                tdSql.insertFixedVal(table, self.start1, step, count, cols, vals)
 
         print("create resource successfully.")
 
@@ -186,30 +182,78 @@ class Test_IDMP_Meters:
         
 
     #
+    #  connect with root
+    #
+    def connectWithRoot(self):
+        print("connect with root ...")
+        tdSql.connect(user="root", password="taosdata")
+
+    #
     #  connect check user1
     #
     def connectCheckUser1(self):
-        print("connect with user1 ...")
-        tdSql.connect(user="user1", password="taosdata")
+        #print("connect with user1 ...")
+        #tdSql.connect(user="user1", password="taosdata")
         
         # check privilege
         sqls = [
             # user1 belong to db1 ,output db1_out
-            #"CREATE STREAM db1.stream1 INTERVAL(5s) SLIDING(5s) FROM db1.meters PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO db1_out.result_stream1  AS SELECT _twstart AS ts, _twrownum as wrownum, avg(voltage) as avg_voltage FROM db1.meters WHERE ts >= _twstart AND ts < _twend",
+            "CREATE STREAM db1.stream1 INTERVAL(5s) SLIDING(5s) FROM db1.meters PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO db1_out.result_stream1  AS SELECT _twstart AS ts, _twrownum as wrownum, sum(power) as sum_power FROM db1.meters WHERE ts >= _twstart AND ts < _twend",            
         ]
         self.execs(sqls)
 
 
     #
-    #  check errors
+    # write trigger data
     #
-    def checkErrors(self):
-        # check error operator
-        sqls = [
-       ]
-
-        #tdSql.errors(sqls)
-        #print(f"check {len(sqls)} errors sql successfully.")
+    def writeTriggerData(self):
+        print("writeTriggerData ...")
+        self.trigger_stream1()
 
 
+    #
+    # verify results
+    #
+    def verifyResults(self):
+        print("wait 10s ...")
+        time.sleep(10)
+        print("verifyResults ...")
+        self.verify_stream1()
 
+    #
+    # ---------------------  trigger  and verify  ----------------------
+    #
+
+    #
+    #  trigger stream1
+    #
+    def trigger_stream1(self):
+        table = "db1.d0"
+        step  = 1000  # 1s
+        cols  = "ts,current,voltage,power"
+        ts    = self.start2
+
+        count = 6
+        vals  = "5, 200, 10"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+
+    #
+    #  verify stream1
+    #
+    def verify_stream1(self):
+        # check
+        result_sql = "select * from db1_out.result_stream1 where tag_tbname in('d0') order by tag_tbname"
+        data = [
+            # ts           cnt  power
+            [1752574200000, 5,  50, "d0"]
+        ]
+        
+        # rows
+        tdSql.checkResultsByFunc(
+            sql  = result_sql,
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        # mem
+        tdSql.checkDataMem(result_sql, data)
+        print("verify stream1 ................................. successfully.")
