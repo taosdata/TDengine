@@ -3319,6 +3319,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         SSTriggerDataSlice slice = {.pDataBlock = pProgress->pDataBlock, .startIdx = startIdx, .endIdx = endIdx};
         code = tSimpleHashPut(pContext->pSlices, &uid, sizeof(int64_t), &slice, sizeof(SSTriggerDataSlice));
         QUERY_CHECK_CODE(code, lino, _end);
+        void *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+        QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+        int64_t                 id[2] = {uid, pProgress->pTaskAddr->nodeId};
+        px = taosArrayPush(pGroup->pTableUids, id);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
 
       if (--pContext->curReaderIdx > 0) {
@@ -5515,7 +5521,7 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
   QUERY_CHECK_NULL(pGroup->pWalMetas, code, lino, _end, terrno);
   tSimpleHashSetFreeFp(pGroup->pWalMetas, stRealtimeGroupDestroyWalMeta);
 
-  pGroup->pTableUids = taosArrayInit(0, sizeof(int64_t));
+  pGroup->pTableUids = taosArrayInit(0, sizeof(int64_t) * 2);
   QUERY_CHECK_NULL(pGroup->pTableUids, code, lino, _end, terrno);
   pGroup->oldThreshold = INT64_MIN;
   pGroup->newThreshold = INT64_MIN;
@@ -5605,6 +5611,7 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_
   } else {
     // todo(kjq): clear wal metas
   }
+  taosArrayClear(pGroup->pTableUids);
   pGroup->oldThreshold = pGroup->newThreshold;
 }
 
@@ -6110,9 +6117,49 @@ static int32_t stRealtimeGroupGetDataBlock(SSTriggerRealtimeGroup *pGroup, bool 
   *pAllTableProcessed = false;
   *pNeedFetchData = false;
 
+  if (pContext->walMode == STRIGGER_WAL_META_ONLY || TARRAY_SIZE(pGroup->pTableUids) == 0) {
+    // no data to fetch
+    *ppDataBlock = NULL;
+    *pStartIdx = 0;
+    *pEndIdx = 0;
+    *pAllTableProcessed = true;
+    goto _end;
+  }
+
+  if (!pContext->pSorter->inUse) {
+    int64_t            *id = taosArrayGetLast(pGroup->pTableUids);
+    SSTriggerDataSlice *pSlice = tSimpleHashGet(pContext->pSlices, &id[0], sizeof(int64_t));
+    QUERY_CHECK_NULL(pSlice, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    int32_t vgId = id[1];
+    void   *px = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
+    SArray *pMetas = *(SArray **)px;
+    code = stNewTimestampSorterSetData(pContext->pSorter, pMetas, pSlice->pDataBlock, pTask->trigTsIndex,
+                                       pSlice->startIdx, pSlice->endIdx);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
   while (!*pAllTableProcessed && !*pNeedFetchData) {
     // todo(kjq): retrieve data block from pMerger and pSorter
-    *pAllTableProcessed = true;
+    code = stNewTimestampSorterNextDataBlock(pContext->pSorter, ppDataBlock, pStartIdx, pEndIdx);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (*ppDataBlock != NULL) {
+      break;
+    }
+    void *px = taosArrayPop(pGroup->pTableUids);
+    stNewTimestampSorterReset(pContext->pSorter);
+    if (TARRAY_SIZE(pGroup->pTableUids) == 0) {
+      *pAllTableProcessed = true;
+      break;
+    }
+    int64_t            *id = taosArrayGetLast(pGroup->pTableUids);
+    SSTriggerDataSlice *pSlice = tSimpleHashGet(pContext->pSlices, &id[0], sizeof(int64_t));
+    QUERY_CHECK_NULL(pSlice, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    int32_t vgId = id[1];
+    px = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
+    SArray *pMetas = *(SArray **)px;
+    code = stNewTimestampSorterSetData(pContext->pSorter, pMetas, pSlice->pDataBlock, pTask->trigTsIndex,
+                                       pSlice->startIdx, pSlice->endIdx);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
