@@ -1391,11 +1391,13 @@ int32_t tRowGetLastColVal(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal 
   if (code != 0) {
     return code;
   }
-  if (pRow->flag == HAS_NONE) {
-    *pColVal = COL_VAL_NONE(pTSchema->columns[iCol].colId, pTSchema->columns[iCol].type);
-  }
-  if (pRow->flag == HAS_NULL) {
-    *pColVal = COL_VAL_NULL(pTSchema->columns[iCol].colId, pTSchema->columns[iCol].type);
+  if (iCol == 0 && pRow->ts == 0) {
+    if (pRow->flag == HAS_NONE) {
+      *pColVal = COL_VAL_NONE(pTSchema->columns[iCol].colId, pTSchema->columns[iCol].type);
+    }
+    if (pRow->flag == HAS_NULL) {
+      *pColVal = COL_VAL_NULL(pTSchema->columns[iCol].colId, pTSchema->columns[iCol].type);
+    }
   }
   return 0;
 }
