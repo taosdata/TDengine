@@ -127,6 +127,7 @@ struct {
     [2] = {"vnode-merge", NULL},
     [3] = {"vnode-compact", NULL},
     [4] = {"vnode-retention", NULL},
+    [5] = {"vnode-scan", NULL},
 };
 
 #define MIN_ASYNC_ID 1
@@ -476,6 +477,7 @@ int32_t vnodeAsyncOpen() {
       tsNumOfCommitThreads,     // vnode-merge
       tsNumOfCompactThreads,    // vnode-compact
       tsNumOfRetentionThreads,  // vnode-retention
+      2,                        // vnode-scan
   };
 
   for (int32_t i = 1; i < sizeof(GVnodeAsyncs) / sizeof(GVnodeAsyncs[0]); i++) {

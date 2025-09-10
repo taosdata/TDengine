@@ -386,6 +386,7 @@ struct STsdb {
     SVHashTable *ht;
     SArray      *arr;
   } *commitInfo;
+  struct SScanMonitor *pScanMonitor;
 };
 
 struct TSDBKEY {

@@ -893,34 +893,6 @@ static void mndScanPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
-static int32_t mndScanDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow *tw) {
-  if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
-    return 0;
-  }
-
-  SName   name = {0};
-  int32_t sqlLen = 0;
-  char    sql[256] = {0};
-  char    skeyStr[40] = {0};
-  char    ekeyStr[40] = {0};
-  char   *pDbName = pDb->name;
-
-  if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) == 0) {
-    pDbName = name.dbname;
-  }
-
-  if (taosFormatUtcTime(skeyStr, sizeof(skeyStr), tw->skey, pDb->cfg.precision) == 0 &&
-      taosFormatUtcTime(ekeyStr, sizeof(ekeyStr), tw->ekey, pDb->cfg.precision) == 0) {
-    sqlLen = tsnprintf(sql, sizeof(sql), "scan db %s start with '%s' end with '%s'", pDbName, skeyStr, ekeyStr);
-  } else {
-    sqlLen =
-        tsnprintf(sql, sizeof(sql), "scan db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey, tw->ekey);
-  }
-  auditRecord(NULL, pMnode->clusterId, "autoScanDB", name.dbname, "", sql, sqlLen);
-
-  return 0;
-}
-
 static int32_t mndBuildScanDbRsp(SScanDbRsp *pScanRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
   int32_t code = 0;
   int32_t rspLen = tSerializeSScanDbRsp(NULL, 0, pScanRsp);
@@ -1172,90 +1144,9 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndScanDispatch(SRpcMsg *pReq) {
-  int32_t code = 0;
-#if 0
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  int64_t curMs = taosGetTimestampMs();
-  int64_t curMin = curMs / 60000LL;
-
-  void   *pIter = NULL;
-  SDbObj *pDb = NULL;
-  while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
-    if (pDb->cfg.scanInterval <= 0) {
-      mDebug("db:%p,%s, scan interval is %dm, skip", pDb, pDb->name, pDb->cfg.scanInterval);
-      sdbRelease(pSdb, pDb);
-      continue;
-    }
-
-    if (pDb->cfg.isMount) {
-      sdbRelease(pSdb, pDb);
-      continue;
-    }
-
-    // daysToKeep2 would be altered
-    if (pDb->cfg.scanEndTime && (pDb->cfg.scanEndTime <= -pDb->cfg.daysToKeep2)) {
-      mWarn("db:%p,%s, scan end time:%dm <= -keep2:%dm , skip", pDb, pDb->name, pDb->cfg.scanEndTime,
-            -pDb->cfg.daysToKeep2);
-      sdbRelease(pSdb, pDb);
-      continue;
-    }
-
-    int64_t scanStartTime = pDb->cfg.scanStartTime ? pDb->cfg.scanStartTime : -pDb->cfg.daysToKeep2;
-    int64_t scanEndTime = pDb->cfg.scanEndTime ? pDb->cfg.scanEndTime : -pDb->cfg.daysPerFile;
-
-    if (scanStartTime >= scanEndTime) {
-      mDebug("db:%p,%s, scan start time:%" PRIi64 "m >= end time:%" PRIi64 "m, skip", pDb, pDb->name, scanStartTime,
-             scanEndTime);
-      sdbRelease(pSdb, pDb);
-      continue;
-    }
-
-    int64_t remainder = ((curMin - (int64_t)pDb->cfg.scanTimeOffset * 60LL) % pDb->cfg.scanInterval);
-    if (remainder != 0) {
-      mDebug("db:%p,%s, current time:%" PRIi64 "m is not divisible by scan interval:%dm, offset:%" PRIi8
-             "h, remainder:%" PRIi64 "m, skip",
-             pDb, pDb->name, curMin, pDb->cfg.scanInterval, pDb->cfg.scanTimeOffset, remainder);
-      sdbRelease(pSdb, pDb);
-      continue;
-    }
-
-    if ((pDb->scanStartTime / 60000LL) == curMin) {
-      mDebug("db:%p:%s, scan has already been dispatched at %" PRIi64 "m(%" PRIi64 "ms), skip", pDb, pDb->name, curMin,
-             pDb->scanStartTime);
-      sdbRelease(pSdb, pDb);
-      continue;
-    }
-
-    STimeWindow tw = {
-        .skey = convertTimePrecision(curMs + scanStartTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision),
-        .ekey = convertTimePrecision(curMs + scanEndTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision)};
-
-    if ((code = mndScanDb(pMnode, NULL, pDb, tw, NULL, false)) == 0) {
-      mInfo("db:%p,%s, succeed to dispatch scan with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
-            "m, end:%" PRIi64 "m, offset:%" PRIi8 "h",
-            pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.scanInterval, scanStartTime, scanEndTime,
-            pDb->cfg.scanTimeOffset);
-    } else {
-      mWarn("db:%p,%s, failed to dispatch scan with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
-            "m, end:%" PRIi64 "m, offset:%" PRIi8 "h, since %s",
-            pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.scanInterval, scanStartTime, scanEndTime,
-            pDb->cfg.scanTimeOffset, tstrerror(code));
-    }
-
-    TAOS_UNUSED(mndScanDispatchAudit(pMnode, pReq, pDb, &tw));
-
-    sdbRelease(pSdb, pDb);
-  }
-#endif
-  return 0;
-}
-
 static int32_t mndProcessScanTimer(SRpcMsg *pReq) {
   mTrace("start to process scan timer");
   mndScanPullup(pReq->info.node);
-  TAOS_UNUSED(mndScanDispatch(pReq));
   return 0;
 }
 
