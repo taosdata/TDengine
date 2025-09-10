@@ -127,6 +127,7 @@ class Test_IDMP_Meters:
             "create table test.t5 using test.st(gid) tags(5)",
             "create table test.t6 using test.st(gid) tags(5)",
             "create table test.t7 using test.st(gid) tags(7)",
+            "create table test.t8 using test.st(gid) tags(8)",
         ]
         tdSql.executes(sqls)
 
@@ -155,6 +156,7 @@ class Test_IDMP_Meters:
             "CREATE VTABLE vt_5  (`电流` FROM test.t5.fc,  `电压` FROM test.t5.ic,  `功率` FROM test.t5.bi,  `相位` FROM test.t5.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 5, '10005')",
             "CREATE VTABLE vt_6  (`电流` FROM test.t6.fc,  `电压` FROM test.t6.ic,  `功率` FROM test.t6.bi,  `相位` FROM test.t6.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 6, '10006')",
             "CREATE VTABLE vt_7  (`电流` FROM test.t7.fc,  `电压` FROM test.t7.ic,  `功率` FROM test.t7.bi,  `相位` FROM test.t7.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 7, '10007')",
+            "CREATE VTABLE vt_8  (`电流` FROM test.t8.fc,  `电压` FROM test.t8.ic,  `功率` FROM test.t8.bi,  `相位` FROM test.t8.si)  USING vst_1 ( `地址`, `单元`, `楼层`, `设备ID`) TAGS ('北京.海淀.上地街道', 1, 8, '10008')",
         ]
 
         tdSql.executes(sqls)
@@ -194,12 +196,15 @@ class Test_IDMP_Meters:
               # stream6
               "CREATE STREAM test.stream6      EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_6  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream6')        ON(WINDOW_OPEN|WINDOW_CLOSE)        INTO test.result_stream6      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
 
-              # stream7
+              # stream7 recalculate
               "CREATE STREAM test.stream7      INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)   INTO test.result_stream7      AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows",
               "CREATE STREAM test.stream7_sub1 INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|IGNORE_DISORDER) INTO test.result_stream7_sub1 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows",
               "CREATE STREAM test.stream7_sub2 INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)   INTO test.result_stream7_sub2 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM test.vt_7 WHERE ts >=_twstart AND ts <_twend",
               "CREATE STREAM test.stream7_sub3 INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|IGNORE_DISORDER) INTO test.result_stream7_sub3 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM test.vt_7 WHERE ts >=_twstart AND ts <_twend",
-              "CREATE STREAM test.stream7_sub4 PERIOD(5s, 0s)           FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|IGNORE_DISORDER) INTO test.result_stream7_sub4 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows",
+              "CREATE STREAM test.stream7_sub4 PERIOD(5s, 0s)           FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|IGNORE_DISORDER) INTO test.result_stream7_sub4 AS SELECT CAST(_tlocaltime/1000000 as timestamp) AS ts, COUNT(*) AS cnt, SUM(`功率`) AS `总功率` FROM %%trows",
+
+              # stream8 start/stop 
+              "CREATE STREAM test.stream8      COUNT_WINDOW(5)          FROM test.vt_8 STREAM_OPTIONS(FILL_HISTORY)                          INTO test.result_stream8      AS SELECT _twstart AS ts, count(*) as cnt, sum(`功率`) as `总功率` FROM %%trows",
         ]
 
         self.streamCount = len(sqls) - 2
@@ -232,6 +237,8 @@ class Test_IDMP_Meters:
             "create snode on dnode 1;",
             # DB error: Operation not supported [0x80000100]
             f"recalculate stream test.stream7_sub4 from {self.start2}",
+            # 
+            "CREATE STREAM test.stream7_sub4 PERIOD(5s, 0s)           FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|IGNORE_DISORDER) INTO test.result_stream7_sub4 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows"
         ]
 
         tdSql.errors(sqls)
@@ -258,6 +265,7 @@ class Test_IDMP_Meters:
         self.trigger_stream4()
         self.trigger_stream5()
         self.trigger_stream7()
+        self.trigger_stream8()
 
     #
     # 5. verify results
@@ -275,6 +283,7 @@ class Test_IDMP_Meters:
         # ***** bug6 *****
         #self.verify_stream6()
         self.verify_stream7()
+        self.verify_stream8()
 
     #
     # execute operation
@@ -293,6 +302,7 @@ class Test_IDMP_Meters:
         self.trigger_stream3_again()
         self.trigger_stream4_again()
         self.trigger_stream7_again()
+        self.trigger_stream8_again()
 
     #
     # 7. verify results again
@@ -307,6 +317,7 @@ class Test_IDMP_Meters:
         self.verify_stream4_again()
         # ***** bug9 *****
         #self.verify_stream7_again()
+        self.verify_stream8_again()
 
     #
     # 8. restart dnode
@@ -687,6 +698,40 @@ class Test_IDMP_Meters:
 
 
     #
+    #  trigger stream8
+    #
+    def trigger_stream8(self):
+        # stop stream
+        tdStream.stopStream("test", "stream8")
+
+        # init
+        ts    = self.start2
+        table = "test.t8"
+        step  = 1000 # 1s
+        cols  = "ts,fc,ic,bi,si,bin"
+
+        # win1
+        count = 5
+        vals  = "50,250,10,1,'stop'"
+        self.ts8 = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+
+    #
+    #  trigger stream8 again
+    #
+    def trigger_stream8_again(self):
+        ts    = self.ts8
+        table = "test.t8"
+        step  = 1000 # 1s
+        cols  = "ts,fc,ic,bi,si,bin"
+
+        # win2 stream is stop
+        count = 5
+        vals  = "50,250,10,1,'start'"
+        ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+
+
+    #
     # ---------------------  verify     ----------------------
     #
 
@@ -1031,3 +1076,38 @@ class Test_IDMP_Meters:
         )
         tdSql.checkDataMem(result_sql, data)
         print("verify stream7 sub1 again ...................... successfully.")
+
+    #
+    #  verify stream8
+    #
+    def verify_stream8(self):
+        # check
+        tdSql.error("select * from test.result_stream8")
+        print("verify stream8 ................................. successfully.")
+
+        # stop stream
+        tdStream.startStream("test", "stream8")
+
+    #
+    #  verify stream8 again
+    #
+    def verify_stream8_again(self):
+        # mem
+        data = [
+            # ts           cnt  power
+            # ***** bug6 *****
+            #[1752574200000, 5,  50],
+            [1752574205000, 5,  50]
+        ]
+        result_sql = f"select * from test.result_stream8"
+        tdSql.checkResultsByFunc (
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        tdSql.checkDataMem(result_sql, data)
+
+        # drop stream
+        tdStream.dropStream("test", "stream8")
+
+        print("verify stream8 again ........................... successfully.")
+
