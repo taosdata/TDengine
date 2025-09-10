@@ -235,6 +235,8 @@ static void imputatDestroyOperatorInfo(void* param) {
     blockDataDestroy(pBlock);
   }
 
+  taosMemoryFreeClear(pInfo->options);
+  
   taosArrayDestroy(pInfo->imputatSup.blocks);
   taosMemoryFreeClear(param);
 }
@@ -287,75 +289,6 @@ static int32_t doCacheBlock(SImputationSupp* pSupp, SSDataBlock* pBlock, const c
   }
 
   return 0;
-}
-
-static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, const char* pId) {
-  int32_t     code = 0;
-  int32_t     rows = 0;
-  STimeWindow win = {0};
-
-  taosArrayClear(pWindows);
-
-  tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
-  if (code < 0) {
-    return TSDB_CODE_INVALID_JSON_FORMAT;
-  }
-
-  if (rows < 0) {
-    char pMsg[1024] = {0};
-    code = tjsonGetStringValue(pJson, "msg", pMsg);
-    if (code) {
-      qError("%s failed to get error msg from rsp, unknown error", pId);
-    } else {
-      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
-    }
-
-    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
-  } else if (rows == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SJson* res = tjsonGetObjectItem(pJson, "res");
-  if (res == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-  int32_t ressize = tjsonGetArraySize(res);
-  if (ressize != rows) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-  for (int32_t i = 0; i < rows; ++i) {
-    SJson* row = tjsonGetArrayItem(res, i);
-    if (row == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-    int32_t colsize = tjsonGetArraySize(row);
-    if (colsize != 2) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-    SJson* start = tjsonGetArrayItem(row, 0);
-    SJson* end = tjsonGetArrayItem(row, 1);
-    if (start == NULL || end == NULL) {
-      qError("%s invalid res from analytic sys, code:%s", pId, tstrerror(TSDB_CODE_INVALID_JSON_FORMAT));
-      return TSDB_CODE_INVALID_JSON_FORMAT;
-    }
-
-    tjsonGetObjectValueBigInt(start, &win.skey);
-    tjsonGetObjectValueBigInt(end, &win.ekey);
-
-    if (win.skey >= win.ekey) {
-      win.ekey = win.skey + 1;
-    }
-
-    if (taosArrayPush(pWindows, &win) == NULL) {
-      qError("%s out of memory in generating anomaly_window", pId);
-      return TSDB_CODE_OUT_OF_BUFFER;
-    }
-  }
-
-  int32_t numOfWins = taosArrayGetSize(pWindows);
-  qDebug("%s anomaly window recevied, total:%d", pId, numOfWins);
-  for (int32_t i = 0; i < numOfWins; ++i) {
-    STimeWindow* pWindow = taosArrayGet(pWindows, i);
-    qDebug("%s anomaly win:%d [%" PRId64 ", %" PRId64 ")", pId, i, pWindow->skey, pWindow->ekey);
-  }
-
-  return code;
 }
 
 static int32_t finishBuildRequest(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, const char* id) {
@@ -680,7 +613,7 @@ static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
       pInfo->resTargetSlot = dstSlot;
     } else if (functionType == FUNCTION_TYPE_IMPUTATION_ROWTS) {
       pInfo->resTsSlot = dstSlot;
-    } else if (functionType == FUNCTION_TYPE_IMPUTATION_MARKS) {
+    } else if (functionType == FUNCTION_TYPE_IMPUTATION_MARK) {
       pInfo->resMarkSlot = dstSlot;
     }
   }
