@@ -74,8 +74,8 @@ execute_startup() {
             echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py &"
             nohup python3 "${model}-server.py" --action server &
         else
-            echo "Running command: nohup python3 ${model}-server.py $subdir $model_name ${ENDPOINT_ENABLE} &"
-            nohup python3 "${model}-server.py" "$subdir" "$model_name" ${ENDPOINT_ENABLE} &
+            echo "Running command: nohup python3 ${model}-server.py &"
+            nohup python3 "${model}-server.py" &
         fi
         SERVER_PID=$!
         if ps -p $SERVER_PID > /dev/null; then
