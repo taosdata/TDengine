@@ -5731,9 +5731,6 @@ static int32_t stRealtimeGroupOpenWindow(SSTriggerRealtimeGroup *pGroup, int64_t
           param.wstart = newWindow.range.skey;
           param.wend = newWindow.range.ekey;
           param.wduration = param.wend - param.wstart;
-          param.prevTs = prevWindow.skey;
-          param.currentTs = newWindow.range.skey;
-          param.nextTs = pGroup->nextWindow.skey;
         }
         break;
       }
@@ -5862,6 +5859,8 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
         param.prevTs = pCurWindow->range.skey - 1;
         param.currentTs = pCurWindow->range.ekey;
         param.nextTs = pGroup->nextWindow.ekey;
+        param.wrownum = pCurWindow->wrownum;
+        break;
       } else {
         STimeWindow prevWindow = pCurWindow->range;
         stTriggerTaskPrevIntervalWindow(pTask, &prevWindow);
