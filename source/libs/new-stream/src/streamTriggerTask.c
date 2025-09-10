@@ -3042,12 +3042,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SSTriggerOrigTableInfoRsp otableInfo = {0};
   SArray                   *pOrigTableNames = NULL;
 
-  QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
-
   SMsgSendInfo         *ahandle = pRsp->info.ahandle;
   SSTriggerAHandle     *pAhandle = ahandle->param;
   SSTriggerPullRequest *pReq = pAhandle->param;
+  
+  QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
 
   ST_TASK_DLOG("receive pull response of type %d from task:%" PRIx64, pReq->type, pReq->readerTaskId);
 
