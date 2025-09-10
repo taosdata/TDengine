@@ -197,9 +197,6 @@ class Test_IDMP_Meters:
               # stream7
               "CREATE STREAM test.stream7      INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)   INTO test.result_stream7      AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows",
               "CREATE STREAM test.stream7_sub1 INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|IGNORE_DISORDER) INTO test.result_stream7_sub1 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows",
-              "CREATE STREAM test.stream7_sub2 INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)   INTO test.result_stream7_sub2 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM test.vt_7 WHERE ts >=_twstart AND ts <_twend",
-              "CREATE STREAM test.stream7_sub3 INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|IGNORE_DISORDER) INTO test.result_stream7_sub3 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM test.vt_7 WHERE ts >=_twstart AND ts <_twend",
-              "CREATE STREAM test.stream7_sub4 PERIOD(5s, 0s)           FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|IGNORE_DISORDER) INTO test.result_stream7_sub4 AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows",
         ]
 
         self.streamCount = len(sqls) - 2
@@ -230,8 +227,6 @@ class Test_IDMP_Meters:
             "drop snode on dnode 1;",
             # DB error: Only one snode can be created in each dnode [0x800003A4]
             "create snode on dnode 1;",
-            # DB error: Operation not supported [0x80000100]
-            f"recalculate stream test.stream7_sub4 from {self.start2}",
         ]
 
         tdSql.errors(sqls)
@@ -305,8 +300,7 @@ class Test_IDMP_Meters:
         # self.verify_stream1_again()
         self.verify_stream3_again()
         self.verify_stream4_again()
-        # ***** bug9 *****
-        #self.verify_stream7_again()
+        self.verify_stream7_again()
 
     #
     # 8. restart dnode
@@ -668,12 +662,8 @@ class Test_IDMP_Meters:
         sqls = [
             f"drop table test.result_stream7",
             f"drop table test.result_stream7_sub1",
-            f"drop table test.result_stream7_sub2",
-            f"drop table test.result_stream7_sub3",
             f"recalculate stream test.stream7      from {self.start2}",
-            f"recalculate stream test.stream7_sub1 from {self.start2}",
-            f"recalculate stream test.stream7_sub2 from {self.start2}",
-            f"recalculate stream test.stream7_sub3 from {self.start2}"
+            f"recalculate stream test.stream7_sub1 from {self.start2}"
         ]
         self.execs(sqls)
 
