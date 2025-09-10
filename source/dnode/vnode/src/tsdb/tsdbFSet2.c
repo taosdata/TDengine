@@ -557,12 +557,16 @@ int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **f
     }
 
     code = TARRAY2_APPEND(fset[0]->lvlArr, lvl);
-    if (code) return code;
+    if (code) {
+      tsdbTFileSetClear(fset);
+      return code;
+    }
   }
 
   (*fset)->lastCompact = fset1->lastCompact;
   (*fset)->lastCommit = fset1->lastCommit;
   (*fset)->lastMigrate = fset1->lastMigrate;
+  (*fset)->lastRollup = fset1->lastRollup;
 
   return 0;
 }
