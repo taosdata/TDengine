@@ -4403,6 +4403,17 @@
   
 
             
+              
+  
+    
+    <nav class="md-nav" aria-label="findTaosdThread">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
           </ul>
         </nav>
       
@@ -5249,6 +5260,23 @@
       <a href="#eutil" class="md-nav__link">
         eutil 
       </a>
+      
+        <nav class="md-nav" aria-label="eutil">
+          <ul class="md-nav__list">
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="findTaosdThread">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+          </ul>
+        </nav>
       
     </li>
   
@@ -6129,6 +6157,17 @@
     
     <nav class="md-nav" aria-label="srvCtl">
       <ul class="md-nav__list">
+        
+          
+  
+    <li class="md-nav__item">
+      <a href="#srvCtl.srvCtl.addSimExtraCfg" class="md-nav__link">
+        addSimExtraCfg 
+      </a>
+      
+    </li>
+  
+
         
           
   
@@ -8729,6 +8768,17 @@
   
 
             
+              
+  
+    
+    <nav class="md-nav" aria-label="findTaosdThread">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
           </ul>
         </nav>
       
@@ -9575,6 +9625,23 @@
       <a href="#eutil" class="md-nav__link">
         eutil 
       </a>
+      
+        <nav class="md-nav" aria-label="eutil">
+          <ul class="md-nav__list">
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="findTaosdThread">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+          </ul>
+        </nav>
       
     </li>
   
@@ -10455,6 +10522,17 @@
     
     <nav class="md-nav" aria-label="srvCtl">
       <ul class="md-nav__list">
+        
+          
+  
+    <li class="md-nav__item">
+      <a href="#srvCtl.srvCtl.addSimExtraCfg" class="md-nav__link">
+        addSimExtraCfg 
+      </a>
+      
+    </li>
+  
+
         
           
   
@@ -22888,6 +22966,76 @@ example: {"log": {"path": "/var/log/taos"}}</p>
 
 </div>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="__init__.findTaosdThread" class="doc doc-heading">
+                  findTaosdThread(threadName)
+<a href="#__init__.findTaosdThread" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Find the first process named 'taosd' and count the number of threads 
+that contain the specified thread name.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>threadName</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Thread name to search for (supports partial matching)</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>int</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of matching threads in the first taosd process found, 
+ returns 0 if no taosd process is found or no threads match.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
 
 
 
@@ -27919,6 +28067,76 @@ while <code>exeNoWait</code> runs the command in the background and returns imme
 
 
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="eutil.findTaosdThread" class="doc doc-heading">
+                  findTaosdThread(threadName)
+<a href="#eutil.findTaosdThread" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Find the first process named 'taosd' and count the number of threads 
+that contain the specified thread name.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>threadName</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Thread name to search for (supports partial matching)</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>int</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of matching threads in the first taosd process found, 
+ returns 0 if no taosd process is found or no threads match.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
 
 
 
@@ -34196,6 +34414,26 @@ within retry attempts.</p>
 
 
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h4 id="srvCtl.srvCtl.addSimExtraCfg" class="doc doc-heading">
+                  addSimExtraCfg(option, value)
+<a href="#srvCtl.srvCtl.addSimExtraCfg" class="headerlink" title="Permanent link">&para;</a></h4>  
+        <div class="doc doc-contents ">
+
+        <p>add new option to taos.cfg
+Args:
+    option (string): option key
+    value  (string): option value
+Returns:
+    bool: True if add ok, False if failed</p>
+        </div>
+
+  </div>
   
 <div class="doc doc-object doc-function">
   
