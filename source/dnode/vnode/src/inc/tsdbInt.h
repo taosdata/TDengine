@@ -42,9 +42,9 @@ typedef struct {
   bool    ssMigrate;
 } SRtnArg;
 
-
+int32_t tsdbDoRollup(SRTNer *rtner);
 int32_t tsdbDoSsMigrate(SRTNer *rtner);
-void tsdbRetentionCancel(void *arg);
+void    tsdbRetentionCancel(void *arg);
 int32_t tsdbRetention(void *arg);
 
 #ifdef __cplusplus

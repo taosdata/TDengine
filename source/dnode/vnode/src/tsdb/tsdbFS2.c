@@ -1316,12 +1316,6 @@ int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader) {
   return TSDB_CODE_SUCCESS;
 }
 
-extern bool tsdbShouldCompact(const STFileSet *pFileSet, int32_t vgId);
-
-#ifndef TD_ENTERPRISE
-bool tsdbShouldCompact(const STFileSet *pFileSet, int32_t vgId) { return false; }
-#endif
-
 static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
   STsdb  *pTsdb = pReader->pTsdb;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1370,6 +1364,7 @@ int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader) {
   return code;
 }
 
+extern bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, ECompactType type);
 int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value) {
   const char *fieldName;
 
@@ -1409,7 +1404,10 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
 
   fieldName = "should_compact";
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
-    *(char *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId);
+    *(char *)value = false;
+#ifdef TD_ENTERPRISE
+    *(char *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId, TSDB_COMPACT_NORMAL);
+#endif
     return TSDB_CODE_SUCCESS;
   }
 

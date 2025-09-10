@@ -21,7 +21,7 @@
 #include "tsdbInt.h"
 
 
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool ssMigrate);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ECompactType ctype);
 
 
 // migrate monitor related functions
@@ -586,17 +586,18 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   }
 
   if (pCfg->ssCompact && flocal->f->lcn < 0) {
-    int32_t lcn = flocal->f->lcn;
+    int32_t     lcn = flocal->f->lcn;
     STimeWindow win = {0};
     tsdbFidKeyRange(pLocalFset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
-    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, true);
+    ECompactType ctype = VND_IS_RSMA((rtner->tsdb->pVnode)) ? TSDB_COMPACT_ROLLUP : TSDB_COMPACT_SSMIGRATE;
+    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, ctype);
     tsdbInfo("vgId:%d, fid:%d, migration cancelled, fileset need compact, lcn: %d", vid, pLocalFset->fid, lcn);
     if (*pCode) {
       setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
     } else {
       setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_COMPACT);
     }
-    return false; // compact in progress
+    return false;  // compact in progress
   }
 
   char path[TSDB_FILENAME_LEN];
