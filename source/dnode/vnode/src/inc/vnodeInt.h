@@ -176,7 +176,7 @@ int32_t         metaDropMultipleTables(SMeta* pMeta, int64_t version, SArray* tb
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
-SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema, int32_t type);
+SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema, int8_t type);
 int64_t         metaGetTableCreateTime(SMeta* pMeta, tb_uid_t uid, int lock);
 SExtSchema*     metaGetSExtSchema(const SMetaEntry* pME);
 int32_t         metaGetRsmaSchema(const SMetaEntry* pME, SSchemaRsma** rsmaSchema);

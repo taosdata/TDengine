@@ -713,8 +713,10 @@ STSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) 
   }
   if (pSW->pRsma) {
     for (int32_t c = 0; c < pSW->nCols; ++c) {
-      pTSchema->columns[c].funcId = pSW->pRsma[c].funcId;
+      pTSchema->columns[c].funcId = pSW->pRsma->funcIds[c];
     }
+    pTSchema->interval[0] = pSW->pRsma->interval[0];
+    pTSchema->interval[1] = pSW->pRsma->interval[1];
   }
 _exit:
   tDeleteSchemaWrapper(pSW);

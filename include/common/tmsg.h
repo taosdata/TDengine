@@ -739,10 +739,10 @@ struct SSchemaExt {
 };
 
 struct SSchemaRsma {
-  func_id_t funcId;
+  int64_t    interval[2];
+  int32_t    nFuncs;
+  func_id_t* funcIds;
 };
-
-//
 
 struct SSchema2 {
   int8_t   type;

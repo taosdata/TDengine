@@ -277,10 +277,15 @@ struct STColumn {
 };
 
 struct STSchema {
-  int32_t  numOfCols;
-  int32_t  version;
-  int32_t  flen;
-  int32_t  tlen;
+  int32_t numOfCols;
+  int32_t version;
+  int32_t flen;
+  int32_t tlen;
+  union {
+    struct {
+      int64_t interval[2];  // for rsma
+    };
+  };
   STColumn columns[];
 };
 

@@ -127,29 +127,43 @@ int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
   const SRSmaParam *pParam = &pME->stbEntry.rsmaParam;
   const SSchema    *pSchema = pME->stbEntry.schemaRow.pSchema;
   int32_t           nCols = pME->stbEntry.schemaRow.nCols;
-  *rsmaSchema = (SSchemaRsma *)taosMemoryMalloc(sizeof(SSchemaRsma) * nCols);
+  *rsmaSchema = (SSchemaRsma *)taosMemoryMalloc(sizeof(SSchemaRsma));
   if (*rsmaSchema == NULL) {
     return terrno;
   }
-  int32_t i = 0, j = 0;
+
+  (*rsmaSchema)->funcIds = taosMemoryMalloc(sizeof(func_id_t) * nCols);
+  if ((*rsmaSchema)->funcIds == NULL) {
+    taosMemoryFree(*rsmaSchema);
+    *rsmaSchema = NULL;
+    return terrno;
+  }
+
+  (*rsmaSchema)->interval[0] = pParam->interval[0];
+  (*rsmaSchema)->interval[1] = pParam->interval[1];
+  (*rsmaSchema)->nFuncs = nCols;
+
+  func_id_t *pFuncIds = (*rsmaSchema)->funcIds;
+  int32_t    i = 0, j = 0;
   for (i = 0; i < nCols; ++i) {
     for (j = 0; j < pParam->nFuncs;) {
       if (pParam->funcColIds[j] == pSchema[i].colId) {
-        (*rsmaSchema)[i].funcId = pParam->funcIds[j];
+        pFuncIds[i] = pParam->funcIds[j];
         ++j;
         break;
       } else if (pParam->funcColIds[j] > pSchema[i].colId) {
-        (*rsmaSchema)[i].funcId = FUNCTION_TYPE_LAST;  // use last if not specified
+        pFuncIds[i] = FUNCTION_TYPE_LAST;  // use last if not specified
         break;
       } else {
         ++j;
       }
     }
     if (j >= pParam->nFuncs) {
-      memset(&(*rsmaSchema)[i], FUNCTION_TYPE_LAST, sizeof(SSchemaRsma) * (nCols - i));  // use last if not specified
+      memset(&pFuncIds[i], FUNCTION_TYPE_LAST, sizeof(func_id_t) * (nCols - i));  // use last if not specified
       break;
     }
   }
+  pFuncIds[0] = 0;  // Primary TS column has no function
 
   return 0;
 }
