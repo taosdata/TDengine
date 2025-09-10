@@ -324,8 +324,9 @@ typedef struct SStreamTriggerTask {
 
   // calc request pool
   SRWLatch   calcPoolLock;
-  SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
-  SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
+  SArray    *pCalcNodes;       // SArray<SSTriggerCalcNode>
+  SSHashObj *pGroupRunning;    // SSHashObj<gid, bool[]>
+  SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
   SRWLatch recalcRequestLock;
   SList   *pRecalcRequests;  // SList<SSTriggerRecalcRequest>

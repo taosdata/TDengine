@@ -636,11 +636,21 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
   SSTriggerCalcNode *pNode = NULL;
   bool              *pRunningFlag = NULL;
   bool               needUnlock = false;
+  int64_t           *pRunningCnt = NULL;
 
   *ppRequest = NULL;
 
   taosWLockLatch(&pTask->calcPoolLock);
   needUnlock = true;
+
+  pRunningCnt = tSimpleHashGet(pTask->pSessionRunning, &sessionId, sizeof(int64_t));
+  if (pRunningCnt == NULL) {
+    int64_t cnt = 0;
+    code = tSimpleHashPut(pTask->pSessionRunning, &sessionId, sizeof(int64_t), &cnt, sizeof(int64_t));
+    QUERY_CHECK_CODE(code, lino, _end);
+    pRunningCnt = tSimpleHashGet(pTask->pSessionRunning, &sessionId, sizeof(int64_t));
+    QUERY_CHECK_NULL(pRunningCnt, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  }
 
   // check if have any free slot
   nCalcNodes = taosArrayGetSize(pTask->pCalcNodes);
@@ -648,7 +658,7 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
     pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, i);
     nIdleSlots += TD_DLIST_NELES(&pNode->idleSlots);
   }
-  if (nIdleSlots == 0) {
+  if (nIdleSlots == 0 || (*pRunningCnt + 1 >= TARRAY_SIZE(pTask->runnerList))) {
     goto _end;
   }
 
@@ -704,6 +714,7 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
   }
   pReq->createTable = (pRunningFlag[idx + 1] == false);
   pRunningFlag[0] = true;
+  *pRunningCnt += 1;
 
   *ppRequest = pReq;
   TD_DLIST_POP(&pNode->idleSlots, pSlot);
@@ -752,6 +763,11 @@ int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequ
   QUERY_CHECK_NULL(pRunningFlag, code, lino, _end, TSDB_CODE_INVALID_PARA);
   pRunningFlag[0] = false;
   pRunningFlag[idx + 1] = hasSent;
+
+  int64_t *pRunningCnt = tSimpleHashGet(pTask->pSessionRunning, &pReq->sessionId, sizeof(int64_t));
+  QUERY_CHECK_NULL(pRunningCnt, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(*pRunningCnt > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  *pRunningCnt -= 1;
 
   pNode = taosArrayGet(pTask->pCalcNodes, idx);
   QUERY_CHECK_NULL(pNode, code, lino, _end, terrno);
@@ -1490,6 +1506,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
   pTask->pGroupRunning = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(pTask->pGroupRunning, code, lino, _end, terrno);
+  pTask->pSessionRunning = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(pTask->pSessionRunning, code, lino, _end, terrno);
 
   taosInitRWLatch(&pTask->recalcRequestLock);
   pTask->pRecalcRequests = tdListNew(POINTER_BYTES);
@@ -1664,6 +1682,10 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   if (pTask->pGroupRunning != NULL) {
     tSimpleHashCleanup(pTask->pGroupRunning);
     pTask->pGroupRunning = NULL;
+  }
+  if (pTask->pSessionRunning != NULL) {
+    tSimpleHashCleanup(pTask->pSessionRunning);
+    pTask->pSessionRunning = NULL;
   }
 
   if (pTask->pRecalcRequests != NULL) {
@@ -7762,8 +7784,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
   char                    *pExtraNotifyContent = NULL;
-  SArray                   *pList = NULL;
-  SScalarParam              output = {0};
+  SArray                  *pList = NULL;
+  SScalarParam             output = {0};
 
   while (!allTableProcessed && !needFetchData) {
     //  read all data of the current table
