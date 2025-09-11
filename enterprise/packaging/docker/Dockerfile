@@ -25,10 +25,11 @@ ENV LD_LIBRARY_PATH=/usr/lib \
 
 COPY ./bin/* /usr/bin/
 
-EXPOSE 6030 # taosd
-EXPOSE 6041 # taosAdapter
-EXPOSE 6043 # taosKeeper
-EXPOSE 6060 # taosExplorer
+# 6030 taosd
+# 6041 taosAdapter
+# 6043 taosKeeper
+# 6060 taosExplorer
+EXPOSE 6030 6041 6043 6060
 
 ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
 
