@@ -4988,7 +4988,7 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
 }
 
 static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
-  if (QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize || QUERY_SMA_OPTIMIZE_NOT_SUPPORT) {
+  if (QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize) {
     return TSDB_CODE_SUCCESS;
   }
   if (0 && isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow &&
@@ -5000,7 +5000,7 @@ static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNo
 
 static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   int32_t code = 0;
-  if (QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize || QUERY_SMA_OPTIMIZE_NOT_SUPPORT) {
+  if (QUERY_SMA_OPTIMIZE_DISABLE == tsQuerySmaOptimize) {
     return TSDB_CODE_SUCCESS;
   }
   if (isSelectStmt(pCxt->pCurrStmt) && pRealTable->pMeta->tableType != TSDB_SYSTEM_TABLE) {
@@ -6066,7 +6066,9 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     if (inStreamCalcClause(pCxt) && !pCxt->refTable) {
       char fullDbName[TSDB_DB_FNAME_LEN] = {0};
       PAR_ERR_JRET(tNameGetFullDbName(&name, fullDbName));
-      PAR_ERR_JRET(taosHashPut(pCxt->streamInfo.calcDbs, fullDbName, TSDB_DB_FNAME_LEN, NULL, 0));
+      if (pCxt->streamInfo.calcDbs) {
+        PAR_ERR_JRET(taosHashPut(pCxt->streamInfo.calcDbs, fullDbName, TSDB_DB_FNAME_LEN, NULL, 0));
+      }
     }
     PAR_ERR_JRET(getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true));
 
@@ -15920,7 +15922,7 @@ static int32_t createTsmaReqBuildCreateStreamReq(STranslateContext* pCxt, SCreat
   pOptions->fillHistoryFirst = true;
   pOptions->deleteOutputTable = true;
   pOptions->deleteRecalc = true;
-  PAR_ERR_JRET(nodesMakeDurationValueNodeFromString("1s", (SValueNode**)&pOptions->pMaxDelay));
+  PAR_ERR_JRET(nodesMakeDurationValueNodeFromString("3s", (SValueNode**)&pOptions->pMaxDelay));
 
   pTrigger->pTriggerWindow = (SNode*)pInterval;
   pTrigger->pTrigerTable = (SNode*)pTriggerTable;
