@@ -156,7 +156,7 @@ int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx) {
 
   if (enableSSL == 0) {
     tWarn("TLS is not enabled for %s, please check cert/key/ca path", pInit->label);
-    return 0;
+    return TSDB_CODE_INVALID_CFG;
   }
 
   SSslCtx* pCtx = (SSslCtx*)taosMemCalloc(1, sizeof(SSslCtx));

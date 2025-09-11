@@ -118,14 +118,16 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
   pRpc->ipv6 = pInit->ipv6;
 
-  code = transTlsCtxCreate(pInit, (SSslCtx**)&pRpc->pSSLContext);
-  TAOS_CHECK_GOTO(code, NULL, _end);
+  if (pRpc->enableSSL == 1) {
+    code = transTlsCtxCreate(pInit, (SSslCtx**)&pRpc->pSSLContext);
+    TAOS_CHECK_GOTO(code, NULL, _end);
 
-  if (pRpc->pSSLContext != NULL) {
-    pRpc->enableSSL = 1;
+    if (pRpc->pSSLContext == NULL) {
+      tError("Failed to create SSL context for %s", pRpc->label);
+      TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    }
     tInfo("TLS is enabled for %s", pRpc->label);
   } else {
-    pRpc->enableSSL = 0;
     tInfo("TLS is not enabled for %s", pRpc->label);
   }
 
