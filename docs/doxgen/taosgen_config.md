@@ -66,6 +66,37 @@ jobs:
           concurrency: 8
 //ANCHOR_END: tdengine_gen_stmt_insert_config
 
+//ANCHOR: tdengine_gen_stmt_insert_simple
+schema:
+  columns:
+    - name: ts
+      type: timestamp
+      start: 1700000000000
+      precision : ms
+      step: 300s
+    - name: current
+      type: float
+      min: 0
+      max: 100
+    - name: voltage
+      type: int
+      expr: 220 * math.sqrt(2) * math.sin(_i)
+    - name: phase
+      type: float
+      min: 0
+      max: 360
+  generation:
+    interlace: 1
+
+jobs:
+  # TDengine insert job
+  insert-data:
+    steps:
+      - uses: tdengine/create-super-table
+      - uses: tdengine/create-child-table
+      - uses: tdengine/insert-data
+//ANCHOR_END: tdengine_gen_stmt_insert_simple
+
 //ANCHOR: tdengine_csv_stmt_insert_config
 tdengine:
   dsn: taos+ws://root:taosdata@127.0.0.1:6041/tsbench
@@ -124,7 +155,6 @@ jobs:
         with:
           concurrency: 8
 //ANCHOR_END: tdengine_csv_stmt_insert_config
-
 
 //ANCHOR: mqtt_publish_config
 mqtt:

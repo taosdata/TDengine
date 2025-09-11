@@ -44,12 +44,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -?/--help             | 显示帮助信息并退出|
 | -V/--version          | 显示版本信息并退出。不能与其它参数混用 |
 
-提示：当没有指定参数运行 taosgen 时，默认行为是：
-- 创建 TDengine 数据库 tsbench。
-- 创建超级表 meters。
-- 创建 1 万张子表 d0 ~ d9999。
-- 每张子表批量写入 1 万条数据。
-
+提示：当没有指定参数运行 taosgen 时，默认会创建 TDengine 数据库 tsbench、超级表 meters、1 万张子表，并为每张子表批量写入 1 万条数据。
 
 ## 配置文件参数
 
@@ -141,8 +136,8 @@ taosgen -h 127.0.0.1 -c config.yaml
     - count（整数）：要创建的表数量，默认为 10000。
     - from（整数）：表名称的起始下标（包含），默认为 0。
 
-  - columns（列表）：描述表普通列结构的模式定义。
-  - tags（列表）：描述表标签列结构的模式定义。
+  - tags（列表）：描述表标签列结构的模式定义。默认配置为：`groupid` INT, `location` VARCHAR(24)。
+  - columns（列表）：描述表普通列结构的模式定义。默认配置为：ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT。
   - generation：描述数据生成行为相关的配置参数。
     - interlace（整数）：控制交错方式生成表数据的行数，默认值为 0，表示不启用交错模式。
     - concurrency（整数）：表示生成数据的线程数量，默认值为写入线程数量。
@@ -177,7 +172,7 @@ taosgen -h 127.0.0.1 -c config.yaml
   - min（整数）：表示列的最小值，生成的值将大于或等于最小值。
   - max（整数）：表示列的最大值，生成的值将小于最大值。
 
-- expression：根据表达式生成。适用整数类型、浮点数类型 float、double 和字符类型。
+- expression：根据表达式生成。适用于整数类型、浮点类型和字符类型。如果未显式指定 gen_type，但检测到包含 expr 属性，则会自动设置 gen_type 为 expression。
   - expr（字符串）：表示生成数据的表达式内容，表达式语法采用 lua 语言，内置变量：
     -  `_i` 表示调用索引，从 `0` 开始，如："2 + math.sin（_i/10）"；
     -  `_table` 表示该表达式为哪张表构建数据；
@@ -302,6 +297,12 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 ```yaml
 {{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_config}}
+```
+
+其中，tdengine、schema::name、sschema::tbname、schema::tags、tdengine/create-child-table::batch、tdengine/insert-data::concurrency 可以使用默认值，进一步简化配置。
+
+```yaml
+{{#include docs/doxgen/taosgen_config.md:tdengine_gen_stmt_insert_simple}}
 ```
 
 ### CSV文件方式生成数据 STMT 方式写入 TDengine 实例
