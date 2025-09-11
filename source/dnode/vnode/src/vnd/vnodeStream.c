@@ -1086,7 +1086,7 @@ static int32_t processSubmitTbDataForMetaData(SVnode* pVnode, SDecoder *pCoder, 
   }
 
   pSlice->startRowIdx += numOfRows;
-  stTrace("stream reader process submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
+  stInfo("stream reader process submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
         ", uid:%" PRId64 ", ver:%d, row index:%d, rows:%d", window.skey, window.ekey, id, submitTbData.uid, submitTbData.sver, pSlice->startRowIdx, numOfRows);
   
   if (gidHash == NULL) goto end;
@@ -1470,7 +1470,7 @@ static int32_t processWalVerMetaDataNew(SVnode* pVnode, SStreamTriggerReaderInfo
     if (((SSDataBlock*)resultRsp->dataBlock)->info.rows > 0) {
       stInfo("vgId:%d %s end, get result totalRows:%d, process:%"PRId64"/%"PRId64, TD_VID(pVnode), __func__, 
         *totalRows, *retVer, walGetAppliedVer(pWalReader->pWal));
-      // printDataBlock(((SSDataBlock*)resultRsp->dataBlock), __func__, "");
+      printDataBlock(((SSDataBlock*)resultRsp->dataBlock), __func__, "");
       break;
     }
   }
