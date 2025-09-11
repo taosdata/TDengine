@@ -399,7 +399,7 @@ void addCreateStreamNotifyUrl(SCMCreateStreamReq *expect, const char* pUrl) {
 
 void setCreateStreamNotify(SCMCreateStreamReq *expect, int8_t notifyEventTypes, int8_t notifyErrorHandle, int8_t notifyHistory) {
   expect->notifyEventTypes = notifyEventTypes;
-  expect->notifyErrorHandle = notifyErrorHandle;
+  expect->addOptions = notifyErrorHandle;
   expect->notifyHistory = notifyHistory;
 }
 
@@ -569,7 +569,7 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
   }
 
   ASSERT_EQ(req->notifyEventTypes, expect->notifyEventTypes);
-  ASSERT_EQ(req->notifyErrorHandle, expect->notifyErrorHandle);
+  ASSERT_EQ(req->addOptions, expect->addOptions);
   ASSERT_EQ(req->notifyHistory, expect->notifyHistory);
 
   if (req->triggerCols == nullptr) {

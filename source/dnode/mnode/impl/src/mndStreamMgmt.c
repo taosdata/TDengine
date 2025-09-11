@@ -1906,7 +1906,7 @@ int32_t msmSetStreamRunnerExecReplica(int64_t streamId, SStmStatus* pInfo) {
   //STREAMTODO 
   
   pInfo->runnerDeploys = MND_STREAM_RUNNER_DEPLOY_NUM;
-  pInfo->runnerReplica = 3;
+  pInfo->runnerReplica = MND_STREAM_RUNNER_REPLICA_NUM;
 
 _exit:
 

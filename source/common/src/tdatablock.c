@@ -330,7 +330,7 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
     // } else {
     //   len = varDataTLen(pData);
     // }
-    if (pColumnInfoData->varmeta.allocLen < (numOfRows * len + pColumnInfoData->varmeta.length)) {
+    if (pColumnInfoData->varmeta.allocLen < (capacity * numOfRows * len + pColumnInfoData->varmeta.length)) {
       int32_t code = colDataReserve(pColumnInfoData, (capacity * numOfRows * len + pColumnInfoData->varmeta.length));
       if (code != TSDB_CODE_SUCCESS) {
         return code;

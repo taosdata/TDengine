@@ -951,6 +951,9 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
       // state trigger
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.stateWin.trueForDuration));
+      int32_t stateWindowExprLen =
+          pMsg->trigger.stateWin.expr == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.stateWin.expr) + 1;
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->trigger.stateWin.expr, stateWindowExprLen));
       break;
     }
     case WINDOW_TYPE_INTERVAL: {
@@ -1481,6 +1484,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
       // state trigger
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.slotId));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.stateWin.trueForDuration));
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.stateWin.expr, NULL));
       break;
     
     case WINDOW_TYPE_INTERVAL:
@@ -1916,6 +1920,9 @@ void tFreeSStreamTriggerDeployMsg(SStreamTriggerDeployMsg* pTrigger) {
   
   taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   switch (pTrigger->triggerType) {
+    case WINDOW_TYPE_STATE:
+      taosMemoryFree(pTrigger->trigger.stateWin.expr);
+      break;
     case WINDOW_TYPE_EVENT:
       taosMemoryFree(pTrigger->trigger.event.startCond);
       taosMemoryFree(pTrigger->trigger.event.endCond);
@@ -2359,6 +2366,18 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pCoutCol->type.bytes));
   }
 
+  switch (pReq->triggerType) {
+    case WINDOW_TYPE_STATE: {
+      // state trigger
+      int32_t stateExprLen = pReq->trigger.stateWin.expr == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.stateWin.expr) + 1;
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.stateWin.expr, stateExprLen));
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+
 _exit:
 
   if (code) {
@@ -2638,6 +2657,19 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
     }
   }
 
+  switch (pReq->triggerType) {
+    case WINDOW_TYPE_STATE: {
+      // state trigger
+      if (!tDecodeIsEnd(pDecoder)) {
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.stateWin.expr, NULL));
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+
 _exit:
 
   return code;
@@ -2755,6 +2787,9 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   pReq->outCols = NULL;
 
   switch (pReq->triggerType) {
+    case WINDOW_TYPE_STATE:
+      taosMemoryFreeClear(pReq->trigger.stateWin.expr);
+      break;
     case WINDOW_TYPE_EVENT:
       taosMemoryFreeClear(pReq->trigger.event.startCond);
       taosMemoryFreeClear(pReq->trigger.event.endCond);
@@ -2844,6 +2879,12 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   pDst->triggerType = pSrc->triggerType;
   
   switch (pSrc->triggerType) {
+    case WINDOW_TYPE_STATE:
+      if (pSrc->trigger.stateWin.expr) {
+        pDst->trigger.stateWin.expr = COPY_STR(pSrc->trigger.stateWin.expr);
+        TSDB_CHECK_NULL(pDst->trigger.stateWin.expr, code, lino, _exit, terrno);
+      }
+      break;
     case WINDOW_TYPE_EVENT:
       if (pSrc->trigger.event.startCond) {
         pDst->trigger.event.startCond = COPY_STR(pSrc->trigger.event.startCond);
@@ -4311,21 +4352,28 @@ static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash)
     goto _exit;
   } 
   
-  int32_t tables = tSimpleHashGetSize(indexHash);
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, tables));
-
+  uint32_t pos = encoder->pos;
+  encoder->pos += sizeof(uint32_t); // reserve space for tables
+  int32_t tables = 0;
+  
   void*   pe = NULL;
   int32_t iter = 0;
   while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
     SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-
+    if (pInfo->gId == 0){
+      continue;
+    }
     int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
     TAOS_CHECK_EXIT(tEncodeI64(encoder, uid));
     TAOS_CHECK_EXIT(tEncodeU64(encoder, pInfo->gId));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->startRowIdx - pInfo->numRows));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->numRows));
+    tables++;
   }
-
+  uint32_t tmpPos = encoder->pos;
+  encoder->pos = pos;
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, tables));
+  encoder->pos = tmpPos;
 _exit:
   return code;
 }
