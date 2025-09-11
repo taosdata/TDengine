@@ -40,7 +40,7 @@
     "constants1": "workspace:taos-constants@*",
     "dayjs": "^1.11.13",
     "echarts": "^5.6.0",
-    "element-plus": "^2.9.5",
+    "element-plus": "^2.11.0",
     "github-markdown-css": "^5.6.1",
     "highlight.js": "^11.10.0",
     "hooks": "workspace:taos-hooks@*",
