@@ -4378,21 +4378,28 @@ static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash)
     goto _exit;
   } 
   
-  int32_t tables = tSimpleHashGetSize(indexHash);
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, tables));
-
+  uint32_t pos = encoder->pos;
+  encoder->pos += sizeof(uint32_t); // reserve space for tables
+  int32_t tables = 0;
+  
   void*   pe = NULL;
   int32_t iter = 0;
   while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
     SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-
+    if (pInfo->gId == 0){
+      continue;
+    }
     int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
     TAOS_CHECK_EXIT(tEncodeI64(encoder, uid));
     TAOS_CHECK_EXIT(tEncodeU64(encoder, pInfo->gId));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->startRowIdx - pInfo->numRows));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->numRows));
+    tables++;
   }
-
+  uint32_t tmpPos = encoder->pos;
+  encoder->pos = pos;
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, tables));
+  encoder->pos = tmpPos;
 _exit:
   return code;
 }
