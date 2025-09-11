@@ -1011,7 +1011,6 @@ static int32_t processSubmitTbDataForMetaData(SVnode* pVnode, SDecoder *pCoder, 
           STREAM_CHECK_RET_GOTO(setColData(blockStart, rowStart, rowEnd, &colDataTmp, pColData));
           break;
         }
-        pCoder->pos = posTmp;
         code = tDecodeColData(version, pCoder, &colData, true);
         if (code) {
           code = TSDB_CODE_INVALID_MSG;
