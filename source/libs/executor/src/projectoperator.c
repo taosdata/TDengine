@@ -1085,8 +1085,6 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
       TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
     }
 
-    pfCtx->pOutput = NULL;
-
     return code;
   } 
 
