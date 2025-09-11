@@ -34,9 +34,9 @@ RUN pip3 install --upgrade pip && \
 FROM python:3.10-slim AS venv1-builder
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
-ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv1
+ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN python3.10 -m venv --system-site-packages /var/lib/taos/taosanode/venv1 && \
+RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
     pip install --no-cache-dir transformers==4.40 \
         -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
@@ -45,9 +45,9 @@ RUN python3.10 -m venv --system-site-packages /var/lib/taos/taosanode/venv1 && \
 FROM python:3.10-slim AS venv2-builder
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
-ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv2
+ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_chronos
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN python -m venv --system-site-packages /var/lib/taos/taosanode/venv2 && \
+RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
     pip install --no-cache-dir transformers==4.55 \
         chronos-forecasting \
         -i https://pypi.tuna.tsinghua.edu.cn/simple && \
@@ -57,9 +57,9 @@ RUN python -m venv --system-site-packages /var/lib/taos/taosanode/venv2 && \
 FROM python:3.10-slim AS venv3-builder
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
-ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv3
+ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_timesfm
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN python -m venv --system-site-packages /var/lib/taos/taosanode/venv3 && \
+RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
     pip install --no-cache-dir transformers==4.33 \
         -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
@@ -72,7 +72,6 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
-RUN python -m venv --system-site-packages /var/lib/taos/taosanode/venv
-COPY --from=venv1-builder /var/lib/taos/taosanode/venv1 /var/lib/taos/taosanode/venv1
-COPY --from=venv2-builder /var/lib/taos/taosanode/venv2 /var/lib/taos/taosanode/venv2
-COPY --from=venv3-builder /var/lib/taos/taosanode/venv3 /var/lib/taos/taosanode/venv3
+COPY --from=venv1-builder /var/lib/taos/taosanode/venv /var/lib/taos/taosanode/venv
+COPY --from=venv2-builder /var/lib/taos/taosanode/venv_chronos /var/lib/taos/taosanode/venv_chronos
+COPY --from=venv3-builder /var/lib/taos/taosanode/venv_timesfm /var/lib/taos/taosanode/venv_timesfm

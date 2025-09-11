@@ -33,11 +33,11 @@ declare -A MODEL_NAMES=(
 )
 
 declare -A MODEL_VENV_MAP=(
-    ["chronos"]="/var/lib/taos/taosanode/venv2"
-    ["moirai"]="/var/lib/taos/taosanode/venv1"
-    ["tdtsfm"]="/var/lib/taos/taosanode/venv1"
-    ["timemoe"]="/var/lib/taos/taosanode/venv1"
-    ["timesfm"]="/var/lib/taos/taosanode/venv3"
+    ["chronos"]="/var/lib/taos/taosanode/venv_chronos"
+    ["moirai"]="/var/lib/taos/taosanode/venv"
+    ["tdtsfm"]="/var/lib/taos/taosanode/venv"
+    ["timemoe"]="/var/lib/taos/taosanode/venv"
+    ["timesfm"]="/var/lib/taos/taosanode/venv_timesfm"
 )
 
 # Function to activate virtual environment
