@@ -23,7 +23,7 @@ RUN pip3 install --upgrade pip && \
                     taospy \
                     uwsgi==2.0.30 \
                     accelerate==1.8.1 \
-                    tensorflow-cpu==2.15.0
+                    tensorflow-cpu==2.15.0 \
                     # arm64 use: tensorflow==2.15.0 \
                     uni2ts \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
