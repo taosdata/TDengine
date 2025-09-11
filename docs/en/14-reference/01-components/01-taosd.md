@@ -27,7 +27,7 @@ Configuration parameters are divided into two categories:
 |Parameter Type      |  Description                     |  Scope    | Modification Method              | View Parameter Command            |
 |:------------|:-------------------------|:-----------|:---------------------|:---------------------|
 | Global Configuration Parameters  | Parameters shared by all nodes in the cluster     |  Entire Cluster   | 1. Modify via SQL.   | show variables; |
-| Local Configuration Parameters  | Parameters configured individually for each cluster node  |  Single Node    | 1. Modify via SQL; 2. Modify via taos.cfg configuration file.  | show dnode <dnode_id> variables;|
+| Local Configuration Parameters  | Parameters configured individually for each cluster node  |  Single Node    | 1. Modify via SQL; 2. Modify via taos.cfg configuration file.  | show dnode `<dnode_id>` variables;|
 
 Additional Notes:
 1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
