@@ -27,15 +27,14 @@ Configuration parameters are divided into two categories:
 |Parameter Type      |  Description                     |  Scope    | Modification Method              | View Parameter Command            |
 |:------------|:-------------------------|:-----------|:---------------------|:---------------------|
 | Global Configuration Parameters  | Parameters shared by all nodes in the cluster     |  Entire Cluster   | 1. Modify via SQL.   | show variables; |
-| Local Configuration Parameters  | Parameters configured individually for each cluster node  |  Single Node    | 1. Modify via SQL.
- 2. Modify via taos.cfg configuration file.  | show dnode <dnode_id> variables;|
+| Local Configuration Parameters  | Parameters configured individually for each cluster node  |  Single Node    | 1. Modify via SQL; 2. Modify via taos.cfg configuration file.  | show dnode <dnode_id> variables;|
 
 Additional Notes:
-1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';` 
-2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`
+1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
+2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 3. To modify local configuration parameters via taos.cfg configuration file, set the `forceReadConfig` parameter to 1 and restart for changes to take effect.
-4. For dynamic modification methods of configuration parameters, please refer to Node Management.
-5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to TDengine Configuration Parameter Scope Comparison.
+4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../taos-sql/node/).
+5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](../../components/config-scope).
 
 ### Connection Related
 
