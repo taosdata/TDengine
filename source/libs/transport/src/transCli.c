@@ -1760,6 +1760,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
 
   if (pThrd->pInst->enableSSL) {
     code = sslInit(pThrd->pInst->pSSLContext, &conn->pTls);
+    TAOS_CHECK_GOTO(code, &lino, _exception1);
 
     conn->pTls->writeCb = cliSendCbSSL;
     conn->pTls->readCb = cliRecvCbSSL;

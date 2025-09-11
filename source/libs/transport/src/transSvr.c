@@ -1488,6 +1488,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
   int32_t    lino;
   int8_t     wqInited = 0;
+  int8_t     queueInited = 0;
   STrans*    pInst = pThrd->pInst;
   SSvrConn*  pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
   if (pConn == NULL) {
@@ -1557,6 +1558,7 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   }
   pConn->pTcp->data = pConn;
   QUEUE_PUSH(&pThrd->conn, &pConn->queue);
+  queueInited = 1;
 
   pConn->pInst = pThrd->pInst;
   pConn->hostThrd = pThrd;
@@ -1587,6 +1589,8 @@ _end:
     taosMemoryFree(pConn->pTcp);
     if (wqInited) destroyWQ(&pConn->wq);
     taosMemoryFree(pConn->buf);
+
+    if (queueInited) QUEUE_REMOVE(&pConn->queue);
 
     if (pConn->pTls) {
       sslDestroy(pConn->pTls);

@@ -460,7 +460,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
-  rpcInit.enableSSL = 1;
+  rpcInit.enableSSL = tsEnableTLS;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
@@ -518,7 +518,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.readTimeout = 0;
   rpcInit.ipv6 = tsEnableIpv6;
 
-  rpcInit.enableSSL = 1;
+  rpcInit.enableSSL = tsEnableTLS;
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
   memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));

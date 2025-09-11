@@ -127,8 +127,10 @@ void* rpcOpen(const SRpcInit* pInit) {
       TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
     }
     tInfo("TLS is enabled for %s", pRpc->label);
+    pRpc->enableSSL = 1;
   } else {
     tInfo("TLS is not enabled for %s", pRpc->label);
+    pRpc->enableSSL = 0;
   }
 
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(&addr, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
