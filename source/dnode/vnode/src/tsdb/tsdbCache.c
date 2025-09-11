@@ -1175,11 +1175,12 @@ void tsdbCacheFreeSLastColItem(void *pItem) {
       taosMemoryFree(pCol->rowKey.pks[i].pData);
     }
   }
-
+#ifndef TSDB_CACHE_ROW_BASED
   if ((IS_VAR_DATA_TYPE(pCol->colVal.value.type) || pCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) &&
       pCol->colVal.value.pData) {
     taosMemoryFree(pCol->colVal.value.pData);
   }
+#endif
 }
 
 static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud) {
@@ -1198,11 +1199,12 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
       taosMemoryFree(pValue->pData);
     }
   }
-
+#ifndef TSDB_CACHE_ROW_BASED
   if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type) ||
       pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL /* && pLastCol->colVal.value.nData > 0*/) {
     taosMemoryFree(pLastCol->colVal.value.pData);
   }
+#endif
 
   taosMemoryFree(value);
 }
@@ -2904,6 +2906,9 @@ static int32_t tsdbRowCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, STs
         tsdbLastRowInitColStatus(&newLastRow, pTSchema);
         taosMemoryFree(pTSchema);
       }
+      if (newLastRow.colStatus) {
+        taosMemoryFree(newLastRow.colStatus);
+      }
 
       code = tsdbRowCachePutToLRU(pTsdb, &key, &newLastRow, 1);
     }
@@ -2941,6 +2946,9 @@ static int32_t tsdbRowCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, STs
           code = tsdbRowCachePutToRocksdb(pTsdb, &key, &lastRowTmp);
           if (code == TSDB_CODE_SUCCESS) {
             code = tsdbRowCachePutToLRU(pTsdb, &key, &lastRowTmp, 0);
+          }
+          if (lastRowTmp.colStatus) {
+            taosMemoryFree(lastRowTmp.colStatus);
           }
         }
         if (pLastRow->pRow) {
