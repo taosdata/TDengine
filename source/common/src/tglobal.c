@@ -1485,6 +1485,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
   tstrncpy(tsTLSCaPath, pItem->str, PATH_MAX);
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableTLS");
+  tsEnableTLS = pItem->bval;
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1963,6 +1966,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
   tstrncpy(tsTLSSvrCertPath, pItem->str, PATH_MAX);
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableTLS");
+  tsEnableTLS = pItem->bval;
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
