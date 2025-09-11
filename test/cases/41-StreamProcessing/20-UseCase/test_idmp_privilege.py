@@ -149,9 +149,7 @@ class Test_IDMP_Meters:
 
         sqls = [
             "create user user1 pass 'taosdata' sysinfo 1 createdb 1",
-            "create user user2 pass 'taosdata' sysinfo 1 createdb 0",
-            "create user user3 pass 'taosdata' sysinfo 0 createdb 1",
-            "create user user4 pass 'taosdata' sysinfo 0 createdb 0"
+            "create user user2 pass 'taosdata' sysinfo 0 createdb 0"
         ]
 
         self.execs(sqls)
@@ -166,15 +164,15 @@ class Test_IDMP_Meters:
             # user1
             #
 
-            # db1 belong to
-            "grant write on db1        to user1",
-            "grant write on db1_out    to user1",
-            # db2 trigger
-            "grant write on db2        to user1",
-            "grant read  on db2.meters to user1",
-            # db3 calc
-            "grant read  on db3        to user1",
-            "grant write on db3.meters to user1",
+            # db1 all
+            "grant all   on db1        to user1",
+            "grant all   on db1_out    to user1",
+            # db2 read
+            "grant read  on db2        to user1",
+            "grant read  on db2_out    to user1",
+            # db3 write
+            "grant write on db3        to user1",
+            "grant write on db3_out    to user1",            
         ]
 
         self.execs(sqls)
@@ -188,19 +186,77 @@ class Test_IDMP_Meters:
         print("connect with root ...")
         tdSql.connect(user="root", password="taosdata")
 
+    def createStream(self, streamName, trigger, into, calc, ok):
+        # select
+        select = "SELECT _twstart AS ts, _twrownum as wrownum, sum(power) as sum_power FROM "
+        if calc is None:
+            select += "%%trows"
+        else:
+            select += f"{calc} WHERE ts >= _twstart AND ts < _twend"
+        # exec
+        sql = f"CREATE STREAM {streamName} INTERVAL(5s) SLIDING(5s) FROM {trigger} PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO {into}  AS {select}"
+        if ok:
+            tdSql.execute(sql)
+            print(f"create stream {streamName} successfully.")
+        else:
+            tdSql.error(sql)
+            print(f"create stream {streamName} expect error .")
+
+    def createStreamOK(self, streamName, trigger, into, calc):
+        self.createStream(streamName, trigger, into, calc, True)
+
+    def createStreamError(self, streamName, trigger, into, calc):
+        self.createStream(streamName, trigger, into, calc, False)
+
     #
     #  connect check user1
     #
     def connectCheckUser1(self):
-        #print("connect with user1 ...")
-        #tdSql.connect(user="user1", password="taosdata")
-        
-        # check privilege
-        sqls = [
-            # user1 belong to db1 ,output db1_out
-            "CREATE STREAM db1.stream1 INTERVAL(5s) SLIDING(5s) FROM db1.meters PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO db1_out.result_stream1  AS SELECT _twstart AS ts, _twrownum as wrownum, sum(power) as sum_power FROM db1.meters WHERE ts >= _twstart AND ts < _twend",            
-        ]
-        self.execs(sqls)
+        print("connect with user1 ...")
+        tdSql.connect(user="user1", password="taosdata")
+
+        #
+        #     -------------- ok --------------
+        #
+
+        #                      write          read           write                    read
+        #                      stream         trigger        into                     calc 
+        # db1
+        self.createStreamOK("db1.stream11", "db1.meters", "db1_out.result_stream11", "db1.meters")
+        self.createStreamOK("db1.stream12", "db1.meters", "db1_out.result_stream12",  None)
+        self.createStreamOK("db1.stream13", "db1.meters", "db1_out.result_stream13", "db2.meters")
+        self.createStreamOK("db1.stream14", "db1.meters", "db3_out.result_stream14", "db1.meters")
+        self.createStreamOK("db1.stream15", "db2.meters", "db1_out.result_stream15", "db1.meters")
+        self.createStreamOK("db1.stream16", "db2.meters", "db3_out.result_stream16", "db2.meters")
+        # db2 nothing can do
+        # db3
+        self.createStreamOK("db3.stream31", "db2.meters", "db3_out.result_stream31", "db2.meters")
+        self.createStreamOK("db3.stream32", "db1.meters", "db3_out.result_stream32",  None)
+        self.createStreamOK("db3.stream33", "db2.meters", "db1_out.result_stream33", "db1.meters")
+        self.createStreamOK("db3.stream34", "db1.meters", "db1_out.result_stream34", "db1.meters")
+        self.createStreamOK("db3.stream35", "db2.meters", "db1_out.result_stream35", "db2.meters")
+        self.createStreamOK("db3.stream36", "db2.meters", "db3_out.result_stream36", "db1.meters")
+
+
+        #
+        #     -------------- error --------------
+        #
+
+        #                          write              read             write                      read
+        #                          stream             trigger          into                       calc 
+        # db1
+        self.createStreamError("db1.stream11_err", "db1.meters", "db1_out.result_stream11_err", "db3.meters")
+        self.createStreamError("db1.stream12_err", "db1.meters", "db2_out.result_stream12_err", "db1.meters")
+        self.createStreamError("db1.stream13_err", "db3.meters", "db1_out.result_stream13_err", "db1.meters")
+        # db2
+        self.createStreamError("db2.stream21_err", "db2.meters", "db2_out.result_stream21_err", "db2.meters")
+        self.createStreamError("db2.stream21_err", "db1.meters", "db2_out.result_stream21_err", "db2.meters")
+        self.createStreamError("db2.stream21_err", "db2.meters", "db3_out.result_stream21_err", "db1.meters")
+        # db3
+        self.createStreamError("db3.stream31_err", "db3.meters", "db3_out.result_stream31_err", "db3.meters")
+        self.createStreamError("db3.stream32_err", "db3.meters", "db3_out.result_stream32_err", "db2.meters")
+        self.createStreamError("db3.stream33_err", "db3.meters", "db2_out.result_stream33_err", "db2.meters")
+        self.createStreamError("db3.stream34_err", "db1.meters", "db3_out.result_stream34_err", "db3.meters")
 
 
     #
@@ -243,7 +299,7 @@ class Test_IDMP_Meters:
     #
     def verify_stream1(self):
         # check
-        result_sql = "select * from db1_out.result_stream1 where tag_tbname in('d0') order by tag_tbname"
+        result_sql = "select * from db1_out.result_stream11 where tag_tbname in('d0') order by tag_tbname"
         data = [
             # ts           cnt  power
             [1752574200000, 5,  50, "d0"]
