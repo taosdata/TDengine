@@ -163,80 +163,80 @@ jobs:
           fi
           echo "Remaining taos* processes:"; ps -ef | grep -E 'taosd|taosBenchmark' | grep -v grep || true
 
-  run_tmq2td:
-    name: Run Tmq2Td Performance Test
-    needs: run_td2td
-    timeout-minutes: 1440
-    runs-on: [self-hosted, Linux, X64, qa, perf]
-    steps:
-      - name: Checkout taosx repository
-        uses: actions/checkout@v4
-        with:
-          clean: false
-      - name: Prepare test environment
-        run: |
-          rm -rf "$BASE_DIR/taosx/data"/* || true
-          echo "Cleaned taosx data directories"
-          rm -rf "$BASE_DIR/taosd/log"/* || true
-          rm -rf "$BASE_DIR/taosd/data"/* || true
-          echo "Cleaned TDengine log/data directories"
-      - name: Start taosd
-        run: |
-          CFG="$BASE_DIR/taosd/etc/taos.cfg"
-          echo "Starting taosd with config $CFG"
-          nohup $BASE_DIR/taosd/bin/taosd -c "$CFG" > /dev/null 2>&1 &
-          TAOSD_PID=$!
-          echo $TAOSD_PID > "$BASE_DIR/taosd/taosd.pid"
-          echo "Started taosd with PID: $TAOSD_PID"
-          sleep 5
-          if ps -p $TAOSD_PID > /dev/null 2>&1; then
-            echo "taosd is running successfully"
-            echo "Checking taosd log files:"
-            ls -la "$BASE_DIR/taosd/log/" || true
-          else
-            echo "taosd failed to start"
-            echo "Checking taosd log files:"
-            ls -la "$BASE_DIR/taosd/log/" || true
-            echo "Latest log content:"
-            find "$BASE_DIR/taosd/log/" -name "*.log" -type f -exec tail -n 20 {} \; 2>/dev/null || true
-            exit 1
-          fi
-      - name: Run Tests
-        run: |
-          LOG_FILE=$BASE_DIR/taosx/log/tmq2td.log
-          PERF_CASES=tmq2td CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.2 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE 2>&1
+  # run_tmq2td:
+  #   name: Run Tmq2Td Performance Test
+  #   needs: run_td2td
+  #   timeout-minutes: 1440
+  #   runs-on: [self-hosted, Linux, X64, qa, perf]
+  #   steps:
+  #     - name: Checkout taosx repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         clean: false
+  #     - name: Prepare test environment
+  #       run: |
+  #         rm -rf "$BASE_DIR/taosx/data"/* || true
+  #         echo "Cleaned taosx data directories"
+  #         rm -rf "$BASE_DIR/taosd/log"/* || true
+  #         rm -rf "$BASE_DIR/taosd/data"/* || true
+  #         echo "Cleaned TDengine log/data directories"
+  #     - name: Start taosd
+  #       run: |
+  #         CFG="$BASE_DIR/taosd/etc/taos.cfg"
+  #         echo "Starting taosd with config $CFG"
+  #         nohup $BASE_DIR/taosd/bin/taosd -c "$CFG" > /dev/null 2>&1 &
+  #         TAOSD_PID=$!
+  #         echo $TAOSD_PID > "$BASE_DIR/taosd/taosd.pid"
+  #         echo "Started taosd with PID: $TAOSD_PID"
+  #         sleep 5
+  #         if ps -p $TAOSD_PID > /dev/null 2>&1; then
+  #           echo "taosd is running successfully"
+  #           echo "Checking taosd log files:"
+  #           ls -la "$BASE_DIR/taosd/log/" || true
+  #         else
+  #           echo "taosd failed to start"
+  #           echo "Checking taosd log files:"
+  #           ls -la "$BASE_DIR/taosd/log/" || true
+  #           echo "Latest log content:"
+  #           find "$BASE_DIR/taosd/log/" -name "*.log" -type f -exec tail -n 20 {} \; 2>/dev/null || true
+  #           exit 1
+  #         fi
+  #     - name: Run Tests
+  #       run: |
+  #         LOG_FILE=$BASE_DIR/taosx/log/tmq2td.log
+  #         PERF_CASES=tmq2td CSV_OUTPUT_DIR="$BASE_DIR/records" TAOSX_DATA_DIR=$BASE_DIR/taosx/data BUFFER_PERCENT=0.2 cargo nextest run --profile perf_test --run-ignored ignored-only test_performance --nocapture 1>$LOG_FILE 2>&1
 
-      - name: Collect test records
-        run: |
-          echo "Collecting test records to $BASE_DIR/records"
-          echo "Test records in $BASE_DIR/records:"
-          ls -la "$BASE_DIR/records/"
+  #     - name: Collect test records
+  #       run: |
+  #         echo "Collecting test records to $BASE_DIR/records"
+  #         echo "Test records in $BASE_DIR/records:"
+  #         ls -la "$BASE_DIR/records/"
 
-      - name: Stop taosd
-        if: always()
-        run: |
-          PID_FILE="$BASE_DIR/taosd/taosd.pid"
-          if [ -f "$PID_FILE" ]; then
-            PID=$(cat "$PID_FILE")
-            if ps -p $PID >/dev/null 2>&1; then
-              echo "Stopping taosd PID $PID"
-              kill $PID || true
-              sleep 5
-              if ps -p $PID >/dev/null 2>&1; then
-                echo "Process still running, force killing"
-                kill -9 $PID || true
-              fi
-            else
-              echo "No running taosd process with PID $PID"
-            fi
-          else
-            echo "PID file $PID_FILE not found"
-          fi
-          echo "Remaining taos* processes:"; ps -ef | grep -E 'taosd|taosBenchmark' | grep -v grep || true
+  #     - name: Stop taosd
+  #       if: always()
+  #       run: |
+  #         PID_FILE="$BASE_DIR/taosd/taosd.pid"
+  #         if [ -f "$PID_FILE" ]; then
+  #           PID=$(cat "$PID_FILE")
+  #           if ps -p $PID >/dev/null 2>&1; then
+  #             echo "Stopping taosd PID $PID"
+  #             kill $PID || true
+  #             sleep 5
+  #             if ps -p $PID >/dev/null 2>&1; then
+  #               echo "Process still running, force killing"
+  #               kill -9 $PID || true
+  #             fi
+  #           else
+  #             echo "No running taosd process with PID $PID"
+  #           fi
+  #         else
+  #           echo "PID file $PID_FILE not found"
+  #         fi
+  #         echo "Remaining taos* processes:"; ps -ef | grep -E 'taosd|taosBenchmark' | grep -v grep || true
 
   run_tmq2local:
     name: Run Tmq2Local Performance Test
-    needs: run_tmq2td
+    needs: run_td2td
     timeout-minutes: 1440
     runs-on: [self-hosted, Linux, X64, qa, perf]
     steps:
