@@ -611,24 +611,14 @@ _exit:
 
 
 static int32_t mndKillSsMigrate(SMnode *pMnode, SRpcMsg *pReq, SSsMigrateObj *pSsMigrate) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-
   int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) {
-      return mndDropSsMigrate(pMnode, pSsMigrate);
-    }
-    if (pVgroup->vgId == vgId) {
-      sdbCancelFetch(pSdb, pIter);
-      break;
-    }
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+  if (pVgroup == NULL) {
+    return mndDropSsMigrate(pMnode, pSsMigrate);
   }
 
   SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-  sdbRelease(pSdb, pVgroup);
+  mndReleaseVgroup(pMnode, pVgroup);
 
   SVnodeKillSsMigrateReq req = {.ssMigrateId = pSsMigrate->id};
   int32_t   reqLen = tSerializeSVnodeKillSsMigrateReq(NULL, 0, &req);
@@ -681,7 +671,7 @@ int32_t mndProcessKillSsMigrateReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to kill ssmigrate %" PRId32 " since %s", killReq.ssMigrateId, terrstr());
+    mError("failed to kill ssmigrate %" PRId32 " since %s", killReq.ssMigrateId, tstrerror(code));
   }
 
   tFreeSKillSsMigrateReq(&killReq);
@@ -692,22 +682,17 @@ _OVER:
 
 
 static void mndSendSsMigrateListFileSetsReq(SMnode* pMnode, SSsMigrateObj* pSsMigrate) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-
   int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) return;
-    if (pVgroup->vgId == vgId) {
-      sdbCancelFetch(pSdb, pIter);
-      break;
-    }
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+  if (pVgroup == NULL) {
+    mError("ssmigrate:%d, vgId:%d, vgroup does not exist in %s", pSsMigrate->id, vgId, __func__);
+    pSsMigrate->vgState = SSMIGRATE_VGSTATE_INIT;
+    pSsMigrate->vgIdx++;
+    return;
   }
 
   SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-  sdbRelease(pSdb, pVgroup);
+  mndReleaseVgroup(pMnode, pVgroup);
 
   SListSsMigrateFileSetsReq req = {.ssMigrateId = pSsMigrate->id};
   int32_t   reqLen = tSerializeSListSsMigrateFileSetsReq(NULL, 0, &req);
@@ -802,22 +787,17 @@ _exit:
 
 
 static void mndSendSsMigrateFileSetReq(SMnode* pMnode, SSsMigrateObj* pSsMigrate) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-
   int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) return;
-    if (pVgroup->vgId == vgId) {
-      sdbCancelFetch(pSdb, pIter);
-      break;
-    }
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+  if (pVgroup == NULL) {
+    mError("ssmigrate:%d, vgId:%d, vgroup does not exist in %s", pSsMigrate->id, vgId, __func__);
+    pSsMigrate->vgState = SSMIGRATE_VGSTATE_INIT;
+    pSsMigrate->vgIdx++;
+    return;
   }
 
   SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-  sdbRelease(pSdb, pVgroup);
+  mndReleaseVgroup(pMnode, pVgroup);
 
   SSsMigrateFileSetReq req = { 0 };
   req.ssMigrateId = pSsMigrate->id;
@@ -911,22 +891,13 @@ static int32_t mndProcessFollowerSsMigrateRsp(SRpcMsg *pReq) {
 
 
 static void mndSendFollowerSsMigrateReq(SMnode* pMnode, SSsMigrateObj *pSsMigrate) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) return;
-
-    if (pVgroup->vgId == pSsMigrate->currFset.vgId) {
-      sdbCancelFetch(pSdb, pIter);
-      break;
-    }
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, pSsMigrate->currFset.vgId);
+  if (pVgroup == NULL) {
+    return;
   }
 
   SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-  sdbRelease(pSdb, pVgroup);
+  mndReleaseVgroup(pMnode, pVgroup);
 
   SSsMigrateProgress req = {
     .ssMigrateId = pSsMigrate->id,
@@ -1015,21 +986,13 @@ _exit:
 // because migration may take a long time, and leader may change during the migration process,
 // while only the initial leader vnode can handle the migration progress query.
 void mndSendQuerySsMigrateProgressReq(SMnode *pMnode, SSsMigrateObj *pSsMigrate) {
-  SSdb *pSdb = pMnode->pSdb;
-  SDnodeObj *pDnode = NULL;
-  void *pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
-    if (pIter == NULL) return;
-    if (pDnode->id == pSsMigrate->currFset.nodeId) {
-      sdbCancelFetch(pSdb, pIter);
-      break;
-    }
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pSsMigrate->currFset.nodeId);
+  if (pDnode == NULL) {
+    return;
   }
 
   SEpSet epSet = mndGetDnodeEpset(pDnode);
-  sdbRelease(pSdb, pDnode);
+  mndReleaseDnode(pMnode, pDnode);
 
   SSsMigrateProgress req = {
     .ssMigrateId = pSsMigrate->id,
