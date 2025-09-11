@@ -2538,6 +2538,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   // amend ekey of interval window trigger and sliding trigger
   for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); ++i) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
+    assert(pParam->wstart > 0);
     if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
       pParam->wend++;
       pParam->wduration++;
@@ -5792,6 +5793,7 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     pHead->range.ekey = TMAX(pHead->range.ekey, pCurWindow->range.ekey);
     pHead->wrownum = pCurWindow->wrownum - bias;
   }
+  assert(param.wstart > 0);
   if (saveWindow) {
     // skip add window for session trigger, since it will be merged after processing all tables
     void *px = taosArrayPush(pContext->pSavedWindows, pCurWindow);
@@ -6313,6 +6315,7 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
         TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += skipped;
       }
       if (nrowsCurWin + skipped == nrowsNextWstart) {
+        ST_TASK_DLOG("lastTs to open window is %" PRId64, lastTs);
         code = stRealtimeGroupOpenWindow(pGroup, lastTs, NULL, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
       }
