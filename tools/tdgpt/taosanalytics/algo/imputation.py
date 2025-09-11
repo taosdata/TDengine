@@ -5,7 +5,7 @@ import time
 
 from matplotlib import pyplot as plt
 
-from taosanalytics.conf import app_logger
+from taosanalytics.conf import app_logger, conf
 from taosanalytics.servicemgmt import loader
 
 
@@ -38,6 +38,9 @@ def do_imputation(input_list, ts_list, algo_name, params):
     return res
 
 def draw_imputation_final_result(data, mask):
+    if not conf.get_draw_result_option():
+        return
+
     plt.clf()
     plt.plot(data, label='target', c='darkblue')
 
