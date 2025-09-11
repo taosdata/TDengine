@@ -931,7 +931,10 @@ static int32_t mndSetScanDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     TAOS_RETURN(code);
   }
 
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) {
+    sdbFreeRaw(pCommitRaw);
+    TAOS_RETURN(code);
+  }
   TAOS_RETURN(code);
 }
 
@@ -1176,7 +1179,11 @@ int32_t mndProcessScanDbReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
-  (void)tNameFromString(&name, scanReq.db, T_NAME_ACCT | T_NAME_DB);
+  code = tNameFromString(&name, scanReq.db, T_NAME_ACCT | T_NAME_DB);
+  if (code != 0) {
+    mError("db:%s, failed to parse db name since %s", scanReq.db, terrstr());
+    goto _OVER;
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

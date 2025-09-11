@@ -172,9 +172,9 @@ _exit:
 
 int32_t tsdbAsyncScan(STsdb *tsdb, const STimeWindow *tw) {
   int32_t code = 0;
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
   code = tsdbAsyncScanImpl(tsdb, tw);
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
 
@@ -183,7 +183,7 @@ void tsdbCancelScanTask(STsdb *tsdb) {
     return;
   }
 
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
 
   atomic_store_32(&tsdb->pScanMonitor->killed, 1);
   int32_t i = 0;
@@ -201,7 +201,7 @@ void tsdbCancelScanTask(STsdb *tsdb) {
     }
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 }
 
 void tsdbScanMonitorGetInfo(STsdb *tsdb, SQueryScanProgressRsp *rsp) {
