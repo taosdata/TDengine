@@ -6315,7 +6315,7 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
         TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += skipped;
       }
       if (nrowsCurWin + skipped == nrowsNextWstart) {
-        ST_TASK_DLOG("lastTs to open window is %" PRId64, lastTs);
+        assert(lastTs > 0);
         code = stRealtimeGroupOpenWindow(pGroup, lastTs, NULL, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
       }
