@@ -205,7 +205,7 @@ void tsdbCancelScanTask(STsdb *tsdb) {
 }
 
 void tsdbScanMonitorGetInfo(STsdb *tsdb, SQueryScanProgressRsp *rsp) {
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
   rsp->scanId = 0;
   rsp->vgId = TD_VID(tsdb->pVnode);
   rsp->numberFileset = tsdb->pScanMonitor->totalScanTasks;
@@ -223,7 +223,7 @@ void tsdbScanMonitorGetInfo(STsdb *tsdb, SQueryScanProgressRsp *rsp) {
   } else {
     rsp->remainingTime = tsdb->pScanMonitor->totalScanSize / (20 * 1024 * 1024);  // suppose 20MB/s
   }
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 }
 
 int32_t tsdbScanMonitorOpen(STsdb *tsdb) {
