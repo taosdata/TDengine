@@ -120,6 +120,8 @@ static bool uidInTableList(SStreamTriggerReaderInfo* sStreamInfo, int64_t suid, 
   } else {
     if (sStreamInfo->tableList == NULL) return false;
 
+    stDebug("uidInTableList, suid:%ld, uid:%ld, streamTblType:%d, streamSuid:%ld, streamUid:%ld", 
+            suid, uid, sStreamInfo->tableType, sStreamInfo->suid, sStreamInfo->uid);
     if (sStreamInfo->tableType == TD_SUPER_TABLE) {
       if (suid != sStreamInfo->suid) return false;
       if (sStreamInfo->pTagCond == NULL) {
@@ -135,7 +137,10 @@ static bool uidInTableList(SStreamTriggerReaderInfo* sStreamInfo, int64_t suid, 
         *id = qStreamGetGroupId(sStreamInfo->tableList, uid);
         if (*id == -1) return false;
       }
+      stDebug("gid:%ld uidInTableList, suid:%ld, uid:%ld, streamTblType:%d, streamSuid:%ld, streamUid:%ld", 
+            *id, suid, uid, sStreamInfo->tableType, sStreamInfo->suid, sStreamInfo->uid);
     } else {
+      *id= uid;
       return uid == sStreamInfo->uid;
     }
   }
@@ -249,7 +254,7 @@ static int32_t buildWalMetaBlock(SSDataBlock* pBlock, int8_t type, int64_t id, b
   STREAM_CHECK_RET_GOTO(addColData(pBlock, index++, &rows));
 
 end:
-  STREAM_PRINT_LOG_END(code, lino)
+  // STREAM_PRINT_LOG_END(code, lino)
   return code;
 }
 
