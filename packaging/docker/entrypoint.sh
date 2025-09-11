@@ -4,8 +4,6 @@
 
 export PATH="/var/lib/taos/taosanode/venv/bin:$PATH"
 export LANG=en_US.UTF-8
-export LC_CTYPE=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
 
 # Define the base path for models
 MODEL_BASE_PATH="/var/lib/taos/taosanode/model"
