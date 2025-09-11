@@ -308,7 +308,7 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, pStbEntry->uid, pReq->ctb.suid,
               version);
     metaFetchEntryFree(&pStbEntry);
-    return TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   // Check tag value

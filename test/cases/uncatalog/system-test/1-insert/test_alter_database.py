@@ -12,7 +12,7 @@ class TestAlterDatabase:
         tdLog.debug("start to execute %s" % __file__)
         #tdSql.init(conn.cursor(), logSql), logSql)
         if platform.system().lower() == 'windows':
-            cls.buffer_boundary = [3, 4097]
+            cls.buffer_boundary = [3, 16384]
         else:
             cls.buffer_boundary = [3, 4097, 8193, 12289, 16384]
         # remove the value > free_memory, 70% is the weight to calculate the max value
