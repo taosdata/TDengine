@@ -39,9 +39,8 @@ typedef struct SStreamTriggerReaderInfo {
   SSDataBlock* tsBlock;
   SExprInfo*   pExprInfo;
   int32_t      numOfExpr;
-  SArray*      uidList;       // for virtual table stream, uid list
-  SArray*      uidListIndex;
-  SHashObj*    uidHash;
+  SSHashObj*   uidHashTrigger;  // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*   uidHashCalc;     // < uid -> SHashObj < slotId -> colId > >
   bool         isVtableStream;  // whether is virtual table stream
   void*        tableList;
   void*        historyTableList;
@@ -83,7 +82,7 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   int8_t      tableType;
   EScanMode   scanMode;
   bool        initReader;  // whether to init the reader
-  SArray*     uidList;
+  SSHashObj*  mapInfo;    // SArray<SetTableMapInfo>
   SStreamTriggerReaderInfo* sStreamReaderInfo;
 } SStreamTriggerReaderTaskInnerOptions;
 
