@@ -2162,7 +2162,7 @@ void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
   }
 }
 
-void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm, SRaftId id) {
+void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm, SRaftId id, char* strFrom) {
   SyncTerm currentTerm = raftStoreGetTerm(pSyncNode);
   if (currentTerm > newTerm) {
     sNTrace(pSyncNode, "step down, ignore, new-term:%" PRId64 ", current-term:%" PRId64, newTerm, currentTerm);
@@ -2176,19 +2176,24 @@ void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm, SRaftId id) {
   if (pSyncNode->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     (void)taosThreadMutexLock(&pSyncNode->arbTokenMutex);
     syncUtilGenerateArbToken(pSyncNode->myNodeInfo.nodeId, pSyncNode->vgId, pSyncNode->arbToken);
-    sInfo("vgId:%d, step down as assigned leader, new arbToken:%s", pSyncNode->vgId, pSyncNode->arbToken);
+    sInfo("vgId:%d, generate arb token, will step down from assigned leader, new arbToken:%s", pSyncNode->vgId,
+          pSyncNode->arbToken);
     (void)taosThreadMutexUnlock(&pSyncNode->arbTokenMutex);
   }
 
   if (currentTerm < newTerm) {
     raftStoreSetTerm(pSyncNode, newTerm);
     char tmpBuf[64];
-    snprintf(tmpBuf, sizeof(tmpBuf), "step down, update term to %" PRId64, newTerm);
+    snprintf(tmpBuf, sizeof(tmpBuf), "step down, update term to %" PRId64 " from %" PRId64 ", since %s", newTerm,
+             currentTerm, strFrom);
     syncNodeBecomeFollower(pSyncNode, id, tmpBuf);
     raftStoreClearVote(pSyncNode);
   } else {
     if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
-      syncNodeBecomeFollower(pSyncNode, id, "step down");
+      char tmpBuf[64];
+      snprintf(tmpBuf, sizeof(tmpBuf), "step down, with same term to %" PRId64 " from %" PRId64 ", since %s", newTerm, 
+               currentTerm, strFrom);
+      syncNodeBecomeFollower(pSyncNode, id, tmpBuf);
     }
   }
 }
@@ -2383,7 +2388,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   }
 
   // trace log
-  sNInfo(pSyncNode, "become leader %s", debugStr);
+  sNInfo(pSyncNode, "node become leader, %s", debugStr);
 }
 
 void syncNodeBecomeAssignedLeader(SSyncNode* pSyncNode) {
@@ -2475,7 +2480,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
     sError("vgId:%d, not granted by majority.", pSyncNode->vgId);
     return;
   }
-  syncNodeBecomeLeader(pSyncNode, "candidate to leader");
+  syncNodeBecomeLeader(pSyncNode, "from candidate to leader");
 
   sNTrace(pSyncNode, "state change syncNodeCandidate2Leader");
 
@@ -3049,7 +3054,7 @@ int32_t syncNodeCheckChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry) {
     if (!incfg) {
       SyncTerm currentTerm = raftStoreGetTerm(ths);
       SRaftId  id = EMPTY_RAFT_ID;
-      syncNodeStepDown(ths, currentTerm, id);
+      syncNodeStepDown(ths, currentTerm, id, "changeConfig");
       return 1;
     }
   }
@@ -3887,7 +3892,7 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
     SRaftId id = EMPTY_RAFT_ID;
-    syncNodeStepDown(ths, pMsg->currentTerm, id);
+    syncNodeStepDown(ths, pMsg->currentTerm, id, "localCmd");
 
   } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT || pMsg->cmd == SYNC_LOCAL_CMD_LEARNER_CMT) {
     if (syncLogBufferIsEmpty(ths->pLogBuf)) {
