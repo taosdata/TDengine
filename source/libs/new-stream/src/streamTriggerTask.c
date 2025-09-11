@@ -2432,7 +2432,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       void                     *px = tSimpleHashGet(pTask->pReaderUidMap, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SArray *pUids = *(SArray **)px;
-      // pReq->uids = pUids;
+      pReq->uids = pUids;
       break;
     }
 

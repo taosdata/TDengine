@@ -261,7 +261,6 @@ int32_t  qStreamRevmoeUidFromTableList(void* pTableListInfo, int64_t uid);
 void     qStreamDestroyTableList(void* pTableListInfo);
 void     qStreamDupTableList(void* pTableListInfo);
 int32_t  qStreamGetTableListGroupNum(const void* pTableList);
-void     qStreamSetTableListGroupNum(const void* pTableList, int32_t groupNum);
 SArray*  qStreamGetTableArrayList(const void* pTableList);
 int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
 int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
