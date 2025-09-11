@@ -13,7 +13,6 @@ use taosx_core::utils::dsn::{option_param, parse_option_param, parse_simple_para
 pub struct TmqConfig {
     pub dsn: Dsn,
     pub with_meta: bool,
-    pub concurrency: usize,
 }
 
 impl TryFrom<&Dsn> for TmqConfig {
@@ -22,10 +21,7 @@ impl TryFrom<&Dsn> for TmqConfig {
     fn try_from(dsn: &Dsn) -> Result<Self, Self::Error> {
         Ok(Self {
             dsn: dsn.clone(),
-            with_meta: parse_simple_params(dsn, "with_meta")?.unwrap_or_default(),
-            concurrency: parse_option_param::<usize>(dsn, "read_concurrency")
-                .context("parse read_concurrency param error")?
-                .unwrap_or_else(default_concurrency),
+            with_meta: parse_simple_params(dsn, "with.meta")?.unwrap_or_default(),
         })
     }
 }

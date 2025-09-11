@@ -1,4 +1,3 @@
-<!-- IDMPDownload.vue -->
 <template>
     <div class="page-wrapper">
         <!-- <PageHeader :title="$t('idmp.title')"></PageHeader> -->
@@ -24,9 +23,9 @@
     </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ElCard, ElButton } from 'element-plus';
-import { getLocalLang, decrypt } from '@/utils';
+import { getLocalLang } from '@/utils';
 
 function goDownload() {
     if (getLocalLang() === 'en') {

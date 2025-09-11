@@ -87,41 +87,18 @@ export default {
       type: 'tabs',
       multiple: false,
       name: 'datasets',
-      valueField: 'dea7d812-3c76-40a5-bb8a-1048945f79cb',
+      valueField: 'only-choose-one$',
       defaultValue: 'single-column',
       children: [
         {
           label: '单列模式',
           name: 'single-column',
           short_description: '单列模式基于点位所属 UOM 建立超级表，每一个点位建立一个子表。',
-          field: 'single-column',
           children: [
             {
               name: 'filter_value',
               display: '数据集过滤',
               placeholder: '通配符*匹配0或者多个字符，通配符?精确匹配一个字符',
-              // "hint": {
-              //   "type": "compose",
-              //   "choices": [
-              //     "point",
-              //     "element",
-              //     "template"
-              //   ]
-              // },
-              // "options": [
-              //   {
-              //     "label": "point",
-              //     "value": "point"
-              //   },
-              //   // {
-              //   //   "value": "element",
-              //   //   "label": "element"
-              //   // },
-              //   {
-              //     "value": "template",
-              //     "label": "template"
-              //   },
-              // ],
               options: {
                 'PI Data Archive Only': [
                   {
@@ -164,41 +141,17 @@ export default {
               accept: '.csv'
             }
           ],
-          defaultValue: ''
         },
         {
           label: '多列模式',
           name: 'multi-column',
           short_description: '多列模式基于 AF Template 建立超级表，每一个 AF element建立一个子表。',
-          field: 'multi-column',
           selectable: false,
           children: [
             {
               name: 'filter_value',
               display: '数据集过滤',
               placeholder: '通配符*匹配0或者多个字符，通配符?精确匹配一个字符',
-              // "hint": {
-              //   "type": "compose",
-              //   "choices": [
-              //     "point",
-              //     "element",
-              //     "template"
-              //   ]
-              // },
-              // "options": [
-              //   {
-              //     "label": "point",
-              //     "value": "point"
-              //   },
-              //   // {
-              //   //   "value": "element",
-              //   //   "label": "element"
-              //   // },
-              //   {
-              //     "value": "template",
-              //     "label": "template"
-              //   },
-              // ],
               options: {
                 'PI Data Archive Only': [
                   {
@@ -241,7 +194,6 @@ export default {
               accept: '.csv'
             }
           ],
-          defaultValue: '',
           disabledDependsOn: ['connection_options/system_configuration'],
           disabledDependsOnValues: {
             system_configuration: ['PI Data Archive Only']

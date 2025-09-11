@@ -10,7 +10,11 @@ retries = { backoff = "exponential", count = 5, delay = "3s", jitter = true }
 [profile.ci]
 fail-fast = false
 
-[profile.ci.junit]  # this can be some other profile, too
+[profile.ci.junit] # this can be some other profile, too
 path = "taosx-unit-tests.xml"
 store-success-output = true
 store-failure-output = true
+
+[profile.perf_test]
+retries = 0
+slow-timeout = { period = "24h" }

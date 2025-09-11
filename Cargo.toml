@@ -209,7 +209,7 @@ archive = { path = "./crates/archive" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "35233d07"
+rev = "0e47990"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
@@ -364,6 +364,7 @@ source-opc.workspace = true
 source-csv.workspace = true
 
 archive = { workspace = true }
+cached = { version = "0.56.0", features = ["async"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.6.0", optional = true }
@@ -386,6 +387,7 @@ assert_cmd.workspace = true
 shlex = "1"
 opendal = { workspace = true, features = ["services-s3"] }
 urlencoding = { workspace = true }
+deadpool = { workspace = true }
 
 [features]
 default = ["rustls", "mimalloc"]

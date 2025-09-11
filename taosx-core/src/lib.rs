@@ -56,7 +56,7 @@ pub struct Transferred {
 }
 
 #[serde_as]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ConnectorLicense {
     pub r#type: Option<String>,
     pub number: i64,
