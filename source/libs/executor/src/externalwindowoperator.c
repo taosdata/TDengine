@@ -1508,17 +1508,17 @@ _exit:
   return code;
 }
 
-static int32_t extWinAggHandleEmptyWins(SOperatorInfo* pOperator, SSDataBlock* pBlock, bool allRemains) {
+static int32_t extWinAggHandleEmptyWins(SOperatorInfo* pOperator, SSDataBlock* pBlock, bool allRemains, SExtWinTimeWindow* pWin) {
   int32_t code = 0, lino = 0;
   SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
-  bool ascScan = pExtW->binfo.inputTsOrder == TSDB_ORDER_ASC;
-  int32_t currIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
   SExprSupp* pSup = &pOperator->exprSupp;
+  int32_t currIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
 
-  if (NULL == pExtW->pEmptyInputBlock) {
+  if (NULL == pExtW->pEmptyInputBlock || (pWin && pWin->tw.skey == pExtW->lastSKey)) {
     goto _exit;
   }
 
+  bool ascScan = pExtW->binfo.inputTsOrder == TSDB_ORDER_ASC;
   int32_t endIdx = allRemains ? (pExtW->pWins->size - 1) : (currIdx - 1);
   SResultRowInfo* pResultRowInfo = &pExtW->binfo.resultRowInfo;
   SSDataBlock* pInput = pExtW->pEmptyInputBlock;
@@ -1575,9 +1575,7 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
       break;
     }
 
-    if (pWin->tw.skey != pExtW->lastSKey) {
-      TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, pInputBlock, false));
-    }
+    TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, pInputBlock, false, pWin));
 
     qDebug("%s ext window [%" PRId64 ", %" PRId64 ") agg start, ascScan:%d, startPos:%d, winRows:%d",
            GET_TASKID(pOperator->pTaskInfo), pWin->tw.skey, pWin->tw.ekey, ascScan, startPos, winRows);        
@@ -1763,7 +1761,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       if (EEXT_MODE_AGG == pExtW->mode) {
-        TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, pBlock, true));
+        TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, pBlock, true, NULL));
       }
       pExtW->blkWinStartIdx = pExtW->pWins->size;
       break;
@@ -1963,6 +1961,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
     code = initExecTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pTaskInfo->window);
     QUERY_CHECK_CODE(code, lino, _error);
+
+    pExtW->lastSKey = INT64_MIN;
   } else {
     size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
     
