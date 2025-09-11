@@ -17,7 +17,6 @@
 #include <stdint.h>
 #include "cmdnodes.h"
 #include "dataSinkInt.h"
-#include "executil.h"
 #include "executorInt.h"
 #include "libs/new-stream/stream.h"
 #include "operator.h"
@@ -2071,8 +2070,4 @@ _exit:
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
   return code;
-}
-
-int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq) {
-  return doDropStreamTable(pMsgCb, pOutput, pReq);
 }
