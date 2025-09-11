@@ -523,3 +523,29 @@ class TestFuncElapsed:
             "select elapsed(ts, 1s) from (select * from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next)) where c_int > 10;"
         ]
         tdSql.errors(other_sql_list)
+
+    def test_ns_precision(self):
+        """test elapsed function with ns precision
+
+        test elapsed function with ns precision
+
+        Since: v3.3.0.0
+
+        Labels: elapsed
+
+        History:
+            - 2024-9-10 Jing Sima Created
+
+        """
+        tdSql.execute("CREATE DATABASE test BUFFER 256 CACHESIZE 1 CACHEMODEL 'none' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 1 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ns' REPLICA 1 WAL_LEVEL 1 VGROUPS 2 SINGLE_STABLE 0 TABLE_PREFIX 0 TABLE_SUFFIX 0 TSDB_PAGESIZE 4 WAL_RETENTION_PERIOD 3600 WAL_RETENTION_SIZE 0 KEEP_TIME_OFFSET 0;")
+        tdSql.execute("use test")
+        tdSql.execute("CREATE TABLE t_test (sdbkey TIMESTAMP, name NCHAR(10), sales INT)")
+        tdSql.execute("insert into t_test values(1790000000000000000, 'name1',1)")
+        tdSql.execute("insert into t_test values(1790000000000000001, 'name2',1)")
+        tdSql.query("select elapsed(sdbkey,1b) from t_test")
+        tdSql.checkData(0, 0, 1)
+        tdSql.execute("insert into t_test values(1790000000000001000, 'name2',1)")
+        tdSql.query("select elapsed(sdbkey,1b) from t_test")
+        tdSql.checkData(0, 0, 1000)
+        tdSql.query("select elapsed(sdbkey,1u) from t_test")
+        tdSql.checkData(0, 0, 1)
