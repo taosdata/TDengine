@@ -45,7 +45,7 @@ int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet) {
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, STREAM_RETURN_ROWS_NUM));
 
 end:
-  STREAM_PRINT_LOG_END(code, lino)
+  // STREAM_PRINT_LOG_END(code, lino)
   if (code != TSDB_CODE_SUCCESS) {
     blockDataDestroy(pBlock);
     pBlock = NULL;

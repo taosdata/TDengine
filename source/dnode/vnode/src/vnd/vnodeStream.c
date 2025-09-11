@@ -263,7 +263,7 @@ static int32_t buildWalMetaBlockNew(SSDataBlock* pBlock, int64_t id, int64_t ske
   STREAM_CHECK_RET_GOTO(addColData(pBlock, index++, &ver));
 
 end:
-  STREAM_PRINT_LOG_END(code, lino)
+  // STREAM_PRINT_LOG_END(code, lino)
   return code;
 }
 
@@ -591,7 +591,7 @@ static int32_t scanSubmitDataForMeta(SStreamTriggerReaderInfo* sStreamInfo, SSDa
     WalMetaResult* pMeta = (WalMetaResult*)px;
     STREAM_CHECK_RET_GOTO(buildWalMetaBlockNew(pBlock, pMeta->id, pMeta->skey, pMeta->ekey, ver));
     pBlock->info.rows++;
-    stDebug("stream reader scan submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
+    stTrace("stream reader scan submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
           ", ver:%"PRId64, pMeta->skey, pMeta->ekey, pMeta->id, ver);
     px = tSimpleHashIterate(gidHash, px, &iter);
   }
@@ -732,7 +732,7 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
 
 end:
   walCloseReader(pWalReader);
-  STREAM_PRINT_LOG_END(code, lino);
+  // STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -836,7 +836,7 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, SStora
 
 end:
   api->metaReaderFn.clearReader(&mr);
-  STREAM_PRINT_LOG_END(code, lino);
+  // STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -1101,7 +1101,7 @@ static int32_t processSubmitTbDataForMetaData(SVnode* pVnode, SDecoder *pCoder, 
 
 end:
   tEndDecode(pCoder);
-  STREAM_PRINT_LOG_END(code, lino);
+  // STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 static int32_t scanSubmitDataForMetaData(SVnode* pVnode, SStreamTriggerReaderInfo* info,
@@ -1143,7 +1143,7 @@ static int32_t scanSubmitDataForMetaData(SVnode* pVnode, SStreamTriggerReaderInf
       WalMetaResult* pMeta = (WalMetaResult*)px;
       STREAM_CHECK_RET_GOTO(buildWalMetaBlockNew(rsp->metaBlock, pMeta->id, pMeta->skey, pMeta->ekey, ver));
       ((SSDataBlock*)rsp->metaBlock)->info.rows++;
-      stDebug("stream reader scan submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
+      stTrace("stream reader scan submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
             ", ver:%"PRId64, pMeta->skey, pMeta->ekey, pMeta->id, ver);
       px = tSimpleHashIterate(gidHash, px, &iter);
     }
@@ -1154,7 +1154,7 @@ end:
   taosMemoryFree(schemas);
   tSimpleHashCleanup(gidHash);
   tDecoderClear(&decoder);
-  STREAM_PRINT_LOG_END(code, lino);
+  // STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -1260,7 +1260,7 @@ static int32_t processSubmitTbDataForMetaDataPre(SDecoder *pCoder, SStreamTrigge
   
 end:
   tEndDecode(pCoder);
-  STREAM_PRINT_LOG_END(code, lino);
+  // STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -1307,7 +1307,7 @@ static int32_t scanSubmitDataForMetaDataPre(SStreamTriggerReaderInfo* info, void
 
 end:
   tDecoderClear(&decoder);
-  STREAM_PRINT_LOG_END(code, lino);
+  // STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -1384,7 +1384,7 @@ static int32_t prepareIndex(SWalReader* pWalReader, SStreamTriggerReaderInfo* sS
       }
     }
 
-    stTrace("stream reader prepare index wal ver:%" PRId64 ", totalRows:%d", *nextVer, *totalRows);
+    stDebug("stream reader prepare index wal ver:%" PRId64 ", totalRows:%d", *nextVer, *totalRows);
     if (*totalRows >= STREAM_RETURN_ROWS_NUM) {
       break;
     }
@@ -1473,7 +1473,7 @@ static int32_t processWalVerMetaDataNew(SVnode* pVnode, SStreamTriggerReaderInfo
 
 end:
   walCloseReader(pWalReader);
-  STREAM_PRINT_LOG_END(code, lino);
+  // STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
