@@ -49,7 +49,6 @@ activate_venv() {
     local venv_path="${MODEL_VENV_MAP[$model]}"
     echo "venv path: ${venv_path}"
     source $venv_path/bin/activate
-    pip3 list
 }
 
 # Function to execute startup script

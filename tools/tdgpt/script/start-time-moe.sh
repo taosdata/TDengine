@@ -5,7 +5,7 @@ if [ -d "/var/lib/taos/taosanode/model/timemoe" ]; then
     echo "Starting timemoe service"
     cd /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice
     source /usr/local/taos/taosanode/venv/bin/activate
-    nohup python3 timemoe-server.py /var/lib/taos/taosanode/model/timemoe Maple728/TimeMoE-200M &
+    nohup python3 timemoe-server.py /var/lib/taos/taosanode/model/timemoe Maple728/TimeMoE-200M False &
     echo "check the pid of the timemoe-server.py to confirm it is running"
     pid=$(pgrep -f "timemoe-server.py")
     echo "PID of the timemoe-server.py is $pid"
