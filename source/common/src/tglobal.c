@@ -754,7 +754,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddString(pCfg, "tlsCliKeyPath", tsTLSCliKeyPath, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
 
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableTLS", tsEnableTLS, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableTLS", tsEnableTLS, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -2757,7 +2757,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"enableMetrics", &tsEnableMetrics},
                                          {"metricsInterval", &tsMetricsInterval},
                                          {"metricsLevel", &tsMetricsLevel},
-                                         {"forceKillTrans", &tsForceKillTrans}};
+                                         {"forceKillTrans", &tsForceKillTrans},
+                                         {"enableTLS", &tsEnableTLS}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
