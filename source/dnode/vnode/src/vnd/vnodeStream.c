@@ -1022,7 +1022,6 @@ static int32_t processSubmitTbDataForMetaData(SVnode* pVnode, SDecoder *pCoder, 
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, end);
     }
-
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
       SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += pRow->len;
@@ -1105,7 +1104,6 @@ end:
   STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
-
 static int32_t scanSubmitDataForMetaData(SVnode* pVnode, SStreamTriggerReaderInfo* info,
   void* data, int32_t len, SSHashObj* ranges, SSTriggerWalNewRsp* rsp, int64_t ver) {
   int32_t  code = 0;
@@ -1432,14 +1430,11 @@ static int32_t processWalVerMetaDataNew(SVnode* pVnode, SStreamTriggerReaderInfo
                                         
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
-
   while(1) {
     *retVer = lastVer;
     resetIndexHash(sStreamInfo->indexHash);
-    ((SSDataBlock*)resultRsp->dataBlock)->info.rows = 0;
-    ((SSDataBlock*)resultRsp->metaBlock)->info.rows = 0;
-    // blockDataEmpty(resultRsp->dataBlock);
-    // blockDataEmpty(resultRsp->metaBlock);
+    blockDataEmpty(resultRsp->dataBlock);
+    blockDataEmpty(resultRsp->metaBlock);
     STREAM_CHECK_RET_GOTO(prepareIndex(pWalReader, sStreamInfo, resultRsp, retVer, totalRows));
     if ((resultRsp->deleteBlock != NULL && ((SSDataBlock*)resultRsp->deleteBlock)->info.rows > 0) || 
         (resultRsp->dropBlock != NULL && ((SSDataBlock*)resultRsp->dropBlock)->info.rows > 0)){
@@ -1500,8 +1495,7 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
 
   buildIndexHash(sStreamInfo->indexHash);
 
-  // blockDataEmpty(pBlock);
-  ((SSDataBlock*)rsp->dataBlock)->info.rows = 0;
+  blockDataEmpty(rsp->dataBlock);
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->dataBlock, *totalRows));
 
   for(int32_t i = 0; i < taosArrayGetSize(versions); i++) {
@@ -2514,7 +2508,7 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     STREAM_CHECK_RET_GOTO(createBlockForWalMetaNew((SSDataBlock**)&sStreamReaderInfo->metaBlock));
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(sStreamReaderInfo->metaBlock, STREAM_RETURN_ROWS_NUM));
   }
-  sStreamReaderInfo->metaBlock->info.rows = 0;
+  blockDataEmpty(sStreamReaderInfo->metaBlock);
   resultRsp.metaBlock = sStreamReaderInfo->metaBlock;
   lastVer = req->walMetaNewReq.lastVer;
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo,
@@ -2547,7 +2541,6 @@ end:
 
   return code;
 }
-
 static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t      code = 0;
   int32_t      lino = 0;
