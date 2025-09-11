@@ -120,8 +120,6 @@ static bool uidInTableList(SStreamTriggerReaderInfo* sStreamInfo, int64_t suid, 
   } else {
     if (sStreamInfo->tableList == NULL) return false;
 
-    stDebug("uidInTableList, suid:%ld, uid:%ld, streamTblType:%d, streamSuid:%ld, streamUid:%ld", 
-            suid, uid, sStreamInfo->tableType, sStreamInfo->suid, sStreamInfo->uid);
     if (sStreamInfo->tableType == TD_SUPER_TABLE) {
       if (suid != sStreamInfo->suid) return false;
       if (sStreamInfo->pTagCond == NULL) {
@@ -137,8 +135,6 @@ static bool uidInTableList(SStreamTriggerReaderInfo* sStreamInfo, int64_t suid, 
         *id = qStreamGetGroupId(sStreamInfo->tableList, uid);
         if (*id == -1) return false;
       }
-      stDebug("gid:%ld uidInTableList, suid:%ld, uid:%ld, streamTblType:%d, streamSuid:%ld, streamUid:%ld", 
-            *id, suid, uid, sStreamInfo->tableType, sStreamInfo->suid, sStreamInfo->uid);
     } else {
       *id= uid;
       return uid == sStreamInfo->uid;
