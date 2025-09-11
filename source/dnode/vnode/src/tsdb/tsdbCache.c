@@ -3249,9 +3249,7 @@ static int32_t tsdbRowCacheUpdateLastCols(STsdb *pTsdb, tb_uid_t suid, tb_uid_t 
     SColVal   colVal = COL_VAL_NULL(pCol->colId, pCol->type);
 
     if (pLastRow->pRow) {
-      // Get the existing value from the current row using tsdbRowGetColVal
-      TSDBROW row = {.type = TSDBROW_ROW_FMT, .pTSRow = pLastRow->pRow};
-      tsdbRowGetColVal(&row, pTSchema, pCol->colId, &colVal);
+      tRowGetLastColVal(pLastRow->pRow, pTSchema, pCol->colId, &colVal);
     }
 
     if (!taosArrayPush(lastColVals, &colVal)) {
