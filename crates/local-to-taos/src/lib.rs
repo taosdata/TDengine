@@ -49,7 +49,7 @@ pub async fn local_to_taos(
         .build()
         .await
         .context("parse local_to_taos config error")?;
-    tracing::debug!("local_to_taos config: {:#?}", config);
+    tracing::info!("local_to_taos config: {:#?}", config);
 
     // 如果配置了 S3 转储，则先从 S3 下载备份文件到本地
     if let Some(s3_config) = &config.s3_config {
@@ -70,6 +70,7 @@ pub async fn local_to_taos(
 
     let (tx, rx) = flume::unbounded();
     let taos_pool = config.connect_taos_pool().await?;
+
     // 创建 RestoreWorker
     let rx = rx.clone();
     let worker = RestoreWorker {
@@ -87,13 +88,14 @@ pub async fn local_to_taos(
         cancel_clone.cancelled().await;
         tracing::warn!("local_to_taos task: {:?} cancelled", task_id);
         stop_flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
-        tracing::debug!("set stop flag true since task cancelled");
+        tracing::info!("set stop flag true since task cancelled");
     });
 
     // 读取备份目录下的文件
     let stream = watcher.into_stream();
     tokio::pin!(stream);
-    tracing::debug!("local_to_taos start read files");
+
+    tracing::info!("local_to_taos start read files");
     while let Some(files) = stream.next().await {
         let mut files_to_send = Vec::with_capacity(files.len());
         for f in files {
@@ -130,12 +132,12 @@ pub async fn local_to_taos(
         if files_to_send.is_empty() {
             if let Some(stop_at) = config.stop_at.as_ref() {
                 if stop_at < &chrono::Utc::now() {
-                    tracing::debug!("local_to_taos has no files to read");
+                    tracing::info!("local_to_taos has no files to read");
                     stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             }
         } else {
-            tracing::debug!("local_to_taos send files: {:?} to worker", files_to_send);
+            tracing::info!("local_to_taos send files: {:?} to worker", files_to_send);
             tx.send(files_to_send).inspect_err(|err| {
                 tracing::error!("failed to send files to worker: {:#}", err);
             })?;
@@ -147,7 +149,7 @@ pub async fn local_to_taos(
 
         // 检查是否需要停止
         if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
-            tracing::debug!("local_to_taos stop reading files");
+            tracing::info!("local_to_taos stopped reading files");
             break;
         }
     }
@@ -169,10 +171,9 @@ struct RestoreWorker {
 impl RestoreWorker {
     /// 从 channel 中获取备份文件的路径，然后恢复到 taos
     async fn run(&self) -> anyhow::Result<()> {
-        tracing::info!("RestoreWorker started");
-        while let Ok(files) = self.rx.recv_async().await {
-            let file_count = files.len();
+        tracing::info!("restore worker started");
 
+        while let Ok(files) = self.rx.recv_async().await {
             // 按照 ts 分组，按照 ts 的先后顺序执行
             let files = files
                 .into_iter()
@@ -199,6 +200,7 @@ impl RestoreWorker {
                     .collect_vec();
 
                 let mut join_set: JoinSet<anyhow::Result<()>> = JoinSet::new();
+
                 // 每个 vgroup 一个 worker
                 for (idx, files) in files_of_vgroup.into_iter().enumerate() {
                     // let taos = self.backup_config.connect_taos().await?;
@@ -211,7 +213,8 @@ impl RestoreWorker {
                     let post_action = self.backup_config.post_action.clone();
                     join_set.spawn(async move {
                         for f in files {
-                            tracing::debug!("worker[{idx}] restore files: {:?}", f);
+                            tracing::debug!("worker[{idx}] restore file: {:?}", f);
+
                             let res = restore(
                                 idx,
                                 f.clone(),
@@ -222,6 +225,7 @@ impl RestoreWorker {
                                 retry_interval,
                             )
                             .await;
+
                             if let Err(err) = res {
                                 tracing::error!("worker[{idx}] restore file error: {:#}", err);
                                 return Err(err);
@@ -233,7 +237,7 @@ impl RestoreWorker {
                                 }
                                 Some(PostAction::Delete) => {
                                     // delete file
-                                    tokio::fs::remove_file(f).await?;
+                                    tokio::fs::remove_file(f.as_path()).await?;
                                 }
                                 Some(PostAction::Move(ref move_to)) => {
                                     // move file, use the specified path
@@ -254,10 +258,16 @@ impl RestoreWorker {
                                         ))?;
                                 }
                             }
+
+                            if let Some(metrics) = &metrics {
+                                metrics.add_processed_files(1);
+                            }
+                            tracing::info!("worker[{idx}] restore file: {:?} done", f);
                         }
                         Ok(())
                     });
                 }
+
                 // 等待所有 worker 完成
                 while let Some(res) = join_set.join_next().await {
                     if let Err(err) = res.map_err(anyhow::Error::from) {
@@ -267,13 +277,8 @@ impl RestoreWorker {
                     }
                 }
             }
-
-            if let Some(metrics) = &self.metrics {
-                metrics.add_processed_files(file_count as u64);
-                tracing::debug!("local_to_taos metrics detail\n{}", metrics);
-            }
         }
-        tracing::info!("RestoreWorker stopped");
+        tracing::info!("restore worker stopped");
         Ok(())
     }
 }

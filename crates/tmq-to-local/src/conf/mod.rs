@@ -137,9 +137,11 @@ impl BackupConfig {
             subject: Some(self.topic.clone()),
             ..self.raw_from.clone()
         };
-        // 设置 group.id 为 topic
-        dsn.params
-            .insert("group.id".to_string(), self.topic.clone());
+        // 如果 dsn 中没有设置 group.id，则使用 topic 作为 group.id
+        if !dsn.params.contains_key("group.id") {
+            dsn.params
+                .insert("group.id".to_string(), self.topic.clone());
+        }
         // 默认从最早的 offset 开始消费
         if self.raw_from.get("auto.offset.reset").is_none() {
             dsn.set("auto.offset.reset", "earliest");
