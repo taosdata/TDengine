@@ -15,6 +15,8 @@ class TestFuncLastAsParam:
         4. Execute 'select last(tbcol) - first(tbcol) from stable_table group by tgcol'.
         5. Verify that the result is the difference between the last and first value, which is not zero.
 
+        Since: 3.3.6.24
+
         Jira: https://jira.taosdata.com:18080/browse/TS-7262
 
         History:
@@ -78,6 +80,8 @@ class TestFuncLastAsParam:
         3. Set 'alter local 'keepColumnName' '1''.
         4. Execute 'select timediff(last(ts), first(ts)) from stable_table group by tgcol'.
         5. Verify that the result is the difference between the last and first timestamp, which is not zero.
+
+        Since: 3.3.6.24
 
         Jira: https://jira.taosdata.com:18080/browse/TS-7262
 
