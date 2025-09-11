@@ -3193,8 +3193,10 @@ static int initStmtDataValue(SSuperTable *stbInfo, SChildTable *childTbl, uint64
             } else {
                 switch (dataType) {
                     case TSDB_DATA_TYPE_INT:
-                    case TSDB_DATA_TYPE_UINT:
                         *((int32_t*)stmtData->data + i) = atoi(tmpStr);
+                        break;
+                    case TSDB_DATA_TYPE_UINT:
+                        *((uint32_t*)stmtData->data + i) = (uint32_t)strtoul(tmpStr, NULL, 10);
                         break;
                     case TSDB_DATA_TYPE_FLOAT:
                         *((float*)stmtData->data +i) = (float)atof(tmpStr);
@@ -3211,14 +3213,14 @@ static int initStmtDataValue(SSuperTable *stbInfo, SChildTable *childTbl, uint64
                         *((int16_t*)stmtData->data + i) = (int16_t)atoi(tmpStr);
                         break;
                     case TSDB_DATA_TYPE_BIGINT:
+                        *((int64_t*)stmtData->data + i) = (int64_t)strtoll(tmpStr, NULL, 10);
+                        break;                    
                     case TSDB_DATA_TYPE_UBIGINT:
-                        *((int64_t*)stmtData->data + i) = (int64_t)atol(tmpStr);
+                    case TSDB_DATA_TYPE_TIMESTAMP:
+                        *((uint64_t*)stmtData->data + i) = (uint64_t)strtoull(tmpStr, NULL, 10);
                         break;
                     case TSDB_DATA_TYPE_BOOL:
                         *((int8_t*)stmtData->data + i) = (int8_t)atoi(tmpStr);
-                        break;
-                    case TSDB_DATA_TYPE_TIMESTAMP:
-                        *((int64_t*)stmtData->data + i) = (int64_t)atol(tmpStr);
                         break;
                     case TSDB_DATA_TYPE_BINARY:
                     case TSDB_DATA_TYPE_NCHAR:
