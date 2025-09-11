@@ -123,6 +123,11 @@ public class BucketThread implements Runnable {
                 if (StringUtils.isEmpty(timeRange) || timeRange.indexOf(",") <= 0) {
                     // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
                     if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.taskEndTime.before(this.now)) {
+                        logger.debug("exit conditions: {} | {} | {} | {} | {} | {} | {}", StatisticCache.createdTaskSet.size(), StatisticCache.totalReadTaskEstimated,
+                                StatisticCache.completedTaskSet.size(), StatisticCache.createdTaskSet.size(),
+                                StatisticCache.totalPush.get(), StatisticCache.totalRead.get(),
+                                BucketDataCache.socketMap.size()
+                        );
                         // 判断是否可以退出进程
                         if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated // 防止启动时直接退出
                                 && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() // 判断读取任务完成

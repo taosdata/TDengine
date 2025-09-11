@@ -1,7 +1,6 @@
 package com.taosdata;
 
 import com.alibaba.fastjson.JSONObject;
-import com.influxdb.client.JSON;
 import com.influxdb.client.domain.HealthCheck;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.StatisticCache;

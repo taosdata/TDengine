@@ -125,7 +125,7 @@ class BucketCacheTest {
     @Test
     void updateQueryLimit() {
         // 获取指定measurement的读取limit，默认1
-        Assertions.assertEquals(1, BucketCache.getQueryLimit("bucket1,measurement1"));
+        Assertions.assertEquals(1000, BucketCache.getQueryLimit("bucket1,measurement1"));
         // 根据子表数量与列数量更新指定measurement的读取limit，高于默认使用默认，100
         BucketCache.updateQueryLimit("bucket1,measurement1", 8, 1000, 100);
         Assertions.assertEquals(100, BucketCache.getQueryLimit("bucket1,measurement1"));
@@ -146,7 +146,7 @@ class BucketCacheTest {
     @Test
     void getQueryLimit() {
         // 获取指定measurement的读取limit，默认1
-        Assertions.assertEquals(1, BucketCache.getQueryLimit("bucket1,measurement2"));
+        Assertions.assertEquals(1000, BucketCache.getQueryLimit("bucket1,measurement2"));
         // 根据子表数量与列数量更新指定measurement的读取limit
         BucketCache.updateQueryLimit("bucket1,measurement2", 15, 1000, 100);
         // 获取指定measurement的读取limit，66

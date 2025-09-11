@@ -75,9 +75,9 @@ public class PushThread implements Runnable {
     private ArrowUtils arrowUtils = null;
 
     /**
-     * 空跑次数，超过预定次数则断开连接
+     * 空跑总时间统计，超过 5 分钟则断开连接
      */
-    private int emptyTimes = 0;
+    private long emptyTimes = 0;
 
     @Override
     public void run() {
@@ -90,15 +90,22 @@ public class PushThread implements Runnable {
                 }
                 logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 读取内存中的数据
+                long _start = System.currentTimeMillis();
                 List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(this.dataSourceKey, this.performanceConfig.getLimitBatch());
                 // 判断是否读到数据
                 if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
                     // 判断空跑次数
-                    if (this.emptyTimes++ >= 30000 && this.arrowUtils != null) {
-                        this.channel.writeAndFlush(this.arrowUtils.closeArrow()).sync();
+                    if (this.emptyTimes >= 300000) {
+                        if (this.arrowUtils != null) {
+                            this.channel.writeAndFlush(this.arrowUtils.closeArrow()).sync();
+                        }
+                        this.channel.close();
+                        logger.info(this.name + "#Thread exit with no any data coming#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+                        break;
                     }
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getPushEmptyInterval(), start, StatusEnums.NORMAL);
+                    this.emptyTimes += System.currentTimeMillis() - _start;
                     continue;
                 } else {
                     this.emptyTimes = 0;
@@ -109,16 +116,15 @@ public class PushThread implements Runnable {
                 push(influxdbBucketDataEntityList);
                 // 线程结束
                 sleep(this.performanceConfig.getThread().getPushInterval(), start, StatusEnums.NORMAL);
-            } catch (InterruptedException e) {
-                exception(start, StatusEnums.EXCEPTION, e);
-                break;
-            } catch (Exception e) {
-                exception(start, StatusEnums.EXCEPTION, e);
+            } catch (Throwable e) {
+                exit();
+                this.logger.error(this.name + "#Push Thread meet error#err msg: " + e.getMessage() + " Throwable:" + e);
                 try {
-                    Thread.sleep(1000L);
-                } catch (InterruptedException e1) {
-                    this.logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
+                    this.channel.close();
+                } catch (Throwable e2) {
+                    this.logger.warn(this.name + "#try close channel, could ignore#err msg: " + e2.getMessage() + " Throwable:" + e2);
                 }
+                break;
             }
         }
         exit();

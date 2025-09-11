@@ -679,9 +679,14 @@ public class InfluxdbServiceImpl implements InfluxdbService {
      * @return
      * @throws ArtificialException
      */
-    public List<InfluxdbBucketDataEntity> selectBucketDataV1(String bucket, String measurement, String tagCondition, String startTime, String stopTime, long batch, long offset) throws ArtificialException {
+    public List<InfluxdbBucketDataEntity> selectBucketDataV1(String bucket, String measurement, String tagCondition, String startTime, String stopTime, long batch, long offset, long last_time) throws ArtificialException {
 //        String sql = "select * from \"" + measurement + "\" where time >= '" + startTime + "' and time <= '" + stopTime + "' limit " + batch + " offset " + offset;
-        String sql = "select * from \"" + measurement + "\" where time >= '" + startTime + "' and time <= '" + stopTime + "' and " + tagCondition + " limit " + batch + " offset " + offset;
+        String sql;
+        if (last_time != -1) {
+            sql = "select * from \"" + measurement + "\" where time > " + last_time + " and time <= '" + stopTime + "' and " + tagCondition + " limit " + batch;
+        } else {
+            sql = "select * from \"" + measurement + "\" where time >= '" + startTime + "' and time <= '" + stopTime + "' and " + tagCondition + " limit " + batch + " offset " + offset;
+        }
         return selectBucketDataV1(bucket, measurement, sql);
     }
 
@@ -704,8 +709,8 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
             // 根据bucket与measurement获取内存中的表结构
             InfluxdbMeasurementEntity influxdbMeasurementEntity = BucketCache.measurementMap.get(BucketCache.generateBucketDataThreadKey(bucket, measurement));
-
             logger.info("influxdb 1.x send query sql: {}", sql);
+            logger.debug("measurement entity field size: {}, tag size: {}", influxdbMeasurementEntity.getFieldMap().size(), influxdbMeasurementEntity.getTagSet().size());
             long sTime = System.currentTimeMillis();
             // 执行查询
             QueryResult queryResult = influxDB.query(new Query(sql, bucket));
@@ -730,6 +735,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     // 获取字段与对应的值
                     List<String> columns = series.getColumns() != null ? series.getColumns() : new ArrayList<>();
                     List<List<Object>> values = series.getValues() != null ? series.getValues() : new ArrayList<>();
+                    logger.debug("columns size: {}, first row size: {}", columns.size(), values.isEmpty() ? -1 : values.get(0).size());
                     // 遍历并按照v2.7格式封装
                     for (List<Object> record : values) {
                         // 结果空则跳过

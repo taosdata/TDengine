@@ -30,7 +30,7 @@ public class ThreadConfig {
      * PushThread线程
      */
     private long pushInterval = 0;
-    private long pushEmptyInterval = 10;
+    private long pushEmptyInterval = 20;
 
     /**
      * BucketThread线程

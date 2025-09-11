@@ -190,6 +190,6 @@ public class BucketCache {
      * @return
      */
     public static long getQueryLimit(String key) {
-        return measurementQueryLimitMap.getOrDefault(key, 1L);
+        return measurementQueryLimitMap.getOrDefault(key, 1000L);
     }
 }
