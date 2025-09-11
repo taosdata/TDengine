@@ -16,7 +16,6 @@
 #ifndef TDENGINE_STREAMMSG_H
 #define TDENGINE_STREAMMSG_H
 
-#include "tarray.h"
 #include "tmsg.h"
 
 #ifdef __cplusplus
@@ -725,6 +724,10 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
   STRIGGER_PULL_TSDB_DATA, //10
   STRIGGER_PULL_TSDB_DATA_NEXT,
+  STRIGGER_PULL_WAL_META,
+  STRIGGER_PULL_WAL_TS_DATA,
+  STRIGGER_PULL_WAL_TRIGGER_DATA,
+  STRIGGER_PULL_WAL_CALC_DATA,
   STRIGGER_PULL_WAL_DATA,
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
@@ -745,16 +748,9 @@ typedef struct SSTriggerPullRequest {
   int64_t           triggerTaskId;  // does not serialize
 } SSTriggerPullRequest;
 
-typedef struct SetTableMapInfo {
-  int64_t              suid;
-  int64_t              uid;
-  SArray*              colMaps;  // SArray<colId,index>, both are int16_t
-} SetTableMapInfo;
-
 typedef struct SSTriggerSetTableRequest {
   SSTriggerPullRequest base;
-  SSHashObj*           uidInfoTrigger;    // < uid->SHashObj<slotId->colId> >
-  SSHashObj*           uidInfoCalc;    // < uid->SHashObj<slotId->colId> >
+  SArray*              uids;  // SArray<int64_t,int64_t>, suid,uid of the table to set
 } SSTriggerSetTableRequest;
 
 typedef struct SSTriggerLastTsRequest {
@@ -813,6 +809,21 @@ typedef struct SSTriggerTsdbDataRequest {
   int64_t              ver;
 } SSTriggerTsdbDataRequest;
 
+typedef struct SSTriggerWalMetaRequest {
+  SSTriggerPullRequest base;
+  int64_t              lastVer;
+  int64_t              ctime;
+} SSTriggerWalMetaRequest;
+
+typedef struct SSTriggerWalDataRequest {
+  SSTriggerPullRequest base;
+  int64_t              uid;
+  int64_t              ver;
+  int64_t              skey;
+  int64_t              ekey;
+  SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
+} SSTriggerWalDataRequest;
+
 typedef struct SSTriggerWalMetaNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
@@ -825,7 +836,6 @@ typedef struct SSTriggerWalNewRsp {
   void*                deleteBlock;
   void*                dropBlock;
   int64_t              ver;
-  bool                 isCalc;
 } SSTriggerWalNewRsp;
 
 typedef struct SSTriggerWalDataNewRequest {
@@ -888,6 +898,8 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbTriggerDataRequest     tsdbTriggerDataReq;
   SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
   SSTriggerTsdbDataRequest            tsdbDataReq;
+  SSTriggerWalMetaRequest             walMetaReq;
+  SSTriggerWalDataRequest             walDataReq;
   SSTriggerWalMetaNewRequest          walMetaNewReq;
   SSTriggerWalDataNewRequest          walDataNewReq;
   SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
@@ -954,20 +966,6 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
 void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
-
-typedef struct SSTriggerDropRequest {
-  int64_t streamId;
-  int64_t runnerTaskId;
-  int64_t sessionId;
-  int64_t triggerTaskId;  // does not serialize
-
-  int64_t gid;
-  SArray* groupColVals;  // SArray<SStreamGroupValue>
-} SSTriggerDropRequest;
-
-int32_t tSerializeSTriggerDropTableRequest(void* buf, int32_t bufLen, const SSTriggerDropRequest* pReq);
-int32_t tDeserializeSTriggerDropTableRequest(void* buf, int32_t bufLen, SSTriggerDropRequest* pReq);
-void    tDestroySSTriggerDropRequest(SSTriggerDropRequest* pReq);
 
 typedef enum ESTriggerCtrlType {
   STRIGGER_CTRL_START = 0,

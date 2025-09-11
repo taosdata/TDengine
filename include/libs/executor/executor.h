@@ -261,7 +261,6 @@ int32_t  qStreamRevmoeUidFromTableList(void* pTableListInfo, int64_t uid);
 void     qStreamDestroyTableList(void* pTableListInfo);
 void     qStreamDupTableList(void* pTableListInfo);
 int32_t  qStreamGetTableListGroupNum(const void* pTableList);
-void     qStreamSetTableListGroupNum(const void* pTableList, int32_t groupNum);
 SArray*  qStreamGetTableArrayList(const void* pTableList);
 int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
 int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
@@ -300,8 +299,6 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams);
 int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,  const SStreamRuntimeFuncInfo* pExtraParams);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
-
-int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 
 #ifdef __cplusplus
 }
