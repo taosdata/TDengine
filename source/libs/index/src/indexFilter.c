@@ -429,7 +429,7 @@ _return:
   SIF_RET(code);
 }
 static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *output) {
-  indexError("index-filter not support buildin function");
+  indexDebug("index-filter not support buildin function");
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 

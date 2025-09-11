@@ -2101,7 +2101,7 @@ _end:
   releaseStreamInsertTableInfo(ppTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
     stError(
-        "buildStreamSubmitReqFromBlock, code:%d, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s autoCreate:%d",
+        "buildStreamSubmitReqFromBlock, code:0x%0x, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s autoCreate:%d",
         code, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable);
   }
   return code;

@@ -290,6 +290,7 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
   }
 
   pRead->curVersion++;
+  wDebug("vgId:%d, wal skip fetch body, curVersion:%"PRId64, pRead->pWal->cfg.vgId, pRead->curVersion);
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -352,7 +353,7 @@ int32_t walFetchBody(SWalReader *pRead) {
   // }
 
   pRead->curVersion++;
-
+  wDebug("vgId:%d, wal fetch body success:%" PRId64 ", curVersion:%"PRId64" reader:0x%" PRIx64, vgId, ver, pRead->curVersion, id);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 

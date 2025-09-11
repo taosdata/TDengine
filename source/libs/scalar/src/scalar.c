@@ -635,6 +635,19 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
     case FUNCTION_TYPE_TGRPID:
       pData = &pInfo->groupId;
       break;
+    case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
+      // find tbname from stream part col vals
+      char buf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pStreamPartColVals); ++i) {
+        SStreamGroupValue *pValue = taosArrayGet(pInfo->pStreamPartColVals, i);
+        if (pValue != NULL && pValue->isTbname) {
+          *(VarDataLenT *)(buf) = pValue->data.nData;
+          (void)memcpy(((char *)(buf) + sizeof(VarDataLenT)), pValue->data.pData, pValue->data.nData);
+          break;
+        }
+      }
+      return colDataSetNItems(pResColData, offset, (const char *)buf, rows, 1, false);
+    }
     default:
       uError("invalid placeholder function type: %d in ext win range expr", t);
       return TSDB_CODE_INTERNAL_ERROR;

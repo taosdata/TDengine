@@ -130,6 +130,7 @@ typedef struct SSTriggerRealtimeContext {
   SSHashObj *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
   int32_t    curReaderIdx;
   bool       getWalMetaThisRound;
+  bool       continueToFetch;
 
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;
@@ -269,6 +270,7 @@ typedef struct SStreamTriggerTask {
     struct {  // for state window
       int64_t stateSlotId;
       int64_t stateTrueFor;
+      SNode  *pStateExpr;
     };
     struct {  // for event window
       SNode     *pStartCond;
@@ -325,8 +327,9 @@ typedef struct SStreamTriggerTask {
 
   // calc request pool
   SRWLatch   calcPoolLock;
-  SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
-  SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
+  SArray    *pCalcNodes;       // SArray<SSTriggerCalcNode>
+  SSHashObj *pGroupRunning;    // SSHashObj<gid, bool[]>
+  SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
   SRWLatch recalcRequestLock;
   SList   *pRecalcRequests;  // SList<SSTriggerRecalcRequest>
