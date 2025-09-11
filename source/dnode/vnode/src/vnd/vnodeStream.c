@@ -267,6 +267,18 @@ end:
   return code;
 }
 
+static int32_t buildDropTableBlock(SSDataBlock* pBlock, int64_t id, int64_t ver) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t index = 0;
+  STREAM_CHECK_RET_GOTO(addColData(pBlock, index++, &id));
+  STREAM_CHECK_RET_GOTO(addColData(pBlock, index++, &ver));
+
+end:
+  STREAM_PRINT_LOG_END(code, lino)
+  return code;
+}
+
 static void buildTSchema(STSchema* pTSchema, int32_t ver, col_id_t colId, int8_t type, int32_t bytes) {
   pTSchema->numOfCols = 1;
   pTSchema->version = ver;
@@ -325,7 +337,7 @@ static int32_t scanDropTableNew(SStreamTriggerReaderInfo* sStreamInfo, SSDataBlo
     }
 
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, pBlock->info.rows + 1));
-    STREAM_CHECK_RET_GOTO(buildWalMetaBlockNew(pBlock, id, 0, 0, ver));
+    STREAM_CHECK_RET_GOTO(buildDropTableBlock(pBlock, id, ver));
     pBlock->info.rows++;
     stInfo("stream reader scan drop :uid %" PRId64 ", id %" PRIu64, pDropTbReq->uid, id);
   }
@@ -644,6 +656,25 @@ end:
   return code;
 }
 
+static int32_t createBlockForDropTable(SSDataBlock** pBlock) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SArray* schemas = NULL;
+
+  schemas = taosArrayInit(8, sizeof(SSchema));
+  STREAM_CHECK_NULL_GOTO(schemas, terrno);
+
+  int32_t index = 0;
+  STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))  // gid non vtable/uid vtable
+  STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_BIGINT, LONG_BYTES, index++))  // ver
+
+  STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, pBlock));
+
+end:
+  taosArrayDestroy(schemas);
+  return code;
+}
+
 static int32_t processMeta(int16_t msgType, SStreamTriggerReaderInfo* sStreamInfo, void *data, int32_t len, SSTriggerWalNewRsp* rsp, int32_t ver) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -657,7 +688,7 @@ static int32_t processMeta(int16_t msgType, SStreamTriggerReaderInfo* sStreamInf
     STREAM_CHECK_RET_GOTO(scanDeleteDataNew(sStreamInfo, rsp->deleteBlock, data, len, ver));
   } else if (msgType == TDMT_VND_DROP_TABLE && sStreamInfo->deleteOutTbl != 0) {
     if (rsp->dropBlock == NULL) {
-      STREAM_CHECK_RET_GOTO(createBlockForWalMetaNew((SSDataBlock**)&rsp->dropBlock));
+      STREAM_CHECK_RET_GOTO(createBlockForDropTable((SSDataBlock**)&rsp->dropBlock));
     }
     STREAM_CHECK_RET_GOTO(scanDropTableNew(sStreamInfo, rsp->dropBlock, data, len, ver));
   // } else if (msgType == TDMT_VND_DROP_STB) {
