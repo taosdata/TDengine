@@ -5,6 +5,7 @@ title: TDengine TSDB Flink Connector
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import FlinkCommonInfo from './flink/_flink-common-info.mdx'
 
 Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批一体化处理框架，可用于流处理、批处理、复杂事件处理、实时数据仓库构建及为机器学习提供实时数据支持等诸多大数据处理场景。与此同时，Flink 拥有丰富的连接器与各类工具，可对接众多不同类型的数据源实现数据的读取与写入。在数据处理的过程中，Flink 还提供了一系列可靠的容错机制，有力保障任务即便遭遇意外状况，依然能稳定、持续运行。
 
@@ -22,99 +23,7 @@ Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批�
 
 Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 
-## 版本历史
-
-| Flink Connector 版本 |                   主要变化         |   TDengine TSDB 版本   |
-| ------------------| ------------------------------------ | ---------------- |
-|        2.1.3      | 增加数据转换异常信息输出 | - |
-|        2.1.2      | 写入字段增加反引号过滤 | - |
-|        2.1.1      | 修复 Stmt 相同表的数据绑定失败问题 | - |
-|        2.1.0      | 修复不同数据源 varchar 类型写入问题 | - |
-|        2.0.2      | Table Sink 支持 RowKind.UPDATE_BEFORE、RowKind.UPDATE_AFTER 和 RowKind.DELETE 类型 | - |
-|        2.0.1      | Sink 支持对所有继承自 RowData 并已实现的类型进行数据写入 | - |
-|        2.0.0      | 1. Sink 支持自定义数据结构序列化，写入 TDengine TSDB <br/> 2. 支持 Table SQL 方式写入 TDengine TSDB 数据库 | 3.3.5.1 及以上版本 |
-|        1.0.0      | 支持 Sink 功能，将来着其他数据源的数据写入到 TDengine TSDB| 3.3.2.0 及以上版本|
-
-## 异常和错误码
-
-在任务执行失败后，查看 Flink 任务执行日志确认失败原因
-
-具体的错误码请参考：
-
-| Error Code       | Description                                              | Suggested Actions    |
-| ---------------- |-------------------------------------------------------   | -------------------- |
-| 0xa000     |connection param error                                          |连接器参数错误。
-| 0xa010     |database name configuration error                               |数据库名配置错误。|
-| 0xa011     |table name configuration error                                  |表名配置错误。|
-| 0xa013     |value.deserializer parameter not set                            |未设置序列化方式。|
-| 0xa014     |list of column names for target table not set                   |未设置目标表的列名列表。|
-| 0x2301     |connection already closed                                       |连接已经关闭，检查连接情况，或重新创建连接去执行相关指令。|
-| 0x2302     |this operation is NOT supported currently!                      |当前使用接口不支持，可以更换其他连接方式。|
-| 0x2303     |invalid variables                                               |参数不合法，请检查相应接口规范，调整参数类型及大小。|
-| 0x2304     |statement is closed                                             |statement 已经关闭，请检查 statement 是否关闭后再次使用，或是连接是否正常。|
-| 0x2305     |resultSet is closed                                             |resultSet 结果集已经释放，请检查 resultSet 是否释放后再次使用。|
-| 0x230d     |parameter index out of range                                    |参数越界，请检查参数的合理范围。|
-| 0x230e     |connection already closed                                       |连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。|
-| 0x230f     |unknown sql type in TDengine                                    |请检查 TDengine TSDB 支持的 Data Type 类型。|
-| 0x2315     |unknown taos type in TDengine                                   |在 TDengine TSDB 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine TSDB 数据类型。|
-| 0x2319     |user is required                                                |创建连接时缺少用户名信息。|
-| 0x231a     |password is required                                            |创建连接时缺少密码信息。|
-| 0x231d     |can't create connection with server within                      |通过增加参数 httpConnectTimeout 增加连接耗时，或是请检查与 taosAdapter 之间的连接情况。|
-| 0x231e     |failed to complete the task within the specified time           |通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况。|
-| 0x2352     |Unsupported encoding                                            |本地连接下指定了不支持的字符编码集。|
-| 0x2353     |internal error of database, please see taoslog for more details |本地连接执行 prepareStatement 时出现错误，请检查 taos log 进行问题定位。|
-| 0x2354     |connection is NULL                                              |本地连接执行命令时，Connection 已经关闭。请检查与 TDengine TSDB 的连接情况。|
-| 0x2355     |result set is NULL                                              |本地连接获取结果集，结果集异常，请检查连接情况，并重试。|
-| 0x2356     |invalid num of fields                                           |本地连接获取结果集的 meta 信息不匹配。|
-
-## 数据类型映射
-
-TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Flink RowData Type 对应类型转换如下：
-
-| TDengine TSDB DataType | Flink RowDataType |
-| ----------------- | ------------------ |
-| TIMESTAMP         | TimestampData |
-| INT               | Integer       |
-| BIGINT            | Long          |
-| FLOAT             | Float         |
-| DOUBLE            | Double        |
-| SMALLINT          | Short         |
-| TINYINT           | Byte          |
-| BOOL              | Boolean       |
-| VARCHAR           | StringData    |
-| BINARY            | StringData    |
-| NCHAR             | StringData    |
-| JSON              | StringData    |
-| VARBINARY         | byte[]        |
-| GEOMETRY          | byte[]        |
-
-## 使用说明
-
-### Flink 语义选择说明
-
-采用 At-Least-Once（至少一次）语义原因：
-
-- TDengine TSDB 目前不支持事务，不能进行频繁的检查点操作和复杂的事务协调。
-- 由于 TDengine TSDB 采用时间戳作为主键，重复数据下游算子可以进行过滤操作，避免重复计算。
-- 采用 At-Least-Once（至少一次）确保达到较高的数据处理的性能和较低的数据延时，设置方式如下：
-
-使用方式：
-
-```java
-StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-env.enableCheckpointing(5000);
-env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
-```
-
-如果使用 Maven 管理项目，只需在 pom.xml 中加入以下依赖。
-
-```xml
-<dependency>
-    <groupId>com.taosdata.flink</groupId>
-    <artifactId>flink-connector-tdengine</artifactId>
-    <version>2.1.3</version>
-</dependency>
-```
+<FlinkCommonInfo />
 
 ### 连接参数
 
@@ -166,7 +75,7 @@ Properties 中配置参数如下：
 <details>
 <summary>RowData Into Super Table</summary>
 ```java
-{{#include docs/examples/flink/Main.java:RowDataToSuperTable}}
+{{#include docs/examples/flink/sink/Main.java:RowDataToSuperTable}}
 ```
 </details>
 
@@ -177,7 +86,7 @@ Properties 中配置参数如下：
 <details>
 <summary>RowData Into Normal Table</summary>
 ```java
-{{#include docs/examples/flink/Main.java:RowDataToNormalTable}}
+{{#include docs/examples/flink/sink/Main.java:RowDataToNormalTable}}
 ```
 </details>
 
@@ -188,7 +97,7 @@ Properties 中配置参数如下：
 <details>
 <summary>CustomType Into Super Table</summary>
 ```java
-{{#include docs/examples/flink/Main.java:CustomTypeToNormalTable}}
+{{#include docs/examples/flink/sink/Main.java:CustomTypeToNormalTable}}
 ```
 </details>
 
@@ -222,7 +131,7 @@ Properties 中配置参数如下：
 <details>
 <summary>Table SQL Into Super Table </summary>
 ```java
-{{#include docs/examples/flink/Main.java:TableSqlToSink}}
+{{#include docs/examples/flink/sink/Main.java:TableSqlToSink}}
 ```
 </details>
 
@@ -233,7 +142,7 @@ Properties 中配置参数如下：
 <details>
 <summary>Table SQL Into Normal Table </summary>
 ```java
-{{#include docs/examples/flink/Main.java:NormalTableSqlToSink}}
+{{#include docs/examples/flink/sink/Main.java:NormalTableSqlToSink}}
 ```
 </details>
 
@@ -244,6 +153,6 @@ Properties 中配置参数如下：
 <details>
 <summary>Table Row To Sink </summary>
 ```java
-{{#include docs/examples/flink/Main.java:TableRowToSink}}
+{{#include docs/examples/flink/sink/Main.java:TableRowToSink}}
 ```
 </details>

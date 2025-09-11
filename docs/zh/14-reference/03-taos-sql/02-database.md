@@ -351,7 +351,7 @@ SHOW db_name.ALIVE;
 - 1：完全可用；
 - 2：部分可用（即数据库包含的 VNODE 部分节点可用，部分节点不可用）。
 
-### 查看 DB 的磁盘空间占用
+### 查看数据库的磁盘空间占用
 
 ```sql
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
@@ -363,6 +363,6 @@ select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
 SHOW db_name.disk_info;
 ```
 
-查看数据库 db_name 的数据压缩压缩率和数据在磁盘上所占用的大小。
+查看数据库 db_name 的数据压缩率和数据在磁盘上所占用的大小。
 
 该命令本质上等同于： `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname";`。
