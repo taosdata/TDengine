@@ -40,6 +40,9 @@ database_option: {
   | COMPACT_INTERVAL value
   | COMPACT_TIME_RANGE value
   | COMPACT_TIME_OFFSET value
+  | SS_KEEPLOCAL value
+  | SS_CHUNKPAGES value
+  | SS_COMPACT value
 }
 ```
 
@@ -205,6 +208,21 @@ WAL 级别，默认为 1。
 自动 compact 任务触发的 compact 时间相对本地时间的偏移量（**仅企业版支持**）。取值范围：[0, 23]，单位：h（小时），默认值为 0。以 UTC 0 时区为例：
 - 如果 COMPACT_INTERVAL 为 1d，当 COMPACT_TIME_OFFSET 为 0 时，在每天 0 点下发自动 compact；
 - 如果 COMPACT_TIME_OFFSET 为 2，在每天 2 点下发自动 compact。
+
+#### SS_KEEPLOCAL
+
+使用共享存储时，数据再本地保留的时长，即数据文件在本地磁盘保留多长事件后可以上传到共享存储（**仅企业版支持**）。取值范围为 1 天 - 36500 天，且必须大于或等于 `DURATION` 参数的 3 倍。默认为 365 天。
+
+#### SS_CHUNKPAGES
+
+使用共享存储时，上传对象大小的阈值（**仅企业版支持**），小于此选项的数据文件不会上传，单位是 TSDB 的页（默认每页 4K 字节）。
+- 取值范围：[131072, 1048576]，默认值为 131072。
+- 只能在创建数据库时指定，创建后不可修改。
+
+#### SS_COMPACT
+
+首次上传共享存储前，是否对文件组进行 Compact（**仅企业版支持**）。 0 表示首次迁移前不进行 Compact，1 表示首次迁移前进行 Compact。默认值是 1。
+
 
 ### 创建示例
 
