@@ -161,7 +161,7 @@ mqtt:
   uri: tcp://localhost:1883
   user: root
   password: taosdata
-  topic: factory/{table}/{state}
+  topic: factory/{table}/{location}
   qos: 0
 
 schema:
@@ -187,12 +187,15 @@ schema:
       type: float
       min: 0
       max: 360
-    - name: state
+    - name: location
       type: varchar(20)
       values:
-        - "normal"
-        - "warning"
-        - "critical"
+        - Chicago
+        - Houston
+        - Phoenix
+        - Philadelphia
+        - Dallas
+        - Austin
   generation:
     interlace: 1
     concurrency: 1

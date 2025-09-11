@@ -130,8 +130,8 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
     - prefix (string): Table name prefix, default: "d".
     - count (int): Number of tables to create, default: 10000.
     - from (int): Starting index for table names (inclusive), default: 0.
-  - tags (list): Pattern definition for the table's tag columns. The default configuration is: `groupid` INT, `location` VARCHAR(24).
-  - columns (list): Pattern definition for the table's normal columns. The default configuration is: `ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT.
+  - tags (list): Pattern definition for the table's tag columns. The default configuration is: groupid INT, location VARCHAR(24).
+  - columns (list): Pattern definition for the table's normal columns. The default configuration is: ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT.
   - generation: Data generation behavior configuration.
     - interlace (int): Number of rows for interlaced data generation, default: 0 (disabled).
     - concurrency (int): Number of threads for data generation, default: same as write threads.
@@ -353,21 +353,21 @@ d1,1700000010001,4.98,220.9,147.9
 
 ### Generator-Based Data Generation and Publishing to MQTT Broker Example
 
-This example demonstrates how to use taosgen to simulate 10,000 smart meters, each collecting current, voltage, phase, and state. Each meter generates a record every 5 minutes, with current data generated randomly, voltage simulated using a sine wave, and the generated data published via MQTT.
+This example demonstrates how to use taosgen to simulate 10,000 smart meters, each collecting current, voltage, phase, and location. Each meter generates a record every 5 minutes, with current data generated randomly, voltage simulated using a sine wave, and the generated data published via MQTT.
 
 Configuration details:
 - MQTT configuration
   - Connection info: URI for MQTT Broker.
-  - Topic configuration: Uses dynamic topic factory/`{table}`/`{state}`, where:
+  - Topic configuration: Uses dynamic topic factory/`{table}`/`{location}`, where:
     - `{table}` placeholder is replaced with the generated child table name.
-    - `{state}` placeholder is replaced with the generated state column value, enabling publishing to different topics by device state.
+    - `{location}` placeholder is replaced with the generated location column value, enabling publishing to different topics by device location.
   - qos: Quality of Service level set to 1 (at least once delivery).
 - schema configuration
   - Name: Specifies the schema name.
   - Table names: Rule for generating 10,000 table names, d0 to d9999. Tables are logical concepts for organizing data.
-  - Table structure: 4 normal columns (current, voltage, phase, device state).
+  - Table structure: 4 normal columns (current, voltage, phase, device location).
     - Timestamp: Generation strategy starts from 1700000000000 (2023-11-14 22:13:20 UTC), increments by 5 minutes.
-    - Time-series data: current, phase, and state use random values; voltage uses sine wave simulation.
+    - Time-series data: current, phase, and location use random values; voltage uses sine wave simulation.
   - Data generation: Interlace mode, 10,000 rows per table, max 1,000 rows per batch.
 - Data publishing: 8 threads concurrently publishing to MQTT Broker for higher throughput.
 
@@ -376,7 +376,7 @@ Scenario description:
 This configuration is designed for publishing simulated device data to an MQTT message broker. It is suitable for:
 - MQTT consumer testing: Simulate a large number of devices publishing data to MQTT Broker to test consumer processing, load balancing, and stability.
 - IoT platform demonstration: Quickly build a simulated IoT environment to show how device data is ingested via MQTT.
-- Rule engine testing: Test MQTT topic subscription and message routing rules using dynamic topics (e.g., routing by device state).
+- Rule engine testing: Test MQTT topic subscription and message routing rules using dynamic topics (e.g., routing by device location).
 - Real-time data stream simulation: Simulate real-time device data streams for testing stream processing frameworks.
 
 ```yaml
