@@ -40,6 +40,7 @@ extern "C" {
 #define ANALY_IMPUTATION_INPUT_MIN_ROWS 10
 #define ANALY_DEFAULT_TIMEOUT           60  // 60sec
 #define ANALY_MAX_TIMEOUT               1200
+#define ANALY_MAX_IMPUT_ROWS            2048
 
 typedef struct {
   EAnalAlgoType type;
