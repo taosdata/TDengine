@@ -13,8 +13,8 @@
 
 from new_test_framework.utils import tdLog, tdSql, sc, etool, eos
 import time
-
-
+import platform
+import os
 
 
 class TestFullopt:
@@ -144,12 +144,18 @@ class TestFullopt:
         time.sleep(3)
         rlist = self.taos("-n client")
         self.checkListString(rlist, "total succ:  100/100")
-        eos.exe("pkill -9 taos")
+        if platform.system().lower() == 'windows':
+           os.system("taskkill /f /im taos.exe")
+        else:
+            eos.exe("pkill -9 taos")
 
         # call enter password
         etool.exeBinFile("taos", f'-p', wait=False)
         time.sleep(1)
-        eos.exe("pkill -9 taos")
+        if platform.system().lower() == 'windows':
+           os.system("taskkill /f /im taos.exe")
+        else:
+            eos.exe("pkill -9 taos")
 
     # run
     def test_fullopt(self):
