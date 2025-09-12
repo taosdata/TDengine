@@ -19,8 +19,10 @@
 #include <openssl/ssl.h>
 #else
 typedef struct {
+  void* p
 } SSL_CTX;
 typedef struct {
+  void* p
 } BIO;
 #endif
 
