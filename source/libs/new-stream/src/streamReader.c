@@ -4,6 +4,7 @@
 #include "executor.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "thash.h"
 #include "tsimplehash.h"
 
 void destroyOptions(SStreamTriggerReaderTaskInnerOptions* options) {
@@ -231,6 +232,7 @@ static void releaseStreamReaderInfo(void* p) {
   taosArrayDestroy(pInfo->uidListIndex);
   taosHashCleanup(pInfo->uidHash);
   qStreamDestroyTableList(pInfo->tableList);
+  qStreamDestroyTableList(pInfo->historyTableList);
   filterFreeInfo(pInfo->pFilterInfo);
   pInfo->pFilterInfo = NULL;
   blockDataDestroy(pInfo->resultBlock);
@@ -241,6 +243,7 @@ static void releaseStreamReaderInfo(void* p) {
   pInfo->metaBlock = NULL;
   tSimpleHashCleanup(pInfo->indexHash);
   pInfo->indexHash = NULL;
+  taosHashCleanup(pInfo->pTableMetaCache);
 
   taosMemoryFree(pInfo);
 }

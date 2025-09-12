@@ -14,6 +14,7 @@
  */
 
 #include "streamMsg.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "tlist.h"
 #include "tmsg.h"
@@ -3323,6 +3324,10 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
       taosArrayDestroy(pRequest->cids);
       pRequest->cids = NULL;
     }
+  } else if (pReq->base.type == STRIGGER_PULL_WAL_DATA_NEW || pReq->base.type == STRIGGER_PULL_WAL_CALC_DATA_NEW) {
+    SSTriggerWalDataNewRequest* pRequest = (SSTriggerWalDataNewRequest*)pReq;
+    taosArrayDestroy(pRequest->versions);
+    tSimpleHashCleanup(pRequest->ranges);
   } else if (pReq->base.type == STRIGGER_PULL_TSDB_DATA) {
     SSTriggerTsdbDataRequest* pRequest = (SSTriggerTsdbDataRequest*)pReq;
     if (pRequest->cids != NULL) {
