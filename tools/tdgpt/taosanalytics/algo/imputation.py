@@ -54,7 +54,7 @@ def draw_imputation_final_result(data, mask):
 def do_set_params(params, json_obj):
     """ add params into parameters """
 
-    # day, hour, minute, second, millisecond, micro-second, nanosecond
+    # day, hour, minute, second, millisecond, microsecond, nanosecond
     valid_precision_list = ['d', 'h', 'm', 's', 'ms', 'us', 'ns']
     if "prec" in json_obj:
         params["precision"] = json_obj["prec"]
@@ -62,9 +62,12 @@ def do_set_params(params, json_obj):
         if params['precision'] not in valid_precision_list:
             raise ValueError(f"precision should be one of {valid_precision_list}")
 
-    valid_freq_list = ['D', 'B', 'H', 'T', 's', 'L', 'U', 'N']
+    valid_freq_dict = {'d':'D', 'h':'H', 'm':'T', 's':'S', 'ms':'L', 'us':'U'}
     if "freq" in json_obj:
-        params["freq"] = json_obj["freq"]
+        freq = json_obj["freq"]
 
-        if params['freq'] not in valid_freq_list:
-            raise ValueError(f"freq should be one of {valid_freq_list}")
+        if freq not in valid_freq_dict.keys():
+            raise ValueError(f"freq should be one of {valid_freq_dict.keys()}")
+
+        params["freq"] = valid_freq_dict[freq]
+
