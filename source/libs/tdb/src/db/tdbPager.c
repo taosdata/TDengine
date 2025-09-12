@@ -791,6 +791,9 @@ int tdbPagerFetchFreePage(SPager *pPager, SPgno pgno, SPage **ppPage, TXN *pTxn)
 
 int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   int tdbTbPushFreePage(TTB *pTb, SPage *pPage, TXN *pTxn);
+  
+  SPgno pgno = TDB_PAGE_PGNO(pPage);
+  assert(pgno <= pPager->dbFileSize);
 
   SPgno pgno = TDB_PAGE_PGNO(pPage);
   assert(pgno <= pPager->dbFileSize);
@@ -977,6 +980,7 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
   SPgno pgno;
 
   pgno = TDB_PAGE_PGNO(pPage);
+  assert(pgno <= pPager->dbFileSize);
 
   ret = tdbOsWrite(pPager->pActiveTxn->jfd, &pgno, sizeof(pgno));
   if (ret < 0) {
@@ -1020,6 +1024,9 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
 static int tdbPagerPWritePageToDB(SPager *pPager, SPage *pPage) {
   i64 offset;
   int ret;
+
+  SPgno pgno = TDB_PAGE_PGNO(pPage);
+  assert(pgno <= pPager->dbFileSize);
 
   offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
 
