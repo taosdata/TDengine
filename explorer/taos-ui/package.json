@@ -33,7 +33,7 @@
     "@wangeditor/editor": "^5.1.23",
     "@wangeditor/editor-for-vue": "^5.1.12",
     "assets": "workspace:taos-assets@*",
-    "axios": "^1.7.7",
+    "axios": "^1.12.0",
     "codemirror": "^6.0.1",
     "components": "workspace:taos-components@*",
     "config": "workspace:taos-config@*",
