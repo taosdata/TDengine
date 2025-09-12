@@ -165,6 +165,7 @@ typedef struct SSTriggerRealtimeContext {
   SList retryPullReqs;  // SList<SSTriggerPullRequest*>
   SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
   SList dropTableReqs;  // SList<SSTriggerDropRequest*>
+  int32_t dropReqIndex;
 
   bool    haveReadCheckpoint;
   int64_t lastCheckpointTime;

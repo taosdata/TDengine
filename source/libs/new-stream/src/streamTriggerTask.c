@@ -2379,7 +2379,19 @@ static void stRealtimeContextDestroy(void *ptr) {
 
 static FORCE_INLINE SSTriggerRealtimeGroup *stRealtimeContextGetCurrentGroup(SSTriggerRealtimeContext *pContext) {
   // todo(kjq): return the group when checking max delay
-  if (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
+  if (pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ) {
+    int32_t *gid = taosArrayGet(pContext->groupsToDelete, pContext->dropReqIndex);
+    if (gid == NULL) {
+      SStreamTriggerTask *pTask = pContext->pTask;
+      ST_TASK_ELOG("failed to get the delete group id in realtime context %" PRId64, pContext->sessionId);
+    }
+    SSTriggerRealtimeGroup *pGroup = tSimpleHashGet(pContext->pGroups, gid, sizeof(int32_t));
+    if (pGroup == NULL) {
+      SStreamTriggerTask *pTask = pContext->pTask;
+      ST_TASK_ELOG("failed to get the delete group in realtime context %" PRId64, pContext->sessionId);
+    }
+    return pGroup;
+  } else if (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     return TD_DLIST_HEAD(&pContext->groupsToCheck);
   } else {
     terrno = TSDB_CODE_INTERNAL_ERROR;
@@ -2704,7 +2716,7 @@ _end:
   return code;
 }
 
-static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pContext, int64_t gid, SSTriggerDropRequest *pDropReq) {
+static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pContext, int64_t gid, SSTriggerDropRequest *pDropReq, bool *needColVal) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SStreamTriggerTask       *pTask = pContext->pTask;
@@ -2729,12 +2741,14 @@ static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pCont
   }
 
   if (needTagValue && taosArrayGetSize(pDropReq->groupColVals) == 0) {
+    *needColVal = true;
     code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE);
     QUERY_CHECK_CODE(code, lino, _end);
     code = tdListAppend(&pContext->dropTableReqs, &pDropReq);
     QUERY_CHECK_CODE(code, lino, _end);
     goto _end;
   }
+  *needColVal = false;
 
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pDropReq, &msg.info.ahandle), lino, _end);
@@ -3233,20 +3247,30 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   }
 
   int32_t deleteGroupNum = taosArrayGetSize(pContext->groupsToDelete);
-  for (int32_t i = deleteGroupNum - 1; i >= 0; i--) {
-    int64_t                   gid = ((int64_t *)TARRAY_DATA(pContext->groupsToDelete))[i];
-    bool                      drop = true;
-    SSTriggerDropRequest     *pDropReq = NULL;
-    code = stTriggerTaskAcquireDropTableRequest(pTask, pContext->sessionId, gid, &pDropReq);
-    QUERY_CHECK_CODE(code, lino, _end);
-    if (pDropReq) {
-      code = stRealtimeContextSendDropTableReq(pContext, gid, pDropReq);
-      QUERY_CHECK_CODE(code, lino, _end);
-      taosArrayRemove(pContext->groupsToDelete, i);
-    }
+  if (deleteGroupNum > 0) {
     pContext->status = STRIGGER_CONTEXT_SEND_DROP_REQ;
+    bool allSent = true;
+    for (int32_t i = deleteGroupNum - 1; i >= 0; i--) {
+      int64_t                   gid = ((int64_t *)TARRAY_DATA(pContext->groupsToDelete))[i];
+      bool                      drop = true;
+      SSTriggerDropRequest     *pDropReq = NULL;
+      code = stTriggerTaskAcquireDropTableRequest(pTask, pContext->sessionId, gid, &pDropReq);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pDropReq) {
+        pContext->dropReqIndex = i;
+        bool needColVal = false;
+        code = stRealtimeContextSendDropTableReq(pContext, gid, pDropReq, &needColVal);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (needColVal) {
+          allSent = false;
+        }
+        taosArrayRemove(pContext->groupsToDelete, i);
+      }
+    }
+    if (!allSent) {
+      goto _end;
+    }
   }
-
   // todo(kjq): implement max delay and batch window mode using min heap
 
 #define STRIGGER_CHECKPOINT_INTERVAL_NS 10 * NANOSECOND_PER_MINUTE  // 10min
@@ -3720,6 +3744,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
               break;
             }
           }
+          if (listNEles(&pContext->dropTableReqs) == 0) {
+            code = stRealtimeContextCheck(pContext);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
           break;
         }
         default:
@@ -4034,24 +4062,6 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
     SListNode *pNode = TD_DLIST_TAIL(&pContext->retryCalcReqs);
     code = stRealtimeContextRetryCalcRequest(pContext, pNode, pReq);
     QUERY_CHECK_CODE(code, lino, _end);
-  }
-
-  for (int32_t i = 0; i < taosArrayGetSize(pContext->groupsToDelete); i++) {
-    int64_t gid = ((int64_t *)TARRAY_DATA(pContext->groupsToDelete))[i];
-    if (gid == pReq->gid) {
-      // send drop table req
-      bool                      drop = true;
-      SSTriggerDropRequest     *pDropReq = NULL;
-      QUERY_CHECK_NULL(pDropReq, code, lino, _end, terrno);
-      code = stTriggerTaskAcquireDropTableRequest(pTask, pContext->sessionId, gid, &pDropReq);
-      QUERY_CHECK_CODE(code, lino, _end);
-      if (pDropReq) {
-        code = stRealtimeContextSendDropTableReq(pContext, gid, pDropReq);
-        QUERY_CHECK_CODE(code, lino, _end);
-        taosArrayRemove(pContext->groupsToDelete, i);
-      }
-      break;
-    }
   }
 
 _end:
