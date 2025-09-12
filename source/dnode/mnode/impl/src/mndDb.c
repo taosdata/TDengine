@@ -1191,13 +1191,13 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
-  if (pAlter->ssKeepLocal > TSDB_MIN_SS_KEEP_LOCAL && pAlter->ssKeepLocal != pDb->cfg.ssKeepLocal) {
+  if (pAlter->ssKeepLocal >= TSDB_MIN_SS_KEEP_LOCAL && pAlter->ssKeepLocal <= TSDB_MAX_SS_KEEP_LOCAL && pAlter->ssKeepLocal != pDb->cfg.ssKeepLocal) {
     pDb->cfg.ssKeepLocal = pAlter->ssKeepLocal;
     pDb->vgVersion++;
     code = 0;
   }
 
-  if (pAlter->ssCompact >= TSDB_MIN_SS_COMPACT && pAlter->ssCompact != pDb->cfg.ssCompact) {
+  if (pAlter->ssCompact >= TSDB_MIN_SS_COMPACT && pAlter->ssCompact <= TSDB_MAX_SS_COMPACT && pAlter->ssCompact != pDb->cfg.ssCompact) {
     pDb->cfg.ssCompact = pAlter->ssCompact;
     pDb->vgVersion++;
     code = 0;

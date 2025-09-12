@@ -13,6 +13,7 @@
 from new_test_framework.utils import tdLog, tdSql, tdCom, cluster
 import threading
 import time
+import platform
 
 class TestShowTransactionDetail:
 
@@ -64,6 +65,8 @@ class TestShowTransactionDetail:
         # stop dnode
         tdLog.info(f"stop dnode 2")
         dnode.stoptaosd()
+        if platform.system() == 'Windows':
+            time.sleep(15)
 
         tdLog.info(f"show transactions;")
         rows = tdSql.query("show transactions;", queryTimes=1)
@@ -89,9 +92,14 @@ class TestShowTransactionDetail:
 
         tdLog.info(f"select * from ins_transaction_details")
         rows = tdSql.query(f"select * from information_schema.ins_transaction_details", queryTimes=1)
+        tdLog.info(tdSql.queryResult)
 
         #if rows != 296:
-        if rows != 176:
+        if platform.system() == 'Windows':
+            expect_rows = 296
+        else:
+            expect_rows = 176
+        if rows != expect_rows:
             tdLog.exit(f"show transaction detial error, rows={rows}")
             return False
         
