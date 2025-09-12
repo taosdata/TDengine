@@ -283,13 +283,21 @@ struct STSchema {
 };
 
 struct SRSchema {
-  int32_t     numOfCols;
-  int32_t     version;
-  int32_t     flen;
-  int32_t     tlen;
-  SSchemaRsma rsma;
-  STColumn    columns[];
+  int8_t     tbType;
+  tb_uid_t   tbUid;
+  char       tbName[TSDB_TABLE_NAME_LEN];
+  int64_t    interval[2];
+  func_id_t *funcIds;
+  STSchema  *tSchema;
 };
+
+static FORCE_INLINE void tFreeSRSchema(SRSchema **rSchema) {
+  if (rSchema && *rSchema) {
+    taosMemoryFreeClear((*rSchema)->funcIds);
+    taosMemoryFreeClear((*rSchema)->tSchema);
+    taosMemoryFreeClear(*rSchema);
+  }
+}
 
 /*
  * 1. Tuple format:

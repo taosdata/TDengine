@@ -703,24 +703,32 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
 /**
  * Fetch rsma schema if table is rsma
  */
-STSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
-  STSchema       *pTSchema = NULL;
+SRSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
+  SRSchema       *pRSchema = NULL;
   SSchemaWrapper *pSW = NULL;
 
-  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0x01))) return NULL;
-  if (!(pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version))) {
-    goto _exit;
-  }
+  if (!(pRSchema = (SRSchema *)taosMemoryCalloc(1, sizeof(SRSchema)))) goto _err;
+  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0x01))) goto _err;
+  if (!(pRSchema->tSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version))) goto _err;
+
   if (pSW->pRsma) {
-    for (int32_t c = 0; c < pSW->nCols; ++c) {
-      pTSchema->columns[c].funcId = pSW->pRsma->funcIds[c];
-    }
-    pTSchema->interval[0] = pSW->pRsma->interval[0];
-    pTSchema->interval[1] = pSW->pRsma->interval[1];
+    if (!(pRSchema->funcIds = taosMemoryCalloc(pSW->nCols, sizeof(func_id_t)))) goto _err;
+    memcpy(pRSchema->funcIds, pSW->pRsma->funcIds, pSW->nCols * sizeof(func_id_t));
+
+    pRSchema->tbType = pSW->pRsma->tbType;
+    pRSchema->tbUid = uid; // TODO: child table or super table?
+    tstrncpy(pRSchema->tbName, pSW->pRsma->tbName, TSDB_TABLE_NAME_LEN);
+    pRSchema->interval[0] = pSW->pRsma->interval[0];
+    pRSchema->interval[1] = pSW->pRsma->interval[1];
   }
+
 _exit:
   tDeleteSchemaWrapper(pSW);
-  return pTSchema;
+  return pRSchema;
+_err:
+  tDeleteSchemaWrapper(pSW);
+  tFreeSRSchema(&pRSchema);
+  return NULL;
 }
 
 int32_t metaGetTbTSchemaNotNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema **ppTSchema) {

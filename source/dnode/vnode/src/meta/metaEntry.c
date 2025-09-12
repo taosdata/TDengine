@@ -132,23 +132,14 @@ int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
     return terrno;
   }
 
-  (*rsmaSchema)->tbName = tstrdup(pME->name);
-  if(!((*rsmaSchema)->tbName)) {
-    taosMemoryFree(*rsmaSchema);
-    *rsmaSchema = NULL;
-    return terrno;
-  }
-
-  tsnprintf()
-
   (*rsmaSchema)->funcIds = taosMemoryMalloc(sizeof(func_id_t) * nCols);
   if ((*rsmaSchema)->funcIds == NULL) {
-    taosMemoryFree((*rsmaSchema)->tbName);
     taosMemoryFree(*rsmaSchema);
     *rsmaSchema = NULL;
     return terrno;
   }
 
+  (void)snprintf((*rsmaSchema)->tbName, TSDB_TABLE_NAME_LEN, "%s", pME->name);
   (*rsmaSchema)->tbUid = pME->uid;
   (*rsmaSchema)->interval[0] = pParam->interval[0];
   (*rsmaSchema)->interval[1] = pParam->interval[1];

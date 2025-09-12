@@ -31,12 +31,13 @@
 #include "tname.h"
 #include "ttypes.h"
 
-int32_t tdRollupCtxInit(SExprSupp **ppSup, STSchema *pTSchema, int8_t precision, const char* dbName, const char* tbName, int64_t tbUid, int8_t tbType) {
+int32_t tdRollupCtxInit(SExprSupp **ppSup, SRSchema *pRSchema, int8_t precision, const char *dbName) {
   int32_t        code = 0, lino = 0;
-  int32_t        nCols = pTSchema->numOfCols;
+  STSchema      *pTSchema = pRSchema->tSchema;
   SExprSupp     *pSup = NULL;
   SFunctionNode *pFuncNode = NULL;
   SColumnNode   *pColNode = NULL;
+  int32_t        nCols = pTSchema->numOfCols;
 
   if (!(*ppSup) && !(*ppSup = taosMemoryCalloc(1, sizeof(SExprSupp)))) {
     TAOS_CHECK_EXIT(terrno);
@@ -44,16 +45,16 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, STSchema *pTSchema, int8_t precision,
   pSup = *ppSup;
 
   for (int32_t i = 1; i < nCols; i++) {
-    SSchema *pSchema = pTSchema->columns + i;
-    TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode *)&pFuncNode));
-    TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode *)&pColNode));
+    STColumn *pCol = pTSchema->columns + i;
+    TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&pFuncNode));
+    TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pColNode));
 
-    pColNode->node.resType.type = pSchema->type;
+    pColNode->node.resType.type = pCol->type;
     pColNode->node.resType.precision = precision;
-    pColNode->node.resType.bytes = pSchema->bytes;
-    pColNode->node.resType.scale = 0; // TODO: use the real scale for decimal
+    pColNode->node.resType.bytes = pCol->bytes;
+    pColNode->node.resType.scale = 0;  // TODO: use the real scale for decimal
 
-    pColNode->colId = pSchema->colId;
+    pColNode->colId = pCol->colId;
     pColNode->colType = COLUMN_TYPE_COLUMN;
   }
 
@@ -61,8 +62,8 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, STSchema *pTSchema, int8_t precision,
   // nodesListMakeStrictAppend(&paramList, NULL);
 
 _exit:
-  nodesDestroyNode(pFuncNode);
-  nodesDestroyNode(pColNode);
+  nodesDestroyNode((SNode *)pFuncNode);
+  nodesDestroyNode((SNode *)pColNode);
   return code;
 }
 
