@@ -777,7 +777,7 @@ int32_t ctgReadTbTypeFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *tbType, int64_t* suid) {
+int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *tbType, int64_t *suid, bool *isVstb) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
   CTG_ERR_RET(ctgAcquireTbMetaFromCache(pCtg, dbFName, tbName, &dbCache, &tbCache));
@@ -788,6 +788,7 @@ int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, 
 
   *tbType = tbCache->pMeta->tableType;
   *suid = tbCache->pMeta->suid;
+  *isVstb = tbCache->pMeta->virtualStb;
   ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 
   ctgDebug("Got tb %s tbType %d suid %" PRIu64 " from cache, dbFName:%s", tbName, *tbType, *suid, dbFName);

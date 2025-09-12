@@ -1841,29 +1841,52 @@ int32_t ctgGetStreamProgressFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, c
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq) {
+int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SName *pTableName, SVgroupInfo* vgroupInfo, SVStbRefDbsRsp* out, SCtgTaskReq* tReq) {
   SCtgTask* pTask = tReq ? tReq->pTask : NULL;
-  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
-  int32_t reqType = TDMT_VND_VSTB_REF_DBS;
-  SEp* pEp = &vgroupInfo->epSet.eps[vgroupInfo->epSet.inUse];
+  void*     (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
+  int32_t   reqType = TDMT_VND_VSTB_REF_DBS;
+  SEp*      pEp = &vgroupInfo->epSet.eps[vgroupInfo->epSet.inUse];
+  char      dbFName[TSDB_DB_FNAME_LEN];
+  char      tbFName[TSDB_TABLE_FNAME_LEN];
+
+  (void)tNameGetFullDbName(pTableName, dbFName);
+  (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, pTableName->tname);
   ctgDebug("try to get vstb's ref dbs from vnode, vgId:%d, ep num:%d, ep %s:%d, suid:%" PRIu64, vgroupInfo->vgId,
            vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port, suid);
 
   char*            msg = NULL;
   int32_t          msgLen = 0;
 
-  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](&suid, &msg, 0, &msgLen, mallocFp);
+  SBuildVstbInput pInput = {.vgId = vgroupInfo->vgId, .suid = suid};
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](&pInput, &msg, 0, &msgLen, mallocFp);
   if (code) {
     ctgError("Build vnode vsubtables meta msg failed, code:%x, suid:%" PRIu64, code, suid);
     CTG_ERR_RET(code);
   }
 
-  SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
-                            .requestId = pConn->requestId,
-                            .requestObjRefId = pConn->requestObjRefId,
-                            .mgmtEps = vgroupInfo->epSet};
+  if (pTask) {
+    SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
+                              .requestId = pConn->requestId,
+                              .requestObjRefId = pConn->requestObjRefId,
+                              .mgmtEps = vgroupInfo->epSet};
 
-  return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
+    return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
+  }
+
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  CTG_ERR_RET(rpcSendRecv(pConn->pTrans, &vgroupInfo->epSet, &rpcMsg, &rpcRsp));
+
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)tbFName));
+
+  rpcFreeCont(rpcRsp.pCont);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
