@@ -761,7 +761,7 @@ static int32_t extWinGetMultiTbWinFromTs(SOperatorInfo* pOperator, SExternalWind
         break;
       }
       
-      if (tsCol[i] <= pWin->tw.ekey) {
+      if (tsCol[i] < pWin->tw.ekey) {
         *startPos = i;
         return w;
       }
