@@ -1284,8 +1284,8 @@ static int32_t scanSubmitDataForMetaDataPre(SStreamTriggerReaderInfo* info, void
 
   uint64_t gid = 0;
   int64_t uid = 0;
-  int32_t numOfRows = 0;
   for (int32_t i = 0; i < nSubmitTbData; i++) {
+    int32_t numOfRows = 0;
     STREAM_CHECK_RET_GOTO(processSubmitTbDataForMetaDataPre(&decoder, info, ranges, &gid, &uid, &numOfRows));
     if (numOfRows <= 0) {
       continue;
