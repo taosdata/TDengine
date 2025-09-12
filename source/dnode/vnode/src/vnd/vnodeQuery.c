@@ -549,7 +549,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
         break;
       case TDMT_VND_VSTB_REF_DBS:
         // error code has been set into reqMsg, no need to handle it here.
-        if (TSDB_CODE_SUCCESS != vnodeGetVStbRefDbs(pVnode, &reqMsg)) {
+        if (TSDB_CODE_SUCCESS != vnodeGetVStbRefDbs(pVnode, &reqMsg, false)) {
           qWarn("vnodeGetVStbRefDbs failed, msgType:%d", req->msgType);
         }
         break;
@@ -850,7 +850,7 @@ _return:
   return code;
 }
 
-int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
+int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   int32_t        code = 0;
   int32_t        rspSize = 0;
   SVStbRefDbsReq req = {0};
@@ -879,7 +879,11 @@ int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
     qError("tSerializeSVStbRefDbsRsp failed, error:%d", rspSize);
     goto _return;
   }
-  pRsp = taosMemoryCalloc(1, rspSize);
+  if (direct) {
+    pRsp = rpcMallocCont(rspSize);
+  } else {
+    pRsp = taosMemoryCalloc(1, rspSize);
+  }
   if (pRsp == NULL) {
     code = terrno;
     qError("rpcMallocCont %d failed, error:%d", rspSize, terrno);
@@ -904,7 +908,11 @@ _return:
     qError("vnd get virtual stb ref db failed cause of %s", tstrerror(code));
   }
 
-  *pMsg = rspMsg;
+  if (direct) {
+    tmsgSendRsp(&rspMsg);
+  } else {
+    *pMsg = rspMsg;
+  }
 
   tDestroySVStbRefDbsRsp(&rsp);
 

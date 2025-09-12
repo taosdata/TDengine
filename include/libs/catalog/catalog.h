@@ -377,6 +377,8 @@ int32_t catalogGetTableTag(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
 
 int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableCfg** pCfg);
 
+int32_t catalogGetVstbRefDbs(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pDbs);
+
 int32_t catalogUpdateTableIndex(SCatalog* pCtg, STableIndexRsp* pRsp);
 
 int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* funcName, SFuncInfo* pInfo);

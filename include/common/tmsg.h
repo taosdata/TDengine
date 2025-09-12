@@ -579,6 +579,11 @@ typedef struct {
 } SBuildTableInput;
 
 typedef struct {
+  int32_t     vgId;
+  tb_uid_t    suid;
+} SBuildVstbInput;
+
+typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
