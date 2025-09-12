@@ -119,7 +119,7 @@ SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
 
 int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
   if (!rsmaSchema) return 0;
-  if ((pME->type != TSDB_SUPER_TABLE) || !TABLE_IS_ROLLUP(pME->flags)) {
+  if ((pME->type != TSDB_SUPER_TABLE) || !TABLE_IS_ROLLUP(pME->flags)) {  // only support super table
     *rsmaSchema = NULL;
     return 0;
   }
@@ -132,13 +132,24 @@ int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
     return terrno;
   }
 
-  (*rsmaSchema)->funcIds = taosMemoryMalloc(sizeof(func_id_t) * nCols);
-  if ((*rsmaSchema)->funcIds == NULL) {
+  (*rsmaSchema)->tbName = tstrdup(pME->name);
+  if(!((*rsmaSchema)->tbName)) {
     taosMemoryFree(*rsmaSchema);
     *rsmaSchema = NULL;
     return terrno;
   }
 
+  tsnprintf()
+
+  (*rsmaSchema)->funcIds = taosMemoryMalloc(sizeof(func_id_t) * nCols);
+  if ((*rsmaSchema)->funcIds == NULL) {
+    taosMemoryFree((*rsmaSchema)->tbName);
+    taosMemoryFree(*rsmaSchema);
+    *rsmaSchema = NULL;
+    return terrno;
+  }
+
+  (*rsmaSchema)->tbUid = pME->uid;
   (*rsmaSchema)->interval[0] = pParam->interval[0];
   (*rsmaSchema)->interval[1] = pParam->interval[1];
   (*rsmaSchema)->nFuncs = nCols;

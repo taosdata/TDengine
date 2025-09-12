@@ -128,14 +128,14 @@ typedef struct SGcNotifyOperatorParam {
   int64_t tbUid;
 } SGcNotifyOperatorParam;
 
-typedef struct SExprSupp {
+struct SExprSupp {
   SExprInfo*      pExprInfo;
   int32_t         numOfExprs;  // the number of scalar expression in group operator
   SqlFunctionCtx* pCtx;
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
   bool            hasWindowOrGroup;
-} SExprSupp;
+};
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,

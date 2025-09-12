@@ -35,6 +35,7 @@ typedef struct SSchemaExt  SSchemaExt;
 typedef struct SSchemaRsma SSchemaRsma;
 typedef struct STColumn    STColumn;
 typedef struct STSchema    STSchema;
+typedef struct SRSchema    SRSchema;
 typedef struct SValue      SValue;
 typedef struct SColVal     SColVal;
 typedef struct SRow        SRow;
@@ -271,22 +272,23 @@ struct STColumn {
   int8_t   flags;
   int32_t  bytes;
   int32_t  offset;
-  union {
-    int32_t funcId;
-  };
 };
 
 struct STSchema {
-  int32_t numOfCols;
-  int32_t version;
-  int32_t flen;
-  int32_t tlen;
-  union {
-    struct {
-      int64_t interval[2];  // for rsma
-    };
-  };
+  int32_t  numOfCols;
+  int32_t  version;
+  int32_t  flen;
+  int32_t  tlen;
   STColumn columns[];
+};
+
+struct SRSchema {
+  int32_t     numOfCols;
+  int32_t     version;
+  int32_t     flen;
+  int32_t     tlen;
+  SSchemaRsma rsma;
+  STColumn    columns[];
 };
 
 /*

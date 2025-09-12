@@ -741,7 +741,10 @@ struct SSchemaExt {
 struct SSchemaRsma {
   int64_t    interval[2];
   int32_t    nFuncs;
+  int8_t     tbType;
+  tb_uid_t   tbUid;
   func_id_t* funcIds;
+  char       tbName[TSDB_TABLE_NAME_LEN];
 };
 
 struct SSchema2 {
