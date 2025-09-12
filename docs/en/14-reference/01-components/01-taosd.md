@@ -21,7 +21,6 @@ The command line parameters for taosd are as follows:
 
 ## Configuration Parameters
 
-## Configuration Parameters
 Configuration parameters are divided into two categories:
 
 |Parameter Type      |  Description                     |  Scope    | Modification Method              | View Parameter Command            |
