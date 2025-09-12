@@ -11,6 +11,10 @@ import signal
 import sys
 import datetime
 import itertools
+import re 
+import traceback
+import uuid
+import gc
 
 """TDengine New Stream Computing Performance Test
 TDengine 新数据流计算性能测试工具
@@ -1092,7 +1096,7 @@ class StreamSQLTemplates:
         else:  
             return ", ".join(self.default_select_columns)
     
-    def _build_from_clause(self, tbname_or_trows_or_sourcetable='sourcetable', is_period=False, is_sliding=False):
+    def _build_from_clause(self, tbname_or_trows_or_sourcetable='sourcetable', is_period=False, is_sliding=False, partition_type='none'):
         """构建 FROM 子句
         
         Args:
@@ -1102,10 +1106,14 @@ class StreamSQLTemplates:
                 - 'sourcetable': 明确指定源表名 where ts >= _twstart and ts <= _twend
             is_period: 是否为 period 类型的流计算
             is_sliding: 是否为 sliding 类型的流计算
+            partition_type: 分区类型，用于判断是否需要添加 tag 过滤条件
             
         Returns:
             str: FROM 子句字符串
         """
+        # 根据 partition_type 确定是否需要添加 tag 过滤条件
+        tag_filter = " and t0=%%1" if partition_type == 'tag' else ""
+    
         if tbname_or_trows_or_sourcetable == 'trows':
             return "%%trows "
         elif tbname_or_trows_or_sourcetable == 'sourcetable':
@@ -1118,14 +1126,14 @@ class StreamSQLTemplates:
                 return "SOURCE_TABLE_PLACEHOLDER where ts >= _twstart and ts <= _twend"
         else:  # 'tbname' and 纳秒
             if is_sliding:
-                return "%%tbname where ts >= _tprev_ts and ts <= _tnext_ts"
+                return f"%%tbname where ts >= _tprev_ts and ts <= _tnext_ts{tag_filter}"
             elif is_period:
-                return "%%tbname where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+                return f"%%tbname where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp){tag_filter}"
             else:
-                return "%%tbname where ts >= _twstart and ts <= _twend"
+                return f"%%tbname where ts >= _twstart and ts <= _twend{tag_filter}"
 
     
-    def _build_from_source_and_clause(self, source_type='stb', stream_index=None, tbname_or_trows_or_sourcetable='sourcetable', is_period=False, is_sliding=False):
+    def _build_from_source_and_clause(self, source_type='stb', stream_index=None, tbname_or_trows_or_sourcetable='sourcetable', is_period=False, is_sliding=False, partition_type='none'):
         """构建数据源和FROM子句的组合
         
         Args:
@@ -1134,14 +1142,20 @@ class StreamSQLTemplates:
             tbname_or_trows_or_sourcetable: FROM子句类型
             is_period: 是否为 period 类型的流计算
             is_sliding: 是否为 sliding 类型的流计算
+            partition_type: 分区类型，用于判断是否需要添加 tag 过滤条件
                 
         Returns:
             tuple: (from_source, from_clause)
         """
         from_source = self._build_from_source(source_type, stream_index)
         
+    
         if tbname_or_trows_or_sourcetable == 'sourcetable':
             # 对于sourcetable模式，FROM子句直接使用具体的表名
+            
+            # 根据 partition_type 确定是否需要添加 tag 过滤条件
+            tag_filter = " and t0=%%1" if partition_type == 'tag' else ""
+            
             if source_type == 'tb':
                 # 子表情况：使用具体的子表名
                 if stream_index is not None:
@@ -1154,11 +1168,11 @@ class StreamSQLTemplates:
                 
             # period 类型使用不同的时间变量
             if is_sliding:
-                from_clause = f"{table_name} where ts >= _tprev_ts and ts <= _tnext_ts"
+                from_clause = f"{table_name} where ts >= _tprev_ts and ts <= _tnext_ts{tag_filter}"
             elif is_period:
-                from_clause = f"{table_name} where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+                from_clause = f"{table_name} where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp){tag_filter}"
             else:
-                from_clause = f"{table_name} where ts >= _twstart and ts <= _twend"
+                from_clause = f"{table_name} where ts >= _twstart and ts <= _twend{tag_filter}"
         else:
             # 其他模式使用原有逻辑
             from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable, is_period, is_sliding)
@@ -1314,7 +1328,7 @@ class StreamSQLTemplates:
             custom_columns: 自定义列
         """
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False, is_sliding=False, partition_type=partition_type)
         partition_clause = self._build_partition_clause(partition_type)
         
         stream_name = self._generate_stream_name('intervalsliding', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
@@ -1340,7 +1354,7 @@ class StreamSQLTemplates:
                            agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成会话窗口模板"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False, is_sliding=False, partition_type=partition_type)
         partition_clause = self._build_partition_clause(partition_type)
          
         stream_name = self._generate_stream_name('session', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
@@ -1365,7 +1379,7 @@ class StreamSQLTemplates:
                          agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成计数窗口模板"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False, is_sliding=False, partition_type=partition_type)
         partition_clause = self._build_partition_clause(partition_type)
         
         stream_name = self._generate_stream_name('count', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
@@ -1390,7 +1404,7 @@ class StreamSQLTemplates:
                          agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成事件窗口模板"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False, is_sliding=False, partition_type=partition_type)
         partition_clause = self._build_partition_clause(partition_type)
         
         stream_name = self._generate_stream_name('event', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
@@ -1415,7 +1429,7 @@ class StreamSQLTemplates:
                          agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成状态窗口模板"""
         columns = self._build_columns(agg_or_select, custom_columns)
-        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False)
+        from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable, is_period=False, is_sliding=False, partition_type=partition_type)
         partition_clause = self._build_partition_clause(partition_type)
          
         stream_name = self._generate_stream_name('state', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
@@ -1440,11 +1454,13 @@ class StreamSQLTemplates:
                           agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None, stream_index=None):
         """生成定时触发模板 """
         columns = self._build_columns(agg_or_select, custom_columns)
-        # from_source, from_clause = self._build_from_source_and_clause(source_type, stream_index, tbname_or_trows_or_sourcetable)
         partition_clause = self._build_partition_clause(partition_type)
         
         # period 类型特殊处理：使用专门的时间变量
         from_source = self._build_from_source(source_type, stream_index)
+        # 根据 partition_type 确定是否需要添加 tag 过滤条件
+        tag_filter = " and t0=%%1" if partition_type == 'tag' else ""
+    
         
         # period 类型的 FROM 子句处理
         if tbname_or_trows_or_sourcetable == 'trows':
@@ -1452,6 +1468,7 @@ class StreamSQLTemplates:
             from_clause = "%%trows"
         elif tbname_or_trows_or_sourcetable == 'sourcetable':
             # period + sourcetable：使用具体表名 + period 专用时间变量
+        
             if source_type == 'tb':
                 if stream_index is not None:
                     table_name = f"stream_from.ctb0_{stream_index}"
@@ -1459,10 +1476,10 @@ class StreamSQLTemplates:
                     table_name = "stream_from.ctb0_0"
             else:  # 'stb'
                 table_name = "stream_from.stb"
-            from_clause = f"{table_name} where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+            from_clause = f"{table_name} where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp){tag_filter}"
         else:  # 'tbname'
             # period + tbname：使用 %%tbname + period 专用时间变量
-            from_clause = "%%tbname where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp)"
+            from_clause = f"%%tbname where ts >= cast(_tprev_localtime/1000000 as timestamp) and ts <= cast(_tnext_localtime/1000000 as timestamp){tag_filter}"
          
         stream_name = self._generate_stream_name('period', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         target_table = self._generate_target_table('period', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
@@ -1474,11 +1491,12 @@ class StreamSQLTemplates:
         
         partition_line = f"\n            {partition_clause}" if partition_clause else ""
         
+        #select cast(_tlocaltime/1000000 as timestamp) ts --> select cast(_tprev_localtime/1000000 as timestamp) ts
         return f"""
     create stream {stream_name} period(15s)
             from {from_source}{partition_line}
             into {target_table}
-            as select cast(_tlocaltime/1000000 as timestamp) ts, {columns}
+            as select cast(_tprev_localtime/1000000 as timestamp) ts, {columns}
             from {from_clause};
     """
 
@@ -1491,6 +1509,9 @@ class StreamSQLTemplates:
         
         # sliding 类型特殊处理：使用专门的时间变量
         from_source = self._build_from_source(source_type, stream_index)
+        # 根据 partition_type 确定是否需要添加 tag 过滤条件
+        tag_filter = " and t0=%%1" if partition_type == 'tag' else ""
+    
         
         # sliding 类型的 FROM 子句处理
         if tbname_or_trows_or_sourcetable == 'trows':
@@ -1505,21 +1526,22 @@ class StreamSQLTemplates:
                     table_name = "stream_from.ctb0_0"
             else:  # 'stb'
                 table_name = "stream_from.stb"
-            from_clause = f"{table_name} where ts >= _tprev_ts and ts <= _tnext_ts"
+            from_clause = f"{table_name} where ts >= _tprev_ts and ts <= _tnext_ts{tag_filter}"
         else:  # 'tbname'
             # sliding + tbname：使用 %%tbname + sliding 专用时间变量
-            from_clause = "%%tbname where ts >= _tprev_ts and ts <= _tnext_ts"
+            from_clause = f"%%tbname where ts >= _tprev_ts and ts <= _tnext_ts{tag_filter}"
          
         stream_name = self._generate_stream_name('sliding', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         target_table = self._generate_target_table('sliding', source_type, partition_type, agg_or_select, tbname_or_trows_or_sourcetable, stream_index)
         
         partition_line = f"\n            {partition_clause}" if partition_clause else ""
         
+        #select _tcurrent_ts ts, --> select _tprev_ts ts,
         return f"""
     create stream {stream_name} sliding(15s)
             from {from_source}{partition_line}
             into {target_table}
-            as select _tcurrent_ts ts, {columns}
+            as select _tprev_ts ts, {columns}
             from {from_clause};
     """
        
@@ -2705,7 +2727,7 @@ class StreamBatchTester:
         Args:
             base_args: 基础参数字典，包含不变的参数
             specified_sql_types: 指定的SQL类型列表，如果为None则使用默认的全部组合
-            filter_mode: 过滤模式 ('all', 'skip-known-failures', 'only-known-failures')
+            filter_mode: 过滤模式 ('all', 'skip-known-failures', 'only-known-failures', 'skip-known-case')
         """
         self.base_args = base_args or {}
         self.test_results = []
@@ -2719,6 +2741,10 @@ class StreamBatchTester:
         
         # 缓存已知失败测试列表，避免重复调用和打印
         self._known_failure_tests = None
+        # 缓存已知性能不好的测试列表
+        self._known_poor_performance_tests = None
+        
+        self.delay_trends_analysis =  base_args.get('delay_trends_analysis', True)
         
         # 默认的固定参数
         self.fixed_params = {
@@ -2751,14 +2777,27 @@ class StreamBatchTester:
         else:
             print(f"  SQL类型: 全部组合")
             
+        
         print(f"  过滤模式: {self.filter_mode}")
-        if self.filter_mode != 'all':
+        if self.filter_mode == 'skip-known-failures':
             failure_count = len(self.get_known_failure_tests())
             print(f"  已知失败测试: {failure_count} 个")
-            if self.filter_mode == 'skip-known-failures':
-                print(f"  将跳过已知失败的测试场景，专注于成功场景")
-            elif self.filter_mode == 'only-known-failures':
-                print(f"  仅运行已知失败的测试场景，用于调试失败原因")
+            print(f"  将跳过已知失败的测试场景，专注于成功场景")
+        elif self.filter_mode == 'only-known-failures':
+            failure_count = len(self.get_known_failure_tests())
+            print(f"  已知失败测试: {failure_count} 个")
+            print(f"  仅运行已知失败的测试场景，用于调试失败原因")
+        elif self.filter_mode == 'skip-known-case':
+            failure_count = len(self.get_known_failure_tests())
+            poor_performance_count = len(self.get_known_poor_performance_tests())
+            total_skip_count = failure_count + poor_performance_count
+            print(f"  已知失败测试: {failure_count} 个")
+            print(f"  已知性能不好测试: {poor_performance_count} 个")
+            print(f"  总跳过测试: {total_skip_count} 个")
+            print(f"  将跳过已知失败和性能不好的测试场景，专注于优质场景")
+        elif self.filter_mode != 'all':
+            failure_count = len(self.get_known_failure_tests())
+            print(f"  已知失败测试: {failure_count} 个")
                 
         print(f"  流延迟检查: {'启用' if self.fixed_params['check_stream_delay'] else '禁用'} (批量测试强制启用)")
         print(f"  延迟检查间隔: {self.fixed_params['delay_check_interval']}秒")
@@ -2868,6 +2907,99 @@ class StreamBatchTester:
         print(f"维护的已知失败测试列表包含 {len(known_failures)} 个场景")
         return self._known_failure_tests
     
+    
+    def get_known_poor_performance_tests(self):
+        """获取已知性能不好的测试场景列表
+        
+        这里维护所有已知性能表现不佳的测试场景名称
+        这些场景虽然可以成功运行，但性能表现不理想
+        您可以直接在这里添加或删除性能不好的测试名称
+        
+        Returns:
+            set: 已知性能不好的测试名称集合
+        """
+        # 使用缓存避免重复创建和打印
+        if self._known_poor_performance_tests is not None:
+            return self._known_poor_performance_tests
+        
+        # 在这里维护已知性能不好的测试名称列表
+        # 这些测试可以运行成功，但性能表现不理想，需要后期优化
+        poor_performance_cases = set({
+            # 示例: 以下是一些可能性能不好的场景，可以根据实际测试结果添加
+            # 某些大表分区查询性能不佳的场景，通过%%tbname替代
+            'intervalsliding_stb_partition_by_tbname_agg_sourcetable_stb',
+            'sliding_stb_partition_by_tbname_agg_sourcetable_stb',
+            'session_stb_partition_by_tbname_agg_sourcetable_stb',            
+            'count_stb_partition_by_tbname_agg_sourcetable_stb',
+            'event_stb_partition_by_tbname_agg_sourcetable_stb',
+            'state_stb_partition_by_tbname_agg_sourcetable_stb',
+            'period_stb_partition_by_tbname_agg_sourcetable_stb',
+            'intervalsliding_stb_partition_by_tbname_select_sourcetable_stb',
+            'sliding_stb_partition_by_tbname_select_sourcetable_stb',
+            'session_stb_partition_by_tbname_select_sourcetable_stb',
+            'count_stb_partition_by_tbname_select_sourcetable_stb',
+            'event_stb_partition_by_tbname_select_sourcetable_stb',
+            'state_stb_partition_by_tbname_select_sourcetable_stb',
+            'period_stb_partition_by_tbname_select_sourcetable_stb',
+            
+            # 某些trows相关的性能问题场景  
+            'intervalsliding_stb_agg_trows',
+            'intervalsliding_stb_partition_by_tbname_agg_trows',
+            'intervalsliding_stb_partition_by_tag_agg_trows',
+            'intervalsliding_tb_agg_trows',
+            'sliding_stb_agg_trows',
+            'sliding_stb_partition_by_tbname_agg_trows',
+            'sliding_stb_partition_by_tag_agg_trows',
+            'sliding_tb_agg_trows',
+            'session_stb_agg_trows',
+            'session_stb_partition_by_tbname_agg_trows',
+            'session_stb_partition_by_tag_agg_trows',
+            'session_tb_agg_trows',
+            'count_stb_partition_by_tbname_agg_trows',
+            'count_tb_agg_trows',
+            'event_stb_partition_by_tbname_agg_trows',
+            'event_tb_agg_trows',
+            'state_stb_partition_by_tbname_agg_trows',
+            'state_tb_agg_trows',
+            'period_stb_agg_trows',
+            'period_stb_partition_by_tbname_agg_trows',
+            'period_stb_partition_by_tag_agg_trows',
+            'period_tb_agg_trows',
+            'intervalsliding_stb_select_trows',
+            'intervalsliding_stb_partition_by_tbname_select_trows',
+            'intervalsliding_stb_partition_by_tag_select_trows',
+            'intervalsliding_tb_select_trows',
+            'sliding_stb_select_trows',
+            'sliding_stb_partition_by_tbname_select_trows',
+            'sliding_stb_partition_by_tag_select_trows',
+            'sliding_tb_select_trows',
+            'session_stb_select_trows',
+            'session_stb_partition_by_tbname_select_trows',
+            'session_stb_partition_by_tag_select_trows',
+            'session_tb_select_trows',
+            'count_stb_partition_by_tbname_select_trows',
+            'count_tb_select_trows',
+            'event_stb_partition_by_tbname_select_trows',
+            'event_tb_select_trows',
+            'state_stb_partition_by_tbname_select_trows',
+            'state_tb_select_trows',
+            'period_stb_select_trows',
+            'period_stb_partition_by_tbname_select_trows',
+            'period_stb_partition_by_tag_select_trows',
+            'period_tb_select_trows',
+            
+            
+            # 注意: 这里只是示例，实际的性能不好的场景需要根据测试结果来添加
+            # 可以在批量测试完成后，根据性能报告中的CPU/内存使用情况来识别
+        })
+        
+        # 缓存结果并只打印一次
+        self._known_poor_performance_tests = poor_performance_cases
+        print(f"维护的已知性能不好测试列表包含 {len(poor_performance_cases)} 个场景")
+        if poor_performance_cases:
+            print(f"已知性能不好的场景: {', '.join(list(poor_performance_cases)[:5])}{'...' if len(poor_performance_cases) > 5 else ''}")
+        return self._known_poor_performance_tests
+    
     def extract_stream_names_from_sql(self, sql_templates):
         """从SQL模板中提取流名称
         
@@ -2925,12 +3057,16 @@ class StreamBatchTester:
         print(f"调试过滤: 过滤模式: {self.filter_mode}")
         
         known_failures = self.get_known_failure_tests()
+        known_poor_performance = self.get_known_poor_performance_tests()
         print(f"调试过滤: 已知失败流数量: {len(known_failures)}")
+        print(f"调试过滤: 已知性能不好流数量: {len(known_poor_performance)}")
         
         failed_streams = stream_names.intersection(known_failures)
-        success_streams = stream_names - known_failures
+        poor_performance_streams = stream_names.intersection(known_poor_performance)
+        success_streams = stream_names - known_failures - known_poor_performance
         
         print(f"调试过滤: 匹配到的失败流: {failed_streams}")
+        print(f"调试过滤: 匹配到的性能不好流: {poor_performance_streams}")
         print(f"调试过滤: 成功流: {success_streams}")
         
         if self.filter_mode == 'skip-known-failures':
@@ -2942,7 +3078,15 @@ class StreamBatchTester:
         elif self.filter_mode == 'only-known-failures':
             # 如果不包含已知失败的流，跳过
             if not failed_streams:
-                return True, f"不包含已知失败流，当前流: {', '.join(stream_names)}"
+                return True, f"不包含已知失败流，跳过测试"
+            return False, ""
+            
+        elif self.filter_mode == 'skip-known-case':
+            # 如果包含已知失败的流或已知性能不好的流，跳过
+            if failed_streams:
+                return True, f"包含已知失败流: {', '.join(failed_streams)}"
+            elif poor_performance_streams:
+                return True, f"包含已知性能不好流: {', '.join(poor_performance_streams)} (待后期优化，跳过测试)"
             return False, ""
             
         return False, ""
@@ -3160,69 +3304,150 @@ class StreamBatchTester:
             print(f"  {sql_type}: 生成 {len(fixed_param_templates[sql_type])} 种组合")
             
         # 检查是否是组合模板
-        elif sql_type in detailed_templates:
+        elif sql_type in detailed_templates:            
+            # 获取命令行传入的参数，如果没有指定则使用所有组合
+            base_args = getattr(self, 'base_args', {})
+            specified_tbname_param = base_args.get('tbname_or_trows_or_sourcetable')
+            specified_agg_param = base_args.get('agg_or_select')
+            
+            # 确定要使用的参数组合
+            if specified_tbname_param and specified_agg_param:
+                # 如果指定了具体参数，只生成指定的组合
+                tbname_params = [specified_tbname_param]
+                agg_params = [specified_agg_param]
+                print(f"  {sql_type}: 使用指定参数组合 - {specified_tbname_param} + {specified_agg_param}")
+            elif specified_tbname_param:
+                # 如果只指定了 tbname 参数，使用指定的 tbname + 所有 agg 参数
+                tbname_params = [specified_tbname_param]
+                agg_params = ['agg', 'select']
+                print(f"  {sql_type}: 使用指定 tbname 参数 - {specified_tbname_param} + 所有查询类型")
+            elif specified_agg_param:
+                # 如果只指定了 agg 参数，使用所有 tbname + 指定的 agg 参数
+                tbname_params = ['tbname', 'trows', 'sourcetable']
+                agg_params = [specified_agg_param]
+                print(f"  {sql_type}: 使用指定查询类型 - 所有from类型 + {specified_agg_param}")
+            else:
+                # 如果都没有指定，使用所有组合
+                tbname_params = ['tbname', 'trows', 'sourcetable']
+                agg_params = ['agg', 'select']
+                print(f"  {sql_type}: 使用所有参数组合")
+                
             for actual_sql_type in detailed_templates[sql_type]:
-                # 对每个sql_type，生成所有 tbname_or_trows_or_sourcetable 和 agg_or_select 的组合
-                for tbname_param in ['tbname', 'trows', 'sourcetable']:
-                    for agg_param in ['agg', 'select']:
+                for tbname_param in tbname_params:
+                    for agg_param in agg_params:
                         combinations.append({
                             'sql_type': actual_sql_type,
                             'tbname_or_trows_or_sourcetable': tbname_param,
                             'agg_or_select': agg_param
                         })
-            print(f"  {sql_type}: 生成 {len(detailed_templates[sql_type]) * 3 * 2} 种组合 (4个模板 × 3个from类型 × 2个查询类型)")
+            
+            total_combinations = len(detailed_templates[sql_type]) * len(tbname_params) * len(agg_params)
+            print(f"  {sql_type}: 生成 {total_combinations} 种组合 ({len(detailed_templates[sql_type])}个模板 × {len(tbname_params)}个from类型 × {len(agg_params)}个查询类型)")
             
         # 检查是否是all_detailed特殊模板
         elif sql_type == 'all_detailed':
             all_sql_types = []
             for template_list in detailed_templates.values():
                 all_sql_types.extend(template_list)
+                            
+            # 获取命令行传入的参数
+            base_args = getattr(self, 'base_args', {})
+            specified_tbname_param = base_args.get('tbname_or_trows_or_sourcetable')
+            specified_agg_param = base_args.get('agg_or_select')
+            
+            # 确定要使用的参数组合
+            if specified_tbname_param and specified_agg_param:
+                tbname_params = [specified_tbname_param]
+                agg_params = [specified_agg_param]
+                print(f"  {sql_type}: 使用指定参数组合 - {specified_tbname_param} + {specified_agg_param}")
+            elif specified_tbname_param:
+                tbname_params = [specified_tbname_param]
+                agg_params = ['agg', 'select']
+                print(f"  {sql_type}: 使用指定 tbname 参数 - {specified_tbname_param} + 所有查询类型")
+            elif specified_agg_param:
+                tbname_params = ['tbname', 'trows', 'sourcetable']
+                agg_params = [specified_agg_param]
+                print(f"  {sql_type}: 使用指定查询类型 - 所有from类型 + {specified_agg_param}")
+            else:
+                tbname_params = ['tbname', 'trows', 'sourcetable']
+                agg_params = ['agg', 'select']
+                print(f"  {sql_type}: 使用所有参数组合")
+            
             
             for actual_sql_type in all_sql_types:
-                for tbname_param in ['tbname', 'trows', 'sourcetable']:
-                    for agg_param in ['agg', 'select']:
+                for tbname_param in tbname_params:
+                    for agg_param in agg_params:
                         combinations.append({
                             'sql_type': actual_sql_type,
                             'tbname_or_trows_or_sourcetable': tbname_param,
                             'agg_or_select': agg_param
                         })
-            print(f"  {sql_type}: 生成 {len(all_sql_types) * 3 * 2} 种组合 (28个模板 × 3个from类型 × 2个查询类型)")
+            
+            total_combinations = len(all_sql_types) * len(tbname_params) * len(agg_params)
+            print(f"  {sql_type}: 生成 {total_combinations} 种组合 ({len(all_sql_types)}个模板 × {len(tbname_params)}个from类型 × {len(agg_params)}个查询类型)")
             
         # 检查是否是单个模板
         else:
-            # # 单个SQL类型，生成所有参数组合
-            # for tbname_param in ['tbname', 'trows', 'sourcetable']:
-            #     for agg_param in ['agg', 'select']:
-            #         combinations.append({
-            #             'sql_type': sql_type,
-            #             'tbname_or_trows_or_sourcetable': tbname_param,
-            #             'agg_or_select': agg_param
-            #         })
-            # print(f"  {sql_type}: 生成 6 种组合 (3个from类型 × 2个查询类型)")
+            # 获取命令行传入的参数
+            base_args = getattr(self, 'base_args', {})
+            specified_tbname_param = base_args.get('tbname_or_trows_or_sourcetable')
+            specified_agg_param = base_args.get('agg_or_select')
             
-            # 单个SQL类型的新逻辑：默认只生成一个测试（使用默认参数）
-            # 用户可以通过添加其他参数来控制行为
+            
             # 检查批量测试模式设置
             if hasattr(self, 'single_template_mode') and self.single_template_mode == 'all-combinations':
-                # 生成所有参数组合
-                for tbname_param in ['tbname', 'trows', 'sourcetable']:
-                    for agg_param in ['agg', 'select']:
+                # 生成所有参数组合，但如果指定了参数则使用指定的参数
+                if specified_tbname_param and specified_agg_param:
+                    # 如果指定了具体参数，只生成指定的组合
+                    tbname_params = [specified_tbname_param]
+                    agg_params = [specified_agg_param]
+                    print(f"  {sql_type}: 使用指定参数组合 - {specified_tbname_param} + {specified_agg_param}")
+                elif specified_tbname_param:
+                    # 如果只指定了 tbname 参数，使用指定的 tbname + 所有 agg 参数
+                    tbname_params = [specified_tbname_param]
+                    agg_params = ['agg', 'select']
+                    print(f"  {sql_type}: 使用指定 tbname 参数 - {specified_tbname_param} + 所有查询类型")
+                elif specified_agg_param:
+                    # 如果只指定了 agg 参数，使用所有 tbname + 指定的 agg 参数
+                    tbname_params = ['tbname', 'trows', 'sourcetable']
+                    agg_params = [specified_agg_param]
+                    print(f"  {sql_type}: 使用指定查询类型 - 所有from类型 + {specified_agg_param}")
+                else:
+                    # 如果都没有指定，使用所有组合
+                    tbname_params = ['tbname', 'trows', 'sourcetable']
+                    agg_params = ['agg', 'select']
+                    print(f"  {sql_type}: 使用所有参数组合")
+                
+                # 在 all-combinations 模式下，忽略命令行指定的参数，强制生成所有组合
+                tbname_params = ['tbname', 'trows', 'sourcetable']
+                agg_params = ['agg', 'select']
+                print(f"  {sql_type}: 强制使用所有参数组合 (all-combinations模式)")
+    
+                for tbname_param in tbname_params:
+                    for agg_param in agg_params:
                         combinations.append({
                             'sql_type': sql_type,
                             'tbname_or_trows_or_sourcetable': tbname_param,
                             'agg_or_select': agg_param
                         })
-                print(f"  {sql_type}: 生成 6 种组合 (3个from类型 × 2个查询类型)")
+                print(f"  {sql_type}: 生成 {len(tbname_params) * len(agg_params)} 种组合 ({len(tbname_params)}个from类型 × {len(agg_params)}个查询类型)")
             else:
-                # 只生成默认组合
+                # 只生成默认组合，但使用命令行指定的参数（如果有的话）
+                tbname_param = specified_tbname_param if specified_tbname_param else 'sourcetable'
+                agg_param = specified_agg_param if specified_agg_param else 'agg'
+                
                 combinations.append({
                     'sql_type': sql_type,
-                    'tbname_or_trows_or_sourcetable': 'sourcetable',
-                    'agg_or_select': 'agg'
+                    'tbname_or_trows_or_sourcetable': tbname_param,
+                    'agg_or_select': agg_param
                 })
-                print(f"  {sql_type}: 生成 1 种组合 (默认参数)")
-                print(f"    提示: 使用 --batch-single-template-mode all-combinations 可测试所有6种组合")
-        
+                
+                if specified_tbname_param or specified_agg_param:
+                    print(f"  {sql_type}: 生成 1 种组合 (使用指定参数: {tbname_param} + {agg_param})")
+                else:
+                    print(f"  {sql_type}: 生成 1 种组合 (默认参数: {tbname_param} + {agg_param})")
+                    print(f"    提示: 使用 --batch-single-template-mode all-combinations 可测试所有6种组合")
+            
         return combinations
     
     def filter_combinations(self, combinations):
@@ -3307,6 +3532,12 @@ class StreamBatchTester:
         # 强制确保流延迟检查在批量测试中启用
         config['check_stream_delay'] = True
     
+        # 添加延迟清理分析配置
+        config['delay_trends_analysis'] = self.delay_trends_analysis  
+        
+        if 'monitor_warm_up_time' not in config and self.base_args.get('monitor_warm_up_time') is not None:
+            config['monitor_warm_up_time'] = self.base_args.get('monitor_warm_up_time')
+    
         # 设置输出文件路径
         test_name = f"test_{test_index:03d}_{combination['sql_type']}_{combination['agg_or_select']}_{combination['tbname_or_trows_or_sourcetable']}"
         config['test_name'] = test_name
@@ -3322,6 +3553,7 @@ class StreamBatchTester:
         print(f"  max_delay_threshold: {config.get('max_delay_threshold', 'NOT_SET')}")
         print(f"  stream_num: {config.get('stream_num', 'NOT_SET')}") 
         print(f"  monitor_warm_up_time: {config.get('monitor_warm_up_time', 'NOT_SET')}") 
+        print(f"  delay_trends_analysis  : {config.get('delay_trends_analysis', 'NOT_SET')}")
         
         if not config['check_stream_delay']:
             # 强制启用
@@ -3380,14 +3612,23 @@ class StreamBatchTester:
                 should_skip, skip_reason = self.should_skip_test_by_stream_names(stream_names)
                 
                 if should_skip:
-                    print(f"⏭️  跳过测试: {skip_reason}")
+                    # 根据跳过原因确定跳过类型
+                    if "已知失败流" in skip_reason:
+                        skip_status = "SKIP_FAILURE"
+                        print(f"⏭️  跳过测试 - 已知失败: {skip_reason}")
+                    elif "已知性能不好流" in skip_reason:
+                        skip_status = "SKIP_POOR_PERFORMANCE"
+                        print(f"⏭️  跳过测试 - 性能不好: {skip_reason}")
+                    else:
+                        skip_status = "SKIPPED"
+                        print(f"⏭️  跳过测试 - 其他原因: {skip_reason}")
                     
                     # 记录跳过结果
                     end_time = time.time()
                     duration = end_time - start_time
                     
                     result.update({
-                        'status': 'SKIPPED',
+                        'status': skip_status,
                         'end_time': datetime.datetime.now().isoformat(),
                         'duration': duration,
                         'skip_reason': skip_reason,
@@ -3455,31 +3696,48 @@ class StreamBatchTester:
                 max_delay_threshold=config['max_delay_threshold'],
                 delay_check_interval=config['delay_check_interval'],
                 delay_log_file=config['delay_log_file'],
-                monitor_warm_up_time=config.get('monitor_warm_up_time') 
+                monitor_warm_up_time=config.get('monitor_warm_up_time'),
+                delay_trends_analysis  =config.get('delay_trends_analysis', False)
             )
             
             # 打开日志文件并设置输出重定向
-            log_file = open(config['test_log_file'], 'w')
+            
+            try:
+                log_file = open(config['test_log_file'], 'w')
+                print(f"成功打开日志文件: {config['test_log_file']}")
+            except Exception as e:
+                print(f"无法打开日志文件: {str(e)}")
+                log_file = None
             
             # 同时输出到控制台和文件
             class TeeOutput:
                 def __init__(self, *files):
-                    self.files = files
+                    self.files = []
+                    for f in files:
+                        if f is not None and hasattr(f, 'write') and not getattr(f, 'closed', False):
+                            self.files.append(f)
+                            
                 def write(self, text):
                     for f in self.files:
                         try:
-                            f.write(text)
-                            f.flush()
-                        except (ValueError, OSError) as e:
+                            if not getattr(f, 'closed', False):
+                                f.write(text)
+                                f.flush()
+                        except (ValueError, OSError, AttributeError) as e:
                             pass
+                        
                 def flush(self):
                     for f in self.files:
                         try:
-                            f.flush()
-                        except (ValueError, OSError):
+                            if not getattr(f, 'closed', False):
+                                f.flush()
+                        except (ValueError, OSError, AttributeError):
                             pass
             
-            sys.stdout = TeeOutput(original_stdout, log_file)
+            if log_file:
+                sys.stdout = TeeOutput(original_stdout, log_file)
+            else:
+                print("警告: 日志文件打开失败，仅输出到控制台")
             
             # 执行测试
             print(f"开始执行流计算测试: {test_name}")
@@ -3801,6 +4059,318 @@ class StreamBatchTester:
                 f.write(f"  {status_icon} {result['test_name']} - {result.get('duration', 0):.1f}s\n")
                 
     
+    def simple_delay_trends_analysis(self, delay_log_file):
+        """超简化的延迟趋势分析 - 只显示时间序列"""
+        try:
+            if not os.path.exists(delay_log_file):
+                return "延迟日志文件不存在"
+                
+            with open(delay_log_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 简单提取每次检查的结果
+            trend_lines = []
+            check_pattern = r'第\s+(\d+)\s+次检查.*?检查时间:\s*([^\n]+)'
+            
+            # 找到所有检查记录
+            check_matches = re.findall(check_pattern, content, re.DOTALL)
+            print(f"调试: 延迟趋势分析 - 找到 {len(check_matches)} 个检查记录")
+        
+            
+            # #old：不在显示时间了，统一换成下面的显示
+            # for check_num, check_time in check_matches:
+            #     # 在这次检查的内容中查找延迟信息
+            #     section_start = content.find(f'第 {check_num} 次检查')
+            #     next_check = content.find(f'第 {int(check_num)+1} 次检查')
+            #     if next_check == -1:
+            #         section = content[section_start:]
+            #     else:
+            #         section = content[section_start:next_check]
+                
+            #     # 提取延迟时间数据
+            #     delay_info = self._extract_delay_times_from_section(section)
+                
+            #     if delay_info:
+            #         trend_lines.append(f"检查{check_num}: {check_time} | {delay_info}")
+            #     else:
+            #         trend_lines.append(f"检查{check_num}: {check_time} | 无延迟数据")
+                    
+            for check_index, check_match in enumerate(check_matches):
+                try:
+                    print(f"调试: 处理第 {check_index + 1} 个检查记录: {check_match}")
+                    
+                    # 修复解包问题：检查 check_match 的结构
+                    if isinstance(check_match, tuple) and len(check_match) >= 1:
+                        check_num = check_match[0]
+                        #print(f"调试: 检查号: {check_num}")
+                    elif isinstance(check_match, str):
+                        check_num = check_match
+                        #print(f"调试: 检查号(字符串): {check_num}")
+                    else:
+                        #print(f"调试: 未知的检查记录格式: {type(check_match)}, {check_match}")
+                        continue
+                    
+                    # 在这次检查的内容中查找延迟信息
+                    section_start = content.find(f'第 {check_num} 次检查')
+                    next_check = content.find(f'第 {int(check_num)+1} 次检查')
+                    if next_check == -1:
+                        section = content[section_start:]
+                    else:
+                        section = content[section_start:next_check]
+                    
+                    #print(f"调试: 检查 {check_num} 的内容长度: {len(section)}")
+                    
+                    # 提取延迟时间数据
+                    delay_info = self._extract_delay_times_from_section(section)
+                    
+                    if delay_info and delay_info != "无延迟数据":
+                        # 简化格式：只显示延迟值
+                        trend_lines.append(delay_info)
+                    else:
+                        trend_lines.append("无数据")
+                        
+                    print(f"调试: 检查 {check_num} 的延迟信息: {delay_info}")
+                        
+                except Exception as e:
+                    print(f"调试: 处理检查记录 {check_index + 1} 时出错: {str(e)}")
+                    print(f"调试: 问题记录内容: {check_match}")
+                    trend_lines.append(f"解析错误: {str(e)}")
+                    continue
+            
+            # 确保至少有1行内容，不够的话补充空行
+            while len(trend_lines) < 1:
+                trend_lines.append("　")  # 添加空行占位
+        
+            # 返回完整的趋势数据
+            result = " | ".join(trend_lines) if trend_lines else "无趋势数据 | 　 | 　"
+            
+            # 调试输出
+            print(f"调试: 延迟趋势分析结果长度: {len(result)}")
+            print(f"调试: 趋势行数: {len(trend_lines)}")
+            print(f"调试: 最终结果前200字符: {result[:200]}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"分析失败: {str(e)}"
+            print(f"调试: 延迟趋势分析异常: {error_msg}")
+            print(f"调试: 异常堆栈: {traceback.format_exc()}")
+            return error_msg
+
+    def _extract_delay_times_from_section(self, section):
+        """从检查段落中提取延迟时间信息
+        
+        Args:
+            section: 单次检查的日志内容
+            
+        Returns:
+            str: 格式化的延迟时间信息
+        """
+        try:
+            # 提取所有流的延迟时间
+            delay_values = []
+            
+            # 匹配模式：流名称和延迟时间
+            # 延迟: 1500ms (1.50秒)
+            delay_pattern = r'流名称:\s*([^\n]+).*?延迟:\s*([^\n\(]+)'
+            
+            # 也匹配目标表无数据或不存在的情况
+            no_data_pattern = r'流名称:\s*([^\n]+).*?警告:\s*目标表无数据'
+            error_pattern = r'流名称:\s*([^\n]+).*?错误:'
+            
+            # 提取正常延迟时间
+            delay_matches = re.findall(delay_pattern, section, re.DOTALL)
+            print(f"调试: 找到 {len(delay_matches)} 个延迟记录")
+            print(f"调试: 延迟匹配结果: {delay_matches}")
+            
+            for match_index, delay_match in enumerate(delay_matches):
+                try:
+                    if isinstance(delay_match, tuple) and len(delay_match) >= 2:
+                        stream_name = delay_match[0].strip()
+                        delay_str = delay_match[1].strip()
+                        print(f"调试: 延迟记录 {match_index + 1}: 流={stream_name}, 延迟={delay_str}")
+                    else:
+                        print(f"调试: 延迟记录 {match_index + 1} 格式异常: {delay_match}")
+                        continue
+                
+                # # 解析延迟时间，提取毫秒数-old
+                # # 格式eg：检查11: 2025-09-10 13:40:00 | period_stb_partition_by_tag_agg_sourcetable_stb:20ms
+                # delay_ms = self._parse_delay_string(delay_str)
+                # if delay_ms is not None:
+                #     formatted_delay = self._format_delay_time_simple(delay_ms)
+                #     delay_times.append(f"{stream_name}:{formatted_delay}")
+                    
+                    # 解析延迟时间，提取毫秒数-new
+                    # 格式eg：20ms | 25ms | 无数据
+                    delay_ms = self._parse_delay_string(delay_str)
+                    print(f"调试: 解析后的延迟毫秒数: {delay_ms}")
+                    if delay_ms is not None:
+                        # 只保留数值和单位，去掉流名称
+                        if delay_ms < 1000:  # 小于1秒，显示毫秒
+                            delay_values.append(f"{delay_ms}ms")
+                        elif delay_ms < 60000:  # 小于1分钟，显示秒
+                            seconds = delay_ms / 1000.0
+                            delay_values.append(f"{seconds:.1f}s")
+                        else:  # 更长时间，显示分钟
+                            minutes = delay_ms / 60000.0
+                            delay_values.append(f"{minutes:.1f}m")
+                    else:
+                        print(f"调试: 无法解析延迟字符串: {delay_str}")
+                        delay_values.append("解析失败")
+                    
+                except Exception as e:
+                    print(f"调试: 处理延迟记录 {match_index + 1} 时出错: {str(e)}")
+                    delay_values.append("处理错误")
+                    continue
+            
+            # 提取无数据情况
+            no_data_matches = re.findall(no_data_pattern, section, re.DOTALL)
+            print(f"调试: 找到 {len(no_data_matches)} 个无数据记录")
+            for no_data_match in no_data_matches:
+                try:
+                    if isinstance(no_data_match, tuple):
+                        delay_values.append("无数据")
+                    elif isinstance(no_data_match, str):
+                        delay_values.append("无数据")
+                    else:
+                        print(f"调试: 无数据记录格式异常: {type(no_data_match)}, {no_data_match}")
+                        delay_values.append("无数据")
+                except Exception as e:
+                    print(f"调试: 处理无数据记录时出错: {str(e)}")
+                    delay_values.append("无数据")
+            
+            # 提取错误情况
+            error_matches = re.findall(error_pattern, section, re.DOTALL)
+            print(f"调试: 找到 {len(error_matches)} 个错误记录")
+            for error_match in error_matches:
+                try:
+                    if isinstance(error_match, tuple):
+                        delay_values.append("表不存在")
+                    elif isinstance(error_match, str):
+                        delay_values.append("表不存在")
+                    else:
+                        print(f"调试: 错误记录格式异常: {type(error_match)}, {error_match}")
+                        delay_values.append("表不存在")
+                except Exception as e:
+                    print(f"调试: 处理错误记录时出错: {str(e)}")
+                    delay_values.append("表不存在")
+            
+            print(f"调试: 总共收集到 {len(delay_values)} 个延迟值: {delay_values}")
+            
+            if delay_values:
+                result = " | ".join(delay_values)
+                print(f"调试: 生成结果: {result}")
+                return result
+            else:
+                print(f"调试: 无延迟数据")
+                return "无延迟数据"
+                
+        except Exception as e:
+            error_msg = f"解析错误: {str(e)}"
+            print(f"调试: 提取延迟时间时出错: {error_msg}")
+            print(f"调试: 异常堆栈: {traceback.format_exc()}")
+            return error_msg
+
+    def _parse_delay_string(self, delay_str):
+        """解析延迟字符串，提取毫秒数
+        
+        Args:
+            delay_str: 延迟字符串，如 "1500ms" 或 "1.50秒" 或 "1m25.9s"
+            
+        Returns:
+            int: 延迟毫秒数，解析失败返回None
+        """
+        try:
+            delay_str = delay_str.strip()
+            print(f"调试: _parse_delay_string 输入: '{delay_str}'")
+            
+            # 匹配复合时间格式: 1m25.9s, 2h30m15s 等
+            complex_time_match = re.search(r'(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?', delay_str)
+            if complex_time_match and any(complex_time_match.groups()):
+                hours = float(complex_time_match.group(1)) if complex_time_match.group(1) else 0
+                minutes = float(complex_time_match.group(2)) if complex_time_match.group(2) else 0  
+                seconds = float(complex_time_match.group(3)) if complex_time_match.group(3) else 0
+                
+                total_ms = int((hours * 3600 + minutes * 60 + seconds) * 1000)
+                print(f"调试: 匹配到复合时间格式: {hours}h {minutes}m {seconds}s -> {total_ms}ms")
+                return total_ms
+            
+            # 匹配分钟格式: 1.5m, 25m
+            m_match = re.search(r'(\d+(?:\.\d+)?)m(?!s)', delay_str)  # 避免匹配ms中的m
+            if m_match:
+                m_value = float(m_match.group(1))
+                ms_value = int(m_value * 60 * 1000)
+                print(f"调试: 匹配到分钟格式: {m_match.group(1)}m -> {ms_value}ms")
+                return ms_value
+        
+            # 匹配毫秒格式: 1500ms
+            ms_match = re.search(r'(\d+(?:\.\d+)?)ms', delay_str)
+            if ms_match:
+                ms_value = int(float(ms_match.group(1)))
+                print(f"调试: 匹配到毫秒格式: {ms_match.group(1)} -> {ms_value}ms")
+                return ms_value
+            
+            # 匹配秒格式: 1.5s, 25s
+            s_match = re.search(r'(\d+(?:\.\d+)?)秒', delay_str)
+            if s_match:
+                s_value = float(s_match.group(1))
+                ms_value = int(s_value * 1000)
+                print(f"调试: 匹配到秒格式: {s_match.group(1)}秒 -> {ms_value}ms")
+                return ms_value
+        
+            # 匹配中文秒格式
+            cn_s_match = re.search(r'(\d+(?:\.\d+)?)秒', delay_str)
+            if cn_s_match:
+                s_value = float(cn_s_match.group(1))
+                ms_value = int(s_value * 1000)
+                print(f"调试: 匹配到中文秒格式: {cn_s_match.group(1)}秒 -> {ms_value}ms")
+                return ms_value
+            
+            # 匹配小时格式: 1.5h, 2h
+            h_match = re.search(r'(\d+(?:\.\d+)?)h', delay_str)
+            if h_match:
+                h_value = float(h_match.group(1))
+                ms_value = int(h_value * 3600 * 1000)
+                print(f"调试: 匹配到小时格式: {h_match.group(1)}h -> {ms_value}ms")
+                return ms_value
+            
+            # 匹配纯数字（假设是毫秒）
+            num_match = re.search(r'(\d+(?:\.\d+)?)', delay_str)
+            if num_match:
+                num_value = int(float(num_match.group(1)))
+                print(f"调试: 匹配到纯数字: {num_match.group(1)} -> 假设为{num_value}ms")
+                return num_value
+            
+            return None
+            
+        except Exception:
+            return None
+
+    def _format_delay_time_simple(self, delay_ms):
+        """格式化延迟时间为简洁显示
+        
+        Args:
+            delay_ms: 延迟毫秒数
+            
+        Returns:
+            str: 格式化后的时间字符串
+        """
+        if delay_ms is None:
+            return "N/A"
+        
+        if delay_ms < 1000:  # 小于1秒，显示毫秒
+            return f"{delay_ms}ms"
+        elif delay_ms < 60000:  # 小于1分钟，显示秒
+            seconds = delay_ms / 1000.0
+            return f"{seconds:.1f}s"
+        elif delay_ms < 3600000:  # 小于1小时，显示分钟
+            minutes = delay_ms / 60000.0
+            return f"{minutes:.1f}m"
+        else:  # 1小时以上，显示小时
+            hours = delay_ms / 3600000.0
+            return f"{hours:.1f}h"
+                
+    
     def generate_final_report_bak(self, result_dir):
         """生成最终测试报告"""
         report_file = os.path.join(result_dir, 'reports', 'final_report.html')
@@ -3908,6 +4478,14 @@ class StreamBatchTester:
         success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
         failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
         skipped_count = len([r for r in self.test_results if r['status'] == 'SKIPPED'])
+        skip_failure_count = len([r for r in self.test_results if r['status'] == 'SKIP_FAILURE'])
+        skip_poor_performance_count = len([r for r in self.test_results if r['status'] == 'SKIP_POOR_PERFORMANCE'])
+        
+        # 总的跳过数量
+        total_skipped = skipped_count + skip_failure_count + skip_poor_performance_count
+        
+        print(f"调试统计: 成功={success_count}, 失败={failed_count}, 跳过失败={skip_failure_count}, 跳过性能={skip_poor_performance_count}, 其他跳过={skipped_count}")
+        
         total_duration = sum(r.get('duration', 0) for r in self.test_results)
         current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
@@ -4029,6 +4607,7 @@ class StreamBatchTester:
         .badge-success {{ background-color: #28a745; color: white; }}
         .badge-failed {{ background-color: #dc3545; color: white; }}
         .badge-skipped {{ background-color: #6c757d; color: white; }} 
+        .badge-warning {{ background-color: #ffc107; color: #212529; }} 
         
         /* 性能指标样式 */
         .perf-good {{ color: #28a745; font-weight: bold; }}
@@ -4051,6 +4630,63 @@ class StreamBatchTester:
         }}
         .sql-preview:hover {{ background-color: #e9ecef; }}
         
+        /* 延迟趋势预览样式 */
+        .delay-trends-preview {{ 
+            font-family: 'Courier New', monospace; 
+            font-size: 10px; 
+            background-color: #f8f9fa; 
+            padding: 5px; 
+            border-radius: 3px; 
+            max-width: 300px; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+            cursor: pointer;
+            border: 1px solid #dee2e6;
+        }}
+        .delay-trends-preview:hover {{ background-color: #e9ecef; }}
+        
+        /* 延迟趋势工具提示 */
+        .trends-tooltip {{ position: relative; display: inline-block; }}
+        .trends-tooltip .trendstooltiptext {{ 
+            visibility: hidden; 
+            width: 800px;
+            min-height: 150px;
+            max-height: 600px;  
+            background-color: #333; 
+            color: #fff; 
+            text-align: left; 
+            border-radius: 6px; 
+            padding: 20px; 
+            position: absolute; 
+            z-index: 9999;
+            top: 120%;        
+            left: 50%; 
+            margin-left: -400px;
+            margin-top: 5px;
+            opacity: 0; 
+            transition: opacity 0.3s; 
+            font-family: 'Courier New', monospace; 
+            font-size: 12px; 
+            white-space: pre-wrap; 
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            
+            /* 允许文本选择和复制 */
+            pointer-events: auto;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            
+            /* 多列显示支持 */
+            line-height: 1.6;
+            word-break: break-word;
+            word-wrap: break-word;
+        }}
+        .trends-tooltip:hover .trendstooltiptext {{ visibility: visible; opacity: 1; }}
+        
         /* 延迟指标样式 */
         .delay-excellent {{ color: #28a745; font-weight: bold; }}
         .delay-good {{ color: #20c997; font-weight: bold; }}
@@ -4058,29 +4694,119 @@ class StreamBatchTester:
         .delay-warning {{ color: #fd7e14; font-weight: bold; }}
         .delay-danger {{ color: #dc3545; font-weight: bold; }}
         .delay-critical {{ color: #6f42c1; font-weight: bold; }}
+        .delay-no-data {{ color: #ff6b35; font-weight: bold; background-color: #fff3e0; padding: 2px 4px; border-radius: 3px; }}
+        .delay-table-missing {{  color: #ffffff; font-weight: bold; background-color: #d32f2f; padding: 2px 4px; border-radius: 3px; }}
         
         /* 工具提示 */
         .tooltip {{ position: relative; display: inline-block; }}
         .tooltip .tooltiptext {{ 
             visibility: hidden; 
-            width: 400px; 
+            width: 600px;
+            min-height: 120px;
+            max-height: 400px;
             background-color: #333; 
             color: #fff; 
             text-align: left; 
             border-radius: 6px; 
-            padding: 10px; 
+            padding: 15px; 
             position: absolute; 
-            z-index: 1; 
-            bottom: 125%; 
+            z-index: 9999;
+            top: 120%;        
             left: 50%; 
-            margin-left: -200px; 
+            margin-left: -300px;
+            margin-top: 5px;  
             opacity: 0; 
             transition: opacity 0.3s; 
             font-family: 'Courier New', monospace; 
-            font-size: 10px; 
+            font-size: 11px; 
             white-space: pre-wrap; 
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            /* 移除pointer-events限制，允许文本选择和复制 */
+            pointer-events: auto;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
         }}
-        .tooltip:hover .tooltiptext {{ visibility: visible; opacity: 1; }}
+        .tooltip:hover .tooltiptext {{ visibility: visible; opacity: 1; }} 
+        
+        /* 自定义滚动条样式 */
+        .tooltiptext::-webkit-scrollbar,
+        .trendstooltiptext::-webkit-scrollbar {{
+            width: 8px;
+        }}
+        .tooltiptext::-webkit-scrollbar-track,
+        .trendstooltiptext::-webkit-scrollbar-track {{
+            background: #555;
+            border-radius: 4px;
+        }}
+        .tooltiptext::-webkit-scrollbar-thumb,
+        .trendstooltiptext::-webkit-scrollbar-thumb {{
+            background: #888;
+            border-radius: 4px;
+        }}
+        .tooltiptext::-webkit-scrollbar-thumb:hover,
+        .trendstooltiptext::-webkit-scrollbar-thumb:hover {{
+            background: #aaa;
+        }}
+        
+        
+        /* 智能定位类 - 向上弹出 */
+        .tooltip .tooltiptext.upward,
+        .trends-tooltip .trendstooltiptext.upward {{
+            top: auto;
+            bottom: 120%;
+            margin-top: 0;
+            margin-bottom: 5px;
+        }}
+        
+        /* 智能定位类 - 向左偏移 */
+        .tooltip .tooltiptext.leftward {{
+            left: auto;
+            right: 0;
+            margin-left: 0;
+            margin-right: -50px;
+        }}
+        .trends-tooltip .trendstooltiptext.leftward {{
+            left: auto;
+            right: 0;
+            margin-left: 0;
+            margin-right: -50px;
+        }}
+        
+        /* 智能定位类 - 向右偏移 */
+        .tooltip .tooltiptext.rightward {{
+            left: 0;
+            margin-left: -50px;
+            margin-right: 0;
+        }}
+        .trends-tooltip .trendstooltiptext.rightward {{
+            left: 0;
+            margin-left: -50px;
+            margin-right: 0;
+        }}
+        
+        /* 自定义滚动条样式 */
+        .tooltiptext::-webkit-scrollbar,
+        .trendstooltiptext::-webkit-scrollbar {{
+            width: 8px;
+        }}
+        .tooltiptext::-webkit-scrollbar-track,
+        .trendstooltiptext::-webkit-scrollbar-track {{
+            background: #555;
+            border-radius: 4px;
+        }}
+        .tooltiptext::-webkit-scrollbar-thumb,
+        .trendstooltiptext::-webkit-scrollbar-thumb {{
+            background: #888;
+            border-radius: 4px;
+        }}
+        .tooltiptext::-webkit-scrollbar-thumb:hover,
+        .trendstooltiptext::-webkit-scrollbar-thumb:hover {{
+            background: #aaa;
+        }}
         
         /* 筛选和搜索 */
         .controls {{ margin: 20px 0; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
@@ -4092,12 +4818,25 @@ class StreamBatchTester:
         @media (max-width: 1200px) {{
             th, td {{ font-size: 10px; padding: 8px 4px; }}
             .sql-preview {{ max-width: 200px; }}
+            
+            /* 小屏幕下的工具提示调整 */
+            .tooltip .tooltiptext {{
+                width: 90vw;
+                left: 50%;
+                margin-left: -45vw;
+            }}
+            .trends-tooltip .trendstooltiptext {{
+                width: 95vw;
+                left: 50%;
+                margin-left: -47.5vw;
+            }}
         }}
     </style>
     <script>
         function filterTable() {{
             const statusFilter = document.getElementById('statusFilter').value;
             const sqlTypeFilter = document.getElementById('sqlTypeFilter').value;
+            const fromTypeFilter = document.getElementById('fromTypeFilter').value;
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             
             const table = document.getElementById('resultsTable');
@@ -4107,12 +4846,26 @@ class StreamBatchTester:
                 const row = rows[i];
                 const status = row.cells[4].textContent;
                 const sqlType = row.cells[1].textContent;
+                const fromType = row.cells[3].textContent;
                 const testName = row.cells[0].textContent.toLowerCase();
                 
                 let showRow = true;
                 
                 if (statusFilter && !status.includes(statusFilter)) showRow = false;
                 if (sqlTypeFilter && sqlType !== sqlTypeFilter) showRow = false;
+                
+                // 修改FROM类型过滤逻辑，支持反向筛选
+                if (fromTypeFilter) {{
+                    if (fromTypeFilter.startsWith('!')) {{
+                        // 反向筛选：排除指定类型
+                        const excludeType = fromTypeFilter.substring(1);
+                        if (fromType === excludeType) showRow = false;
+                    }} else {{
+                        // 正向筛选：只显示指定类型
+                        if (fromType !== fromTypeFilter) showRow = false;
+                    }}
+                }}
+        
                 if (searchTerm && !testName.includes(searchTerm)) showRow = false;
                 
                 row.style.display = showRow ? '' : 'none';
@@ -4136,6 +4889,260 @@ class StreamBatchTester:
             }});
             
             rows.forEach(row => table.appendChild(row));
+        }}
+        
+        // 智能工具提示定位系统
+        document.addEventListener('DOMContentLoaded', function() {{
+            console.log('页面加载完成，初始化智能工具提示系统...');
+            
+            // 智能定位函数
+            function adjustTooltipPosition(tooltip, tooltipText, isWide = false) {{
+                const rect = tooltip.getBoundingClientRect();
+                const viewportHeight = window.innerHeight;
+                const viewportWidth = window.innerWidth;
+                
+                // 工具提示尺寸 (根据是否为宽版本调整)
+                const tooltipHeight = isWide ? 600 : 400;
+                const tooltipWidth = isWide ? 800 : 600;
+                
+                console.log(`调试: 元素位置 {{x: ${{rect.left}}, y: ${{rect.top}}, bottom: ${{rect.bottom}}}} 视窗 {{w: ${{viewportWidth}}, h: ${{viewportHeight}}}}`);
+                
+                // 重置所有定位类
+                tooltipText.classList.remove('upward', 'leftward', 'rightward');
+                
+                // 垂直方向智能调整
+                if (rect.bottom + tooltipHeight > viewportHeight && rect.top > tooltipHeight) {{
+                    // 上方空间足够，向上弹出
+                    tooltipText.classList.add('upward');
+                    console.log('添加 upward 类 - 向上弹出');
+                }}
+                
+                // 水平方向智能调整
+                const centerNeeded = tooltipWidth / 2;
+                if (rect.left + centerNeeded > viewportWidth) {{
+                    // 右侧空间不足，向左偏移
+                    tooltipText.classList.add('leftward');
+                    console.log('添加 leftward 类 - 向左偏移');
+                }} else if (rect.left - centerNeeded < 0) {{
+                    // 左侧空间不足，向右偏移
+                    tooltipText.classList.add('rightward');
+                    console.log('添加 rightward 类 - 向右偏移');
+                }}
+            }}
+            
+            // 为所有SQL工具提示添加智能定位
+            const sqlTooltips = document.querySelectorAll('.tooltip');
+            console.log('找到', sqlTooltips.length, '个SQL工具提示');
+            
+            sqlTooltips.forEach((tooltip, index) => {{
+                const tooltipText = tooltip.querySelector('.tooltiptext');
+                if (!tooltipText) return;
+                
+                tooltip.addEventListener('mouseenter', function() {{
+                    adjustTooltipPosition(tooltip, tooltipText, false);
+                }});
+            }});
+            
+            // 为所有延迟趋势工具提示添加智能定位
+            const trendsTooltips = document.querySelectorAll('.trends-tooltip');
+            console.log('找到', trendsTooltips.length, '个延迟趋势工具提示');
+            
+            trendsTooltips.forEach((tooltip, index) => {{
+                const tooltipText = tooltip.querySelector('.trendstooltiptext');
+                if (!tooltipText) return;
+                
+                tooltip.addEventListener('mouseenter', function() {{
+                    console.log('鼠标进入延迟趋势工具提示', index);
+                    
+                    // 获取原始的延迟趋势数据
+                    const originalData = tooltipText.textContent || tooltipText.innerText;
+                    console.log('原始延迟趋势数据长度:', originalData.length);
+                    console.log('原始延迟趋势数据预览:', originalData.substring(0, 100) + '...');
+                    
+                    // 格式化数据
+                    const formattedData = formatDelayTrendsData(originalData);
+                    console.log('格式化后数据长度:', formattedData.length);
+                    
+                    // 更新工具提示内容
+                    tooltipText.textContent = formattedData;
+                    
+                    // 调整位置
+                    adjustTooltipPosition(tooltip, tooltipText, true);
+                }});
+                
+                // 添加复制功能
+                tooltip.addEventListener('click', function(e) {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const textToCopy = tooltipText.textContent || tooltipText.innerText;
+                    
+                    // 尝试使用现代API复制
+                    if (navigator.clipboard && navigator.clipboard.writeText) {{
+                        navigator.clipboard.writeText(textToCopy).then(function() {{
+                            console.log('延迟趋势数据已复制到剪贴板');
+                            // 可以添加一个临时提示
+                            const originalTitle = tooltip.title;
+                            tooltip.title = '已复制到剪贴板！';
+                            setTimeout(() => {{
+                                tooltip.title = originalTitle;
+                            }}, 2000);
+                        }}).catch(function(err) {{
+                            console.error('复制失败:', err);
+                            fallbackCopyTextToClipboard(textToCopy);
+                        }});
+                    }} else {{
+                        // 降级方案
+                        fallbackCopyTextToClipboard(textToCopy);
+                    }}
+                }});
+            }});
+            
+            // 降级复制方案
+            function fallbackCopyTextToClipboard(text) {{
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.top = "-1000px";
+                textArea.style.left = "-1000px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {{
+                    const successful = document.execCommand('copy');
+                    if (successful) {{
+                        console.log('延迟趋势数据已复制到剪贴板（降级方案）');
+                    }} else {{
+                        console.error('复制命令执行失败');
+                    }}
+                }} catch (err) {{
+                    console.error('降级复制方案也失败了:', err);
+                }} finally {{
+                    document.body.removeChild(textArea);
+                }}
+            }}
+            
+            console.log('智能工具提示系统初始化完成');
+        }});
+        
+        // 格式化延迟趋势数据为多列显示
+        function formatDelayTrendsData(trendsData) {{
+            if (!trendsData || trendsData === 'N/A' || trendsData === '无趋势数据') {{
+                return trendsData + '\\n\\n　\\n　\\n　';
+            }}
+            
+            try {{
+                // 处理HTML实体和清理数据
+                let cleanData = trendsData;
+                
+                // 如果数据包含HTML转义字符，先解码
+                if (cleanData.includes('&quot;') || cleanData.includes('&#39;') || cleanData.includes('&lt;') || cleanData.includes('&gt;')) {{
+                    cleanData = cleanData
+                        .replace(/&quot;/g, '"')
+                        .replace(/&#39;/g, "'")
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/\\\\n/g, '\\n')
+                        .replace(/\\\\r/g, '\\r');
+                }}
+                
+                console.log('清理前数据:', trendsData.substring(0, 100) + '...');
+                console.log('清理后数据:', cleanData.substring(0, 100) + '...');
+                
+                // 按换行符或<br>分割成行
+                let lines = [];
+                if (cleanData.includes('<br>')) {{
+                    lines = cleanData.split('<br>');
+                }} else if (cleanData.includes('\\n')) {{
+                    lines = cleanData.split('\\n');
+                }} else {{
+                    // 如果没有明显的分隔符，尝试按 | 分割并重新组织
+                    const items = cleanData.split('|').map(item => item.trim()).filter(item => item);
+                    if (items.length > 8) {{
+                        // 如果项目很多，按每行8个重新组织
+                        const itemsPerLine = 8;
+                        for (let i = 0; i < items.length; i += itemsPerLine) {{
+                            const lineItems = items.slice(i, i + itemsPerLine);
+                            lines.push(lineItems.join(' | '));
+                        }}
+                    }} else {{
+                        // 如果项目不多，保持原样
+                        lines = [cleanData];
+                    }}
+                }}
+                
+                // 过滤空行并处理每行
+                lines = lines
+                    .map(line => line.trim())
+                    .filter(line => line && line !== '' && line !== '　')
+                    .map((line, index) => {{
+                        // 如果行很长（超过80个字符），尝试在合适的位置断行
+                        if (line.length > 80) {{
+                            // 在 | 符号处断行
+                            const parts = line.split(' | ');
+                            if (parts.length > 6) {{
+                                const result = [];
+                                for (let i = 0; i < parts.length; i += 6) {{
+                                    const chunk = parts.slice(i, i + 6).join(' | ');
+                                    result.push(chunk);
+                                }}
+                                return result.join('\\n  ');
+                            }}
+                        }}
+                        return line;
+                    }});
+                
+                // 确保至少有2行内容，不够的话补充
+                while (lines.length < 2) {{
+                    lines.push('　'); // 添加占位行
+                }}
+                
+                console.log('格式化后行数:', lines.length);
+                console.log('前2行示例:', lines.slice(0, 2));
+                
+                // 添加行号标识，使内容更清晰
+                const formattedLines = lines.map((line, index) => {{
+                    if (line === '　') {{
+                        return line; // 占位行保持原样
+                    }}
+    
+                    // 检查是否已经包含"检查XX:"格式，如果是则不再添加
+                    if (line.match(/^第\d+行:/)) {{
+                        return line; // 已经格式化过，直接返回
+                    }}
+            
+                    // 检查是否包含旧的"检查XX:"格式，如果是则替换
+                    if (line.match(/^检查\d+:/)) {{
+                        // 提取检查号并替换为行号
+                        const checkMatch = line.match(/^检查(\d+):(.*)/);
+                        if (checkMatch) {{
+                            const lineNum = String(index + 1).padStart(2, '0');
+                            return `第${{lineNum}}行:${{checkMatch[2]}}`;
+                        }}
+                    }}
+                    
+                    if (line.includes('|') && line.split('|').length > 3) {{
+                        // 如果是数据行，添加检查序号
+                        const lineNum = String(index + 1).padStart(2, '0');
+                        return `第${{lineNum}}行: ${{line}}`;
+                    }} else {{
+                        // 如果是普通行，保持原样
+                        return line;
+                    }}
+                }});
+                
+                const result = formattedLines.join('\\n');
+                console.log('最终格式化结果长度:', result.length);
+                console.log('最终格式化结果预览:', result.substring(0, 200) + '...');
+                
+                return result;
+                
+            }} catch (e) {{
+                console.error('格式化延迟趋势数据失败:', e);
+                console.error('原始数据:', trendsData);
+                return '格式化失败: ' + e.message + '\\n\\n原始数据:\\n' + trendsData;
+            }}
         }}
     </script>
 </head>
@@ -4168,8 +5175,13 @@ class StreamBatchTester:
         </div>
         <div class="metric skipped">
             <h3>⏭️ 跳过(已知失败)</h3>
-            <h2>{skipped_count}</h2>
-            <small>{(skipped_count/total_tests*100):.1f}%</small>
+            <h2>{skip_failure_count}</h2>
+            <small>{(skip_failure_count/self.total_tests*100):.1f}%</small>
+        </div>
+        <div class="metric warning">
+            <h3>⚠️ 跳过(性能不好)</h3>
+            <h2>{skip_poor_performance_count}</h2>
+            <small>{(skip_poor_performance_count/self.total_tests*100):.1f}%</small>
         </div>
         <div class="metric info">
             <h3>⏱️ 总耗时</h3>
@@ -4190,7 +5202,9 @@ class StreamBatchTester:
                 <option value="">全部</option>
                 <option value="SUCCESS">成功</option>
                 <option value="FAILED">失败</option>
-                <option value="SKIPPED">跳过</option>
+                <option value="SKIP_FAILURE">跳过(已知失败)</option>
+                <option value="SKIP_POOR_PERFORMANCE">跳过(性能不好)</option>
+                <option value="SKIPPED">跳过(其他)</option>
             </select>
         </div>
         <div class="filter-group">
@@ -4210,6 +5224,19 @@ class StreamBatchTester:
         html_content += f"""
             </select>
         </div>
+        
+        <div class="filter-group">
+            <label for="fromTypeFilter">筛选类型:</label>
+            <select id="fromTypeFilter" onchange="filterTable()">
+                <option value="">全部</option>
+                <option value="tbname">tbname</option>
+                <option value="trows">trows</option>
+                <option value="sourcetable">sourcetable</option>
+                <option value="!tbname">排除 tbname (显示trows+sourcetable)</option>
+                <option value="!trows">排除 trows (显示tbname+sourcetable)</option>
+                <option value="!sourcetable">排除 sourcetable (显示tbname+trows)</option>
+            </select>
+        </div>        
         <div class="filter-group">
             <label for="searchInput">搜索测试名称:</label>
             <input type="text" id="searchInput" placeholder="输入关键词..." onkeyup="filterTable()">
@@ -4231,7 +5258,8 @@ class StreamBatchTester:
                 <th onclick="sortTable(8)" style="cursor: pointer;">🧠 内存峰值范围(MB)</th>
                 <th onclick="sortTable(9)" style="cursor: pointer;">📊 CPU平均值(%)</th>
                 <th onclick="sortTable(10)" style="cursor: pointer;">📈 内存平均值(MB)</th>
-                <th>📈 延迟统计</th>
+                <th>📈 原始延迟统计</th>
+                <th>📊 原始延迟趋势</th>
                 <th>❌ 错误信息</th>
             </tr>
 """
@@ -4245,12 +5273,28 @@ class StreamBatchTester:
             elif result['status'] == 'FAILED':
                 status_class = 'status-failed'
                 status_badge = 'badge-failed'
+            elif result['status'] == 'SKIP_FAILURE':
+                status_class = 'status-skipped'
+                status_badge = 'badge-skipped'
+            elif result['status'] == 'SKIP_POOR_PERFORMANCE':
+                status_class = 'status-warning'
+                status_badge = 'badge-warning'
             elif result['status'] == 'SKIPPED':
                 status_class = 'status-skipped'
                 status_badge = 'badge-skipped'
             else:
                 status_class = ''
                 status_badge = ''
+                            
+            # 处理跳过原因显示
+            if result['status'] in ['SKIPPED', 'SKIP_FAILURE', 'SKIP_POOR_PERFORMANCE']:
+                skip_reason = result.get('skip_reason', '未知原因')
+                if result['status'] == 'SKIP_FAILURE':
+                    error_msg = f"跳过原因: {skip_reason}"
+                elif result['status'] == 'SKIP_POOR_PERFORMANCE':
+                    error_msg = f"已知性能不好，待后期再优化: {skip_reason}"
+                else:
+                    error_msg = f"跳过原因: {skip_reason}"
             
             print(f"调试: 处理第 {result_index + 1}/{len(self.test_results)} 个测试结果: {result['test_name']}")
             
@@ -4768,7 +5812,10 @@ class StreamBatchTester:
             # 读取延迟统计
             delay_stats = "N/A"
             delay_stats_html = "N/A"
+            cleanup_delay_stats_html = "N/A"
             delay_class = ""
+            delay_trends_html = "N/A"
+            delay_trends_preview = "N/A"
             
             if result['status'] == 'SUCCESS':
                 try:
@@ -4839,14 +5886,61 @@ class StreamBatchTester:
                                 '正常': content.count('延迟等级: 正常'),
                                 '轻微延迟': content.count('延迟等级: 轻微延迟'),
                                 '明显延迟': content.count('延迟等级: 明显延迟'),
-                                '严重延迟': content.count('延迟等级: 严重延迟')
+                                '严重延迟': content.count('延迟等级: 严重延迟'),
+                                '目标表无数据': content.count('延迟等级: 目标表无数据'),
+                                '目标表不存在': content.count('延迟等级: 目标表不存在')
                             }
                             
                             print(f"调试: 第 {result_index + 1} 个测试，延迟分布统计: {delay_counts}")
                             
-                            # 构建延迟统计字符串
-                            total_checks = sum(delay_counts.values())
-                            print(f"调试: 第 {result_index + 1} 个测试，总检查次数: {total_checks}")
+                            # 尝试从内容中提取检查次数信息
+                            check_count = 0
+                            
+                            # 方法1: 统计包含"第 X 次检查"的行数
+                            check_pattern = r'第\s+(\d+)\s+次检查'
+                            check_matches = re.findall(check_pattern, content)
+                            if check_matches:
+                                # 获取最大的检查次数
+                                check_count = max(int(match) for match in check_matches)
+                                print(f"调试: 从内容中解析出检查次数: {check_count}")
+                            
+                            # 方法2: 如果方法1失败，尝试统计"流名称:"的出现次数来估算
+                            if check_count == 0:
+                                stream_mentions = content.count('流名称:')
+                                if stream_mentions > 0:
+                                    # 假设每次检查涉及的流数量，可以从content中进一步分析
+                                    # 简单估算：如果有流名称提及，至少有1次检查
+                                    check_count = max(1, stream_mentions // 10)  # 粗略估算
+                                    print(f"调试: 通过流名称估算检查次数: {check_count} (基于{stream_mentions}个流名称提及)")
+                            
+                            # 方法3: 如果仍然为0，设置默认值
+                            if check_count == 0:
+                                check_count = 1  # 设置最小值
+                                print(f"调试: 使用默认检查次数: {check_count}")
+                            
+                            # 计算每次检查的流数量
+                            total_delay_records = sum(delay_counts.values())
+                            if total_delay_records > 0 and check_count > 0:
+                                stream_count_per_check = total_delay_records // check_count
+                            else:
+                                stream_count_per_check = 0
+                                
+                            print(f"调试: 第 {result_index + 1} 个测试，总延迟记录数: {total_delay_records}")
+                            print(f"调试: 第 {result_index + 1} 个测试，计算出的每次检查流数: {stream_count_per_check}")
+                            
+                            # 验证计算是否正确
+                            expected_total = check_count * stream_count_per_check
+                            actual_total = sum(delay_counts.values())
+                            
+                            print(f"调试: 第 {result_index + 1} 个测试，检查次数: {check_count}")
+                            print(f"调试: 第 {result_index + 1} 个测试，每次检查流数: {stream_count_per_check}")
+                            print(f"调试: 第 {result_index + 1} 个测试，预期总计数: {expected_total}")
+                            print(f"调试: 第 {result_index + 1} 个测试，实际总计数: {actual_total}")
+                            
+                            # 使用实际总数作为基准，更可靠
+                            total_checks = actual_total if actual_total > 0 else expected_total
+                            
+                            print(f"调试: 第 {result_index + 1} 个测试，最终使用的总检查次数: {total_checks}")
                             
                             if total_checks > 0:
                                 # 定义延迟级别对应的CSS类
@@ -4856,7 +5950,9 @@ class StreamBatchTester:
                                     '正常': 'delay-normal',
                                     '轻微延迟': 'delay-warning',
                                     '明显延迟': 'delay-danger',
-                                    '严重延迟': 'delay-critical'
+                                    '严重延迟': 'delay-critical',
+                                    '目标表无数据': 'delay-no-data',
+                                    '目标表不存在': 'delay-table-missing'
                                 }
                             
                                 # 构建纯文本版本（用于导出等）
@@ -4885,37 +5981,91 @@ class StreamBatchTester:
                                 print(f"调试: 第 {result_index + 1} 个测试，生成的HTML延迟统计: {delay_stats_html}")
                                 
                                 # 根据主要延迟级别设置颜色
-                                if delay_counts['优秀'] > total_checks * 0.8:
-                                    delay_class = "delay-excellent"
-                                elif delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.7:
-                                    delay_class = "delay-good"
-                                elif delay_counts['正常'] + delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.6:
-                                    delay_class = "delay-normal"
-                                elif delay_counts['轻微延迟'] > 0:
-                                    delay_class = "delay-warning"
+                                if delay_counts['目标表不存在'] > 0:
+                                    delay_class = "delay-table-missing"
+                                elif delay_counts['目标表无数据'] > 0:
+                                    delay_class = "delay-no-data"
+                                elif delay_counts['严重延迟'] > 0:
+                                    delay_class = "delay-critical"
                                 elif delay_counts['明显延迟'] > 0:
                                     delay_class = "delay-danger"
+                                elif delay_counts['轻微延迟'] > 0:
+                                    delay_class = "delay-warning"
+                                elif delay_counts['正常'] + delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.6:
+                                    delay_class = "delay-normal"
+                                elif delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.7:
+                                    delay_class = "delay-good"
+                                elif delay_counts['优秀'] > total_checks * 0.8:
+                                    delay_class = "delay-excellent"
                                 else:
-                                    delay_class = "delay-critical"
+                                    delay_class = "delay-normal"
                                     
                                 print(f"调试: 第 {result_index + 1} 个测试，延迟颜色类: {delay_class}")
                             else:
                                 print(f"调试: 第 {result_index + 1} 个测试，总检查次数为0，延迟监控可能未正常工作")
                                 delay_stats = "延迟监控未生成有效数据"
                                 delay_stats_html = "延迟监控未生成有效数据"
-                    else:
-                        print(f"调试: 第 {result_index + 1} 个测试，最终未找到有效的延迟文件")
-                        delay_stats = "N/A"
-                        delay_stats_html = "N/A"
+                                
+                        # # 新增：清理后延迟统计
+                        # if hasattr(self, 'delay_trends_analysis') and self.delay_trends_analysis  :
+                        #     cleanup_analysis = self.analyze_delay_cleanup_statistics(
+                        #         delay_file, 
+                        #         self.fixed_params.get('max_delay_threshold', 30000)
+                        #     )
                             
+                        #     if cleanup_analysis:
+                        #         original_html, cleanup_html = self.format_delay_stats_comparison(
+                        #             cleanup_analysis['original_stats'],
+                        #             cleanup_analysis['cleanup_stats']
+                        #         )
+                                
+                        #         delay_stats_html = original_html
+                        #         cleanup_delay_stats_html = cleanup_html
+                                
+                        #         # 添加清理统计信息到调试输出
+                        #         print(f"调试: 第 {result_index + 1} 个测试，延迟清理分析完成")
+                        #         print(f"  原始检查次数: {cleanup_analysis['original_stats']['total_checks']}")
+                        #         print(f"  清理后检查次数: {cleanup_analysis['cleanup_stats']['included_checks']}")
+                        #         print(f"  移除的前期检查: {cleanup_analysis['cleanup_removed_checks']}")
+                        #     else:
+                        #         cleanup_delay_stats_html = "清理分析失败"
+                        # else:
+                        #     cleanup_delay_stats_html = "未启用清理分析"    
+                        
+                        full_trends_content = self.simple_delay_trends_analysis(delay_file)
+                        if full_trends_content and full_trends_content != "延迟日志文件不存在":
+                            # 分割趋势行
+                            trend_lines = full_trends_content.split(' | ')
+                            
+                            # 默认显示最近5个检查结果
+                            recent_count = 5
+                            if len(trend_lines) <= recent_count:
+                                # 如果总数不超过5个，直接显示全部
+                                delay_trends_preview = full_trends_content
+                                delay_trends_html = full_trends_content
+                            else:
+                                # 显示最近5个 + 省略号
+                                recent_trends = trend_lines[-recent_count:]  # 取最后5个
+                                delay_trends_preview = ' | '.join(recent_trends) + f" ...共{len(trend_lines)}次检查"
+                                delay_trends_html = full_trends_content  # 完整内容用于工具提示
+                                
+                        else:
+                            delay_trends_html = "无趋势数据"
+                            delay_trends_preview = "无趋势数据"
+                    else:
+                        delay_trends_html = "日志文件不存在"
+                        delay_trends_preview = "日志文件不存在"
+                        
                 except Exception as e:
-                    print(f"调试: 第 {result_index + 1} 个测试，读取延迟统计时出错: {str(e)}")
-                    delay_stats = f"读取失败: {str(e)}"
-                    delay_stats_html = f"读取失败: {str(e)}"
+                    delay_trends_html = f"分析失败: {str(e)}"
+                    delay_trends_preview = f"分析失败: {str(e)[:30]}..."
+                                
             else:
                 print(f"调试: 第 {result_index + 1} 个测试状态为 {result['status']}，跳过延迟数据读取")
                 delay_stats = "N/A"
                 delay_stats_html = "N/A"
+                delay_trends_html = "N/A"
+                delay_trends_preview = "N/A"
             
              # 调试：打印每个结果的错误信息
             print(f"调试HTML报告 - 测试 {result['test_name']}:")
@@ -4958,6 +6108,8 @@ class StreamBatchTester:
                 memory_avg_display = "N/A"
                    
             
+            delay_trends_escaped = delay_trends_html.replace('"', '&quot;').replace("'", '&#39;').replace('\n', '\\n').replace('\r', '\\r')
+            
             html_content += f"""
             <tr class="{status_class}">
                 <td><strong>{result['test_name']}</strong></td>
@@ -4978,13 +6130,19 @@ class StreamBatchTester:
                 <td class="{memory_class}">
                     {memory_range_info if memory_range_info else 'N/A'}
                 </td>
-                <td class="{cpu_class}">
+                <td class="{cpu_avg_class}">
                     {cpu_avg_display}
                 </td>
-                <td class="{memory_class}">
+                <td class="{memory_avg_class}">
                     {memory_avg_display}
                 </td>
                 <td style="font-size: 10px;">{delay_stats_html}</td>
+                <td>
+                    <div class="trends-tooltip">
+                        <div class="delay-trends-preview">{delay_trends_preview}</div>
+                        <span class="trendstooltiptext">{delay_trends_escaped}</span>
+                    </div>
+                </td>
                 <td style="color: #dc3545; font-size: 10px;">{error_msg}</td>
             </tr>
 """
@@ -5002,7 +6160,9 @@ class StreamBatchTester:
             <li><strong>状态说明</strong>: 
                 <span class="badge-success">成功</span> - 流创建成功并正常运行
                 <span class="badge-failed">失败</span> - 流创建失败，通常为SQL语法或功能限制
-                <span class="badge-skipped">跳过</span> - 已知失败场景，被过滤器跳过测试
+                <span class="badge-skipped">跳过(已知失败)</span> - 已知失败场景，被过滤器跳过测试
+                <span class="badge-warning">跳过(性能不好)</span> - 已知性能表现不佳，待后期优化的场景
+                <span class="badge-skipped">跳过(其他)</span> - 其他原因跳过的测试场景
             </li>
             <li><strong>SQL预览</strong>: 鼠标悬停查看完整SQL语句</li>
             <li><strong>性能指标</strong>: 
@@ -5025,12 +6185,21 @@ class StreamBatchTester:
             <li><strong>延迟等级</strong> (基于最大延迟阈值{self.fixed_params.get('max_delay_threshold', 30000)}ms进行分级):                  
                 <br>• 延迟时间 = 源数据表的Last（Ts）- 流生成数据表的Last（Ts）
                 <br>• 延迟倍数 = 延迟时间 / 最大延迟阈值 
-                <br><span class="delay-excellent">🟢 优秀 (< 0.1倍间隔)</span>: 延迟 < {self.fixed_params.get('max_delay_threshold', 30000) * 0.1}秒，流计算非常及时
-                <br><span class="delay-good">🟢 良好 (0.1-0.5倍间隔)</span>: 延迟 {self.fixed_params.get('max_delay_threshold', 30000) * 0.1}-{self.fixed_params.get('max_delay_threshold', 30000) * 0.5}秒，流计算及时
-                <br><span class="delay-normal">🟡 正常 (0.5-1倍间隔)</span>: 延迟 {self.fixed_params.get('max_delay_threshold', 30000) * 0.5}-{self.fixed_params.get('max_delay_threshold', 30000)}秒，在检查间隔内
-                <br><span class="delay-warning">🟡 轻微延迟 (1-6倍间隔)</span>: 延迟 {self.fixed_params.get('max_delay_threshold', 30000)}-{self.fixed_params.get('max_delay_threshold', 30000) * 6}秒，略有滞后
-                <br><span class="delay-danger">🟠 明显延迟 (6-30倍间隔)</span>: 延迟 {self.fixed_params.get('max_delay_threshold', 30000) * 6}-{self.fixed_params.get('max_delay_threshold', 30000) * 30}秒，需要关注
-                <br><span class="delay-critical">🔴 严重延迟 (> 30倍间隔)</span>: 延迟 > {self.fixed_params.get('max_delay_threshold', 30000) * 30}秒，需要优化
+                <br><span class="delay-excellent">🟢 优秀 (< 0.1倍间隔)</span>: 延迟 < {format_delay_time(self.fixed_params.get('max_delay_threshold', 30000) * 0.1)}，流计算非常及时
+                <br><span class="delay-good">🟢 良好 (0.1-0.5倍间隔)</span>: 延迟 {format_delay_time(self.fixed_params.get('max_delay_threshold', 30000) * 0.1)}-{format_delay_time(self.fixed_params.get('max_delay_threshold', 30000) * 0.5)}，流计算及时
+                <br><span class="delay-normal">🟡 正常 (0.5-1倍间隔)</span>: 延迟 {format_delay_time(self.fixed_params.get('max_delay_threshold', 30000) * 0.5)}-{format_delay_time(self.fixed_params.get('max_delay_threshold', 30000))}，在检查间隔内
+                <br><span class="delay-warning">🟡 轻微延迟 (1-6倍间隔)</span>: 延迟 {format_delay_time(self.fixed_params.get('max_delay_threshold', 30000))}-{format_delay_time(self.fixed_params.get('max_delay_threshold', 30000) * 6)}，略有滞后
+                <br><span class="delay-danger">🟠 明显延迟 (6-30倍间隔)</span>: 延迟 {format_delay_time(self.fixed_params.get('max_delay_threshold', 30000) * 6)}-{format_delay_time(self.fixed_params.get('max_delay_threshold', 30000) * 30)}，需要关注
+                <br><span class="delay-critical">🔴 严重延迟 (> 30倍间隔)</span>: 延迟 > {format_delay_time(self.fixed_params.get('max_delay_threshold', 30000) * 30)}，需要优化
+                <br><span class="delay-no-data">📊 目标表无数据</span>: 流计算尚未生成结果或者流状态异常
+                <br><span class="delay-table-missing">💥 目标表不存在</span>: 流创建失败或者目标表配置问题
+            </li>
+            <li><strong>延迟统计说明</strong>:
+                <br><strong>原始延迟统计</strong>: 统计所有延迟检查的分布情况
+                <br><strong>原始延迟趋势</strong>: 显示各次延迟检查的时间序列趋势
+                <br>格式: "行数 ：主要状态或者延迟时间 | 主要状态或者延迟时间 | 主要状态或者延迟时间"
+                <br>用途: 观察延迟变化趋势，识别性能波动模式
+                <br>交互: 鼠标悬停查看完整趋势序列
             </li>
             <li><strong>交互功能</strong>: 点击表头排序，使用筛选器快速查找</li>
         </ul>
@@ -5129,12 +6298,12 @@ class StreamBatchTester:
             self.generate_final_report(result_dir)
             return
         
-        # 确认开始测试
-        if self.total_tests > 10:
-            response = input(f"\n将要执行 {self.total_tests} 个测试，预计耗时 {(self.total_tests * test_time_minutes / 60):.1f} 小时，是否继续？(y/N): ")
-            if response.lower() != 'y':
-                print("测试已取消")
-                return
+        # # 确认开始测试
+        # if self.total_tests > 10:
+        #     response = input(f"\n将要执行 {self.total_tests} 个测试，预计耗时 {(self.total_tests * test_time_minutes / 60):.1f} 小时，是否继续？(y/N): ")
+        #     if response.lower() != 'y':
+        #         print("测试已取消")
+        #         return
         
         # 执行测试
         for i, combination in enumerate(combinations, 1):
@@ -5161,14 +6330,21 @@ class StreamBatchTester:
             # 统计各种状态
             success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
             failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
+            skip_failure_count = len([r for r in self.test_results if r['status'] == 'SKIP_FAILURE'])
+            skip_poor_performance_count = len([r for r in self.test_results if r['status'] == 'SKIP_POOR_PERFORMANCE'])
             skipped_count = len([r for r in self.test_results if r['status'] == 'SKIPPED'])
+        
             
             print(f"\n进度总结:")
             print(f"  已完成: {len(self.test_results)}/{self.total_tests}")
             print(f"  成功: {success_count}")
             print(f"  失败: {failed_count}")
+            if skip_failure_count > 0:
+                print(f"  跳过(已知失败): {skip_failure_count}")
+            if skip_poor_performance_count > 0:
+                print(f"  跳过(性能不好): {skip_poor_performance_count}")
             if skipped_count > 0:
-                print(f"  跳过: {skipped_count}")
+                print(f"  跳过(其他): {skipped_count}")
             print(f"  剩余估计时间: {estimated_remaining_time:.0f}分钟 ({estimated_remaining_time/60:.1f}小时)")
             
             # 在测试之间添加短暂休息
@@ -5186,18 +6362,29 @@ class StreamBatchTester:
         if self.total_tests > 0:
             success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
             failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
+            skip_failure_count = len([r for r in self.test_results if r['status'] == 'SKIP_FAILURE'])
+            skip_poor_performance_count = len([r for r in self.test_results if r['status'] == 'SKIP_POOR_PERFORMANCE'])
             skipped_count = len([r for r in self.test_results if r['status'] == 'SKIPPED'])
             
             print(f"成功: {success_count}")
             print(f"失败: {failed_count}")
+            if skip_failure_count > 0:
+                print(f"跳过(已知失败): {skip_failure_count}")
+            if skip_poor_performance_count > 0:
+                print(f"跳过(性能不好): {skip_poor_performance_count}")
             if skipped_count > 0:
-                print(f"跳过: {skipped_count}")
+                print(f"跳过(其他): {skipped_count}")
             print(f"成功率: {(success_count/self.total_tests*100):.1f}%")
             
-            if self.filter_mode != 'all':
+            if self.filter_mode == 'skip-known-case':
+                total_skip_count = skip_failure_count + skip_poor_performance_count
                 print(f"过滤模式: {self.filter_mode}")
-                if skipped_count > 0:
-                    print(f"过滤效果: 成功跳过 {skipped_count} 个测试")
+                print(f"过滤效果: 成功跳过 {total_skip_count} 个测试 (失败: {skip_failure_count}, 性能不好: {skip_poor_performance_count})")
+            elif self.filter_mode != 'all':
+                total_skip_count = skip_failure_count + skip_poor_performance_count + skipped_count
+                print(f"过滤模式: {self.filter_mode}")
+                if total_skip_count > 0:
+                    print(f"过滤效果: 成功跳过 {total_skip_count} 个测试")
         else:
             print(f"没有执行任何测试")
             
@@ -5214,7 +6401,8 @@ class StreamStarter:
                 debug_flag=131, num_of_log_lines=500000, 
                 agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None,
                 check_stream_delay=False, max_delay_threshold=30000, delay_check_interval=10,
-                real_time_batch_sleep=0, delay_log_file=None, auto_combine=False, monitor_warm_up_time=None) -> None:
+                real_time_batch_sleep=0, delay_log_file=None, auto_combine=False, monitor_warm_up_time=None,
+                delay_trends_analysis=False) -> None:
         
         self.stream_perf_test_dir = stream_perf_test_dir if stream_perf_test_dir else '/home/taos_stream_cluster'        
         self.table_count = table_count      
@@ -5233,6 +6421,7 @@ class StreamStarter:
         self.num_of_log_lines = num_of_log_lines
         self.auto_combine = auto_combine
         self.monitor_warm_up_time = monitor_warm_up_time
+        self.delay_trends_analysis = delay_trends_analysis
         
         self.sql_type = sql_type
         self.stream_num = stream_num
@@ -5674,28 +6863,6 @@ class StreamStarter:
             print(f"\n=== {mode_desc}数据备份完成! ===")
             print(f"备份目录: {self.backup_dir}")
             return True
-            
-            # # 直接复制整个节点目录
-            # for dnode in nodes_to_backup:
-            #     src_dir = os.path.join(self.stream_perf_test_dir, dnode, 'data')
-            #     dst_dir = os.path.join(self.backup_dir, dnode, 'data')
-                
-            #     print(f"\n备份 {dnode} 目录...")
-            #     try:
-            #         # 使用 rsync 排除 socket 文件
-            #         cmd = f'rsync -av --exclude="*.sock*" {src_dir}/ {dst_dir}/'
-            #         subprocess.run(cmd, shell=True, check=True)
-            #         print(f"完成备份: {dst_dir}")
-            #     except subprocess.CalledProcessError:
-            #         # 如果 rsync 失败,使用 cp 命令
-            #         print(f"rsync 失败,使用 cp 命令备份...")
-            #         shutil.copytree(src_dir, dst_dir, symlinks=True, 
-            #                     ignore=shutil.ignore_patterns('*.sock*'))
-            #         print(f"完成备份: {dst_dir}")
-            
-            # print("\n=== 集群数据备份完成! ===")
-            # print(f"备份目录: {self.backup_dir}")
-            # return True
     
         except Exception as e:
             print(f"备份数据时出错: {str(e)}")
@@ -6215,6 +7382,7 @@ supportVnodes   100
 dataDir         {instance['data_dir']}
 logDir          {instance['log_dir']}
 asyncLog        1
+tagFilterCache  true
 debugFlag       {self.debug_flag}
 numOfLogLines   {self.num_of_log_lines}
 """
@@ -6229,6 +7397,7 @@ supportVnodes   50
 dataDir         {instance['data_dir']}
 logDir          {instance['log_dir']}
 asyncLog        1
+tagFilterCache  true
 debugFlag       {self.debug_flag}
 numOfLogLines   {self.num_of_log_lines}
 """
@@ -6375,7 +7544,7 @@ EOF
             "rest_port": 6041,
             "user": "root",
             "password": "taosdata",
-            "thread_count": 50,
+            "thread_count": 10,
             "create_table_thread_count": 5,
             "result_file": "/tmp/taosBenchmark_result.log",
             "confirm_parameter_prompt": "no",
@@ -6396,7 +7565,7 @@ EOF
                         "comp": 2,
                         "dnodes": "1",
                         "vgroups": self.vgroups,
-                        "stt_trigger": 2,
+                        "stt_trigger": 1,
                         "WAL_RETENTION_PERIOD": 86400
                     },
                     "super_tables": [
@@ -6478,7 +7647,7 @@ EOF
             "rest_port": 6041,
             "user": "root",
             "password": "taosdata",
-            "thread_count": 50,
+            "thread_count": 10,
             "create_table_thread_count": 5,
             "result_file": "/tmp/taosBenchmark_result.log",
             "confirm_parameter_prompt": "no",
@@ -6499,7 +7668,7 @@ EOF
                         "comp": 2,
                         "dnodes": "1",
                         "vgroups": self.vgroups,
-                        "stt_trigger": 2,
+                        "stt_trigger": 1,
                         "WAL_RETENTION_PERIOD": 86400
                     },
                     "super_tables": [
@@ -6884,14 +8053,31 @@ EOF
             print(f"源表最新时间戳: {source_last_ts} ({source_ts_ms}ms)")
             
             # 检查是否有流存在
+            
+            streams_status_info = {}
             print("查询流的详细信息...")
             try:
-                cursor.execute("select stream_name, sql from information_schema.ins_streams")
+                cursor.execute("select stream_name, status, sql, create_time from information_schema.ins_streams")
                 streams_info = cursor.fetchall()
                 print(f"发现 {len(streams_info)} 个流:")
+                
                 for stream in streams_info:
-                    print(f"  流名称: {stream[0]}")
-                    #print(f"  SQL: {stream[1][:100]}...")  # 只显示前100个字符
+                    stream_name = stream[0]
+                    stream_status = stream[1]
+                    stream_sql = stream[2]
+                    create_time = stream[3] if len(stream) > 3 else "未知"
+                    
+                    streams_status_info[stream_name] = {
+                        'status': stream_status,
+                        'sql': stream_sql,
+                        'create_time': create_time
+                    }
+                    
+                    print(f"  流名称: {stream_name}")
+                    print(f"    状态: {stream_status}")
+                    print(f"    创建时间: {create_time}")
+                    #print(f"    SQL: {stream_sql[:100]}...")  # 只显示前100个字符
+                    
             except Exception as e:
                 print(f"查询流详细信息失败: {str(e)}")
             
@@ -6918,6 +8104,13 @@ EOF
                     
                     #print(f"检查流 {stream_name} 的目标表 {target_table}")
                     
+                    # ✅ 新增：获取流状态信息
+                    stream_status_info = streams_status_info.get(stream_name, {})
+                    stream_status = stream_status_info.get('status', '未知')
+                    stream_create_time = stream_status_info.get('create_time', '未知')
+                    
+                    print(f"检查流 {stream_name} (状态: {stream_status}) 的目标表 {target_table}")
+                    
                     # 先检查目标表是否存在
                     try:
                         cursor.execute(f"describe {target_table}")
@@ -6929,7 +8122,9 @@ EOF
                             'stream_name': stream_name,
                             'target_table': target_table,
                             'error': f"目标表不存在: {str(e)}",
-                            'status': 'ERROR'
+                            'status': 'ERROR',
+                            'stream_status': stream_status,
+                            'stream_create_time': stream_create_time
                         }
                         delay_results['streams'].append(stream_result)
                         continue
@@ -6953,7 +8148,9 @@ EOF
                             'delay_ms': delay_ms,
                             'delay_seconds': delay_ms / 1000.0,
                             'is_lagging': delay_ms > self.max_delay_threshold,
-                            'status': 'LAGGING' if delay_ms > self.max_delay_threshold else 'OK'
+                            'status': 'LAGGING' if delay_ms > self.max_delay_threshold else 'OK',
+                            'stream_status': stream_status,
+                            'stream_create_time': stream_create_time
                         }
                         
                         print(f"流 {stream_name} 延迟: {delay_ms}ms ({delay_ms/1000.0:.2f}秒)")
@@ -6967,19 +8164,30 @@ EOF
                             'delay_ms': None,
                             'delay_seconds': None,
                             'is_lagging': True,
-                            'status': 'NO_DATA'
+                            'status': 'NO_DATA',
+                            'stream_status': stream_status,
+                            'stream_create_time': stream_create_time
                         }
+                        
+                        print(f"流 {stream_name} (状态: {stream_status}) 目标表无数据")
                     
                     delay_results['streams'].append(stream_result)
                     
                 except Exception as e:
                     error_msg = f"检查流 {stream_name} 延迟时出错: {str(e)}"
                     print(error_msg)
+                    # ✅ 确保即使出错也记录流状态
+                    stream_status_info = streams_status_info.get(stream_name, {})
+                    stream_status = stream_status_info.get('status', '未知')
+                    stream_create_time = stream_status_info.get('create_time', '未知')
+                
                     stream_result = {
                         'stream_name': stream_name,
                         'target_table': target_table,
                         'error': str(e),
-                        'status': 'ERROR'
+                        'status': 'ERROR',
+                        'stream_status': stream_status,
+                        'stream_create_time': stream_create_time
                     }
                     delay_results['streams'].append(stream_result)
             
@@ -7023,6 +8231,8 @@ EOF
                     f.write(f"流名称: {stream['stream_name']}\n")
                     f.write(f"目标表: {stream['target_table']}\n")
                     f.write(f"状态: {stream['status']}\n")
+                    f.write(f"流状态: {stream.get('stream_status', '未知')}\n")
+                    f.write(f"流创建时间: {stream.get('stream_create_time', '未知')}\n")                
                     
                     if stream['status'] == 'OK' or stream['status'] == 'LAGGING':
                         f.write(f"目标表最新时间: {stream['target_last_ts']}\n")
@@ -7061,14 +8271,26 @@ EOF
                             
                     elif stream['status'] == 'NO_DATA':
                         f.write(f"警告: 目标表无数据\n")
-                        f.write(f"延迟等级: 严重延迟\n")  # 无数据也算严重延迟
+                        f.write(f"延迟等级: 目标表无数据\n")
                         f.write(f"延迟倍数: (无数据状态)\n")
+                        
+                        stream_status = stream.get('stream_status', '未知')
+                        if stream_status.lower() != 'running':
+                            f.write(f"可能原因: 流状态为 '{stream_status}'，非运行状态\n")
+                        else:
+                            f.write(f"可能原因: 流正在运行但尚未生成数据，可能需要更多时间\n")
                         
                     elif stream['status'] == 'ERROR':
                         f.write(f"错误: {stream.get('error', '未知错误')}\n")
-                        f.write(f"延迟等级: 严重延迟\n")  # 错误也算严重延迟
+                        f.write(f"延迟等级: 目标表不存在\n")
                         f.write(f"延迟倍数: (错误状态)\n")
                     
+                        stream_status = stream.get('stream_status', '未知')
+                        if stream_status.lower() != 'running':
+                            f.write(f"可能原因: 流状态为 '{stream_status}'，流可能创建失败\n")
+                        else:
+                            f.write(f"可能原因: 流运行正常但目标表配置问题\n")
+                        
                     f.write(f"-" * 40 + "\n")
                     
         except Exception as e:
@@ -7100,6 +8322,8 @@ EOF
         lagging_count = 0
         no_data_count = 0
         error_count = 0
+        # ✅ 新增：流状态统计
+        stream_status_stats = {}
         
         # 按延迟级别分类统计
         excellent_count = 0
@@ -7112,6 +8336,10 @@ EOF
         for stream in delay_results['streams']:
             status = stream['status']
             stream_name = stream['stream_name']
+            
+            stream_status = stream.get('stream_status', '未知')
+            stream_status_stats[stream_status] = stream_status_stats.get(stream_status, 0) + 1
+        
             
             if status == 'OK':
                 ok_count += 1
@@ -7134,7 +8362,7 @@ EOF
                     delay_desc = f"正常(<{format_delay_time(normal_threshold)})"
                     color = c.YELLOW
                     
-                print(f"{color}{status_icon} {stream_name}: 延迟 {format_delay_time(delay_ms)} - {delay_desc}{c.END}")
+                print(f"{color}{status_icon} {stream_name}(流状态: {stream_status}): 延迟 {format_delay_time(delay_ms)} - {delay_desc}{c.END}")
                 print(f"  {c.BLUE}目标表最新时间: {target_time}{c.END}")
             
             elif status == 'LAGGING':
@@ -7159,22 +8387,32 @@ EOF
                     color = c.RED
                     delay_desc = f"严重延迟(>{format_delay_time(obvious_delay_threshold)})"
                     
-                print(f"{color}{c.BOLD}{status_icon} {stream_name}: 延迟 {format_delay_time(delay_ms)} - {delay_desc}!{c.END}")
+                print(f"{color}{c.BOLD}{status_icon} {stream_name}(流状态: {stream_status}): 延迟 {format_delay_time(delay_ms)} - {delay_desc}!{c.END}")
                 print(f"  {c.BLUE}目标表最新时间: {target_time}{c.END}")
                 
             elif status == 'NO_DATA':
                 no_data_count += 1
-                severe_delay_count += 1
+                #不再将无数据归类为严重延迟，单独统计 severe_delay_count += 1
                 status_icon = "❌" if Colors.supports_color() else "✗"
-                print(f"{c.RED}{status_icon} {stream_name}: 目标表未生成数据{c.END}")
+                print(f"{c.RED}{status_icon} {stream_name}(流状态: {stream_status}): 目标表未生成数据{c.END}")
+                
+                if stream_status.lower() != 'running':
+                    print(f"  {c.YELLOW}可能原因: 流状态为 '{stream_status}'，流可能未正常启动{c.END}")
+                else:
+                    print(f"  {c.BLUE}可能原因: 流正在运行但尚未生成数据，建议继续观察{c.END}")
                 
             elif status == 'ERROR':
                 error_count += 1
-                severe_delay_count += 1
+                #不再将错误归类为严重延迟，单独统计severe_delay_count += 1
                 status_icon = "💥" if Colors.supports_color() else "✗"
-                print(f"{c.RED}{c.BOLD}{status_icon} {stream_name}: 目标表不存在或检查出错{c.END}")
+                print(f"{c.RED}{c.BOLD}{status_icon} {stream_name}(流状态: {stream_status}): 目标表不存在或检查出错{c.END}")
                 error_msg = stream.get('error', '未知错误')
                 print(f"  {c.RED}错误信息: {error_msg}{c.END}")
+                
+                if stream_status.lower() != 'running':
+                    print(f"  {c.YELLOW}诊断: 流状态为 '{stream_status}'，流创建可能失败{c.END}")
+                else:
+                    print(f"  {c.BLUE}诊断: 流运行正常但目标表配置问题{c.END}")
  
     
         # 计算总数和百分比
@@ -7210,6 +8448,27 @@ EOF
             summary_parts.append(f"{c.RED}{error_icon}表不存在({error_count}/{error_percent}){c.END}")
         
         print(f"\n{c.BOLD}📊 摘要 (总流数: {total_streams}): {' '.join(summary_parts)}{c.END}")
+
+        # ✅ 新增：流状态分布统计
+        if stream_status_stats:
+            print(f"\n{c.CYAN}🔄 流状态分布:{c.END}")
+            for status, count in stream_status_stats.items():
+                percentage = get_percentage(count, total_streams)
+                # 根据状态使用不同颜色
+                if status.lower() == 'running':
+                    status_color = c.GREEN
+                    status_icon = "✅"
+                elif status.lower() in ['stopped', 'failed', 'error']:
+                    status_color = c.RED
+                    status_icon = "❌"
+                elif status.lower() in ['paused', 'suspended']:
+                    status_color = c.YELLOW
+                    status_icon = "⏸️"
+                else:
+                    status_color = c.BLUE
+                    status_icon = "❓"
+                    
+                print(f"  {status_color}{status_icon} {status}: {count} ({percentage}){c.END}")
 
         # 详细分布统计
         if ok_count > 0 or lagging_count > 0:
@@ -7247,9 +8506,11 @@ EOF
             if no_data_count > 0:
                 no_data_percent = get_percentage(no_data_count, total_streams)
                 print(f"  ❌ 目标表未生成数据: {no_data_count} ({no_data_percent}) ")
+                print(f"    可能原因: 流计算刚启动、流逻辑问题")
             if error_count > 0:
                 error_percent = get_percentage(error_count, total_streams)
                 print(f"  💥 目标表不存在: {error_count} ({error_percent}) ")
+                print(f"    可能原因: 流创建失败、目标数据库问题")
            
         # 显示阈值参考信息
         print(f"\n{c.CYAN}延迟等级参考 (基于检查间隔 {format_delay_time(self.max_delay_threshold)}):{c.END}")
@@ -7259,40 +8520,51 @@ EOF
         print(f"  🟡 轻微延迟: {format_delay_time(normal_threshold)} - {format_delay_time(mild_delay_threshold)} (1-6倍间隔)")
         print(f"  🟠 明显延迟: {format_delay_time(mild_delay_threshold)} - {format_delay_time(obvious_delay_threshold)} (6-30倍间隔)")
         print(f"  🔴 严重延迟: > {format_delay_time(obvious_delay_threshold)} (>30倍间隔)")
+        print(f"  📊 目标表无数据: 流计算尚未生成结果或者流状态异常")
+        print(f"  💥 目标表不存在: 流创建失败或者流状态异常")
         print(f"\n{c.CYAN}监控频率: 每 {self.delay_check_interval}秒 检查一次延迟状态{c.END}")
         
         # 状态评估
         healthy_count = ok_count  # 只有正常状态才算健康
-        problem_count = lagging_count + no_data_count + error_count # 延迟、无数据、错误都是问题
+        problem_count = lagging_count + error_count # 延迟、错误都是问题
+        pending_count = no_data_count  # 无数据状态
         
         # 警告和建议信息
-        if problem_count > 0:
-            if no_data_count > 0 or error_count > 0:
-                # 有严重问题（无数据或错误）
-                critical_count = no_data_count + error_count
-                critical_percent = get_percentage(critical_count, total_streams)
-                warning_icon = "🚨" if Colors.supports_color() else "⚠"
-                print_error(f"{warning_icon} 严重: {critical_count} 个流存在严重问题 ({critical_percent})!")
-                
-            if lagging_count > 0:
-                # 有延迟问题
-                lag_percent = get_percentage(lagging_count, total_streams)
-                warning_icon = "⚠️" if Colors.supports_color() else "⚠"
-                print_warning(f"{warning_icon} 延迟: {lagging_count} 个流计算出现延迟 ({lag_percent})!")
+        if error_count > 0:
+            # 有严重问题（错误）
+            error_percent = get_percentage(error_count, total_streams)
+            warning_icon = "🚨" if Colors.supports_color() else "⚠"
+            print_error(f"{warning_icon} 严重: {error_count} 个流存在错误问题 ({error_percent})!")
+            
+        if no_data_count > 0:
+            # 有严重问题，无数据问题
+            no_data_percent = get_percentage(no_data_count, total_streams)
+            warning_icon = "📊" if Colors.supports_color() else "○"
+            print_warning(f"{warning_icon} 严重: {no_data_count} 个流目标表无数据 ({no_data_percent}) - 可能需要更多时间生成结果")
+            
+        if lagging_count > 0:
+            # 有延迟问题
+            lag_percent = get_percentage(lagging_count, total_streams)
+            warning_icon = "⚠️" if Colors.supports_color() else "⚠"
+            print_warning(f"{warning_icon} 延迟: {lagging_count} 个流计算出现延迟 ({lag_percent})!")
             
         # 整体状态评估
-        if error_count > 0 or no_data_count > 0:
+        if error_count > 0:
             # 存在严重问题
             advice_icon = "🚨" if Colors.supports_color() else "💡"
-            problem_ratio = (error_count + no_data_count) / total_streams * 100
-            print_error(f"{advice_icon} 告警: {problem_ratio:.1f}% 的流存在严重问题 - 需要立即检查")
-        elif lagging_count > healthy_count:
-            # 延迟问题较多
+            error_ratio = error_count / total_streams * 100
+            print_error(f"{advice_icon} 告警: {error_ratio:.1f}% 的流存在严重错误 - 需要立即检查流创建逻辑")
+        elif no_data_count == total_streams:
+            # 全部无数据
+            advice_icon = "📊" if Colors.supports_color() else "○"
+            print_warning(f"{advice_icon} 提示: 所有流目标表都无数据 - 可能流计算刚启动，或者一直未生成数据")
+        elif lagging_count > healthy_count and no_data_count == 0:
+            # 延迟问题较多且无待处理
             advice_icon = "💡" if Colors.supports_color() else "💡"
             lag_ratio = lagging_count / total_streams * 100
             print_error(f"{advice_icon} 警告: {lag_ratio:.1f}% 的流出现延迟 - 建议优化性能")
-        elif lagging_count > 0:
-            # 少量延迟
+        elif lagging_count > 0 and no_data_count == 0:
+            # 少量延迟且无待处理
             tip_icon = "💡" if Colors.supports_color() else "💡"
             lag_ratio = lagging_count / total_streams * 100
             print_warning(f"{tip_icon} 提示: {lag_ratio:.1f}% 的流出现延迟 - 持续关注")
@@ -7300,9 +8572,16 @@ EOF
             # 全部正常
             success_icon = "✅" if Colors.supports_color() else "✓"
             print_success(f"{success_icon} 状态优秀: 所有流计算都正常运行 (100%)")
+        elif no_data_count > 0 and error_count == 0 and lagging_count == 0:
+            # 只有无数据问题，没有其他问题
+            pending_icon = "📊" if Colors.supports_color() else "○"
+            no_data_ratio = no_data_count / total_streams * 100
+            print_info(f"{pending_icon} 状态: {no_data_ratio:.1f}% 的流目标表无数据，{(healthy_count/total_streams*100):.1f}% 正常运行")
+            
             
         # 调优建议
-        if problem_count > 0:
+        total_problem_count = problem_count + error_count  
+        if total_problem_count > 0:
             print(f"\n{c.CYAN}💡 问题分析与建议:{c.END}")
             
             if error_count > 0:
@@ -7334,7 +8613,279 @@ EOF
             print(f"    - 当前写入间隔: {self.real_time_batch_sleep}s，可适当增加以减轻压力")
             print(f"    - 可调整 --delay-check-interval 参数改变监控频率")
             
+
+    def analyze_delay_cleanup_statistics(self, delay_log_file, max_delay_threshold):
+        """分析延迟清理统计
+        
+        从延迟日志文件中提取按时间顺序的延迟等级，
+        找到最后连续的良好状态区间，生成清理后的统计
+        
+        Args:
+            delay_log_file: 延迟日志文件路径
+            max_delay_threshold: 最大延迟阈值(毫秒)
+            
+        Returns:
+            dict: 包含原始统计和清理后统计的结果
+        """
+        try:
+            if not os.path.exists(delay_log_file):
+                print(f"延迟日志文件不存在: {delay_log_file}")
+                return None
+                
+            # 读取延迟日志文件
+            with open(delay_log_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # 提取按时间顺序的延迟记录
+            delay_records = []
+            
+            # 解析每次检查的延迟等级
+            # 匹配模式：检查时间 + 延迟等级
+            check_pattern = r'第\s+(\d+)\s+次检查.*?检查时间:\s*([^n]+)'
+            delay_level_pattern = r'延迟等级:\s*([^n]+)'
+            
+            # 按检查次数分组提取延迟等级
+            check_sections = re.split(r'第\s+\d+\s+次检查', content)
+            
+            for i, section in enumerate(check_sections[1:], 1):  # 跳过第一个空段
+                # 从每个检查段落中提取延迟等级
+                delay_levels = re.findall(delay_level_pattern, section)
+                
+                if delay_levels:
+                    # 统计这次检查中各个延迟等级的数量
+                    level_counts = {}
+                    for level in delay_levels:
+                        level = level.strip()
+                        level_counts[level] = level_counts.get(level, 0) + 1
+                    
+                    # 确定这次检查的主要延迟等级
+                    # 规则：按优先级选择（严重问题优先）
+                    main_level = self._determine_main_delay_level(level_counts)
+                    
+                    delay_records.append({
+                        'check_number': i,
+                        'main_level': main_level,
+                        'level_counts': level_counts,
+                        'section_content': section[:200] + '...' if len(section) > 200 else section
+                    })
+            
+            #print(f"调试: 从延迟日志中提取到 {len(delay_records)} 次检查记录")
+            for record in delay_records[:3]:  # 显示前3条作为调试
+                print(f"  检查{record['check_number']}: 主要等级={record['main_level']}, 详情={record['level_counts']}")
+            
+            if len(delay_records) < 3:
+                print("延迟记录数量不足，无法进行清理分析")
+                return None
+                
+            # 计算原始统计
+            original_stats = self._calculate_original_delay_stats(delay_records)
+            
+            # 计算清理后统计
+            cleanup_stats = self._calculate_cleanup_delay_stats(delay_records)
+            
+            return {
+                'original_stats': original_stats,
+                'cleanup_stats': cleanup_stats,
+                'total_checks': len(delay_records),
+                'cleanup_removed_checks': len(delay_records) - cleanup_stats['included_checks'],
+                'delay_records': delay_records
+            }
+            
+        except Exception as e:
+            print(f"分析延迟清理统计时出错: {str(e)}")
+            return None
+
+    def _determine_main_delay_level(self, level_counts):
+        """确定一次检查的主要延迟等级
+        
+        Args:
+            level_counts: 延迟等级计数字典
+            
+        Returns:
+            str: 主要延迟等级
+        """
+        if not level_counts:
+            return "未知"
+        
+        # 定义优先级（严重问题优先）
+        priority_order = [
+            '目标表不存在',
+            '目标表无数据', 
+            '严重延迟',
+            '明显延迟',
+            '轻微延迟',
+            '正常',
+            '良好',
+            '优秀'
+        ]
+        
+        # 按优先级查找存在的等级
+        for level in priority_order:
+            if level in level_counts and level_counts[level] > 0:
+                return level
+        
+        # 如果都没找到，返回数量最多的等级
+        return max(level_counts.items(), key=lambda x: x[1])[0]
+
+    def _calculate_original_delay_stats(self, delay_records):
+        """计算原始延迟统计"""
+        total_checks = len(delay_records)
+        level_counts = {
+            '优秀': 0, '良好': 0, '正常': 0,
+            '轻微延迟': 0, '明显延迟': 0, '严重延迟': 0,
+            '目标表无数据': 0, '目标表不存在': 0
+        }
+        
+        # 统计所有检查的主要等级
+        for record in delay_records:
+            main_level = record['main_level']
+            if main_level in level_counts:
+                level_counts[main_level] += 1
+            else:
+                # 处理可能的其他等级
+                level_counts['未知'] = level_counts.get('未知', 0) + 1
+        
+        return {
+            'total_checks': total_checks,
+            'level_counts': level_counts,
+            'included_checks': total_checks
+        }
+    
+    def check_stream_status(self, stream_names, max_wait_time=60):
+        """检查流的运行状态
+        
+        Args:
+            stream_names: 流名称列表或单个流名称
+            max_wait_time: 最大等待时间(秒)，默认60秒
+            
+        Returns:
+            bool: 所有流都运行成功返回True，否则返回False
+        """
+        if isinstance(stream_names, str):
+            stream_names = [stream_names]
+        
+        print(f"开始检查流状态，预期流数量: {len(stream_names)}")
+        print(f"预期流名称: {', '.join(stream_names)}")
+        
+        start_time = time.time()
+        check_interval = 5  # 每5秒检查一次
+        
+        while time.time() - start_time < max_wait_time:
+            try:
+                conn, cursor = self.get_connection()
+                
+                # 查询所有流的状态
+                cursor.execute("select stream_name, status, sql from information_schema.ins_streams")
+                streams = cursor.fetchall()
+                
+                cursor.close()
+                conn.close()
+                
+                # 检查预期的流是否都在运行
+                found_streams = {}
+                for stream in streams:
+                    stream_name = stream[0]
+                    status = stream[1]
+                    
+                    # 检查是否是我们创建的流
+                    for expected_name in stream_names:
+                        # 去掉可能的数据库前缀进行匹配
+                        clean_expected = expected_name.split('.')[-1]
+                        clean_actual = stream_name.split('.')[-1]
                         
+                        if clean_expected == clean_actual:
+                            found_streams[expected_name] = {
+                                'actual_name': stream_name,
+                                'status': status,
+                                'sql': stream[2]
+                            }
+                
+                # 检查结果
+                running_count = 0
+                not_found = []
+                not_running = []
+                
+                for expected_name in stream_names:
+                    if expected_name not in found_streams:
+                        not_found.append(expected_name)
+                    else:
+                        stream_info = found_streams[expected_name]
+                        if stream_info['status'] == 'Running':
+                            running_count += 1
+                        else:
+                            not_running.append({
+                                'name': expected_name,
+                                'status': stream_info['status']
+                            })
+                
+                # 打印当前状态
+                elapsed = time.time() - start_time
+                print(f"[{elapsed:.0f}s] 状态检查: 运行中({running_count}) 未找到({len(not_found)}) 非运行({len(not_running)})")
+                
+                if not_found:
+                    print(f"  未找到的流: {', '.join(not_found)}")
+                
+                if not_running:
+                    for item in not_running:
+                        print(f"  流 {item['name']} 状态: {item['status']}")
+                
+                # 检查是否全部成功
+                if running_count == len(stream_names):
+                    print(f"✅ 所有 {len(stream_names)} 个流都已成功运行!")
+                    return True
+                
+                # 如果有流处于错误状态，直接退出
+                error_states = ['Error', 'Failed', 'Stopped']
+                for expected_name in stream_names:
+                    if expected_name in found_streams:
+                        status = found_streams[expected_name]['status']
+                        if status in error_states:
+                            print(f"❌ 流 {expected_name} 处于错误状态: {status}")
+                            return False
+                
+                # 等待下次检查
+                print(f"  等待 {check_interval} 秒后重新检查...")
+                time.sleep(check_interval)
+                
+            except Exception as e:
+                print(f"检查流状态时出错: {str(e)}")
+                time.sleep(check_interval)
+        
+        # 超时
+        print(f"❌ 等待超时({max_wait_time}秒)！")
+        print(f"最终状态: 运行中({running_count}/{len(stream_names)})")
+        return False
+
+    def extract_stream_names_from_sql_simple(self, sql_templates):
+        """从SQL模板中提取流名称 - 简化版本
+        
+        Args:
+            sql_templates: SQL模板字符串或字典
+            
+        Returns:
+            list: 流名称列表
+        """
+        stream_names = []
+        
+        try:
+            if isinstance(sql_templates, dict):
+                for sql_template in sql_templates.values():
+                    match = re.search(r'create\s+stream\s+([^\s]+)', sql_template, re.IGNORECASE)
+                    if match:
+                        full_name = match.group(1)
+                        # 只保留流名称部分，去掉数据库前缀
+                        stream_name = full_name.split('.')[-1]
+                        stream_names.append(stream_name)
+            else:
+                match = re.search(r'create\s+stream\s+([^\s]+)', sql_templates, re.IGNORECASE)
+                if match:
+                    full_name = match.group(1)
+                    stream_name = full_name.split('.')[-1]
+                    stream_names.append(stream_name)
+        except Exception as e:
+            print(f"提取流名称时出错: {str(e)}")
+        
+        return stream_names             
 
     def start_stream_delay_monitor(self):
         """启动流延迟监控线程"""
@@ -7431,7 +8982,7 @@ EOF
         
         return monitor_thread
             
-    def do_test_stream_with_realtime_data_ooo(self):
+    def do_test_stream_with_realtime_data_old(self):
         self.prepare_env()
         self.prepare_source_from_data()
         self.insert_source_from_data()
@@ -7502,6 +9053,7 @@ EOF
                 for index, (sql_name, sql_template) in enumerate(sql_templates.items(), 1):
                     try:
                         print(f"\n[{index}/{total_streams}] 创建流: {sql_name}")
+                        cursor.execute(sql_template)
                         
                         # 提取实际的流名称（从SQL中解析）
                         import re
@@ -7594,6 +9146,17 @@ EOF
             print("流式查询已创建,开始监控系统负载")
             cursor.close()
             conn.close()
+            
+            # 检查流状态
+            if actual_stream_name:
+                print(f"检查 {len(actual_stream_name)} 个流的运行状态...")
+                if not self.check_stream_status(actual_stream_name, max_wait_time=60):
+                    raise Exception("流创建失败或未能正常运行")
+                
+                print("✅ 所有流都已正常运行")
+            else:
+                print("❌ 没有成功创建任何流")
+                raise Exception("流创建失败")
             
             # 监控系统负载 - 同时监控三个节点
             print(f"调试: 使用性能文件路径: {self.perf_file}")
@@ -9260,8 +10823,7 @@ def main():
     # 流性能监控参数
     stream_monitor_group = parser.add_argument_group('流性能监控和流计算延迟检测')
     stream_monitor_group.add_argument('--check-stream-delay', action='store_true',
-                                    help='''启用流计算延迟监控,默认不开启,加上此参数后会自动监控流计算延迟:
-  
+                                    help='''启用流计算延迟监控,默认不开启,加上此参数后会自动监控流计算延迟:  
 功能: 实时监测源表与目标表的数据延迟
   ├─ 智能延迟分级: 优秀/良好/正常/轻微/明显/严重
   ├─ 动态阈值计算: 基于检查间隔自动调整  
@@ -9272,6 +10834,16 @@ def main():
     stream_monitor_group.add_argument('--max-delay-threshold', type=int, default=30000,
                                     help='最大允许延迟时间(毫秒), 默认30000ms(30秒)\n'
                                         '超过此阈值认为流计算跟不上数据写入速度，可以针对具体的流和间隔调整')
+
+    stream_monitor_group.add_argument('--delay-trends-analysis', action='store_true',
+                                help='''启用延迟趋势分析，默认不开启:
+功能: 在延迟监控基础上增加趋势分析
+  ├─ 时间序列分析: 记录各次检查的延迟变化趋势
+  ├─ 趋势可视化: 在HTML报告中显示延迟变化
+  └─ 性能建议: 基于趋势提供优化建议
+输出: 延迟趋势数据整合到延迟日志和HTML报告中
+注意: 需要配合 --check-stream-delay 使用''')
+
     stream_monitor_group.add_argument('--delay-check-interval', type=int, default=10,
                                     help='''延迟检查间隔(秒), 默认10秒, 目前是粗粒度的检查生成目标表超级表的last(ts), 而非每个生成子表的last(ts)\n
 示例用法:%(prog)s --check-stream-delay \n--max-delay-threshold 60000 --delay-check-interval 5 --sql-type intervalsliding_stb \n\n''')
@@ -9281,7 +10853,7 @@ def main():
     batch_group.add_argument('--batch-test', action='store_true',
                             help='''启用批量测试模式:
 执行流程:
-  1. 自动生成所有有效的参数组合 (约168种，其中成功102种，失败66种)
+  1. 自动生成所有有效的参数组合 (约168种，其中成功102种，失败66种，性能忽略58种)
   2. 为每个组合依次执行完整的测试流程
   3. 每次测试前自动清理环境和重启服务
   4. 生成详细的HTML测试报告和性能数据
@@ -9360,13 +10932,15 @@ def main():
                             help='从第几个测试开始(从0开始计数), 默认0\n'
                                 '用于断点续传，例如 --batch-start-from 50')
     
-    batch_group.add_argument('--batch-filter-mode', type=str, choices=['all', 'skip-known-failures', 'only-known-failures'], default='all',
+    batch_group.add_argument('--batch-filter-mode', type=str, choices=['all', 'skip-known-failures', 'only-known-failures', 'skip-known-case'], default='all',
                         help='''批量测试过滤模式，控制是否运行已知失败的测试场景:
     all: 运行所有168个测试场景 (默认)
     skip-known-failures: 跳过已知会失败的66个场景，只运行102个成功场景
     only-known-failures: 只运行已知会失败的66个场景，用于调试失败原因
+    skip-known-case: 跳过已知失败的66个场景 + 已知性能不好的场景，专注于优质场景
   
 说明: 基于历史测试数据统计，某些参数组合由于TDengine限制会固定失败
+      某些组合虽然能成功但性能表现不佳，需要后期优化
       使用此参数可以避免浪费时间在已知问题上，专注测试有效场景''')
     
     batch_group.add_argument('--batch-test-limit', type=int,
@@ -9510,7 +11084,8 @@ def main():
             max_delay_threshold=args.max_delay_threshold,
             delay_check_interval=args.delay_check_interval,
             auto_combine=args.auto_combine,
-            monitor_warm_up_time=args.monitor_warm_up_time
+            monitor_warm_up_time=args.monitor_warm_up_time,
+            delay_trends_analysis  =args.delay_trends_analysis 
         )
         
         # 处理批量测试
@@ -9534,7 +11109,10 @@ def main():
                 'max_delay_threshold': args.max_delay_threshold,
                 'delay_check_interval': args.delay_check_interval,
                 'stream_num': args.stream_num,
-                'monitor_warm_up_time': args.monitor_warm_up_time  
+                'monitor_warm_up_time': args.monitor_warm_up_time,
+                'tbname_or_trows_or_sourcetable': args.tbname_or_trows_or_sourcetable,
+                'agg_or_select': args.agg_or_select,
+                'delay_trends_analysis': args.delay_trends_analysis  
             }
         
             print(f"批量测试基础配置:")
@@ -9546,6 +11124,8 @@ def main():
             print(f"  过滤模式: {args.batch_filter_mode}")
             print(f"  流数量: {args.stream_num}") 
             print(f"  监控预热时间: {args.monitor_warm_up_time}秒") 
+            print(f"  FROM子句类型: {args.tbname_or_trows_or_sourcetable}")
+            print(f"  查询类型: {args.agg_or_select}")
             
             # 处理SQL类型参数
             if args.batch_sql_types:
