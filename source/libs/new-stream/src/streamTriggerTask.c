@@ -3083,7 +3083,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SMsgSendInfo         *ahandle = pRsp->info.ahandle;
   SSTriggerAHandle     *pAhandle = ahandle->param;
   SSTriggerPullRequest *pReq = pAhandle->param;
-  
+
   QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
 
@@ -3377,7 +3377,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         code = tSimpleHashPut(pContext->pSlices, &uid, sizeof(int64_t), &slice, sizeof(SSTriggerDataSlice));
         QUERY_CHECK_CODE(code, lino, _end);
         void *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
-        QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        if (px == NULL) {
+          ST_TASK_ELOG("unable to find group %" PRId64 " for table %" PRId64 " from vnode %d", gid, uid,
+                       pProgress->pTaskAddr->nodeId);
+          QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        }
         SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
         int64_t                 id[2] = {uid, pProgress->pTaskAddr->nodeId};
         px = taosArrayPush(pGroup->pTableUids, id);
