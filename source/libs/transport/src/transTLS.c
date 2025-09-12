@@ -14,10 +14,6 @@
 
 // clang-format off
 #include "transTLS.h"
-#include "transComm.h"
-#include <openssl/err.h>
-#include <openssl/ssl.h>
-#include "transLog.h"
 // clang-format on
 
 #define DEFALUT_SSL_DIR "/etc/ssl/ssls"
@@ -30,6 +26,8 @@ static int32_t sslDoConn(STransTLS* pTls);
 static int32_t sslHandleError(STransTLS* pTls, int ret);
 static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
 static void destroySSLCtx(SSL_CTX* ctx);
+
+#if !defined(WINDOWS)
 
 SSL_CTX* initSSLCtx(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode) {
   int32_t lino = 0;
@@ -635,3 +633,33 @@ int8_t transCheckTlsEnv(const char* caPath, const char* certPath, const char* ke
   }
   return 0;
 }
+#else
+int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }
+void    sslDestroy(STransTLS* pTLs) { return; }
+
+void sslSetMode(STransTLS* pTls, int8_t cliMode) { return; }
+
+int32_t sslConnect(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req) { return TSDB_CODE_INVALID_CFG; }
+
+int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
+                 void (*cb)(uv_write_t*, int)) {
+  return TSDB_CODE_INVALID_CFG;
+}
+
+int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) { return TSDB_CODE_INVALID_CFG; }
+
+int8_t sslIsInited(STransTLS* pTls return 0;)
+
+    int32_t sslBufferInit(SSslBuffer* buf, int32_t cap) {
+  return TSDB_CODE_INVALID_CFG;
+}
+void    sslBufferDestroy(SSslBuffer* buf) { return; }
+void    sslBufferClear(SSslBuffer* buf) { return; }
+int32_t sslBufferAppend(SSslBuffer* buf, uint8_t* data, int32_t len) { return TSDB_CODE_INVALID_CFG; }
+int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf) { return TSDB_CODE_INVALID_CFG; }
+int32_t sslBufferGetAvailable(SSslBuffer* buf, int32_t* available) { return TSDB_CODE_INVALID_CFG; }
+
+void sslBufferRef(SSslBuffer* buf) { return; }
+void sslBufferUnref(SSslBuffer* buf) { return; }
+
+#endif

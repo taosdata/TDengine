@@ -14,8 +14,15 @@
 #ifndef _TD_TRANSPORT_TLS_H
 #define _TD_TRANSPORT_TLS_H
 
+#if !defined(WINDOWS)
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#else
+typedef struct {
+} SSL_CTX;
+typedef struct {
+} BIO;
+#endif
 
 #include "taoserror.h"
 #include "transComm.h"
