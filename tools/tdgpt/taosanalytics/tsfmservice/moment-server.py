@@ -276,9 +276,9 @@ def merge_imputation_res(input_data, res_data_list, res_mask_list):
 
 def convert_ts(ts_list, precision):
     if precision == 'ms':
-        ts_list = ts_list.astype('int64') // 10e6
+        ts_list = ts_list.astype('int64') // 10e5
     elif precision == 'us':
-        ts_list = ts_list.astype('int64') // 10e3
+        ts_list = ts_list.astype('int64') // 10e2
     elif precision == 'ns':
         ts_list = ts_list
     else:

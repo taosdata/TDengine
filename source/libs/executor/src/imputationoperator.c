@@ -345,7 +345,6 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
     return terrno;
   }
 
-  SColumnInfoData* pResTsCol = ((pInfo->resTsSlot != -1) ? taosArrayGet(pBlock->pDataBlock, pInfo->resTsSlot) : NULL);
   SJson* pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout, pId);
   if (pJson == NULL) {
     return terrno;
@@ -384,12 +383,15 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
     goto _OVER;
   }
 
-  if (pResTsCol != NULL) {
-    for (int32_t i = 0; i < rows; ++i) {
-      SJson* tsJson = tjsonGetArrayItem(pTsList, i);
-      tjsonGetObjectValueBigInt(tsJson, &tmpI64);
-      colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
-      resCurRow++;
+  if (pInfo->resTsSlot != -1) {
+    SColumnInfoData* pResTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->resTsSlot);
+    if (pResTsCol != NULL) {
+      for (int32_t i = 0; i < rows; ++i) {
+        SJson* tsJson = tjsonGetArrayItem(pTsList, i);
+        tjsonGetObjectValueBigInt(tsJson, &tmpI64);
+        colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
+        resCurRow++;
+      }
     }
   }
 
@@ -419,41 +421,19 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
     }
   }
 
-  resCurRow = pBlock->info.rows;
-  for (int32_t i = 0; i < rows; ++i) {
-    SJson* maskJson = tjsonGetArrayItem(pMask, i);
-    tjsonGetObjectValueBigInt(maskJson, &tmpI64);
-    // colDataSetInt32(pResMaskCol, resCurRow, &tmpDouble); // todo
-    resCurRow++;
+  if (pInfo->resMarkSlot != -1) {
+    SColumnInfoData* pResMaskCol = taosArrayGet(pBlock->pDataBlock, pInfo->resMarkSlot);
+    if (pResMaskCol != NULL) {
+      resCurRow = pBlock->info.rows;
+      for (int32_t i = 0; i < rows; ++i) {
+        SJson* maskJson = tjsonGetArrayItem(pMask, i);
+        tjsonGetObjectValueBigInt(maskJson, &tmpI64);
+        int32_t v = tmpI64;
+        colDataSetInt32(pResMaskCol, resCurRow, &v);
+        resCurRow++;
+      }
+    }
   }
-
-
-  // if (pResTsCol != NULL) {
-  //   resCurRow = pBlock->info.rows;
-  //   SJson* tsJsonArray = tjsonGetArrayItem(pTarget, 0);
-  //   if (tsJsonArray == NULL) goto _OVER;
-  //   int32_t tsSize = tjsonGetArraySize(tsJsonArray);
-  //   if (tsSize != rows) goto _OVER;
-  //   for (int32_t i = 0; i < tsSize; ++i) {
-  //     SJson* tsJson = tjsonGetArrayItem(tsJsonArray, i);
-  //     tjsonGetObjectValueBigInt(tsJson, &tmpI64);
-  //     colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
-  //     resCurRow++;
-  //   }
-  // }
-
-  // resCurRow = pBlock->info.rows;
-  // SJson* valJsonArray = tjsonGetArrayItem(res, 1);
-  // if (valJsonArray == NULL) goto _OVER;
-  // int32_t valSize = tjsonGetArraySize(valJsonArray);
-  // if (valSize != rows) goto _OVER;
-  // for (int32_t i = 0; i < valSize; ++i) {
-  //   SJson* valJson = tjsonGetArrayItem(valJsonArray, i);
-  //   tjsonGetObjectValueDouble(valJson, &tmpDouble);
-
-  //   colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
-  //   resCurRow++;
-  // }
 
   pBlock->info.rows += rows;
 
@@ -522,7 +502,7 @@ static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
   pSupp->targetType = -1;
   pSupp->tsPrecision = -1;
 
-  pSupp->freq[0] = 's';  // H,s,T,D
+  pSupp->freq[0] = 'S';  // H,s,T,D
   pSupp->freq[1] = '\0';
 
   FOREACH(pNode, pFuncs) {
@@ -624,7 +604,7 @@ static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
 static void doInitOptions(SImputationSupp* pSupp) {
   pSupp->numOfRows = 0;
   pSupp->wncheck = ANALY_DEFAULT_WNCHECK;
-  pSupp->freq[0] = 's';
+  pSupp->freq[0] = 'S';
   pSupp->freq[1] = '\0';
 }
 

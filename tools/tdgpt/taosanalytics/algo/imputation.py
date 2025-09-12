@@ -59,7 +59,7 @@ def do_set_params(params, json_obj):
         if params['precision'] not in valid_precision_list:
             raise ValueError(f"precision should be one of {valid_precision_list}")
 
-    valid_freq_list = ['D', 'B', 'H', 'T', 's', 'L', 'U', 'N']
+    valid_freq_list = ['D', 'B', 'H', 'T', 'S', 'L', 'U', 'N']
     if "freq" in json_obj:
         params["freq"] = json_obj["freq"]
 
