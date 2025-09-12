@@ -2906,11 +2906,10 @@ static int32_t tsdbRowCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, STs
         tsdbLastRowInitColStatus(&newLastRow, pTSchema);
         taosMemoryFree(pTSchema);
       }
+      code = tsdbRowCachePutToLRU(pTsdb, &key, &newLastRow, 1);
       if (newLastRow.colStatus) {
         taosMemoryFree(newLastRow.colStatus);
       }
-
-      code = tsdbRowCachePutToLRU(pTsdb, &key, &newLastRow, 1);
     }
     tsdbLRUCacheRelease(pCache, h, false);
   } else {
