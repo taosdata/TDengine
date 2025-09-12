@@ -399,7 +399,7 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
   code = tRowBuildFromBind(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
                            &pDataBlock->duplicateTs);
 
-  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  parserTrace("pDataBlock:%p all %d columns bind %d rows data", pDataBlock, boundInfo->numOfBound, rowNum);
 
 _return:
 
@@ -461,7 +461,7 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
     }
   }
 
-  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  parserTrace("pDataBlock:%p all %d columns bind %d rows data", pDataBlock, boundInfo->numOfBound, rowNum);
 
 _return:
 
@@ -529,7 +529,7 @@ int32_t qBindUpdateStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* b
     actualIndex++;
   }
 
-  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  parserTrace("pDataBlock:%p all %d columns bind %d rows data", pDataBlock, boundInfo->numOfBound, rowNum);
 
 _return:
 
@@ -957,7 +957,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
     TAOS_CHECK_GOTO(code, &lino, _return);
   }
 
-  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  parserTrace("pDataBlock:%p all %d columns bind %d rows data", pDataBlock, boundInfo->numOfBound, rowNum);
 
 _return:
   if (ncharBinds) {
@@ -967,9 +967,6 @@ _return:
       taosMemoryFree(ncBind[i].length);
     }
     taosArrayDestroy(ncharBinds);
-  }
-  if (code != 0) {
-    parserDebug("stmt2 failed to bind at lino %d since %s", lino, tstrerror(code));
   }
 
   return code;
@@ -1116,15 +1113,12 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
     bindIdx++;
   }
 
-  parserDebug("stmt2 all %d columns bind %d rows data as col format", boundInfo->numOfBound, rowNum);
+  parserTrace("pDataBlock:%p all %d columns bind %d rows data", pDataBlock, boundInfo->numOfBound, rowNum);
 
 _return:
 
   taosMemoryFree(ncharBind.buffer);
   taosMemoryFree(ncharBind.length);
-  if (code != 0) {
-    parserDebug("stmt2 failed to bind col at lino %d since %s", lino, tstrerror(code));
-  }
 
   return code;
 }
@@ -1290,7 +1284,8 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
   } else {
     code = TSDB_CODE_BLOB_NOT_SUPPORT;
   }
-  qDebug("stmt2 all %d columns bind %d rows data as row format", boundInfo->numOfBound, rowNum);
+
+  parserTrace("pDataBlock:%p all %d columns bind %d rows data", pDataBlock, boundInfo->numOfBound, rowNum);
 
 _return:
 

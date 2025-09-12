@@ -1233,7 +1233,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   int32_t    code = 0;
 
   STMT2_DLOG("start to prepare with sql:%s", sql);
-  int64_t startMs = taosGetTimestampMs();
+  int64_t startUs = taosGetTimestampUs();
 
   if (stmt == NULL || sql == NULL) {
     STMT2_ELOG_E("stmt or sql is NULL");
@@ -1584,7 +1584,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
   }
-  int64_t startMs = taosGetTimestampUs();
+  int64_t startUs = taosGetTimestampUs();
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT2_ELOG_E("stmtFetchStbColFields2 only for insert statement");
@@ -1626,7 +1626,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
 
 _return:
 
-  pStmt->stat.getFieldsMs += taosGetTimestampMs() - startMs;
+  pStmt->stat.getFieldsUs += taosGetTimestampUs() - startUs;
   pStmt->errCode = preCode;
 
   return code;
@@ -2241,7 +2241,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
 int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
-  int64_t    startMs = taosGetTimestampMs();
+  int64_t    startUs = taosGetTimestampUs();
 
   STMT2_DLOG_E("start to exec");
 
@@ -2263,7 +2263,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
-      int64_t startTs = taosGetTimestampMs();
+      int64_t startTs = taosGetTimestampUs();
       // wait for stmt bind thread to finish
       while (atomic_load_64(&pStmt->sql.siInfo.tbRemainNum)) {
         taosUsleep(1);
@@ -2273,10 +2273,9 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
         return pStmt->errCode;
       }
 
-      int64_t endTs = taosGetTimestampMs();
-      int64_t diffMs = endTs - startTs;
-      pStmt->stat.execWaitAllMs += diffMs;
-      pStmt->stat.execWaitMaxMs = MAX(pStmt->stat.execWaitMaxMs, diffMs);
+      int64_t endTs = taosGetTimestampUs();
+      pStmt->stat.execWaitAllUs += endTs - startTs;
+      pStmt->stat.execWaitMaxUs = MAX(pStmt->stat.execWaitMaxUs, (endTs - startTs));
 
       STMT_ERR_RET(qBuildStmtFinOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->sql.siInfo.pVgroupList));
       taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
@@ -2352,10 +2351,9 @@ _return:
   if (code) {
     STMT2_ELOG("exec failed, error:%s", tstrerror(code));
   }
-  int64_t endMs = taosGetTimestampMs();
-  int64_t diffMs = endMs - startMs;
-  pStmt->stat.execUseAllMs += diffMs;
-  pStmt->stat.execUseMaxMs = MAX(pStmt->stat.execUseMaxMs, diffMs);
+  int64_t endUs = taosGetTimestampUs();
+  pStmt->stat.execUseAllUs += endUs - startUs;
+  pStmt->stat.execUseMaxUs = MAX(pStmt->stat.execUseMaxUs, endUs - startUs);
   pStmt->stat.execUseNum++;
 
   STMT_RET(code);
@@ -2403,16 +2401,16 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT2_DLOG("close finished, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
              ", parseSqlNum=>%" PRId64 ", bindTableNum=>%" PRId64 ", bindRowNum=>%" PRId64 ", execUseNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
-             ", prepareMs:%" PRId64 ", getFieldsMs:%" PRId64 ", setTbNameAllMs:%" PRId64 ", setTbNameMaxMs:%" PRId64
-             ", setTagAllMs:%" PRId64 ", setTagMaxMs:%" PRId64 ", bindDataAllMs:%" PRId64 ", bindDataMaxMs:%" PRId64
-             ", execWaitAllMs:%" PRId64 ", execWaitMaxMs:%" PRId64 ", execUseAllMs:%" PRId64 ", execUseMaxMs:%" PRId64,
-             pStmt, pStmt->sql.stbInterlaceMode, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo,
+             ", prepareUs:%" PRId64 ", getFieldsUs:%" PRId64 ", setTbNameAllUs:%" PRId64 ", setTbNameMaxUs:%" PRId64
+             ", setTagAllUs:%" PRId64 ", setTagMaxUs:%" PRId64 ", bindDataAllUs:%" PRId64 ", bindDataMaxUs:%" PRId64
+             ", execWaitAllUs:%" PRId64 ", execWaitMaxUs:%" PRId64 ", execUseAllUs:%" PRId64 ", execUseMaxUs:%" PRId64,
+             pStmt->sql.stbInterlaceMode, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo,
              pStmt->stat.parseSqlNum, pStmt->stat.bindTableNum, pStmt->stat.bindRowNum, pStmt->stat.execUseNum,
              pStmt->seqIds[STMT_SETTBNAME], pStmt->seqIds[STMT_BIND], pStmt->seqIds[STMT_ADD_BATCH],
-             pStmt->seqIds[STMT_EXECUTE], pStmt->stat.prepareMs, pStmt->stat.getFieldsMs, pStmt->stat.setTbNameAllMs,
-             pStmt->stat.setTbNameMaxMs, pStmt->stat.setTagAllMs, pStmt->stat.setTagMaxMs, pStmt->stat.bindDataAllMs,
-             pStmt->stat.bindDataMaxMs, pStmt->stat.execWaitAllMs, pStmt->stat.execWaitMaxMs, pStmt->stat.execUseAllMs,
-             pStmt->stat.execUseMaxMs);
+             pStmt->seqIds[STMT_EXECUTE], pStmt->stat.prepareUs, pStmt->stat.getFieldsUs, pStmt->stat.setTbNameAllUs,
+             pStmt->stat.setTbNameMaxUs, pStmt->stat.setTagAllUs, pStmt->stat.setTagMaxUs, pStmt->stat.bindDataAllUs,
+             pStmt->stat.bindDataMaxUs, pStmt->stat.execWaitAllUs, pStmt->stat.execWaitMaxUs, pStmt->stat.execWaitAllUs,
+             pStmt->stat.execUseMaxUs);
   if (pStmt->sql.stbInterlaceMode) {
     pStmt->bInfo.tagsCached = false;
   }

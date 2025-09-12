@@ -2384,7 +2384,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < bindv->count; ++i) {
-    int64_t startSetTbNameMs = taosGetTimestampMs();
+    int64_t startSetTbNameUs = taosGetTimestampUs();
     if (bindv->tbnames && bindv->tbnames[i]) {
       code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
@@ -2394,10 +2394,9 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       }
     }
 
-    int64_t startSetTagMs = taosGetTimestampMs();
-    int64_t setTbNameDiffMs = startSetTagMs - startSetTbNameMs;
-    pStmt->stat.setTbNameAllMs += setTbNameDiffMs;
-    pStmt->stat.setTbNameMaxMs = MAX(pStmt->stat.setTbNameMaxMs, setTbNameDiffMs);
+    int64_t startSetTagUs = taosGetTimestampUs();
+    pStmt->stat.setTbNameAllUs += startSetTagUs - startSetTbNameUs;
+    pStmt->stat.setTbNameMaxUs = MAX(pStmt->stat.setTbNameMaxUs, startSetTagUs - startSetTbNameUs);
 
     SVCreateTbReq *pCreateTbReq = NULL;
     if (bindv->tags && bindv->tags[i]) {
@@ -2412,10 +2411,9 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
     }
 
-    int64_t startSetBatchMs = taosGetTimestampMs();
-    int64_t setTagDiffMs = startSetBatchMs - startSetTagMs;
-    pStmt->stat.setTagAllMs += setTagDiffMs;
-    pStmt->stat.setTagMaxMs = MAX(pStmt->stat.setTagMaxMs, setTagDiffMs);
+    int64_t startSetBatchUs = taosGetTimestampUs();
+    pStmt->stat.setTagAllUs += startSetBatchUs - startSetTagUs;
+    pStmt->stat.setTagMaxUs = MAX(pStmt->stat.setTagMaxUs, startSetBatchUs - startSetTagUs);
 
     if (code) {
       terrno = code;
@@ -2446,10 +2444,9 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         return terrno;
       }
     }
-    int64_t endBindBatchMs = taosGetTimestampMs();
-    int64_t bindDataDiffMs = endBindBatchMs - startSetBatchMs;
-    pStmt->stat.bindDataAllMs += bindDataDiffMs;
-    pStmt->stat.bindDataMaxMs = MAX(pStmt->stat.bindDataMaxMs, bindDataDiffMs);
+    int64_t endBindBatchUs = taosGetTimestampUs();
+    pStmt->stat.bindDataAllUs += endBindBatchUs - startSetBatchUs;
+    pStmt->stat.bindDataMaxUs = MAX(pStmt->stat.bindDataMaxUs, endBindBatchUs - startSetBatchUs);
   }
 
   return code;

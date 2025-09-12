@@ -117,16 +117,16 @@ typedef struct SStmt2StatInfo {
   int64_t execUseNum;
   int64_t prepareUs;
   int64_t getFieldsUs;
-  int64_t setTbNameAllMs;
-  int64_t setTbNameMaxMs;
-  int64_t setTagAllMs;
-  int64_t setTagMaxMs;
-  int64_t bindDataAllMs;
-  int64_t bindDataMaxMs;
-  int64_t execWaitAllMs;
-  int64_t execWaitMaxMs;
-  int64_t execUseAllMs;
-  int64_t execUseMaxMs;
+  int64_t setTbNameAllUs;
+  int64_t setTbNameMaxUs;
+  int64_t setTagAllUs;
+  int64_t setTagMaxUs;
+  int64_t bindDataAllUs;
+  int64_t bindDataMaxUs;
+  int64_t execWaitAllUs;
+  int64_t execWaitMaxUs;
+  int64_t execUseAllUs;
+  int64_t execUseMaxUs;
 } SStmt2StatInfo;
 
 /*
