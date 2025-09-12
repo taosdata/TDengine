@@ -30,7 +30,7 @@
 
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS    1000                    // 1s
 #define STREAM_TRIGGER_WAIT_TIME_NS         1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
-#define STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS 1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 30s
+#define STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS 5 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 30s
 #define STREAM_TRIGGER_REALTIME_SESSIONID   1
 #define STREAM_TRIGGER_HISTORY_SESSIONID    2
 
@@ -1433,8 +1433,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
   pTask->fillHistory = pMsg->fillHistory;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
-  // todo(kjq): fix here
-  pTask->lowLatencyCalc = pMsg->lowLatencyCalc || true;
+  pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
   pTask->hasPartitionBy = pMsg->hasPartitionBy;
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
   pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
@@ -2945,14 +2944,21 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
               taosArrayPopFrontBatch(pGroup->pPendingCalcParams, 1);
               pGroup->recalcNextWindow = false;
             }
+            int64_t now = taosGetTimestampNs();
             int32_t nParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-            bool    needCalc = (pTask->lowLatencyCalc && (nParams > 0)) || (nParams >= STREAM_CALC_REQ_MAX_WIN_NUM);
+            bool    needCalc = false;
+            if (pTask->lowLatencyCalc || (now - pGroup->prevCalcTime >= STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS)) {
+              needCalc = (nParams > 0);
+            } else {
+              needCalc = (nParams >= STREAM_CALC_REQ_MAX_WIN_NUM);
+            }
             if (needCalc) {
               int32_t nCalcParams = TMIN(nParams, STREAM_CALC_REQ_MAX_WIN_NUM);
               void   *px =
                   taosArrayAddBatch(pContext->pCalcReq->params, TARRAY_DATA(pGroup->pPendingCalcParams), nCalcParams);
               QUERY_CHECK_NULL(px, code, lino, _end, terrno);
               taosArrayPopFrontBatch(pGroup->pPendingCalcParams, nCalcParams);
+              pGroup->prevCalcTime = now;
             }
           }
           if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
@@ -4653,7 +4659,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         } else {
           if (TARRAY_SIZE(pContext->pCalcReq->params) == 0) {
             int32_t nParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-            bool    needCalc = (pTask->lowLatencyCalc && (nParams > 0)) || (nParams >= STREAM_CALC_REQ_MAX_WIN_NUM);
+            bool    needCalc = (nParams >= STREAM_CALC_REQ_MAX_WIN_NUM);
             if (needCalc) {
               SSTriggerCalcParam *pParam = NULL;
               for (int32_t i = 0; i < nParams; i++) {
@@ -5667,6 +5673,9 @@ static int32_t stRealtimeGroupOpenWindow(SSTriggerRealtimeGroup *pGroup, int64_t
   if (saveWindow) {
     // only save window when close window
   } else if (needCalc) {
+    if (TARRAY_SIZE(pGroup->pPendingCalcParams) == 0) {
+      pGroup->prevCalcTime = now;
+    }
     void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   } else if (needNotify) {
@@ -5710,6 +5719,7 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
   if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
     needNotify = true;
   }
+  int64_t now = taosGetTimestampNs();
   if (needCalc || needNotify) {
     param.triggerTime = taosGetTimestampNs();
     param.extraNotifyContent = ppExtraNotifyContent ? *ppExtraNotifyContent : NULL;
@@ -5801,6 +5811,9 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     void *px = taosArrayPush(pContext->pSavedWindows, pCurWindow);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   } else if (needCalc) {
+    if (TARRAY_SIZE(pGroup->pPendingCalcParams) == 0) {
+      pGroup->prevCalcTime = now;
+    }
     void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   } else if (needNotify) {
@@ -5921,6 +5934,7 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
   int32_t nInitWins = taosArrayGetSize(pContext->pInitWindows);
 
   // trigger all window open/close events
+  int64_t now = taosGetTimestampNs();
   for (int32_t i = 0; i < TARRAY_SIZE(pContext->pSavedWindows); i++) {
     pWin = TARRAY_GET_ELEM(pContext->pSavedWindows, i);
     // window open event may have been triggered previously
@@ -5942,6 +5956,9 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
       }
       bool ignore = pTask->ignoreNoDataTrigger && (param.wrownum == 0);
       if (calcOpen && !ignore) {
+        if (TARRAY_SIZE(pGroup->pPendingCalcParams) == 0) {
+          pGroup->prevCalcTime = now;
+        }
         void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       } else if (notifyOpen && !ignore) {
@@ -5992,6 +6009,9 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
         }
       }
       if (calcClose && !ignore) {
+        if (TARRAY_SIZE(pGroup->pPendingCalcParams) == 0) {
+          pGroup->prevCalcTime = now;
+        }
         void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       } else if (notifyClose && !ignore) {
