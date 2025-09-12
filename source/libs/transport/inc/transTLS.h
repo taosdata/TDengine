@@ -24,6 +24,10 @@ typedef struct {
 typedef struct {
   void* p;
 } BIO;
+
+typedef struct {
+  void* p;
+} SSL;
 #endif
 
 #include "taoserror.h"
