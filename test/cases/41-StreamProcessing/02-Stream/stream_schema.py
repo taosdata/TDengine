@@ -58,8 +58,8 @@ class TestStreamSchema:
         try:
             tdSql.execute(sql)
         except Exception as e:
-                if "No stream available snode now" not in str(e):
-                    raise Exception(f" user cant  create stream no snode ,but create success")
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
 
         while True:
             tdSql.query(f"select status from information_schema.ins_streams")
@@ -81,7 +81,7 @@ class TestStreamSchema:
             "insert into t1 values(now+3s,3);", 
             "create table t2 using stb tags(2);",                       
             "insert into t2 values(now+10s,12);",                       
-            "insert into t2 values(now+12s,12);",                       
+            "insert into t2 values(now+12s,-12);",                       
             "insert into t2 values(now+14s,12);",                       
             "insert into t2 values(now+15s,12);", 
             "create table t3 using stb tags(-1);",                       

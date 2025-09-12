@@ -3291,7 +3291,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
          pTaskInfo->cost.extractListTime, idStr);
 
   if (numOfTables == 0) {
-    qDebug("no table qualified for query, %s" PRIx64, idStr);
+    qDebug("no table qualified for query, %s", idStr);
     return TSDB_CODE_SUCCESS;
   }
 
