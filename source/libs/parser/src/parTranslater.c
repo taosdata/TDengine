@@ -726,6 +726,30 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
   return code;
 }
 
+static int32_t getVStbRefDbs(STranslateContext* pCxt, const SName* pName, SArray** pDbs) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(pName, pCxt->pTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, pDbs);
+    } else {
+      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                               .requestId = pParCxt->requestId,
+                               .requestObjRefId = pParCxt->requestRid,
+                               .mgmtEps = pParCxt->mgmtEpSet};
+      code = catalogGetVstbRefDbs(pParCxt->pCatalog, &conn, pName, pDbs);
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("QID:0x%" PRIx64 ", getVStbRefDbs error, code:%s, dbName:%s, tbName:%s",
+                pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);
+  }
+  return code;
+}
+
 static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
                                    STableMeta** pMeta) {
   SParseContext* pParCxt = pCxt->pParseCxt;
@@ -4866,7 +4890,7 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
 
 
   SArray* pVStbRefs = NULL;
-  PAR_ERR_JRET(getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs));
+  PAR_ERR_JRET(getVStbRefDbs(pCxt, pName, &pVStbRefs));
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(dbNameHash, code, lino, _return, terrno);
 

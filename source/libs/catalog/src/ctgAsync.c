@@ -4256,6 +4256,7 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
   SCtgVStbRefDbsCtx* pCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
   SCtgJob*           pJob = pTask->pJob;
   char               dbFName[TSDB_DB_FNAME_LEN];
+  SName*             pName = pCtx->pNames;
   SCtgDBCache*       dbCache = NULL;
   int32_t            code = TSDB_CODE_SUCCESS;
   SCtgMsgCtx*        pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
@@ -4322,7 +4323,7 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
     SCtgTaskReq tReq;
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
-    CTG_ERR_JRET(ctgGetVStbRefDbsFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, &tReq));
+    CTG_ERR_JRET(ctgGetVStbRefDbsFromVnode(pCtg, pConn, pCtx->pMeta->suid, pName, pVg, NULL, &tReq));
 
     if (NULL == taosArrayPush(pCtx->pResList, &(SVStbRefDbsRsp){0})) {
       ctgError("taosArrayPush SVStbRefDbsRsp failed, code:%x", terrno);

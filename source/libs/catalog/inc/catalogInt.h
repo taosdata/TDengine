@@ -1095,7 +1095,7 @@ int32_t ctgOpUpdateTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpClearCache(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateViewMeta(SCtgCacheOperation* operation);
 int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char* tableName, int32_t* tbType);
-int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *tbType, int64_t* suid);
+int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *tbType, int64_t* suid, bool *isVstb);
 int32_t ctgGetTbHashVgroupFromCache(SCatalog* pCtg, const SName* pTableName, SVgroupInfo** pVgroup);
 int32_t ctgGetViewsFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgViewsCtx* ctx, int32_t dbIdx,
                              int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
@@ -1232,7 +1232,7 @@ bool     hasOutOfDateTSMACache(SArray* pTsmas);
 bool     isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache);
 int32_t  ctgGetStreamProgressFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName, SStreamProgressRsp* out, SCtgTaskReq* tReq,
                                        void* bInput, int32_t nodeId);
-int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
+int32_t ctgGetVStbRefDbsFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SName *pTableName, SVgroupInfo* vgroupInfo, SVStbRefDbsRsp* out, SCtgTaskReq* tReq);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
 int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);

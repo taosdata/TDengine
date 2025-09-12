@@ -5368,10 +5368,15 @@ void tDestroySVSubTablesRsp(void *rsp) {
 }
 
 int32_t tSerializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
+  int32_t code = 0;
+  int32_t lino;
+  if (buf != NULL) {
+    buf = (char *)buf + headLen;
+    bufLen -= headLen;
+  }
+
   SEncoder encoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  int32_t  tlen;
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
@@ -5380,28 +5385,41 @@ int32_t tSerializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq
 
 _exit:
   if (code) {
-    tlen = code;
+    tEncoderClear(&encoder);
+    return code;
   } else {
-    tlen = encoder.pos;
+    int32_t tlen = encoder.pos;
+    tEncoderClear(&encoder);
+
+    if (buf != NULL) {
+      SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
+      pHead->vgId = htonl(pReq->header.vgId);
+      pHead->contLen = htonl(tlen + headLen);
+    }
+
+    return tlen + headLen;
   }
-  tEncoderClear(&encoder);
-  return tlen;
 }
 
 int32_t tDeserializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq) {
+  int32_t   headLen = sizeof(SMsgHead);
+  int32_t   code = 0;
+  int32_t   lino;
+  SMsgHead *pHead = buf;
+  pHead->vgId = pReq->header.vgId;
+  pHead->contLen = pReq->header.contLen;
+
   SDecoder decoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  tDecoderInit(&decoder, buf, bufLen);
+  tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->suid));
   tEndDecode(&decoder);
-
 _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
 
 int32_t tSerializeSVStbRefDbsRspImpl(SEncoder *pEncoder, SVStbRefDbsRsp *pRsp) {
   int32_t code = 0;

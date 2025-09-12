@@ -463,7 +463,9 @@ int32_t queryBuildVStbRefDBsMsg(void* input, char** msg, int32_t msgSize, int32_
   QUERY_PARAM_CHECK(msgLen);
 
   SVStbRefDbsReq req = {0};
-  req.suid = *(int64_t*)input;
+  SBuildVstbInput *pInput = (SBuildVstbInput*)input;
+  req.suid = pInput->suid;
+  req.header.vgId = pInput->vgId;
 
   int32_t bufLen = tSerializeSVStbRefDbsReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);

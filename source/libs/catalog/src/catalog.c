@@ -419,6 +419,28 @@ int32_t ctgGetTbType(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName,
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetTbUidType(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, int32_t* tbType, tb_uid_t* tbUid, bool* isVstb) {
+  char dbFName[TSDB_DB_FNAME_LEN];
+  (void)tNameGetFullDbName(pTableName, dbFName);
+  CTG_ERR_RET(ctgReadTbTypeSuidFromCache(pCtg, dbFName, pTableName->tname, tbType, tbUid, isVstb));
+  if (*tbType > 0 && *tbUid > 0 && *isVstb) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableMeta*   pMeta = NULL;
+  SCtgTbMetaCtx ctx = {0};
+  ctx.pName = (SName*)pTableName;
+  ctx.flag = CTG_FLAG_UNKNOWN_STB;
+  CTG_ERR_RET(ctgGetTbMeta(pCtg, pConn, &ctx, &pMeta));
+
+  *tbType = pMeta->tableType;
+  *tbUid = pMeta->suid;
+  *isVstb = pMeta->virtualStb;
+  taosMemoryFree(pMeta);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgGetTbIndex(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, SArray** pRes) {
   CTG_ERR_RET(ctgReadTbIndexFromCache(pCtg, pTableName, pRes));
   if (*pRes) {
@@ -1056,6 +1078,38 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
 _return:
 
   CTG_API_LEAVE(code);
+}
+
+int32_t ctgGetVstbRefDbs(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, SArray** pDbs) {
+  tb_uid_t tbUid = 0;
+  int32_t  tbType = 0;
+  bool     isVstb = false;
+  SCtgDBCache*  dbCache = NULL;
+
+  CTG_ERR_RET(ctgGetTbUidType(pCtg, pConn, pTableName, &tbType, &tbUid, &isVstb));
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  (void)tNameGetFullDbName(pTableName, dbFName);
+
+  SDBVgInfo* vgInfo = NULL;
+  CTG_ERR_RET(ctgGetDBVgInfo(pCtg, pConn, dbFName, &dbCache, &vgInfo, NULL));
+
+  *pDbs = taosArrayInit(taosArrayGetSize(dbCache->vgCache.vgInfo->vgArray), sizeof(SVStbRefDbsRsp));
+  if (*pDbs == NULL) {
+    CTG_RET(terrno);
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(dbCache->vgCache.vgInfo->vgArray); i++) {
+    SVgroupInfo*    pVg = (SVgroupInfo*)taosArrayGet(dbCache->vgCache.vgInfo->vgArray, i);
+    SVStbRefDbsRsp* out = taosMemoryCalloc(1, sizeof(SVStbRefDbsRsp));
+    if (NULL == out || NULL == pVg) {
+      CTG_RET(terrno);
+    }
+    CTG_ERR_RET(ctgGetVStbRefDbsFromVnode(pCtg, pConn, tbUid, pTableName, pVg, out, NULL));
+    if (NULL == taosArrayPush(*pDbs, out)) {
+      CTG_RET(terrno);
+    }
+  }
+
+  CTG_RET(TSDB_CODE_SUCCESS);
 }
 
 int32_t catalogGetDBVgList(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SArray** vgroupList) {
@@ -1787,6 +1841,22 @@ int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const
   CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, (SName*)pTableName, false));
 
   CTG_ERR_JRET(ctgGetTbCfg(pCtg, pConn, (SName*)pTableName, pCfg));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetVstbRefDbs(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pDbs) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == pTableName || NULL == pDbs) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+
+  CTG_ERR_JRET(ctgGetVstbRefDbs(pCtg, pConn, (SName*)pTableName, pDbs));
 
 _return:
 
