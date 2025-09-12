@@ -100,7 +100,6 @@ static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
 
   pStmt->queue.tail->next = param;
   pStmt->queue.tail = param;
-  pStmt->stat.bindDataNum++;
 
   (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
   (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
@@ -1234,6 +1233,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   int32_t    code = 0;
 
   STMT2_DLOG("start to prepare with sql:%s", sql);
+  int64_t startMs = taosGetTimestampMs();
 
   if (stmt == NULL || sql == NULL) {
     STMT2_ELOG_E("stmt or sql is NULL");
@@ -1289,6 +1289,8 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   } else {
     return stmtBuildErrorMsgWithCode(pStmt, "stmt only support 'SELECT' or 'INSERT'", TSDB_CODE_PAR_SYNTAX_ERROR);
   }
+
+  pStmt->stat.prepareUs += taosGetTimestampUs() - startUs;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1342,9 +1344,6 @@ bool stmt2IsSelect(TAOS_STMT2* stmt) {
 
 int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
-
-  int64_t startUs = taosGetTimestampUs();
-
   STMT2_TLOG("start to set tbName:%s", tbName);
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
@@ -1395,9 +1394,6 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {
     STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
   }
-
-  int64_t startUs2 = taosGetTimestampUs();
-  pStmt->stat.setTbNameUs += startUs2 - startUs;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1588,6 +1584,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
   }
+  int64_t startMs = taosGetTimestampUs();
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     STMT2_ELOG_E("stmtFetchStbColFields2 only for insert statement");
@@ -1629,6 +1626,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
 
 _return:
 
+  pStmt->stat.getFieldsMs += taosGetTimestampMs() - startMs;
   pStmt->errCode = preCode;
 
   return code;
@@ -1774,7 +1772,6 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
 
   if (pStmt->sql.stbInterlaceMode) {
     int64_t startUs2 = taosGetTimestampUs();
-    pStmt->stat.addBatchUs += startUs2 - startUs;
 
     pStmt->sql.siInfo.tableColsReady = false;
 
@@ -1849,8 +1846,6 @@ static int32_t stmtRestoreQueryFields(STscStmt2* pStmt) {
 int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCreateTbReq* pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
-
-  int64_t startUs = taosGetTimestampUs();
 
   STMT2_TLOG("start to bind data, colIdx:%d", colIdx);
 
@@ -1959,9 +1954,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     }
   }
 
-  int64_t startUs2 = taosGetTimestampUs();
-  pStmt->stat.bindDataUs1 += startUs2 - startUs;
-
   SStmtQNode* param = NULL;
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAllocQNodeFromBuf(&pStmt->sql.siInfo.tbBuf, (void**)&param));
@@ -1977,9 +1969,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
 
     param->pCreateTbReq = pCreateTbReq;
   }
-
-  int64_t startUs3 = taosGetTimestampUs();
-  pStmt->stat.bindDataUs2 += startUs3 - startUs2;
 
   SArray* pCols = pStmt->sql.stbInterlaceMode ? param->tblData.aCol : (*pDataBlock)->pData->aCol;
   SBlobSet* pBlob = NULL;
@@ -2042,9 +2031,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     }
   }
 
-  int64_t startUs4 = taosGetTimestampUs();
-  pStmt->stat.bindDataUs3 += startUs4 - startUs3;
-
   if (pStmt->stbInterlaceMode) {
     if (param) param->tblData.pBlobSet = pBlob;
   }
@@ -2055,7 +2041,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
 
-  pStmt->stat.bindDataUs4 += taosGetTimestampUs() - startUs4;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2256,7 +2241,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
 int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
-  int64_t    startUs = taosGetTimestampUs();
+  int64_t    startMs = taosGetTimestampMs();
 
   STMT2_DLOG_E("start to exec");
 
@@ -2278,7 +2263,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
-      int64_t startTs = taosGetTimestampUs();
+      int64_t startTs = taosGetTimestampMs();
       // wait for stmt bind thread to finish
       while (atomic_load_64(&pStmt->sql.siInfo.tbRemainNum)) {
         taosUsleep(1);
@@ -2288,7 +2273,11 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
         return pStmt->errCode;
       }
 
-      pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
+      int64_t endTs = taosGetTimestampMs();
+      int64_t diffMs = endTs - startTs;
+      pStmt->stat.execWaitAllMs += diffMs;
+      pStmt->stat.execWaitMaxMs = MAX(pStmt->stat.execWaitMaxMs, diffMs);
+
       STMT_ERR_RET(qBuildStmtFinOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, pStmt->sql.siInfo.pVgroupList));
       taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
       pStmt->sql.siInfo.pVgroupHash = NULL;
@@ -2363,7 +2352,11 @@ _return:
   if (code) {
     STMT2_ELOG("exec failed, error:%s", tstrerror(code));
   }
-  pStmt->stat.execUseUs += taosGetTimestampUs() - startUs;
+  int64_t endMs = taosGetTimestampMs();
+  int64_t diffMs = endMs - startMs;
+  pStmt->stat.execUseAllMs += diffMs;
+  pStmt->stat.execUseMaxMs = MAX(pStmt->stat.execUseMaxMs, diffMs);
+  pStmt->stat.execUseNum++;
 
   STMT_RET(code);
 }
@@ -2407,16 +2400,19 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
 
-  STMT2_DLOG("stmt %p closed, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
-             ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
+  STMT2_DLOG("close finished, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
+             ", parseSqlNum=>%" PRId64 ", bindTableNum=>%" PRId64 ", bindRowNum=>%" PRId64 ", execUseNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
-             ", setTbNameUs:%" PRId64 ", bindDataUs:%" PRId64 ",%" PRId64 ",%" PRId64 ",%" PRId64 " addBatchUs:%" PRId64
-             ", execWaitUs:%" PRId64 ", execUseUs:%" PRId64,
+             ", prepareMs:%" PRId64 ", getFieldsMs:%" PRId64 ", setTbNameAllMs:%" PRId64 ", setTbNameMaxMs:%" PRId64
+             ", setTagAllMs:%" PRId64 ", setTagMaxMs:%" PRId64 ", bindDataAllMs:%" PRId64 ", bindDataMaxMs:%" PRId64
+             ", execWaitAllMs:%" PRId64 ", execWaitMaxMs:%" PRId64 ", execUseAllMs:%" PRId64 ", execUseMaxMs:%" PRId64,
              pStmt, pStmt->sql.stbInterlaceMode, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo,
-             pStmt->stat.parseSqlNum, pStmt->stat.bindDataNum, pStmt->seqIds[STMT_SETTBNAME], pStmt->seqIds[STMT_BIND],
-             pStmt->seqIds[STMT_ADD_BATCH], pStmt->seqIds[STMT_EXECUTE], pStmt->stat.setTbNameUs,
-             pStmt->stat.bindDataUs1, pStmt->stat.bindDataUs2, pStmt->stat.bindDataUs3, pStmt->stat.bindDataUs4,
-             pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs);
+             pStmt->stat.parseSqlNum, pStmt->stat.bindTableNum, pStmt->stat.bindRowNum, pStmt->stat.execUseNum,
+             pStmt->seqIds[STMT_SETTBNAME], pStmt->seqIds[STMT_BIND], pStmt->seqIds[STMT_ADD_BATCH],
+             pStmt->seqIds[STMT_EXECUTE], pStmt->stat.prepareMs, pStmt->stat.getFieldsMs, pStmt->stat.setTbNameAllMs,
+             pStmt->stat.setTbNameMaxMs, pStmt->stat.setTagAllMs, pStmt->stat.setTagMaxMs, pStmt->stat.bindDataAllMs,
+             pStmt->stat.bindDataMaxMs, pStmt->stat.execWaitAllMs, pStmt->stat.execWaitMaxMs, pStmt->stat.execUseAllMs,
+             pStmt->stat.execUseMaxMs);
   if (pStmt->sql.stbInterlaceMode) {
     pStmt->bInfo.tagsCached = false;
   }

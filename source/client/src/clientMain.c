@@ -2367,6 +2367,8 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
   STMT2_DLOG_E("start to bind param");
+  pStmt->stat.bindTableNum += bindv->count;
+
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     STMT2_ELOG_E("async bind param is still working, please try again later");
     terrno = TSDB_CODE_TSC_STMT_API_ERROR;
@@ -2382,6 +2384,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < bindv->count; ++i) {
+    int64_t startSetTbNameMs = taosGetTimestampMs();
     if (bindv->tbnames && bindv->tbnames[i]) {
       code = stmtSetTbName2(stmt, bindv->tbnames[i]);
       if (code) {
@@ -2390,6 +2393,11 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         return terrno;
       }
     }
+
+    int64_t startSetTagMs = taosGetTimestampMs();
+    int64_t setTbNameDiffMs = startSetTagMs - startSetTbNameMs;
+    pStmt->stat.setTbNameAllMs += setTbNameDiffMs;
+    pStmt->stat.setTbNameMaxMs = MAX(pStmt->stat.setTbNameMaxMs, setTbNameDiffMs);
 
     SVCreateTbReq *pCreateTbReq = NULL;
     if (bindv->tags && bindv->tags[i]) {
@@ -2404,6 +2412,11 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
     }
 
+    int64_t startSetBatchMs = taosGetTimestampMs();
+    int64_t setTagDiffMs = startSetBatchMs - startSetTagMs;
+    pStmt->stat.setTagAllMs += setTagDiffMs;
+    pStmt->stat.setTagMaxMs = MAX(pStmt->stat.setTagMaxMs, setTagDiffMs);
+
     if (code) {
       terrno = code;
       STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
@@ -2412,6 +2425,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
     if (bindv->bind_cols && bindv->bind_cols[i]) {
       TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
+      pStmt->stat.bindRowNum += bind->num;
 
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
@@ -2432,6 +2446,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         return terrno;
       }
     }
+    int64_t endBindBatchMs = taosGetTimestampMs();
+    int64_t bindDataDiffMs = endBindBatchMs - startSetBatchMs;
+    pStmt->stat.bindDataAllMs += bindDataDiffMs;
+    pStmt->stat.bindDataMaxMs = MAX(pStmt->stat.bindDataMaxMs, bindDataDiffMs);
   }
 
   return code;

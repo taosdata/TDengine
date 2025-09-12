@@ -107,22 +107,29 @@ typedef struct {
 
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo2;
-/*
-typedef struct SStmtStatInfo {
-int64_t ctgGetTbMetaNum;
-int64_t getCacheTbInfo;
-int64_t parseSqlNum;
-int64_t bindDataNum;
-int64_t setTbNameUs;
-int64_t bindDataUs1;
-int64_t bindDataUs2;
-int64_t bindDataUs3;
-int64_t bindDataUs4;
-int64_t addBatchUs;
-int64_t execWaitUs;
-int64_t execUseUs;
-} SStmtStatInfo;
 
+typedef struct SStmt2StatInfo {
+  int64_t ctgGetTbMetaNum;
+  int64_t getCacheTbInfo;
+  int64_t parseSqlNum;
+  int64_t bindTableNum;
+  int64_t bindRowNum;
+  int64_t execUseNum;
+  int64_t prepareUs;
+  int64_t getFieldsUs;
+  int64_t setTbNameAllMs;
+  int64_t setTbNameMaxMs;
+  int64_t setTagAllMs;
+  int64_t setTagMaxMs;
+  int64_t bindDataAllMs;
+  int64_t bindDataMaxMs;
+  int64_t execWaitAllMs;
+  int64_t execWaitMaxMs;
+  int64_t execUseAllMs;
+  int64_t execUseMaxMs;
+} SStmt2StatInfo;
+
+/*
 typedef struct SStmtQNode {
 bool                 restoreTbCols;
 STableColsData       tblData;
@@ -173,7 +180,7 @@ typedef struct {
   bool           execSemWaited;
   AsyncBindParam asyncBindParam;
   bool           asyncResultAvailable;
-  SStmtStatInfo  stat;
+  SStmt2StatInfo stat;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -247,7 +254,7 @@ extern char *gStmt2StatusStr[];
   do {                                                                                              \
     (pStmt)->seqId++;                                                                               \
     (pStmt)->seqIds[n]++;                                                                           \
-    STMT2_DLOG("switch status %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmt2StatusStr[n]); \
+    STMT2_TLOG("switch status %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmt2StatusStr[n]); \
   } while (0)
 
 TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
