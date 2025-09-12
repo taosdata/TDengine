@@ -37,7 +37,7 @@
         <el-tooltip
           v-if="['interrupted', 'failed'].includes(scope.row.status.toLowerCase())"
           placement="top"
-          :open-delay="0" 
+          :open-delay="0"
         >
           <template #content>
             <div>{{ scope.row.last_modified_at }}</div>
@@ -51,31 +51,78 @@
     <el-table-column :label="$t('taosuser.operation')" width="150">
       <template #default="scope">
         <el-switch
-          :value="scope.row.status.toLowerCase() != 'stopped'"
-          :disabled="$IS_COMMUNITY || scope.row.status.toLowerCase() == 'completed'"
+          :model-value="isOn(scope.row.status)"
+          :disabled="isDisabled(scope.row.status)"
           active-color="#13ce66"
           inactive-color="#dcdfe6"
+          @change="(val: any) => onToggle(scope.row, val)"
         >
         </el-switch>
-        <el-button
-          plain
-          size="small"
-          icon="delete"
-          :disabled="$IS_COMMUNITY || scope.row.status.toLowerCase() != 'stopped'"
-        ></el-button>
+        <el-button plain size="small" icon="Delete" @click="delRestore(scope.row)"></el-button>
       </template>
     </el-table-column>
   </el-table>
 </template>
 <script setup lang="ts">
 const { t } = useI18n();
-const { $IS_COMMUNITY } = inject('globalCustomProperties') as GlobalCustomProperties;
+const globalProps = inject('globalCustomProperties') as GlobalCustomProperties | undefined;
+const $IS_COMMUNITY = globalProps?.$IS_COMMUNITY ?? false;
 import { parsinginZone } from '@/utils/index';
 import { useBackupStore } from '@/store/modules/8_administrator/backup';
+import { deleteBackup } from '@/api/backup';
+import { excuteStop } from '@/api/common';
+import { ElMessageBox, ElMessage } from 'element-plus';
+
 const backupStore = useBackupStore();
 
 const handleDSStatus = (status: string) => {
   return t('statuses.' + status);
+};
+
+const isOn = (status: string) => {
+  const s = (status || '').toLowerCase();
+  return s === 'created' || s === 'queued' || s === 'running';
+};
+
+const isDisabled = (status: string) => {
+  return !isOn(status);
+};
+
+const onToggle = async (row: any, val: boolean) => {
+  const s = (row.status || '').toLowerCase();
+  // 仅支持从开启 -> 关闭，用于取消任务
+  if (isOn(s) && val === false) {
+    try {
+      await excuteStop(row.id);
+      ElMessage.success(t('operateSucc'));
+      await backupStore.getRestoreList();
+    } catch (err: any) {
+      ElMessage.error(err?.message || err?.desc || String(err));
+    }
+  } else {
+    // 其他情况不允许开启，立即恢复显示
+    await backupStore.getRestoreList();
+  }
+};
+
+const delRestore = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(t('isDel', [row.id]), t('warning'), {
+      confirmButtonText: t('confirm'),
+      cancelButtonText: t('cancel'),
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+
+  try {
+    await deleteBackup(row.id);
+    ElMessage.success(t('delSucc'));
+    await backupStore.getRestoreList();
+  } catch (err: any) {
+    ElMessage.error(err?.message || err?.desc || String(err));
+  }
 };
 </script>
 <style lang="scss" scoped>
