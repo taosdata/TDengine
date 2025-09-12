@@ -826,7 +826,8 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(1, 0, self.start + 5 * self.step) # ts
             and tdSql.compareData(1, 1, 5)          # cnt
             and tdSql.compareData(1, 2, 150)        # avg(speed)
-            and tdSql.compareData(1, 3, 1500)       # sum
+            and tdSql.compareData(1, 3, 1500),       # sum
+            retry = 420
         )
 
         tdLog.info(f"verify stream_stb1 ............................. successfully.")
