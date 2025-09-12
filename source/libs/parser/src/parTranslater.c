@@ -1355,7 +1355,7 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
                FUNCTION_TYPE_IROWTS == pFunc->funcType || FUNCTION_TYPE_IROWTS_ORIGIN == pFunc->funcType ||
-               FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType) {
+               FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType || FUNCTION_TYPE_IMPUTATION_ROWTS == pFunc->funcType) {
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
@@ -2956,36 +2956,54 @@ static int32_t translateForecastFunc(STranslateContext* pCxt, SFunctionNode* pFu
 
 static int32_t translateForecastPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
+  SSelectStmt*   pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  SNode*         pNode = NULL;
+  bool           bFound = false;
+  int32_t        funcType = pFunc->funcType;
+
   if (!fmIsForecastPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
+
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s must be used in select statements", pFunc->functionName);
   }
+
   if (pCxt->currClause == SQL_CLAUSE_WHERE) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "%s is not allowed in where clause", pFunc->functionName);
   }
 
-  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  SNode*       pNode = NULL;
-  bool         bFound = false;
   FOREACH(pNode, pSelect->pProjectionList) {
-    if (nodeType(pNode) == QUERY_NODE_FUNCTION && strcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+      continue;
+    } 
+    
+    if ((funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
+         funcType == FUNCTION_TYPE_FORECAST_LOW) && strcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
       bFound = true;
       break;
     }
+
+    if ((funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) && 
+        strcasecmp(((SFunctionNode*)pNode)->functionName, "imputation") == 0) {
+      bFound = true;
+      break;
+    } 
   }
+
   if (!bFound) {
     *pRewriteToColumn = true;
     int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+    
     (void)translateColumn(pCxt, (SColumnNode**)ppNode);
     return pCxt->errCode;
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8097,7 +8115,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t translateForecast(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (!pSelect->hasForecastFunc) {
+  if (!(pSelect->hasForecastFunc || pSelect->hasImputationFunc)) {
     if (pSelect->hasForecastPseudoColFunc) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                      "Has Forecast pseudo column(s) but missing forcast function");
