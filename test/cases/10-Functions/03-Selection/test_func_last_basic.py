@@ -2,7 +2,6 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestFuncLastBasic:
-
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
