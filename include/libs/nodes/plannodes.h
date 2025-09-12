@@ -234,7 +234,7 @@ typedef struct SInterpFuncLogicNode {
 typedef struct SForecastFuncLogicNode {
   SLogicNode node;
   SNodeList* pFuncs;
-} SForecastFuncLogicNode;
+} SForecastFuncLogicNode, SImputationFuncLogicNode;
 
 typedef struct SGroupCacheLogicNode {
   SLogicNode node;
@@ -254,9 +254,13 @@ typedef struct SDynQueryCtrlStbJoin {
 
 typedef struct SDynQueryCtrlVtbScan {
   bool          scanAllCols;
+  bool          isSuperTable;
   char          dbName[TSDB_DB_NAME_LEN];
-  char          stbName[TSDB_TABLE_NAME_LEN];
+  char          tbName[TSDB_TABLE_NAME_LEN];
   uint64_t      suid;
+  uint64_t      uid;
+  int32_t       rversion;
+  SNodeList*    pOrgVgIds;
   SVgroupsInfo* pVgroupList;
 } SDynQueryCtrlVtbScan;
 
@@ -581,7 +585,7 @@ typedef struct SForecastFuncPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;
   SNodeList* pFuncs;
-} SForecastFuncPhysiNode;
+} SForecastFuncPhysiNode, SImputationFuncPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;
@@ -650,12 +654,16 @@ typedef struct SStbJoinDynCtrlBasic {
 
 typedef struct SVtbScanDynCtrlBasic {
   bool       scanAllCols;
+  bool       isSuperTable;
   char       dbName[TSDB_DB_NAME_LEN];
-  char       stbName[TSDB_TABLE_NAME_LEN];
+  char       tbName[TSDB_TABLE_NAME_LEN];
   uint64_t   suid;
+  uint64_t   uid;
+  int32_t    rversion;
   int32_t    accountId;
   SEpSet     mgmtEpSet;
   SNodeList *pScanCols;
+  SNodeList *pOrgVgIds;
 } SVtbScanDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {

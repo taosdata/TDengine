@@ -17,6 +17,8 @@ import threading as thd
 import multiprocessing as mp
 import taos
 import time
+import re
+import shutil
 class TestInsertwithmorevgroup:
     #
     # --------------- main frame -------------------
@@ -236,13 +238,24 @@ class TestInsertwithmorevgroup:
             current_dir = os.path.dirname(__file__)
             sourcejsonfile = os.path.join(os.path.dirname(__file__), "manyVgroups.json")
             jsonfile = os.path.join(current_dir, "Vgroups%d%d.json" % (vgroups, i))
-            os.system("cp -f %s %s"%(sourcejsonfile, jsonfile))
-            os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
-            os.system("sed -i 's/\"drop\": \"no\",/\"drop\": \"%s\",/g' %s"%(dropdb,jsonfile))
-            os.system("sed -i 's/\"host\": \"127.0.0.1\",/\"host\": \"%s\",/g' %s"%(host,jsonfile))
-            os.system("sed -i 's/\"childtable_count\": 10000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
-            os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
-            os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
+            shutil.copy2(sourcejsonfile, jsonfile)
+            with open(jsonfile, 'r', encoding='utf-8') as f:
+                content = f.read()
+            content = re.sub(r'"name": "db",', f'"name": "{dbname}",', content)
+            content = re.sub(r'"drop": "no",', f'"drop": "{dropdb}",', content)
+            content = re.sub(r'"host": "127.0.0.1",', f'"host": "{host}",', content)
+            content = re.sub(r'"childtable_count": 10000,', f'"childtable_count": {count},', content)
+            content = re.sub(r'"name": "stb1",', f'"name": "{stbname}{i}",', content)
+            content = re.sub(r'"childtable_prefix": "stb1_",', f'"childtable_prefix": "{stbname}{i}_",', content)
+            with open(jsonfile, 'w', encoding='utf-8') as f:
+                f.write(content)
+            # os.system("cp -f %s %s"%(sourcejsonfile, jsonfile))
+            # os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
+            # os.system("sed -i 's/\"drop\": \"no\",/\"drop\": \"%s\",/g' %s"%(dropdb,jsonfile))
+            # os.system("sed -i 's/\"host\": \"127.0.0.1\",/\"host\": \"%s\",/g' %s"%(host,jsonfile))
+            # os.system("sed -i 's/\"childtable_count\": 10000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
+            # os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
+            # os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
             threads.append(mp.Process(target=self.taosBench, args=("%s"%jsonfile,)))
         start_time = time.time()
         for tr in threads:

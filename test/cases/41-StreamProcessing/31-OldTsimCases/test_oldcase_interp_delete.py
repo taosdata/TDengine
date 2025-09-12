@@ -13,7 +13,7 @@ class TestStreamOldCaseInterpDelete:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_interp_delete(self):
-        """Stream interp delete
+        """OldTsim: interp delete
 
         Verify the calculation results of the interp function when deleting data
 

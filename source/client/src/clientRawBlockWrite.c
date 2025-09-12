@@ -651,13 +651,19 @@ static void processAutoCreateTable(SMqDataRsp* rsp, char** string) {
       goto end;
     }
 
-    if (pCreateReq[iReq].type != TSDB_CHILD_TABLE) {
+    if (pCreateReq[iReq].type != TSDB_CHILD_TABLE && pCreateReq[iReq].type != TSDB_NORMAL_TABLE) {
       uError("processAutoCreateTable pCreateReq[iReq].type != TSDB_CHILD_TABLE");
       goto end;
     }
   }
   cJSON* pJson = NULL;
-  buildCreateCTableJson(pCreateReq, rsp->createTableNum, &pJson);
+  if (pCreateReq->type == TSDB_NORMAL_TABLE) {
+    buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE,
+                         &pCreateReq->colCmpr, &pJson);
+  } else if (pCreateReq->type == TSDB_CHILD_TABLE) {
+    buildCreateCTableJson(pCreateReq, rsp->createTableNum, &pJson);
+  }
+
   *string = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
 

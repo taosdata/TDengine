@@ -1,6 +1,6 @@
 import time
 import os
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tmqCom
 
 
 class TestTmpBasic2:
@@ -123,13 +123,7 @@ class TestTmpBasic2:
         )
 
         tdLog.info(f"== start consumer to pull msgs from stb")
-        tdLog.info(
-            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
-        )
-
-        os.system(
-            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
-        )
+        tmqCom.startTmqSimProcess(pullDelay, dbName, showMsg, showRow, cdbName)
 
         tdLog.info(f"== check consume result")
         while True:
@@ -179,13 +173,7 @@ class TestTmpBasic2:
         )
 
         tdLog.info(f"== start consumer to pull msgs from ctb")
-        tdLog.info(
-            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
-        )
-
-        os.system(
-            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
-        )
+        tmqCom.startTmqSimProcess(pullDelay, dbName, showMsg, showRow, cdbName)
 
         tdLog.info(f"== check consume result")
         while True:
@@ -235,13 +223,7 @@ class TestTmpBasic2:
         )
 
         tdLog.info(f"== start consumer to pull msgs from ntb")
-        tdLog.info(
-            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
-        )
-
-        os.system(
-            f"cases/40-DataSubscription/sh/consume.sh -d {dbName} -y {pullDelay} -g {showMsg} -r {showRow} -w {cdbName} -s start"
-        )
+        tmqCom.startTmqSimProcess(pullDelay, dbName, showMsg, showRow, cdbName)
 
         tdLog.info(f"== check consume result from ntb")
         while True:
@@ -257,7 +239,7 @@ class TestTmpBasic2:
             time.sleep(1)
 
         # ------ not need stop consumer, because it exit after pull msg overthan expect msg
-        os.system(f"cases/40-DataSubscription/sh/consume.sh -s stop -x SIGINT")
+        tmqCom.stopTmqSimProcess("tmq_sim")
 
     def prepareBasicEnv_1vgrp(self):
 

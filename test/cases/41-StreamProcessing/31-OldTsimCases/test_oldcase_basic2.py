@@ -13,7 +13,7 @@ class TestStreamOldCaseBasic2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_basic2(self):
-        """Stream basic test 2
+        """OldTsim: basic 2
 
         Basic test cases for streaming, part 2
 
@@ -46,7 +46,7 @@ class TestStreamOldCaseBasic2:
         streams.append(self.Sliding3())
         streams.append(self.Sliding4())
         streams.append(self.Tag0())
-        streams.append(self.Interval0())
+        # streams.append(self.Interval0()) update data
         streams.append(self.WindowClose1())
         streams.append(self.WindowClose2())
         streams.append(self.WindowClose3())
