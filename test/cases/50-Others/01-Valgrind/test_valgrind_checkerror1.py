@@ -97,7 +97,7 @@ class TestValgrindCheckError1:
         tdSql.checkRows(3)
 
         tdSql.query(f"show variables;")
-        tdSql.checkRows(103)
+        tdSql.checkRows(104)
 
         tdSql.query(f"show dnode 1 variables;")
         tdSql.checkAssert(tdSql.getRows() > 0)

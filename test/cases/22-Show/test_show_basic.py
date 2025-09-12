@@ -186,7 +186,7 @@ class TestShowBasic:
         tdSql.error(f"show create stable t0;")
 
         tdSql.query(f"show variables;")
-        tdSql.checkRows(103)
+        tdSql.checkRows(104)
 
         tdSql.query(f"show dnode 1 variables;")
         if tdSql.getRows() <= 0:
