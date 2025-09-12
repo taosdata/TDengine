@@ -1994,6 +1994,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN) {
         taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
+        nodesDestroyList(pLogicNode->vtbScan.pOrgVgIds);
       }
       break;
     }
@@ -2227,6 +2228,7 @@ void nodesDestroyNode(SNode* pNode) {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
       if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
+        nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
       }
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       break;
@@ -2393,6 +2395,7 @@ int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+// remove current node from the list and return next node
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   if (NULL == pCell->pPrev) {
     pList->pHead = pCell->pNext;

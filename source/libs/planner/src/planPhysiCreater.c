@@ -1914,14 +1914,18 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
     pSubPlan->execNodeStat.tableNum = pLogicNode->vtbScan.pVgroupList->vgroups[0].numOfTable;
   }
 
+  TSWAP(pLogicNode->vtbScan.pOrgVgIds, pDynCtrl->vtbScan.pOrgVgIds);
   PLAN_ERR_JRET(nodesCloneList(pLogicNode->node.pTargets, &pDynCtrl->vtbScan.pScanCols));
 
   pDynCtrl->vtbScan.scanAllCols = pLogicNode->vtbScan.scanAllCols;
   pDynCtrl->vtbScan.suid = pLogicNode->vtbScan.suid;
+  pDynCtrl->vtbScan.uid = pLogicNode->vtbScan.uid;
+  pDynCtrl->vtbScan.isSuperTable = pLogicNode->vtbScan.isSuperTable;
+  pDynCtrl->vtbScan.rversion = pLogicNode->vtbScan.rversion;
   pDynCtrl->vtbScan.mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   pDynCtrl->vtbScan.accountId = pCxt->pPlanCxt->acctId;
   tstrncpy(pDynCtrl->vtbScan.dbName, pLogicNode->vtbScan.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pDynCtrl->vtbScan.stbName, pLogicNode->vtbScan.stbName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pDynCtrl->vtbScan.tbName, pLogicNode->vtbScan.tbName, TSDB_TABLE_NAME_LEN);
 
   return code;
 _return:
