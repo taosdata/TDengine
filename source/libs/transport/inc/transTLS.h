@@ -61,8 +61,7 @@ typedef struct {
 } SSslBuffer;
 
 typedef struct {
-  SSslCtx* pTlsCtx;  // pointer to TLS context
-
+  SSslCtx* pTlsCtx;   // pointer to TLS context
   SSL*    ssl;       // SSL connection
   int32_t refCount;  // reference count
   int32_t status;    // connection status
