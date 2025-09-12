@@ -18,15 +18,20 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "osMemPool.h"
+#include "osMemory.h"
 #include "querytask.h"
 #include "tanalytics.h"
 #include "taoserror.h"
 #include "tcommon.h"
 #include "tdatablock.h"
+#include "tdef.h"
+#include "thash.h"
 #include "tjson.h"
 #include "tmsg.h"
 
 #ifdef USE_ANALYTICS
+
+#define FREQ_STR "freq"
 
 typedef struct {
   SArray*      blocks;  // SSDataBlock*
@@ -40,7 +45,7 @@ typedef struct {
   int32_t      tsSlot;
   int32_t      tsPrecision;
   int32_t      numOfCols;
-  char         freq[2];         // frequency of data
+  char         freq[64];         // frequency of data
   SAnalyticBuf analyBuf;
   STimeWindow  win;
 } SImputationSupp;
@@ -66,6 +71,8 @@ static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
 static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SExprSupp* pExprSup);
 static int32_t doParseOption(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, const char* id);
 static int32_t doCreateBuf(SImputationSupp* pSupp, const char* pId);
+static int32_t estResultRowsAfterImputation(int32_t rows, int64_t skey, int64_t ekey, SImputationSupp* pSupp, const char* id);
+static void    doInitOptions(SImputationSupp* pSupp);
 
 int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
@@ -111,6 +118,8 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
 
   code = filterInitFromNode((SNode*)pImputatNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0, pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  doInitOptions(pSupp);
 
   code = doParseInput(pInfo, pSupp, pImputatNode->pFuncs, id);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -382,6 +391,8 @@ static int32_t finishBuildRequest(SImputationOperatorInfo* pInfo, SImputationSup
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
   if (pSupp->tsPrecision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pSupp->tsPrecision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
+  if (pSupp->tsPrecision == TSDB_TIME_PRECISION_SECONDS) prec = "s";
+
   code = taosAnalyBufWriteOptStr(pBuf, "prec", prec);
   if (code != 0) return code;
 
@@ -392,6 +403,11 @@ static int32_t finishBuildRequest(SImputationOperatorInfo* pInfo, SImputationSup
     qError("%s history rows for forecasting not enough, min required:%d, current:%d", id, ANALY_FORECAST_MIN_ROWS,
            pSupp->numOfRows);
     return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
+  }
+
+  code = estResultRowsAfterImputation(pSupp->numOfRows, pSupp->win.skey, pSupp->win.ekey, pSupp, id);
+  if (code != 0) {
+    return code;
   }
 
   code = taosAnalyBufClose(pBuf);
@@ -583,14 +599,6 @@ _OVER:
 static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SNodeList* pFuncs, const char* id) {
   int32_t code = 0;
   SNode*  pNode = NULL;
-  
-  pSupp->tsSlot = -1;
-  pSupp->targetSlot = -1;
-  pSupp->targetType = -1;
-  pSupp->tsPrecision = -1;
-
-  pSupp->freq[0] = 's';  // H,s,T,D
-  pSupp->freq[1] = '\0';
 
   FOREACH(pNode, pFuncs) {
     if ((nodeType(pNode) == QUERY_NODE_TARGET) && (nodeType(((STargetNode*)pNode)->pExpr) == QUERY_NODE_FUNCTION)) {
@@ -688,19 +696,137 @@ static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
   return 0;
 }
 
-static void doInitOptions(SImputationSupp* pSupp) {
+void doInitOptions(SImputationSupp* pSupp) {
   pSupp->numOfRows = 0;
   pSupp->wncheck = ANALY_DEFAULT_WNCHECK;
-  pSupp->freq[0] = 's';
+
+  pSupp->freq[0] = 's';  // d(day), h(hour), m(minute),s(second), ms(millisecond), us(microsecond)
   pSupp->freq[1] = '\0';
+
+  pSupp->tsSlot = -1;
+  pSupp->targetSlot = -1;
+  pSupp->targetType = -1;
+  pSupp->tsPrecision = -1;
+
+  pSupp->win.skey = INT64_MAX;
+  pSupp->win.ekey = INT64_MIN;
+}
+
+int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
+  int32_t     code = 0;
+  char*       p = NULL;
+  int32_t     len = 0;
+
+  char* pFreq = taosHashGet(pHashMap, FREQ_STR, strlen(FREQ_STR));
+  if (pFreq != NULL) {
+    len = taosHashGetValueSize(pFreq);
+    p = taosStrndupi(pSupp->freq, len);
+    if (p == NULL) {
+      qError("%s failed to clone the freq param, code:%s", id, strerror(terrno));
+      return terrno;
+    }
+
+    if (len >= tListLen(pSupp->freq)) {
+      qError("%s invalid freq parameter: %s", id, p);
+      code = TSDB_CODE_INVALID_PARA;
+    } else {
+      if ((len == 1) && (strncmp(pFreq, "d", 1) != 0) && (strncmp(pFreq, "h", 1) != 0) &&
+          (strncmp(pFreq, "m", 1) != 0) && (strncmp(pFreq, "s", 1) != 0)) {
+        code = TSDB_CODE_INVALID_PARA;
+        qError("%s invalid freq parameter: %s", id, p);
+      } else if ((len == 2) && (strncmp(pFreq, "ms", 2) != 0) && (strncmp(pFreq, "us", 2) != 0)) {
+        code = TSDB_CODE_INVALID_PARA;
+        qError("%s invalid freq parameter: %s", id, p);
+      } else if (len > 2) {
+        code = TSDB_CODE_INVALID_PARA;
+        qError("%s invalid freq parameter: %s", id, p);
+      }
+    }
+
+    if (code == TSDB_CODE_SUCCESS) {
+      tstrncpy(pSupp->freq, pFreq, len + 1);
+      qDebug("%s data freq:%s", id, pSupp->freq);
+    }
+  } else {
+    qDebug("%s not specify data freq, default: %s", id, pSupp->freq);
+  }
+  
+  taosMemoryFreeClear(p);
+  return code;
+}
+
+int32_t estResultRowsAfterImputation(int32_t rows, int64_t skey, int64_t ekey, SImputationSupp* pSupp, const char* id) {
+  int64_t range = ekey - skey;
+  double  factor = 0;
+  if (pSupp->tsPrecision == TSDB_TIME_PRECISION_MILLI) {
+    if (strcmp(pSupp->freq, "h") == 0) {
+      factor = 0.001 * 1/3600;
+    } else if (strcmp(pSupp->freq, "m") == 0) {
+      factor = 0.001 * 1/60;
+    } else if (strcmp(pSupp->freq, "s") == 0) {
+      factor = 0.001;
+    } else if (strcmp(pSupp->freq, "ms") == 0) {
+      factor = 1;
+    } else if (strcmp(pSupp->freq, "us") == 0) {
+      factor *= 1000;
+    } else if (strcmp(pSupp->freq, "ns") == 0) {
+      factor *= 1000000;
+    }
+
+    int64_t num = range * factor - rows;
+    if (num > ANALY_MAX_IMPUT_ROWS) {
+      qError("%s too many rows to imputation, est:%"PRId64, id, num);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  } else if (pSupp->tsPrecision == TSDB_TIME_PRECISION_MICRO) {
+    if (strcmp(pSupp->freq, "h") == 0) {
+      factor = 0.000001 * 1/3600;
+    } else if (strcmp(pSupp->freq, "m") == 0) {
+      factor = 0.000001 * 1/60;
+    } else if (strcmp(pSupp->freq, "s") == 0) {
+      factor = 0.000001;
+    } else if (strcmp(pSupp->freq, "ms") == 0) {
+      factor = 1000;
+    } else if (strcmp(pSupp->freq, "us") == 0) {
+      factor *= 1;
+    } else if (strcmp(pSupp->freq, "ns") == 0) {
+      factor *= 1000;
+    }
+
+    int64_t num = range * factor - rows;
+    if (num > ANALY_MAX_IMPUT_ROWS) {
+      qError("%s too many rows to imputation, est:%"PRId64, id, num);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  } else if (pSupp->tsPrecision == TSDB_TIME_PRECISION_NANO) {
+    if (strcmp(pSupp->freq, "h") == 0) {
+      factor = 0.000000001 * 1/3600;
+    } else if (strcmp(pSupp->freq, "m") == 0) {
+      factor = 0.000000001 * 1/60;
+    } else if (strcmp(pSupp->freq, "s") == 0) {
+      factor = 0.000000001;
+    } else if (strcmp(pSupp->freq, "ms") == 0) {
+      factor = 1000000;
+    } else if (strcmp(pSupp->freq, "us") == 0) {
+      factor *= 1000;
+    } else if (strcmp(pSupp->freq, "ns") == 0) {
+      factor *= 1;
+    }
+
+    int64_t num = range * factor - rows;
+    if (num > ANALY_MAX_IMPUT_ROWS) {
+      qError("%s too many rows to imputation, est:%"PRId64, id, num);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t doParseOption(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, const char* id) {
   int32_t   code = 0;
   int32_t   lino = 0;
   SHashObj* pHashMap = NULL;
-
-  doInitOptions(pSupp);
 
   code = taosAnalyGetOpts(pInfo->options, &pHashMap);
   if (code != TSDB_CODE_SUCCESS) {
@@ -711,64 +837,12 @@ int32_t doParseOption(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, co
                                tListLen(pInfo->algoUrl), pHashMap, id);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  // code = filterNotSupportForecast(pSupp);
-  // if (code) {
-  //   qError("%s not support forecast model, %s", id, pSupp->algoName);
-  //   TSDB_CHECK_CODE(code, lino, _end);
-  // }
-
   // extract the timeout parameter
   pSupp->timeout = taosAnalysisParseTimout(pHashMap, id);
   pSupp->wncheck = taosAnalysisParseWncheck(pHashMap, id);
 
   // extract data freq
-  char* pFreq = taosHashGet(pHashMap, "freq", strlen("freq"));
-  if (pFreq != NULL) {
-    pSupp->freq[0] = ((char*) pFreq)[0];
-    pSupp->freq[1] = '\0';
-    qDebug("%s data freq:%s", id, pSupp->freq);
-  } else {
-    qDebug("%s not specify data freq, default: %s", id, pSupp->freq);
-  }
-
-  // extract the forecast rows
-  // char* pRows = taosHashGet(pHashMap, ALGO_OPT_FORECASTROWS_NAME, strlen(ALGO_OPT_FORECASTROWS_NAME));
-  // if (pRows != NULL) {
-  //   int64_t v = 0;
-  //   code = toInteger(pRows, taosHashGetValueSize(pRows), 10, &v);
-
-  //   pSupp->forecastRows = v;
-  //   qDebug("%s forecast rows:%"PRId64, id, pSupp->forecastRows);
-  // } else {
-  //   qDebug("%s forecast rows not found:%s, use default:%" PRId64, id, pInfo->options, pSupp->forecastRows);
-  // }
-
-  // if (pSupp->forecastRows > ANALY_FORECAST_RES_MAX_ROWS) {
-  //   qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_FORECAST_RES_MAX_ROWS,
-  //          pSupp->forecastRows);
-  //   code = TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
-  //   goto _end;
-  // }
-
-  // // extract the start timestamp
-  // char* pStart = taosHashGet(pHashMap, ALGO_OPT_START_NAME, strlen(ALGO_OPT_START_NAME));
-  // if (pStart != NULL) {
-  //   int64_t v = 0;
-  //   code = toInteger(pStart, taosHashGetValueSize(pStart), 10, &v);
-  //   pSupp->startTs = v;
-  //   pSupp->setStart = 1;
-  //   qDebug("%s forecast set start ts:%"PRId64, id, pSupp->startTs);
-  // }
-
-  // // extract the time step
-  // char* pEvery = taosHashGet(pHashMap, ALGO_OPT_EVERY_NAME, strlen(ALGO_OPT_EVERY_NAME));
-  // if (pEvery != NULL) {
-  //   int64_t v = 0;
-  //   code = toInteger(pEvery, taosHashGetValueSize(pEvery), 10, &v);
-  //   pSupp->every = v;
-  //   pSupp->setEvery = 1;
-  //   qDebug("%s forecast set every ts:%"PRId64, id, pSupp->every);
-  // }
+  code = parseFreq(pSupp, pHashMap, id);
 
 _end:
   taosHashCleanup(pHashMap);

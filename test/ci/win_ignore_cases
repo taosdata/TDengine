@@ -93,6 +93,7 @@ cases/41-StreamProcessing/20-UseCase/test_idmp_public.py
 cases/41-StreamProcessing/20-UseCase/test_idmp_pv.py
 cases/41-StreamProcessing/20-UseCase/test_idmp_tobacco.py
 cases/41-StreamProcessing/20-UseCase/test_idmp_vehicle.py
+cases/41-StreamProcessing/20-UseCase/test_idmp_yuxi.py
 cases/41-StreamProcessing/20-UseCase/test_nevados.py 
 cases/41-StreamProcessing/20-UseCase/test_three_gorges_case4.py
 cases/41-StreamProcessing/20-UseCase/test_three_gorges_case5.py
@@ -133,6 +134,7 @@ cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 cases/41-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade_all.py
 cases/41-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
 cases/41-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade.py
+cases/uncatalog/system-test/7-tmq/test_tmq_td37436.py
 # MQTT bnode not supported in Windows CI
 cases/40-DataSubscription/04-MQTT/test_mqtt_smoking.py
 cases/40-DataSubscription/04-MQTT/test_mqtt_bnodes.py

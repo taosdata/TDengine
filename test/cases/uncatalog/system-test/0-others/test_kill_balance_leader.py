@@ -48,6 +48,8 @@ class TestKillBalanceLeader:
         tdSql.execute('balance vgroup leader')
 
         sql ="show transactions;"
+        if platform.system() == 'Windows':
+            time.sleep(5)
         rows = tdSql.query(sql)
 
         if rows > 0:

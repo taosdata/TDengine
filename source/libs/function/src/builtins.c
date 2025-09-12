@@ -1367,7 +1367,50 @@ static int32_t translateForecastConf(SFunctionNode* pFunc, char* pErrBuf, int32_
 static EFuncReturnRows forecastEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateImputation(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return 0;
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams < 1) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, "IMPUTATION require at least one parameter");
+  }
+
+  uint8_t valType = 0;
+
+  // check all input parameters
+  int32_t num = numOfParams - 1;
+  if (numOfParams > 1) {
+    for (int32_t i = 0; i < num; ++i) {
+      valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
+      if (!IS_MATHABLE_TYPE(valType)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, "IMPUTATION only support mathable column");
+      }
+    }
+  } else {
+    valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+    if (!IS_MATHABLE_TYPE(valType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "IMPUTATION only support mathable column");
+    }
+  }
+
+  if (numOfParams >= 2) {
+    uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, numOfParams - 1))->type;
+    if (TSDB_DATA_TYPE_VARCHAR != optionType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "IMPUTATION option should be varchar");
+    }
+
+    SNode* pOption = nodesListGetNode(pFunc->pParameterList, numOfParams - 1);
+    if (QUERY_NODE_VALUE != nodeType(pOption)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "IMPUTATION option should be value");
+    }
+
+    SValueNode* pValue = (SValueNode*)pOption;
+    if (!taosAnalyGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, "IMPUTATION option should include algo field");
+    }
+
+    pValue->notReserved = true;
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[valType].bytes, .type = valType};
+  return TSDB_CODE_SUCCESS;
 }
 
 static EFuncReturnRows imputationEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }

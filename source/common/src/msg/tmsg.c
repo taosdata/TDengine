@@ -13240,7 +13240,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     uint64_t  nColData = TARRAY_SIZE(pSubmitTbData->aCol);
     SColData *aColData = (SColData *)TARRAY_DATA(pSubmitTbData->aCol);
 
-    uError("encode %d row data", (int32_t)(nColData));
+    uTrace("encode %d row data", (int32_t)(nColData));
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, nColData));
 
     for (uint64_t i = 0; i < nColData; i++) {
