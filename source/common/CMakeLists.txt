@@ -92,8 +92,8 @@ else()
     INTERFACE api
   )
   DEP_ext_curl(common)
+  DEP_ext_ssl(common)
 endif()
-DEP_ext_ssl(common)
 
 if(${BUILD_SHARED_STORAGE})
   add_definitions(-DUSE_SHARED_STORAGE)

@@ -14,7 +14,9 @@ target_link_libraries(
   PUBLIC common
 )
 
-DEP_ext_ssl(transport)
+if (NOT ${TD_WINDOWS})
+  DEP_ext_ssl(transport)
+endif()
 
 if(${BUILD_WITH_UV_TRANS})
   if(${BUILD_WITH_UV})
