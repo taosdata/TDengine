@@ -415,6 +415,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_SSMIGRATES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_SSMIGRATES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -13233,6 +13240,12 @@ static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStm
   return buildCmdMsg(pCxt, TDMT_MND_KILL_TRANS, (FSerializeFunc)tSerializeSKillTransReq, &killReq);
 }
 
+static int32_t translateKillSsMigrate(STranslateContext* pCxt, SKillStmt* pStmt) {
+  SKillSsMigrateReq killReq = {0};
+  killReq.ssMigrateId = pStmt->targetId;
+  return buildCmdMsg(pCxt, TDMT_MND_KILL_SSMIGRATE, (FSerializeFunc)tSerializeSKillSsMigrateReq, &killReq);
+}
+
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
@@ -16372,6 +16385,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_KILL_TRANSACTION_STMT:
       code = translateKillTransaction(pCxt, (SKillStmt*)pNode);
+      break;
+    case QUERY_NODE_KILL_SSMIGRATE_STMT:
+      code = translateKillSsMigrate(pCxt, (SKillStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_STREAM_STMT:
       code = translateCreateStream(pCxt, (SCreateStreamStmt*)pNode);
@@ -20125,6 +20141,19 @@ static int32_t rewriteShowCompactDetailsStmt(STranslateContext* pCxt, SQuery* pQ
   return code;
 }
 
+static int32_t rewriteShowSsMigrates(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowSsMigratesStmt* pShow = (SShowSsMigratesStmt*)(pQuery->pRoot);
+  SSelectStmt*         pStmt = NULL;
+  int32_t              code = createSelectStmtForShow(QUERY_NODE_SHOW_SSMIGRATES_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
 static int32_t rewriteShowTransactionDetailsStmt(STranslateContext* pCxt, SQuery* pQuery) {
   SShowTransactionDetailsStmt* pShow = (SShowTransactionDetailsStmt*)(pQuery->pRoot);
   SSelectStmt*                 pStmt = NULL;
@@ -20736,6 +20765,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = rewriteShowCompactDetailsStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+      code = rewriteShowSsMigrates(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       code = rewriteShowTransactionDetailsStmt(pCxt, pQuery);

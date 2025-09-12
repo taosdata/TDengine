@@ -347,6 +347,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowUsageStmt";
     case QUERY_NODE_SHOW_MOUNTS_STMT:
       return "ShowMountsStmt";
+    case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+      return "ShowSSMigratesStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:

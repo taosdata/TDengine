@@ -36,6 +36,9 @@ database_option: {
   | WAL_FSYNC_PERIOD value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
+  | SS_KEEPLOCAL value
+  | SS_CHUNKPAGES value
+  | SS_COMPACT value
 }
 ```
 
@@ -79,6 +82,9 @@ database_option: {
 - WAL_FSYNC_PERIOD: When the WAL_LEVEL parameter is set to 2, it is used to set the disk writing period. Default is 3000, in milliseconds. Minimum is 0, meaning immediate disk writing upon each write; maximum is 180000, i.e., three minutes.
 - WAL_RETENTION_PERIOD: For data subscription consumption, the maximum duration strategy for additional retention of WAL log files. WAL log cleaning is not affected by the consumption status of subscription clients. In seconds. Default is 3600, meaning WAL retains the most recent 3600 seconds of data, please modify this parameter to an appropriate value according to the needs of data subscription.
 - WAL_RETENTION_SIZE: For data subscription consumption, the maximum cumulative size strategy for additional retention of WAL log files. In KB. Default is 0, meaning there is no upper limit on cumulative size.
+- SS_KEEPLOCAL: When shared storage is enabled, data will be kept local at least this duration before being migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 1 day, maximum is 36500 days, default is 365 days.
+- SS_CHUNKPAGES: When shared storage is enabled, data files larger than this size will be migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 131072, maximum is 1048576, default is 131072. The unit is TSDB page, which is typically 4KB.
+- SS_COMPACT: When shared storage is enabled, if set to 1, file will be compacted before its first migration; if set to 0, compact is skipped. Only available in the enterprise version 3.3.7.0 and later.
 
 ### Database Creation Example
 
