@@ -140,24 +140,25 @@ class TestAlterDatabase:
         tdSql.execute('alter database db keep_time_offset 0')
         self.showCreateDbCheck('db', "CREATE DATABASE `db` BUFFER 256 CACHESIZE 1 CACHEMODEL 'none' COMP 2 DURATION 10d WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 2 KEEP 3650d,3650d,3650d PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 2 SINGLE_STABLE 0 TABLE_PREFIX 0 TABLE_SUFFIX 0 TSDB_PAGESIZE 4 WAL_RETENTION_PERIOD 3600 WAL_RETENTION_SIZE 0 KEEP_TIME_OFFSET 0 ENCRYPT_ALGORITHM 'none' SS_CHUNKPAGES 131072 SS_KEEPLOCAL 525600m SS_COMPACT 1 COMPACT_INTERVAL 0d COMPACT_TIME_RANGE 0d,0d COMPACT_TIME_OFFSET 0h", 30, True, True)
 
-    def test_alter_database(self):
-        """summary: xxx
+    def test_db_alter_database(self):
+       """Alter Database
 
-        description: xxx
+        1. Alter database buffer
+        2. Alter database pages
+        3. Alter database encrypt_algorithm
+        4. Alter database with same options
+        5. Alter database keep_time_offset
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-09-12 AlexDaun Migrated from uncatelog/system-test/test_alter_database.py
+ 
         """
         self.alter_buffer()
         self.alter_pages()
@@ -167,4 +168,3 @@ class TestAlterDatabase:
         
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-        
