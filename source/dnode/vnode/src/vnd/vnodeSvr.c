@@ -33,7 +33,7 @@ extern taos_counter_t *tsInsertCounter;
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                        SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -832,7 +832,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       TSDB_CHECK_CODE(code, lino, _err);
       break;
     case TDMT_VND_DROP_STB:
-      code = vnodeProcessDropStbReq(pVnode, ver, pReq, len, pRsp);
+      code = vnodeProcessDropStbReq(pVnode, ver, pReq, len, pRsp, pMsg);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
     case TDMT_VND_CREATE_TABLE:
@@ -1559,7 +1559,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   return 0;
 }
 
-static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, SRpcMsg *pOriginRpc) {
   SVDropStbReq req = {0};
   int32_t      rcode = TSDB_CODE_SUCCESS;
   SDecoder     decoder = {0};
@@ -1575,6 +1575,11 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     rcode = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
+
+  STraceId* trace = &(pOriginRpc->info.traceId);
+
+  vInfo("vgId:%d, start to process vnode-drop-stb, QID:0x%" PRIx64 ":0x%" PRIx64 ", drop stb:%s", TD_VID(pVnode), trace ? trace->rootId : 0, 
+              trace ? trace->msgId : 0, req.name);
 
   // process request
   tbUidList = taosArrayInit(8, sizeof(int64_t));
@@ -1596,6 +1601,8 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
 
   // return rsp
 _exit:
+  vInfo("vgId:%d, finished to process vnode-drop-stb, QID:0x%" PRIx64 ":0x%" PRIx64 ", drop stb:%s", TD_VID(pVnode), trace ? trace->rootId : 0, 
+              trace ? trace->msgId : 0, req.name);
   if (tbUidList) taosArrayDestroy(tbUidList);
   pRsp->code = rcode;
   tDecoderClear(&decoder);

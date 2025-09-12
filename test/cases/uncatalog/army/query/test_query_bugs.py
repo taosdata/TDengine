@@ -134,13 +134,17 @@ class TestQueryBugs:
             "drop database if exists td_31684",
             "create database td_31684 cachemodel 'both' stt_trigger 1;",
             "use td_31684;",
-            "create table t1 (ts timestamp, id int, name int) ;",
+            "create table t1 (ts timestamp, id int, name int) ;"
+        ]
+        tdSql.executes(sqls)
+        sqls2 = [
             "insert into t1 values(now, 1, 1);",
             "insert into t1 values(now, 1, 2);",
             "insert into t1 values(now, 2, 3);",
             "insert into t1 values(now, 3, 4);"
         ]
-        tdSql.executes(sqls)
+        tdSql.executes(sqls2)
+
         sql1 = "select count(name) as total_name from t1 group by name"
         sql2 = "select id as new_id, last(name) as last_name from t1 group by id order by new_id"
         sql3 = "select id as new_id, count(id) as id from t1 group by id order by new_id"

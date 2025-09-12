@@ -201,7 +201,7 @@ def handle_imputation_req():
     try:
         do_set_params(params, req_json)
     except ValueError as e:
-        app_logger.log_inst.error("invalid fc params: %s", e)
+        app_logger.log_inst.error("invalid imputation params: %s", e)
         return {"msg": f"{e}", "rows": -1}
 
     algo = req_json['algo'].lower() if 'algo' in req_json else 'moment'

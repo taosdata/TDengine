@@ -2248,6 +2248,7 @@ class TDCom:
             if platform.system().lower() == 'windows':
                 # 过滤 taos> 行
                 os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw ")
+                time.sleep(1)
                 with open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin, open(self.query_result_file, "w", encoding="utf-8") as fout:
                     for line in fin:
                         stripped = line.rstrip()

@@ -121,14 +121,18 @@ def padding_data_list(df, val, n_rows, mask, freq):
     last_time = df.index[-1]
 
     delta = None
-    if freq == 'H':
+    if freq == 'D':
+        delta = timedelta(days=1)
+    elif freq == 'H':
         delta = timedelta(hours=1)
-    elif freq == 's':
-        delta = timedelta(seconds=1)
     elif freq == 'T':
         delta = timedelta(minutes=1)
-    elif freq == 'D':
-        delta = timedelta(days=1)
+    elif freq == 'S':
+        delta = timedelta(seconds=1)
+    elif freq == 'L':
+        delta = timedelta(milliseconds=1)
+    elif freq == 'U':
+        delta = timedelta(microseconds=1)
     else:
         raise ValueError(f"Unsupported frequency: {freq}")
 
