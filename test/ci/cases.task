@@ -404,6 +404,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_bottom.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first_last.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_first.py
+,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_as_param.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_both.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Functions/03-Selection/test_func_last_cache.py

@@ -5,7 +5,8 @@ class TestFuncLastAsParam:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_last_as_operator_param(self):
-        """
+        """Last keepColumnName
+        
         Test that 'last(col) - first(col)' is not equal to zero when keepColumnName is 1.
 
         Steps:
@@ -17,7 +18,7 @@ class TestFuncLastAsParam:
 
         Since: 3.3.6.24
 
-        Jira: https://jira.taosdata.com:18080/browse/TS-7262
+        Jira: TS-7262
 
         History:
             - 2025-09-11 Tony Zhang created
