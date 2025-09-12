@@ -3865,7 +3865,7 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
       commonType->precision = newType->precision;
       commonType->scale = newType->scale;
     }
-  } else {
+  } else if (!IS_NULL_TYPE(newType->type)) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
   }
 
