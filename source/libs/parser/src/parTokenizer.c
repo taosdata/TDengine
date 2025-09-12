@@ -395,7 +395,9 @@ static SKeyword keywordTable[] = {
     {"TRUE_FOR",             TK_TRUE_FOR},
     {"META_ONLY",            TK_META_ONLY},
     {"VTABLES",              TK_VTABLES},
-    {"META_ONLY",            TK_META_ONLY}
+    {"META_ONLY",            TK_META_ONLY},
+    {"SCAN",                 TK_SCAN},
+    {"SCANS",                TK_SCANS},
 };
 // clang-format on
 

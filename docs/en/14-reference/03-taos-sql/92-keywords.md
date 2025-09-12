@@ -107,6 +107,8 @@ The list of keywords is as follows:
 | CREATE               | |
 | CREATEDB             | |
 | CURRENT_USER         | |
+| SCAN                 | |
+| SCANS                | |
 
 ### D
 

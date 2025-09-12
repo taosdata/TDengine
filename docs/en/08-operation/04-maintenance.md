@@ -40,6 +40,26 @@ KILL COMPACT compact_id;
 - COMPACT is asynchronous; after executing the COMPACT command, it returns without waiting for the COMPACT to finish. If a previous COMPACT has not completed, it will wait for the previous task to finish before returning.
 - COMPACT may block writing, especially in databases where stt_trigger = 1, but it does not block queries.
 
+## Scanning Data
+
+```sql
+SCAN DATABASE db_name [start with 'XXXX'] [end with 'YYYY'];
+SCAN [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'];
+SHOW SCANS;
+SHOW SCAN <scan_id>;
+KILL SCAN <scan_id>;
+```
+### Effects
+- Scans all time-series data files of all VGROUP VNODEs in the specified DB. If there are issues with the data files, they will be output in the corresponding server logs.
+- Scans all time-series data files of all VGROUP VNODEs in the specified list of VGROUPS in the DB. If db_name is empty, the current database is used by default. If there are issues with the data files, they will be output in the corresponding server logs.
+- You can specify the start time of the SCAN data with the start with keyword
+- You can specify the end time of the SCAN data with the end with keyword
+- SCAN tasks are executed asynchronously in the background, and you can view the list of SCAN tasks using the SHOW SCANS command
+- The SHOW command will return the ID of the SCAN task, and you can terminate the SCAN task using the KILL SCAN command
+
+### Additional Information
+- SCAN is asynchronous; after executing the SCAN command, it returns without waiting for the SCAN to finish. If a previous SCAN has not completed, it will wait for the previous task to finish before returning.
+
 ## Vgroup Leader Rebalancing
 
 When one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, it may lead to an imbalance in the load among the various dnodes in the cluster. In extreme cases, all vgroup leaders may be located on the same dnode. To solve this problem, you can use the following commands, which were first released in version 3.0.4.0. It is recommended to use the latest version as much as possible.

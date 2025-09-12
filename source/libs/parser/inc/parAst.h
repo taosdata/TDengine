@@ -421,6 +421,10 @@ SNode*     createShowDiskUsageStmt(SAstCreateContext* pCxt, SNode* dbName, ENode
 SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pFuncNode, SNodeList* pNodeList, SToken* pAlias);
 
 SNode* createShowStreamsStmt(SAstCreateContext* pCxt, SNode* dbName, ENodeType type);
+SNode* createScanStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd);
+SNode* createScanVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart, SNode* pEnd);
+SNode* createShowScansStmt(SAstCreateContext* pCxt, ENodeType type);
+SNode* createShowScanDetailsStmt(SAstCreateContext* pCxt, SNode* pScanIdNode);
 
 #ifdef __cplusplus
 }

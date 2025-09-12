@@ -42,6 +42,26 @@ kill compact compact_id;
 - compact 为异步，执行 compact 命令后不会等 compact 结束就会返回。如果上一个 compact 没有完成则再发起一个 compact 任务，则会等上一个任务完成后再返回。
 - compact 可能阻塞写入，尤其是在 stt_trigger = 1 的数据库中，但不阻塞查询。
 
+## 数据扫描
+```SQL
+scan DATABASE db_name [start with 'XXXX'] [end with 'YYYY'];
+scan [db_name.]vgroups IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'];
+show scans;
+show scan <scan_id>;
+kill scan <scan_id>;
+```
+
+### 效果
+- 扫描指定的 DB 中所有 vgroup 中 vnode 的所有时序数据文件。若数据文件存问题，则在相应的服务端日志中输出
+- 扫描 DB 中指定的 vgroup 列表中 vnode 的所有数据文件，若 db_name 为空，则默认为当前数据库。若数据文件存问题，则在相应的服务端日志中输出
+- 可通过 start with 关键字指定 scan 数据的起始时间
+- 可通过 end with 关键字指定 scan 数据的终止时间
+- scan 任务会在后台异步执行，可以通过 show scans 命令查看 scan 任务列表
+- show 命令会返回 scan 任务的 ID，可以通过 kill scan 命令终止 scan 任务
+
+### 补充说明
+- scan 为异步，执行 scan 命令后不会等 scan 结束就会返回。如果上一个 scan 没有完成则再发起一个 scan 任务，则会等上一个任务完成后再返回。
+
 ## vgroup leader 再平衡
 
 当多副本集群中的一个或多个节点因为升级或其它原因而重启后，有可能出现集群中各个 dnode 负载不均衡的现象，极端情况下会出现所有 vgroup 的 leader 都位于同一个 dnode 的情况。为了解决这个问题，可以使用下面的命令，该命令在 3.0.4.0 版本中首次发布，建议尽可能使用最新版本。
