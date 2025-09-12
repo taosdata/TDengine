@@ -86,7 +86,7 @@ if [ -d "${model_dir}" ]; then
   echo "copy ${td_model_name} model files"
   cp -r ${model_dir}/${td_model_name}.tar.gz ${model_install_dir} || :
   echo "copy ${td_model_name} model files done"
-  xhs_model_name="time-moe"
+  xhs_model_name="timemoe"
   echo "copy ${xhs_model_name} model files "
   cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
   echo "copy ${xhs_model_name} model files done"
