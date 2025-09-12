@@ -99,18 +99,6 @@ end:
   return code;
 }
 
-static bool dropUidInTableList(SStreamTriggerReaderInfo* sStreamInfo, int64_t uid, uint64_t* gid){
-  if (sStreamInfo->isVtableStream) {
-    if(taosHashGet(sStreamInfo->uidHash, &uid, sizeof(uid)) == NULL) {
-      return false;
-    }
-  } else {
-    *gid = qStreamGetGroupId(sStreamInfo->tableList, uid);
-    if (*gid == -1) return false;
-  }
-  return true;
-}
-
 static bool uidInTableList(SStreamTriggerReaderInfo* sStreamInfo, int64_t suid, int64_t uid, uint64_t* id){
   if (sStreamInfo->isVtableStream) {
     if(taosHashGet(sStreamInfo->uidHash, &uid, sizeof(uid)) == NULL) {
@@ -321,9 +309,6 @@ static int32_t scanDropTableNew(SStreamTriggerReaderInfo* sStreamInfo, SSDataBlo
     if(!uidInTableList(sStreamInfo, pDropTbReq->suid, pDropTbReq->uid, &id)) {
       continue;
     }
-    if (!sStreamInfo->isVtableStream){
-      STREAM_CHECK_RET_GOTO(qStreamRevmoeUidFromTableList(sStreamInfo->tableList, pDropTbReq->uid));
-    }
 
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, pBlock->info.rows + 1));
     STREAM_CHECK_RET_GOTO(buildWalMetaBlockNew(pBlock, id, 0, 0, ver));
@@ -334,6 +319,12 @@ static int32_t scanDropTableNew(SStreamTriggerReaderInfo* sStreamInfo, SSDataBlo
 end:
   tDecoderClear(&decoder);
   return code;
+}
+
+static int32_t reloadTableList(SStreamTriggerReaderInfo* sStreamInfo){
+  qStreamDestroyTableList(sStreamInfo->tableList);
+  sStreamInfo->tableList = NULL;
+  return generateTablistForStreamReader(sStreamInfo->pVnode, sStreamInfo, false);
 }
 
 static int32_t scanInsertTableNew(SStreamTriggerReaderInfo* sStreamInfo, void* data, int32_t len) {
@@ -360,9 +351,7 @@ static int32_t scanInsertTableNew(SStreamTriggerReaderInfo* sStreamInfo, void* d
   }
   STREAM_CHECK_CONDITION_GOTO(!found, TDB_CODE_SUCCESS);
 
-  qStreamDestroyTableList(sStreamInfo->tableList);
-  sStreamInfo->tableList = NULL;
-  STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(sStreamInfo->pVnode, sStreamInfo, false));
+  STREAM_CHECK_RET_GOTO(reloadTableList(sStreamInfo));
 end:
   tDeleteSVCreateTbBatchReq(&req);
   tDecoderClear(&decoder);
@@ -386,9 +375,7 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamInfo, void* da
   STREAM_CHECK_CONDITION_GOTO(tbType != TSDB_CHILD_TABLE, TDB_CODE_SUCCESS);
   STREAM_CHECK_CONDITION_GOTO(suid != sStreamInfo->suid, TDB_CODE_SUCCESS);
 
-  qStreamDestroyTableList(sStreamInfo->tableList);
-  sStreamInfo->tableList = NULL;
-  STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(sStreamInfo->pVnode, sStreamInfo, false));
+  STREAM_CHECK_RET_GOTO(reloadTableList(sStreamInfo));
   stInfo("stream reader scan alter table %s", req.tbName);
 
 end:
@@ -412,9 +399,7 @@ static int32_t scanAlterSTableNew(SStreamTriggerReaderInfo* sStreamInfo, void* d
     STREAM_CHECK_CONDITION_GOTO(reqAlter.alterType != TSDB_ALTER_TABLE_DROP_TAG && reqAlter.alterType != TSDB_ALTER_TABLE_UPDATE_TAG_NAME, TDB_CODE_SUCCESS);
   }
   
-  qStreamDestroyTableList(sStreamInfo->tableList);
-  sStreamInfo->tableList = NULL;
-  STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(sStreamInfo->pVnode, sStreamInfo, false));
+  STREAM_CHECK_RET_GOTO(reloadTableList(sStreamInfo));
 
   stInfo("stream reader scan alter suid %" PRId64, req.suid);
 end:
@@ -432,9 +417,7 @@ static int32_t scanDropSTableNew(SStreamTriggerReaderInfo* sStreamInfo, void* da
   tDecoderInit(&decoder, data, len);
   STREAM_CHECK_RET_GOTO(tDecodeSVDropStbReq(&decoder, &req));
   STREAM_CHECK_CONDITION_GOTO(req.suid != sStreamInfo->suid, TDB_CODE_SUCCESS);
-  qStreamDestroyTableList(sStreamInfo->tableList);
-  sStreamInfo->tableList = NULL;
-  STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(sStreamInfo->pVnode, sStreamInfo, false));
+  STREAM_CHECK_RET_GOTO(reloadTableList(sStreamInfo));
 
   stInfo("stream reader scan drop suid %" PRId64, req.suid);
 end:
@@ -661,14 +644,14 @@ static int32_t processMeta(int16_t msgType, SStreamTriggerReaderInfo* sStreamInf
       STREAM_CHECK_RET_GOTO(createBlockForWalMetaNew((SSDataBlock**)&rsp->dropBlock));
     }
     STREAM_CHECK_RET_GOTO(scanDropTableNew(sStreamInfo, rsp->dropBlock, data, len, ver));
-  // } else if (msgType == TDMT_VND_DROP_STB) {
-  //   STREAM_CHECK_RET_GOTO(scanDropSTableNew(sStreamInfo, data, len));
-  // } else if (msgType == TDMT_VND_CREATE_TABLE) {
-  //   STREAM_CHECK_RET_GOTO(scanInsertTableNew(sStreamInfo, data, len));
-  // } else if (msgType == TDMT_VND_ALTER_STB) {
-  //   STREAM_CHECK_RET_GOTO(scanAlterSTableNew(sStreamInfo, data, len));
-  // } else if (msgType == TDMT_VND_ALTER_TABLE) {
-  //   STREAM_CHECK_RET_GOTO(scanAlterTableNew(sStreamInfo, data, len));
+  } else if (msgType == TDMT_VND_DROP_STB) {
+    STREAM_CHECK_RET_GOTO(scanDropSTableNew(sStreamInfo, data, len));
+  } else if (msgType == TDMT_VND_CREATE_TABLE) {
+    STREAM_CHECK_RET_GOTO(scanInsertTableNew(sStreamInfo, data, len));
+  } else if (msgType == TDMT_VND_ALTER_STB) {
+    STREAM_CHECK_RET_GOTO(scanAlterSTableNew(sStreamInfo, data, len));
+  } else if (msgType == TDMT_VND_ALTER_TABLE) {
+    STREAM_CHECK_RET_GOTO(scanAlterTableNew(sStreamInfo, data, len));
   }
 
   end:
@@ -1372,7 +1355,7 @@ static int32_t prepareIndex(SWalReader* pWalReader, SStreamTriggerReaderInfo* sS
       STREAM_CHECK_RET_GOTO(scanSubmitDataForMetaDataPre(sStreamInfo, data, len, NULL, totalRows));
     } else {
       if (*totalRows > 0) {
-        return TSDB_CODE_SUCCESS;
+        goto end;
       }
       STREAM_CHECK_RET_GOTO(processMeta(wCont->msgType, sStreamInfo, data, len, metaRsp, ver));
       if (metaRsp->deleteBlock != NULL && ((SSDataBlock*)metaRsp->deleteBlock)->info.rows > 0){

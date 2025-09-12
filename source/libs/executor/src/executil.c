@@ -2960,26 +2960,7 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
   }
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
-  if (pKeyInfo->disable) {
-    return -1;
-  }
   return pKeyInfo->groupId;
-}
-
-int32_t tableListRemoveTable(const STableListInfo* pTableList, uint64_t tableUid) {
-  int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
-  if (slot == NULL) {
-    qDebug("table:%" PRIu64 " not found in table list", tableUid);
-    return -1;
-  }
-
-  STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
-  if (!pKeyInfo) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    return -1;
-  }
-  pKeyInfo->disable = true;
-  return 0;
 }
 
 // TODO handle the group offset info, fix it, the rule of group output will be broken by this function

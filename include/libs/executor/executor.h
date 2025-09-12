@@ -257,7 +257,6 @@ int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t u
 int32_t  qStreamSetTableList(void** pTableListInfo, STableKeyInfo* pKeyInfo);
 int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid);
-int32_t  qStreamRevmoeUidFromTableList(void* pTableListInfo, int64_t uid);
 void     qStreamDestroyTableList(void* pTableListInfo);
 void     qStreamDupTableList(void* pTableListInfo);
 int32_t  qStreamGetTableListGroupNum(const void* pTableList);
