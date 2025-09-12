@@ -388,7 +388,7 @@ jobs:
 
   generate_report:
     name: Generate Performance Report
-    needs: [run_td2td, run_tmq2td, run_tmq2local, run_csv2td]
+    needs: [run_td2td, run_tmq2local, run_csv2td]
     runs-on: [self-hosted, Linux, X64, qa, perf]
     if: always()
     steps:
