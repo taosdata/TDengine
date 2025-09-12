@@ -634,6 +634,11 @@ int8_t transCheckTlsEnv(const char* caPath, const char* certPath, const char* ke
   return 0;
 }
 #else
+
+int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; }
+
+void transTlsCtxDestroy(SSslCtx* pCtx) { return; }
+
 int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }
 void    sslDestroy(STransTLS* pTLs) { return; }
 
