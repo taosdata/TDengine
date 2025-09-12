@@ -29,6 +29,7 @@ Configuration parameters are divided into two categories:
 | Local Configuration Parameters  | Parameters configured individually for each cluster node  |  Single Node    | 1. Modify via SQL; 2. Modify via taos.cfg configuration file. | show dnode `<dnode_id>` variables;|
 
 Additional Notes:
+
 1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 3. To modify local configuration parameters via taos.cfg configuration file, set the `forceReadConfig` parameter to 1 and restart for changes to take effect.
@@ -55,6 +56,7 @@ Additional Notes:
 | maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
+
 ### Monitoring Related
 
 | Parameter Name     | Supported Version | Dynamic Modification               | Description                                                  |
@@ -339,7 +341,6 @@ The effective value of charset is UTF-8.
 | maxRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
-
 
 ## taosd Monitoring Metrics
 
