@@ -668,12 +668,17 @@ void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
     if (pIter == NULL) break;
     SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
     taosArrayDestroyP(pConsumerEp->vgs, (FDelete)tDeleteSMqVgEp);
+    pConsumerEp->vgs = NULL;
     taosArrayDestroy(pConsumerEp->offsetRows);
+    pConsumerEp->offsetRows = NULL;
   }
   taosHashCleanup(pSub->consumerHash);
+  pSub->consumerHash = NULL;
   taosArrayDestroyP(pSub->unassignedVgs, (FDelete)tDeleteSMqVgEp);
+  pSub->unassignedVgs = NULL;
   taosMemoryFreeClear(pSub->qmsg);
   taosArrayDestroy(pSub->offsetRows);
+  pSub->offsetRows = NULL;
 }
 
 int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
