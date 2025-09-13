@@ -31,18 +31,27 @@
 #include "tname.h"
 #include "ttypes.h"
 
-int32_t tdRollupCtxInit(SExprSupp **ppSup, SRSchema *pRSchema, int8_t precision, const char *dbName) {
+int32_t tdRollupCtxInit(SExprSupp **ppSup, SAggSupporter **ppAggSup, SRSchema *pRSchema, int8_t precision,
+                        const char *dbName) {
   int32_t        code = 0, lino = 0;
   STSchema      *pTSchema = pRSchema->tSchema;
   SExprSupp     *pSup = NULL;
+  SAggSupporter *pAggSup = NULL;
+  SNodeList     *pFuncs = NULL;
   SFunctionNode *pFuncNode = NULL;
   SColumnNode   *pColNode = NULL;
   int32_t        nCols = pTSchema->numOfCols;
+  int32_t        exprNum = 0;
+  SExprInfo     *pExprInfo = NULL;
 
   if (!(*ppSup) && !(*ppSup = taosMemoryCalloc(1, sizeof(SExprSupp)))) {
     TAOS_CHECK_EXIT(terrno);
   }
   pSup = *ppSup;
+  if (!(*ppAggSup) && !(*ppAggSup = taosMemoryCalloc(1, sizeof(SAggSupporter)))) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  pAggSup = *ppAggSup;
 
   for (int32_t i = 1; i < nCols; i++) {  // skip the first timestamp column
     STColumn *pCol = pTSchema->columns + i;
@@ -74,14 +83,25 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, SRSchema *pRSchema, int8_t precision,
     (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", fmGetFuncName(pFuncNode->funcId));
     TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pColNode));
     pColNode = NULL;
+    TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncs, (SNode *)pFuncNode));
     pFuncNode = NULL;
   }
+  TAOS_CHECK_EXIT(createExprInfo(pFuncs, NULL, &pExprInfo, &exprNum));
+  size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
+  TAOS_CHECK_EXIT(initAggSup(pSup, pAggSup, pExprInfo, exprNum, keyBufSize, "rollup", NULL, NULL));
 _exit:
   nodesDestroyNode((SNode *)pFuncNode);
   nodesDestroyNode((SNode *)pColNode);
+  nodesDestroyList(pFuncs);
+  if (pExprInfo) {
+    destroyExprInfo(pExprInfo, exprNum);
+    taosMemoryFreeClear(pExprInfo);
+  }
+
   return code;
 }
 
-void tdRollupCtxCleanup(SExprSupp *pSup) {
+void tdRollupCtxCleanup(SExprSupp *pSup, SAggSupporter *pAggSup) {
   if (pSup) cleanupExprSupp(pSup);
+  if (pAggSup) cleanupAggSup(pAggSup);
 }

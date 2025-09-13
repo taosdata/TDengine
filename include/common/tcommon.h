@@ -364,7 +364,8 @@ typedef struct SResSchame {
   char    name[TSDB_COL_NAME_LEN];
 } SResSchema;
 
-typedef struct SExprSupp SExprSupp;
+typedef struct SAggSupporter SAggSupporter;
+typedef struct SExprSupp     SExprSupp;
 
 typedef struct {
   const char* key;
