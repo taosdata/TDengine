@@ -88,7 +88,7 @@ serde = "1"
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 fundu = "2.0.1"
 opendal = { version = "0.53" }
-rumqttc = "0.24.0"
+rumqttc = "0.25.0"
 rustls = { version = "0.23.18", default-features = false }
 rustls-pemfile = { version = "2" }
 rustls-native-certs = "0.8"

@@ -2,7 +2,10 @@ use std::{collections::HashMap, io::Read, path::PathBuf, sync::Arc, time::Durati
 
 use anyhow::Context;
 use itertools::Itertools;
-use rumqttc::{TlsConfiguration, tokio_rustls::rustls};
+use rumqttc::{
+    TlsConfiguration,
+    tokio_rustls::rustls::{self, crypto},
+};
 use taos::Dsn;
 
 use taosx_core::{
@@ -189,6 +192,7 @@ pub fn build_tls_config(certificates: Option<&Certificates>) -> anyhow::Result<T
                 anyhow::bail!("No valid CA cert in chain");
             }
             root_cert_store.add_parsable_certificates(root_certs);
+            crypto::ring::default_provider().install_default().ok();
             let rustls_config =
                 rustls::ClientConfig::builder().with_root_certificates(root_cert_store);
             // 添加用户 cert 和 key
@@ -234,6 +238,7 @@ pub fn build_tls_config(certificates: Option<&Certificates>) -> anyhow::Result<T
         }
         None => {
             // 没有ca，设置为不认证
+            crypto::ring::default_provider().install_default().ok();
             let mut rustls_config = rustls::ClientConfig::builder()
                 .with_root_certificates(root_cert_store)
                 .with_no_client_auth();
