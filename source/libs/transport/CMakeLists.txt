@@ -6,12 +6,18 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
+
 target_link_libraries(
   transport
   PUBLIC os
   PUBLIC util
   PUBLIC common
 )
+
+if (NOT ${TD_WINDOWS})
+  DEP_ext_ssl(transport)
+endif()
+
 
 if(${BUILD_WITH_UV_TRANS})
   if(${BUILD_WITH_UV})

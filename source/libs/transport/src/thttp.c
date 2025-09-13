@@ -939,7 +939,9 @@ int64_t taosInitHttpChan() {
 
 void taosDestroyHttpChan(int64_t chanId) {
   tDebug("http-report send quit, chanId:%" PRId64, chanId);
-
+  if (chanId < 0) {
+    return;
+  }
   int          ret = 0;
   SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
   if (load == NULL) {

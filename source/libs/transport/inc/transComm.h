@@ -331,6 +331,7 @@ void    transDestroyBuffer(SConnBuffer* buf);
 int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len);
 int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);

@@ -33,6 +33,12 @@ static void shellWorkAsClient() {
   rpcInit.user = "_dnd";
   rpcInit.timeToGetConn = 500000;
 
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
+
   taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {

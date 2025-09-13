@@ -154,15 +154,23 @@ void transFreeMsg(void* msg) {
 void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
   char     buf[IP_RESERVE_CAP] = {0};
   uint16_t port = 0;
+  int      r = 0;
   if (sockname->sa_family == AF_INET) {
     struct sockaddr_in* addr = (struct sockaddr_in*)sockname;
 
-    int r = uv_ip4_name(addr, (char*)buf, sizeof(buf));
+    r = uv_ip4_name(addr, (char*)buf, sizeof(buf));
+    if (r != 0) {
+      uError("failed to get ip from sockaddr, err:%s", uv_strerror(r));
+    }
 
     port = ntohs(addr->sin_port);
   } else if (sockname->sa_family == AF_INET6) {
     struct sockaddr_in6* addr = (struct sockaddr_in6*)sockname;
-    uv_ip6_name(addr, buf, sizeof(buf));
+
+    r = uv_ip6_name(addr, buf, sizeof(buf));
+    if (r != 0) {
+      uError("failed to get ip from sockaddr, err:%s", uv_strerror(r));
+    }
     port = ntohs(addr->sin6_port);
   }
   sprintf(dst, "%s:%d", buf, port);
@@ -300,12 +308,32 @@ bool transReadComplete(SConnBuffer* connBuf) {
   return (p->left == 0 || p->invalid) ? true : false;
 }
 
+int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len) {
+  int32_t      code = 0;
+  SConnBuffer* p = connBuf;
+  if (p->len + len > p->cap) {
+    int32_t newCap = p->len + len;
+    char*   newBuf = taosMemoryRealloc(p->buf, newCap);
+    if (newBuf == NULL) {
+      return terrno;
+    }
+    p->buf = newBuf;
+    p->cap = newCap;
+  }
+
+  memcpy(p->buf + p->len, buf, len);
+  p->len += len;
+  return code;
+}
+
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
+  int32_t ret = 0;
 #if defined(WINDOWS) || defined(DARWIN)
 #else
-  return uv_tcp_keepalive(stream, 1, keepalive);
+  ret = uv_tcp_keepalive(stream, 1, keepalive);
 #endif
-  return uv_tcp_nodelay(stream, 1);
+  ret = uv_tcp_nodelay(stream, 1);
+  return ret;
   // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
