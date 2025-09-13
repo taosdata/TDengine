@@ -2870,6 +2870,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
               STimeWindow         recalcRange = {.skey = pParam->wstart, .ekey = pParam->wend};
               code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &recalcRange, pContext->pReaderWalProgress, false);
               QUERY_CHECK_CODE(code, lino, _end);
+              tDestroySSTriggerCalcParam(pParam);
               taosArrayPopFrontBatch(pGroup->pPendingCalcParams, 1);
               pGroup->recalcNextWindow = false;
             }
