@@ -44,11 +44,12 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, SRSchema *pRSchema, int8_t precision,
   }
   pSup = *ppSup;
 
-  for (int32_t i = 1; i < nCols; i++) {
+  for (int32_t i = 1; i < nCols; i++) {  // skip the first timestamp column
     STColumn *pCol = pTSchema->columns + i;
-    TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&pFuncNode));
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pColNode));
+    TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&pFuncNode));
 
+    // build the column node
     pColNode->node.resType.type = pCol->type;
     pColNode->node.resType.precision = precision;
     pColNode->node.resType.bytes = pCol->bytes;
@@ -56,15 +57,31 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, SRSchema *pRSchema, int8_t precision,
 
     pColNode->colId = pCol->colId;
     pColNode->colType = COLUMN_TYPE_COLUMN;
+
+    pColNode->slotId = (int16_t)(i - 1);
+
+    pColNode->tableId = pRSchema->tbUid;
+    pColNode->tableType = pRSchema->tbType;
+    (void)snprintf(pColNode->dbName, TSDB_DB_NAME_LEN, "%s", dbName);
+    (void)snprintf(pColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
+    (void)snprintf(pColNode->tableAlias, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
+    // snprintf(pColNode->colName, TSDB_COL_NAME_LEN, "c%d", i); // TODO: fill if necessary
+
+    // build the function node
+    pFuncNode->node.resType = pColNode->node.resType;
+    pFuncNode->funcId = pRSchema->funcIds[i];
+    pFuncNode->funcType = fmGetFuncTypeById(pFuncNode->funcId);
+    (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", fmGetFuncName(pFuncNode->funcId));
+    TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pColNode));
+    pColNode = NULL;
+    pFuncNode = NULL;
   }
-
-  // SNodeList *paramList = NULL;
-  // nodesListMakeStrictAppend(&paramList, NULL);
-
 _exit:
   nodesDestroyNode((SNode *)pFuncNode);
   nodesDestroyNode((SNode *)pColNode);
   return code;
 }
 
-void tdRollupCtxCleanup(SExprSupp *pSup) { cleanupExprSupp(pSup); }
+void tdRollupCtxCleanup(SExprSupp *pSup) {
+  if (pSup) cleanupExprSupp(pSup);
+}

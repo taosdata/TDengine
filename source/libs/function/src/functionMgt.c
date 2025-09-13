@@ -105,6 +105,13 @@ EFunctionType fmGetFuncType(const char* pFunc) {
   return FUNCTION_TYPE_UDF;
 }
 
+EFunctionType fmGetFuncTypeById(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return 0;
+  }
+  return funcMgtBuiltins[funcId].type;
+}
+
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   if (fmIsUserDefinedFunc(pFunc->funcId) || pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -598,11 +605,11 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
   return code;
 }
 
-char* fmGetFuncName(int32_t funcId) {
+const char* fmGetFuncName(int32_t funcId) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
-    return taosStrdup("invalid function");
+    return "invalid function";
   }
-  return taosStrdup(funcMgtBuiltins[funcId].name);
+  return funcMgtBuiltins[funcId].name;
 }
 
 /// @param [out] pStateFunc, not changed if error occured or no need to create state func

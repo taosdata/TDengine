@@ -269,6 +269,7 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 
 bool          fmIsBuiltinFunc(const char* pFunc);
 EFunctionType fmGetFuncType(const char* pFunc);
+EFunctionType fmGetFuncTypeById(int32_t funcId);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
@@ -351,7 +352,7 @@ int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 bool    fmIsInvertible(int32_t funcId);
 #endif
 
-char* fmGetFuncName(int32_t funcId);
+const char* fmGetFuncName(int32_t funcId);
 
 bool    fmIsTSMASupportedFunc(func_id_t funcId);
 bool    fmIsRsmaSupportedFunc(func_id_t funcId);

@@ -1196,9 +1196,9 @@ SNode* qptMakeFunctionNode(SNode** ppNode) {
 
   if (QPT_CORRECT_HIGH_PROB()) {
     int32_t funcIdx = taosRand() % funcMgtBuiltinsNum;
-    char* funcName = fmGetFuncName(funcIdx);
+    const char* funcName = fmGetFuncName(funcIdx);
     strcpy(pFunc->functionName, funcName);
-    taosMemoryFree(funcName);
+    // taosMemoryFree(funcName);
     fmGetFuncInfo(pFunc, NULL, 0);
   } else {
     int32_t funcIdx = taosRand();
