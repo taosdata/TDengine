@@ -141,6 +141,7 @@ int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
 
   (void)snprintf((*rsmaSchema)->tbName, TSDB_TABLE_NAME_LEN, "%s", pME->name);
   (*rsmaSchema)->tbUid = pME->uid;
+  (*rsmaSchema)->tbType = pME->type;
   (*rsmaSchema)->interval[0] = pParam->interval[0];
   (*rsmaSchema)->interval[1] = pParam->interval[1];
   (*rsmaSchema)->nFuncs = nCols;
@@ -154,14 +155,16 @@ int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
         ++j;
         break;
       } else if (pParam->funcColIds[j] > pSchema[i].colId) {
-        pFuncIds[i] = FUNCTION_TYPE_LAST;  // use last if not specified
+        pFuncIds[i] = 36;  // use last if not specified, fmGetFuncId("last") = 36
         break;
       } else {
         ++j;
       }
     }
     if (j >= pParam->nFuncs) {
-      memset(&pFuncIds[i], FUNCTION_TYPE_LAST, sizeof(func_id_t) * (nCols - i));  // use last if not specified
+      for (; i < nCols; ++i) {
+        pFuncIds[i] = 36;  // use last if not specified, fmGetFuncId("last") = 36
+      }
       break;
     }
   }
