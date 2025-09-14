@@ -37,7 +37,8 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, SAggSupporter **ppAggSup, SRSchema *p
   STSchema      *pTSchema = pRSchema->tSchema;
   SExprSupp     *pSup = NULL;
   SAggSupporter *pAggSup = NULL;
-  SNodeList     *pFuncs = NULL;
+  SNodeList     *pTargets = NULL;
+  STargetNode   *pTargetNode = NULL;
   SFunctionNode *pFuncNode = NULL;
   SColumnNode   *pColNode = NULL;
   int32_t        nCols = pTSchema->numOfCols;
@@ -57,6 +58,7 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, SAggSupporter **ppAggSup, SRSchema *p
     STColumn *pCol = pTSchema->columns + i;
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pColNode));
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&pFuncNode));
+    TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_TARGET, (SNode **)&pTargetNode));
 
     // build the column node
     pColNode->node.resType.type = pCol->type;
@@ -83,20 +85,29 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, SAggSupporter **ppAggSup, SRSchema *p
     (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", fmGetFuncName(pFuncNode->funcId));
     TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pColNode));
     pColNode = NULL;
-    TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncs, (SNode *)pFuncNode));
+
+    // build the target node
+    pTargetNode->slotId = (int16_t)(i - 1);
+    pTargetNode->dataBlockId = 0;              // only one data block for rollup
+    pTargetNode->pExpr = (SNode *)pFuncNode;
     pFuncNode = NULL;
+
+    TAOS_CHECK_EXIT(nodesListMakeAppend(&pTargets, (SNode *)pTargetNode));
+    pTargetNode = NULL;
   }
-  TAOS_CHECK_EXIT(createExprInfo(pFuncs, NULL, &pExprInfo, &exprNum));
+
+  TAOS_CHECK_EXIT(createExprInfo(pTargets, NULL, &pExprInfo, &exprNum));
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   TAOS_CHECK_EXIT(initAggSup(pSup, pAggSup, pExprInfo, exprNum, keyBufSize, "rollup", NULL, NULL));
 _exit:
-  nodesDestroyNode((SNode *)pFuncNode);
   nodesDestroyNode((SNode *)pColNode);
-  nodesDestroyList(pFuncs);
-  if (pExprInfo) {
-    destroyExprInfo(pExprInfo, exprNum);
-    taosMemoryFreeClear(pExprInfo);
-  }
+  nodesDestroyNode((SNode *)pFuncNode);
+  nodesDestroyNode((SNode *)pTargetNode);
+  nodesDestroyList(pTargets);
+  // if (pExprInfo) {
+  //   destroyExprInfo(pExprInfo, exprNum);
+  //   taosMemoryFreeClear(pExprInfo);
+  // }
 
   return code;
 }
