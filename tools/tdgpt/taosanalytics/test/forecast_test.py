@@ -23,13 +23,9 @@ class ForecastTest(unittest.TestCase):
 
     def get_input_list(self):
         """ load data from csv """
-        '''
         url = ('https://raw.githubusercontent.com/jbrownlee/Datasets/refs/heads/master/'
                'airline-passengers.csv')
         data = pd.read_csv(url, index_col='Month', parse_dates=True)
-        '''
-        file_path = os.path.join(os.path.dirname(__file__), "airline-passengers.csv")
-        data = pd.read_csv(file_path, index_col='Month', parse_dates=True)
         ts_list = data[['Passengers']].index.tolist()
         dst_list = [int(item.timestamp()) for item in ts_list]
 
