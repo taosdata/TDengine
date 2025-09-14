@@ -31,28 +31,34 @@
 #include "tname.h"
 #include "ttypes.h"
 
-int32_t tdRollupCtxInit(SExprSupp **ppSup, SAggSupporter **ppAggSup, SRSchema *pRSchema, int8_t precision,
-                        const char *dbName) {
-  int32_t        code = 0, lino = 0;
-  STSchema      *pTSchema = pRSchema->tSchema;
-  SExprSupp     *pSup = NULL;
-  SAggSupporter *pAggSup = NULL;
-  SNodeList     *pTargets = NULL;
-  STargetNode   *pTargetNode = NULL;
-  SFunctionNode *pFuncNode = NULL;
-  SColumnNode   *pColNode = NULL;
-  int32_t        nCols = pTSchema->numOfCols;
-  int32_t        exprNum = 0;
-  SExprInfo     *pExprInfo = NULL;
+int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, const char *dbName) {
+  int32_t         code = 0, lino = 0;
+  STSchema       *pTSchema = pRSchema->tSchema;
+  SExprSupp      *pExprSup = NULL;
+  SAggSupporter  *pAggSup = NULL;
+  SResultRowInfo *pResultRowInfo = NULL;
+  SExecTaskInfo  *pTaskInfo = NULL;
+  SResultRow     *pResultRow = NULL;
+  SNodeList      *pTargets = NULL;
+  STargetNode    *pTargetNode = NULL;
+  SFunctionNode  *pFuncNode = NULL;
+  SColumnNode    *pColNode = NULL;
+  int32_t         nCols = pTSchema->numOfCols;
+  int32_t         exprNum = 0;
+  SExprInfo      *pExprInfo = NULL;
 
-  if (!(*ppSup) && !(*ppSup = taosMemoryCalloc(1, sizeof(SExprSupp)))) {
+  if (!(pExprSup = taosMemoryCalloc(1, sizeof(SExprSupp)))) {
     TAOS_CHECK_EXIT(terrno);
   }
-  pSup = *ppSup;
-  if (!(*ppAggSup) && !(*ppAggSup = taosMemoryCalloc(1, sizeof(SAggSupporter)))) {
+  pCtx->exprSup = pExprSup;
+  if (!(pAggSup = taosMemoryCalloc(1, sizeof(SAggSupporter)))) {
     TAOS_CHECK_EXIT(terrno);
   }
-  pAggSup = *ppAggSup;
+  pCtx->aggSup = pAggSup;
+  if (!(pResultRowInfo = taosMemoryCalloc(1, sizeof(SResultRowInfo)))) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  pCtx->resultRowInfo = pResultRowInfo;
 
   for (int32_t i = 1; i < nCols; i++) {  // skip the first timestamp column
     STColumn *pCol = pTSchema->columns + i;
@@ -88,7 +94,7 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, SAggSupporter **ppAggSup, SRSchema *p
 
     // build the target node
     pTargetNode->slotId = (int16_t)(i - 1);
-    pTargetNode->dataBlockId = 0;              // only one data block for rollup
+    pTargetNode->dataBlockId = 0;  // only one data block for rollup
     pTargetNode->pExpr = (SNode *)pFuncNode;
     pFuncNode = NULL;
 
@@ -98,21 +104,45 @@ int32_t tdRollupCtxInit(SExprSupp **ppSup, SAggSupporter **ppAggSup, SRSchema *p
 
   TAOS_CHECK_EXIT(createExprInfo(pTargets, NULL, &pExprInfo, &exprNum));
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-  TAOS_CHECK_EXIT(initAggSup(pSup, pAggSup, pExprInfo, exprNum, keyBufSize, "rollup", NULL, NULL));
+  TAOS_CHECK_EXIT(initAggSup(pExprSup, pAggSup, pExprInfo, exprNum, keyBufSize, "rollup", NULL, NULL));
+
+  int32_t groupId = 0;
+  pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char *)&groupId, sizeof(groupId), true,
+                                      groupId, pTaskInfo, false, pAggSup, true);
+  if (pResultRow == NULL || pTaskInfo->code != 0) {
+    TAOS_CHECK_EXIT(pTaskInfo->code);
+  }
+  int32_t rowSize = pAggSup->resultRowSize;
+  if (pResultRow->pageId == -1) {
+    TAOS_CHECK_EXIT(addNewResultRowBuf(pResultRow, pAggSup->pResultBuf, rowSize));
+  }
+
+  TAOS_CHECK_EXIT(setResultRowInitCtx(pResultRow, pExprSup->pCtx, exprNum, pExprSup->rowEntryInfoOffset));
+
 _exit:
   nodesDestroyNode((SNode *)pColNode);
   nodesDestroyNode((SNode *)pFuncNode);
   nodesDestroyNode((SNode *)pTargetNode);
   nodesDestroyList(pTargets);
-  // if (pExprInfo) {
-  //   destroyExprInfo(pExprInfo, exprNum);
-  //   taosMemoryFreeClear(pExprInfo);
-  // }
 
   return code;
 }
 
-void tdRollupCtxCleanup(SExprSupp *pSup, SAggSupporter *pAggSup) {
-  if (pSup) cleanupExprSupp(pSup);
-  if (pAggSup) cleanupAggSup(pAggSup);
+int32_t tdRollupFillData(SRollupCtx *pCtx, void *pInput) {
+  int32_t code = 0, lino = 0;
+_exit:
+  return code;
+}
+
+int32_t tdRollupFinalize(SRollupCtx *pCtx, void *pOutput) {
+  int32_t code = 0, lino = 0;
+_exit:
+  return code;
+}
+
+void tdRollupCtxCleanup(SRollupCtx *pCtx) {
+  if (pCtx) {
+    if (pCtx->exprSup) cleanupExprSupp(pCtx->exprSup);
+    if (pCtx->aggSup) cleanupAggSup(pCtx->aggSup);
+  }
 }

@@ -939,6 +939,8 @@ void    destroyTmqScanOperatorInfo(void* param);
 int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);
 void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
+int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size); // TODO: necessary for rollup operator?
+
 #ifdef __cplusplus
 }
 #endif

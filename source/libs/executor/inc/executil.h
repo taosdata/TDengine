@@ -72,11 +72,11 @@ typedef struct SResKeyPos {
   char               key[];
 } SResKeyPos;
 
-typedef struct SResultRowInfo {
+struct SResultRowInfo {
   int32_t            size;  // number of result set
   SResultRowPosition cur;
   SList*             openWindow;
-} SResultRowInfo;
+};
 
 typedef struct SColMatchItem {
   int32_t   colId;
@@ -92,8 +92,6 @@ typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
-
-typedef struct SExecTaskInfo SExecTaskInfo;
 
 typedef struct STableListIdInfo {
   uint64_t suid;
