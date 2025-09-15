@@ -318,22 +318,22 @@ class TestAlterTable:
             for i in range(self.tbnum):
                 tdSql.error(f'alter table {self.stbname}_{i} rename column {key} {rename_str}')
     def test_alter_table(self):
-        """summary: xxx
+        """Alter Super/Normal Table Overall
 
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
+        1. Alter super  table add/modify/drop columns and set tags for all datatypes
+        2. Alter normal table add/modify/drop columns for all datatypes
 
         Catalog:
-        - xxx:xxx
+            - NormalTable:Alter
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-15 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_alter_table.py
 
         """
         self.alter_check_ntb()
