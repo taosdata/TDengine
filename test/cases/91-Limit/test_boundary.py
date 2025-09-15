@@ -230,22 +230,25 @@ class TestBoundary:
         tdSql.execute('drop database db')
 
     def test_boundary(self):
-        """summary: xxx
+        """ Name Length Boundary Check
 
-        description: xxx
+        1. Database name length boundary check
+        2. Table name length boundary check
+        3. Column name length boundary check
+        4. Tag name length boundary check
+        5. User name length boundary check
+        6. Password length boundary check
+        7. SQL length boundary check
+        8. Row/Column/Tag max length check
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-15 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_boundary.py
 
         """
         self.dbname_length_check()

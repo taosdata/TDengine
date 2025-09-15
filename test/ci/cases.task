@@ -530,6 +530,7 @@
 
 # 91-Limit
 ,,y,.,./ci/pytest.sh pytest cases/91-Limit/test_dbtbname_validate.py
+,,y,.,./ci/pytest.sh pytest cases/91-Limit/test_boundary.py
 
 # 92-Keywords
 
@@ -551,7 +552,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/99-Others/01-Valgrind/test_valgrind_checkerror8.py
 #,,y,.,./ci/pytest.sh pytest cases/99-Others/01-Valgrind/test_valgrind_udf.py
 
-# uncatalog
+# uncatalogf
 # army
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3
@@ -1566,7 +1567,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_json_taosc_insert.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_boundary.py
 ,,n,.,pytest cases/uncatalog/system-test/1-insert/test_insertWithMoreVgroup.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_comment.py
 #,,n,.,pytest cases/uncatalog/system-test/1-insert/test_time_range_wise.py
