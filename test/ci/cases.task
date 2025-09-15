@@ -145,7 +145,7 @@
 # 05-VirtualTables
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_normaltable.py
-# ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_subtable.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_subtable.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_create.py
@@ -156,10 +156,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
-,,n,.,pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group.py
-,,n,.,pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
-,,n,.,pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
-,,n,.,pytest cases/05-VirtualTables/test_vtable_query.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 
 # 10-DataIngestion
@@ -455,7 +455,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
 # 42-TSMAs
-#,,y,.,./ci/pytest.sh pytest cases/42-TSMAs/test_tsma.py
+,,y,.,./ci/pytest.sh pytest cases/42-TSMAs/test_tsma.py
 
 ## 43-RSMAs
 
