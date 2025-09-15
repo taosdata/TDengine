@@ -387,6 +387,44 @@ TEST(stmt2Case, timezone) {
   }
 }
 
+TEST(stmt2Case, not_support_vtable) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists stmt2_testdb_37");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_37");
+  do_query(taos,
+           "CREATE STABLE stmt2_testdb_37.meters_v (ts timestamp,current float, voltage int, phase float) "
+           "TAGS(location varchar(64), "
+           "group_id int) VIRTUAL 1;");
+  do_query(taos, "use stmt2_testdb_37");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+
+  TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  const char* sql = "select * from stmt2_testdb_37.meters_v where ts > ? and ts < ? limit ?";
+  int         code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  int              t64_len[1] = {sizeof(int64_t)};
+  int              b_len[1] = {3};
+  int              x = 2;
+  int              x_len = sizeof(int);
+  int64_t          ts[2] = {1591060627000, 1591060628005};
+  TAOS_STMT2_BIND  params[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], t64_len, NULL, 1},
+                                {TSDB_DATA_TYPE_TIMESTAMP, &ts[1], t64_len, NULL, 1},
+                                {TSDB_DATA_TYPE_INT, &x, &x_len, NULL, 1}};
+  TAOS_STMT2_BIND* paramv = &params[0];
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  ASSERT_EQ(code, TSDB_CODE_VTABLE_NOT_SUPPORT_STMT);
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_7");
+  taos_close(taos);
+}
+
 TEST(stmt2Case, stmt2_test_limit) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
