@@ -156,14 +156,23 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
     int32_t        pNum = 0;
     STableKeyInfo  pListTmp = {0};
     STableKeyInfo* pList = NULL;
-    if (options->uidList != NULL) {
-      for (int32_t i = 0; i < taosArrayGetSize(options->uidList); ++i) {
-        int64_t* uid = taosArrayGet(options->uidList, i);
-        STREAM_CHECK_NULL_GOTO(uid, terrno);
-        STableKeyInfo data = {uid[1], 0};
+    if (options->mapInfo != NULL) {
+      int32_t iter = 0;
+      void*   px = tSimpleHashIterate(options->mapInfo, NULL, &iter);
+      while (px != NULL) {
+        int64_t* uid = tSimpleHashGetKey(px, NULL);
+        STableKeyInfo data = {*uid, *uid};
         STREAM_CHECK_RET_GOTO(qStreamSetTableList(&pTask->pTableList, &data));
+        px = tSimpleHashIterate(options->mapInfo, px, &iter);
       }
-      STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
+      
+      qStreamSetTableListGroupNum(pTask->pTableList, tSimpleHashGetSize(options->mapInfo));
+      if (options->scanMode == STREAM_SCAN_GROUP_ONE_BY_ONE) {
+        pTask->currentGroupIndex = 0;
+        STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, pTask->currentGroupIndex, &pList, &pNum))
+      } else if (options->scanMode == STREAM_SCAN_ALL) {
+        STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
+      }
     } else {
       if (options->uid != 0) {
         pListTmp.groupId = qStreamGetGroupId(pTask->pTableList, options->uid);
@@ -228,9 +237,8 @@ static void releaseStreamReaderInfo(void* p) {
   blockDataDestroy(pInfo->tsBlock);
   destroyExprInfo(pInfo->pExprInfo, pInfo->numOfExpr);
   taosMemoryFreeClear(pInfo->pExprInfo);
-  taosArrayDestroy(pInfo->uidList);
-  taosArrayDestroy(pInfo->uidListIndex);
-  taosHashCleanup(pInfo->uidHash);
+  tSimpleHashCleanup(pInfo->uidHashTrigger);
+  tSimpleHashCleanup(pInfo->uidHashCalc);
   qStreamDestroyTableList(pInfo->tableList);
   qStreamDestroyTableList(pInfo->historyTableList);
   filterFreeInfo(pInfo->pFilterInfo);

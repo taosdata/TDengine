@@ -1766,6 +1766,7 @@ void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableList
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid) { return tableListGetTableGroupId(pTableListInfo, uid); }
 
 int32_t qStreamGetTableListGroupNum(const void* pTableList) { return ((STableListInfo*)pTableList)->numOfOuputGroups; }
+void    qStreamSetTableListGroupNum(const void* pTableList, int32_t groupNum) {((STableListInfo*)pTableList)->numOfOuputGroups = groupNum; }
 SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListInfo*)pTableList)->pTableList; }
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }

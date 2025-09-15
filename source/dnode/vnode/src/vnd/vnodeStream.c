@@ -35,8 +35,8 @@
 #include "vnodeInt.h"
 
 #define BUILD_OPTION(options, sStreamReaderInfo, _ver, _order, startTime, endTime, _schemas, _isSchema, _scanMode, \
-                     _gid, _initReader, _uidList)                                                                        \
-  SStreamTriggerReaderTaskInnerOptions options = {.suid = (_uidList == NULL ? sStreamReaderInfo->suid : 0),              \
+                     _gid, _initReader, _mapInfo)                                                                        \
+  SStreamTriggerReaderTaskInnerOptions options = {.suid = (_mapInfo == NULL ? sStreamReaderInfo->suid : 0),              \
                                                   .ver = _ver,                                                     \
                                                   .order = _order,                                                 \
                                                   .twindows = {.skey = startTime, .ekey = endTime},                \
@@ -46,7 +46,7 @@
                                                   .scanMode = _scanMode,                                           \
                                                   .gid = _gid,                                                     \
                                                   .initReader = _initReader,                                       \
-                                                  .uidList = _uidList};
+                                                  .mapInfo = _mapInfo};
 
 typedef struct WalMetaResult {
   uint64_t    id;
@@ -99,9 +99,9 @@ end:
   return code;
 }
 
-static bool uidInTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t suid, int64_t uid, uint64_t* id){
+static bool uidInTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t suid, int64_t uid, uint64_t* id, bool isCalc){
   if (sStreamReaderInfo->isVtableStream) {
-    if(taosHashGet(sStreamReaderInfo->uidHash, &uid, sizeof(uid)) == NULL) {
+    if(tSimpleHashGet(isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &uid, sizeof(uid)) == NULL) {
       return false;
     }
     *id = uid;
@@ -293,7 +293,7 @@ static int32_t scanDeleteDataNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
     STREAM_CHECK_NULL_GOTO(uid, terrno);
     uint64_t   id = 0;
     ST_TASK_ILOG("stream reader scan delete start data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, *uid, req.skey, req.ekey);
-    STREAM_CHECK_CONDITION_GOTO(!uidInTableList(sStreamReaderInfo, req.suid, *uid, &id), TDB_CODE_SUCCESS);
+    STREAM_CHECK_CONDITION_GOTO(!uidInTableList(sStreamReaderInfo, req.suid, *uid, &id, false), TDB_CODE_SUCCESS);
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->deleteBlock, ((SSDataBlock*)rsp->deleteBlock)->info.rows + 1));
     STREAM_CHECK_RET_GOTO(buildWalMetaBlockNew(rsp->deleteBlock, id, req.skey, req.ekey, ver));
     ((SSDataBlock*)rsp->deleteBlock)->info.rows++;
@@ -321,7 +321,7 @@ static int32_t scanDropTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SST
     SVDropTbReq* pDropTbReq = req.pReqs + iReq;
     STREAM_CHECK_NULL_GOTO(pDropTbReq, TSDB_CODE_INVALID_PARA);
     uint64_t id = 0;
-    if(!uidInTableList(sStreamReaderInfo, pDropTbReq->suid, pDropTbReq->uid, &id)) {
+    if(!uidInTableList(sStreamReaderInfo, pDropTbReq->suid, pDropTbReq->uid, &id, false)) {
       continue;
     }
 
@@ -360,7 +360,7 @@ static int32_t scanInsertTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, v
     pCreateReq = req.pReqs + iReq;
     uint64_t id = 0;
     if (pCreateReq->type == TSDB_NORMAL_TABLE || 
-        uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id)) {
+        uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false)) {
       ST_TASK_ILOG("stream reader scan insert table jump, %s", pCreateReq->name);
       continue;
     }
@@ -467,6 +467,7 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
 
+  STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     if (tStartDecode(pCoder) < 0) {
       code = TSDB_CODE_INVALID_MSG;
@@ -485,7 +486,7 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  if (!uidInTableList(sStreamReaderInfo, submitTbData.suid, submitTbData.uid, &walMeta.id)){
+  if (!uidInTableList(sStreamReaderInfo, submitTbData.suid, submitTbData.uid, &walMeta.id, false)){
     goto end;
   }
   if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
@@ -903,12 +904,13 @@ static int32_t setColData(int64_t rows, int32_t rowStart, int32_t rowEnd, SColDa
 }
 
 static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTriggerReaderInfo* sStreamReaderInfo, 
-  STSchema** schemas, SSHashObj* ranges, SSHashObj* gidHash, SSDataBlock* pBlock, int64_t ver) {
+  STSchema** schemas, SSHashObj* ranges, SSHashObj* gidHash, SSTriggerWalNewRsp* rsp, int64_t ver) {
   int32_t code = 0;
   int32_t lino = 0;
   uint64_t id = 0;
   WalMetaResult walMeta = {0};
   void* pTask = sStreamReaderInfo->pTask;
+  SSDataBlock * pBlock = (SSDataBlock*)rsp->dataBlock;
 
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -923,7 +925,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
   }
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
-
+  STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     if (tStartDecode(pCoder) < 0) {
       code = TSDB_CODE_INVALID_MSG;
@@ -942,7 +944,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  STREAM_CHECK_CONDITION_GOTO(!uidInTableList(sStreamReaderInfo, submitTbData.suid, submitTbData.uid, &id), TDB_CODE_SUCCESS);
+  STREAM_CHECK_CONDITION_GOTO(!uidInTableList(sStreamReaderInfo, submitTbData.suid, submitTbData.uid, &id, rsp->isCalc), TDB_CODE_SUCCESS);
 
   walMeta.id = id;
   STimeWindow window = {.skey = INT64_MIN, .ekey = INT64_MAX};
@@ -1006,7 +1008,23 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
         STREAM_CHECK_RET_GOTO(setColData(blockStart, rowStart, rowEnd, &colData, pColData));
         continue;
       }
+
       pCoder->pos = pos;
+
+      int16_t colId = 0;
+      if (sStreamReaderInfo->isVtableStream){
+        SSHashObj* uInfo = tSimpleHashGet(rsp->isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &submitTbData.uid, sizeof(submitTbData.uid));
+        STREAM_CHECK_NULL_GOTO(uInfo, TSDB_CODE_INVALID_PARA);
+        int16_t*  tmp = tSimpleHashGet(uInfo, &i, sizeof(i));
+        if (tmp != NULL) {
+          colId = *tmp;
+        } else {
+          colId = -1;
+        }
+      } else {
+        colId = pColData->info.colId;
+      }
+      
       uint64_t j = 1;
       for (; j < nColData; j++) {
         int16_t cid = 0;
@@ -1014,7 +1032,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
         pCoder->pos += INT_BYTES;
         if ((code = tDecodeI16v(pCoder, &cid))) return code;
         pCoder->pos = posTmp;
-        if (cid == pColData->info.colId) {
+        if (cid == colId) {
           SColData colDataTmp = {0};
           code = tDecodeColData(version, pCoder, &colDataTmp, false);
           if (code) {
@@ -1066,7 +1084,21 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
       for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
-        if (pColData->info.colId == -1) continue;
+
+        int16_t colId = 0;
+        if (sStreamReaderInfo->isVtableStream){
+          SSHashObj* uInfo = tSimpleHashGet(rsp->isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &submitTbData.uid, sizeof(submitTbData.uid));
+          STREAM_CHECK_NULL_GOTO(uInfo, TSDB_CODE_INVALID_PARA);
+          int16_t*  tmp = tSimpleHashGet(uInfo, &i, sizeof(i));
+          if (tmp != NULL) {
+            colId = *tmp;
+          } else {
+            colId = -1;
+          }
+        } else {
+          colId = pColData->info.colId;
+        }
+        
         SColVal colVal = {0};
         int32_t sourceIdx = 0;
         while (1) {
@@ -1074,12 +1106,12 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
             break;
           }
           STREAM_CHECK_RET_GOTO(tRowGet(pRow, *schemas, sourceIdx, &colVal));
-          if (colVal.cid == pColData->info.colId) {
+          if (colVal.cid == colId) {
             break;
           }
           sourceIdx++;
         }
-        if (colVal.cid == pColData->info.colId && COL_VAL_IS_VALUE(&colVal)) {
+        if (colVal.cid == colId && COL_VAL_IS_VALUE(&colVal)) {
           if (IS_VAR_DATA_TYPE(colVal.value.type) || colVal.value.type == TSDB_DATA_TYPE_DECIMAL){
             STREAM_CHECK_RET_GOTO(varColSetVarData(pColData, blockStart+ numOfRows, (const char*)colVal.value.pData, colVal.value.nData, !COL_VAL_IS_VALUE(&colVal)));
           } else {
@@ -1149,7 +1181,7 @@ static int32_t scanSubmitData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamR
   }
 
   for (int32_t i = 0; i < nSubmitTbData; i++) {
-    STREAM_CHECK_RET_GOTO(scanSubmitTbData(pVnode, &decoder, sStreamReaderInfo, &schemas, ranges, gidHash, rsp->dataBlock, ver));
+    STREAM_CHECK_RET_GOTO(scanSubmitTbData(pVnode, &decoder, sStreamReaderInfo, &schemas, ranges, gidHash, rsp, ver));
   }
 
   tEndDecode(&decoder);
@@ -1177,7 +1209,7 @@ end:
 }
 
 static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* sStreamReaderInfo, SSHashObj* ranges, 
-  uint64_t* gid, int64_t* uid, int32_t* numOfRows) {
+  uint64_t* gid, int64_t* uid, int32_t* numOfRows, bool isCalc) {
   int32_t code = 0;
   int32_t lino = 0;
   void* pTask = sStreamReaderInfo->pTask;
@@ -1196,6 +1228,7 @@ static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* s
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
 
+  STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     if (tStartDecode(pCoder) < 0) {
       code = TSDB_CODE_INVALID_MSG;
@@ -1214,7 +1247,7 @@ static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* s
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  STREAM_CHECK_CONDITION_GOTO(!uidInTableList(sStreamReaderInfo, submitTbData.suid, *uid, gid), TDB_CODE_SUCCESS);
+  STREAM_CHECK_CONDITION_GOTO(!uidInTableList(sStreamReaderInfo, submitTbData.suid, *uid, gid, isCalc), TDB_CODE_SUCCESS);
 
   STimeWindow window = {.skey = INT64_MIN, .ekey = INT64_MAX};
 
@@ -1304,7 +1337,7 @@ static int32_t scanSubmitDataPre(SStreamTriggerReaderInfo* sStreamReaderInfo, vo
     uint64_t gid = -1;
     int64_t  uid = 0;
     int32_t numOfRows = 0;
-    STREAM_CHECK_RET_GOTO(scanSubmitTbDataPre(&decoder, sStreamReaderInfo, ranges, &gid, &uid, &numOfRows));
+    STREAM_CHECK_RET_GOTO(scanSubmitTbDataPre(&decoder, sStreamReaderInfo, ranges, &gid, &uid, &numOfRows, rsp->isCalc));
     if (numOfRows <= 0) {
       continue;
     }
@@ -1870,7 +1903,7 @@ static int32_t createOptionsForLastTs(SStreamTriggerReaderTaskInnerOptions* opti
       qStreamBuildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, PRIMARYKEY_TIMESTAMP_COL_ID))  // last ts
 
   BUILD_OPTION(op, sStreamReaderInfo, -1, TSDB_ORDER_DESC, INT64_MIN, INT64_MAX, schemas, true,
-               STREAM_SCAN_GROUP_ONE_BY_ONE, 0, !sStreamReaderInfo->isVtableStream, NULL);
+               STREAM_SCAN_GROUP_ONE_BY_ONE, 0, true, sStreamReaderInfo->uidHashTrigger);
   schemas = NULL;
   *options = op;
 
@@ -1891,7 +1924,7 @@ static int32_t createOptionsForFirstTs(SStreamTriggerReaderTaskInnerOptions* opt
       qStreamBuildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, PRIMARYKEY_TIMESTAMP_COL_ID))  // first ts
 
   BUILD_OPTION(op, sStreamReaderInfo, ver, TSDB_ORDER_ASC, start, INT64_MAX, schemas, true,
-               STREAM_SCAN_GROUP_ONE_BY_ONE, gid, sStreamReaderInfo->uidList == NULL, NULL);
+               STREAM_SCAN_GROUP_ONE_BY_ONE, gid, true, sStreamReaderInfo->uidHashTrigger);
   schemas = NULL;
 
   *options = op;
@@ -1910,7 +1943,7 @@ static int32_t createOptionsForTsdbMeta(SStreamTriggerReaderTaskInnerOptions* op
   STREAM_CHECK_RET_GOTO(qStreamBuildSchema(schemas, TSDB_DATA_TYPE_TIMESTAMP, LONG_BYTES, PRIMARYKEY_TIMESTAMP_COL_ID))  // ts
   
   BUILD_OPTION(op, sStreamReaderInfo, ver, order, start, end, schemas, true, (gid != 0 ? STREAM_SCAN_GROUP_ONE_BY_ONE : STREAM_SCAN_ALL), gid,
-               true, sStreamReaderInfo->uidList);
+               true, sStreamReaderInfo->uidHashTrigger);
   schemas = NULL;
   *options = op;
 
@@ -1919,44 +1952,7 @@ end:
   return code;
 }
 
-static int taosCompareInt64Asc(const void* elem1, const void* elem2) {
-  int64_t* node1 = (int64_t*)elem1;
-  int64_t* node2 = (int64_t*)elem2;
-
-  if (*node1 < *node2) {
-    return -1;
-  }
-
-  return *node1 > *node2;
-}
-
-static int32_t getTableList(SArray** pList, int32_t* pNum, int64_t* suid, int32_t index,
-                            SStreamTriggerReaderInfo* sStreamReaderInfo) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  int32_t* start = taosArrayGet(sStreamReaderInfo->uidListIndex, index);
-  STREAM_CHECK_NULL_GOTO(start, terrno);
-  int32_t  iStart = *start;
-  int32_t* end = taosArrayGet(sStreamReaderInfo->uidListIndex, index + 1);
-  STREAM_CHECK_NULL_GOTO(end, terrno);
-  int32_t iEnd = *end;
-  *pList = taosArrayInit(iEnd - iStart, sizeof(STableKeyInfo));
-  STREAM_CHECK_NULL_GOTO(*pList, terrno);
-  for (int32_t i = iStart; i < iEnd; ++i) {
-    int64_t*       uid = taosArrayGet(sStreamReaderInfo->uidList, i);
-    STableKeyInfo* info = taosArrayReserve(*pList, 1);
-    STREAM_CHECK_NULL_GOTO(info, terrno);
-    *suid = uid[0];
-    info->uid = uid[1];
-  }
-  *pNum = iEnd - iStart;
-end:
-  STREAM_PRINT_LOG_END(code, lino);
-  return code;
-}
-
-static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTriggerReaderInfo* sStreamReaderInfo,
+static int32_t processTs(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTriggerReaderInfo* sStreamReaderInfo,
                                   SStreamReaderTaskInner* pTask) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1988,53 +1984,6 @@ static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStr
   }
 
 end:
-  return code;
-}
-
-static int32_t processTsVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTriggerReaderInfo* sStreamReaderInfo,
-                               SStreamReaderTaskInner* pTask, int64_t ver) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  int64_t suid = 0;
-  SArray* pList = NULL;
-  int32_t pNum = 0;
-
-  tsRsp->tsInfo = taosArrayInit(taosArrayGetSize(sStreamReaderInfo->uidList), sizeof(STsInfo));
-  STREAM_CHECK_NULL_GOTO(tsRsp->tsInfo, terrno);
-  for (int32_t i = 0; i < taosArrayGetSize(sStreamReaderInfo->uidListIndex) - 1; ++i) {
-    STREAM_CHECK_RET_GOTO(getTableList(&pList, &pNum, &suid, i, sStreamReaderInfo));
-
-    cleanupQueryTableDataCond(&pTask->cond);
-    STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTask->cond, pTask->options.order, pTask->options.schemas,
-                                                        pTask->options.isSchema, pTask->options.twindows, suid, ver));
-    STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderOpen(
-        pVnode, &pTask->cond, taosArrayGet(pList, 0), pNum, pTask->pResBlock, (void**)&pTask->pReader, pTask->idStr, NULL));
-    taosArrayDestroy(pList);
-    pList = NULL;
-    while (true) {
-      bool hasNext = false;
-      STREAM_CHECK_RET_GOTO(getTableDataInfo(pTask, &hasNext));
-      if (!hasNext) {
-        break;
-      }
-      pTask->api.tsdReader.tsdReaderReleaseDataBlock(pTask->pReader);
-      STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
-      STREAM_CHECK_NULL_GOTO(tsInfo, terrno)
-      if (pTask->options.order == TSDB_ORDER_ASC) {
-        tsInfo->ts = pTask->pResBlock->info.window.skey;
-      } else {
-        tsInfo->ts = pTask->pResBlock->info.window.ekey;
-      }
-      tsInfo->gId = pTask->pResBlock->info.id.uid;
-      stDebug("vgId:%d %s get vtable last ts:%" PRId64 ", uid:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__,
-              tsInfo->ts, tsInfo->gId, tsRsp->ver);
-    }
-    pTask->api.tsdReader.tsdReaderClose(pTask->pReader);
-    pTask->pReader = NULL;
-  }
-
-end:
-  taosArrayDestroy(pList);
   return code;
 }
 
@@ -2074,40 +2023,13 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
 
   ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
 
-  TSWAP(sStreamReaderInfo->uidList, req->setTableReq.uids);
-  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->uidList, TSDB_CODE_INVALID_PARA);
-
-  taosArraySort(sStreamReaderInfo->uidList, taosCompareInt64Asc);
-  if (sStreamReaderInfo->uidListIndex != NULL) {
-    taosArrayClear(sStreamReaderInfo->uidListIndex);
-  } else {
-    sStreamReaderInfo->uidListIndex = taosArrayInit(taosArrayGetSize(sStreamReaderInfo->uidList), sizeof(int32_t));
-    STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->uidListIndex, TSDB_CODE_INVALID_PARA);
-  }
-
-  if (sStreamReaderInfo->uidHash != NULL) {
-    taosHashClear(sStreamReaderInfo->uidHash);
-  } else {
-    sStreamReaderInfo->uidHash = taosHashInit(taosArrayGetSize(sStreamReaderInfo->uidList),
-                                              taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-    STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->uidHash, TSDB_CODE_INVALID_PARA);
-  }
-
-  int64_t suid = 0;
-  int32_t cnt = taosArrayGetSize(sStreamReaderInfo->uidList);
-  for (int32_t i = 0; i < cnt; ++i) {
-    int64_t* data = taosArrayGet(sStreamReaderInfo->uidList, i);
-    STREAM_CHECK_NULL_GOTO(data, terrno);
-    if (*data == 0 || *data != suid) {
-      STREAM_CHECK_NULL_GOTO(taosArrayPush(sStreamReaderInfo->uidListIndex, &i), terrno);
-    }
-    suid = *data;
-    stDebug("vgId:%d %s suid:%" PRId64 ",uid:%" PRId64 ", index:%d", TD_VID(pVnode), __func__, suid, data[1], i);
-    STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->uidHash, data + 1, LONG_BYTES, &i, sizeof(int32_t)));
-  }
-  STREAM_CHECK_NULL_GOTO(taosArrayPush(sStreamReaderInfo->uidListIndex, &cnt), terrno);
+  TSWAP(sStreamReaderInfo->uidHashTrigger, req->setTableReq.uidInfoTrigger);
+  TSWAP(sStreamReaderInfo->uidHashCalc, req->setTableReq.uidInfoCalc);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->uidHashTrigger, TSDB_CODE_INVALID_PARA);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->uidHashCalc, TSDB_CODE_INVALID_PARA);
 
   sStreamReaderInfo->isVtableStream = true;
+  sStreamReaderInfo->groupByTbname = true;
 end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
@@ -2137,12 +2059,9 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, &api));
 
   lastTsRsp.ver = pVnode->state.applied;
-  if (sStreamReaderInfo->isVtableStream) {
-    STREAM_CHECK_RET_GOTO(processTsVTable(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner, -1));
-  } else {
-    STREAM_CHECK_RET_GOTO(processTsNonVTable(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
-  }
-  ST_TASK_DLOG("vgId:%d %s get result, ver:%" PRId64, TD_VID(pVnode), __func__, lastTsRsp.ver);
+
+  STREAM_CHECK_RET_GOTO(processTs(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
+  ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
   STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
 
 end:
@@ -2173,11 +2092,7 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, &api));
   
   firstTsRsp.ver = pVnode->state.applied;
-  if (sStreamReaderInfo->isVtableStream) {
-    STREAM_CHECK_RET_GOTO(processTsVTable(pVnode, &firstTsRsp, sStreamReaderInfo, pTaskInner, req->firstTsReq.ver));
-  } else {
-    STREAM_CHECK_RET_GOTO(processTsNonVTable(pVnode, &firstTsRsp, sStreamReaderInfo, pTaskInner));
-  }
+  STREAM_CHECK_RET_GOTO(processTs(pVnode, &firstTsRsp, sStreamReaderInfo, pTaskInner));
 
   ST_TASK_DLOG("vgId:%d %s get result, ver:%"PRId64, TD_VID(pVnode), __func__, firstTsRsp.ver);
   STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size));
@@ -2689,6 +2604,7 @@ static int32_t vnodeProcessStreamWalCalcDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   ST_TASK_DLOG("vgId:%d %s start, request paras size:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(req->walDataNewReq.versions));
 
   resultRsp.dataBlock = sStreamReaderInfo->calcBlock;
+  resultRsp.isCalc = true;
   STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, &resultRsp));
   STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
 
@@ -2716,37 +2632,6 @@ end:
   blockDataDestroy(resultRsp.dropBlock);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
 
-  return code;
-}
-
-static int32_t vnodeProcessStreamWalDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  void*        buf = NULL;
-  size_t       size = 0;
-  SSDataBlock* pBlock = NULL;
-
-  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
-  void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start, request type:%d skey:%" PRId64 ",ekey:%" PRId64 ",uid:%" PRId64 ",ver:%" PRId64, TD_VID(pVnode),
-  __func__, req->walDataReq.base.type, req->walDataReq.skey, req->walDataReq.ekey, req->walDataReq.uid, req->walDataReq.ver);
-
-  STimeWindow window = {.skey = req->walDataReq.skey, .ekey = req->walDataReq.ekey};
-  if (req->walDataReq.base.type == STRIGGER_PULL_WAL_DATA){
-    STREAM_CHECK_RET_GOTO(processWalVerDataVTable(pVnode, req->walDataReq.cids, req->walDataReq.ver,
-      req->walDataReq.uid, &window, &pBlock));
-  }
-  
-  ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
-  printDataBlock(pBlock, __func__, "");
-  STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
-end:
-  STREAM_PRINT_LOG_END_WITHID(code, lino);
-  SRpcMsg rsp = {
-      .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
-  tmsgSendRsp(&rsp);
-
-  blockDataDestroy(pBlock);
   return code;
 }
 
@@ -3200,9 +3085,6 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       case STRIGGER_PULL_TSDB_DATA:
       case STRIGGER_PULL_TSDB_DATA_NEXT:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamTsdbVirtalDataReq(pVnode, pMsg, &req, sStreamReaderInfo));
-        break;
-      case STRIGGER_PULL_WAL_DATA:
-        STREAM_CHECK_RET_GOTO(vnodeProcessStreamWalDataReq(pVnode, pMsg, &req, sStreamReaderInfo));
         break;
       case STRIGGER_PULL_GROUP_COL_VALUE:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamGroupColValueReq(pVnode, pMsg, &req, sStreamReaderInfo));
