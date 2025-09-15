@@ -23,6 +23,7 @@
 #include "functionMgt.h"
 #include "libs/new-stream/stream.h"
 #include "osAtomic.h"
+#include "osMemPool.h"
 #include "osMemory.h"
 #include "osSemaphore.h"
 #include "planner.h"
@@ -90,14 +91,6 @@ typedef struct SSubmitRspParam {
   void*                putParam;
 } SSubmitRspParam;
 
-typedef struct SInsertTableInfo {
-  int64_t                  uid;
-  int64_t                  vgid;
-  int32_t                  version;
-  STSchema*                pSchema;
-  char*                    tbname;
-} SInsertTableInfo;
-
 typedef struct SBuildInsertDataInfo {
   SSubmitTbData  pTbData;
   bool           isFirstBlock;
@@ -105,6 +98,21 @@ typedef struct SBuildInsertDataInfo {
   int64_t        lastTs;
   bool           needSortMerge;
 } SBuildInsertDataInfo;
+
+typedef struct SDropTbCtx {
+  SSTriggerDropRequest* req;
+  tsem_t                ready;
+  int32_t               code;
+} SDropTbCtx;
+typedef struct SDropTbDataMsg {
+  SMsgHead header;
+  void*    pData;
+} SDropTbDataMsg;
+
+typedef struct SRunnerDropTableInfo {
+  SSTriggerDropRequest* pReq;
+  int32_t               code;
+} SRunnerDropTableInfo;
 
 static int32_t initInsertProcessInfo(SBuildInsertDataInfo* pBuildInsertDataInfo, int32_t rows) {
   pBuildInsertDataInfo->isLastBlock = false;
@@ -1599,8 +1607,8 @@ int32_t dataBlocksToSubmitReq(SDataInserterHandle* pInserter, void** pMsg, int32
   return code;
 }
 
-static int32_t getStreamInsertTableInfo(SStreamDataInserterInfo* pInserterInfo, SInsertTableInfo*** ppTbInfo) {
-  int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+int32_t getStreamInsertTableInfo(int64_t streamId, int64_t groupId, SInsertTableInfo*** ppTbInfo) {
+  int64_t            key[2] = {streamId, groupId};
   SInsertTableInfo** pTmp = taosHashAcquire(gStreamGrpTableHash, key, sizeof(key));
   if (NULL == pTmp || *pTmp == NULL) {
     return TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
@@ -2062,7 +2070,7 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     }
   }
 
-  code = getStreamInsertTableInfo(pInserterInfo, &ppTbInfo);
+  code = getStreamInsertTableInfo(pInserterInfo->streamId, pInserterInfo->groupId, &ppTbInfo);
   pTbInfo =  *ppTbInfo;
   if (tbDataInfo->isFirstBlock) {
     if (!pInserterInfo->isAutoCreateTable) {
@@ -2236,7 +2244,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 
 static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInputData* pInput) {
   SInsertTableInfo** ppTbInfo = NULL;
-  int32_t           code = getStreamInsertTableInfo(pInput->pStreamDataInserterInfo, &ppTbInfo);
+  int32_t           code = getStreamInsertTableInfo(pInput->pStreamDataInserterInfo->streamId, pInput->pStreamDataInserterInfo->groupId, &ppTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2637,4 +2645,133 @@ void rmDbVgInfoFromCache(const char* dbFName) {
   TAOS_UNUSED(taosHashRemove(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName)));
 
   taosWUnLockLatch(&g_dbVgInfoMgr.lock);
+}
+
+static int32_t dropTableReqToMsg(int32_t vgId, SVDropTbBatchReq* pReq, void** pData, int32_t* pLen) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t len = 0;
+  void*   pBuf = NULL;
+  tEncodeSize(tEncodeSVDropTbBatchReq, pReq, len, code);
+  if (TSDB_CODE_SUCCESS == code) {
+    SEncoder encoder;
+    len += sizeof(SMsgHead);
+    pBuf = taosMemoryMalloc(len);
+    if (NULL == pBuf) {
+      return terrno;
+    }
+    ((SDropTbDataMsg*)pBuf)->header.vgId = htonl(vgId);
+    ((SDropTbDataMsg*)pBuf)->header.contLen = htonl(len);
+    //((SDropTbDataMsg*)pBuf)->pData = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
+    tEncoderInit(&encoder, POINTER_SHIFT(pBuf, sizeof(SMsgHead)), len - sizeof(SMsgHead));
+    code = tEncodeSVDropTbBatchReq(&encoder, pReq);
+    tEncoderClear(&encoder);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pData = pBuf;
+    *pLen = len;
+  } else {
+    taosMemoryFree(pBuf);
+  }
+
+  return code;
+}
+
+int32_t dropTbCallback(void* param, SDataBuf* pMsg, int32_t code) {
+  SDropTbCtx* pCtx = (SDropTbCtx*)param;
+  if (code) {
+    stError("dropTbCallback, code:%d, stream:%" PRId64 " gid:%" PRId64, code, pCtx->req->streamId, pCtx->req->gid);
+  }
+  pCtx->code = code;
+  tsem_post(&pCtx->ready);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sendDropTbRequest(SDropTbCtx* ctx, void* pMsg, int32_t msgLen, void* pTransporter, SEpSet* pEpset) {
+  // send the fetch remote task result reques
+  SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (NULL == pMsgSendInfo) {
+    return terrno;
+  }
+
+  pMsgSendInfo->param = ctx;
+  pMsgSendInfo->paramFreeFp = NULL;
+  pMsgSendInfo->msgInfo.pData = pMsg;
+  pMsgSendInfo->msgInfo.len = msgLen;
+  pMsgSendInfo->msgType = TDMT_VND_SNODE_DROP_TABLE;
+  pMsgSendInfo->fp = dropTbCallback;
+
+  return asyncSendMsgToServer(pTransporter, pEpset, NULL, pMsgSendInfo);
+}
+
+int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropRequest* pReq) {
+  SStreamRunnerTaskOutput* pOutput = pTaskOutput;
+  int32_t                  code = 0;
+  int32_t                  lino = 0;
+  SVDropTbBatchReq         req = {.nReqs = 1};
+  SVDropTbReq*             pDropReq = NULL;
+  int32_t                  msgLen = 0;
+
+  SInsertTableInfo** ppTbInfo = NULL;
+  int32_t            vgId = 0;
+
+  req.pArray = taosArrayInit_s(sizeof(SVDropTbReq), 1);
+  if (!req.pArray) return terrno;
+
+  pDropReq = taosArrayGet(req.pArray, 0);
+
+  code = getStreamInsertTableInfo(pReq->streamId, pReq->gid, &ppTbInfo);
+  if (TSDB_CODE_SUCCESS == code) {
+    pDropReq->name = taosStrdup((*ppTbInfo)->tbname);
+    pDropReq->suid = (*ppTbInfo)->uid;
+    pDropReq->uid = (*ppTbInfo)->uid;
+    pDropReq->igNotExists = true;
+    vgId = (*ppTbInfo)->vgid;
+  } else {
+    // code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
+    // stDebug("stRunnerOutputBlock tbname: %s", pExec->tbname);
+    // if (*createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
+
+    // getDbVgInfoForExec(pInserter->pParam->readHandle->pMsgCb->clientRpc, pInsertParam->dbFName,
+    // pInserterInfo->tbName,
+    //                    pVgInfo);
+
+    // inserterGetVgInfo();
+    // releaseStreamInsertTableInfo(ppTbInfo);
+    code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
+  }
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SDropTbDataMsg* pMsg = NULL;
+  code = dropTableReqToMsg(vgId, &req, (void**)&pMsg, &msgLen);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SVgroupInfo vgInfo = {0};
+  code = getDbVgInfoForExec(pMsgCb->clientRpc, pOutput->outDbFName, pDropReq->name, &vgInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SDropTbCtx ctx = {.req = pReq};
+  code = tsem_init(&ctx.ready, 0, 0);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = sendDropTbRequest(&ctx, pMsg, msgLen, pMsgCb->clientRpc, &vgInfo.epSet);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  tsem_wait(&ctx.ready);
+  code = ctx.code;
+  stDebug("doDropStreamTable,  code:%d req:%p, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq,
+          pReq->streamId, pReq->gid, pDropReq ? pDropReq->name : "unknown");
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("doDropStreamTable, code:%d, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq->streamId,
+            pReq->gid, pDropReq ? pDropReq->name : "unknown");
+    if (pMsg) {
+      taosMemoryFreeClear(pMsg);
+    }
+  }
+  return code;
 }
