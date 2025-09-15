@@ -76,7 +76,7 @@ typedef struct {
   SSslBuffer sendBuf;  // buffer for sending data
 
   void (*connCb)(uv_connect_t* pStream, int32_t status);                        // callback for connection events
-  void (*readCb)(uv_stream_t* pStream, ssize_t nread, const uv_buf_t* buffer);  // callback for write events
+  void (*readCb)(uv_stream_t* pStream, ssize_t nread, const uv_buf_t* buffer);  // callback for read events
   void (*writeCb)(uv_write_t* pReq, int32_t status);                            // callback for write events
 } STransTLS;
 
