@@ -378,7 +378,6 @@ typedef struct SRollupCtx {
   SSDataBlock*    pResBlock;
   int32_t         rowSize;
   int32_t         maxBufRows;    // max buffer rows for aggregation
-  int64_t         stashAggRows;  // number of aggregated rows stashed
   int64_t         winTotalRows;  // number of total rows of current aggregation window
   int64_t         winStashRows;  // number of stashed rows of current aggregation window
 } SRollupCtx;

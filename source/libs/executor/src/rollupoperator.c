@@ -179,8 +179,19 @@ _exit:
   return code;
 }
 
-int32_t tdRollupAppendData(SRollupCtx *pCtx, void *pInput) {
+int32_t tdRollupUpdateData(SRollupCtx *pCtx, void *pInput) {
   int32_t code = 0, lino = 0;
+  // code = tBlockDataUpdateRow(&writer->blockData[writer->blockDataIdx], &row->row, writer->skmRow->pTSchema);
+_exit:
+  return code;
+}
+
+int32_t tdRollupAppendData(SRollupCtx * pCtx, void *pInput) {
+  int32_t code = 0, lino = 0;
+
+  // code = tBlockDataAppendRow(&writer->blockData[writer->blockDataIdx], &row->row, writer->skmRow->pTSchema, row->uid);
+
+  // int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull)
 _exit:
   return code;
 }
