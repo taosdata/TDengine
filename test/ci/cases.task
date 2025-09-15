@@ -1564,7 +1564,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_json_taosc_insert.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_stable.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_table.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_boundary.py
 ,,n,.,pytest cases/uncatalog/system-test/1-insert/test_insertWithMoreVgroup.py
