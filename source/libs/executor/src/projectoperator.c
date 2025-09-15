@@ -400,7 +400,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
 
       // do apply filter
-      code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
@@ -411,7 +411,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     } else {
       // do apply filter
       if (pRes->info.rows > 0) {
-        code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+        code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
 
         if (pRes->info.rows == 0) {
@@ -669,7 +669,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
       }
     }
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     size_t rows = pInfo->pRes->info.rows;
@@ -856,7 +856,7 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = 1;
-  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   if (code) {
     pTaskInfo->code = code;
     return code;

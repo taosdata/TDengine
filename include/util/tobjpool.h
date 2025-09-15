@@ -75,8 +75,10 @@ void    taosObjListPopTailEx(SObjList *pList, FDelete fp);
 void    taosObjListPopObj(SObjList *pList, void *pObj);
 void    taosObjListPopObjEx(SObjList *pList, void *pObj, FDelete fp);
 
+void *taosObjListGetHead(SObjList *pList);
+void *taosObjListGetTail(SObjList *pList);
 void  taosObjListInitIter(SObjList *pList, SObjListIter *pIter, EObjListIterDirection direction);
-void *taosObjListNext(SObjListIter *pIter);
+void *taosObjListIterNext(SObjListIter *pIter);
 
 #ifdef __cplusplus
 }

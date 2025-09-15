@@ -486,10 +486,7 @@ static int32_t mergeAlignedExternalWindowNext(SOperatorInfo* pOperator, SSDataBl
 
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
-      STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
-      if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != STREAM_TRIGGER_SLIDING){
-        win.ekey++;
-      }
+      STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wstart + 1};
       TSDB_CHECK_NULL(taosArrayPush(pExtW->pWins, &win), code, lino, _end, terrno);
     }
     pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
@@ -764,7 +761,7 @@ static int32_t extWinGetMultiTbWinFromTs(SOperatorInfo* pOperator, SExternalWind
         break;
       }
       
-      if (tsCol[i] <= pWin->tw.ekey) {
+      if (tsCol[i] < pWin->tw.ekey) {
         *startPos = i;
         return w;
       }

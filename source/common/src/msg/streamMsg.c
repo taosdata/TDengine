@@ -14,6 +14,7 @@
  */
 
 #include "streamMsg.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "tlist.h"
 #include "tmsg.h"
@@ -3323,6 +3324,10 @@ void tDestroySTriggerPullRequest(SSTriggerPullRequestUnion* pReq) {
       taosArrayDestroy(pRequest->cids);
       pRequest->cids = NULL;
     }
+  } else if (pReq->base.type == STRIGGER_PULL_WAL_DATA_NEW || pReq->base.type == STRIGGER_PULL_WAL_CALC_DATA_NEW) {
+    SSTriggerWalDataNewRequest* pRequest = (SSTriggerWalDataNewRequest*)pReq;
+    taosArrayDestroy(pRequest->versions);
+    tSimpleHashCleanup(pRequest->ranges);
   } else if (pReq->base.type == STRIGGER_PULL_TSDB_DATA) {
     SSTriggerTsdbDataRequest* pRequest = (SSTriggerTsdbDataRequest*)pReq;
     if (pRequest->cids != NULL) {
@@ -4451,8 +4456,9 @@ static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash)
     int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));
     TAOS_CHECK_EXIT(tEncodeI64(encoder, uid));
     TAOS_CHECK_EXIT(tEncodeU64(encoder, pInfo->gId));
-    TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->startRowIdx - pInfo->numRows));
+    TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->startRowIdx));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->numRows));
+    ASSERT(pInfo->startRowIdx <= ((SSDataBlock*) pBlock)->info.rows);
     tables++;
   }
   uint32_t tmpPos = encoder->pos;

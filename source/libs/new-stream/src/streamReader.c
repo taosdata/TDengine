@@ -4,6 +4,7 @@
 #include "executor.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "thash.h"
 #include "tsimplehash.h"
 
 void destroyOptions(SStreamTriggerReaderTaskInnerOptions* options) {
@@ -45,7 +46,7 @@ int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet) {
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, STREAM_RETURN_ROWS_NUM));
 
 end:
-  STREAM_PRINT_LOG_END(code, lino)
+  // STREAM_PRINT_LOG_END(code, lino)
   if (code != TSDB_CODE_SUCCESS) {
     blockDataDestroy(pBlock);
     pBlock = NULL;
@@ -231,6 +232,7 @@ static void releaseStreamReaderInfo(void* p) {
   taosArrayDestroy(pInfo->uidListIndex);
   taosHashCleanup(pInfo->uidHash);
   qStreamDestroyTableList(pInfo->tableList);
+  qStreamDestroyTableList(pInfo->historyTableList);
   filterFreeInfo(pInfo->pFilterInfo);
   pInfo->pFilterInfo = NULL;
   blockDataDestroy(pInfo->resultBlock);
@@ -241,6 +243,7 @@ static void releaseStreamReaderInfo(void* p) {
   pInfo->metaBlock = NULL;
   tSimpleHashCleanup(pInfo->indexHash);
   pInfo->indexHash = NULL;
+  taosHashCleanup(pInfo->pTableMetaCache);
 
   taosMemoryFree(pInfo);
 }
@@ -419,6 +422,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
 
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->resultBlock));
   SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // ver
+  STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->resultBlock, &idata));
+  idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // ver
   STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->resultBlock, &idata));
   sStreamReaderInfo->indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->indexHash, terrno);

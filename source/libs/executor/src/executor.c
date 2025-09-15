@@ -1764,12 +1764,11 @@ int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {
 void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableListInfo); }
 
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid) { return tableListGetTableGroupId(pTableListInfo, uid); }
-int32_t  qStreamRevmoeUidFromTableList(void* pTableListInfo, int64_t uid) { return tableListRemoveTable(pTableListInfo, uid); }
 
 int32_t qStreamGetTableListGroupNum(const void* pTableList) { return ((STableListInfo*)pTableList)->numOfOuputGroups; }
 SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListInfo*)pTableList)->pTableList; }
 
-int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo) { return doFilter(pBlock, pFilterInfo, NULL); }
+int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
   qInfo("streamDestroyExecTask called, task:%p", tInfo);

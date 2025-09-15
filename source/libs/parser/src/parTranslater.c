@@ -14833,8 +14833,16 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .mgmtEpSet = pCxt->pParseCxt->mgmtEpSet,
                           .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
+                          .streamTriggerWinType = nodeType(pTriggerWindow),
                           .pStreamCalcVgArray = pVgArray,
                           .streamTriggerScanList = NULL};
+
+  if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
+    SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
+    if (!pIntervalWindow->pInterval) {
+      calcCxt.streamTriggerWinType = QUERY_NODE_SLIDING_WINDOW;
+    }
+  }
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
   pReq->vtableCalc = (int8_t)calcCxt.streamVtableCalc;

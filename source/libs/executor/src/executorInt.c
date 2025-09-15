@@ -577,7 +577,7 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 }
 
-int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
@@ -592,10 +592,10 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
 
   int32_t status = 0;
   code =
-      filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+      filterExecute(pFilterInfo, pBlock, pRet != NULL ? pRet : &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
-  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, pRet != NULL ? *pRet : p, status);
   QUERY_CHECK_CODE(code, lino, _err);
 
   if (pColMatchInfo != NULL) {

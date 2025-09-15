@@ -24,6 +24,7 @@ extern "C" {
 #include "stream.h"
 #include "tcommon.h"
 #include "tlosertree.h"
+#include "tobjpool.h"
 
 struct SStreamTriggerTask;
 
@@ -339,6 +340,12 @@ int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMe
  */
 int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock);
 
+typedef struct SSTriggerDataSlice {
+  SSDataBlock *pDataBlock;
+  int32_t      startIdx;
+  int32_t      endIdx;
+} SSTriggerDataSlice;
+
 typedef struct SSTriggerNewTimestampSorter {
   struct SStreamTriggerTask *pTask;
 
@@ -378,15 +385,14 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @brief Set the table data for the timestamp sorter
  *
  * @param pSorter The SSTriggerNewTimestampSorter instance to set the data
- * @param pMetas The metadatas of current table
- * @param pDataBlock The data block to be sorted
+ * @param tbUid The UID of the table to be sorted
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
- * @param startIdx The start row index in the data block
- * @param endIdx The end row index in the data block
+ * @param pMetas The metadatas of current table
+ * @param pSlice The data slice containing the data block and the range of rows to be considered
  * @return int32_t Status code indicating success or error
  */
-int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, SArray *pMetas, SSDataBlock *pDataBlock,
-                                    int32_t tsSlotId, int32_t startIdx, int32_t endIdx);
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
+                                    SObjList *pMetas, SSTriggerDataSlice *pSlice);
 
 /**
  * @brief Get next data block from the sorter.
@@ -403,11 +409,11 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
 typedef struct SSTriggerNewVtableMerger {
   struct SStreamTriggerTask *pTask;
   SSDataBlock               *pDataBlock;
+  bool                      *pIsPseudoCol;  // whether the column is pseudo column, could be NULL if no pseudo columns
   SFilterInfo               *pFilter;
-  int32_t                    nVirDataCols;
 
   bool         inUse;
-  SSDataBlock *pPseudoCols;  // pseudo columns , could be NULL if no pseudo columns
+  SSDataBlock *pPseudoColValues;  // value of pseudo columns, could be NULL if no pseudo columns
 
   int32_t                 nReaders;
   SArray                 *pReaderInfos;  // SArray<SNewVtableMergerReaderInfo>
@@ -419,13 +425,13 @@ typedef struct SSTriggerNewVtableMerger {
  *
  * @param pMerger The SSTriggerNewVtableMerger instance to be initialized
  * @param pTask The SStreamTriggerTask instance that contains the task information
- * @param ppDataBlock Pointer to the data block to store the merged data, each column's colid is incremental
+ * @param pDataBlock Pointer to the data block to store the merged data, each column's colid is incremental
+ * @param pIsPseudoCol Array indicating which columns are pseudo columns, can be NULL if no pseudo columns
  * @param pFilter Pointer to the filter for the virtual table, can be NULL if no filter is present
- * @param nVirDataCols The number of non-pseudo data columns in the data block
  * @return int32_t Status code indicating success or error
  */
 int32_t stNewVtableMergerInit(SSTriggerNewVtableMerger *pMerger, struct SStreamTriggerTask *pTask,
-                              SSDataBlock **ppDataBlock, SFilterInfo **ppFilter, int32_t nVirDataCols);
+                              SSDataBlock *pDataBlock, bool *pIsPseudoCol, SNode *pFilter);
 
 bool stNewVtableMergerNeedPseudoCols(SSTriggerNewVtableMerger *pMerger);
 
@@ -448,13 +454,16 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @brief Set the data for the vtable merger
  *
  * @param pMerger The SSTriggerNewVtableMerger instance responsible for merging
- * @param pMetas The metadatas of all original tables
+ * @param vtbUid The UID of the virtual table
+ * @param tsSlotId The index of the timestamp column in the data block, starting from 0
+ * @param pTableUids List of original table UIDs involved in the merge
  * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
+ * @param pMetas The metadatas of all original tables
  * @param pSlices The hash map from original table uid to its data slice
  * @return int32_t
  */
-int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, SSHashObj *pMetas, SArray *pTableColRefs,
-                                 SSHashObj *pSlices);
+int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+                                 SObjList *pTableUids, SArray *pTableColRefs, SSHashObj *pMetas, SSHashObj *pSlices);
 
 /**
  * @brief Gets next data block from the vtable merger.

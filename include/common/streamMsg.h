@@ -1046,6 +1046,7 @@ int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 typedef struct SStreamWalDataSlice {
   uint64_t gId;
   int32_t startRowIdx;  // start row index of current slice in DataBlock
+  int32_t currentRowIdx;
   int32_t numRows;      // number of rows in current slice
 } SStreamWalDataSlice;
 

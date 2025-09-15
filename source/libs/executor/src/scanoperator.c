@@ -494,7 +494,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   pCost->totalRows -= pBlock->info.rows;
 
   if (pOperator->exprSupp.pFilterInfo != NULL) {
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo);
+    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     int64_t st = taosGetTimestampUs();
@@ -1985,7 +1985,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
 
   taosArrayDestroy(pColList);
 
-  code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+  code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
