@@ -1305,6 +1305,8 @@ void tFreeSMCreateSmaReq(SMCreateSmaReq *pReq) {
   taosMemoryFreeClear(pReq->tagsFilter);
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
+  taosMemoryFreeClear(pReq->createStreamReq);
+  taosMemoryFreeClear(pReq->dropStreamReq);
   taosArrayDestroy(pReq->pVgroupVerList);
 }
 
@@ -1360,6 +1362,10 @@ int32_t tDeserializeSMDropSmaReq(void *buf, int32_t bufLen, SMDropSmaReq *pReq) 
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+void tFreeSMDropSmaReq(SMDropSmaReq *pReq) {
+  taosMemoryFreeClear(pReq->dropStreamReq);
 }
 
 int32_t tSerializeSCreateTagIdxReq(void *buf, int32_t bufLen, SCreateTagIndexReq *pReq) {
@@ -14375,6 +14381,9 @@ void tFreeTableTSMAInfo(void *p) {
     taosArrayDestroy(pTsmaInfo->pTags);
     taosArrayDestroy(pTsmaInfo->pUsedCols);
     taosMemoryFree(pTsmaInfo->ast);
+    if (pTsmaInfo->streamAddr) {
+      taosMemoryFreeClear(pTsmaInfo->streamAddr);
+    }
   }
 }
 
@@ -14417,6 +14426,13 @@ int32_t tCloneTbTSMAInfo(STableTSMAInfo *pInfo, STableTSMAInfo **pRes) {
   if (pInfo->ast && code == TSDB_CODE_SUCCESS) {
     pRet->ast = taosStrdup(pInfo->ast);
     if (!pRet->ast) code = terrno;
+  }
+  if (pInfo->streamAddr && code == TSDB_CODE_SUCCESS) {
+    pRet->streamAddr = taosMemoryCalloc(1, sizeof(SStreamTaskAddr));
+    if (!pRet->streamAddr) code = terrno;
+    if (code == TSDB_CODE_SUCCESS) {
+      memcpy(pRet->streamAddr, pInfo->streamAddr, sizeof(SStreamTaskAddr));
+    }
   }
   if (code) {
     tFreeAndClearTableTSMAInfo(pRet);

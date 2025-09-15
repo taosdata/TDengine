@@ -4477,6 +4477,7 @@ typedef struct {
 
 int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
+void tFreeSMDropSmaReq(SMDropSmaReq *pReq);
 
 typedef struct {
   char   dbFName[TSDB_DB_FNAME_LEN];

@@ -68,7 +68,7 @@ static int32_t smGetSingleStreamProgress(SBatchMsg *pMsg, SBatchRspMsg *pRsp) {
   QUERY_CHECK_CONDITION(pRsp->msgLen >= 0, code, lino, _end, terrno);
   pRsp->msg = taosMemoryCalloc(1, pRsp->msgLen);
   QUERY_CHECK_NULL(pRsp, code, lino, _end, terrno);
-  pRsp->msgLen = tSerializeStreamProgressRsp(pRsp, pRsp->msgLen, &rsp);
+  pRsp->msgLen = tSerializeStreamProgressRsp(pRsp->msg, pRsp->msgLen, &rsp);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -109,6 +109,7 @@ static int32_t smProcessStreamProgressRequest(SRpcMsg *pMsg) {
   rsp.pCont = rpcMallocCont(rsp.contLen);
   QUERY_CHECK_NULL(rsp.pCont, code, lino, _end, terrno);
   rsp.contLen = tSerializeSBatchRsp(rsp.pCont, rsp.contLen, &batchRsp);
+  QUERY_CHECK_CONDITION(rsp.contLen >= 0, code, lino, _end, terrno);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

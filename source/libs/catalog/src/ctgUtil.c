@@ -2788,6 +2788,9 @@ uint64_t ctgGetTbTSMACacheSize(STableTSMAInfo* pTsmaInfo) {
   if (pTsmaInfo->pUsedCols) {
     size += sizeof(SSchema) * pTsmaInfo->pUsedCols->size;
   }
+  if (pTsmaInfo->streamAddr) {
+    size += sizeof(SStreamTaskAddr);
+  }
 
   return size;
 }
