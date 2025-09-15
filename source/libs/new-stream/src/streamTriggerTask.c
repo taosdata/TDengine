@@ -26,6 +26,7 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "thash.h"
+#include "tmsg.h"
 #include "ttime.h"
 
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS    1000                    // 1s
@@ -807,7 +808,7 @@ int32_t stTriggerTaskAcquireDropTableRequest(SStreamTriggerTask *pTask, int64_t 
     goto _end;
   }
 
-  pRequest = taosMemoryMalloc(sizeof(SSTriggerDropRequest));
+  pRequest = taosMemoryCalloc(1, sizeof(SSTriggerDropRequest));
   QUERY_CHECK_NULL(pRequest, code, lino, _end, terrno);
 
   // random select a calc node
@@ -2122,6 +2123,8 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     // todo(kjq): handle progress request
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     QUERY_CHECK_CODE(code, lino, _end);
+  } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_DROP_RSP) {
+    // TODO kuang
   }
 
 _end:
@@ -2380,17 +2383,22 @@ static void stRealtimeContextDestroy(void *ptr) {
 static FORCE_INLINE SSTriggerRealtimeGroup *stRealtimeContextGetCurrentGroup(SSTriggerRealtimeContext *pContext) {
   // todo(kjq): return the group when checking max delay
   if (pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ) {
-    int32_t *gid = taosArrayGet(pContext->groupsToDelete, pContext->dropReqIndex);
+    int64_t *gid = taosArrayGet(pContext->groupsToDelete, pContext->dropReqIndex);
     if (gid == NULL) {
       SStreamTriggerTask *pTask = pContext->pTask;
       ST_TASK_ELOG("failed to get the delete group id in realtime context %" PRId64, pContext->sessionId);
+      terrno = TSDB_CODE_INTERNAL_ERROR;
+      return NULL;
     }
-    SSTriggerRealtimeGroup *pGroup = tSimpleHashGet(pContext->pGroups, gid, sizeof(int32_t));
-    if (pGroup == NULL) {
+    SSTriggerRealtimeGroup **ppGroup = tSimpleHashGet(pContext->pGroups, gid, sizeof(int64_t));
+    if (ppGroup == NULL || *ppGroup == NULL) {
       SStreamTriggerTask *pTask = pContext->pTask;
-      ST_TASK_ELOG("failed to get the delete group in realtime context %" PRId64, pContext->sessionId);
+      ST_TASK_ELOG("failed to get the delete group in realtime, gid:%" PRId64 " context %" PRId64, *gid,
+                   pContext->sessionId);
+      terrno = TSDB_CODE_INTERNAL_ERROR;
+      return NULL;
     }
-    return pGroup;
+    return *ppGroup;
   } else if (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     return TD_DLIST_HEAD(&pContext->groupsToCheck);
   } else {
