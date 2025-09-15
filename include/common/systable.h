@@ -59,6 +59,7 @@ extern "C" {
 #define TSDB_INS_TABLE_VIEWS             "ins_views"
 #define TSDB_INS_TABLE_COMPACTS          "ins_compacts"
 #define TSDB_INS_TABLE_COMPACT_DETAILS   "ins_compact_details"
+#define TSDB_INS_TABLE_SSMIGRATES        "ins_ssmigrates"
 #define TSDB_INS_TABLE_GRANTS_FULL       "ins_grants_full"
 #define TSDB_INS_TABLE_GRANTS_LOGS       "ins_grants_logs"
 #define TSDB_INS_TABLE_MACHINES          "ins_machines"

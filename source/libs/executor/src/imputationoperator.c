@@ -298,75 +298,6 @@ static int32_t doCacheBlock(SImputationSupp* pSupp, SSDataBlock* pBlock, const c
   return 0;
 }
 
-static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, const char* pId) {
-  int32_t     code = 0;
-  int32_t     rows = 0;
-  STimeWindow win = {0};
-
-  taosArrayClear(pWindows);
-
-  tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
-  if (code < 0) {
-    return TSDB_CODE_INVALID_JSON_FORMAT;
-  }
-
-  if (rows < 0) {
-    char pMsg[1024] = {0};
-    code = tjsonGetStringValue(pJson, "msg", pMsg);
-    if (code) {
-      qError("%s failed to get error msg from rsp, unknown error", pId);
-    } else {
-      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
-    }
-
-    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
-  } else if (rows == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SJson* res = tjsonGetObjectItem(pJson, "res");
-  if (res == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-  int32_t ressize = tjsonGetArraySize(res);
-  if (ressize != rows) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-  for (int32_t i = 0; i < rows; ++i) {
-    SJson* row = tjsonGetArrayItem(res, i);
-    if (row == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-    int32_t colsize = tjsonGetArraySize(row);
-    if (colsize != 2) return TSDB_CODE_INVALID_JSON_FORMAT;
-
-    SJson* start = tjsonGetArrayItem(row, 0);
-    SJson* end = tjsonGetArrayItem(row, 1);
-    if (start == NULL || end == NULL) {
-      qError("%s invalid res from analytic sys, code:%s", pId, tstrerror(TSDB_CODE_INVALID_JSON_FORMAT));
-      return TSDB_CODE_INVALID_JSON_FORMAT;
-    }
-
-    tjsonGetObjectValueBigInt(start, &win.skey);
-    tjsonGetObjectValueBigInt(end, &win.ekey);
-
-    if (win.skey >= win.ekey) {
-      win.ekey = win.skey + 1;
-    }
-
-    if (taosArrayPush(pWindows, &win) == NULL) {
-      qError("%s out of memory in generating anomaly_window", pId);
-      return TSDB_CODE_OUT_OF_BUFFER;
-    }
-  }
-
-  int32_t numOfWins = taosArrayGetSize(pWindows);
-  qDebug("%s anomaly window recevied, total:%d", pId, numOfWins);
-  for (int32_t i = 0; i < numOfWins; ++i) {
-    STimeWindow* pWindow = taosArrayGet(pWindows, i);
-    qDebug("%s anomaly win:%d [%" PRId64 ", %" PRId64 ")", pId, i, pWindow->skey, pWindow->ekey);
-  }
-
-  return code;
-}
-
 static int32_t finishBuildRequest(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, const char* id) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       code = 0;
@@ -428,7 +359,6 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
     return terrno;
   }
 
-  SColumnInfoData* pResTsCol = ((pInfo->resTsSlot != -1) ? taosArrayGet(pBlock->pDataBlock, pInfo->resTsSlot) : NULL);
   SJson* pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout, pId);
   if (pJson == NULL) {
     return terrno;
@@ -467,12 +397,15 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
     goto _OVER;
   }
 
-  if (pResTsCol != NULL) {
-    for (int32_t i = 0; i < rows; ++i) {
-      SJson* tsJson = tjsonGetArrayItem(pTsList, i);
-      tjsonGetObjectValueBigInt(tsJson, &tmpI64);
-      colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
-      resCurRow++;
+  if (pInfo->resTsSlot != -1) {
+    SColumnInfoData* pResTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->resTsSlot);
+    if (pResTsCol != NULL) {
+      for (int32_t i = 0; i < rows; ++i) {
+        SJson* tsJson = tjsonGetArrayItem(pTsList, i);
+        tjsonGetObjectValueBigInt(tsJson, &tmpI64);
+        colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
+        resCurRow++;
+      }
     }
   }
 
@@ -502,41 +435,19 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
     }
   }
 
-  resCurRow = pBlock->info.rows;
-  for (int32_t i = 0; i < rows; ++i) {
-    SJson* maskJson = tjsonGetArrayItem(pMask, i);
-    tjsonGetObjectValueBigInt(maskJson, &tmpI64);
-    // colDataSetInt32(pResMaskCol, resCurRow, &tmpDouble); // todo
-    resCurRow++;
+  if (pInfo->resMarkSlot != -1) {
+    SColumnInfoData* pResMaskCol = taosArrayGet(pBlock->pDataBlock, pInfo->resMarkSlot);
+    if (pResMaskCol != NULL) {
+      resCurRow = pBlock->info.rows;
+      for (int32_t i = 0; i < rows; ++i) {
+        SJson* maskJson = tjsonGetArrayItem(pMask, i);
+        tjsonGetObjectValueBigInt(maskJson, &tmpI64);
+        int32_t v = tmpI64;
+        colDataSetInt32(pResMaskCol, resCurRow, &v);
+        resCurRow++;
+      }
+    }
   }
-
-
-  // if (pResTsCol != NULL) {
-  //   resCurRow = pBlock->info.rows;
-  //   SJson* tsJsonArray = tjsonGetArrayItem(pTarget, 0);
-  //   if (tsJsonArray == NULL) goto _OVER;
-  //   int32_t tsSize = tjsonGetArraySize(tsJsonArray);
-  //   if (tsSize != rows) goto _OVER;
-  //   for (int32_t i = 0; i < tsSize; ++i) {
-  //     SJson* tsJson = tjsonGetArrayItem(tsJsonArray, i);
-  //     tjsonGetObjectValueBigInt(tsJson, &tmpI64);
-  //     colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
-  //     resCurRow++;
-  //   }
-  // }
-
-  // resCurRow = pBlock->info.rows;
-  // SJson* valJsonArray = tjsonGetArrayItem(res, 1);
-  // if (valJsonArray == NULL) goto _OVER;
-  // int32_t valSize = tjsonGetArraySize(valJsonArray);
-  // if (valSize != rows) goto _OVER;
-  // for (int32_t i = 0; i < valSize; ++i) {
-  //   SJson* valJson = tjsonGetArrayItem(valJsonArray, i);
-  //   tjsonGetObjectValueDouble(valJson, &tmpDouble);
-
-  //   colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
-  //   resCurRow++;
-  // }
 
   pBlock->info.rows += rows;
 
@@ -688,7 +599,7 @@ static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
       pInfo->resTargetSlot = dstSlot;
     } else if (functionType == FUNCTION_TYPE_IMPUTATION_ROWTS) {
       pInfo->resTsSlot = dstSlot;
-    } else if (functionType == FUNCTION_TYPE_IMPUTATION_MARKS) {
+    } else if (functionType == FUNCTION_TYPE_IMPUTATION_MARK) {
       pInfo->resMarkSlot = dstSlot;
     }
   }
@@ -700,7 +611,7 @@ void doInitOptions(SImputationSupp* pSupp) {
   pSupp->numOfRows = 0;
   pSupp->wncheck = ANALY_DEFAULT_WNCHECK;
 
-  pSupp->freq[0] = 's';  // d(day), h(hour), m(minute),s(second), ms(millisecond), us(microsecond)
+  pSupp->freq[0] = 'S';  // d(day), h(hour), m(minute),s(second), ms(millisecond), us(microsecond)
   pSupp->freq[1] = '\0';
 
   pSupp->tsSlot = -1;

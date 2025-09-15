@@ -558,6 +558,10 @@ typedef struct SShowScanDetailsStmt {
   SNode*    pScanId;
 } SShowScanDetailsStmt;
 
+typedef struct SShowSsMigratesStmt {
+  ENodeType type;
+} SShowSsMigratesStmt;
+
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
   SNode*    pTransactionId;

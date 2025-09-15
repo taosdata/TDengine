@@ -451,6 +451,18 @@ static const SSysDbTableSchema userScanDetailSchema[] = {
     {.name = "remain_time(s)", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
+static const SSysDbTableSchema userSsMigratesSchema[] = {
+    {.name = "ssmigrate_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "number_vgroup", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "migrated_vgroup", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "number_fileset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "migrated_fileset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "fileset_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+};
+
 static const SSysDbTableSchema userTransactionDetailSchema[] = {
     {.name = "transaction_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "action", .bytes = 30 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
@@ -579,6 +591,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_VIEWS, userViewsSchema, tListLen(userViewsSchema), false},
     {TSDB_INS_TABLE_COMPACTS, userCompactsSchema, tListLen(userCompactsSchema), false},
     {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false},
+    {TSDB_INS_TABLE_SSMIGRATES, userSsMigratesSchema, tListLen(userSsMigratesSchema), false},
     {TSDB_INS_TABLE_GRANTS_FULL, userGrantsFullSchema, tListLen(userGrantsFullSchema), true},
     {TSDB_INS_TABLE_GRANTS_LOGS, userGrantsLogsSchema, tListLen(userGrantsLogsSchema), true},
     {TSDB_INS_TABLE_MACHINES, userMachinesSchema, tListLen(userMachinesSchema), true},

@@ -380,6 +380,7 @@ static SKeyword keywordTable[] = {
     {"SS_KEEPLOCAL",         TK_SS_KEEPLOCAL},
     {"SS_COMPACT",           TK_SS_COMPACT},
     {"SSMIGRATE",            TK_SSMIGRATE},
+    {"SSMIGRATES",           TK_SSMIGRATES},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
     {"ARBGROUPS",            TK_ARBGROUPS},
     {"IS_IMPORT",            TK_IS_IMPORT},
@@ -398,6 +399,8 @@ static SKeyword keywordTable[] = {
     {"META_ONLY",            TK_META_ONLY},
     {"SCAN",                 TK_SCAN},
     {"SCANS",                TK_SCANS},
+    {"_IMPROWTS",            TK_IMPROWTS},
+    {"_IMPMASK",             TK_IMPMASK}
 };
 // clang-format on
 

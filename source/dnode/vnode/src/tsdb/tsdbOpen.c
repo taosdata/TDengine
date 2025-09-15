@@ -93,9 +93,8 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_GOTO(tsdbOpenCompMonitor(pTsdb), &lino, _exit);
-#endif
-
   TAOS_CHECK_GOTO(tsdbOpenSsMigrateMonitor(pTsdb), &lino, _exit);
+#endif
 
   TAOS_CHECK_GOTO(tsdbScanMonitorOpen(pTsdb), &lino, _exit);
 

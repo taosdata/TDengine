@@ -2334,7 +2334,7 @@ int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mndTransSetDbName(pTrans, pDb->name, NULL);
   TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
 
-  SSsMigrateObj ssMigrate = { .startTime = taosGetTimestampSec() };
+  SSsMigrateObj ssMigrate = { .startTime = taosGetTimestampMs() };
   TAOS_CHECK_GOTO(mndAddSsMigrateToTran(pMnode, pTrans, &ssMigrate, pDb), NULL, _OVER);
 
   if (pReq) {
@@ -2378,7 +2378,7 @@ static int32_t mndProcessSsMigrateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SSMIGRATE_DB, pDb), NULL, _OVER);
 
   if(pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;

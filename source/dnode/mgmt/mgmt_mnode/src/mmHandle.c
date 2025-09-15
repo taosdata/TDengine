@@ -255,7 +255,7 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_SSMIGRATE_PROGRESS_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_SSMIGRATE_FILESET_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_FOLLOWER_SSMIGRATE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  // if (dmSetMgmtHandle(pArray, TDMT_MND_KILL_SSMIGRATE, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_KILL_SSMIGRATE, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   // if (dmSetMgmtHandle(pArray, TDMT_VND_KILL_SSMIGRATE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_SCH_QUERY, mmPutMsgToQueryQueue, 1) == NULL) goto _OVER;
