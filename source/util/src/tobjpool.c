@@ -368,17 +368,40 @@ void taosObjListPopObjEx(SObjList *pList, void *pObj, FDelete fp) {
   taosObjListPopObj(pList, pObj);
 }
 
+void *taosObjListGetHead(SObjList *pList) {
+  if (pList == NULL || pList->headIdx == TOBJPOOL_INVALID_IDX) {
+    return NULL;
+  }
+
+  SObjPoolNode *pNode = TOBJPOOL_GET_NODE(pList->pPool, pList->headIdx);
+  return TOBJPOOL_NODE_GET_OBJ(pNode);
+}
+
+void *taosObjListGetTail(SObjList *pList) {
+  if (pList == NULL || pList->tailIdx == TOBJPOOL_INVALID_IDX) {
+    return NULL;
+  }
+
+  SObjPoolNode *pNode = TOBJPOOL_GET_NODE(pList->pPool, pList->tailIdx);
+  return TOBJPOOL_NODE_GET_OBJ(pNode);
+}
+
 void taosObjListInitIter(SObjList *pList, SObjListIter *pIter, EObjListIterDirection direction) {
-  if (pList == NULL || pIter == NULL) {
+  if (pIter == NULL) {
     return;
   }
 
-  pIter->pPool = pList->pPool;
   pIter->direction = direction;
-  pIter->nextIdx = (direction == TOBJLIST_ITER_FORWARD) ? pList->headIdx : pList->tailIdx;
+  if (pList == NULL) {
+    pIter->pPool = NULL;
+    pIter->nextIdx = TOBJPOOL_INVALID_IDX;
+  } else {
+    pIter->pPool = pList->pPool;
+    pIter->nextIdx = (direction == TOBJLIST_ITER_FORWARD) ? pList->headIdx : pList->tailIdx;
+  }
 }
 
-void *taosObjListNext(SObjListIter *pIter) {
+void *taosObjListIterNext(SObjListIter *pIter) {
   if (pIter == NULL || pIter->nextIdx == TOBJPOOL_INVALID_IDX) {
     return NULL;
   }
