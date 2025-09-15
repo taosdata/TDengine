@@ -92,9 +92,7 @@ else()
     INTERFACE api
   )
   DEP_ext_curl(common)
-  if(TD_ENTERPRISE)
-    DEP_ext_ssl(common)
-  endif()
+  DEP_ext_ssl(common)
 endif()
 
 if(${BUILD_SHARED_STORAGE})

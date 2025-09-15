@@ -20,9 +20,7 @@ target_link_libraries(
 )
 
 if (NOT ${TD_WINDOWS})
-  if(TD_ENTERPRISE)
-    DEP_ext_ssl(common)
-  endif()
+  DEP_ext_ssl(transport)
 endif()
 
 
