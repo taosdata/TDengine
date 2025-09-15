@@ -162,23 +162,26 @@ class TestCompositePrimaryKeyCreate:
         tdSql.error(f"alter table {table_name} rename column pk new_pk", show=SHOW_LOG)
         tdSql.error(f"alter table {table_name} drop column pk", show=SHOW_LOG)
 
-    def test_composite_primary_key_create(self):
-        """summary: xxx
+    def test_primary_key_create(self):
+        """ Composite Primary Key Create Test
 
-        description: xxx
+        1. Check legal data type
+        2. Check illegal data type
+        3. Check legal spell
+        4. Check illegal spell
+        5. Only define ts and pk columns
+        6. Mutiple pk & pk not defined as sencod column
+        7. Add\update\delete pk column is not support 
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-15 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_composite_primary_key_create.py
 
         """
         tdSql.prepare(replica = self.replicaVar)

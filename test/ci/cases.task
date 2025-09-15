@@ -120,6 +120,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
+## 03-PrimaryKey
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_create.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_delete.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_insert.py
 
 # 04-SuperTables
 ## 01-Create
@@ -1558,9 +1562,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stt_blocks_check.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_database_pre_suf.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_multi_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_create.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_delete.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_double.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_influxdb_line_taosc_insert.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_telnet_line_taosc_insert.py
