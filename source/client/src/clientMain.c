@@ -2368,6 +2368,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
   STMT2_DLOG_E("start to bind param");
   pStmt->stat.bindTableNum += bindv->count;
+  pStmt->stat.bindNum++;
 
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     STMT2_ELOG_E("async bind param is still working, please try again later");
@@ -2529,6 +2530,7 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  pStmt->stat.getFiledsNum++;
   if (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type ||
       (pStmt->sql.type == 0 && stmt2IsInsert(stmt))) {
     return stmtGetStbColFields2(stmt, count, fields);

@@ -1233,6 +1233,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   int32_t    code = 0;
 
   STMT2_DLOG("start to prepare with sql:%s", sql);
+  pStmt->stat.prepareNum++;
   int64_t startUs = taosGetTimestampUs();
 
   if (stmt == NULL || sql == NULL) {
@@ -2349,12 +2350,12 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
 _return:
   if (code) {
-    STMT2_ELOG("exec failed, error:%s", tstrerror(code));
+    STMT2_ELOG("exec failed, error:%s", stmtErrstr2(stmt));
   }
   int64_t endUs = taosGetTimestampUs();
   pStmt->stat.execUseAllUs += endUs - startUs;
   pStmt->stat.execUseMaxUs = MAX(pStmt->stat.execUseMaxUs, endUs - startUs);
-  pStmt->stat.execUseNum++;
+  pStmt->stat.execNum++;
 
   STMT_RET(code);
 }
@@ -2398,19 +2399,20 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
 
-  STMT2_DLOG("close finished, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
-             ", parseSqlNum=>%" PRId64 ", bindTableNum=>%" PRId64 ", bindRowNum=>%" PRId64 ", execUseNum=>%" PRId64
+  STMT2_ILOG("close finished, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
+             ", prepareNum=>%" PRId64 ", getFiledsNum=>%" PRId64 ", bindNum=>%" PRId64 ", parseSqlNum=>%" PRId64
+             ", bindTableNum=>%" PRId64 ", bindRowNum=>%" PRId64 ", execNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
              ", prepareUs:%" PRId64 ", getFieldsUs:%" PRId64 ", setTbNameAllUs:%" PRId64 ", setTbNameMaxUs:%" PRId64
              ", setTagAllUs:%" PRId64 ", setTagMaxUs:%" PRId64 ", bindDataAllUs:%" PRId64 ", bindDataMaxUs:%" PRId64
              ", execWaitAllUs:%" PRId64 ", execWaitMaxUs:%" PRId64 ", execUseAllUs:%" PRId64 ", execUseMaxUs:%" PRId64,
              pStmt->sql.stbInterlaceMode, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo,
-             pStmt->stat.parseSqlNum, pStmt->stat.bindTableNum, pStmt->stat.bindRowNum, pStmt->stat.execUseNum,
-             pStmt->seqIds[STMT_SETTBNAME], pStmt->seqIds[STMT_BIND], pStmt->seqIds[STMT_ADD_BATCH],
-             pStmt->seqIds[STMT_EXECUTE], pStmt->stat.prepareUs, pStmt->stat.getFieldsUs, pStmt->stat.setTbNameAllUs,
-             pStmt->stat.setTbNameMaxUs, pStmt->stat.setTagAllUs, pStmt->stat.setTagMaxUs, pStmt->stat.bindDataAllUs,
-             pStmt->stat.bindDataMaxUs, pStmt->stat.execWaitAllUs, pStmt->stat.execWaitMaxUs, pStmt->stat.execWaitAllUs,
-             pStmt->stat.execUseMaxUs);
+             pStmt->stat.prepareNum, pStmt->stat.getFiledsNum, pStmt->stat.bindNum, pStmt->stat.parseSqlNum,
+             pStmt->stat.bindTableNum, pStmt->stat.bindRowNum, pStmt->stat.execNum, pStmt->seqIds[STMT_SETTBNAME],
+             pStmt->seqIds[STMT_BIND], pStmt->seqIds[STMT_ADD_BATCH], pStmt->seqIds[STMT_EXECUTE],
+             pStmt->stat.prepareUs, pStmt->stat.getFieldsUs, pStmt->stat.setTbNameAllUs, pStmt->stat.setTbNameMaxUs,
+             pStmt->stat.setTagAllUs, pStmt->stat.setTagMaxUs, pStmt->stat.bindDataAllUs, pStmt->stat.bindDataMaxUs,
+             pStmt->stat.execWaitAllUs, pStmt->stat.execWaitMaxUs, pStmt->stat.execWaitAllUs, pStmt->stat.execUseMaxUs);
   if (pStmt->sql.stbInterlaceMode) {
     pStmt->bInfo.tagsCached = false;
   }

@@ -111,10 +111,13 @@ typedef struct {
 typedef struct SStmt2StatInfo {
   int64_t ctgGetTbMetaNum;
   int64_t getCacheTbInfo;
+  int64_t prepareNum;
+  int64_t getFiledsNum;
+  int64_t bindNum;
+  int64_t execNum;
   int64_t parseSqlNum;
   int64_t bindTableNum;
   int64_t bindRowNum;
-  int64_t execUseNum;
   int64_t prepareUs;
   int64_t getFieldsUs;
   int64_t setTbNameAllUs;
