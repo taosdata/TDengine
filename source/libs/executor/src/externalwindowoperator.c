@@ -72,6 +72,7 @@ typedef struct SExternalWindowOperator {
   SSDataBlock*       pEmptyInputBlock;
   bool               hasCountFunc;
   SExtWindowStat     stat;
+  SArray*            pWinRowIdx;
 } SExternalWindowOperator;
 
 
@@ -227,7 +228,8 @@ void destroyExternalWindowOperatorInfo(void* param) {
   taosArrayDestroyEx(pInfo->pOutputBlocks, extWinDestroyBlockList);
   taosArrayDestroy(pInfo->pWins);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
- 
+  taosArrayDestroy(pInfo->pWinRowIdx);
+  
   taosArrayDestroy(pInfo->pPseudoColInfo);
   blockDataDestroy(pInfo->pTmpBlock);
   blockDataDestroy(pInfo->pEmptyInputBlock);
@@ -261,7 +263,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 typedef struct SMergeAlignedExternalWindowOperator {
   SExternalWindowOperator* pExtW;
   int64_t curTs;
-  SSDataBlock* pPrefetchedBlock;
   SResultRow*  pResultRow;
 } SMergeAlignedExternalWindowOperator;
 
@@ -269,23 +270,6 @@ void destroyMergeAlignedExternalWindowOperator(void* pOperator) {
   SMergeAlignedExternalWindowOperator* pMlExtInfo = (SMergeAlignedExternalWindowOperator*)pOperator;
   destroyExternalWindowOperatorInfo(pMlExtInfo->pExtW);
 }
-
-void doMergeAlignExternalWindow(SOperatorInfo* pOperator);
-
-static int32_t setSingleOutputTupleBuf(SResultRowInfo* pResultRowInfo, const STimeWindow* pWin, SResultRow** pResult,
-                                       SExprSupp* pExprSup, SAggSupporter* pAggSup) {
-  if (*pResult == NULL) {
-    *pResult = getNewResultRow(pAggSup->pResultBuf, &pAggSup->currentPageId, pAggSup->resultRowSize);
-    if (!*pResult) {
-      qError("get new resultRow failed, err:%s", tstrerror(terrno));
-      return terrno;
-    }
-    pResultRowInfo->cur = (SResultRowPosition){.pageId = (*pResult)->pageId, .offset = (*pResult)->offset};
-  }
-  (*pResult)->win = *pWin;
-  return setResultRowInitCtx((*pResult), pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
-}
-
 
 int64_t* extWinExtractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTaskInfo* pTaskInfo) {
   TSKEY* tsCols = NULL;
@@ -338,86 +322,205 @@ static const STimeWindow* extWinGetNextWin(SExternalWindowOperator* pExtW, SExec
 }
 
 
-static const STimeWindow* extWinGetWinFromTs(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, TSKEY ts) {
-  // TODO handle desc order
-  for (int32_t i = 0; i < pExtW->pWins->size; ++i) {
-    const STimeWindow* pWin = taosArrayGet(pExtW->pWins, i);
-    if (ts >= pWin->skey && ts < pWin->ekey) {
-      extWinSetCurWinIdx(pOperator, i);
-      return pWin;
-    }
+static int32_t extWinAppendWinIdx(SExecTaskInfo*       pTaskInfo, SArray* pIdx, SSDataBlock* pBlock, int32_t currWinIdx, int32_t rows) {
+  int32_t  code = 0, lino = 0;
+  int64_t* lastRes = taosArrayGetLast(pIdx);
+  int32_t* lastWinIdx = (int32_t*)lastRes;
+  int32_t* lastRowIdx = lastWinIdx ? (lastWinIdx + 1) : NULL;
+  int64_t  res = 0;
+  int32_t* pWinIdx = (int32_t*)&res;
+  int32_t* pRowIdx = pWinIdx + 1;
+
+  if (lastWinIdx && *lastWinIdx == currWinIdx) {
+    return code;
   }
-  return NULL;
+
+  *pWinIdx = currWinIdx;
+  *pRowIdx = pBlock->info.rows - rows;
+
+  TSDB_CHECK_NULL(taosArrayPush(pIdx, &res), code, lino, _exit, terrno);
+
+_exit:
+
+  if (code) {
+    qError("%s %s failed at line %d since %s", pTaskInfo->id.str, __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
-static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock, SSDataBlock* pResultBlock) {
+
+static int32_t mergeAlignExtWinSetOutputBuf(SOperatorInfo* pOperator, SResultRowInfo* pResultRowInfo, const STimeWindow* pWin, SResultRow** pResult,
+                                       SExprSupp* pExprSup, SAggSupporter* pAggSup) {
+  if (*pResult == NULL) {
+    *pResult = getNewResultRow(pAggSup->pResultBuf, &pAggSup->currentPageId, pAggSup->resultRowSize);
+    if (!*pResult) {
+      qError("get new resultRow failed, err:%s", tstrerror(terrno));
+      return terrno;
+    }
+    pResultRowInfo->cur = (SResultRowPosition){.pageId = (*pResult)->pageId, .offset = (*pResult)->offset};
+  }
+  
+  (*pResult)->win = *pWin;
+  (*pResult)->winIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+  
+  return setResultRowInitCtx((*pResult), pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
+}
+
+
+static int32_t mergeAlignExtWinGetWinFromTs(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, TSKEY ts, STimeWindow** ppWin) {
+  int32_t blkWinIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+  
+  // TODO handle desc order
+  for (int32_t i = blkWinIdx; i < pExtW->pWins->size; ++i) {
+    STimeWindow* pWin = taosArrayGet(pExtW->pWins, i);
+    if (ts == pWin->skey) {
+      extWinSetCurWinIdx(pOperator, i);
+      *ppWin = pWin;
+      return TSDB_CODE_SUCCESS;
+    } else if (ts < pWin->skey) {
+      qError("invalid ts %" PRId64 " for current window idx %d skey %" PRId64, ts, i, pWin->skey);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+  }
+  
+  qError("invalid ts %" PRId64 " to find merge aligned ext window, size:%d", ts, (int32_t)pExtW->pWins->size);
+  return TSDB_CODE_STREAM_INTERNAL_ERROR;
+}
+
+static int32_t mergeAlignExtWinFinalizeResult(SOperatorInfo* pOperator, SResultRowInfo* pResultRowInfo, SSDataBlock* pResultBlock) {
+  int32_t        code = 0, lino = 0;
+  SMergeAlignedExternalWindowOperator* pMlExtInfo = pOperator->info;
+  SExternalWindowOperator*             pExtW = pMlExtInfo->pExtW;
+  SExprSupp*     pSup = &pOperator->exprSupp;
+  SResultRow*  pResultRow = pMlExtInfo->pResultRow;
+  
+  finalizeResultRows(pExtW->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pResultBlock, pOperator->pTaskInfo);
+  
+  if (pResultRow->numOfRows > 0) {
+    TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pExtW->pWinRowIdx, pResultBlock, pResultRow->winIdx, pResultRow->numOfRows));
+  }
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+static int32_t mergeAlignExtWinAggDo(SOperatorInfo* pOperator, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock, SSDataBlock* pResultBlock) {
   SMergeAlignedExternalWindowOperator* pMlExtInfo = pOperator->info;
   SExternalWindowOperator*             pExtW = pMlExtInfo->pExtW;
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
-  int32_t        code = 0;
+  int32_t        code = 0, lino = 0;
+  STimeWindow *pWin = NULL;
 
   int32_t startPos = 0;
   int64_t* tsCols = extWinExtractTsCol(pBlock, pExtW->primaryTsIndex, pTaskInfo);
   TSKEY ts = getStartTsKey(&pBlock->info.window, tsCols);
+  
+  code = mergeAlignExtWinGetWinFromTs(pOperator, pExtW, ts, &pWin);
+  if (code) {
+    qError("failed to get time window for ts:%" PRId64 ", prim ts index:%d, error:%s", ts, pExtW->primaryTsIndex, tstrerror(code));
+    TAOS_CHECK_EXIT(code);
+  }
 
-  const STimeWindow *pWin = extWinGetWinFromTs(pOperator, pExtW, ts);
-  if (pWin == NULL) {
-    qError("failed to get time window for ts:%" PRId64 ", index:%d, error:%s", ts, pExtW->primaryTsIndex, tstrerror(terrno));
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_INVALID_PARA);
+  if (pMlExtInfo->curTs != INT64_MIN && pMlExtInfo->curTs != pWin->skey) {
+    TAOS_CHECK_EXIT(mergeAlignExtWinFinalizeResult(pOperator, pResultRowInfo, pResultBlock));
+    resetResultRow(pMlExtInfo->pResultRow, pExtW->aggSup.resultRowSize - sizeof(SResultRow));
   }
-  code = setSingleOutputTupleBuf(pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup);
-  if (code != 0 || pMlExtInfo->pResultRow == NULL) {
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
+  
+  TAOS_CHECK_EXIT(mergeAlignExtWinSetOutputBuf(pOperator, pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup));
 
   int32_t currPos = startPos;
   pMlExtInfo->curTs = pWin->skey;
+  
   while (++currPos < pBlock->info.rows) {
     if (tsCols[currPos] == pMlExtInfo->curTs) continue;
 
     qDebug("current ts:%" PRId64 ", startPos:%d, currPos:%d, tsCols[currPos]:%" PRId64,
       pMlExtInfo->curTs, startPos, currPos, tsCols[currPos]); 
-    code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
-                                           currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
-    if (code != 0) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    TAOS_CHECK_EXIT(applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
+                                           currPos - startPos, pBlock->info.rows, pSup->numOfExprs));
 
-    finalizeResultRows(pExtW->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pResultBlock, pTaskInfo);
+    TAOS_CHECK_EXIT(mergeAlignExtWinFinalizeResult(pOperator, pResultRowInfo, pResultBlock));
     resetResultRow(pMlExtInfo->pResultRow, pExtW->aggSup.resultRowSize - sizeof(SResultRow));
 
-    pWin = extWinGetNextWin(pExtW, pTaskInfo);
-    if (!pWin) break;
+    TAOS_CHECK_EXIT(mergeAlignExtWinGetWinFromTs(pOperator, pExtW, tsCols[currPos], &pWin));
+    
     qDebug("ext window align2 start:%" PRId64 ", end:%" PRId64, pWin->skey, pWin->ekey);
-    extWinIncCurWinIdx(pOperator);
     startPos = currPos;
-    code = setSingleOutputTupleBuf(pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup);
-    if (code != 0 || pMlExtInfo->pResultRow == NULL) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    
+    TAOS_CHECK_EXIT(mergeAlignExtWinSetOutputBuf(pOperator, pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup));
+
     pMlExtInfo->curTs = pWin->skey;
   }
 
   code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
                                          currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
+
+_exit:
+
   if (code != 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  
   return code;
 }
 
-static int32_t doMergeAlignExtWindowProject(SOperatorInfo* pOperator, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
+static int32_t mergeAlignExtWinBuildWinRowIdx(SOperatorInfo* pOperator, SSDataBlock* pInput, SSDataBlock* pResult) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  int64_t* tsCols = extWinExtractTsCol(pInput, pExtW->primaryTsIndex, pOperator->pTaskInfo);
+  STimeWindow* pWin = NULL;
+  int32_t code = 0, lino = 0;
+  int64_t prevTs = INT64_MIN;
+  
+  for (int32_t i = 0; i < pInput->info.rows; ++i) {
+    if (prevTs == tsCols[i]) {
+      continue;
+    }
+    
+    TAOS_CHECK_EXIT(mergeAlignExtWinGetWinFromTs(pOperator, pExtW, tsCols[i], &pWin));
+    TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pExtW->pWinRowIdx, pResult, extWinGetCurWinIdx(pOperator->pTaskInfo), pInput->info.rows - i));
+
+    prevTs = tsCols[i];
+  }
+
+_exit:
+
+  if (code != 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;  
+}
+
+static int32_t mergeAlignExtWinProjectDo(SOperatorInfo* pOperator, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
                                             SSDataBlock* pResultBlock) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SExprSupp*               pExprSup = &pExtW->scalarSupp;
-  int32_t code = projectApplyFunctions(pExprSup->pExprInfo, pResultBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                        GET_STM_RTINFO(pOperator->pTaskInfo));
+  int32_t                  code = 0, lino = 0;
+  
+  TAOS_CHECK_EXIT(projectApplyFunctions(pExprSup->pExprInfo, pResultBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
+                        GET_STM_RTINFO(pOperator->pTaskInfo)));
+
+  TAOS_CHECK_EXIT(mergeAlignExtWinBuildWinRowIdx(pOperator, pBlock, pResultBlock));
+
+_exit:
+
+  if (code != 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
   return code;
 }
 
-void doMergeAlignExternalWindow(SOperatorInfo* pOperator) {
+void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
   SExecTaskInfo*                       pTaskInfo = pOperator->pTaskInfo;
   SMergeAlignedExternalWindowOperator* pMlExtInfo = pOperator->info;
   SExternalWindowOperator*             pExtW = pMlExtInfo->pExtW;
@@ -427,6 +530,9 @@ void doMergeAlignExternalWindow(SOperatorInfo* pOperator) {
   SExprSupp*                           pSup = &pOperator->exprSupp;
   int32_t                              lino = 0;
 
+  taosArrayClear(pExtW->pWinRowIdx);
+  blockDataCleanup(pRes);
+
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
 
@@ -434,7 +540,6 @@ void doMergeAlignExternalWindow(SOperatorInfo* pOperator) {
       // close last time window
       if (pMlExtInfo->curTs != INT64_MIN && EEXT_MODE_AGG == pExtW->mode) {
         finalizeResultRows(pMlExtInfo->pExtW->aggSup.pResultBuf, &pExtW->binfo.resultRowInfo.cur, pSup, pRes, pTaskInfo);
-        resetResultRow(pMlExtInfo->pResultRow,pExtW->aggSup.resultRowSize - sizeof(SResultRow));
       }
       setOperatorCompleted(pOperator);
       break;
@@ -442,19 +547,26 @@ void doMergeAlignExternalWindow(SOperatorInfo* pOperator) {
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);
-    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _exit);
 
     printDataBlock(pBlock, __func__, "externalwindowAlign");
     qDebug("ext windowpExtWAlign->scalarMode:%d", pExtW->mode);
 
-
     if (EEXT_MODE_SCALAR == pExtW->mode) {
-      code = doMergeAlignExtWindowProject(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes);
+      TAOS_CHECK_EXIT(mergeAlignExtWinProjectDo(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes));
     } else {
-      code = doMergeAlignExtWindowAgg(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes);
+      TAOS_CHECK_EXIT(mergeAlignExtWinAggDo(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes));
+    }
+
+    if (pRes->info.rows >= pOperator->resultInfo.threshold) {
+      break;
     }
   }
-_end:
+
+  pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx = pExtW->pWinRowIdx;
+  
+_exit:
+
   if (code != 0) {
     qError("%s failed at line %d since:%s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
@@ -462,7 +574,7 @@ _end:
   }
 }
 
-static int32_t mergeAlignedExternalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*                       pTaskInfo = pOperator->pTaskInfo;
   SMergeAlignedExternalWindowOperator* pMlExtInfo = pOperator->info;
   SExternalWindowOperator*             pExtW = pMlExtInfo->pExtW;
@@ -477,27 +589,28 @@ static int32_t mergeAlignedExternalWindowNext(SOperatorInfo* pOperator, SSDataBl
   SSDataBlock* pRes = pExtW->binfo.pRes;
   blockDataCleanup(pRes);
 
-  if (!pExtW->pWins) {
+  if (taosArrayGetSize(pExtW->pWins) <= 0) {
     size_t size = taosArrayGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals);
-    pExtW->pWins = taosArrayInit(size, sizeof(STimeWindow));
-    if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _end);
-    // pExtW->pOffsetList = taosArrayInit(size, sizeof(SLimitInfo));
-    // if (!pExtW->pOffsetList) QUERY_CHECK_CODE(terrno, lino, _end);
+    STimeWindow* pWin = taosArrayReserve(pExtW->pWins, size);
+    TSDB_CHECK_NULL(pWin, code, lino, _exit, terrno);
 
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
-      STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wstart + 1};
-      TSDB_CHECK_NULL(taosArrayPush(pExtW->pWins, &win), code, lino, _end, terrno);
+      pWin[i].skey = pParam->wstart;
+      pWin[i].ekey = pParam->wstart + 1;
     }
+    
     pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
   }
 
-  doMergeAlignExternalWindow(pOperator);
+  mergeAlignExtWinDo(pOperator);
+  
   size_t rows = pRes->info.rows;
   pOperator->resultInfo.totalRows += rows;
   (*ppRes) = (rows == 0) ? NULL : pRes;
 
-_end:
+_exit:
+
   if (code != 0) {
     qError("%s failed at line %d since:%s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
@@ -506,20 +619,18 @@ _end:
   return code;
 }
 
-int32_t resetMergeAlignedExternalWindowOperator(SOperatorInfo* pOperator) {
+int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
   SMergeAlignedExternalWindowOperator* pMlExtInfo = pOperator->info;
   SExternalWindowOperator*             pExtW = pMlExtInfo->pExtW;
   SExecTaskInfo*                       pTaskInfo = pOperator->pTaskInfo;
   SMergeAlignedIntervalPhysiNode * pPhynode = (SMergeAlignedIntervalPhysiNode*)pOperator->pPhyNode;
   pOperator->status = OP_NOT_OPENED;
 
-  taosArrayDestroy(pExtW->pWins);
-  pExtW->pWins = NULL;
+  taosArrayClear(pExtW->pWins);
 
   resetBasicOperatorState(&pExtW->binfo);
   pMlExtInfo->pResultRow = NULL;
   pMlExtInfo->curTs = INT64_MIN;
-  if (pMlExtInfo->pPrefetchedBlock) blockDataCleanup(pMlExtInfo->pPrefetchedBlock);
 
   int32_t code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
                              sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
@@ -564,11 +675,8 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
   pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
 
-  // pExtW->limitInfo = (SLimitInfo){0};
-  // initLimitInfo(pPhynode->window.node.pLimit, pPhynode->window.node.pSlimit, &pExtW->limitInfo);
-
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-  initResultSizeInfo(&pOperator->resultInfo, 100000);
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   int32_t num = 0;
   SExprInfo* pExprInfo = NULL;
@@ -585,19 +693,26 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   initBasicInfo(&pExtW->binfo, pResBlock);
 
+  pExtW->pWins = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, sizeof(STimeWindow));
+  if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _error);
+
+  pExtW->pWinRowIdx = taosArrayInit(4096, sizeof(int64_t));
+  TSDB_CHECK_NULL(pExtW->pWinRowIdx, code, lino, _error, terrno);
+
   initResultRowInfo(&pExtW->binfo.resultRowInfo);
   code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
   setOperatorInfo(pOperator, "MergeAlignedExternalWindowOperator", QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, false, OP_NOT_OPENED, pMlExtInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, mergeAlignedExternalWindowNext, NULL,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, mergeAlignExtWinNext, NULL,
                                          destroyMergeAlignedExternalWindowOperator, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
-  setOperatorResetStateFn(pOperator, resetMergeAlignedExternalWindowOperator);
+  setOperatorResetStateFn(pOperator, resetMergeAlignedExtWinOperator);
 
   code = appendDownstream(pOperator, &pDownstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
   *ppOptrOut = pOperator;
   return code;
+  
 _error:
   if (pMlExtInfo) destroyMergeAlignedExternalWindowOperator(pMlExtInfo);
   destroyOperatorAndDownstreams(pOperator, &pDownstream, 1);
@@ -1098,10 +1213,12 @@ static int32_t extWinGetWinStartPos(STimeWindow win, const SDataBlockInfo* pBloc
   return 0;
 }
 
-static int32_t extWinAggSetWinOutputBuf(SExternalWindowOperator* pExtW, SExtWinTimeWindow* win, SExprSupp* pSupp, 
+static int32_t extWinAggSetWinOutputBuf(SOperatorInfo* pOperator, SExtWinTimeWindow* win, SExprSupp* pSupp, 
                                      SAggSupporter* pAggSup, SExecTaskInfo* pTaskInfo) {
   int32_t code = 0, lino = 0;
   SResultRow* pResultRow = NULL;
+  SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
+  
 #if 0
   SResultRow* pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE,
                                                   true, tableGroupId, pTaskInfo, true, pAggSup, true);
@@ -1124,6 +1241,7 @@ static int32_t extWinAggSetWinOutputBuf(SExternalWindowOperator* pExtW, SExtWinT
     
     memset(pResultRow, 0, pAggSup->resultRowSize);
 
+    pResultRow->winIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
     TAOS_SET_POBJ_ALIGNED(&pResultRow->win, &win->tw);
   }
 #endif
@@ -1201,33 +1319,6 @@ _exit:
 
   if (code) {
     qError("%s %s failed at line %d since %s", pOperator->pTaskInfo->id.str, __func__, lino, tstrerror(code));
-  }
-
-  return code;
-}
-
-static int32_t extWinAppendWinIdx(SExecTaskInfo*       pTaskInfo, SArray* pIdx, SSDataBlock* pBlock, int32_t currWinIdx, int32_t rows) {
-  int32_t  code = 0, lino = 0;
-  int64_t* lastRes = taosArrayGetLast(pIdx);
-  int32_t* lastWinIdx = (int32_t*)lastRes;
-  int32_t* lastRowIdx = lastWinIdx ? (lastWinIdx + 1) : NULL;
-  int64_t  res = 0;
-  int32_t* pWinIdx = (int32_t*)&res;
-  int32_t* pRowIdx = pWinIdx + 1;
-
-  if (lastWinIdx && *lastWinIdx == currWinIdx) {
-    return code;
-  }
-
-  *pWinIdx = currWinIdx;
-  *pRowIdx = pBlock->info.rows - rows;
-
-  TSDB_CHECK_NULL(taosArrayPush(pIdx, &res), code, lino, _exit, terrno);
-
-_exit:
-
-  if (code) {
-    qError("%s %s failed at line %d since %s", pTaskInfo->id.str, __func__, lino, tstrerror(code));
   }
 
   return code;
@@ -1531,7 +1622,7 @@ static int32_t extWinAggHandleEmptyWins(SOperatorInfo* pOperator, SSDataBlock* p
     qDebug("%s %dth ext empty window start:%" PRId64 ", end:%" PRId64 ", ascScan:%d",
            GET_TASKID(pOperator->pTaskInfo), i, pWin->tw.skey, pWin->tw.ekey, ascScan);
 
-    TAOS_CHECK_EXIT(extWinAggSetWinOutputBuf(pExtW, pWin, pSup, &pExtW->aggSup, pOperator->pTaskInfo));
+    TAOS_CHECK_EXIT(extWinAggSetWinOutputBuf(pOperator, pWin, pSup, &pExtW->aggSup, pOperator->pTaskInfo));
 
     updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pWin->tw, 1);
     code = extWinAggDo(pOperator, 0, 1, pInput);
@@ -1588,7 +1679,7 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
     }
 
     if (pWin->tw.skey != pExtW->lastSKey) {
-      TAOS_CHECK_EXIT(extWinAggSetWinOutputBuf(pExtW, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo));
+      TAOS_CHECK_EXIT(extWinAggSetWinOutputBuf(pOperator, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo));
     }
     
     updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pWin->tw, 1);
@@ -1623,6 +1714,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
 
   pBlock->info.version = pTaskInfo->version;
   blockDataCleanup(pBlock);
+  taosArrayClear(pExtW->pWinRowIdx);
 
   for (; pExtW->outputWinId < numOfWin; pExtW->outputWinId += 1) {
     SResultRow* pRow = (SResultRow*)((char*)pExtW->pResultRow + pExtW->outputWinId * pExtW->aggSup.resultRowSize);
@@ -1644,6 +1736,9 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     TAOS_CHECK_EXIT(copyResultrowToDataBlock(pExprInfo, numOfExprs, pRow, pCtx, pBlock, rowEntryOffset, pTaskInfo));
 
     pBlock->info.rows += pRow->numOfRows;
+
+    TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pExtW->pWinRowIdx, pBlock, pRow->winIdx, pRow->numOfRows));
+
     if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
       break;
     }
@@ -1655,6 +1750,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   pBlock->info.dataLoad = 1;
 
   *ppRes = (pBlock->info.rows > 0) ? pBlock : NULL;
+  pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx = pExtW->pWinRowIdx;
 
 _exit:
 
@@ -1937,6 +2033,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
     QUERY_CHECK_CODE(code, lino, _error);
 
+    pExtW->pWinRowIdx = taosArrayInit(4096, sizeof(int64_t));
+    TSDB_CHECK_NULL(pExtW->pWinRowIdx, code, lino, _error, terrno);
+    
     int32_t num = 0;
     SExprInfo* pExprInfo = NULL;
     code = createExprInfo(pPhynode->window.pFuncs, NULL, &pExprInfo, &num);
@@ -1946,6 +2045,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
     pExtW->pResultRow = taosMemoryCalloc(STREAM_CALC_REQ_MAX_WIN_NUM, pExtW->aggSup.resultRowSize);
     QUERY_CHECK_NULL(pExtW->pResultRow, code, lino, _error, terrno);
+
 
     nodesWalkExprs(pPhynode->window.pFuncs, extWinHasCountLikeFunc, &pExtW->hasCountFunc);
     if (pExtW->hasCountFunc) {

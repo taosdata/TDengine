@@ -58,6 +58,7 @@ typedef struct SResultRow {
   bool                       closed;       // this result status: closed or opened
   uint32_t                   numOfRows;    // number of rows of current time window
   STimeWindow                win;
+  int32_t                    winIdx;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
 } SResultRow;
 
