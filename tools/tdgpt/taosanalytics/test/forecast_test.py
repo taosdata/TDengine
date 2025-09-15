@@ -26,6 +26,7 @@ class ForecastTest(unittest.TestCase):
         url = ('https://raw.githubusercontent.com/jbrownlee/Datasets/refs/heads/master/'
                'airline-passengers.csv')
         data = pd.read_csv(url, index_col='Month', parse_dates=True)
+        
         ts_list = data[['Passengers']].index.tolist()
         dst_list = [int(item.timestamp()) for item in ts_list]
 
