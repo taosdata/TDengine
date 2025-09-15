@@ -198,6 +198,7 @@ typedef struct SSlidingTrigger {
   int64_t offset;
   int64_t sliding;
   int64_t soffset;
+  int8_t  overlap;
 } SSlidingTrigger;
 
 typedef struct SEventTrigger {
