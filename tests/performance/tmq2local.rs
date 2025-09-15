@@ -204,31 +204,27 @@ async fn run_cases(cases: Vec<Tmq2LocalFactors>) -> anyhow::Result<()> {
     // 获取 taosx 的版本信息
     let taosx_ver = taosx_version().await.unwrap_or("unknown".to_string());
 
-    for (idx, case) in cases.iter().enumerate() {
-        let m = run_tmq2local(case.clone()).await?;
+    for (idx, c) in cases.iter().enumerate() {
+        let m = run_tmq2local(c.clone()).await?;
 
         if idx == 0 && need_header {
             // 写入csv表头
             let header = format!(
-                "ts,TDengine Version,TaosX Version,{},{},{},{}\n",
-                case.to_csv_header(),
-                BasicMetrics::csv_header_with_prefix("write"),
-                BasicMetrics::csv_header(),
-                SysMetrics::csv_header()
+                "ts,TDengine Version,TaosX Version,{},{}\n",
+                c.to_csv_header(),
+                m.to_csv_header()
             );
             file.write_all(header.as_bytes())?;
         }
 
         let now = Local::now().to_rfc3339();
         let csv_line = format!(
-            "{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{}\n",
             now,
             taosd_ver,
             taosx_ver,
-            case.to_csv_row(),
-            m.write.csv_row(),
-            m.backup.csv_row(),
-            m.sys.csv_row()
+            c.to_csv_row(),
+            m.to_csv_row()
         );
 
         file.write_all(csv_line.as_bytes())?;
@@ -285,6 +281,16 @@ async fn run_tmq2local(f: Tmq2LocalFactors) -> anyhow::Result<Tmq2LocalMetrics> 
     })
     .await;
 
+    // 统计 backup_dir 下形成的备份文件的总大小
+    let mut size = 0;
+    for entry in std::fs::read_dir(&backup_dir)? {
+        let entry = entry?;
+        let metadata = entry.metadata()?;
+        if metadata.is_file() {
+            size += metadata.len() as usize;
+        }
+    }
+
     drop(temp_dir);
 
     // 统计性能指标
@@ -294,11 +300,10 @@ async fn run_tmq2local(f: Tmq2LocalFactors) -> anyhow::Result<Tmq2LocalMetrics> 
 
     Ok(Tmq2LocalMetrics {
         write: write_metrics,
-        backup: BasicMetrics {
-            total_rows,
-            time_cost,
-            rate,
-        },
+        total_rows,
+        time_cost,
+        rate,
+        size,
         sys: sys_metrics,
     })
 }
@@ -373,9 +378,49 @@ impl Tmq2LocalFactors {
 
 #[derive(Clone, Debug)]
 struct Tmq2LocalMetrics {
-    write: BasicMetrics,  // 写入的性能指标
-    backup: BasicMetrics, // 备份的性能指标
-    sys: SysMetrics,      // 系统负载
+    write: BasicMetrics, // 写入的性能指标
+    total_rows: usize,   // 总行数
+    time_cost: f64,      // 总耗时
+    rate: f64,           // 速度
+    size: usize,         // 备份文件大小，字节单位
+    sys: SysMetrics,     // 系统负载
+}
+
+impl Tmq2LocalMetrics {
+    fn to_csv_header(&self) -> String {
+        format!(
+            "{},total_rows,time_cost(sec),rate,size,{}",
+            BasicMetrics::csv_header_with_prefix("write"),
+            SysMetrics::csv_header()
+        )
+    }
+
+    fn to_csv_row(&self) -> String {
+        format!(
+            "{},{},{:.2},{:.2},{},{}",
+            self.write.csv_row(),
+            self.total_rows,
+            self.time_cost,
+            self.rate,
+            human_size(self.size),
+            self.sys.csv_row()
+        )
+    }
+}
+
+// 将字节数转换为人类可读的字符串（B/KB/MB/GB/TB）
+fn human_size(bytes: usize) -> String {
+    let units = ["B", "KB", "MB", "GB", "TB", "PB"]; // 覆盖常用单位
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    let mut size = bytes as f64;
+    let mut unit_idx = 0usize;
+    while size >= 1024.0 && unit_idx < units.len() - 1 {
+        size /= 1024.0;
+        unit_idx += 1;
+    }
+    format!("{:.2} {}", size, units[unit_idx])
 }
 
 #[cfg(test)]
@@ -427,5 +472,15 @@ mod tests {
                 .into_dsn()
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn test_human_size() {
+        assert_eq!(human_size(0), "0 B");
+        assert_eq!(human_size(500), "500.00 B");
+        assert_eq!(human_size(2048), "2.00 KB");
+        assert_eq!(human_size(5_000_000), "4.77 MB");
+        assert_eq!(human_size(3 * 1024 * 1024 * 1024), "3.00 GB");
+        assert_eq!(human_size(7 * 1024 * 1024 * 1024 * 1024), "7.00 TB");
     }
 }
