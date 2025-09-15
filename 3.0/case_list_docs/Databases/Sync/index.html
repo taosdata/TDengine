@@ -629,6 +629,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica2.TestRedistributeVgroupReplica2.test_redistribute_vgroup_replica2" class="md-nav__link">
+        RDST: replica-2 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader.test_redistribute_vgroup_replica3_v1_leader" class="md-nav__link">
         RDST: replica-3 leader 
       </a>
@@ -719,6 +730,17 @@
     <li class="md-nav__item">
       <a href="#02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1.test_split_vgroup_replica1" class="md-nav__link">
         Split: replica-1 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#02-Databases.05-Sync.test_split_vgroup_replica2.TestSplitVgroupReplica2.test_split_vgroup_replica2" class="md-nav__link">
+        Split: replica-2 
       </a>
       
     </li>
@@ -3126,6 +3148,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica2.TestRedistributeVgroupReplica2.test_redistribute_vgroup_replica2" class="md-nav__link">
+        RDST: replica-2 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_leader.TestRedistributeVgroupReplica3V1Leader.test_redistribute_vgroup_replica3_v1_leader" class="md-nav__link">
         RDST: replica-3 leader 
       </a>
@@ -3216,6 +3249,17 @@
     <li class="md-nav__item">
       <a href="#02-Databases.05-Sync.test_split_vgroup_replica1.TestSplitVgroupReplica1.test_split_vgroup_replica1" class="md-nav__link">
         Split: replica-1 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#02-Databases.05-Sync.test_split_vgroup_replica2.TestSplitVgroupReplica2.test_split_vgroup_replica2" class="md-nav__link">
+        Split: replica-2 
       </a>
       
     </li>
@@ -3586,6 +3630,40 @@
   
   
   
+<h2 id="02-Databases.05-Sync.test_redistribute_vgroup_replica2.TestRedistributeVgroupReplica2.test_redistribute_vgroup_replica2" class="doc doc-heading">
+
+<a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica2.TestRedistributeVgroupReplica2.test_redistribute_vgroup_replica2" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> RDST: replica-2
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Start a 3-dnode cluster with supportVnodes=0 on dnode1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create database d1 (1 vgroup, replica 2) and insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Add dnode3 and dnode4 to the cluster</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute REDISTRIBUTE VGROUP to move the vnode to dnode4 dnode5; verify distribution &amp; data integrity</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Execute REDISTRIBUTE VGROUP to move the vnode to dnode2 dnode3; verify distribution &amp; data integrity</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/05-Sync/test_redistribute_vgroup_replica2.py" target="_blank">
+                      cases/02-Databases/05-Sync/test_redistribute_vgroup_replica2.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower.test_redistribute_vgroup_replica3_v1_follower" class="doc doc-heading">
 
 <a href="#02-Databases.05-Sync.test_redistribute_vgroup_replica3_v1_follower.TestRedistributeVgroupReplica3V1Follower.test_redistribute_vgroup_replica3_v1_follower" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -3748,6 +3826,38 @@
                     <strong>Path:</strong>
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/05-Sync/test_split_vgroup_replica1.py" target="_blank">
                       cases/02-Databases/05-Sync/test_split_vgroup_replica1.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="02-Databases.05-Sync.test_split_vgroup_replica2.TestSplitVgroupReplica2.test_split_vgroup_replica2" class="doc doc-heading">
+
+<a href="#02-Databases.05-Sync.test_split_vgroup_replica2.TestSplitVgroupReplica2.test_split_vgroup_replica2" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Split: replica-2
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Start a 4-node cluster with dnode1 configured as supportVnodes=0</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create database d1 (1 vgroup, 2 replicas) and insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Execute SPLIT VGROUP to split the vnode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/02-Databases/05-Sync/test_split_vgroup_replica2.py" target="_blank">
+                      cases/02-Databases/05-Sync/test_split_vgroup_replica2.py
                     </a>
                   </div>
         </div>
