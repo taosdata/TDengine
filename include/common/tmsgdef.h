@@ -341,6 +341,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_SSMIGRATE_FILESET, "vnode-ssmigrate-fileset", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FOLLOWER_SSMIGRATE, "vnode-follower-ssmigrate", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL) // placeholder for future use
+  TD_DEF_MSG_TYPE(TDMT_VND_SNODE_DROP_TABLE, "snode-drop-table", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8

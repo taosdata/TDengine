@@ -844,6 +844,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       TSDB_CHECK_CODE(code, lino, _err);
       break;
     case TDMT_VND_DROP_TABLE:
+    case TDMT_VND_SNODE_DROP_TABLE:
       code = vnodeProcessDropTbReq(pVnode, ver, pReq, len, pRsp, pMsg);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
@@ -1696,7 +1697,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
   STbUidStore     *pStore = NULL;
   SArray          *tbNames = NULL;
 
-  pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
+  pRsp->msgType = ((SRpcMsg *)pReq)->msgType + 1;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
   pRsp->code = TSDB_CODE_SUCCESS;

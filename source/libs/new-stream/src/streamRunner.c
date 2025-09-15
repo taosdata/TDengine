@@ -1,4 +1,5 @@
 #include "streamRunner.h"
+#include <cstdint>
 #include "dataSink.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
@@ -1095,5 +1096,7 @@ _exit:
 }
 
 int32_t stRunnerTaskDropTable(SStreamRunnerTask* pTask, SSTriggerDropRequest* pReq) {
+  // char    tbname[TSDB_TABLE_NAME_LEN];
+  // int32_t code = streamCalcOutputTbName(pTask->pSubTableExpr, tbname, &pExec->runtimeInfo.funcInfo);
   return dropStreamTable(&pTask->msgCb, (void*)&pTask->output, pReq);
 }

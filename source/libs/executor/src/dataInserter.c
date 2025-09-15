@@ -99,6 +99,11 @@ typedef struct SBuildInsertDataInfo {
   bool           needSortMerge;
 } SBuildInsertDataInfo;
 
+typedef struct SDropTbCtx {
+  SSTriggerDropRequest* req;
+  tsem_t                ready;
+  int32_t               code;
+} SDropTbCtx;
 typedef struct SDropTbDataMsg {
   SMsgHead header;
   void*    pData;
@@ -2673,25 +2678,28 @@ static int32_t dropTableReqToMsg(int32_t vgId, SVDropTbBatchReq* pReq, void** pD
 }
 
 int32_t dropTbCallback(void* param, SDataBuf* pMsg, int32_t code) {
+  SDropTbCtx* pCtx = (SDropTbCtx*)param;
   if (code) {
-    stError("dropTbCallback, code:%d, pDropInfo:%p", code, (SSTriggerDropRequest*)param);
+    stError("dropTbCallback, code:%d, stream:%" PRId64 " gid:%" PRId64, code, pCtx->req->streamId, pCtx->req->gid);
   }
+  pCtx->code = code;
+  tsem_post(&pCtx->ready);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sendDropTbRequest(SSTriggerDropRequest* pReq, void* pMsg, int32_t msgLen, void* pTransporter, SEpSet* pEpset) {
+static int32_t sendDropTbRequest(SDropTbCtx* ctx, void* pMsg, int32_t msgLen, void* pTransporter, SEpSet* pEpset) {
   // send the fetch remote task result reques
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (NULL == pMsgSendInfo) {
     return terrno;
   }
 
-  pMsgSendInfo->param = pReq;
-  pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
+  pMsgSendInfo->param = ctx;
+  pMsgSendInfo->paramFreeFp = NULL;
   pMsgSendInfo->msgInfo.pData = pMsg;
   pMsgSendInfo->msgInfo.len = msgLen;
-  pMsgSendInfo->msgType = TDMT_VND_DROP_TABLE;
+  pMsgSendInfo->msgType = TDMT_VND_SNODE_DROP_TABLE;
   pMsgSendInfo->fp = dropTbCallback;
 
   return asyncSendMsgToServer(pTransporter, pEpset, NULL, pMsgSendInfo);
@@ -2731,7 +2739,9 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
 
     // inserterGetVgInfo();
     // releaseStreamInsertTableInfo(ppTbInfo);
+    code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
+  QUERY_CHECK_CODE(code, lino, _end);
 
   SDropTbDataMsg* pMsg = NULL;
   code = dropTableReqToMsg(vgId, &req, (void**)&pMsg, &msgLen);
@@ -2743,11 +2753,17 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
 
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = sendDropTbRequest(pReq, pMsg, msgLen, pMsgCb->clientRpc, &vgInfo.epSet);
+  SDropTbCtx ctx = {.req = pReq};
+  code = tsem_init(&ctx.ready, 0, 0);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  stDebug("doDropStreamTable, req:%p, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", pReq, pReq->streamId,
-          pReq->gid, pDropReq ? pDropReq->name : "unknown");
+  code = sendDropTbRequest(&ctx, pMsg, msgLen, pMsgCb->clientRpc, &vgInfo.epSet);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  tsem_wait(&ctx.ready);
+  code = ctx.code;
+  stDebug("doDropStreamTable,  code:%d req:%p, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq,
+          pReq->streamId, pReq->gid, pDropReq ? pDropReq->name : "unknown");
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
