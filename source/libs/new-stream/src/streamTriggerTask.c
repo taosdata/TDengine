@@ -4723,7 +4723,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         } else {
           if (TARRAY_SIZE(pContext->pCalcReq->params) == 0) {
             int32_t nParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-            bool    needCalc = (pTask->lowLatencyCalc && (nParams > 0)) || (nParams >= STREAM_CALC_REQ_MAX_WIN_NUM);
+            bool    needCalc = (nParams > 0);
             if (needCalc) {
               SSTriggerCalcParam *pParam = NULL;
               for (int32_t i = 0; i < nParams; i++) {
@@ -4771,8 +4771,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     }
     TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
     int32_t nRemainParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-    bool    needMoreCalc =
-        (pTask->lowLatencyCalc && (nRemainParams > 0) || (nRemainParams >= STREAM_CALC_REQ_MAX_WIN_NUM));
+    bool    needMoreCalc = (nRemainParams > 0);
     if (needMoreCalc) {
       // the group has remaining calc params to be calculated
       TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
