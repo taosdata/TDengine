@@ -1792,7 +1792,7 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
 
     pBlock->info.id.blockId = pJoin->outBlkId;
     if (pJoin->pFinFilter != NULL) {
-      code = doFilter(pBlock, pJoin->pFinFilter, NULL);
+      code = doFilter(pBlock, pJoin->pFinFilter, NULL, NULL);
       if (code) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         pJoin->errCode = code;

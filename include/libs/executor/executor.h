@@ -262,7 +262,7 @@ void     qStreamDupTableList(void* pTableListInfo);
 int32_t  qStreamGetTableListGroupNum(const void* pTableList);
 SArray*  qStreamGetTableArrayList(const void* pTableList);
 int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
-int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
+int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet);
 
 int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);

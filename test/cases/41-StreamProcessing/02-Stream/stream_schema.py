@@ -40,8 +40,9 @@ class TestStreamSchema:
         tdLog.info(f"prepare data")
 
         sqls = [
+            "alter dnode 1 'debugflag 135';",
             "create snode on dnode 1;",
-            "create database db;",
+            "create database db vgroups 1;",
             "create table db.stb (ts timestamp, c0 int) tags(t1 int);"
         ]
 
@@ -52,7 +53,7 @@ class TestStreamSchema:
     def createOneStream(self):
         tdLog.info(f"create stream:")
         sql = (
-        f"create stream db.stream0 event_window (start with c0 > 0 end with c0 > 0) from db.stb partition by tbname STREAM_OPTIONS(DELETE_RECALC|DELETE_OUTPUT_TABLE|PRE_FILTER(t1 > 0)) into db.stb_out as select _twstart, avg(c0) from db.stb where ts >= _twstart and ts < _twend;"
+        f"create stream db.stream0 event_window (start with c0 > 0 end with c0 > 0) from db.stb partition by tbname STREAM_OPTIONS(DELETE_RECALC|DELETE_OUTPUT_TABLE|PRE_FILTER(t1 > 0)) into db.stb_out as select _twstart,_twend,avg(c0) from db.stb where ts >= _twstart and ts <= _twend;"
         )
         tdLog.info(f"create stream:{sql}")
         try:
@@ -99,5 +100,6 @@ class TestStreamSchema:
         ]
 
         tdSql.executes(sqls)
+        time.sleep(200)
         tdLog.info(f"insert successfully.")
     

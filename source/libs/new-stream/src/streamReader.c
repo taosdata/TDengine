@@ -423,6 +423,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->resultBlock));
   SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // ver
   STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->resultBlock, &idata));
+  idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // ver
+  STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->resultBlock, &idata));
   sStreamReaderInfo->indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->indexHash, terrno);
 

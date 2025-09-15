@@ -1194,7 +1194,7 @@ void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfR
   code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, dataBlock->pDataBlock, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = doFilter(pInfo->pRes, pFilterInfo, NULL);
+  code = doFilter(pInfo->pRes, pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   blockDataCleanup(dataBlock);
@@ -2145,7 +2145,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
       code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       blockDataCleanup(p);
@@ -2164,7 +2164,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
     code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     blockDataCleanup(p);
@@ -2491,7 +2491,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       blockDataCleanup(p);
@@ -2512,7 +2512,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
     code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     blockDataCleanup(p);
@@ -2743,7 +2743,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
       code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -2784,7 +2784,7 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
     code = buildSysDbTableInfo(pInfo, pOperator->resultInfo.capacity);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
     pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
 
@@ -3019,7 +3019,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       blockDataCleanup(p);
@@ -3038,7 +3038,7 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
     code = relocateColumnData(pInfo->pRes, pInfo->matchInfo.pList, p->pDataBlock, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     blockDataCleanup(p);
@@ -3271,7 +3271,7 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+  code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -3371,7 +3371,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     updateLoadRemoteInfo(&pInfo->loadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
 
     // todo log the filter info
-    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;

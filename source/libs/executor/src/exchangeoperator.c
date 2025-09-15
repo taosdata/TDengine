@@ -454,7 +454,7 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       return code;
     }
 
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (blockDataGetNumOfRows(pBlock) == 0) {
