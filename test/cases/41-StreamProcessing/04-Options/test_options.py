@@ -28,8 +28,8 @@ class TestStreamOptionsTrigger:
         """
 
         tdStream.createSnode()
-        tdSql.execute(f"alter all dnodes 'debugflag 143';")
-        tdSql.execute(f"alter all dnodes 'stdebugflag 143';")
+        tdSql.execute(f"alter all dnodes 'debugflag `131`';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
 
         streams = []
         streams.append(self.Basic0())    # [ok] WATERMARK [ok]
