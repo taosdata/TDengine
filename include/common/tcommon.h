@@ -369,13 +369,14 @@ typedef struct SExprSupp      SExprSupp;
 typedef struct SResultRowInfo SResultRowInfo;
 typedef struct SExecTaskInfo  SExecTaskInfo;
 typedef struct SRollupCtx {
-  void*           pTargets;  // SNodeList
+  void*           pTsdb;     // STsdb*
+  void*           pTargets;  // SNodeList*
   SExprSupp*      exprSup;
   SAggSupporter*  aggSup;
   SResultRowInfo* resultRowInfo;
   SExecTaskInfo*  pTaskInfo;
-  SSDataBlock*    pInputBlock;
-  SSDataBlock*    pResBlock;
+  SSDataBlock*    pInputBlock;  // input data block for rollup
+  SSDataBlock*    pResBlock;    // result data block for rollup
   int32_t         rowSize;
   int32_t         maxBufRows;    // max buffer rows for aggregation
   int64_t         winTotalRows;  // number of total rows of current aggregation window
