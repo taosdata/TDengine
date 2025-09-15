@@ -283,9 +283,11 @@ struct STSchema {
 };
 
 struct SRSchema {
-  int8_t     tbType;
-  tb_uid_t   tbUid;
   char       tbName[TSDB_TABLE_NAME_LEN];
+  int8_t     tbType;
+  int32_t    rowSize;
+  int32_t    maxBufRows;
+  tb_uid_t   tbUid;
   int64_t    interval[2];
   func_id_t *funcIds;
   STSchema  *tSchema;

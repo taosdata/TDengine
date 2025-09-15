@@ -716,7 +716,7 @@ SRSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) 
     memcpy(pRSchema->funcIds, pSW->pRsma->funcIds, pSW->nCols * sizeof(func_id_t));
 
     pRSchema->tbType = pSW->pRsma->tbType;
-    pRSchema->tbUid = uid; // TODO: child table or super table?
+    pRSchema->tbUid = uid;  // TODO: child table or super table?
     tstrncpy(pRSchema->tbName, pSW->pRsma->tbName, TSDB_TABLE_NAME_LEN);
     pRSchema->interval[0] = pSW->pRsma->interval[0];
     pRSchema->interval[1] = pSW->pRsma->interval[1];

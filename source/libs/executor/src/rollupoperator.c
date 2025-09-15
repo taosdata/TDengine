@@ -31,9 +31,32 @@
 #include "tname.h"
 #include "ttypes.h"
 
+static int32_t createDataBlockForSchema(STSchema *pTSchema, SSDataBlock **ppDataBlock, int32_t maxBufRows) {
+  int32_t      code = 0, lino = 0;
+  int32_t      numOfCols = pTSchema->numOfCols;
+  SSDataBlock *pBlock = NULL;
+  TAOS_CHECK_EXIT(createDataBlock(&pBlock));
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    STColumn       *pCol = pTSchema->columns + i;
+    SColumnInfoData colInfoData = createColumnInfoData(pCol->type, pCol->bytes, pCol->colId);
+    TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
+  }
+  TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, maxBufRows));
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  *ppDataBlock = pBlock;
+  return code;
+}
+
 int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, const char *dbName) {
   int32_t         code = 0, lino = 0;
   STSchema       *pTSchema = pRSchema->tSchema;
+  SSDataBlock    *pInputBlock = NULL;
   SSDataBlock    *pResBlock = NULL;
   SExprSupp      *pExprSup = NULL;
   SAggSupporter  *pAggSup = NULL;
@@ -65,6 +88,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   }
   pCtx->pTaskInfo = pTaskInfo;
 
+  int32_t rowSize = 8;
   for (int32_t i = 1; i < nCols; i++) {  // skip the first timestamp column
     STColumn *pCol = pTSchema->columns + i;
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pColNode));
@@ -105,9 +129,22 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
 
     TAOS_CHECK_EXIT(nodesListMakeAppend(&pTargets, (SNode *)pTargetNode));
     pTargetNode = NULL;
+
+    rowSize += pCol->bytes;
   }
 
-  // SSDataBlock *pResBlock = createDataBlockFromDescNode(NULL); // pAggNode->node.pOutputDataBlockDesc);
+  pCtx->rowSize = rowSize;
+  pCtx->maxBufRows = (64LL * 1024 * 1024) / rowSize;
+  if (pCtx->maxBufRows > 4096) {
+    pCtx->maxBufRows = 4096;
+  } else if (pCtx->maxBufRows < 1024) {
+    pCtx->maxBufRows = 1024;
+  }
+
+  TAOS_CHECK_EXIT(createDataBlockForSchema(pRSchema->tSchema, &pCtx->pInputBlock, pCtx->maxBufRows));
+  // TODO: 1. If sum(...) is used, should we update the origin colType to int64_t? 2. If the Primary ts key is necessary
+  // in pResBlock?
+  TAOS_CHECK_EXIT(createDataBlockForSchema(pRSchema->tSchema, &pCtx->pResBlock, pCtx->maxBufRows));
 
   initResultRowInfo(pResultRowInfo);
 
@@ -121,10 +158,10 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   if (pResultRow == NULL || pTaskInfo->code != 0) {
     TAOS_CHECK_EXIT(pTaskInfo->code);
   }
-  // int32_t rowSize = pAggSup->resultRowSize;
-  // if (pResultRow->pageId == -1) {
-  //   TAOS_CHECK_EXIT(addNewResultRowBuf(pResultRow, pAggSup->pResultBuf, rowSize));
-  // }
+  int32_t rowSize = pAggSup->resultRowSize;
+  if (pResultRow->pageId == -1) {
+    TAOS_CHECK_EXIT(addNewResultRowBuf(pResultRow, pAggSup->pResultBuf, rowSize));
+  }
 
   TAOS_CHECK_EXIT(setResultRowInitCtx(pResultRow, pExprSup->pCtx, exprNum, pExprSup->rowEntryInfoOffset));
 
@@ -206,5 +243,7 @@ void tdRollupCtxCleanup(SRollupCtx *pCtx, bool deep) {
     if (pCtx->pTaskInfo) {
       if (deep) taosMemFreeClear(pCtx->pTaskInfo);
     }
+    blockDataDestroy(pCtx->pInputBlock);
+    blockDataDestroy(pCtx->pResBlock);
   }
 }
