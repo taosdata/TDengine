@@ -247,7 +247,7 @@ bool fmIsForecastFunc(int32_t funcId) {
   return FUNCTION_TYPE_FORECAST == funcMgtBuiltins[funcId].type;
 }
 
-bool fmIsForecastPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORECAST_PC_FUNC); }
+bool fmIsForecastPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_ANALYTICS_PC_FUNC); }
 
 bool fmIsImputationFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {

@@ -1424,6 +1424,17 @@ static int32_t translateImputation(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
 static EFuncReturnRows imputationEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }
 
+static int32_t translateAnomalyCheck(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
+  return TSDB_CODE_SUCCESS;
+}
+
+bool getAnomalyCheckFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(int64_t);
+  return true;
+}
+
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   uint8_t colType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
@@ -5902,7 +5913,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_frowts",
     .type = FUNCTION_TYPE_FORECAST_ROWTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -5912,7 +5923,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_flow",
     .type = FUNCTION_TYPE_FORECAST_LOW,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateForecastConf,
     .getEnvFunc   = getForecastConfEnv,
     .initFunc     = NULL,
@@ -5922,7 +5933,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_fhigh",
     .type = FUNCTION_TYPE_FORECAST_HIGH,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateForecastConf,
     .getEnvFunc   = getForecastConfEnv,
     .initFunc     = NULL,
@@ -6354,7 +6365,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_improwts",
     .type = FUNCTION_TYPE_IMPUTATION_ROWTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -6364,12 +6375,35 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_impmask",
     .type = FUNCTION_TYPE_IMPUTATION_MARK,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_FORECAST_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateMaskPseudoColumn,
     .getEnvFunc   = getMaskPseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "anomalycheck",
+    .type = FUNCTION_TYPE_ANOMALYCHECK,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = -1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_UBIGINT_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE}},
+    .translateFunc = translateAnomalyCheck,
+    .getEnvFunc    = getAnomalyCheckFuncEnv,
+    .initFunc      = functionSetup,
+    .processFunc   = NULL,
+    .finalizeFunc  = NULL,
+    .estimateReturnRowsFunc = forecastEstReturnRows,
   },
 };
 // clang-format on
