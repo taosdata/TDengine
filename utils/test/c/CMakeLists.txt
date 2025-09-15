@@ -4,6 +4,7 @@ add_executable(tmq_sim tmqSim.c)
 add_executable(create_table createTable.c)
 add_executable(tmq_taosx_ci tmq_taosx_ci.c)
 add_executable(tmq_ts5466 tmq_ts5466.c)
+add_executable(tmq_td37436 tmq_td37436.c)
 add_executable(tmq_td32526 tmq_td32526.c)
 add_executable(tmq_td32187 tmq_td32187.c)
 add_executable(tmq_ts5776 tmq_ts5776.c)
@@ -85,6 +86,14 @@ target_link_libraries(
 
 target_link_libraries(
     tmq_td32471
+    PUBLIC ${TAOS_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    tmq_td37436
     PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common

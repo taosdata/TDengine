@@ -1,0 +1,13 @@
+select cols(last(ts), ts) from testdb.tbd;
+select cols(last_row(f2), ts) from testdb.tb1;
+select cols(last(f2), ts, f1, f2, f3) from testdb.tb1;
+select ts, last(f1) from testdb.tbn interval(1s);
+select last(f1), count(*) from testdb.tbn interval(1s);
+select cols(last(f1), ts), cols(last(f2), ts) from testdb.tbn;
+select cols(last(f1), ts), cols(last_row(f3), ts) from testdb.tbn;
+select cols(last(f2), ts), cols(first(f3), ts) from testdb.tbn;
+select cols(last(f3), ts), cols(max(f1), ts) from testdb.tbn;
+select last(*), tbname from testdb.st2 group by tbname order by tbname;
+select cols(last(f1), ts, f1), tbname from testdb.st2 group by tbname order by tbname;
+select last_row(f3), tbname from testdb.st2 group by tbname order by tbname;
+select last(f3), tbname from testdb.st2 group by tbname order by tbname

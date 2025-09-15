@@ -17,6 +17,7 @@
 #include "command.h"
 #include "query.h"
 #include "schInt.h"
+#include "tarray.h"
 #include "tglobal.h"
 #include "tmisce.h"
 #include "tmsg.h"

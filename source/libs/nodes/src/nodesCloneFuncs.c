@@ -1046,7 +1046,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_FIELD(pHaving);
   CLONE_NODE_LIST_FIELD(pOrderByList);
   CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
-  CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
+  CLONE_NODE_FIELD_EX(pSlimit, SLimitNode*);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isSubquery);
@@ -1253,6 +1253,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       code = logicInterpFuncCopy((const SInterpFuncLogicNode*)pNode, (SInterpFuncLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
       code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
