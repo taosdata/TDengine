@@ -845,8 +845,24 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
 #endif
 }
 
-int32_t taosGetSysMemory(int64_t *usedKB) {
+void taosGetMemValue(char* line, int64_t* value){
+  char key[256] = {0};
+  char buffer[256] = {0};
+  char *colon_pos = strchr(line, ':');
+  if (colon_pos != NULL) {
+    strncpy(key, buffer, colon_pos - buffer);
+    key[colon_pos - buffer] = '\0';
+
+    if (sscanf(colon_pos + 1, "%ld", value) == 1) {
+      //printf("Key: %s, Value: %ld\n", key, *value);
+    }
+  }
+}
+
+int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferKB) {
   OS_PARAM_CHECK(usedKB);
+  OS_PARAM_CHECK(freeKB);
+  OS_PARAM_CHECK(cacheBufferKB);
 #ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
@@ -858,15 +874,119 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
   int64_t nMemTotal = memsStat.ullTotalPhys / 1024.0;
 
   *usedKB = nMemTotal - nMemFree;
+  *freeKB = nMemFree;
+  *cacheBufferKB = 0;
   return 0;
 #elif defined(_TD_DARWIN_64) || defined(TD_ASTRA) // TD_ASTRA_TODO
   *usedKB = 0;
+  *freeKB = 0;
+  *cacheBufferKB = 0;
   return 0;
 #else
+  /*
   *usedKB = sysconf(_SC_AVPHYS_PAGES) * tsPageSizeKB;
   if(*usedKB <= 0) {
     return TAOS_SYSTEM_ERROR(ERRNO);
   }
+  */
+  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
+    return terrno;
+  }
+
+  char    line[1024] = {0};
+  ssize_t bytes = 0;
+
+  //MemTotal
+  int64_t total = 0;
+  bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return terrno;
+  }
+  taosGetMemValue(line, &total);
+
+  //MemFree
+  int64_t mfree = 0;
+  bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return terrno;
+  }
+  taosGetMemValue(line, &mfree);
+
+  //MemAvailable
+  int64_t available = 0;
+  bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return terrno;
+  }
+  taosGetMemValue(line, &available);
+
+  //Buffers
+  int64_t buffer = 0;
+  bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return terrno;
+  }
+  taosGetMemValue(line, &buffer);
+
+  //Cached
+  int64_t cached = 0;
+  bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return terrno;
+  }
+  taosGetMemValue(line, &cached);
+
+  //SwapCached ,Active, Inactive, Active(anon), Inactive(anon), Active(file), Inactive(file), Unevictable, Mlocked, SwapTotal
+
+  for(int32_t i=0; i < 10; i++){
+    bytes = taosGetsFile(pFile, sizeof(line), line);
+    if (bytes < 0) {
+      TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+      return terrno;
+    }
+  }
+
+  //SwapFree
+  int64_t swapFree = 0;
+  bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return terrno;
+  }
+  taosGetMemValue(line, &swapFree);
+
+  //Dirty, Writeback, AnonPages, Mapped, Shmem, KReclaimable, Slab
+  for(int32_t i=0; i < 7; i++){
+    bytes = taosGetsFile(pFile, sizeof(line), line);
+    if (bytes < 0) {
+      TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+      return terrno;
+    }
+  }
+
+  //SReclaimable
+  int64_t sReclaimable = 0;
+  bytes = taosGetsFile(pFile, sizeof(line), line);
+  if (bytes < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return terrno;
+  }
+  taosGetMemValue(line, &sReclaimable);
+
+  //free   Unused memory (MemFree and SwapFree in /proc/meminfo)
+  *freeKB = mfree;
+  //buffers Memory used by kernel buffers (Buffers in /proc/meminfo)
+  //cache  Memory used by the page cache and slabs (Cached and SReclaimable in /proc/meminfo)
+  *cacheBufferKB = buffer + cached + sReclaimable;
+  *usedKB = total - *freeKB - *cacheBufferKB;
+  
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
   return 0;
 #endif
 }
