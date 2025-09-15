@@ -13821,6 +13821,13 @@ static int32_t createStreamReqBuildTriggerSessionWindow(STranslateContext* pCxt,
 static int32_t createStreamReqBuildTriggerIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_INTERVAL;
   PAR_ERR_RET(checkStreamIntervalWindow(pCxt, pTriggerWindow));
+  if (pTriggerWindow->pInterval && pTriggerWindow->pSliding &&
+      checkTimeGreater((SValueNode*)pTriggerWindow->pInterval, (SValueNode*)pTriggerWindow->pSliding,
+                       ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision, false)) {
+    pReq->trigger.sliding.overlap = true;
+  } else {
+    pReq->trigger.sliding.overlap = false;
+  }
   pReq->trigger.sliding.precision = ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision;
   pReq->trigger.sliding.intervalUnit = createStreamReqWindowGetUnit(pTriggerWindow->pInterval);
   pReq->trigger.sliding.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
