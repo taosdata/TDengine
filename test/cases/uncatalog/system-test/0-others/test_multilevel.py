@@ -298,10 +298,11 @@ class TestMultilevel:
         tdDnodes.deploy(1,cfg)
         tdDnodes.start(1)
         if platform.system() == 'Windows':
-            tdSql.execute('alter dnode 1 "dataDir C:\\\\mnt\\\\data2 1"')
-            tdSql.error('alter dnode 1 "dataDir C:\\mnt\\errpath 1"')
-            tdSql.error('alter dnode 1 "dataDir C:\\mnt\\data2 3"')
-            tdSql.error('alter dnode 1 "dataDir C:\\mnt\\data2 ee"')
+            drive_letter = os.path.splitdrive(os.path.dirname(__file__))[0]
+            tdSql.execute(f'alter dnode 1 "dataDir {drive_letter}\\\\mnt\\\\data2 1"')
+            tdSql.error(f'alter dnode 1 "dataDir {drive_letter}\\\\mnt\\\\errpath 1"')
+            tdSql.error(f'alter dnode 1 "dataDir {drive_letter}\\\\mnt\\\\data2 3"')
+            tdSql.error(f'alter dnode 1 "dataDir v:\\\\mnt\\\\data2 ee"')
         else:
             tdSql.execute('alter dnode 1 "dataDir /mnt/data2 1"')
             tdSql.error('alter dnode 1 "dataDir /mnt/errpath 1"')
@@ -331,7 +332,8 @@ class TestMultilevel:
             tdSql.execute(f'insert into tb1 values(now-{i}d,10)')
         tdSql.execute('flush database dbtest')
         if platform.system() == 'Windows':
-            tdSql.execute('alter dnode 1 "dataDir C:\\\\mnt\\\\data2 1"')
+            drive_letter = os.path.splitdrive(os.path.dirname(__file__))[0]
+            tdSql.execute(f'alter dnode 1 "dataDir {drive_letter}\\\\mnt\\\\data2 1"')
         else:
             tdSql.execute('alter dnode 1 "dataDir /mnt/data2 1"')
 

@@ -255,7 +255,7 @@ Parameters related to supertable creation are configured in the `super_tables` s
 
 - **insert_mode**: Insertion mode, options include taosc, rest, stmt, stmt2, sml, sml-rest, corresponding to normal writing, restful interface writing, parameter binding interface writing, schemaless interface writing, restful schemaless interface writing (provided by taosAdapter). Default is taosc.
 
-- **non_stop_mode**: Specifies whether to continue writing, if "yes" then insert_rows is ineffective, writing stops only when Ctrl + C stops the program. Default is "no", i.e., stop after writing a specified number of records. Note: Even in continuous writing mode, insert_rows must still be configured as a non-zero positive integer.
+- **non_stop_mode**: Specifies whether to continue writing (this parameter only supports `interlace_rows > 0`), if "yes" then insert_rows is ineffective, writing stops only when Ctrl + C stops the program. Default is "no", i.e., stop after writing a specified number of records. Note: Even in continuous writing mode, insert_rows must still be configured as a non-zero positive integer.
 
 - **line_protocol** : Use line protocol to insert data, effective only when insert_mode is sml or sml-rest, options include line, telnet, json.
 

@@ -3518,6 +3518,16 @@ _err:
   return NULL;
 }
 
+SNode* createShowSsMigratesStmt(SAstCreateContext* pCxt, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowSsMigratesStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
   if (pStmt == NULL) {
     return NULL;

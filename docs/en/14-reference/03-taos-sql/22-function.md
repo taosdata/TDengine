@@ -786,6 +786,22 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ... )
 
 **Applicable to**: Tables and supertables.
 
+#### FIND_IN_SET
+
+```sql
+FIND_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then return the index of `expr1` in the list, return 0 if not exist.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
 #### LENGTH
 
 ```sql
@@ -797,6 +813,22 @@ LENGTH(expr)
 **Return Result Type**: BIGINT.
 
 **Applicable Data Types**: VARCHAR, NCHAR, VARBINARY.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+#### LIKE_IN_SET
+
+```sql
+LIKE_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then match `expr1` with the items using the semantics of the `LIKE` operator, return the index of the first matched item, return 0 if there's no match.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -829,6 +861,22 @@ LTRIM(expr)
 **Return Result Type**: Same as the original type of the input field.
 
 **Applicable Data Types**: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+#### REGEXP_IN_SET
+
+```sql
+REGEXP_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then using `expr1` as a regular expression to match the items, return the index of the first matched item, return 0 if there's no match.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -2169,7 +2217,6 @@ LAST_ROW(expr)
 
 - To return the last record (timestamp largest) of each column, you can use LAST_ROW(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), LAST_ROW(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
 - When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
-- Cannot be used with INTERVAL.
 - Similar to the LAST function, for tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
 
 ### MAX
