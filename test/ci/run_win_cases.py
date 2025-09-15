@@ -53,11 +53,13 @@ def clean_taos_process(keywords=None):
     """
     if keywords is None:
         keywords = ['taos']  # 默认关键字为 'taos'
-
+    ignore_procs = ['jenkins']
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             # 检查进程命令行是否包含指定关键字
             if proc.info['cmdline'] and any(keyword in ' '.join(proc.info['cmdline']) for keyword in keywords):
+                if proc.info['cmdline'] and any(ignore_proc in ' '.join(proc.info['cmdline']) for ignore_proc in ignore_procs):
+                    continue
                 logger.debug(f"Found matching process: {proc.info}")
                 proc.terminate()  # 优雅终止进程
                 try:
