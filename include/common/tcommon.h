@@ -369,6 +369,7 @@ typedef struct SExprSupp      SExprSupp;
 typedef struct SResultRowInfo SResultRowInfo;
 typedef struct SExecTaskInfo  SExecTaskInfo;
 typedef struct SRollupCtx {
+  void*           pTargets;  // SNodeList
   SExprSupp*      exprSup;
   SAggSupporter*  aggSup;
   SResultRowInfo* resultRowInfo;

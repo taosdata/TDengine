@@ -63,7 +63,6 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   SResultRowInfo *pResultRowInfo = NULL;
   SExecTaskInfo  *pTaskInfo = NULL;
   SResultRow     *pResultRow = NULL;
-  SNodeList      *pTargets = NULL;
   STargetNode    *pTargetNode = NULL;
   SFunctionNode  *pFuncNode = NULL;
   SColumnNode    *pColNode = NULL;
@@ -88,7 +87,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   }
   pCtx->pTaskInfo = pTaskInfo;
 
-  int32_t rowSize = 8;
+  int32_t inputRowSize = 8;
   for (int32_t i = 1; i < nCols; i++) {  // skip the first timestamp column
     STColumn *pCol = pTSchema->columns + i;
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pColNode));
@@ -127,14 +126,14 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     pTargetNode->pExpr = (SNode *)pFuncNode;
     pFuncNode = NULL;
 
-    TAOS_CHECK_EXIT(nodesListMakeAppend(&pTargets, (SNode *)pTargetNode));
+    TAOS_CHECK_EXIT(nodesListMakeAppend((SNodeList **)&pCtx->pTargets, (SNode *)pTargetNode));
     pTargetNode = NULL;
 
-    rowSize += pCol->bytes;
+    inputRowSize += pCol->bytes;
   }
 
-  pCtx->rowSize = rowSize;
-  pCtx->maxBufRows = (64LL * 1024 * 1024) / rowSize;
+  pCtx->rowSize = inputRowSize;
+  pCtx->maxBufRows = (64LL * 1024 * 1024) / inputRowSize;
   if (pCtx->maxBufRows > 4096) {
     pCtx->maxBufRows = 4096;
   } else if (pCtx->maxBufRows < 1024) {
@@ -148,7 +147,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
 
   initResultRowInfo(pResultRowInfo);
 
-  TAOS_CHECK_EXIT(createExprInfo(pTargets, NULL, &pExprInfo, &exprNum));
+  TAOS_CHECK_EXIT(createExprInfo((SNodeList *)pCtx->pTargets, NULL, &pExprInfo, &exprNum));
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   TAOS_CHECK_EXIT(initAggSup(pExprSup, pAggSup, pExprInfo, exprNum, keyBufSize, "rollup", NULL, NULL));
 
@@ -165,11 +164,13 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
 
   TAOS_CHECK_EXIT(setResultRowInitCtx(pResultRow, pExprSup->pCtx, exprNum, pExprSup->rowEntryInfoOffset));
 
+  TAOS_CHECK_EXIT(
+      setInputDataBlock(pCtx->exprSup, pCtx->pInputBlock, ORDER_ASC, pCtx->pInputBlock->info.scanFlag, true));
+
 _exit:
   nodesDestroyNode((SNode *)pColNode);
   nodesDestroyNode((SNode *)pFuncNode);
   nodesDestroyNode((SNode *)pTargetNode);
-  nodesDestroyList(pTargets);
   if (code != 0) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
 
@@ -228,6 +229,10 @@ _exit:
 
 void tdRollupCtxCleanup(SRollupCtx *pCtx, bool deep) {
   if (pCtx) {
+    if (pCtx->pTargets) {
+      nodesDestroyList((SNodeList *)pCtx->pTargets);
+      pCtx->pTargets = NULL;
+    }
     if (pCtx->exprSup) {
       cleanupExprSupp(pCtx->exprSup);
       if (deep) taosMemFreeClear(pCtx->exprSup);
