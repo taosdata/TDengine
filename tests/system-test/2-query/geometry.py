@@ -16,6 +16,7 @@ class TDTestCase:
         self.point = "POINT (3.000000 6.000000)"
         self.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
         self.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
+        self.polygon_irregular = "POLYGON ((3 006, 5.00 6, 05.0 8, 3.000 8.00, 3.0 6))" # actually same with self.polygon
 
         # expected errno
         self.errno_TSC_SQL_SYNTAX_ERROR = -2147483114;
@@ -60,12 +61,16 @@ class TDTestCase:
         tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 2)", self.errno_TSC_SQL_SYNTAX_ERROR)
 
     def geomFromText_test(self, dbname = "db"):
-        # [ToDo] remove ST_AsText() calling in geomFromText_test once GEOMETRY type is supported in taos-connector-python
+        # [TODO] remove ST_AsText() calling in geomFromText_test once GEOMETRY type is supported in taos-connector-python
 
         # column input, including NULL value
         tdSql.query(f"select ST_AsText(ST_GeomFromText(c3)), ST_AsText(c4) from {dbname}.t1")
         for i in range(tdSql.queryRows):
             tdSql.checkEqual(tdSql.queryResult[i][0], tdSql.queryResult[i][1])
+
+        # handle irregular WKT
+        tdSql.query(f"select * from t1 where c4 = ST_GeomFromText('{self.polygon_irregular}')")
+        tdSql.checkRows(1)
 
         # constant input
         tdSql.query(f"select ST_AsText(ST_GeomFromText('{self.point}'))")
@@ -144,6 +149,9 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[3])
 
         tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.polygon}'), ST_GeomFromText('{self.point}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[4])
+
+        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.polygon_irregular}'), ST_GeomFromText('{self.point}'))")
         tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[4])
 
         # NULL type input
