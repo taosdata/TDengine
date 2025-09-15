@@ -1,5 +1,4 @@
 #include "streamRunner.h"
-#include <cstdint>
 #include "dataSink.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
