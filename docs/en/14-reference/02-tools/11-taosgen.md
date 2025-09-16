@@ -12,13 +12,14 @@ taosgen currently supports Linux and macOS systems.
 ## Comparison of taosBenchmark and taosgen Features
 
 Compared to taosBenchmark, taosgen offers the following advantages and improvements:
-- Automatic detection of unknown or incorrect configuration items, promptly identifying and reporting spelling errors or invalid parameters in the configuration file to enhance configuration safety and usability.
-- Supports TDengine database connection pooling for efficient management and reuse of database connections.
-- Supports real-time data generation, eliminating the need to pre-generate large data files, saving preparation time and simulating real scenarios.
-- More diverse data generation methods, adding expression-based strategies on top of random and sequential generation, making it easier to simulate complex business data.
-- Powerful job orchestration capabilities, supporting DAG dependencies to simulate real business processes.
+
+- Provides job orchestration capabilities, with jobs supporting DAG dependencies to simulate real business processes.
 - Supports multiple targets/protocols (TDengine, MQTT), enabling scenarios such as database writing and message publishing.
+- More diverse data generation methods, including support for Lua expressions to easily simulate real business data.
+- Supports real-time data generation, eliminating the need to pre-generate large data files, saving preparation time and better simulating real scenarios.
 - Supports various time interval strategies to control data writing operations, such as "playing" data according to its actual generation time.
+- Automatically detects unknown or incorrect configuration items, promptly identifying and reporting spelling errors or invalid parameters in the configuration file to enhance configuration safety and usability.
+- Supports TDengine database connection pooling for efficient management and reuse of database connections.
 
 taosgen solves the problems of inflexible configuration, limited data generation methods, and poor extensibility in taosBenchmark, making it more suitable for modern IoT and industrial internet big data testing needs.
 
