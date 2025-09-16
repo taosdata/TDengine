@@ -846,15 +846,13 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
 }
 
 void taosGetMemValue(char* line, int64_t* value){
-  char key[256] = {0};
-  char buffer[256] = {0};
+  if(value == NULL) return;
+  *value = 0;
+  if(line == NULL || line[0] == '\0') return;
+
   char *colon_pos = strchr(line, ':');
   if (colon_pos != NULL) {
-    strncpy(key, buffer, colon_pos - buffer);
-    key[colon_pos - buffer] = '\0';
-
     if (sscanf(colon_pos + 1, "%ld", value) == 1) {
-      //printf("Key: %s, Value: %ld\n", key, *value);
     }
   }
 }
