@@ -122,7 +122,13 @@ DSN 描述字符串基本结构如下：
   - WebSocket 连接：支持多个地址，多个地址间用英文逗号分隔。当不指定地址时，默认为 `localhost:6041`。
     - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：指定默认连接的数据库名，可选参数。
-- **params**：其他可选参数。
+- **params**：
+  - `token`：用于 TDengine TSDB 云服务的身份验证。
+  - `timezone`：时区设置，格式为 IANA 时区名称（如 `Asia/Shanghai`），默认为本地时区。
+  - `compression`：是否启用数据压缩，默认为 `false`。
+  - `conn_retries`：连接失败时的最大重试次数，默认为 5 次。
+  - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
+  - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
 
 一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`，表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
 

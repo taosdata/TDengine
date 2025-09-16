@@ -1145,12 +1145,15 @@ static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
 
 static void mndTransLogConflict(STrans *pNew, STrans *pTrans, bool conflict, bool *globalConflict) {
   if (conflict) {
-    mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with trans:%d db:%s stb:%s type:%d", pNew->id,
-           pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->dbname, pTrans->stbname, pTrans->conflict);
+    mError("trans:%d, opername:%s db:%s stb:%s type:%d, can't execute since conflict with trans:%d, opername:%s db:%s "
+      "stb:%s type:%d", 
+      pNew->id, pNew->opername, pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->opername, 
+      pTrans->dbname, pTrans->stbname, pTrans->conflict);
     *globalConflict = true;
   } else {
-    mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with trans:%d db:%s stb:%s type:%d", pNew->id, pNew->dbname,
-          pNew->stbname, pNew->conflict, pTrans->id, pTrans->dbname, pTrans->stbname, pTrans->conflict);
+    mInfo("trans:%d, opername:%s db:%s stb:%s type:%d, not conflict with trans:%d, opername:%s db:%s stb:%s type:%d", 
+      pNew->id, pNew->opername, pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->opername, 
+      pTrans->dbname, pTrans->stbname, pTrans->conflict);
   }
 }
 
@@ -1570,6 +1573,7 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
   int32_t transId = (int32_t)(pRsp->info.ahandle);
   int32_t action = (int32_t)(pRsp->info.ahandleEx);
 #endif
+  STraceId* trace = &(pRsp->info.traceId);
   STrans *pTrans = mndAcquireTrans(pMnode, transId);
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -1609,8 +1613,9 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
       // pTrans->lastErrorNo = pRsp->code;
       mndSetTransLastAction(pTrans, pAction);
 
-      mInfo("trans:%d, %s:%d response is received, received code:0x%x(%s), accept:0x%x(%s) retry:0x%x(%s)", transId,
-            mndTransStr(pAction->stage), action, pRsp->code, tstrerror(pRsp->code), pAction->acceptableCode,
+      mInfo("trans:%d, %s:%d response is received, msgType:%s, QID:0x%" PRIx64 ":0x%" PRIx64 ", received code:0x%x(%s), accept:0x%x(%s) retry:0x%x(%s)", transId,
+            mndTransStr(pAction->stage), action, TMSG_INFO(pAction->msgType), trace ? trace->rootId : 0, 
+              trace ? trace->msgId : 0, pRsp->code, tstrerror(pRsp->code), pAction->acceptableCode,
             tstrerror(pAction->acceptableCode), pAction->retryCode, tstrerror(pAction->retryCode));
     } else {
       mWarn("trans:%d, %s:%d response is received, but msgSent is false, code:0x%x(%s), accept:0x%x(%s) retry:0x%x", 
@@ -1731,7 +1736,9 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
     return -1;
   }
   rpcMsg.info.traceId.rootId = pTrans->mTraceId;
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
   rpcMsg.info.notFreeAhandle = 1;
+  STraceId* trace = &(rpcMsg.info.traceId);
 
   memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
@@ -1750,7 +1757,8 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
     pAction->errCode = TSDB_CODE_ACTION_IN_PROGRESS;
     pAction->startTime = taosGetTimestampMs();
     pAction->endTime = 0;
-    mInfo("trans:%d, %s:%d is sent, %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, detail);
+    mInfo("trans:%d, %s:%d is sent, QID:0x%" PRIx64 ":0x%" PRIx64 ", %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, trace ? trace->rootId : 0, 
+              trace ? trace->msgId : 0, detail);
 
     mndSetTransLastAction(pTrans, pAction);
   } else {

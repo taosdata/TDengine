@@ -96,6 +96,24 @@ tag_definition:
 - `%%tbname`：触发表每个分组表名的引用，可作为查询表名使用（`FROM %%tbname`）
 - `%%trows`：触发表每个分组的触发数据集（满足本次触发的数据集）的引用
 
+### 控制选项
+
+控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
+
+- WATERMARK(duration_time)：数据乱序的容忍时长。
+- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据。
+- IGNORE_DISORDER：指定忽略触发表的乱序数据。
+- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除。
+- FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算。
+- FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算。
+- CALC_NOTIFY_ONLY：指定计算结果只发送通知，不保存到输出表。
+- LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。
+- PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断。
+- FORCE_OUTPUT：指定计算结果强制输出选项。
+- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间）。
+- EVENT_TYPE(event_types)：指定窗口触发的事件类型，包括窗口启动事件和窗口关闭事件。
+- IGNORE_NODATA_TRIGGER：指定忽略触发表无输入数据时的触发。
+
 ### 通知机制
 
 事件通知是流在事件触发后可选的执行动作，支持通过 `WebSocket` 协议发送事件通知到应用。用户可以指定需要通知的事件，以及用于接收通知消息的目标地址。通知内容可以包含计算结果，也可以在没有计算结果时只通知事件相关信息。

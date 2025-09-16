@@ -1802,7 +1802,7 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
       }
       found = true;
     }
-    if (isInternalPk) {
+    if (isInternalPk) {  // this value should be updated
       break;
     }
   }
@@ -3316,9 +3316,9 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     pSelect->hasTwaOrElapsedFunc = pSelect->hasTwaOrElapsedFunc ? true
                                                                 : (FUNCTION_TYPE_TWA == pFunc->funcType ||
                                                                    FUNCTION_TYPE_ELAPSED == pFunc->funcType);
-    pSelect->hasInterpPseudoColFunc =
-        pSelect->hasInterpPseudoColFunc ? true : fmIsInterpPseudoColumnFunc(pFunc->funcId);
-    pSelect->hasForecastFunc = pSelect->hasForecastFunc ? true : (FUNCTION_TYPE_FORECAST == pFunc->funcType);
+    pSelect->hasInterpPseudoColFunc = pSelect->hasInterpPseudoColFunc || fmIsInterpPseudoColumnFunc(pFunc->funcId);
+    pSelect->hasForecastFunc = pSelect->hasForecastFunc || (FUNCTION_TYPE_FORECAST == pFunc->funcType);
+    pSelect->hasImputationFunc = pSelect->hasImputationFunc || (FUNCTION_TYPE_IMPUTATION == pFunc->funcType);
     pSelect->hasForecastPseudoColFunc =
         pSelect->hasForecastPseudoColFunc ? true : fmIsForecastPseudoColumnFunc(pFunc->funcId);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
@@ -4003,17 +4003,26 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
 
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
   SFunctionNode* pFunc = NULL;
+  SExprNode*     p = (SExprNode*)*pNode;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (TSDB_CODE_SUCCESS != code) {
     pCxt->errCode = code;
     return DEAL_RES_ERROR;
   }
-  tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
-  tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
 
-  pFunc->node.relatedTo = ((SExprNode*)*pNode)->relatedTo;
-  pFunc->node.bindExprID = ((SExprNode*)*pNode)->bindExprID;
+  tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, p->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, p->userAlias, TSDB_COL_NAME_LEN);
+
+  // "_select_value" is an parameter of function, not in the projectionList, and user does not assign an alias name
+  // let's rewrite the aliasName, to avoid the column name duplicate problem
+  if ((strncmp(p->aliasName, p->userAlias, tListLen(p->aliasName)) == 0) && p->asParam && p->projIdx == 0) {
+    uint64_t hashVal = MurmurHash3_64(p->aliasName, strlen(p->aliasName));
+    snprintf(pFunc->node.aliasName, TSDB_COL_NAME_LEN, "%" PRIu64, hashVal);
+  }
+  
+  pFunc->node.relatedTo = p->relatedTo;
+  pFunc->node.bindExprID = p->bindExprID;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = getFuncInfo(pCxt, pFunc);
@@ -5954,16 +5963,17 @@ _return:
 static int32_t translateTempTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt*    pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   STempTableNode* pTempTable = (STempTableNode*)*pTable;
+  SSelectStmt*    pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
   int32_t         code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(translateSubquery(pCxt, pTempTable->pSubquery));
-  if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) &&
-      ((SSelectStmt*)pTempTable->pSubquery)->isEmptyResult && isSelectStmt(pCxt->pCurrStmt)) {
-    ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
-  }
+
   if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && isSelectStmt(pCxt->pCurrStmt)) {
-    pCurrSmt->joinContains = ((SSelectStmt*)pTempTable->pSubquery)->joinContains;
-    SSelectStmt* pSubStmt = (SSelectStmt*)pTempTable->pSubquery;
+    if(pSubStmt->isEmptyResult) {
+      pCurrSmt->isEmptyResult = true;
+    }
+
+    pCurrSmt->joinContains = pSubStmt->joinContains;
     pCurrSmt->timeLineResMode = pSubStmt->timeLineResMode;
     pCurrSmt->timeLineCurMode = pSubStmt->timeLineResMode;
   }
@@ -14502,26 +14512,38 @@ typedef struct SCheckNotifyCondContext {
   bool               valid;
 } SCheckNotifyCondContext;
 
-static EDealRes doCheckNotifyCond(SNode* pNode, void* pContext) {
+static EDealRes doCheckNotifyCond(SNode** pNode, void* pContext) {
   SCheckNotifyCondContext* pCxt = (SCheckNotifyCondContext*)pContext;
   SSelectStmt*             pSelect = (SSelectStmt*)pCxt->pTransCxt->pCurrStmt;
   SNode*                   pProj = NULL;
 
-  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+  if (nodeType(*pNode) == QUERY_NODE_VALUE) {
     return DEAL_RES_CONTINUE;
   }
 
   FOREACH(pProj, pSelect->pProjectionList) {
-    if (nodesEqualNode(pProj, pNode)) {
+    if (nodesEqualNode(pProj, *pNode)) {
       return DEAL_RES_IGNORE_CHILD;
     }
     if (nodesIsStar(pProj) && nodeType(pProj) == QUERY_NODE_COLUMN) {
       // if projection is *, then all columns are valid
       return DEAL_RES_IGNORE_CHILD;
     }
+    if (strcmp(((SExprNode*)pProj)->userAlias, ((SExprNode*)*pNode)->aliasName) == 0) {
+      SNode*  tmpNode = NULL;
+      int32_t code = nodesCloneNode(pProj, &tmpNode);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(tmpNode);
+        parserError("%s failed, code:%d", __func__, code);
+        return DEAL_RES_ERROR;
+      }
+      nodesDestroyNode(*pNode);
+      *pNode = tmpNode;
+      return DEAL_RES_IGNORE_CHILD;
+    }
   }
 
-  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+  if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
     pCxt->valid = false;
     return DEAL_RES_ERROR;
   }
@@ -14592,7 +14614,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
 
   if (pNotifyCond) {
     SCheckNotifyCondContext checkNotifyCondCxt = {.pTransCxt = pCxt, .valid = true};
-    nodesWalkExpr(pNotifyCond, doCheckNotifyCond, &checkNotifyCondCxt);
+    nodesRewriteExpr(&pNotifyCond, doCheckNotifyCond, &checkNotifyCondCxt);
     if (!checkNotifyCondCxt.valid) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY_COND, "notify condition can only contain expr from query clause"));
     }

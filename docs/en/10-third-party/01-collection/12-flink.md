@@ -5,6 +5,7 @@ title: TDengine Flink Connector
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import FlinkCommonInfo from '../../assets/resources/_flink-common-info.mdx'
 
 Apache Flink is an open-source distributed stream batch integrated processing framework supported by the Apache Software Foundation, which can be used for many big data processing scenarios such as stream processing, batch processing, complex event processing, real-time data warehouse construction, and providing real-time data support for machine learning. At the same time, Flink has a wealth of connectors and various tools that can interface with numerous different types of data sources to achieve data reading and writing. In the process of data processing, Flink also provides a series of reliable fault-tolerant mechanisms, effectively ensuring that tasks can run stably and continuously even in the event of unexpected situations.
 
@@ -22,98 +23,9 @@ Prepare the following environment:
 
 Flink Connector supports all platforms that can run Flink 1.19 and above versions.
 
-## Version History
+<FlinkCommonInfo />
 
-| Flink Connector Version | Major Changes                                                | TDengine Version    |
-| ----------------------- | ------------------------------------------------------------ | ------------------- |
-| 2.1.3                   | Add exception information output for data conversion. | - |
-| 2.1.2                   | Add backtick filtering for written fields. | - |
-| 2.1.1                   | Fix the issue of data binding failure for the same table in Stmt. | - |
-| 2.1.0                   | Fix the issue of writing varchar types from different data sources. | - |
-| 2.0.2                   | The Table Sink supports types such as RowKind.UPDATE_BEFORE, RowKind.UPDATE_AFTER, and RowKind.DELETE. | -  |
-| 2.0.1                   | Sink supports writing types from Rowdata implementations.    | - |
-| 2.0.0                   | 1.Sink supports custom data structure serialization and writing to TDengine.<br/> 2. Supports writing to TDengine database using Table SQL. | 3.3.5.1  and higher |
-| 1.0.0                   | Support Sink function to write data from other sources to TDengine in the future. | 3.3.2.0 and higher  |
-
-## Exception and error codes
-
-After the task execution fails, check the Flink task execution log to confirm the reason for the failure
-Please refer to:
-
-| Error Code | Description                                                  | Suggested Actions                                            |
-| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 0xa000     | connection param error                                       | Connector parameter error.                                   |
-| 0xa010     | database name configuration error                            | database name configuration error.                           |
-| 0xa011     | table name configuration error                               | Table name configuration error.                              |
-| 0xa013     | value.deserializer parameter not set                         | No serialization method set.                                 |
-| 0xa014     | list of column names set incorrectly                         | List of column names for target table not set.               |
-| 0x2301     | connection already closed                                    | The connection has been closed. Check the connection status or create a new connection to execute the relevant instructions. |
-| 0x2302     | this operation is NOT supported currently                    | The current interface is not supported, you can switch to other connection methods. |
-| 0x2303     | invalid variables                                            | The parameter is invalid. Please check the corresponding interface specification and adjust the parameter type and size. |
-| 0x2304     | statement is closed                                          | Statement has already been closed. Please check if the statement is closed and reused, or if the connection is working properly. |
-| 0x2305     | resultSet is closed                                          | The ResultSet has been released. Please check if the ResultSet has been released and used again. |
-| 0x230d     | parameter index out of range                                 | parameter out of range, please check the reasonable range of the parameter. |
-| 0x230e     | connection already closed                                    | The connection has been closed. Please check if the connection is closed and used again, or if the connection is working properly. |
-| 0x230f     | unknown SQL type in TDengine                                 | Please check the Data Type types supported by TDengine.      |
-| 0x2315     | unknown tao type in TDengine                                 | Did the correct TDengine data type be specified when converting TDengine data type to JDBC data type. |
-| 0x2319     | user is required                                             | Username information is missing when creating a connection.  |
-| 0x231a     | password is required                                         | Password information is missing when creating a connection.  |
-| 0x231d     | can't create connection with server within                   | Increase connection time by adding the parameter httpConnectTimeout, or check the connection status with taosAdapter. |
-| 0x231e     | failed to complete the task within the specified time        | Increase execution time by adding the parameter messageWaitTimeout, or check the connection with taosAdapter. |
-| 0x2352     | unsupported encoding                                         | An unsupported character encoding set was specified under the local connection. |
-| 0x2353     | internal error of database,  Please see taoslog for more details | An error occurred while executing prepareStatement on the local connection. Please check the taoslog for problem localization. |
-| 0x2354     | connection is NULL                                           | Connection has already been closed while executing the command on the local connection. Please check the connection with TDengine. |
-| 0x2355     | result set is NULL                                           | Local connection to obtain result set, result set exception, please check connection status and retry. |
-| 0x2356     | invalid num of fields                                        | The meta information obtained from the local connection result set does not match. |
-
-## Data type mapping
-
-TDengine currently supports timestamp, number, character, and boolean types, and the corresponding type conversions with Flink RowData Type are as follows:
-
-| TDengine DataType | Flink RowDataType |
-| ----------------- | ----------------- |
-| TIMESTAMP         | TimestampData     |
-| INT               | Integer           |
-| BIGINT            | Long              |
-| FLOAT             | Float             |
-| DOUBLE            | Double            |
-| SMALLINT          | Short             |
-| TINYINT           | Byte              |
-| BOOL              | Boolean           |
-| VARCHAR           | StringData        |
-| BINARY            | StringData        |
-| NCHAR             | StringData        |
-| JSON              | StringData        |
-| VARBINARY         | byte[]            |
-| GEOMETRY          | byte[]            |
-
-## Instructions for use
-
-### Flink Semantic Selection Instructions
-
-The semantic reason for using `At-Least-Once` is:
-
-- TDengine currently does not support transactions and cannot perform frequent checkpoint operations and complex transaction coordination.
-- Due to TDengine's use of timestamps as primary keys, downstream operators of duplicate data can perform filtering operations to avoid duplicate calculations.
-- Using `At-Least-Once` to ensure high data processing performance and low data latency, the setting method is as follows:
-
-Instructions:
-
-```java
-StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-env.enableCheckpointing(5000);
-env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
-```
-
-If using Maven to manage a project, simply add the following dependencies in pom.xml.
-
-```xml
-<dependency>
-    <groupId>com.taosdata.flink</groupId>
-    <artifactId>flink-connector-tdengine</artifactId>
-    <version>2.1.3</version>
-</dependency>
-```
+### Connection Parameters
 
 The parameters for establishing a connection include URL and Properties.
 The URL specification format is:
@@ -164,7 +76,7 @@ Write the data of the RowData type into the sub-table corresponding to the super
 <details>
 <summary>RowData Into Super Table</summary>
 ```java
-{{#include docs/examples/flink/Main.java:RowDataToSuperTable}}
+{{#include docs/examples/flink/sink/Main.java:RowDataToSuperTable}}
 ```
 </details>
 
@@ -175,7 +87,7 @@ Write the data of the `RowData` type into the `sink_normal` table in the `power_
 <details>
 <summary>RowData Into Normal Table</summary>
 ```java
-{{#include docs/examples/flink/Main.java:RowDataToNormalTable}}
+{{#include docs/examples/flink/sink/Main.java:RowDataToNormalTable}}
 ```
 </details>
 
@@ -186,7 +98,7 @@ Write the data of the custom type into the sub-tables corresponding to the super
 <details>
 <summary>CustomType Into Super Table</summary>
 ```java
-{{#include docs/examples/flink/Main.java:CustomTypeToNormalTable}}
+{{#include docs/examples/flink/sink/Main.java:CustomTypeToNormalTable}}
 ```
 </details>
 
@@ -222,7 +134,7 @@ Write data into the sub-tables corresponding to the super table `sink_meters` in
 <details>
 <summary>Table SQL Into Super Table </summary>
 ```java
-{{#include docs/examples/flink/Main.java:TableSqlToSink}}
+{{#include docs/examples/flink/sink/Main.java:TableSqlToSink}}
 ```
 </details>
 
@@ -233,7 +145,7 @@ Write data into the `sink_normal` table in the `power_sink` database via SQL sta
 <details>
 <summary>Table SQL Into Normal Table </summary>
 ```java
-{{#include docs/examples/flink/Main.java:NormalTableSqlToSink}}
+{{#include docs/examples/flink/sink/Main.java:NormalTableSqlToSink}}
 ```
 </details>
 
@@ -244,6 +156,6 @@ Write data of the `Row` type into the sub-tables corresponding to the super tabl
 <details>
 <summary>Table Row To Sink </summary>
 ```java
-{{#include docs/examples/flink/Main.java:TableRowToSink}}
+{{#include docs/examples/flink/sink/Main.java:TableRowToSink}}
 ```
 </details>

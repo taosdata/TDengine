@@ -2,10 +2,8 @@
 title: taosX Reference
 sidebar_label: taosX
 slug: /tdengine-reference/components/taosx
+toc_max_heading_level: 4
 ---
-
-import Image from '@theme/IdealImage';
-import imgTdx from '../../assets/taosx-01.png';
 
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
@@ -256,7 +254,7 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 - `logs_home`: Directory where log files are stored, the prefix for `taosX` log files is `taosx.log`, external data sources have their own log file name prefixes. Deprecated, please use `log.path` instead.
 - `log_level`: Log level, available levels include `error`, `warn`, `info`, `debug`, `trace`, default value is `info`. Deprecated, please use `log.level` instead.
 - `log_keep_days`: Maximum storage days for logs, `taosX` logs will be divided into different files by day. Deprecated, please use `log.keepDays` instead.
-- `jobs`: Maximum number of threads per runtime. In service mode, the total number of threads is `jobs*2`, default number of threads is `current server cores*2`.
+- `jobs`: Program default runtime worker threads, default value is `current server cores*2`.
 - `serve.listen`: `taosX` REST API listening address, default value is `0.0.0.0:6050`. Supports IPv6 and multiple comma-separated addresses with the same port.
 - `serve.ssl_cert`: SSL/TLS certificate file.
 - `serve.ssl_key`: SSL/TLS server's private key.
@@ -264,6 +262,9 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 - `serve.database_url`: Address of the `taosX` database, format is `sqlite:<path>`.
 - `serve.request_timeout`: Global interface API timeout.
 - `serve.grpc`:`taosX` gRPC listening address, default value is `0.0.0.0:6055`. Supports IPv6 and multiple comma-separated addresses with the same port.
+- `rest_api_threads`: Runtime worker threads for rest api service, default value is `current server cores*2`.
+- `grpc_threads`: Runtime worker threads for grpc service, default value is `current server cores*2`.
+- `scheduler_threads`: Runtime worker threads for scheduler service, default value is `current server cores*2`.
 - `monitor.fqdn`: FQDN of the `taosKeeper` service, no default value, leave blank to disable monitoring.
 - `monitor.port`: Port of the `taosKeeper` service, default `6043`.
 - `monitor.interval`: Frequency of sending metrics to `taosKeeper`, default is every 10 seconds, only values between 1 and 10 are valid.
@@ -323,6 +324,15 @@ As shown below:
 # Please also make sure the above address is not blocked if firewall is enabled.
 #
 #grpc = "0.0.0.0:6055"
+
+# number of threads used for rest api service, default to 0 (means cores * 2)
+#rest_api_threads = 0
+
+# number of threads used for grpc service, default to 0 (means cores * 2)
+#grpc_threads = 0
+
+# number of threads used for scheduler service, default to 0 (means cores * 2)
+#scheduler_threads = 0
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -566,6 +576,8 @@ The taosX Parser plugin is a dynamic library compatible with the C ABI, develope
 ### Plugin Deployment
 
 After the plugin development is completed, the compilation environment needs to be compatible with the target operating environment. Copy the compiled plugin dynamic library to the plugin directory. After taosX starts, the system initializes and loads the plugin the first time it is used. You can check whether it is loaded successfully on the kafka or mqtt data access configuration page in explorer.
+
+![](../../assets/taosx-01.png)
 
 The plugin directory reuses the plugins configuration in the `taosx.toml` configuration file, appending `/parsers` as the plugin installation path. The default value in UNIX environment is `/usr/local/taos/plugins/parsers`, and in Windows it is `C:\TDengine\plugins\parsers`.
 

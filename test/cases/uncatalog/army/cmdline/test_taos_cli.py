@@ -14,6 +14,7 @@
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import time
+import platform
 
 
 
@@ -164,7 +165,11 @@ class TestTaosCli:
 
     def checkVersion(self):
         rlist1 = self.taos("-V")
-        rlist2 = self.taos("--version")
+        # Windows not support --version
+        if platform.system() == "Windows":
+            rlist2 = self.taos("-V")
+        else:
+            rlist2 = self.taos("--version")
 
         self.checkSame(rlist1, rlist2)
         if len(rlist1) < 4:
@@ -188,12 +193,20 @@ class TestTaosCli:
         self.checkSame(rlist1, rlist2)
 
         # check return 
-        strings = [
-            "--auth=AUTH",
-            "--database=DATABASE",
-            "--version",
-            " --help"
-        ]
+        if platform.system() == "Windows":
+            strings = [
+            "-a,",
+            "-d,",
+            "-V"
+            ]
+        else:
+            strings = [
+                "--auth=AUTH",
+                "--database=DATABASE",
+                "--version",
+                " --help"
+            ]
+
         for string in strings:
             self.checkListString(rlist1, string)
     
@@ -203,9 +216,7 @@ class TestTaosCli:
 
         # support Both
         args = [
-            ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
-            ['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK],
-            ['-s "quit;"', "Welcome to the TDengine Command Line Interface"],
+            ['-s "quit;"', "Welcome to the TDengine TSDB Command Line Interface"],
             ['-h "" -s "show dnodes;"', "Invalid host"],
             ['-u "" -s "show dnodes;"', "Invalid user"],
             ['-P "" -s "show dnodes;"', "Invalid port"],
@@ -224,8 +235,12 @@ class TestTaosCli:
             ['-s "help;"', "Timestamp expression Format"],
             ['-s ""', "Invalid commands"],
             ['-t', "2: service ok"],
-            [f'-uroot -p < {os.path.dirname(__file__)}/data/pwd.txt -s "show dnodes;"', queryOK],
+            
         ]
+        if platform.system() != "Windows":
+            args.append(['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK])
+            args.append(['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK])
+            args.append([f'-uroot -p < {os.path.dirname(__file__)}/data/pwd.txt -s "show dnodes;"', queryOK])
 
         modes = ["-Z 0","-Z 1"]
         for mode in modes:
@@ -243,10 +258,11 @@ class TestTaosCli:
         lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
 
         args = [
-            [lname, "failed to create log at"],
             ['-a ""', "Invalid auth"],
             ['-a "abc"', "[0x80000357]"],
         ]
+        if platform.system() != "Windows":
+            args.append([lname, "failed to create log at"])
         for arg in args:
             rlist = self.taos("-Z 0 " + arg[0])
             if arg[1] != None:
@@ -261,7 +277,7 @@ class TestTaosCli:
         # env  6043 - invalid
         os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
         # cmd 6041 - valid
-        cmd = f"-X http://127.0.0.1:6041 -s 'select ts from test.meters'"
+        cmd = f'-X http://127.0.0.1:6041 -s "select ts from test.meters"'
         rlist = self.taos(cmd, checkRun = True)
         results = [
             "WebSocket Client Version",
@@ -276,19 +292,19 @@ class TestTaosCli:
 
         # cloud
         os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6041"
-        cmd = f"-s 'select ts from test.meters'"
+        cmd = f'-s "select ts from test.meters"'
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
         # local
         os.environ['TDENGINE_CLOUD_DSN'] = ""
         os.environ['TDENGINE_DSN']       = "http://127.0.0.1:6041"
-        cmd = f"-s 'select ts from test.meters'"
+        cmd = f'-s "select ts from test.meters"'
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
         # local & cloud -> cloud first
         os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6041"  # valid
         os.environ['TDENGINE_DSN']       = "http://127.0.0.1:6042"  # invalid
-        cmd = f"-s 'select ts from test.meters'"
+        cmd = f'-s "select ts from test.meters"'
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
 
@@ -299,7 +315,7 @@ class TestTaosCli:
 
         os.environ['TDENGINE_CLOUD_DSN'] = ""
         os.environ['TDENGINE_DSN']       = ""
-        cmd = f"-X http://127.0.0.1:6041 -s 'select ts from test.meters'"
+        cmd = f'-X http://127.0.0.1:6041 -s "select ts from test.meters"'
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
 
@@ -338,18 +354,18 @@ class TestTaosCli:
         ]
     
         # default
-        cmd = f"-s 'select ts from test.d0'"
+        cmd = f'-s "select ts from test.d0"'
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
         
         # websocket
-        cmd = f"-Z 1 -s 'select ts from test.d0'"
+        cmd = f'-Z 1 -s "select ts from test.d0"'
         results[0] = "WebSocket Client Version"
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)        
 
         # native
-        cmd = f"-Z 0 -s 'select ts from test.d0'"
+        cmd = f'-Z 0 -s "select ts from test.d0"'
         results[0] = "Native Client Version"
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)

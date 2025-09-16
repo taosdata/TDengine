@@ -459,6 +459,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_EN_WHITELIST,   "enableWhiteList not m
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
 TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No Snode is available")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL,   "Request is not matched with local dnode")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -833,7 +834,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_DUP_TIMESTAMP,            "Duplicate timestamps
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR, "Func to_timestamp failed for format mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR, "Func to_timestamp failed for wrong timestamp")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED, "Func to_timestamp failed for unsupported timestamp format")
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED,    "Func to_char failed for unsupported format")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TIME_UNIT_INVALID,        "Invalid function time unit")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL,      "Function time unit cannot be smaller than db precision")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_INVALID_VALUE_RANGE,      "Function got invalid value range")

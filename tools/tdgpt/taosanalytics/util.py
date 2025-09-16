@@ -1,5 +1,6 @@
 # encoding:utf-8
 """utility methods to helper query processing"""
+
 import numpy as np
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from statsmodels.tsa.stattools import adfuller
@@ -59,7 +60,7 @@ def convert_results_to_windows(result, ts_list, valid_code):
 
 def is_white_noise(input_list):
     """ determine whether the input list is a white noise list or not """
-    if len(input_list) < 16:  # the number of items in the list is insufficient
+    if len(input_list) <= 16:  # the number of items in the list is insufficient
         return False
 
     res = acorr_ljungbox(input_list, lags=[6, 12, 16], boxpierce=True, return_df=True)

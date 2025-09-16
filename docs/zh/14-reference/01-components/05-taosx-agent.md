@@ -18,6 +18,7 @@ taosX-Agent 是 TDengine TSDB Enterprise 的核心组件之一。本节将着重
 - `instanceId`：当前 taosx-agent 服务的实例 ID，如果同一台机器上启动了多个 taosx-agent 实例，必须保证各个实例的实例 ID 互不相同。
 - `compression`：非必填，可配置为 `true` 或 `false`，默认为 `false`。配置为`true`，则开启 `Agent` 和 `taosX` 通信数据压缩。
 - `in_memory_cache_capacity`：非必填，表示可在内存中缓存的最大消息批次数，可配置为大于 0 的整数。默认为 `64`。
+- `keep_online`: 非必填，当 taosX 服务不可用或 taosx-agent 与 taosX 服务之间的连接断开时，保持 taosx-agent 运行不退出并尝试重连。
 - `client_port_range.min`：非必填，取值范围 `[49152-65535]`，默认为 `49152`，当 agent 向 taosx 创建 socket 连接时，socket 客户端会随机监听一个端口，此配置限制了端口范围的最小值。
 - `client_port_range.max`：非必填，取值范围 `[49152-65535]`，默认为 `65535`，此配置限制了端口范围的最大值。
 - `log_level`：非必填，日志级别，默认为 `info`，同 `taosX` 一样，支持 `error`、`warn`、`info`、`debug`、`trace` 五级。已弃用，请使用 `log.level` 代替。
@@ -43,7 +44,7 @@ taosX-Agent 是 TDengine TSDB Enterprise 的核心组件之一。本节将着重
 #token = ""
 
 # server instance id
-# 
+#
 # The instanceId of each instance is unique on the host
 # instanceId = 48
 
@@ -54,6 +55,9 @@ taosX-Agent 是 TDengine TSDB Enterprise 的核心组件之一。本节将着重
 # In-memory cache capacity
 #
 #in_memory_cache_capacity = 64
+
+# Keep the agent alive when the taosX service exits or disconnects
+keep_online = true
 
 [client_port_range]
 # Minimum boundary of listening port of agent, can not less than 49152
@@ -67,7 +71,7 @@ taosX-Agent 是 TDengine TSDB Enterprise 的核心组件之一。本节将着重
 # log configuration
 [log]
 # All log files are stored in this directory
-# 
+#
 #path = "/var/log/taos" # on linux/macOS
 #path = "C:\\TDengine\\log" # on windows
 
@@ -76,19 +80,19 @@ taosX-Agent 是 TDengine TSDB Enterprise 的核心组件之一。本节将着重
 #level = "info"
 
 # Compress archived log files or not
-# 
+#
 #compress = false
 
 # The number of log files retained by the current explorer server instance in the `path` directory
-# 
+#
 #rotationCount = 30
 
 # Rotate when the log file reaches this size
-# 
+#
 #rotationSize = "1GB"
 
 # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
-# 
+#
 #reservedDiskSize = "1GB"
 
 # The number of days log files are retained

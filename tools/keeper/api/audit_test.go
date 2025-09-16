@@ -18,7 +18,7 @@ func TestAudit(t *testing.T) {
 	cfg := config.GetCfg()
 	cfg.Audit = config.AuditConfig{
 		Database: config.Database{
-			Name: "keepter_test_audit",
+			Name: "keeper_test_audit",
 		},
 		Enable: true,
 	}
@@ -55,6 +55,12 @@ func TestAudit(t *testing.T) {
 			data:   "{\"timestamp\": \"1699839716442000000\", \"cluster_id\": \"cluster_id\", \"user\": \"user\", \"operation\": \"operation\", \"db\":\"dbnameb\", \"resource\":\"resourcenameb\", \"client_add\": \"localhost:30000\", \"details\": \"create database `meter` buffer 32 cachemodel 'none' duration 50d keep 3650d single_stable 0 wal_retention_period 3600 precision 'ms'\"}",
 			expect: "create database `meter` buffer 32 cachemodel 'none' duration 50d keep 3650d single_stable 0 wal_retention_period 3600 precision 'ms'",
 		},
+		{
+			name:   "4",
+			ts:     1699839716443000000,
+			data:   "{\"timestamp\": \"1699839716443000000\", \"cluster_id\": \"cluster_id\", \"user\": \"user\", \"operation\": \"operation\", \"db\":\"dbnamec\", \"resource\":\"resourcenamec\", \"client_add\": \"2002:09ba:0b4e:0006:be24:11ff:fe9c:03dd\", \"details\": \"detail\"}",
+			expect: "detail",
+		},
 	}
 
 	cases2 := []struct {
@@ -70,7 +76,14 @@ func TestAudit(t *testing.T) {
 			data:   `{"timestamp":1699839716445, "cluster_id": "cluster_id", "user": "user", "operation": "operation", "db":"dbnamea", "resource":"resourcenamea", "client_add": "localhost:30000", "details": "details"}`,
 			expect: "details",
 		},
+		{
+			name:   "2",
+			ts:     1699839716446000000,
+			data:   `{"timestamp":1699839716446, "cluster_id": "cluster_id", "user": "user", "operation": "operation", "db":"dbnamea", "resource":"resourcenamea", "client_add": "2002:09ba:0b4e:0006:be24:11ff:fe9c:03dd", "details": "details"}`,
+			expect: "details",
+		},
 	}
+
 	conn, err := db.NewConnectorWithDb(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.Audit.Database.Name, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
 	defer func() {

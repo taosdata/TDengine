@@ -26,10 +26,12 @@ venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
 installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
 tar_td_model_name="tdtsfm.tar.gz"
-tar_xhs_model_name="timer-moe.tar.gz"
+tar_xhs_model_name="timemoe.tar.gz"
 
 python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
+# if install python venv
+install_venv="${INSTALL_VENV:-True}"
 
 #install main path
 install_main_dir=${installDir}
@@ -158,7 +160,7 @@ function kill_process() {
 }
 
 function kill_model_service() {
-  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+  for script in stop-tdtsfm.sh stop-time-moe.sh; do
     script_path="${installDir}/bin/${script}"
     [ -f "${script_path}" ] && ${csudo}bash "${script_path}" || :
   done
@@ -189,8 +191,9 @@ function install_bin_and_lib() {
   declare -A links=(
     ["start-tdtsfm"]="${install_main_dir}/bin/start-tdtsfm.sh"
     ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
-    ["start-timer-moe"]="${install_main_dir}/bin/start-timer-moe.sh"
-    ["stop-timer-moe"]="${install_main_dir}/bin/stop-timer-moe.sh"
+    ["start-time-moe"]="${install_main_dir}/bin/start-time-moe.sh"
+    ["stop-time-moe"]="${install_main_dir}/bin/stop-time-moe.sh"
+    ["start-model-from-remote"]="${install_main_dir}/bin/start_model_from_remote.sh"
   )
 
   # Iterate over the array and create/remove links as needed
@@ -278,33 +281,37 @@ function install_anode_venv() {
   ${csudo}mkdir -p ${venvDir} && ${csudo}chmod 777 ${venvDir}
   ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
 
-  # build venv
-  ${csudo}python3.${python_minor_ver} -m venv ${venvDir}
+  if [ ${install_venv} == "True" ]; then
+    # build venv
+    ${csudo}python3.${python_minor_ver} -m venv ${venvDir}
 
-  echo -e "active Python3 virtual env: ${venvDir}"
-  source ${venvDir}/bin/activate
+    echo -e "active Python3 virtual env: ${venvDir}"
+    source ${venvDir}/bin/activate
 
-  echo -e "install the required packages by pip3, this may take a while depending on the network condition"
-  ${csudo}${venvDir}/bin/pip3 install numpy==1.26.4
-  ${csudo}${venvDir}/bin/pip3 install pandas==1.5.0
+    echo -e "install the required packages by pip3, this may take a while depending on the network condition"
+    ${csudo}${venvDir}/bin/pip3 install numpy==1.26.4
+    ${csudo}${venvDir}/bin/pip3 install pandas==1.5.0
 
-  ${csudo}${venvDir}/bin/pip3 install scikit-learn
-  ${csudo}${venvDir}/bin/pip3 install outlier_utils
-  ${csudo}${venvDir}/bin/pip3 install statsmodels
-  ${csudo}${venvDir}/bin/pip3 install pyculiarity
-  ${csudo}${venvDir}/bin/pip3 install pmdarima
-  ${csudo}${venvDir}/bin/pip3 install flask
-  ${csudo}${venvDir}/bin/pip3 install matplotlib
-  ${csudo}${venvDir}/bin/pip3 install uwsgi
-  ${csudo}${venvDir}/bin/pip3 install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
-  ${csudo}${venvDir}/bin/pip3 install keras==3.10.0
-  ${csudo}${venvDir}/bin/pip3 install requests
-  ${csudo}${venvDir}/bin/pip3 install taospy
-  ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
-  ${csudo}${venvDir}/bin/pip3 install accelerate
-  ${csudo}${venvDir}/bin/pip3 install tensorflow-cpu==2.15.0
+    ${csudo}${venvDir}/bin/pip3 install scikit-learn
+    ${csudo}${venvDir}/bin/pip3 install outlier_utils
+    ${csudo}${venvDir}/bin/pip3 install statsmodels
+    ${csudo}${venvDir}/bin/pip3 install pyculiarity
+    ${csudo}${venvDir}/bin/pip3 install pmdarima
+    ${csudo}${venvDir}/bin/pip3 install flask
+    ${csudo}${venvDir}/bin/pip3 install matplotlib
+    ${csudo}${venvDir}/bin/pip3 install uwsgi
+    ${csudo}${venvDir}/bin/pip3 install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+    ${csudo}${venvDir}/bin/pip3 install keras==3.10.0
+    ${csudo}${venvDir}/bin/pip3 install requests
+    ${csudo}${venvDir}/bin/pip3 install taospy
+    ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
+    ${csudo}${venvDir}/bin/pip3 install accelerate
+    ${csudo}${venvDir}/bin/pip3 install tensorflow-cpu==2.15.0
 
-  echo -e "Install python library for venv completed!"
+    echo -e "Install python library for venv completed!"
+  else
+    echo -e "Install python library for venv skipped!"
+  fi
 }
 
 function clean_service_on_sysvinit() {

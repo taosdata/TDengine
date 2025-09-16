@@ -314,6 +314,59 @@ taos -h tdengine -P 6030
 
 如果 TAOS_FQDN 被设置为与所在主机名相同，则效果与“在 host 网络模式下启动 TDengine TSDB”相同。
 
+### 使用 docker compose 方式启动集群
+使用如下 docker compose 配置文件，可以启动一个 3 节点 TDengine TSDB 集群。
+docker-compose.yaml 内容如下：
+
+```yaml
+services:
+  td1:
+    image: tdengine/tdengine
+    environment:
+      - TAOS_FQDN=td1
+ 
+  td2:
+    image: tdengine/tdengine
+    environment:
+      - TAOS_FQDN=td2
+      - TAOS_FIRST_EP=td1:6030
+
+  td3:
+    image: tdengine/tdengine
+    environment:
+      - TAOS_FQDN=td3
+      - TAOS_FIRST_EP=td1:6030
+```
+
+配置中的环境变量 TAOS_FIRST_EP 用于主动连接的集群中首个 dnode 的 endpoint，效果与 /etc/taos/taos.cfg 中的 firstEp 参数一致。
+启动集群：
+
+```shell
+docker compose up
+```
+
+启动后进入任一节点，比如 td1 节点：
+
+```shell
+docker compose exec td1 bash
+```
+
+执行如下命令查看集群状态:
+
+```shell
+$ taos -s "show dnodes"
+Welcome to the TDengine Command Line Interface, Native Client Version:3.3.6.13
+Copyright (c) 2025 by TDengine, all rights reserved.
+
+taos> show dnodes
+     id      |            endpoint            | vnodes | support_vnodes |    status    |       create_time       |       reboot_time       |              note              |
+=============================================================================================================================================================================
+           1 | td1:6030                       |      0 |             85 | ready        | 2025-08-21 01:56:41.630 | 2025-08-21 01:56:41.462 |                                |
+           2 | td2:6030                       |      1 |             85 | ready        | 2025-08-21 01:56:43.203 | 2025-08-21 01:56:43.453 |                                |
+           3 | td3:6030                       |      0 |             85 | ready        | 2025-08-21 01:56:43.296 | 2025-08-21 01:56:43.491 |                                |
+Query OK, 3 row(s) in set (0.006355s)
+```
+
 ## Kubernetes 部署
 
 作为面向云原生架构设计的时序数据库，TDengine TSDB 本身就支持 Kubernetes 部署。这里介绍如何使用 YAML 文件从头一步一步创建一个可用于生产使用的高可用 TDengine TSDB 集群，并重点介绍 Kubernetes 环境下 TDengine TSDB 的常用操作。本小节要求读者对 Kubernetes 有一定的了解，可以熟练运行常见的 kubectl 命令，了解 statefulset、service、pvc 等概念，对这些概念不熟悉的读者，可以先参考 Kubernetes 的官网进行学习。
