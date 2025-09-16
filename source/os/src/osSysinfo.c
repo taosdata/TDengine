@@ -852,7 +852,7 @@ void taosGetMemValue(char* line, int64_t* value){
 
   char *colon_pos = strchr(line, ':');
   if (colon_pos != NULL) {
-    if (sscanf(colon_pos + 1, "%ld", value) == 1) {
+    if (sscanf(colon_pos + 1, "%" PRId64, value) == 1) {
     }
   }
 }
