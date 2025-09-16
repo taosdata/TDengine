@@ -7223,30 +7223,31 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   return TSDB_CODE_SUCCESS;
 }
 
-// checrk left time is greater than right time
-static int32_t checkTimeGreater(SValueNode* pLeftTime, SValueNode* pRightTime, uint8_t precision, bool greateEqual) {
+// check left time is greater than right time
+static int32_t checkTimeGreater(SValueNode* pLeftTime, SValueNode* pRightTime, uint8_t precision, bool greateEqual, bool* res) {
   bool needConvert = IS_CALENDAR_TIME_DURATION(pLeftTime->unit) || IS_CALENDAR_TIME_DURATION(pRightTime->unit);
+  *res = true;
   if (needConvert) {
     double  leftMonth = 0, rightMonth = 0;
     PAR_ERR_RET(getMonthsFromTimeVal(pLeftTime->datum.i, precision, pLeftTime->unit, &leftMonth));
     PAR_ERR_RET(getMonthsFromTimeVal(pRightTime->datum.i, precision, pRightTime->unit, &rightMonth));
     if (greateEqual) {
       if (leftMonth < rightMonth) {
-        PAR_ERR_RET(TSDB_CODE_FAILED);
+        *res = false;
       }
     } else {
       if (leftMonth <= rightMonth) {
-        PAR_ERR_RET(TSDB_CODE_FAILED);
+        *res = false;
       }
     }
   } else {
     if (greateEqual) {
       if (pLeftTime->datum.i < pRightTime->datum.i) {
-        PAR_ERR_RET(TSDB_CODE_FAILED);
+        *res = false;
       }
     } else {
       if (pLeftTime->datum.i <= pRightTime->datum.i) {
-        PAR_ERR_RET(TSDB_CODE_FAILED);
+       *res = false;
       }
     }
   }
@@ -7255,6 +7256,7 @@ static int32_t checkTimeGreater(SValueNode* pLeftTime, SValueNode* pRightTime, u
 }
 
 static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
+  int32_t     code = TSDB_CODE_SUCCESS;
   uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
   SValueNode* pOffset = (SValueNode*)pInterval->pOffset;
@@ -7284,7 +7286,11 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT));
     }
 
-    if (checkTimeGreater(pInter, pOffset, precision, false) != TSDB_CODE_SUCCESS) {
+    bool    greater = false;
+    code = checkTimeGreater(pInter, pOffset, precision, false, &greater);
+    if ((code != TSDB_CODE_SUCCESS)) {
+      return code;
+    } else if (!greater) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG));
     }
   }
@@ -7317,7 +7323,11 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_UNIT));
     }
 
-    if (checkTimeGreater(pSliding, pSOffset, precision, false) != TSDB_CODE_SUCCESS) {
+    bool greater = false;
+    code = checkTimeGreater(pSliding, pSOffset, precision, false, &greater);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    } else if (!greater) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG));
     }
   }
@@ -13819,12 +13829,15 @@ static int32_t createStreamReqBuildTriggerSessionWindow(STranslateContext* pCxt,
 }
 
 static int32_t createStreamReqBuildTriggerIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
   pReq->triggerType = WINDOW_TYPE_INTERVAL;
   PAR_ERR_RET(checkStreamIntervalWindow(pCxt, pTriggerWindow));
-  if (pTriggerWindow->pInterval && pTriggerWindow->pSliding &&
-      checkTimeGreater((SValueNode*)pTriggerWindow->pInterval, (SValueNode*)pTriggerWindow->pSliding,
-                       ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision, false)) {
-    pReq->trigger.sliding.overlap = true;
+  if (pTriggerWindow->pInterval && pTriggerWindow->pSliding) {
+    bool greater = false;
+    code = checkTimeGreater((SValueNode*)pTriggerWindow->pInterval, (SValueNode*)pTriggerWindow->pSliding,
+                       ((SColumnNode*)pTriggerWindow->pCol)->node.resType.precision, false, &greater);
+    PAR_ERR_RET(code);
+    pReq->trigger.sliding.overlap = greater;
   } else {
     pReq->trigger.sliding.overlap = false;
   }

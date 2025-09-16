@@ -28,6 +28,7 @@
 #include "mndVgroup.h"
 #include "mndSnode.h"
 #include "mndMnode.h"
+#include "cmdnodes.h"
 
 void msmDestroyActionQ() {
   SStmQNode* pQNode = NULL;
@@ -920,6 +921,9 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->addOptions = pStream->pCreate->addOptions;
+  if(pStream->pCreate->trigger.sliding.overlap) {
+    pMsg->addOptions |= CALC_SLIDING_OVERLAP;
+  }
   pMsg->outCols = pInfo->pCreate->outCols;
   pMsg->outTags = pInfo->pCreate->outTags;
   pMsg->outStbUid = pStream->pCreate->outStbUid;

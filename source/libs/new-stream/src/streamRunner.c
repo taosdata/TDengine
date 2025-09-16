@@ -151,7 +151,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   pTask->output.outStbVersion = pMsg->outStbSversion;
   pTask->topTask = pMsg->topPlan;
   pTask->notification.calcNotifyOnly = pMsg->calcNotifyOnly;
-  pTask->notification.addOptions = pMsg->addOptions;
+  pTask->addOptions = pMsg->addOptions;
   pTask->streamName = taosStrdup(pMsg->streamName);
 
   code = stRunnerInitTaskExecMgr(pTask, pMsg);
@@ -480,7 +480,7 @@ _exit:
   if (code != 0) {
     ST_TASK_ELOG("failed to prepare notification for task:%" PRIx64 ", code:%s", pTask->task.streamId, tstrerror(code));
     if (pContent) taosMemoryFreeClear(pContent);
-    if ((pTask->notification.addOptions & NOTIFY_ON_FAILURE_PAUSE) ==  0) {
+    if ((pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) ==  0) {
       code = TSDB_CODE_SUCCESS;
     }
   }
@@ -529,7 +529,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                  pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                 pTask->notification.addOptions, *params, nParam);
+                                 pTask->addOptions, *params, nParam);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -537,7 +537,7 @@ _exit:
   } else {
     ST_TASK_DLOG("send notification for task:%" PRIx64 ", win count:%d", pTask->task.streamId, nParam);
   }
-  if ((pTask->notification.addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
+  if ((pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
     code = TSDB_CODE_SUCCESS;  // if notify error handle is 0, then ignore the error
   }
   clearNotifyContent(pExec, startWinIdx, endWinIdx);
@@ -568,7 +568,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
 
     code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                   pTask->notification.addOptions, pTriggerCalcParams, 1);
+                                   pTask->addOptions, pTriggerCalcParams, 1);
     taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
   }
   return code;
@@ -583,7 +583,7 @@ static int32_t stRunnerHandleSingleWinResultBlock(SStreamRunnerTask* pTask, SStr
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
     }
-    if ((pTask->notification.addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
+    if ((pTask->addOptions & NOTIFY_ON_FAILURE_PAUSE) == 0) {
       code = TSDB_CODE_SUCCESS;  // ignore the notify error
     }
   }
@@ -919,6 +919,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
   pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
+  pExec->runtimeInfo.funcInfo.addOptions = pTask->addOptions;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
   STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_CALC_REQ_MAX_WIN_NUM, TSDB_CODE_STREAM_TASK_IVLD_STATUS);

@@ -76,6 +76,7 @@ extern "C" {
 #define NOTIFY_HISTORY           BIT_FLAG_MASK(0)
 #define NOTIFY_ON_FAILURE_PAUSE  BIT_FLAG_MASK(1)
 #define NOTIFY_HAS_FILTER        BIT_FLAG_MASK(2)
+#define CALC_SLIDING_OVERLAP     BIT_FLAG_MASK(3)
 
 typedef struct SDatabaseOptions {
   ENodeType   type;

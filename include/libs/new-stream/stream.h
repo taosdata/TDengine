@@ -87,7 +87,6 @@ typedef struct SStreamRunnerTaskNotification {
   int8_t calcNotifyOnly;
   // notify options
   SArray* pNotifyAddrUrls;
-  int32_t addOptions;
 } SStreamRunnerTaskNotification;
 
 typedef struct SStreamRunnerTaskExecMgr {
@@ -116,6 +115,7 @@ typedef struct SStreamRunnerTask {
   SArray                       *forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
   char                         *streamName;
+  int32_t                       addOptions;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {

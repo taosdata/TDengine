@@ -554,7 +554,7 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
 
   int32_t          realCols = taosArrayGetSize(pBlock->pDataBlock);
   SColumnInfoData* pFilterCol = NULL;
-  if (pTask->notification.addOptions & NOTIFY_HAS_FILTER) {
+  if (pTask->addOptions & NOTIFY_HAS_FILTER) {
     realCols -= 1;
     pFilterCol = taosArrayGet(pBlock->pDataBlock, realCols);
     if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {

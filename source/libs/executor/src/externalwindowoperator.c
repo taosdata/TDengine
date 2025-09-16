@@ -19,6 +19,7 @@
 #include "tdatablock.h"
 #include "stream.h"
 #include "filter.h"
+#include "cmdnodes.h"
 
 typedef struct SBlockList {
   const SSDataBlock* pSrcBlock;
@@ -2120,10 +2121,10 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   }
 
   if (pPhynode->isSingleTable) {
-    pExtW->getWinFp = (pExtW->timeRangeExpr && pExtW->timeRangeExpr->needCalc) ? extWinGetOvlpWin : extWinGetNoOvlpWin;
+    pExtW->getWinFp = (pExtW->timeRangeExpr && (pExtW->timeRangeExpr->needCalc || (pTaskInfo->pStreamRuntimeInfo->funcInfo.addOptions & CALC_SLIDING_OVERLAP))) ? extWinGetOvlpWin : extWinGetNoOvlpWin;
     pExtW->multiTableMode = false;
   } else {
-    pExtW->getWinFp = (pExtW->timeRangeExpr && pExtW->timeRangeExpr->needCalc) ? extWinGetMultiTbOvlpWin : extWinGetMultiTbNoOvlpWin;
+    pExtW->getWinFp = (pExtW->timeRangeExpr && (pExtW->timeRangeExpr->needCalc || (pTaskInfo->pStreamRuntimeInfo->funcInfo.addOptions & CALC_SLIDING_OVERLAP))) ? extWinGetMultiTbOvlpWin : extWinGetMultiTbNoOvlpWin;
     pExtW->multiTableMode = true;
   }
   pExtW->inputHasOrder = pPhynode->inputHasOrder;
