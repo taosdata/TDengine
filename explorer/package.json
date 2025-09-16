@@ -7,7 +7,7 @@
     "dev": "node scripts/oem.cjs serve dev",
     "prd": "node scripts/oem.cjs serve prd",
     "build": "rimraf dist && vue-tsc && node version.cjs && node scripts/oem.cjs",
-    "build:bin": "node version.cjs && node scripts/oem.cjs && cargo build --release",
+    "build:bin": "node version.cjs && node scripts/oem.cjs && cargo build --release -p taos-explorer",
     "preview": "vite preview",
     "lint": "eslint --fix --ext  .js,.vue src",
     "prepare": "husky install"
