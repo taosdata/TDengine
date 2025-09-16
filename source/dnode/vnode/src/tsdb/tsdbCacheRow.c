@@ -1097,14 +1097,11 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
       }
 
       taosMemoryFreeClear(pNewRow);
-      taosMemoryFreeClear(pOldTSchema);
-      taosMemoryFreeClear(pNewTSchema);
       taosArrayDestroy(colVals);
       colVals = NULL;
     }
 
     tsdbFreeLastRow(pLastRow);
-    rocksdb_free(values_list[0]);
   }
 
 #endif
@@ -1198,7 +1195,10 @@ _exit:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, %s failed at line %d since %s.", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
-  taosMemoryFree(values_list[0]);
+
+  rocksdb_free(values_list[0]);
+  taosMemFree(values_list);
+  taosMemFree(values_list_sizes);
   taosMemoryFree(pNewTSchema);
   taosMemoryFree(pOldTSchema);
   TAOS_RETURN(code);
@@ -1325,9 +1325,6 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
             tsdbFreeLastRow(pLastRow);
             goto _exit;
           }
-
-          taosMemoryFreeClear(pNewTSchema);
-
           taosArrayDestroy(colVals);
         }
       } else {
@@ -1349,9 +1346,6 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
           code = tsdbRowCachePutToRocksdb(pTsdb, &rowKey, pLastRow);
         }
       }
-
-      taosMemoryFreeClear(pTOldSchema);
-      taosMemoryFreeClear(pNewTSchema);
     }
 
     // Clean up
