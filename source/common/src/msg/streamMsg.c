@@ -4450,7 +4450,7 @@ static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash)
   int32_t iter = 0;
   while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
     SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-    if (pInfo->gId == 0){
+    if (pInfo->gId == -1){
       continue;
     }
     int64_t uid = *(int64_t*)(tSimpleHashGetKey(pe, NULL));

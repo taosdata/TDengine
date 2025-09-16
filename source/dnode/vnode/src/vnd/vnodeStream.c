@@ -1299,9 +1299,9 @@ static int32_t scanSubmitDataForMetaDataPre(SStreamTriggerReaderInfo* info, void
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  uint64_t gid = 0;
-  int64_t uid = 0;
   for (int32_t i = 0; i < nSubmitTbData; i++) {
+    uint64_t gid = -1;
+    int64_t  uid = 0;
     int32_t numOfRows = 0;
     STREAM_CHECK_RET_GOTO(processSubmitTbDataForMetaDataPre(&decoder, info, ranges, &gid, &uid, &numOfRows));
     if (numOfRows <= 0) {
@@ -1337,7 +1337,7 @@ static void resetIndexHash(SSHashObj* indexHash){
     pInfo->startRowIdx = 0;
     pInfo->currentRowIdx = 0;
     pInfo->numRows = 0;
-    pInfo->gId = 0;
+    pInfo->gId = -1;
   }
 }
 
