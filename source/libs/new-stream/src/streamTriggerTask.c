@@ -2380,6 +2380,10 @@ static void stRealtimeContextDestroy(void *ptr) {
     tSimpleHashCleanup(pContext->pGroups);
     pContext->pGroups = NULL;
   }
+  if (pContext->groupsToDelete != NULL) {
+    taosArrayDestroy(pContext->groupsToDelete);
+    pContext->groupsToDelete = NULL;
+  }
 
   if (pContext->pSlices != NULL) {
     tSimpleHashCleanup(pContext->pSlices);
