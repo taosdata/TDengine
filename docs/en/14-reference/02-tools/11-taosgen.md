@@ -7,7 +7,20 @@ toc_max_heading_level: 4
 
 taosgen is a performance benchmarking tool for time-series data products, supporting data generation, write performance testing, and more. taosgen uses "jobs" as the basic unit, where a job is user-defined and consists of a set of operations to accomplish a specific task. Each job contains one or more steps and can be connected to other jobs via dependencies, forming a Directed Acyclic Graph (DAG) execution flow for flexible and efficient task orchestration.
 
-taosgen currently supports only Linux systems.
+taosgen currently supports Linux and macOS systems.
+
+## Comparison of taosBenchmark and taosgen Features
+
+Compared to taosBenchmark, taosgen offers the following advantages and improvements:
+- Automatic detection of unknown or incorrect configuration items, promptly identifying and reporting spelling errors or invalid parameters in the configuration file to enhance configuration safety and usability.
+- Supports TDengine database connection pooling for efficient management and reuse of database connections.
+- Supports real-time data generation, eliminating the need to pre-generate large data files, saving preparation time and simulating real scenarios.
+- More diverse data generation methods, adding expression-based strategies on top of random and sequential generation, making it easier to simulate complex business data.
+- Powerful job orchestration capabilities, supporting DAG dependencies to simulate real business processes.
+- Supports multiple targets/protocols (TDengine, MQTT), enabling scenarios such as database writing and message publishing.
+- Supports various time interval strategies to control data writing operations, such as "playing" data according to its actual generation time.
+
+taosgen solves the problems of inflexible configuration, limited data generation methods, and poor extensibility in taosBenchmark, making it more suitable for modern IoT and industrial internet big data testing needs.
 
 ## Getting the Tool
 
