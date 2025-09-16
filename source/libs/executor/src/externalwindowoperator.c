@@ -1113,11 +1113,46 @@ static int32_t extWinGetMultiTbNoOvlpWin(SOperatorInfo* pOperator, int64_t* tsCo
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extWinGetFirstWinFromTs(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, int64_t* tsCol,
+                                       int64_t rowNum, int32_t* startPos) {
+  SExtWinTimeWindow* pWin = NULL;
+  int32_t            idx = taosArraySearchIdx(pExtW->pWins, tsCol, extWinTsWinCompare, TD_EQ);
+  if (idx >= 0) {
+    for (int i = idx - 1; i >= 0; --i) {
+      pWin = TARRAY_GET_ELEM(pExtW->pWins, i);
+      if (extWinTsWinCompare(tsCol, pWin) == 0) {
+        idx = i;
+      } else {
+        break;
+      }
+    }
+    *startPos = 0;
+    return idx;
+  }
+
+  pWin = NULL;
+  int32_t w = 0;
+  for (int64_t i = 1; i < rowNum; ++i) {
+    for (; w < pExtW->pWins->size; ++w) {
+      pWin = TARRAY_GET_ELEM(pExtW->pWins, w);
+      if (tsCol[i] < pWin->tw.skey) {
+        break;
+      }
+
+      if (tsCol[i] < pWin->tw.ekey) {
+        *startPos = i;
+        return w;
+      }
+    }
+  }
+
+  return -1;
+}
 
 static int32_t extWinGetMultiTbOvlpWin(SOperatorInfo* pOperator, int64_t* tsCol, int32_t* startPos, SDataBlockInfo* pInfo, SExtWinTimeWindow** ppWin, int32_t* winRows) {
   SExternalWindowOperator* pExtW = pOperator->info;
   if (pExtW->blkWinIdx < 0) {
-    pExtW->blkWinIdx = extWinGetMultiTbWinFromTs(pOperator, pExtW, tsCol, pInfo->rows, startPos);
+    pExtW->blkWinIdx = extWinGetFirstWinFromTs(pOperator, pExtW, tsCol, pInfo->rows, startPos);
     if (pExtW->blkWinIdx < 0) {
       qDebug("%s %s blk TR[%" PRId64 ", %" PRId64 ") not in any win, skip block", 
           GET_TASKID(pOperator->pTaskInfo), __func__, tsCol[0], tsCol[pInfo->rows - 1]);
