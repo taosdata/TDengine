@@ -3575,6 +3575,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
       }
 
+      if (nrows >= STREAM_RETURN_ROWS_NUM) {
+        pContext->continueToFetch = true;
+      }
+
       nrows = blockDataGetNumOfRows(pContext->pDropBlock);
       if (nrows > 0) {
         SColumnInfoData *pGidCol = taosArrayGet(pContext->pDropBlock->pDataBlock, 0);
@@ -3584,10 +3588,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           void* px =taosArrayPush(pContext->groupsToDelete, &pGids[i]);
           QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         }
-      }
-
-      if (nrows >= STREAM_RETURN_ROWS_NUM) {
-        pContext->continueToFetch = true;
       }
 
       if (--pContext->curReaderIdx > 0) {
