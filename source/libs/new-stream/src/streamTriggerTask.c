@@ -3275,9 +3275,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
     }
     if (!pContext->needCheckAgain) {
-      TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
-    } else {
       stRealtimeGroupClearMetadatas(pGroup, prevWindowEnd);
+      TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
     }
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
