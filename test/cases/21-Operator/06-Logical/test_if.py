@@ -31,13 +31,21 @@ class TestIf:
 
         self.If()
         tdStream.dropAllStreamsAndDbs()
+        self.IfWithSum()
+        tdStream.dropAllStreamsAndDbs()
         self.IfNull()
+        self.Nvl()
+        self.Nvl2()
+        self.NullIf()
+        self.IsNull()
+        self.IsNotNull()
+        self.Coalesce()
         tdStream.dropAllStreamsAndDbs()
         
     def If(self):
         tdLog.info(f"======== prepare data")
 
-        tdSql.prepare("db1", drop=True, vgroups=5)
+        tdSql.prepare("db1", drop=True, vgroups=3)
         tdSql.execute(f"use db1;")
         tdSql.execute(
             f"create stable sta (ts timestamp, f1 int, f2 binary(10), f3 bool) tags(t1 int, t2 bool, t3 binary(10));"
@@ -737,7 +745,7 @@ class TestIf:
             f"select if(c_bool, c_double, c_varbinary) as result from t_test;"
         )
 
-    def IfNull(self):
+    def IfWithSum(self):
         tdLog.info(f'=============== create database')
         tdSql.execute(f"create database test")
 
@@ -756,3 +764,78 @@ class TestIf:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2.000000000)
         tdSql.checkData(0, 1, 3.000000000)
+
+    def IfNull(self):
+        tdSql.query(f"select ifnull(1, 0);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query(f"select ifnull(null, 10);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select ifnull(1/0, 10);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select ifnull(1/0, 'yes');")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'yes')
+
+    def Nvl(self):
+        tdSql.query(f"select nvl(1, 0);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query(f"select nvl(null, 10);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select nvl(1/0, 10);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select nvl(1/0, 'yes');")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'yes')
+
+    def Nvl2(self):
+        tdSql.query(f"select nvl2(null, 1, 2);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2)
+
+        tdSql.query(f"select nvl2('x', 1, 2);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+    def NullIf(self):
+        tdSql.query(f"select nullif(1, 1);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select nullif(1, 2);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+    def IsNull(self):
+        tdSql.query(f"SELECT 1 IS NULL, 0 IS NULL, NULL IS NULL;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 0)
+        tdSql.checkData(0, 2, 1)
+
+    def IsNotNull(self):
+        tdSql.query(f"SELECT 1 IS NOT NULL, 0 IS NOT NULL, NULL IS NOT NULL;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 0)
+
+    def Coalesce(self):
+        tdSql.query(f"select coalesce(null, 1);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query(f"select coalesce(null, null, null);")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
