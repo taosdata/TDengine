@@ -380,9 +380,11 @@ typedef struct SRollupCtx {
   SExecTaskInfo*  pTaskInfo;
   SSDataBlock*    pInputBlock;  // input data block for rollup
   SSDataBlock*    pResBlock;    // result data block for rollup
+  SArray*         pColValArr;   // used the generate the aggregate row
   int32_t         rowSize;
   int32_t         maxBufRows;    // max buffer rows for aggregation
   int64_t         winTotalRows;  // number of total rows for current window
+  int64_t         winStartTs;    // start timestamp of current window
 } SRollupCtx;
 
 typedef struct {

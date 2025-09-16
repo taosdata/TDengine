@@ -15558,6 +15558,9 @@ static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewS
 }
 
 static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
   return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -16283,6 +16286,9 @@ _return:
 }
 
 static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
   int32_t code = TSDB_CODE_SUCCESS;
   pCxt->pCurrStmt = (SNode*)pStmt;
 
@@ -16298,6 +16304,9 @@ _return:
 }
 
 static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
   int32_t      code = TSDB_CODE_SUCCESS;
   SMDropSmaReq dropReq = {0};
   SName        name = {0};

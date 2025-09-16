@@ -101,6 +101,10 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     TAOS_CHECK_EXIT(terrno);
   }
 
+  if (!(pCtx->pColValArr = taosArrayInit(nCols, sizeof(SColVal)))) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
   if (!(pCtx->pBuf = taosMemoryMalloc(TSDB_MAX_BYTES_PER_ROW + VARSTR_HEADER_SIZE))) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -276,6 +280,14 @@ void tdRollupCtxCleanup(SRollupCtx *pCtx, bool deep) {
       if (deep) {
         taosMemFreeClear(pCtx->pTaskInfo->id.str);
         taosMemFreeClear(pCtx->pTaskInfo);
+      }
+    }
+    if (pCtx->pColValArr) {
+      if (deep) {
+        taosArrayDestroy(pCtx->pColValArr);
+        pCtx->pColValArr = NULL;
+      } else {
+        taosArrayClear(pCtx->pColValArr);
       }
     }
     blockDataDestroy(pCtx->pInputBlock);
