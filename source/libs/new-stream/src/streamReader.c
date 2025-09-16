@@ -156,7 +156,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
     int32_t        pNum = 0;
     STableKeyInfo  pListTmp = {0};
     STableKeyInfo* pList = NULL;
-    if (options->mapInfo != NULL) {
+    if (options->mapInfo != NULL && tSimpleHashGetSize(options->mapInfo) > 0) {
       int32_t iter = 0;
       void*   px = tSimpleHashIterate(options->mapInfo, NULL, &iter);
       while (px != NULL) {
