@@ -2886,7 +2886,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       pReq->cols = pProgress->reqCols;
       taosArrayClear(pReq->cols);
       int32_t iter1 = 0;
-      void   *px = tSimpleHashIterate(pTask->pOrigTableInfos, NULL, &iter1);
+      void   *px = tSimpleHashIterate(pTask->pOrigTableCols, NULL, &iter1);
       while (px != NULL) {
         SSHashObj               *pDbInfo = *(SSHashObj **)px;
         int32_t                  iter2 = 0;
@@ -2920,8 +2920,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerSetTableRequest *pReq = &pProgress->pullReq.setTableReq;
       pReq->uidInfoTrigger = pProgress->uidInfoTrigger;
       pReq->uidInfoCalc = pProgress->uidInfoCalc;
-      tSimpleHashCleanup(pReq->uidInfoTrigger);
-      tSimpleHashCleanup(pReq->uidInfoCalc);
+      tSimpleHashClear(pReq->uidInfoTrigger);
+      tSimpleHashClear(pReq->uidInfoCalc);
       int32_t                 iter1 = 0;
       SSTriggerOrigTableInfo *pInfo = tSimpleHashIterate(pTask->pOrigTableInfos, NULL, &iter1);
       while (pInfo != NULL) {
@@ -4372,7 +4372,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       OTableInfoRsp *pRsp = TARRAY_DATA(otableInfo.cols);
 
       int32_t iter1 = 0;
-      void   *px = tSimpleHashIterate(pTask->pOrigTableInfos, NULL, &iter1);
+      void   *px = tSimpleHashIterate(pTask->pOrigTableCols, NULL, &iter1);
       while (px != NULL) {
         SSHashObj               *pDbInfo = *(SSHashObj **)px;
         int32_t                  iter2 = 0;
