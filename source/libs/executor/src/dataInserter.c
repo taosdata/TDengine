@@ -2773,5 +2773,6 @@ _end:
       taosMemoryFreeClear(pMsg);
     }
   }
+  taosArrayDestroy(req.pArray);
   return code;
 }
