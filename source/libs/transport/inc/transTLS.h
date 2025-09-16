@@ -49,9 +49,7 @@ typedef struct {
 
 int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx);
 
-void    transTlsCtxDestroy(SSslCtx* pCtx);
-
-
+void transTlsCtxDestroy(SSslCtx* pCtx);
 typedef struct {
   int32_t  cap;
   int32_t  len;
