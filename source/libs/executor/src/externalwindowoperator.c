@@ -1994,7 +1994,6 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
   if (pTaskInfo->pStreamRuntimeInfo != NULL){
     pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
-    pTaskInfo->pStreamRuntimeInfo->funcInfo.extWinProjMode = (pExtW->mode != EEXT_MODE_AGG);
   }
 
   // pExtW->limitInfo = (SLimitInfo){0};
