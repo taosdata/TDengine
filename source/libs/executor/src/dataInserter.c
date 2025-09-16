@@ -2774,5 +2774,6 @@ _end:
     }
   }
   taosArrayDestroy(req.pArray);
+  if (pDropReq && pDropReq->name) taosMemoryFreeClear(pDropReq->name);
   return code;
 }
