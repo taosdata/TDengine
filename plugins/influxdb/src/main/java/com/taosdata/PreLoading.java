@@ -207,10 +207,10 @@ public class PreLoading implements CommandLineRunner {
             // 记录Netty连接信息
             StatusCache.noteNetty(this.nettyClientConfig.getHost(), this.nettyClientConfig.getPort());
             // 增加退出信号处理方法
-            /*Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                // 处理退出信号
-                processShutdown();
-            }));*/
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                logger.info("receive shutdown signal, system exit!");
+                System.exit(1);
+            }));
             // 状态默认正常，线程内部会再次更新
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());
             StatusCache.setDescription(StatusEnums.NORMAL.getDesc());

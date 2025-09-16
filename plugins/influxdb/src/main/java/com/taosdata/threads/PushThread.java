@@ -77,7 +77,7 @@ public class PushThread implements Runnable {
     /**
      * 空跑总时间统计，超过 5 分钟则断开连接
      */
-    private long emptyTimes = 0;
+    private long emptyTime = 0;
 
     @Override
     public void run() {
@@ -95,7 +95,7 @@ public class PushThread implements Runnable {
                 // 判断是否读到数据
                 if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
                     // 判断空跑次数
-                    if (this.emptyTimes >= 300000) {
+                    if (this.emptyTime >= 300000) {
                         if (this.arrowUtils != null) {
                             this.channel.writeAndFlush(this.arrowUtils.closeArrow()).sync();
                         }
@@ -105,10 +105,10 @@ public class PushThread implements Runnable {
                     }
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getPushEmptyInterval(), start, StatusEnums.NORMAL);
-                    this.emptyTimes += System.currentTimeMillis() - _start;
+                    this.emptyTime += System.currentTimeMillis() - _start;
                     continue;
                 } else {
-                    this.emptyTimes = 0;
+                    this.emptyTime = 0;
                 }
                 // 速度控制
                 FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), this.performanceConfig.getLimitSpeed());
@@ -222,7 +222,7 @@ public class PushThread implements Runnable {
             if (!subtableMap.isEmpty()) {
                 this.channel.writeAndFlush(this.arrowUtils.transformSubtable(subtableMap, this.first)).sync();
             }
-            this.channel.writeAndFlush(this.arrowUtils.transformDataByTime(influxdbBucketDataEntityList)).sync();
+            this.channel.writeAndFlush(this.arrowUtils.transformDataByTagTime(influxdbBucketDataEntityList)).sync();
             // 修改当前线程/schema的首条标记
             this.first = false;
             // 记录统计信息

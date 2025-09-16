@@ -67,7 +67,7 @@ public class BucketDataThread implements Runnable {
     private String key;
 
     /**
-     *
+     * 按tagset查询条件存time-based cursor的最后一次查询时间
      */
     private Map<String, Long> cond_last_time;
 
