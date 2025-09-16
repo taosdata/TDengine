@@ -653,6 +653,7 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
   int32_t            lino = 0;
   int32_t            nCalcNodes = 0;
   int32_t            nIdleSlots = 0;
+  int32_t            nTotalSlots = 0;
   SSTriggerCalcNode *pNode = NULL;
   bool              *pRunningFlag = NULL;
   bool               needUnlock = false;
@@ -677,8 +678,9 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
   for (int32_t i = 0; i < nCalcNodes; i++) {
     pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, i);
     nIdleSlots += TD_DLIST_NELES(&pNode->idleSlots);
+    nTotalSlots += TARRAY_SIZE(pNode->pSlots);
   }
-  if (nIdleSlots == 0 || (*pRunningCnt + 1 >= TARRAY_SIZE(pTask->runnerList))) {
+  if (nIdleSlots == 0 || (*pRunningCnt >= nTotalSlots - 1)) {
     goto _end;
   }
 
@@ -831,9 +833,9 @@ int32_t stTriggerTaskAcquireDropTableRequest(SStreamTriggerTask *pTask, int64_t 
   QUERY_CHECK_NULL(pRequest, code, lino, _end, terrno);
 
   // random select a calc node
-  SSTriggerCalcNode    *pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, taosRand() % taosArrayGetSize(pTask->pCalcNodes));
-  int32_t               idx = TARRAY_ELEM_IDX(pTask->pCalcNodes, pNode);
-  SStreamRunnerTarget  *pRunner = taosArrayGet(pTask->runnerList, idx);
+  SSTriggerCalcNode   *pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, taosRand() % taosArrayGetSize(pTask->pCalcNodes));
+  int32_t              idx = TARRAY_ELEM_IDX(pTask->pCalcNodes, pNode);
+  SStreamRunnerTarget *pRunner = taosArrayGet(pTask->runnerList, idx);
   QUERY_CHECK_NULL(pRunner, code, lino, _end, terrno);
   pRequest->streamId = pTask->task.streamId;
   pRequest->runnerTaskId = pRunner->addr.taskId;
@@ -2776,14 +2778,14 @@ _end:
   return code;
 }
 
-static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pContext, int64_t gid, SSTriggerDropRequest *pDropReq, bool *needColVal) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SStreamTriggerTask       *pTask = pContext->pTask;
-  SStreamRunnerTarget      *pCalcRunner = NULL;
-  bool                      needTagValue = false;
-  SRpcMsg                   msg = {.msgType = TDMT_STREAM_TRIGGER_DROP};
-
+static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pContext, int64_t gid,
+                                                 SSTriggerDropRequest *pDropReq, bool *needColVal) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+  SStreamTriggerTask  *pTask = pContext->pTask;
+  SStreamRunnerTarget *pCalcRunner = NULL;
+  bool                 needTagValue = false;
+  SRpcMsg              msg = {.msgType = TDMT_STREAM_TRIGGER_DROP};
 
   int32_t nRunners = taosArrayGetSize(pTask->runnerList);
   for (int32_t i = 0; i < nRunners; i++) {
@@ -2822,8 +2824,8 @@ static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pCont
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  int32_t tlen =
-      tSerializeSTriggerDropTableRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pDropReq);
+  int32_t tlen = tSerializeSTriggerDropTableRequest((char *)msg.pCont + sizeof(SMsgHead),
+                                                    msg.contLen - sizeof(SMsgHead), pDropReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
   TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
@@ -2832,8 +2834,8 @@ static int32_t stRealtimeContextSendDropTableReq(SSTriggerRealtimeContext *pCont
   QUERY_CHECK_CODE(code, lino, _end);
 
   ST_TASK_DLOG("send drop table request to node:%d task:%" PRIx64, pCalcRunner->addr.nodeId, pCalcRunner->addr.taskId);
-  ST_TASK_DLOG("trigger drop table req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
-
+  ST_TASK_DLOG("trigger drop table req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId,
+               msg.info.traceId.msgId);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -3286,9 +3288,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     pContext->status = STRIGGER_CONTEXT_SEND_DROP_REQ;
     bool allSent = true;
     for (int32_t i = deleteGroupNum - 1; i >= 0; i--) {
-      int64_t                   gid = ((int64_t *)TARRAY_DATA(pContext->groupsToDelete))[i];
-      bool                      drop = true;
-      SSTriggerDropRequest     *pDropReq = NULL;
+      int64_t               gid = ((int64_t *)TARRAY_DATA(pContext->groupsToDelete))[i];
+      bool                  drop = true;
+      SSTriggerDropRequest *pDropReq = NULL;
       code = stTriggerTaskAcquireDropTableRequest(pTask, pContext->sessionId, gid, &pDropReq);
       QUERY_CHECK_CODE(code, lino, _end);
       if (pDropReq) {
@@ -3584,7 +3586,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
         int64_t *pGids = (int64_t *)pGidCol->pData;
         for (int32_t i = 0; i < nrows; i++) {
-          void* px =taosArrayPush(pContext->groupsToDelete, &pGids[i]);
+          void *px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
           QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         }
       }
@@ -3712,9 +3714,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         if (nrows > 0) {
           SColumnInfoData *pGidCol = taosArrayGet(pContext->pDropBlock->pDataBlock, 0);
           QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
-          int64_t         *pGids = (int64_t *)pGidCol->pData;
+          int64_t *pGids = (int64_t *)pGidCol->pData;
           for (int32_t i = 0; i < nrows; i++) {
-            void* px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
+            void *px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
         }
