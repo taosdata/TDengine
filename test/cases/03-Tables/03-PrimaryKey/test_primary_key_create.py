@@ -171,7 +171,7 @@ class TestCompositePrimaryKeyCreate:
         4. Check illegal spell
         5. Only define ts and pk columns
         6. Mutiple pk & pk not defined as sencod column
-        7. Add\update\delete pk column is not support 
+        7. Add/update/delete pk column is not support
 
 
         Since: v3.0.0.0
