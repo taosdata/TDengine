@@ -64,12 +64,10 @@ void tsdbCacheFreeSLastColItem(void *pItem) {
       taosMemoryFree(pCol->rowKey.pks[i].pData);
     }
   }
-#ifndef TSDB_CACHE_ROW_BASED
   if ((IS_VAR_DATA_TYPE(pCol->colVal.value.type) || pCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) &&
       pCol->colVal.value.pData) {
     taosMemoryFree(pCol->colVal.value.pData);
   }
-#endif
 }
 
 static int32_t tsdbCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_t col_type, int8_t lflag,
