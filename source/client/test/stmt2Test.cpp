@@ -221,6 +221,7 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
     // exec
     int affected = 0;
     code = taos_stmt2_exec(stmt, &affected);
+    checkError(stmt, code);
     if (option->asyncExecFn == NULL) {
       total_affected += affected;
     } else {
@@ -229,7 +230,6 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
       ASSERT_EQ(code, TSDB_CODE_SUCCESS);
       total_affected += params->async_affected_rows;
     }
-    checkError(stmt, code);
 
     for (int i = 0; i < CTB_NUMS; i++) {
       if (hastags) {

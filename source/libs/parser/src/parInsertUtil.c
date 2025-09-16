@@ -586,7 +586,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     *vgId = pTableMeta->vgId;
     *suid = pTableMeta->suid;
 
-    STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId};
+    STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId, .suid = *suid};
     code = tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
     if (TSDB_CODE_SUCCESS == code) {
       code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
@@ -596,6 +596,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
   } else {
     *uid = pTbInfo->uid;
     *vgId = pTbInfo->vgid;
+    *suid = pTbInfo->suid;
   }
 
   return code;
