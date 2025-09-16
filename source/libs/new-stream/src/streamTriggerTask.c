@@ -83,12 +83,12 @@ typedef struct SRewriteSlotidCxt {
   SArray *newSlotIds;
 } SRewriteSlotidCxt;
 
-typedef struct SSTriggerOrigTableInfo {
+typedef struct SSTriggerOrigColumnInfo {
   int32_t    vgId;
   int64_t    suid;
   int64_t    uid;
   SSHashObj *pColumns;  // SSHashObj<col_name, col_id>
-} SSTriggerOrigTableInfo;
+} SSTriggerOrigColumnInfo;
 
 typedef struct StreamTriggerWaitInfo {
   int64_t streamId;
@@ -536,7 +536,7 @@ _end:
 }
 
 static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo *pInfo, SArray *pSlots,
-                                          SArray **ppColRefs) {
+                                          SArray *pColRefs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t nCols = taosArrayGetSize(pSlots);
@@ -548,36 +548,34 @@ static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo 
       if (!pColRef->hasRef) {
         continue;
       }
-      if (*ppColRefs == NULL) {
-        *ppColRefs = taosArrayInit(0, sizeof(SSTriggerTableColRef));
-        QUERY_CHECK_NULL(*ppColRefs, code, lino, _end, terrno);
-      }
 
       size_t dbNameLen = strlen(pColRef->refDbName) + 1;
       size_t tbNameLen = strlen(pColRef->refTableName) + 1;
       size_t colNameLen = strlen(pColRef->refColName) + 1;
       void  *px = tSimpleHashGet(pTask->pOrigTableCols, pColRef->refDbName, dbNameLen);
       QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      SSHashObj              *pDbInfo = *(SSHashObj **)px;
-      SSTriggerOrigTableInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
+      SSHashObj               *pDbInfo = *(SSHashObj **)px;
+      SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
       QUERY_CHECK_NULL(pTbInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
       SSTriggerTableColRef *pRef = NULL;
-      for (int32_t j = 0; j < TARRAY_SIZE(*ppColRefs); j++) {
-        SSTriggerTableColRef *pTmpRef = TARRAY_GET_ELEM(*ppColRefs, j);
+      for (int32_t j = 0; j < TARRAY_SIZE(pColRefs); j++) {
+        SSTriggerTableColRef *pTmpRef = TARRAY_GET_ELEM(pColRefs, j);
         if (pTmpRef->otbSuid == pTbInfo->suid && pTmpRef->otbUid == pTbInfo->uid) {
           pRef = pTmpRef;
           break;
         }
       }
       if (pRef == NULL) {
-        pRef = taosArrayReserve(*ppColRefs, 1);
+        pRef = taosArrayReserve(pColRefs, 1);
         QUERY_CHECK_NULL(pRef, code, lino, _end, terrno);
         pRef->otbSuid = pTbInfo->suid;
         pRef->otbUid = pTbInfo->uid;
         pRef->otbVgId = pTbInfo->vgId;
         pRef->pColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
         QUERY_CHECK_NULL(pRef->pColMatches, code, lino, _end, terrno);
+        pRef->pNewColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
+        QUERY_CHECK_NULL(pRef->pNewColMatches, code, lino, _end, terrno);
       }
     }
     goto _end;
@@ -602,9 +600,151 @@ static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo 
     if (pColRef == NULL) {
       continue;
     }
-    if (*ppColRefs == NULL) {
-      *ppColRefs = taosArrayInit(0, sizeof(SSTriggerTableColRef));
-      QUERY_CHECK_NULL(*ppColRefs, code, lino, _end, terrno);
+
+    size_t dbNameLen = strlen(pColRef->refDbName) + 1;
+    size_t tbNameLen = strlen(pColRef->refTableName) + 1;
+    size_t colNameLen = strlen(pColRef->refColName) + 1;
+    void  *px = tSimpleHashGet(pTask->pOrigTableCols, pColRef->refDbName, dbNameLen);
+    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SSHashObj               *pDbInfo = *(SSHashObj **)px;
+    SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
+    QUERY_CHECK_NULL(pTbInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    col_id_t *pOrigColId = tSimpleHashGet(pTbInfo->pColumns, pColRef->refColName, colNameLen);
+    QUERY_CHECK_NULL(pOrigColId, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+    SSTriggerTableColRef *pRef = NULL;
+    for (int32_t j = 0; j < TARRAY_SIZE(pColRefs); j++) {
+      SSTriggerTableColRef *pTmpRef = TARRAY_GET_ELEM(pColRefs, j);
+      if (pTmpRef->otbSuid == pTbInfo->suid && pTmpRef->otbUid == pTbInfo->uid) {
+        pRef = pTmpRef;
+        break;
+      }
+    }
+    if (pRef == NULL) {
+      pRef = taosArrayReserve(pColRefs, 1);
+      QUERY_CHECK_NULL(pRef, code, lino, _end, terrno);
+      pRef->otbSuid = pTbInfo->suid;
+      pRef->otbUid = pTbInfo->uid;
+      pRef->otbVgId = pTbInfo->vgId;
+      pRef->pColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
+      QUERY_CHECK_NULL(pRef->pColMatches, code, lino, _end, terrno);
+      pRef->pNewColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
+      QUERY_CHECK_NULL(pRef->pNewColMatches, code, lino, _end, terrno);
+    }
+    SSTriggerColMatch match = {.otbColId = *pOrigColId, .vtbSlotId = slotId};
+    px = taosArrayPush(pRef->pColMatches, &match);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo *pInfo, bool isTriggerData,
+                                             SArray *pColRefs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  SSDataBlock *pDataBlock = isTriggerData ? pTask->pVirtTrigBlock : pTask->pVirtCalcBlock;
+  SArray      *pIsPseudoCol = isTriggerData ? pTask->pTrigIsPseudoCol : pTask->pCalcIsPseudoCol;
+  col_id_t     tsColId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  col_id_t     tsSlotId = isTriggerData ? pTask->trigTsSlotId : pTask->calcTsSlotId;
+  int32_t      ncols = blockDataGetNumOfCols(pDataBlock);
+  if (ncols == 0) {
+    goto _end;
+  }
+
+  if (pTask->virScanTsOnly) {
+    // merge all original tables since it scans only timestamp column
+    for (int32_t i = 0; i < pInfo->cols.nCols; i++) {
+      SColRef *pColRef = &pInfo->cols.pColRef[i];
+      if (!pColRef->hasRef) {
+        continue;
+      }
+
+      size_t dbNameLen = strlen(pColRef->refDbName) + 1;
+      size_t tbNameLen = strlen(pColRef->refTableName) + 1;
+      size_t colNameLen = strlen(pColRef->refColName) + 1;
+      void  *px = tSimpleHashGet(pTask->pOrigTableCols, pColRef->refDbName, dbNameLen);
+      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      SSHashObj               *pDbInfo = *(SSHashObj **)px;
+      SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
+      QUERY_CHECK_NULL(pTbInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+      // set original table info
+      SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
+      if (pOrigTableInfo == NULL) {
+        SSTriggerOrigTableInfo newInfo = {.tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
+        code = tSimpleHashPut(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t), &newInfo,
+                              sizeof(SSTriggerOrigTableInfo));
+        QUERY_CHECK_CODE(code, lino, _end);
+        pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
+        QUERY_CHECK_NULL(pOrigTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        pOrigTableInfo->pTrigColMap = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+        QUERY_CHECK_NULL(pOrigTableInfo->pTrigColMap, code, lino, _end, terrno);
+        pOrigTableInfo->pCalcColMap = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+        QUERY_CHECK_NULL(pOrigTableInfo->pCalcColMap, code, lino, _end, terrno);
+        pOrigTableInfo->pVtbUids = taosArrayInit(0, sizeof(int64_t));
+        QUERY_CHECK_NULL(pOrigTableInfo->pVtbUids, code, lino, _end, terrno);
+      }
+      SSHashObj *pColMap = isTriggerData ? pOrigTableInfo->pTrigColMap : pOrigTableInfo->pCalcColMap;
+
+      // set virtual table info
+      SSTriggerTableColRef *pRef = NULL;
+      for (int32_t i = 0; i < TARRAY_SIZE(pColRefs); i++) {
+        SSTriggerTableColRef *pTmpRef = TARRAY_GET_ELEM(pColRefs, i);
+        if (pTmpRef->otbSuid == pTbInfo->suid && pTmpRef->otbUid == pTbInfo->uid) {
+          pRef = pTmpRef;
+          break;
+        }
+      }
+      if (pRef == NULL) {
+        pRef = taosArrayReserve(pColRefs, 1);
+        QUERY_CHECK_NULL(pRef, code, lino, _end, terrno);
+        pRef->otbSuid = pTbInfo->suid;
+        pRef->otbUid = pTbInfo->uid;
+        pRef->otbVgId = pTbInfo->vgId;
+        pRef->pColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
+        QUERY_CHECK_NULL(pRef->pColMatches, code, lino, _end, terrno);
+        pRef->pNewColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
+        QUERY_CHECK_NULL(pRef->pNewColMatches, code, lino, _end, terrno);
+      }
+      bool firstAdd = (TARRAY_SIZE(pRef->pNewColMatches) == 0);
+      if (firstAdd) {
+        code = tSimpleHashPut(pColMap, &tsColId, sizeof(col_id_t), &tsSlotId, sizeof(col_id_t));
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (isTriggerData) {
+          void *px = taosArrayPush(pOrigTableInfo->pVtbUids, &pInfo->uid);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        }
+        SSTriggerColMatch match = {.otbSlotId = tsSlotId, .vtbSlotId = tsSlotId};
+        void             *px = taosArrayPush(pRef->pNewColMatches, &match);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+    }
+    goto _end;
+  }
+
+  for (int32_t i = 0; i < ncols; i++) {
+    if (*(bool *)TARRAY_GET_ELEM(pIsPseudoCol, i)) {
+      // ignore pseudo columns
+      continue;
+    }
+    SColumnInfoData *pCol = TARRAY_GET_ELEM(pDataBlock->pDataBlock, i);
+    col_id_t         colId = pCol->info.colId;
+    SColRef         *pColRef = NULL;
+    for (int32_t j = 0; j < pInfo->cols.nCols; j++) {
+      SColRef *pTmpColRef = &pInfo->cols.pColRef[j];
+      if (pTmpColRef->hasRef && pTmpColRef->id == colId) {
+        pColRef = pTmpColRef;
+        break;
+      }
+    }
+    if (pColRef == NULL) {
+      continue;
     }
 
     size_t dbNameLen = strlen(pColRef->refDbName) + 1;
@@ -612,33 +752,74 @@ static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo 
     size_t colNameLen = strlen(pColRef->refColName) + 1;
     void  *px = tSimpleHashGet(pTask->pOrigTableCols, pColRef->refDbName, dbNameLen);
     QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    SSHashObj              *pDbInfo = *(SSHashObj **)px;
-    SSTriggerOrigTableInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
+    SSHashObj               *pDbInfo = *(SSHashObj **)px;
+    SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
     QUERY_CHECK_NULL(pTbInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     col_id_t *pOrigColId = tSimpleHashGet(pTbInfo->pColumns, pColRef->refColName, colNameLen);
     QUERY_CHECK_NULL(pOrigColId, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
+    // set original table info
+    SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
+    if (pOrigTableInfo == NULL) {
+      SSTriggerOrigTableInfo newInfo = {.tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
+      code = tSimpleHashPut(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t), &newInfo,
+                            sizeof(SSTriggerOrigTableInfo));
+      QUERY_CHECK_CODE(code, lino, _end);
+      pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
+      QUERY_CHECK_NULL(pOrigTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pOrigTableInfo->pTrigColMap = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+      QUERY_CHECK_NULL(pOrigTableInfo->pTrigColMap, code, lino, _end, terrno);
+      pOrigTableInfo->pCalcColMap = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+      QUERY_CHECK_NULL(pOrigTableInfo->pCalcColMap, code, lino, _end, terrno);
+      pOrigTableInfo->pVtbUids = taosArrayInit(0, sizeof(int64_t));
+      QUERY_CHECK_NULL(pOrigTableInfo->pVtbUids, code, lino, _end, terrno);
+    }
+    SSHashObj *pColMap = isTriggerData ? pOrigTableInfo->pTrigColMap : pOrigTableInfo->pCalcColMap;
+    col_id_t  *pOrigSlotId = tSimpleHashGet(pColMap, pOrigColId, sizeof(col_id_t));
+    if (pOrigSlotId == NULL) {
+      code = tSimpleHashPut(pColMap, pOrigColId, sizeof(col_id_t), pOrigColId, sizeof(col_id_t));
+      QUERY_CHECK_CODE(code, lino, _end);
+      pOrigSlotId = tSimpleHashGet(pColMap, pOrigColId, sizeof(col_id_t));
+      QUERY_CHECK_NULL(pOrigSlotId, code, lino, _end, terrno);
+      *pOrigSlotId = i;
+    }
+
+    // set virtual table info
     SSTriggerTableColRef *pRef = NULL;
-    for (int32_t j = 0; j < TARRAY_SIZE(*ppColRefs); j++) {
-      SSTriggerTableColRef *pTmpRef = TARRAY_GET_ELEM(*ppColRefs, j);
+    for (int32_t i = 0; i < TARRAY_SIZE(pColRefs); i++) {
+      SSTriggerTableColRef *pTmpRef = TARRAY_GET_ELEM(pColRefs, i);
       if (pTmpRef->otbSuid == pTbInfo->suid && pTmpRef->otbUid == pTbInfo->uid) {
         pRef = pTmpRef;
         break;
       }
     }
     if (pRef == NULL) {
-      pRef = taosArrayReserve(*ppColRefs, 1);
+      pRef = taosArrayReserve(pColRefs, 1);
       QUERY_CHECK_NULL(pRef, code, lino, _end, terrno);
       pRef->otbSuid = pTbInfo->suid;
       pRef->otbUid = pTbInfo->uid;
       pRef->otbVgId = pTbInfo->vgId;
       pRef->pColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
       QUERY_CHECK_NULL(pRef->pColMatches, code, lino, _end, terrno);
+      pRef->pNewColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
+      QUERY_CHECK_NULL(pRef->pNewColMatches, code, lino, _end, terrno);
     }
-    SSTriggerColMatch *pMatch = taosArrayReserve(pRef->pColMatches, 1);
-    pMatch->otbColId = *pOrigColId;
-    pMatch->vtbColId = colId;
-    pMatch->vtbSlotId = slotId;
+    bool firstAdd = (TARRAY_SIZE(pRef->pNewColMatches) == 0);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    if (firstAdd) {
+      code = tSimpleHashPut(pColMap, &tsColId, sizeof(col_id_t), &tsSlotId, sizeof(col_id_t));
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (isTriggerData) {
+        void *px = taosArrayPush(pOrigTableInfo->pVtbUids, &pInfo->uid);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+      SSTriggerColMatch match = {.otbSlotId = tsSlotId, .vtbSlotId = tsSlotId};
+      void             *px = taosArrayPush(pRef->pNewColMatches, &match);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
+    SSTriggerColMatch match = {.otbSlotId = *pOrigSlotId, .vtbSlotId = i};
+    px = taosArrayPush(pRef->pNewColMatches, &match);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   }
 
 _end:
@@ -1031,6 +1212,95 @@ _end:
   return code;
 }
 
+static void stTriggerTaskDestroyOrigColumnInfo(void *ptr) {
+  SSTriggerOrigColumnInfo *pInfo = ptr;
+  if (pInfo == NULL) {
+    return;
+  }
+  if (pInfo->pColumns != NULL) {
+    tSimpleHashCleanup(pInfo->pColumns);
+  }
+}
+
+static void stTriggerTaskDestroyOrigDbInfo(void *ptr) {
+  SSHashObj **ppInfos = ptr;
+  if (ppInfos == NULL || *ppInfos == NULL) {
+    return;
+  }
+  tSimpleHashSetFreeFp(*ppInfos, stTriggerTaskDestroyOrigColumnInfo);
+  tSimpleHashCleanup(*ppInfos);
+  *ppInfos = NULL;
+}
+
+static void stTriggerTaskDestroyOrigTableInfo(void *ptr) {
+  SSTriggerOrigTableInfo *pTableInfo = ptr;
+  if (pTableInfo == NULL) {
+    return;
+  }
+
+  if (pTableInfo->pTrigColMap != NULL) {
+    tSimpleHashCleanup(pTableInfo->pTrigColMap);
+    pTableInfo->pTrigColMap = NULL;
+  }
+  if (pTableInfo->pCalcColMap != NULL) {
+    tSimpleHashCleanup(pTableInfo->pCalcColMap);
+    pTableInfo->pCalcColMap = NULL;
+  }
+  if (pTableInfo->pVtbUids != NULL) {
+    taosArrayDestroy(pTableInfo->pVtbUids);
+    pTableInfo->pVtbUids = NULL;
+  }
+}
+
+static void stTriggerTaskDestroyTableInfo(void *ptr) {
+  SSTriggerVirtTableInfo *pTableInfo = ptr;
+  if (pTableInfo == NULL) {
+    return;
+  }
+  if (pTableInfo->pTrigColRefs != NULL) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pTableInfo->pTrigColRefs); i++) {
+      SSTriggerTableColRef *pColRef = TARRAY_GET_ELEM(pTableInfo->pTrigColRefs, i);
+      if (pColRef->pColMatches != NULL) {
+        taosArrayDestroy(pColRef->pColMatches);
+        pColRef->pColMatches = NULL;
+      }
+      if (pColRef->pNewColMatches != NULL) {
+        taosArrayDestroy(pColRef->pNewColMatches);
+        pColRef->pNewColMatches = NULL;
+      }
+    }
+    taosArrayDestroy(pTableInfo->pTrigColRefs);
+    pTableInfo->pTrigColRefs = NULL;
+  }
+  if (pTableInfo->pCalcColRefs != NULL) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pTableInfo->pCalcColRefs); i++) {
+      SSTriggerTableColRef *pColRef = TARRAY_GET_ELEM(pTableInfo->pCalcColRefs, i);
+      if (pColRef->pColMatches != NULL) {
+        taosArrayDestroy(pColRef->pColMatches);
+        pColRef->pColMatches = NULL;
+      }
+      if (pColRef->pNewColMatches != NULL) {
+        taosArrayDestroy(pColRef->pNewColMatches);
+        pColRef->pNewColMatches = NULL;
+      }
+    }
+    taosArrayDestroy(pTableInfo->pCalcColRefs);
+    pTableInfo->pCalcColRefs = NULL;
+  }
+}
+
+static void stTriggerTaskDestroyCalcNode(void *ptr) {
+  SSTriggerCalcNode *pNode = ptr;
+  if (pNode->pSlots != NULL) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pNode->pSlots); i++) {
+      SSTriggerCalcSlot *pSlot = TARRAY_GET_ELEM(pNode->pSlots, i);
+      tDestroySTriggerCalcRequest(&pSlot->req);
+    }
+    taosArrayDestroy(pNode->pSlots);
+    pNode->pSlots = NULL;
+  }
+}
+
 static int32_t stTriggerTaskCollectVirCols(SStreamTriggerTask *pTask, void *plan, SArray **ppColids,
                                            SArray **ppIsPseudoCol, SNodeList **ppSlots) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1178,7 +1448,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     int32_t   j = 0;
     for (int32_t i = 1; i < TARRAY_SIZE(pVirColIds); i++) {
       if (pColIds[i] != pColIds[j]) {
-        ++j;
+        j++;
         pColIds[j] = pColIds[i];
       }
     }
@@ -1211,7 +1481,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     int32_t   j = nDataCols;
     for (int32_t i = nDataCols + 1; i < TARRAY_SIZE(pVirColIds); i++) {
       if (pColIds[i] != pColIds[j]) {
-        ++j;
+        j++;
         pColIds[j] = pColIds[i];
       }
     }
@@ -1310,36 +1580,37 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     infoBuf[bufLen - 1] = '}';
   }
 
-  SRewriteSlotidCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS,
-      .newSlotIds = pTrigSlotids,
-  };
-  nodesWalkExpr(pTask->triggerFilter, nodeRewriteSlotid, &cxt);
-  code = cxt.errCode;
-  QUERY_CHECK_CODE(code, lino, _end);
+  // todo(kjq): rewrite slot id for history calculation
+  // SRewriteSlotidCxt cxt = {
+  //     .errCode = TSDB_CODE_SUCCESS,
+  //     .newSlotIds = pTrigSlotids,
+  // };
+  // nodesWalkExpr(pTask->triggerFilter, nodeRewriteSlotid, &cxt);
+  // code = cxt.errCode;
+  // QUERY_CHECK_CODE(code, lino, _end);
 
-  pTask->trigTsIndex = 0;
-  pTask->calcTsIndex = 0;
+  // pTask->trigTsIndex = 0;
+  // pTask->calcTsIndex = 0;
 
-  if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    if (pTask->stateSlotId != -1) {
-      void *px = taosArrayGet(pTrigSlotids, pTask->stateSlotId);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      pTask->stateSlotId = *(int32_t *)px;
-    }
-    if (pTask->pStateExpr != NULL) {
-      nodesWalkExpr(pTask->pStateExpr, nodeRewriteSlotid, &cxt);
-      code = cxt.errCode;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    nodesWalkExpr(pTask->pStartCond, nodeRewriteSlotid, &cxt);
-    code = cxt.errCode;
-    QUERY_CHECK_CODE(code, lino, _end);
-    nodesWalkExpr(pTask->pEndCond, nodeRewriteSlotid, &cxt);
-    code = cxt.errCode;
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  // if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+  //   if (pTask->stateSlotId != -1) {
+  //     void *px = taosArrayGet(pTrigSlotids, pTask->stateSlotId);
+  //     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+  //     pTask->stateSlotId = *(int32_t *)px;
+  //   }
+  //   if (pTask->pStateExpr != NULL) {
+  //     nodesWalkExpr(pTask->pStateExpr, nodeRewriteSlotid, &cxt);
+  //     code = cxt.errCode;
+  //     QUERY_CHECK_CODE(code, lino, _end);
+  //   }
+  // } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+  //   nodesWalkExpr(pTask->pStartCond, nodeRewriteSlotid, &cxt);
+  //   code = cxt.errCode;
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  //   nodesWalkExpr(pTask->pEndCond, nodeRewriteSlotid, &cxt);
+  //   code = cxt.errCode;
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  // }
 
   pTask->pVirTrigSlots = pTrigSlotids;
   pTrigSlotids = NULL;
@@ -1388,74 +1659,95 @@ _end:
   return code;
 }
 
-static void stTriggerTaskDestroyOrigTableInfo(void *ptr) {
-  SSTriggerOrigTableInfo *pInfo = ptr;
-  if (pInfo == NULL) {
-    return;
-  }
-  if (pInfo->pColumns != NULL) {
-    tSimpleHashCleanup(pInfo->pColumns);
-  }
-}
+static int32_t stTriggerTaskNewParseVirtScan(SStreamTriggerTask *pTask, void *triggerScanPlan,
+                                             void *calcCacheScanPlan) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
+  SArray    *pTrigColids = NULL;
+  SArray    *pCalcColids = NULL;
+  SNodeList *pTrigSlots = NULL;
+  SNodeList *pCalcSlots = NULL;
+  int32_t    i = 0;
+  SNode     *pNode = NULL;
 
-static void stTriggerTaskDestroyOrigDbInfo(void *ptr) {
-  SSHashObj **ppInfos = ptr;
-  if (ppInfos == NULL || *ppInfos == NULL) {
-    return;
-  }
-  tSimpleHashSetFreeFp(*ppInfos, stTriggerTaskDestroyOrigTableInfo);
-  tSimpleHashCleanup(*ppInfos);
-  *ppInfos = NULL;
-}
+  code = stTriggerTaskCollectVirCols(pTask, triggerScanPlan, &pTrigColids, &pTask->pTrigIsPseudoCol, &pTrigSlots);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = stTriggerTaskCollectVirCols(pTask, calcCacheScanPlan, &pCalcColids, &pTask->pCalcIsPseudoCol, &pCalcSlots);
+  QUERY_CHECK_CODE(code, lino, _end);
 
-static void stTriggerTaskDestroyReaderUids(void *ptr) {
-  SArray **ppUids = ptr;
-  if (ppUids == NULL || *ppUids == NULL) {
-    return;
-  }
-  taosArrayDestroy(*ppUids);
-  *ppUids = NULL;
-}
-
-static void stTriggerTaskDestroyTableInfo(void *ptr) {
-  SSTriggerVirTableInfo *pTableInfo = ptr;
-  if (pTableInfo == NULL) {
-    return;
-  }
-  if (pTableInfo->pTrigColRefs != NULL) {
-    for (int32_t i = 0; i < TARRAY_SIZE(pTableInfo->pTrigColRefs); i++) {
-      SSTriggerTableColRef *pColRef = TARRAY_GET_ELEM(pTableInfo->pTrigColRefs, i);
-      if (pColRef->pColMatches != NULL) {
-        taosArrayDestroy(pColRef->pColMatches);
-        pColRef->pColMatches = NULL;
-      }
+  pTask->virScanTsOnly = (pTrigSlots != NULL) || (pCalcSlots != NULL);
+  code = createDataBlock(&pTask->pVirtTrigBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+  i = 0;
+  pNode = NULL;
+  FOREACH(pNode, pTrigSlots) {
+    SSlotDescNode *pn = (SSlotDescNode *)pNode;
+    col_id_t       id = *(col_id_t *)TARRAY_GET_ELEM(pTrigColids, i);
+    if (id == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pTask->trigTsSlotId = i;
+    } else if (!*(bool *)TARRAY_GET_ELEM(pTask->pTrigIsPseudoCol, i)) {
+      pTask->virScanTsOnly = false;
     }
-    taosArrayDestroy(pTableInfo->pTrigColRefs);
-    pTableInfo->pTrigColRefs = NULL;
+    i++;
+    SColumnInfoData col = createColumnInfoData(pn->dataType.type, pn->dataType.bytes, id);
+    col.info.scale = pn->dataType.scale;
+    col.info.precision = pn->dataType.precision;
+    col.info.noData = pn->reserve;
+    code = blockDataAppendColInfo(pTask->pVirtTrigBlock, &col);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
-  if (pTableInfo->pCalcColRefs != NULL) {
-    for (int32_t i = 0; i < TARRAY_SIZE(pTableInfo->pCalcColRefs); i++) {
-      SSTriggerTableColRef *pColRef = TARRAY_GET_ELEM(pTableInfo->pCalcColRefs, i);
-      if (pColRef->pColMatches != NULL) {
-        taosArrayDestroy(pColRef->pColMatches);
-        pColRef->pColMatches = NULL;
-      }
-    }
-    taosArrayDestroy(pTableInfo->pCalcColRefs);
-    pTableInfo->pCalcColRefs = NULL;
-  }
-}
 
-static void stTriggerTaskDestroyCalcNode(void *ptr) {
-  SSTriggerCalcNode *pNode = ptr;
-  if (pNode->pSlots != NULL) {
-    for (int32_t i = 0; i < TARRAY_SIZE(pNode->pSlots); i++) {
-      SSTriggerCalcSlot *pSlot = TARRAY_GET_ELEM(pNode->pSlots, i);
-      tDestroySTriggerCalcRequest(&pSlot->req);
+  code = createDataBlock(&pTask->pVirtCalcBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+  i = 0;
+  pNode = NULL;
+  FOREACH(pNode, pCalcSlots) {
+    SSlotDescNode *pn = (SSlotDescNode *)pNode;
+    col_id_t       id = *(col_id_t *)TARRAY_GET_ELEM(pCalcColids, i);
+    if (id == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pTask->calcTsSlotId = i;
+    } else if (!*(bool *)TARRAY_GET_ELEM(pTask->pCalcIsPseudoCol, i)) {
+      pTask->virScanTsOnly = false;
     }
-    taosArrayDestroy(pNode->pSlots);
-    pNode->pSlots = NULL;
+    i++;
+    SColumnInfoData col = createColumnInfoData(pn->dataType.type, pn->dataType.bytes, id);
+    col.info.scale = pn->dataType.scale;
+    col.info.precision = pn->dataType.precision;
+    col.info.noData = pn->reserve;
+    code = blockDataAppendColInfo(pTask->pVirtCalcBlock, &col);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
+
+  if (pTask->pTrigIsPseudoCol == NULL) {
+    pTask->pTrigIsPseudoCol = taosMemoryCalloc(1, sizeof(SArray));
+  }
+  if (pTask->pCalcIsPseudoCol == NULL) {
+    pTask->pCalcIsPseudoCol = taosMemoryCalloc(1, sizeof(SArray));
+  }
+  pTask->pVirtTableInfos = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(pTask->pVirtTableInfos, code, lino, _end, terrno);
+  tSimpleHashSetFreeFp(pTask->pVirtTableInfos, stTriggerTaskDestroyTableInfo);
+  pTask->pOrigTableInfos = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(pTask->pOrigTableInfos, code, lino, _end, terrno);
+  tSimpleHashSetFreeFp(pTask->pOrigTableInfos, stTriggerTaskDestroyOrigTableInfo);
+
+_end:
+  if (pTrigColids != NULL) {
+    taosArrayDestroy(pTrigColids);
+  }
+  if (pCalcColids != NULL) {
+    taosArrayDestroy(pCalcColids);
+  }
+  if (pTrigSlots != NULL) {
+    nodesDestroyList(pTrigSlots);
+  }
+  if (pCalcSlots != NULL) {
+    nodesDestroyList(pCalcSlots);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg) {
@@ -1575,17 +1867,13 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   if (pTask->isVirtualTable) {
     code = stTriggerTaskParseVirtScan(pTask, pMsg->triggerScanPlan, pMsg->calcCacheScanPlan);
     QUERY_CHECK_CODE(code, lino, _end);
+    code = stTriggerTaskNewParseVirtScan(pTask, pMsg->triggerScanPlan, pMsg->calcCacheScanPlan);
+    QUERY_CHECK_CODE(code, lino, _end);
     pTask->pVirTableInfoRsp = taosArrayInit(0, sizeof(VTableInfo));
     QUERY_CHECK_NULL(pTask->pVirTableInfoRsp, code, lino, _end, terrno);
     pTask->pOrigTableCols = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     QUERY_CHECK_NULL(pTask->pOrigTableCols, code, lino, _end, terrno);
     tSimpleHashSetFreeFp(pTask->pOrigTableCols, stTriggerTaskDestroyOrigDbInfo);
-    pTask->pReaderUidMap = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-    QUERY_CHECK_NULL(pTask->pReaderUidMap, code, lino, _end, terrno);
-    tSimpleHashSetFreeFp(pTask->pReaderUidMap, stTriggerTaskDestroyReaderUids);
-    pTask->pVirTableInfos = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-    QUERY_CHECK_NULL(pTask->pVirTableInfos, code, lino, _end, terrno);
-    tSimpleHashSetFreeFp(pTask->pVirTableInfos, stTriggerTaskDestroyTableInfo);
   }
 
   pTask->calcEventType = taosArrayGetSize(pMsg->runnerList) > 0 ? pMsg->eventTypes : STRIGGER_EVENT_WINDOW_NONE;
@@ -1774,7 +2062,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     blockDataDestroy(pTask->pVirDataBlock);
     pTask->pVirDataBlock = NULL;
   }
-  taosMemoryFreeClear(pTask->pIsPseudoCol);
   if (pTask->pVirTrigSlots != NULL) {
     taosArrayDestroy(pTask->pVirTrigSlots);
     pTask->pVirTrigSlots = NULL;
@@ -1783,20 +2070,36 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     taosArrayDestroy(pTask->pVirCalcSlots);
     pTask->pVirCalcSlots = NULL;
   }
+  if (pTask->pVirtTrigBlock != NULL) {
+    blockDataDestroy(pTask->pVirtTrigBlock);
+    pTask->pVirtTrigBlock = NULL;
+  }
+  if (pTask->pVirtCalcBlock != NULL) {
+    blockDataDestroy(pTask->pVirtCalcBlock);
+    pTask->pVirtCalcBlock = NULL;
+  }
+  if (pTask->pTrigIsPseudoCol != NULL) {
+    taosArrayDestroy(pTask->pTrigIsPseudoCol);
+    pTask->pTrigIsPseudoCol = NULL;
+  }
+  if (pTask->pCalcIsPseudoCol != NULL) {
+    taosArrayDestroy(pTask->pCalcIsPseudoCol);
+    pTask->pCalcIsPseudoCol = NULL;
+  }
+  if (pTask->pVirtTableInfos != NULL) {
+    tSimpleHashCleanup(pTask->pVirtTableInfos);
+    pTask->pVirtTableInfos = NULL;
+  }
+  if (pTask->pOrigTableInfos != NULL) {
+    tSimpleHashCleanup(pTask->pOrigTableInfos);
+    pTask->pOrigTableInfos = NULL;
+  }
   if (pTask->pVirTableInfoRsp != NULL) {
     taosArrayDestroyEx(pTask->pVirTableInfoRsp, tDestroyVTableInfo);
   }
   if (pTask->pOrigTableCols != NULL) {
     tSimpleHashCleanup(pTask->pOrigTableCols);
     pTask->pOrigTableCols = NULL;
-  }
-  if (pTask->pReaderUidMap != NULL) {
-    tSimpleHashCleanup(pTask->pReaderUidMap);
-    pTask->pReaderUidMap = NULL;
-  }
-  if (pTask->pVirTableInfos != NULL) {
-    tSimpleHashCleanup(pTask->pVirTableInfos);
-    pTask->pVirTableInfos = NULL;
   }
 
   if (pTask->pCalcNodes != NULL) {
@@ -1922,27 +2225,11 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       int32_t         iter1 = 0;
       void           *px = tSimpleHashIterate(pTask->pOrigTableCols, NULL, &iter1);
       while (px != NULL) {
-        SSHashObj              *pDbInfo = *(SSHashObj **)px;
-        int32_t                 iter2 = 0;
-        SSTriggerOrigTableInfo *pTbInfo = tSimpleHashIterate(pDbInfo, NULL, &iter2);
+        SSHashObj               *pDbInfo = *(SSHashObj **)px;
+        int32_t                  iter2 = 0;
+        SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashIterate(pDbInfo, NULL, &iter2);
         while (pTbInfo != NULL) {
           pTbInfo->vgId = *(pVgId++);
-          void   *px2 = tSimpleHashGet(pTask->pReaderUidMap, &pTbInfo->vgId, sizeof(int32_t));
-          SArray *pUids = NULL;
-          if (px2 == NULL) {
-            pUids = taosArrayInit(0, sizeof(int64_t) * 2);
-            QUERY_CHECK_NULL(pUids, code, lino, _end, terrno);
-            code = tSimpleHashPut(pTask->pReaderUidMap, &pTbInfo->vgId, sizeof(int32_t), &pUids, POINTER_BYTES);
-            if (code != TSDB_CODE_SUCCESS) {
-              taosArrayDestroy(pUids);
-              QUERY_CHECK_CODE(code, lino, _end);
-            }
-          } else {
-            pUids = *(SArray **)px2;
-          }
-          void **ptr = taosArrayReserve(pUids, 1);
-          QUERY_CHECK_NULL(ptr, code, lino, _end, terrno);
-          *ptr = pTbInfo;
           pTbInfo = tSimpleHashIterate(pDbInfo, pTbInfo, &iter2);
         }
         px = tSimpleHashIterate(pTask->pOrigTableCols, px, &iter1);
@@ -1955,20 +2242,13 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         pTask->readerList = taosArrayInit(0, sizeof(SStreamTaskAddr));
         QUERY_CHECK_NULL(pTask->readerList, code, lino, _end, terrno);
       }
-      for (int32_t i = 0; i < TARRAY_SIZE(pTask->virtReaderList); i++) {
-        SStreamTaskAddr *pReader = TARRAY_GET_ELEM(pTask->virtReaderList, i);
-        if (tSimpleHashGet(pTask->pReaderUidMap, &pReader->nodeId, sizeof(int32_t)) != NULL) {
-          px = taosArrayPush(pTask->readerList, pReader);
-          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-        }
-      }
+      px = taosArrayAddAll(pTask->readerList, pTask->virtReaderList);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       int32_t nPartReaders = TARRAY_SIZE(pTask->readerList);
       if (taosArrayGetSize(pRsp->cont.readerList) > 0) {
         px = taosArrayAddAll(pTask->readerList, pRsp->cont.readerList);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
-      QUERY_CHECK_CONDITION(TARRAY_SIZE(pTask->readerList) == tSimpleHashGetSize(pTask->pReaderUidMap), code, lino,
-                            _end, TSDB_CODE_INVALID_PARA);
 
       for (int32_t i = nPartReaders; i < TARRAY_SIZE(pTask->readerList); i++) {
         SStreamTaskAddr     *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
@@ -1989,6 +2269,12 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
           QUERY_CHECK_NULL(pProgress->reqCids, code, lino, _end, terrno);
           pProgress->reqCols = taosArrayInit(0, sizeof(OTableInfo));
           QUERY_CHECK_NULL(pProgress->reqCols, code, lino, _end, terrno);
+          pProgress->uidInfoTrigger = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+          QUERY_CHECK_NULL(pProgress->uidInfoTrigger, code, lino, _end, terrno);
+          tSimpleHashSetFreeFp(pProgress->uidInfoTrigger, (FDelete)tSimpleHashCleanup);
+          pProgress->uidInfoCalc = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+          QUERY_CHECK_NULL(pProgress->uidInfoCalc, code, lino, _end, terrno);
+          tSimpleHashSetFreeFp(pProgress->uidInfoCalc, (FDelete)tSimpleHashCleanup);
         }
         pProgress->pVersions = taosArrayInit(0, sizeof(int64_t));
         QUERY_CHECK_NULL(pProgress->pVersions, code, lino, _end, terrno);
@@ -2169,6 +2455,14 @@ static void stRealtimeContextDestroyWalProgress(void *ptr) {
     taosArrayDestroy(pProgress->reqCols);
     pProgress->reqCols = NULL;
   }
+  if (pProgress->uidInfoTrigger != NULL) {
+    tSimpleHashCleanup(pProgress->uidInfoTrigger);
+    pProgress->uidInfoTrigger = NULL;
+  }
+  if (pProgress->uidInfoCalc != NULL) {
+    tSimpleHashCleanup(pProgress->uidInfoCalc);
+    pProgress->uidInfoCalc = NULL;
+  }
   if (pProgress->pVersions != NULL) {
     taosArrayDestroy(pProgress->pVersions);
     pProgress->pVersions = NULL;
@@ -2271,6 +2565,12 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
       QUERY_CHECK_NULL(pProgress->reqCids, code, lino, _end, terrno);
       pProgress->reqCols = taosArrayInit(0, sizeof(OTableInfo));
       QUERY_CHECK_NULL(pProgress->reqCols, code, lino, _end, terrno);
+      pProgress->uidInfoTrigger = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+      QUERY_CHECK_NULL(pProgress->uidInfoTrigger, code, lino, _end, terrno);
+      tSimpleHashSetFreeFp(pProgress->uidInfoTrigger, (FDelete)tSimpleHashCleanup);
+      pProgress->uidInfoCalc = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+      QUERY_CHECK_NULL(pProgress->uidInfoCalc, code, lino, _end, terrno);
+      tSimpleHashSetFreeFp(pProgress->uidInfoCalc, (FDelete)tSimpleHashCleanup);
     }
     pProgress->pVersions = taosArrayInit(0, sizeof(int64_t));
     QUERY_CHECK_NULL(pProgress->pVersions, code, lino, _end, terrno);
@@ -2301,7 +2601,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   if (pTask->isVirtualTable) {
     pContext->pMerger = taosMemoryCalloc(1, sizeof(SSTriggerNewVtableMerger));
     QUERY_CHECK_NULL(pContext->pMerger, code, lino, _end, terrno);
-    code = stNewVtableMergerInit(pContext->pMerger, pTask, pTask->pVirDataBlock, pTask->pIsPseudoCol,
+    code = stNewVtableMergerInit(pContext->pMerger, pTask, pTask->pVirtTrigBlock, TARRAY_DATA(pTask->pTrigIsPseudoCol),
                                  pTask->triggerFilter);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
@@ -2530,14 +2830,29 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerVirTableInfoRequest *pReq = &pProgress->pullReq.virTableInfoReq;
-      int32_t                       nCols = pTask->nVirDataCols;
       pReq->cids = pProgress->reqCids;
-      code = taosArrayEnsureCap(pReq->cids, nCols);
-      QUERY_CHECK_CODE(code, lino, _end);
-      TARRAY_SIZE(pReq->cids) = nCols;
-      for (int32_t i = 0; i < nCols; i++) {
-        SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirDataBlock->pDataBlock, i);
-        *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i) = pCol->info.colId;
+      taosArrayClear(pReq->cids);
+      int32_t nTrigCols = blockDataGetNumOfCols(pTask->pVirtTrigBlock);
+      int32_t nCalcCols = blockDataGetNumOfCols(pTask->pVirtCalcBlock);
+      for (int32_t i = 0; i < nTrigCols; i++) {
+        SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirtTrigBlock->pDataBlock, i);
+        void            *px = taosArrayPush(pReq->cids, &pCol->info.colId);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+      for (int32_t i = 0; i < nCalcCols; i++) {
+        SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirtCalcBlock->pDataBlock, i);
+        bool             hasExist = false;
+        for (int32_t j = 0; j < nTrigCols; j++) {
+          SColumnInfoData *pTrigCol = TARRAY_GET_ELEM(pTask->pVirtTrigBlock->pDataBlock, j);
+          if (pCol->info.colId == pTrigCol->info.colId) {
+            hasExist = true;
+            break;
+          }
+        }
+        if (!hasExist) {
+          void *px = taosArrayPush(pReq->cids, &pCol->info.colId);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        }
       }
       break;
     }
@@ -2545,7 +2860,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
       int64_t uid = 0;
       // todo(kjq): get table uid
-      SSTriggerVirTableInfo *pTable = tSimpleHashGet(pTask->pVirTableInfos, &uid, sizeof(int64_t));
+      SSTriggerVirtTableInfo *pTable = tSimpleHashGet(pTask->pVirtTableInfos, &uid, sizeof(int64_t));
       QUERY_CHECK_NULL(pTable, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pTable->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2570,23 +2885,29 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerOrigTableInfoRequest *pReq = &pProgress->pullReq.origTableInfoReq;
       pReq->cols = pProgress->reqCols;
       taosArrayClear(pReq->cols);
-      void *px = tSimpleHashGet(pTask->pReaderUidMap, &pReader->nodeId, sizeof(int32_t));
-      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      SArray *pUids = *(SArray **)px;
-      for (int32_t i = 0; i < TARRAY_SIZE(pUids); i++) {
-        SSTriggerOrigTableInfo *pTbInfo = *(SSTriggerOrigTableInfo **)TARRAY_GET_ELEM(pUids, i);
-        char                   *tbName = tSimpleHashGetKey(pTbInfo, NULL);
-        int32_t                 iter = 0;
-        void                   *px = tSimpleHashIterate(pTbInfo->pColumns, NULL, &iter);
-        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-        while (px != NULL) {
-          char       *colName = tSimpleHashGetKey(px, NULL);
-          OTableInfo *pInfo = taosArrayReserve(pReq->cols, 1);
-          QUERY_CHECK_NULL(pInfo, code, lino, _end, terrno);
-          (void)strncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
-          (void)strncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
-          px = tSimpleHashIterate(pTbInfo->pColumns, px, &iter);
+      int32_t iter1 = 0;
+      void   *px = tSimpleHashIterate(pTask->pOrigTableInfos, NULL, &iter1);
+      while (px != NULL) {
+        SSHashObj               *pDbInfo = *(SSHashObj **)px;
+        int32_t                  iter2 = 0;
+        SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashIterate(pDbInfo, NULL, &iter2);
+        while (pTbInfo != NULL) {
+          if (pTbInfo->vgId == pProgress->pTaskAddr->nodeId) {
+            char   *tbName = tSimpleHashGetKey(pTbInfo, NULL);
+            int32_t iter3 = 0;
+            void   *px2 = tSimpleHashIterate(pTbInfo->pColumns, NULL, &iter3);
+            while (px2 != NULL) {
+              char       *colName = tSimpleHashGetKey(px2, NULL);
+              OTableInfo *pInfo = taosArrayReserve(pReq->cols, 1);
+              QUERY_CHECK_NULL(pInfo, code, lino, _end, terrno);
+              (void)strncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
+              (void)strncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
+              px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
+            }
+          }
+          pTbInfo = tSimpleHashIterate(pDbInfo, pTbInfo, &iter2);
         }
+        px = tSimpleHashIterate(pTask->pOrigTableCols, px, &iter1);
       }
       break;
     }
@@ -2597,10 +2918,51 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerSetTableRequest *pReq = &pProgress->pullReq.setTableReq;
-      void                     *px = tSimpleHashGet(pTask->pReaderUidMap, &pReader->nodeId, sizeof(int32_t));
-      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      SArray *pUids = *(SArray **)px;
-      // pReq->uids = pUids;
+      pReq->uidInfoTrigger = pProgress->uidInfoTrigger;
+      pReq->uidInfoCalc = pProgress->uidInfoCalc;
+      tSimpleHashCleanup(pReq->uidInfoTrigger);
+      tSimpleHashCleanup(pReq->uidInfoCalc);
+      int32_t                 iter1 = 0;
+      SSTriggerOrigTableInfo *pInfo = tSimpleHashIterate(pTask->pOrigTableInfos, NULL, &iter1);
+      while (pInfo != NULL) {
+        if (tSimpleHashGetSize(pInfo->pTrigColMap) > 0) {
+          SSHashObj *pMatch = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+          QUERY_CHECK_NULL(pMatch, code, lino, _end, terrno);
+          code = tSimpleHashPut(pReq->uidInfoTrigger, &pInfo->tbUid, sizeof(int64_t), &pMatch, POINTER_BYTES);
+          if (code != TSDB_CODE_SUCCESS) {
+            tSimpleHashCleanup(pMatch);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+
+          int32_t   iter2 = 0;
+          col_id_t *pSlotId = tSimpleHashIterate(pInfo->pTrigColMap, NULL, &iter2);
+          while (pSlotId != NULL) {
+            col_id_t *pColId = tSimpleHashGetKey(pSlotId, NULL);
+            code = tSimpleHashPut(pMatch, pSlotId, sizeof(col_id_t), pColId, sizeof(col_id_t));
+            QUERY_CHECK_CODE(code, lino, _end);
+            pSlotId = tSimpleHashIterate(pInfo->pTrigColMap, pSlotId, &iter2);
+          }
+        }
+        if (tSimpleHashGetSize(pInfo->pCalcColMap) > 0) {
+          SSHashObj *pMatch = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+          QUERY_CHECK_NULL(pMatch, code, lino, _end, terrno);
+          code = tSimpleHashPut(pReq->uidInfoTrigger, &pInfo->tbUid, sizeof(int64_t), &pMatch, POINTER_BYTES);
+          if (code != TSDB_CODE_SUCCESS) {
+            tSimpleHashCleanup(pMatch);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+
+          int32_t   iter2 = 0;
+          col_id_t *pSlotId = tSimpleHashIterate(pInfo->pCalcColMap, NULL, &iter2);
+          while (pSlotId != NULL) {
+            col_id_t *pColId = tSimpleHashGetKey(pSlotId, NULL);
+            code = tSimpleHashPut(pMatch, pSlotId, sizeof(col_id_t), pColId, sizeof(col_id_t));
+            QUERY_CHECK_CODE(code, lino, _end);
+            pSlotId = tSimpleHashIterate(pInfo->pCalcColMap, pSlotId, &iter2);
+          }
+        }
+        pInfo = tSimpleHashIterate(pTask->pOrigTableInfos, pInfo, &iter1);
+      }
       break;
     }
 
@@ -2704,7 +3066,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   }
 
   // amend ekey of interval window trigger and sliding trigger
-  for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); ++i) {
+  for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); i++) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
     if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
       pParam->wend++;
@@ -3867,8 +4229,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       if (pTask->virTableInfoReady) {
         // check virtual table info
         for (int32_t i = 0; i < nVirTables; i++) {
-          VTableInfo            *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
-          SSTriggerVirTableInfo *pTable = tSimpleHashGet(pTask->pVirTableInfos, &pInfo->uid, sizeof(int64_t));
+          VTableInfo             *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
+          SSTriggerVirtTableInfo *pTable = tSimpleHashGet(pTask->pVirtTableInfos, &pInfo->uid, sizeof(int64_t));
           if (pTable == NULL) {
             ST_TASK_DLOG("found new added virtual table, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d", pInfo->gId,
                          pInfo->uid, pInfo->cols.version);
@@ -3896,13 +4258,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_GATHER_VTABLE_INFO, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
       for (int32_t i = 0; i < nVirTables; i++) {
-        VTableInfo           *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
-        SSTriggerVirTableInfo newInfo = {
+        VTableInfo            *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
+        SSTriggerVirtTableInfo newInfo = {
             .tbGid = pInfo->gId, .tbUid = pInfo->uid, .tbVer = pInfo->cols.version, .vgId = vgId};
         ST_TASK_DLOG("got virtual table info, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d", pInfo->gId, pInfo->uid,
                      pInfo->cols.version);
-        code = tSimpleHashPut(pTask->pVirTableInfos, &newInfo.tbUid, sizeof(int64_t), &newInfo,
-                              sizeof(SSTriggerVirTableInfo));
+        code = tSimpleHashPut(pTask->pVirtTableInfos, &newInfo.tbUid, sizeof(int64_t), &newInfo,
+                              sizeof(SSTriggerVirtTableInfo));
         QUERY_CHECK_CODE(code, lino, _end);
         for (int32_t j = 0; j < pInfo->cols.nCols; j++) {
           SColRef *pColRef = &pInfo->cols.pColRef[j];
@@ -3925,10 +4287,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           } else {
             pDbInfo = *(SSHashObj **)px;
           }
-          SSTriggerOrigTableInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
+          SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
           if (pTbInfo == NULL) {
-            SSTriggerOrigTableInfo newInfo = {0};
-            code = tSimpleHashPut(pDbInfo, pColRef->refTableName, tbNameLen, &newInfo, sizeof(SSTriggerOrigTableInfo));
+            SSTriggerOrigColumnInfo newInfo = {0};
+            code = tSimpleHashPut(pDbInfo, pColRef->refTableName, tbNameLen, &newInfo, sizeof(SSTriggerOrigColumnInfo));
             QUERY_CHECK_CODE(code, lino, _end);
             pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
             QUERY_CHECK_NULL(pTbInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -3957,10 +4319,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       int32_t iter1 = 0;
       px = tSimpleHashIterate(pTask->pOrigTableCols, NULL, &iter1);
       while (px != NULL) {
-        char                   *dbName = tSimpleHashGetKey(px, NULL);
-        SSHashObj              *pDbInfo = *(SSHashObj **)px;
-        int32_t                 iter2 = 0;
-        SSTriggerOrigTableInfo *pTbInfo = tSimpleHashIterate(pDbInfo, NULL, &iter2);
+        char                    *dbName = tSimpleHashGetKey(px, NULL);
+        SSHashObj               *pDbInfo = *(SSHashObj **)px;
+        int32_t                  iter2 = 0;
+        SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashIterate(pDbInfo, NULL, &iter2);
         while (pTbInfo != NULL) {
           char               *tbName = tSimpleHashGetKey(pTbInfo, NULL);
           SStreamDbTableName *pName = taosArrayReserve(pOrigTableNames, 1);
@@ -4009,29 +4371,36 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                             TSDB_CODE_INVALID_PARA);
       OTableInfoRsp *pRsp = TARRAY_DATA(otableInfo.cols);
 
-      void *px = tSimpleHashGet(pTask->pReaderUidMap, &vgId, sizeof(int32_t));
-      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      SArray *pUids = *(SArray **)px;
-      for (int32_t i = 0; i < TARRAY_SIZE(pUids); i++) {
-        SSTriggerOrigTableInfo *pTbInfo = *(SSTriggerOrigTableInfo **)TARRAY_GET_ELEM(pUids, i);
-        int32_t                 iter = 0;
-        void                   *px = tSimpleHashIterate(pTbInfo->pColumns, NULL, &iter);
-        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-        while (px != NULL) {
-          pTbInfo->suid = pRsp->suid;
-          pTbInfo->uid = pRsp->uid;
-          *(col_id_t *)px = pRsp->cid;
-          pRsp++;
-          px = tSimpleHashIterate(pTbInfo->pColumns, px, &iter);
+      int32_t iter1 = 0;
+      void   *px = tSimpleHashIterate(pTask->pOrigTableInfos, NULL, &iter1);
+      while (px != NULL) {
+        SSHashObj               *pDbInfo = *(SSHashObj **)px;
+        int32_t                  iter2 = 0;
+        SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashIterate(pDbInfo, NULL, &iter2);
+        while (pTbInfo != NULL) {
+          if (pTbInfo->vgId == pProgress->pTaskAddr->nodeId) {
+            int32_t iter3 = 0;
+            void   *px2 = tSimpleHashIterate(pTbInfo->pColumns, NULL, &iter3);
+            while (px2 != NULL) {
+              pTbInfo->suid = pRsp->suid;
+              pTbInfo->uid = pRsp->uid;
+              *(col_id_t *)px2 = pRsp->cid;
+              px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
+            }
+          }
+          pTbInfo = tSimpleHashIterate(pDbInfo, pTbInfo, &iter2);
         }
-        int64_t *pEle = TARRAY_GET_ELEM(pUids, i);
-        pEle[0] = pTbInfo->suid;
-        pEle[1] = pTbInfo->uid;
+        px = tSimpleHashIterate(pTask->pOrigTableCols, px, &iter1);
       }
 
       if (--pContext->curReaderIdx > 0) {
         // wait for responses from other readers
         goto _end;
+      }
+
+      int32_t nVirTables = taosArrayGetSize(pTask->pVirTableInfoRsp);
+      for (int32_t i = 0; i < nVirTables; i++) {
+        VTableInfo *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
       }
 
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
@@ -4050,29 +4419,25 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
       int32_t nVirTables = taosArrayGetSize(pTask->pVirTableInfoRsp);
       for (int32_t i = 0; i < nVirTables; i++) {
-        VTableInfo            *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
-        SSTriggerVirTableInfo *pNewInfo = tSimpleHashGet(pTask->pVirTableInfos, &pInfo->uid, sizeof(int64_t));
+        VTableInfo             *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
+        SSTriggerVirtTableInfo *pNewInfo = tSimpleHashGet(pTask->pVirtTableInfos, &pInfo->uid, sizeof(int64_t));
         QUERY_CHECK_NULL(pNewInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        code = stTriggerTaskGenVirColRefs(pTask, pInfo, pTask->pVirTrigSlots, &pNewInfo->pTrigColRefs);
-        QUERY_CHECK_CODE(code, lino, _end);
-        code = stTriggerTaskGenVirColRefs(pTask, pInfo, pTask->pVirCalcSlots, &pNewInfo->pCalcColRefs);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-
-      for (int32_t i = 0; i < nVirTables; i++) {
-        VTableInfo *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
-        void       *px = tSimpleHashGet(pContext->pGroups, &pInfo->gId, sizeof(int64_t));
-        if (px == NULL) {
-          SSTriggerRealtimeGroup *pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-          QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-          code = tSimpleHashPut(pContext->pGroups, &pInfo->gId, sizeof(int64_t), &pGroup, POINTER_BYTES);
-          if (code != TSDB_CODE_SUCCESS) {
-            taosMemoryFreeClear(pGroup);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          code = stRealtimeGroupInit(pGroup, pContext, pInfo->gId);
-          QUERY_CHECK_CODE(code, lino, _end);
+        if (pNewInfo->pTrigColRefs == NULL) {
+          pNewInfo->pTrigColRefs = taosArrayInit(0, sizeof(SSTriggerTableColRef));
+          QUERY_CHECK_NULL(pNewInfo->pTrigColRefs, code, lino, _end, terrno);
         }
+        if (pNewInfo->pCalcColRefs == NULL) {
+          pNewInfo->pCalcColRefs = taosArrayInit(0, sizeof(SSTriggerTableColRef));
+          QUERY_CHECK_NULL(pNewInfo->pCalcColRefs, code, lino, _end, terrno);
+        }
+        code = stTriggerTaskGenVirColRefs(pTask, pInfo, pTask->pVirTrigSlots, pNewInfo->pTrigColRefs);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = stTriggerTaskGenVirColRefs(pTask, pInfo, pTask->pVirCalcSlots, pNewInfo->pCalcColRefs);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = stTriggerTaskNewGenVirColRefs(pTask, pInfo, true, pNewInfo->pTrigColRefs);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = stTriggerTaskNewGenVirColRefs(pTask, pInfo, false, pNewInfo->pTrigColRefs);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
 
       pTask->virTableInfoReady = true;
@@ -4493,7 +4858,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       SSTriggerHistoryGroup *pGroup = stHistoryContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       if (pTask->isVirtualTable) {
-        SSTriggerVirTableInfo *pTable = taosArrayGetP(pGroup->pVirTableInfos, 0);
+        SSTriggerVirtTableInfo *pTable = taosArrayGetP(pGroup->pVirtTableInfos, 0);
         QUERY_CHECK_NULL(pTable, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pTable->vgId, sizeof(int32_t));
         QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -4513,7 +4878,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       SSTriggerHistoryGroup *pGroup = stHistoryContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       QUERY_CHECK_CONDITION(pTask->isVirtualTable, code, lino, _end, TSDB_CODE_INVALID_PARA);
-      SSTriggerVirTableInfo *pTable = taosArrayGetP(pGroup->pVirTableInfos, 0);
+      SSTriggerVirtTableInfo *pTable = taosArrayGetP(pGroup->pVirtTableInfos, 0);
       QUERY_CHECK_NULL(pTable, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pTable->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -4702,7 +5067,7 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
   }
 
   // amend ekey of interval window trigger and sliding trigger
-  for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); ++i) {
+  for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); i++) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
     if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
       pParam->wend++;
@@ -6035,9 +6400,9 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
   } else if (pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION && pTask->isVirtualTable) {
     while (pGroup->tableUids.neles > 0) {
       if (!pContext->pMerger->inUse) {
-        int64_t               *ar = taosObjListGetHead(&pGroup->tableUids);
-        int64_t                vtbUid = ar[0];
-        SSTriggerVirTableInfo *pInfo = tSimpleHashGet(pTask->pVirTableInfos, &vtbUid, sizeof(int64_t));
+        int64_t                *ar = taosObjListGetHead(&pGroup->tableUids);
+        int64_t                 vtbUid = ar[0];
+        SSTriggerVirtTableInfo *pInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
         QUERY_CHECK_NULL(pInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         if (stNewVtableMergerNeedPseudoCols(pContext->pMerger)) {
           pContext->needPseudoCols = true;
@@ -6560,7 +6925,7 @@ static int32_t stRealtimeGroupMergeWindows(SSTriggerRealtimeGroup *pGroup) {
         pWin->range.ekey = TMAX(pWin->range.ekey, pTmpWin->range.ekey);
         pWin->wrownum += pTmpWin->wrownum;
       } else {
-        ++pWin;
+        pWin++;
         *pWin = *pTmpWin;
       }
     }
@@ -6907,13 +7272,13 @@ static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistor
   TRINGBUF_INIT(&pGroup->winBuf);
 
   if (pContext->pTask->isVirtualTable) {
-    pGroup->pVirTableInfos = taosArrayInit(0, POINTER_BYTES);
-    QUERY_CHECK_NULL(pGroup->pVirTableInfos, code, lino, _end, terrno);
-    int32_t                iter = 0;
-    SSTriggerVirTableInfo *pInfo = tSimpleHashIterate(pTask->pVirTableInfos, NULL, &iter);
+    pGroup->pVirtTableInfos = taosArrayInit(0, POINTER_BYTES);
+    QUERY_CHECK_NULL(pGroup->pVirtTableInfos, code, lino, _end, terrno);
+    int32_t                 iter = 0;
+    SSTriggerVirtTableInfo *pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, NULL, &iter);
     while (pInfo != NULL) {
       if (pInfo->tbGid == gid) {
-        void *px = taosArrayPush(pGroup->pVirTableInfos, &pInfo);
+        void *px = taosArrayPush(pGroup->pVirtTableInfos, &pInfo);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         int32_t nTrigCols = taosArrayGetSize(pInfo->pTrigColRefs);
         for (int32_t i = 0; i < nTrigCols; i++) {
@@ -6938,7 +7303,7 @@ static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistor
           }
         }
       }
-      pInfo = tSimpleHashIterate(pTask->pVirTableInfos, pInfo, &iter);
+      pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pInfo, &iter);
     }
   }
 
@@ -6959,8 +7324,8 @@ static void stHistoryGroupDestroy(void *ptr) {
   }
 
   SSTriggerHistoryGroup *pGroup = *ppGroup;
-  if (pGroup->pVirTableInfos != NULL) {
-    taosArrayDestroy(pGroup->pVirTableInfos);
+  if (pGroup->pVirtTableInfos != NULL) {
+    taosArrayDestroy(pGroup->pVirtTableInfos);
   }
   if (pGroup->pTableMetas != NULL) {
     tSimpleHashCleanup(pGroup->pTableMetas);
@@ -7460,7 +7825,7 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
       pWin->range.ekey = TMAX(pWin->range.ekey, pCurWin->range.ekey);
       pWin->wrownum += pCurWin->wrownum;
     } else {
-      ++pWin;
+      pWin++;
       *pWin = *pCurWin;
     }
   }
@@ -7692,11 +8057,12 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
           QUERY_CHECK_CODE(code, lino, _end);
         }
         stVtableMergerReset(pContext->pMerger);
-        if (pContext->tbIter >= taosArrayGetSize(pGroup->pVirTableInfos)) {
+        if (pContext->tbIter >= taosArrayGetSize(pGroup->pVirtTableInfos)) {
           *pAllTableProcessed = true;
           break;
         } else {
-          pContext->pCurVirTable = *(SSTriggerVirTableInfo **)TARRAY_GET_ELEM(pGroup->pVirTableInfos, pContext->tbIter);
+          pContext->pCurVirTable =
+              *(SSTriggerVirtTableInfo **)TARRAY_GET_ELEM(pGroup->pVirtTableInfos, pContext->tbIter);
           pContext->tbIter++;
         }
         if (saveWindow) {

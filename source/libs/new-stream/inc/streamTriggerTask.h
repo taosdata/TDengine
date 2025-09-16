@@ -31,14 +31,22 @@ extern "C" {
 
 // #define SKIP_SEND_CALC_REQUEST
 
-typedef struct SSTriggerVirTableInfo {
+typedef struct SSTriggerVirtTableInfo {
   int64_t tbGid;
   int64_t tbUid;
   int64_t tbVer;
   int32_t vgId;
   SArray *pTrigColRefs;  // SArray<SSTriggerTableColRef>
   SArray *pCalcColRefs;  // SArray<SSTriggerTableColRef>
-} SSTriggerVirTableInfo;
+} SSTriggerVirtTableInfo;
+
+typedef struct SSTriggerOrigTableInfo {
+  int64_t    tbUid;
+  int32_t    vgId;
+  SSHashObj *pTrigColMap;  // SSHashObj<colId, slotId>
+  SSHashObj *pCalcColMap;  // SSHashObj<colId, slotId>
+  SArray    *pVtbUids;     // SArray<int64_t>
+} SSTriggerOrigTableInfo;
 
 typedef struct SSTriggerWindow {
   STimeWindow range;
@@ -83,8 +91,8 @@ typedef struct SSTriggerHistoryGroup {
   int64_t                         gid;
   TD_DLIST_NODE(SSTriggerHistoryGroup);
 
-  SArray    *pVirTableInfos;  // SArray<SSTriggerVirTableInfo *>
-  SSHashObj *pTableMetas;     // SSHashObj<tbUid, SSTriggerTableMeta>
+  SArray    *pVirtTableInfos;  // SArray<SSTriggerVirtTableInfo *>
+  SSHashObj *pTableMetas;      // SSHashObj<tbUid, SSTriggerTableMeta>
 
   bool finished;
 
@@ -112,9 +120,11 @@ typedef struct SSTriggerWalProgress {
   SStreamTaskAddr          *pTaskAddr;    // reader task address
   int64_t                   lastScanVer;  // version of the last committed record in previous scan
   SSTriggerPullRequestUnion pullReq;
-  SArray                   *reqCids;    // SArray<col_id_t>
-  SArray                   *reqCols;    // SArray<OTableInfo>
-  SArray                   *pVersions;  // SArray<int64_t>
+  SArray                   *reqCids;         // SArray<col_id_t>
+  SArray                   *reqCols;         // SArray<OTableInfo>
+  SSHashObj                *uidInfoTrigger;  // SSHashObj<uid, SSHashObj<slotId, colId>>
+  SSHashObj                *uidInfoCalc;     // SSHashObj<uid, SSHashObj<slotId, colId>>
+  SArray                   *pVersions;       // SArray<int64_t>
   SSDataBlock              *pDataBlock;
 } SSTriggerWalProgress;
 
@@ -215,14 +225,14 @@ typedef struct SSTriggerHistoryContext {
   TD_DLIST(SSTriggerHistoryGroup) groupsForceClose;
 
   // these fields are shared by all groups and do not need to be destroyed
-  bool                   reenterCheck;
-  int32_t                tbIter;
-  SSTriggerVirTableInfo *pCurVirTable;   // only for virtual tables
-  SSTriggerTableMeta    *pCurTableMeta;  // only for non-virtual tables
-  SSTriggerMetaData     *pMetaToFetch;
-  SSTriggerTableColRef  *pColRefToFetch;
-  SSTriggerCalcParam    *pParamToFetch;
-  SSTriggerCalcRequest  *pCalcReq;
+  bool                    reenterCheck;
+  int32_t                 tbIter;
+  SSTriggerVirtTableInfo *pCurVirTable;   // only for virtual tables
+  SSTriggerTableMeta     *pCurTableMeta;  // only for non-virtual tables
+  SSTriggerMetaData      *pMetaToFetch;
+  SSTriggerTableColRef   *pColRefToFetch;
+  SSTriggerCalcParam     *pParamToFetch;
+  SSTriggerCalcRequest   *pCalcReq;
   // these fields are shared by all groups and need to be destroyed
   SSTriggerTimestampSorter *pSorter;
   SSTriggerVtableMerger    *pMerger;
@@ -319,18 +329,25 @@ typedef struct SStreamTriggerTask {
   SArray *virtReaderList;  // SArray<SStreamTaskAddr>
   SArray *runnerList;      // SArray<SStreamRunnerTarget>
 
-  // virtual table info
+  // virtual table info: old version, to be removed
   SSDataBlock *pVirDataBlock;
-  bool        *pIsPseudoCol;      // whether the column is pseudo column, could be NULL if no pseudo columns
-  int32_t      nVirDataCols;      // number of non-pseudo data columns in pVirDataBlock
-  SArray      *pVirTrigSlots;     // SArray<int32_t>
-  SArray      *pVirCalcSlots;     // SArray<int32_t>
-  SArray      *pVirTableInfoRsp;  // SArray<VTableInfo>
-  SSHashObj   *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigTableInfo>>
-  SSHashObj   *pReaderUidMap;     // SSHashObj<vgId, SArray<int64_t, int64_t>>
-  SSHashObj   *pOrigTableGroups;  // SSHashObj<otbUid, SArray<vtbUid>>
-  SSHashObj   *pVirTableInfos;    // SSHashObj<vtbUid, SSTriggerVirTableInfo>
-  bool         virTableInfoReady;
+  int32_t      nVirDataCols;   // number of non-pseudo data columns in pVirDataBlock
+  SArray      *pVirTrigSlots;  // SArray<int32_t>
+  SArray      *pVirCalcSlots;  // SArray<int32_t>
+  // virtual table info: new version
+  SSDataBlock *pVirtTrigBlock;    // trigger data schema for virtual table
+  SSDataBlock *pVirtCalcBlock;    // calc data schema for virtual table
+  SArray      *pTrigIsPseudoCol;  // SArray<bool>, whether the column in trig data is pseudo column, could be NULL
+  SArray      *pCalcIsPseudoCol;  // SArray<bool>, whether the column in calc data is pseudo column, could be NULL
+  col_id_t     trigTsSlotId;
+  col_id_t     calcTsSlotId;
+  bool         virScanTsOnly;    // whether the trigger and calc data only contains timestamp column
+  SSHashObj   *pVirtTableInfos;  // SSHashObj<vtbUid, SSTriggerVirtTableInfo>
+  SSHashObj   *pOrigTableInfos;  // SSHashObj<otbUid, SSTriggerOrigTableInfo>
+  // virtual table info response
+  bool       virTableInfoReady;
+  SArray    *pVirTableInfoRsp;  // SArray<VTableInfo>
+  SSHashObj *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigColumnInfo>*>
 
   // boundary between realtime and history
   SSHashObj *pRealtimeStartVer;  // SSHashObj<vgId, int64_t>

@@ -3424,8 +3424,8 @@ static int32_t encodeSetTableMapInfo(SEncoder* encoder, SSHashObj* pInfo) {
   while (px != NULL) {
     int64_t* uid = tSimpleHashGetKey(px, NULL);
     TAOS_CHECK_EXIT(tEncodeI64(encoder, *uid));
-    SSHashObj* info = (SSHashObj*)px;
-    
+    SSHashObj* info = *(SSHashObj**)px;
+
     int32_t len = tSimpleHashGetSize(info);
     TAOS_CHECK_EXIT(tEncodeI32(encoder, len));
     int32_t iter1 = 0;
@@ -3640,7 +3640,7 @@ static int32_t decodeSetTableMapInfo(SDecoder* decoder, SSHashObj** ppInfo) {
     if (tmp == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    TAOS_CHECK_EXIT(tSimpleHashPut(*ppInfo, &uid, sizeof(uid), tmp, sizeof(tmp)));
+    TAOS_CHECK_EXIT(tSimpleHashPut(*ppInfo, &uid, sizeof(uid), &tmp, POINTER_BYTES));
 
     for (int32_t j = 0; j < len; ++j) {
       int16_t slotId = 0;

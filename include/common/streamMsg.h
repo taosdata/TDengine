@@ -746,12 +746,6 @@ typedef struct SSTriggerPullRequest {
   int64_t           triggerTaskId;  // does not serialize
 } SSTriggerPullRequest;
 
-typedef struct SetTableMapInfo {
-  int64_t              suid;
-  int64_t              uid;
-  SArray*              colMaps;  // SArray<colId,index>, both are int16_t
-} SetTableMapInfo;
-
 typedef struct SSTriggerSetTableRequest {
   SSTriggerPullRequest base;
   SSHashObj*           uidInfoTrigger;    // < uid->SHashObj<slotId->colId> >

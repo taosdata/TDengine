@@ -1013,7 +1013,9 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
 
       int16_t colId = 0;
       if (sStreamReaderInfo->isVtableStream){
-        SSHashObj* uInfo = tSimpleHashGet(rsp->isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &submitTbData.uid, sizeof(submitTbData.uid));
+        void *px = tSimpleHashGet(rsp->isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &submitTbData.uid, sizeof(submitTbData.uid));
+        STREAM_CHECK_NULL_GOTO(px, TSDB_CODE_INVALID_PARA);
+        SSHashObj* uInfo = *(SSHashObj **)px;
         STREAM_CHECK_NULL_GOTO(uInfo, TSDB_CODE_INVALID_PARA);
         int16_t*  tmp = tSimpleHashGet(uInfo, &i, sizeof(i));
         if (tmp != NULL) {
@@ -1087,7 +1089,9 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
 
         int16_t colId = 0;
         if (sStreamReaderInfo->isVtableStream){
-          SSHashObj* uInfo = tSimpleHashGet(rsp->isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &submitTbData.uid, sizeof(submitTbData.uid));
+          void* px = tSimpleHashGet(rsp->isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &submitTbData.uid, sizeof(submitTbData.uid));
+          STREAM_CHECK_NULL_GOTO(px, TSDB_CODE_INVALID_PARA);
+          SSHashObj* uInfo = *(SSHashObj**)px;
           STREAM_CHECK_NULL_GOTO(uInfo, TSDB_CODE_INVALID_PARA);
           int16_t*  tmp = tSimpleHashGet(uInfo, &i, sizeof(i));
           if (tmp != NULL) {

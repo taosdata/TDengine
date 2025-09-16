@@ -217,8 +217,10 @@ int32_t stTimestampSorterGetMetaToFetch(SSTriggerTimestampSorter *pSorter, SSTri
 int32_t stTimestampSorterBindDataBlock(SSTriggerTimestampSorter *pSorter, SSDataBlock **ppDataBlock);
 
 typedef struct SSTriggerColMatch {
-  col_id_t otbColId;
-  col_id_t vtbColId;
+  union {
+    col_id_t otbColId;
+    col_id_t otbSlotId;
+  };
   col_id_t vtbSlotId;
 } SSTriggerColMatch;
 
@@ -226,7 +228,8 @@ typedef struct SSTriggerTableColRef {
   int64_t otbSuid;
   int64_t otbUid;
   int32_t otbVgId;
-  SArray *pColMatches;  // SArray<SSTriggerColMatch>
+  SArray *pColMatches;     // SArray<SSTriggerColMatch>
+  SArray *pNewColMatches;  // SArray<SSTriggerColMatch>
 } SSTriggerTableColRef;
 
 typedef enum ETriggerVtableMergerMask {
