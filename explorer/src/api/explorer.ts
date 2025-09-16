@@ -48,6 +48,7 @@ export function executeDBOperations(sql: string) {
     .then(data => {
       data = JSON.parse(JSON.stringify(data));
       if (data.code == 0) return compHeadAndData(data.column_meta, data.data);
+      ElMessage.error(JSON.stringify(data));
       return Promise.reject(data);
     })
     .catch(err => {
