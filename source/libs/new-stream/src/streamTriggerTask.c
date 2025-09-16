@@ -1222,14 +1222,13 @@ static void stTriggerTaskDestroyOrigColumnInfo(void *ptr) {
   }
 }
 
-static void stTriggerTaskDestroyOrigDbInfo(void *ptr) {
-  SSHashObj **ppInfos = ptr;
-  if (ppInfos == NULL || *ppInfos == NULL) {
+static void stTriggerTaskDestroyHashElem(void *ptr) {
+  SSHashObj **ppHash = ptr;
+  if (ppHash == NULL || *ppHash == NULL) {
     return;
   }
-  tSimpleHashSetFreeFp(*ppInfos, stTriggerTaskDestroyOrigColumnInfo);
-  tSimpleHashCleanup(*ppInfos);
-  *ppInfos = NULL;
+  tSimpleHashCleanup(*ppHash);
+  *ppHash = NULL;
 }
 
 static void stTriggerTaskDestroyOrigTableInfo(void *ptr) {
@@ -1873,7 +1872,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     QUERY_CHECK_NULL(pTask->pVirTableInfoRsp, code, lino, _end, terrno);
     pTask->pOrigTableCols = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     QUERY_CHECK_NULL(pTask->pOrigTableCols, code, lino, _end, terrno);
-    tSimpleHashSetFreeFp(pTask->pOrigTableCols, stTriggerTaskDestroyOrigDbInfo);
+    tSimpleHashSetFreeFp(pTask->pOrigTableCols, stTriggerTaskDestroyHashElem);
   }
 
   pTask->calcEventType = taosArrayGetSize(pMsg->runnerList) > 0 ? pMsg->eventTypes : STRIGGER_EVENT_WINDOW_NONE;
@@ -2271,10 +2270,10 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
           QUERY_CHECK_NULL(pProgress->reqCols, code, lino, _end, terrno);
           pProgress->uidInfoTrigger = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
           QUERY_CHECK_NULL(pProgress->uidInfoTrigger, code, lino, _end, terrno);
-          tSimpleHashSetFreeFp(pProgress->uidInfoTrigger, (FDelete)tSimpleHashCleanup);
+          tSimpleHashSetFreeFp(pProgress->uidInfoTrigger, stTriggerTaskDestroyHashElem);
           pProgress->uidInfoCalc = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
           QUERY_CHECK_NULL(pProgress->uidInfoCalc, code, lino, _end, terrno);
-          tSimpleHashSetFreeFp(pProgress->uidInfoCalc, (FDelete)tSimpleHashCleanup);
+          tSimpleHashSetFreeFp(pProgress->uidInfoCalc, stTriggerTaskDestroyHashElem);
         }
         pProgress->pVersions = taosArrayInit(0, sizeof(int64_t));
         QUERY_CHECK_NULL(pProgress->pVersions, code, lino, _end, terrno);
@@ -2567,10 +2566,10 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
       QUERY_CHECK_NULL(pProgress->reqCols, code, lino, _end, terrno);
       pProgress->uidInfoTrigger = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
       QUERY_CHECK_NULL(pProgress->uidInfoTrigger, code, lino, _end, terrno);
-      tSimpleHashSetFreeFp(pProgress->uidInfoTrigger, (FDelete)tSimpleHashCleanup);
+      tSimpleHashSetFreeFp(pProgress->uidInfoTrigger, stTriggerTaskDestroyHashElem);
       pProgress->uidInfoCalc = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
       QUERY_CHECK_NULL(pProgress->uidInfoCalc, code, lino, _end, terrno);
-      tSimpleHashSetFreeFp(pProgress->uidInfoCalc, (FDelete)tSimpleHashCleanup);
+      tSimpleHashSetFreeFp(pProgress->uidInfoCalc, stTriggerTaskDestroyHashElem);
     }
     pProgress->pVersions = taosArrayInit(0, sizeof(int64_t));
     QUERY_CHECK_NULL(pProgress->pVersions, code, lino, _end, terrno);
@@ -2807,9 +2806,9 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       SSTriggerRealtimeGroup *pGroup = NULL;
       if (pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ) {
-        int64_t* gid = taosArrayGet(pContext->groupsToDelete, pContext->dropReqIndex);
+        int64_t *gid = taosArrayGet(pContext->groupsToDelete, pContext->dropReqIndex);
         QUERY_CHECK_NULL(gid, code, lino, _end, terrno);
-        void* px = tSimpleHashGet(pContext->pGroups, gid, sizeof(int64_t));
+        void *px = tSimpleHashGet(pContext->pGroups, gid, sizeof(int64_t));
         QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         pGroup = *(SSTriggerRealtimeGroup **)px;
       } else {
@@ -2946,7 +2945,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         if (tSimpleHashGetSize(pInfo->pCalcColMap) > 0) {
           SSHashObj *pMatch = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
           QUERY_CHECK_NULL(pMatch, code, lino, _end, terrno);
-          code = tSimpleHashPut(pReq->uidInfoTrigger, &pInfo->tbUid, sizeof(int64_t), &pMatch, POINTER_BYTES);
+          code = tSimpleHashPut(pReq->uidInfoCalc, &pInfo->tbUid, sizeof(int64_t), &pMatch, POINTER_BYTES);
           if (code != TSDB_CODE_SUCCESS) {
             tSimpleHashCleanup(pMatch);
             QUERY_CHECK_CODE(code, lino, _end);
@@ -4279,6 +4278,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           if (px == NULL) {
             pDbInfo = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
             QUERY_CHECK_NULL(pDbInfo, code, lino, _end, terrno);
+            tSimpleHashSetFreeFp(pDbInfo, stTriggerTaskDestroyOrigColumnInfo);
             code = tSimpleHashPut(pTask->pOrigTableCols, pColRef->refDbName, dbNameLen, &pDbInfo, POINTER_BYTES);
             if (code != TSDB_CODE_SUCCESS) {
               tSimpleHashCleanup(pDbInfo);
@@ -4400,25 +4400,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
       int32_t nVirTables = taosArrayGetSize(pTask->pVirTableInfoRsp);
       for (int32_t i = 0; i < nVirTables; i++) {
-        VTableInfo *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
-      }
-
-      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-           pContext->curReaderIdx++) {
-        code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_SET_TABLE);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      break;
-    }
-
-    case STRIGGER_PULL_SET_TABLE: {
-      if (--pContext->curReaderIdx > 0) {
-        // wait for responses from other readers
-        goto _end;
-      }
-
-      int32_t nVirTables = taosArrayGetSize(pTask->pVirTableInfoRsp);
-      for (int32_t i = 0; i < nVirTables; i++) {
         VTableInfo             *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
         SSTriggerVirtTableInfo *pNewInfo = tSimpleHashGet(pTask->pVirtTableInfos, &pInfo->uid, sizeof(int64_t));
         QUERY_CHECK_NULL(pNewInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -4436,8 +4417,22 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
         code = stTriggerTaskNewGenVirColRefs(pTask, pInfo, true, pNewInfo->pTrigColRefs);
         QUERY_CHECK_CODE(code, lino, _end);
-        code = stTriggerTaskNewGenVirColRefs(pTask, pInfo, false, pNewInfo->pTrigColRefs);
+        code = stTriggerTaskNewGenVirColRefs(pTask, pInfo, false, pNewInfo->pCalcColRefs);
         QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
+           pContext->curReaderIdx++) {
+        code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_SET_TABLE);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      break;
+    }
+
+    case STRIGGER_PULL_SET_TABLE: {
+      if (--pContext->curReaderIdx > 0) {
+        // wait for responses from other readers
+        goto _end;
       }
 
       pTask->virTableInfoReady = true;
