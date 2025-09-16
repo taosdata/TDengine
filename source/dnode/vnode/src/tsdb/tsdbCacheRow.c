@@ -1562,17 +1562,14 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
         code = tRowGetLastColVal(pLastRow->pRow, pTSchema, colIndex, &colVal);
         if (code == 0) {
           lastCol.colVal = colVal;
-
-          // Reallocate if needed for variable length data
-          if (IS_VAR_DATA_TYPE(colVal.value.type) && COL_VAL_IS_VALUE(&colVal)) {
-            code = tsdbCacheReallocSLastCol(&lastCol, NULL);
-            if (code != 0) {
-              taosMemoryFree(pTSchema);
-              tsdbLRUCacheRelease(pCache, h, false);
-              taosArrayDestroy(newRemainCols);
-              TAOS_CHECK_GOTO(code, &lino, _exit);
-            }
+          code = tsdbCacheReallocSLastCol(&lastCol, NULL);
+          if (code != 0) {
+            taosMemoryFree(pTSchema);
+            tsdbLRUCacheRelease(pCache, h, false);
+            taosArrayDestroy(newRemainCols);
+            TAOS_CHECK_GOTO(code, &lino, _exit);
           }
+
         } else {
           // Column not found in row, set as null
           lastCol.colVal = COL_VAL_NONE(cid, pCol->type);
@@ -1666,15 +1663,13 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
               code = tRowGetLastColVal(pLastRow->pRow, pTSchema, colIndex, &colVal);
               if (code == 0) {
                 lastCol.colVal = colVal;
-                if (IS_VAR_DATA_TYPE(colVal.value.type) && COL_VAL_IS_VALUE(&colVal)) {
-                  code = tsdbCacheReallocSLastCol(&lastCol, NULL);
-                  if (code != 0) {
-                    taosMemoryFree(pTSchema);
-                    tsdbLRUCacheRelease(pCache, h, false);
-                    taosArrayDestroy(newRemainCols);
-                    (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-                    TAOS_CHECK_GOTO(code, &lino, _exit);
-                  }
+                code = tsdbCacheReallocSLastCol(&lastCol, NULL);
+                if (code != 0) {
+                  taosMemoryFree(pTSchema);
+                  tsdbLRUCacheRelease(pCache, h, false);
+                  taosArrayDestroy(newRemainCols);
+                  (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+                  TAOS_CHECK_GOTO(code, &lino, _exit);
                 }
               } else {
                 lastCol.colVal = COL_VAL_NONE(cid, pCol->type);
@@ -1767,14 +1762,12 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
                     code = tRowGetLastColVal(pRocksRow->pRow, pTSchema, colIndex, &colVal);
                     if (code == 0) {
                       lastCol.colVal = colVal;
-                      if (IS_VAR_DATA_TYPE(colVal.value.type) && COL_VAL_IS_VALUE(&colVal)) {
-                        code = tsdbCacheReallocSLastCol(&lastCol, NULL);
-                        if (code != 0) {
-                          taosMemoryFree(pTSchema);
-                          taosArrayDestroy(newRemainCols);
-                          (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-                          TAOS_CHECK_GOTO(code, &lino, _exit);
-                        }
+                      code = tsdbCacheReallocSLastCol(&lastCol, NULL);
+                      if (code != 0) {
+                        taosMemoryFree(pTSchema);
+                        taosArrayDestroy(newRemainCols);
+                        (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
+                        TAOS_CHECK_GOTO(code, &lino, _exit);
                       }
                     } else {
                       lastCol.colVal = COL_VAL_NONE(cid, pCol->type);
@@ -1906,7 +1899,7 @@ int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, T
   for (int8_t lflag = LFLAG_LAST_ROW; lflag <= LFLAG_LAST; ++lflag) {
     SLastRowKey rowKey = {.lflag = lflag, .uid = uid};
     LRUHandle  *h = taosLRUCacheLookup(pTsdb->lruCache, &rowKey, ROCKS_ROW_KEY_LEN);
-    
+
     if (h) {
       SLastRow *pLastRow = (SLastRow *)taosLRUCacheValue(pTsdb->lruCache, h);
       // Check if the row timestamp falls within the deletion range
@@ -1920,7 +1913,7 @@ int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, T
             needUpdate = true;
           }
         }
-        
+
         if (needUpdate) {
           pLastRow->dirty = 1;
           // Put the updated row back to cache
@@ -1986,7 +1979,7 @@ int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, T
         goto _exit;
       }
     }
-    
+
     SLastRowKey *pRowKey = taosArrayGet(remainKeys, i);
     if (NULL != pLastRow && (pLastRow->rowKey.key.ts <= eKey && pLastRow->rowKey.key.ts >= sKey)) {
       // Mark all columns in this row as invalid/no-cache
@@ -2001,7 +1994,7 @@ int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, T
 
       if (needUpdate) {
         pLastRow->dirty = 1;
-        
+
         // Update both RocksDB and LRU cache
         if ((code = tsdbRowCachePutToRocksdb(pTsdb, pRowKey, pLastRow)) != TSDB_CODE_SUCCESS) {
           taosMemoryFreeClear(pLastRow);
