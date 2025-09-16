@@ -952,6 +952,9 @@ int tsdbRowCacheCmp(void *state, const char *a, size_t alen, const char *b, size
   return 0;
 }
 static void tsdbFreeLastRow(SLastRow *pLastRow) {
+  if (pLastRow == NULL) {
+    return;
+  }
   if (pLastRow->pRow) {
     taosMemoryFree(pLastRow->pRow);
   }
