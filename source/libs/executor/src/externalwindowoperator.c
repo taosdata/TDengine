@@ -1438,8 +1438,12 @@ static int32_t extWinIndefRowsSetWinOutputBuf(SExternalWindowOperator* pExtW, SE
 
   if (reset) {
     memset(pResultRow, 0, pAggSup->resultRowSize);
+    for (int32_t k = 0; k < pSupp->numOfExprs; ++k) {
+      SqlFunctionCtx* pCtx = &pSupp->pCtx[k];
+      pCtx->pOutput = NULL;
+    }
   }
-  
+
   TAOS_SET_POBJ_ALIGNED(&pResultRow->win, &win->tw);
 
   // set time window for current result

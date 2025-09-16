@@ -862,6 +862,8 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   cleanupGroupResInfo(&pAgg->groupResInfo);
   resetBasicOperatorState(&pAgg->binfo);
   
+  pAgg->pNewGroupBlock = NULL;
+
   int32_t code = resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys,
     keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
 
