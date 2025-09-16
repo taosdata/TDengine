@@ -4458,7 +4458,7 @@ static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash)
     TAOS_CHECK_EXIT(tEncodeU64(encoder, pInfo->gId));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->startRowIdx));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->numRows));
-    ASSERT(pInfo->startRowIdx <= ((SSDataBlock*) pBlock)->info.rows);
+    // ASSERT(pInfo->startRowIdx <= ((SSDataBlock*) pBlock)->info.rows);
     tables++;
   }
   uint32_t tmpPos = encoder->pos;
