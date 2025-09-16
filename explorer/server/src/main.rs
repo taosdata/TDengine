@@ -65,10 +65,11 @@ use sql::need_limit;
 use crate::stream_with_cancel::StreamWithCancel;
 
 mod favorites;
+mod monitor;
 mod qid;
 mod sql;
 mod stream_with_cancel;
-pub mod verification;
+mod verification;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -81,6 +82,7 @@ struct UserPool {
 }
 
 static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
+static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 static EXPLORER_SKIP_REGISTER: LazyLock<bool> = LazyLock::new(|| {
     std::env::var("EXPLORER_SKIP_REGISTER").is_ok_and(|s| {
@@ -89,6 +91,8 @@ static EXPLORER_SKIP_REGISTER: LazyLock<bool> = LazyLock::new(|| {
             tracing::info!("skip register by env");
         }
         skip
+    }) || CONFIG_DIR.get().is_some_and(|config_dir| {
+        std::fs::exists(config_dir.join("explorer-register.cfg")).unwrap_or_default()
     })
 });
 
@@ -167,6 +171,12 @@ async fn main() -> anyhow::Result<()> {
             file_path = value;
         }
     }
+    let _ = CONFIG_DIR.set(
+        file_path
+            .parent()
+            .map_or_else(|| PathBuf::from("."), |p| p.to_path_buf()),
+    );
+
     let mut args = if let Ok(mut file) = File::open(&file_path) {
         let mut content = String::new();
         file.read_to_string(&mut content).context(format!(
@@ -287,6 +297,9 @@ async fn main() -> anyhow::Result<()> {
     args.profile.grpc.get_or_insert(EXPLORER_GRPC.to_string());
 
     let port = args.port.unwrap();
+
+    let monitor = monitor::Monitor::new(args.monitor.clone(), port);
+    monitor.init();
     let app_args = web::Data::new(args.clone());
     let cors = app_args.cors.unwrap_or_default();
 
@@ -1454,7 +1467,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     )
 };
 
-#[derive(Parser, Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
 #[clap(name = env!("CUS_CLI_NAME"), author, version = CLAP_SHORT_VERSION, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
     /// Configuration file
@@ -1512,6 +1525,10 @@ struct Args {
     #[clap(long, env = "EXPLORER_DATA_DIR")]
     #[serde(default)]
     data_dir: Option<String>,
+
+    #[clap(flatten)]
+    #[serde(default)]
+    monitor: monitor::MonitorCfg,
 }
 
 #[serde_as]
@@ -2237,7 +2254,7 @@ certificate_key = "tests/assets/cert-key.pem"
             );
 
             // 写入测试数据
-            let sql = r#"insert into `test_ts_seconds_format`.`tb1` using `test_ts_seconds_format`.`stb` tags ('a') 
+            let sql = r#"insert into `test_ts_seconds_format`.`tb1` using `test_ts_seconds_format`.`stb` tags ('a')
                         values ('2025-01-01T00:00:00Z', 19.81) ('2025-01-01T00:00:01.100Z', 19.60)
                                ('2025-01-01T00:00:03.999Z', 19.25)"#;
             let tz = Some("Asia/Shanghai".to_string());
@@ -2304,7 +2321,7 @@ certificate_key = "tests/assets/cert-key.pem"
         );
 
         // 写入测试数据
-        let sql = r#"insert into `test_explorer`.`t_with_float` using `test_explorer`.`stb_with_float` tags ('a') 
+        let sql = r#"insert into `test_explorer`.`t_with_float` using `test_explorer`.`stb_with_float` tags ('a')
                         values ('2025-01-01T00:00:00Z', 19.81) ('2025-01-01T00:00:01Z', 19.60)
                                ('2025-01-01T00:00:03Z', 19.25) ('2025-01-01T00:00:04Z', 19.50)"#;
         let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
@@ -2338,5 +2355,77 @@ certificate_key = "tests/assets/cert-key.pem"
         args.query_inner(&dsn, sql, None, 0).await.unwrap();
 
         Ok(())
+    }
+
+    /// Test parse monitor config from cli, env and config file.
+    #[test]
+    fn test_parse_monitor() {
+        let args = Args::parse_from(["explorer", "--monitor-fqdn", "localhost"]).monitor;
+        assert_eq!(args.monitor_fqdn, Some("localhost".to_string()));
+        assert_eq!(args.monitor_port, 6043);
+        assert_eq!(args.monitor_interval, 10);
+
+        std::env::set_var("MONITOR_FQDN", "fake1");
+        std::env::set_var("MONITOR_PORT", "6044");
+        std::env::set_var("MONITOR_INTERVAL", "5");
+        let args = Args::parse_from(["explorer"]).monitor;
+        assert_eq!(args.monitor_fqdn, Some("fake1".to_string()));
+        assert_eq!(args.monitor_port, 6044);
+        assert_eq!(args.monitor_interval, 5);
+        std::env::remove_var("MONITOR_FQDN");
+        std::env::remove_var("MONITOR_PORT");
+        std::env::remove_var("MONITOR_INTERVAL");
+
+        let args = Args::parse_from([
+            "explorer",
+            "--monitor-fqdn",
+            "localhost",
+            "--monitor-port",
+            "6043",
+            "--monitor-interval",
+            "2",
+        ])
+        .monitor;
+        assert_eq!(args.monitor_fqdn, Some("localhost".to_string()));
+        assert_eq!(args.monitor_port, 6043);
+        assert_eq!(args.monitor_interval, 2);
+
+        let args: Args = serde_json::from_str(
+            r#"{
+            }"#,
+        )
+        .unwrap();
+        let args = args.monitor;
+        assert!(args.monitor_fqdn.is_none());
+        assert_eq!(args.monitor_port, 6043);
+        assert_eq!(args.monitor_interval, 10);
+
+        let args: Args = serde_json::from_str(
+            r#"{
+                "monitor": {
+                    "fqdn": "fake2",
+                    "port": 6045,
+                    "interval": 3
+                }
+            }"#,
+        )
+        .unwrap();
+        let args = args.monitor;
+        assert_eq!(args.monitor_fqdn, Some("fake2".to_string()));
+        assert_eq!(args.monitor_port, 6045);
+        assert_eq!(args.monitor_interval, 3);
+
+        let args: Args = serde_json::from_str(
+            r#"{
+                "monitor": {
+                    "fqdn": "fake3"
+                }
+            }"#,
+        )
+        .unwrap();
+        let args = args.monitor;
+        assert_eq!(args.monitor_fqdn, Some("fake3".to_string()));
+        assert_eq!(args.monitor_port, 6043);
+        assert_eq!(args.monitor_interval, 10);
     }
 }

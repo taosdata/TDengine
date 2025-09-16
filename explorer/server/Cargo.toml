@@ -61,6 +61,10 @@ mimalloc = { workspace = true, optional = true }
 futures.workspace = true
 pin-project-lite.workspace = true
 faststr.workspace = true
+sysinfo.workspace = true
+metrics.workspace = true
+taosx-metrics.workspace = true
+gethostname = "1"
 
 [dependencies.taos]
 workspace = true

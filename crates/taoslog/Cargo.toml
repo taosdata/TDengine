@@ -8,13 +8,13 @@ actix-web.workspace = true
 tracing-actix-web = { version = "*" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt", "std"] }
-chrono = { version = "0.4.38", default-features = false, features = ["clock"] }
+chrono = { workspace = true, default-features = false, features = ["clock"] }
 parking_lot.workspace = true
 snafu.workspace = true
 flate2.workspace = true
-thread-id = "4.2.2"
+thread-id = "5.0.0"
 regex = "1"
-sysinfo = { version = "0.31.4", default-features = false, features = ["disk"] }
+sysinfo = { workspace = true, default-features = false, features = ["disk"] }
 flume.workspace = true
 arrow-schema.workspace = true
 http.workspace = true

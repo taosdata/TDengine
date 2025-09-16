@@ -144,8 +144,7 @@ impl<'a> RollingFileAppenderBuilder<'a> {
         };
 
         // calc disk available space
-        let mut disks = Disks::new();
-        disks.refresh_list();
+        let disks = Disks::new_with_refreshed_list();
         let mut disks = Vec::from(disks);
         disks.sort_by_key(|a| Reverse(a.mount_point().to_str().map(|s| s.len())));
         let mut disk = disks
@@ -311,7 +310,7 @@ impl RollingFileAppender {
     }
 
     fn check_today_file_exists(&self, state: &mut State) -> Result<Option<File>> {
-        // check curent file name first
+        // check current file name first
         let today = time_format(Local::now());
         let filename = state
             .file_path
