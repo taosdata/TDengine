@@ -35,9 +35,13 @@ static int32_t createDataBlockForSchema(STSchema *pTSchema, SSDataBlock **ppData
   int32_t      code = 0, lino = 0;
   int32_t      numOfCols = pTSchema->numOfCols;
   SSDataBlock *pBlock = NULL;
+
+  if (numOfCols < 1) {
+    TAOS_CHECK_EXIT(TSDB_CODE_RSMA_INVALID_SCHEMA);
+  }
   TAOS_CHECK_EXIT(createDataBlock(&pBlock));
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 1; i < numOfCols; ++i) {  // skip the first timestamp column
     STColumn       *pCol = pTSchema->columns + i;
     SColumnInfoData colInfoData = createColumnInfoData(pCol->type, pCol->bytes, pCol->colId);
     TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
@@ -60,6 +64,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   SSDataBlock    *pResBlock = NULL;
   SExprSupp      *pExprSup = NULL;
   SAggSupporter  *pAggSup = NULL;
+  SGroupResInfo  *pGroupResInfo = NULL;
   SResultRowInfo *pResultRowInfo = NULL;
   SExecTaskInfo  *pTaskInfo = NULL;
   SResultRow     *pResultRow = NULL;
@@ -82,10 +87,23 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     TAOS_CHECK_EXIT(terrno);
   }
   pCtx->resultRowInfo = pResultRowInfo;
+  if (!(pGroupResInfo = taosMemoryCalloc(1, sizeof(SGroupResInfo)))) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  pCtx->pGroupResInfo = pGroupResInfo;
   if (!(pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo)))) {
     TAOS_CHECK_EXIT(terrno);
   }
   pCtx->pTaskInfo = pTaskInfo;
+
+  pTaskInfo->id.str = taosStrdup("rollup");
+  if (!pTaskInfo->id.str) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  if (!(pCtx->pBuf = taosMemoryMalloc(TSDB_MAX_BYTES_PER_ROW + VARSTR_HEADER_SIZE))) {
+    TAOS_CHECK_EXIT(terrno);
+  }
 
   int32_t inputRowSize = 8;
   for (int32_t i = 1; i < nCols; i++) {  // skip the first timestamp column
@@ -164,8 +182,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
 
   TAOS_CHECK_EXIT(setResultRowInitCtx(pResultRow, pExprSup->pCtx, exprNum, pExprSup->rowEntryInfoOffset));
 
-  TAOS_CHECK_EXIT(
-      setInputDataBlock(pCtx->exprSup, pCtx->pInputBlock, ORDER_ASC, pCtx->pInputBlock->info.scanFlag, true));
+  TAOS_CHECK_EXIT(initGroupedResultInfo(pCtx->pGroupResInfo, pCtx->aggSup->pResultRowHashTable, 0));
 
 _exit:
   nodesDestroyNode((SNode *)pColNode);
@@ -173,21 +190,23 @@ _exit:
   nodesDestroyNode((SNode *)pTargetNode);
   if (code != 0) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-
   }
 
   return code;
 }
 
 int32_t tdRollupDoAggregate(SRollupCtx *pCtx) {
-  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         code = 0, lino = 0;
   SqlFunctionCtx *pFuncCtx = pCtx->exprSup->pCtx;
   SExprSupp      *pExprSup = pCtx->exprSup;
 
   if ((pExprSup->numOfExprs > 0 && pFuncCtx == NULL)) {
-    qError("%s failed at line %d since pFuncCtx is NULL.", __func__, __LINE__);
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
+
+  TAOS_CHECK_EXIT(
+      setInputDataBlock(pCtx->exprSup, pCtx->pInputBlock, ORDER_ASC, pCtx->pInputBlock->info.scanFlag, true));
+
   for (int32_t k = 0; k < pExprSup->numOfExprs; ++k) {
     if (functionNeedToExecute(&pFuncCtx[k])) {
       // todo add a dummy function to avoid process check
@@ -197,7 +216,6 @@ int32_t tdRollupDoAggregate(SRollupCtx *pCtx) {
 
       if ((&pFuncCtx[k])->input.pData[0] == NULL) {
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-        qError("%s aggregate function error happens, input data is NULL.", GET_TASKID(pCtx->pTaskInfo));
       } else {
         code = pFuncCtx[k].fpSet.process(&pFuncCtx[k]);
       }
@@ -206,17 +224,25 @@ int32_t tdRollupDoAggregate(SRollupCtx *pCtx) {
         if (pFuncCtx[k].fpSet.cleanup != NULL) {
           pFuncCtx[k].fpSet.cleanup(&pFuncCtx[k]);
         }
-        qError("%s aggregate function error happens, code:%s", GET_TASKID(pCtx->pTaskInfo), tstrerror(code));
-        return code;
+        TAOS_CHECK_EXIT(code);
       }
     }
   }
-
-  return TSDB_CODE_SUCCESS;
+_exit:
+  if (code != 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-int32_t tdRollupFinalize(SRollupCtx *pCtx, void *pOutput) {
-  int32_t code = 0, lino = 0;
+int32_t tdRollupFinalize(SRollupCtx *pCtx) {
+  int32_t      code = 0, lino = 0;
+  SSDataBlock *pResBlock = pCtx->pResBlock;
+
+  blockDataCleanup(pResBlock);
+  // pResBlock->info.id.groupId = 0;
+  doCopyToSDataBlock(pCtx->pTaskInfo, pResBlock, pCtx->exprSup, pCtx->aggSup->pResultBuf, pCtx->pGroupResInfo,
+                     pCtx->maxBufRows, true, 0);
 _exit:
   return code;
 }
@@ -226,6 +252,9 @@ void tdRollupCtxCleanup(SRollupCtx *pCtx, bool deep) {
     if (pCtx->pTargets) {
       nodesDestroyList((SNodeList *)pCtx->pTargets);
       pCtx->pTargets = NULL;
+    }
+    if (pCtx->pBuf && deep) {
+      taosMemFreeClear(pCtx->pBuf);
     }
     if (pCtx->exprSup) {
       cleanupExprSupp(pCtx->exprSup);
@@ -239,8 +268,15 @@ void tdRollupCtxCleanup(SRollupCtx *pCtx, bool deep) {
       pCtx->resultRowInfo->openWindow = tdListFree(pCtx->resultRowInfo->openWindow);
       if (deep) taosMemFreeClear(pCtx->resultRowInfo);
     }
+    if (pCtx->pGroupResInfo) {
+      cleanupGroupResInfo(pCtx->pGroupResInfo);
+      if (deep) taosMemFreeClear(pCtx->pGroupResInfo);
+    }
     if (pCtx->pTaskInfo) {
-      if (deep) taosMemFreeClear(pCtx->pTaskInfo);
+      if (deep) {
+        taosMemFreeClear(pCtx->pTaskInfo->id.str);
+        taosMemFreeClear(pCtx->pTaskInfo);
+      }
     }
     blockDataDestroy(pCtx->pInputBlock);
     blockDataDestroy(pCtx->pResBlock);

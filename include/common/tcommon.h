@@ -366,21 +366,23 @@ typedef struct SResSchame {
 
 typedef struct SAggSupporter  SAggSupporter;
 typedef struct SExprSupp      SExprSupp;
+typedef struct SGroupResInfo  SGroupResInfo;
 typedef struct SResultRowInfo SResultRowInfo;
 typedef struct SExecTaskInfo  SExecTaskInfo;
 typedef struct SRollupCtx {
   void*           pTsdb;     // STsdb*
   void*           pTargets;  // SNodeList*
+  void*           pBuf;
   SExprSupp*      exprSup;
   SAggSupporter*  aggSup;
   SResultRowInfo* resultRowInfo;
+  SGroupResInfo*  pGroupResInfo;
   SExecTaskInfo*  pTaskInfo;
   SSDataBlock*    pInputBlock;  // input data block for rollup
   SSDataBlock*    pResBlock;    // result data block for rollup
   int32_t         rowSize;
   int32_t         maxBufRows;    // max buffer rows for aggregation
-  int64_t         winTotalRows;  // number of total rows of current aggregation window
-  int64_t         winStashRows;  // number of stashed rows of current aggregation window
+  int64_t         winTotalRows;  // number of total rows for current window
 } SRollupCtx;
 
 typedef struct {

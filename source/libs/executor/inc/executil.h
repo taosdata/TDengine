@@ -39,7 +39,7 @@
 
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
-typedef struct SGroupResInfo {
+struct SGroupResInfo {
   int32_t index;    // rows consumed in func:doCopyToSDataBlockXX
   int32_t iter;     // relate to index-1, last consumed data's slot id in hash table
   void*   dataPos;  // relate to index-1, last consumed data's position, in the nodelist of cur slot
@@ -47,7 +47,7 @@ typedef struct SGroupResInfo {
   SArray* pRows;    // SArray<SResKeyPos>
   char*   pBuf;
   bool    freeItem;
-} SGroupResInfo;
+};
 
 typedef struct SResultRow {
   int32_t                    version;

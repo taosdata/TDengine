@@ -16248,6 +16248,16 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Rsma must be created on super table"));
   }
 
+  for (int32_t c = 0; c < numOfCols; ++c) {
+    int8_t type = pCols[c].type;
+    if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64 || TSDB_DATA_TYPE_BLOB ||
+        TSDB_DATA_TYPE_MEDIUMBLOB) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                           "Rsma does not support column type %" PRIi8 " currently",
+                                           type));  // TODO: support later
+    }
+  }
+
   pReq->tbUid = pTableMeta->uid;
 
   if (nFuncs > 0) {
