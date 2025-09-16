@@ -4000,7 +4000,6 @@ int32_t tSerializeSMDropAnodeReq(void *buf, int32_t bufLen, SMDropAnodeReq *pReq
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->anodeId));
   ENCODESQL();
   tEndEncode(&encoder);
-
 _exit:
   if (code) {
     tlen = code;
