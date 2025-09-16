@@ -1,14 +1,19 @@
+# TD-37548
 cases/22-Show/test_show_table_distributed_null.py
+# TD-37560
 cases/uncatalog/army/alter/test_alter_config.py
+# TD-37676, TD-37678
 cases/uncatalog/army/cluster/test_snapshot.py
 cases/uncatalog/army/cmdline/test_taos_cli.py
 # TD-37673
 cases/22-Functions/01-Scalar/test_scalar_all.py
+# TD-37674
 cases/uncatalog/army/query/function/test_function.py
 # TD-37674
 cases/22-Functions/02-Aggregate/test_agg_all.py
 cases/uncatalog/army/query/function/test_interval_diff_tz.py
 cases/12-DataCompression/test_compress_alter_table.py
+# TD-37670
 cases/uncatalog/army/storage/test_compress_basic.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_same_min_max.py
 cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_subtable.py
@@ -19,9 +24,10 @@ cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sql.py
 cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt.py
 cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt2.py
 cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py
-cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
-cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py
+# TD-37518
 cases/uncatalog/system-test/0-others/test_mounts.py
+# TD-37992
+cases/uncatalog/system-test/0-others/test_wal_level_skip.py
 
 # udf not supported in Windows CI
 cases/uncatalog/system-test/0-others/test_udf_test.py
@@ -146,3 +152,5 @@ cases/uncatalog/system-test/0-others/test_taosdlog.py
 cases/uncatalog/system-test/2-query/test_decimal.py
 cases/uncatalog/system-test/2-query/test_decimal2.py
 cases/uncatalog/system-test/2-query/test_decimal3.py
+# lzma not supported in Windows CI
+cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py
