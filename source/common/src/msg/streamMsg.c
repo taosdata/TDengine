@@ -4466,7 +4466,6 @@ static int32_t encodeData(SEncoder* encoder, void* pBlock, SSHashObj* indexHash)
     TAOS_CHECK_EXIT(tEncodeU64(encoder, pInfo->gId));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->startRowIdx));
     TAOS_CHECK_EXIT(tEncodeI32(encoder, pInfo->numRows));
-    // ASSERT(pInfo->startRowIdx <= ((SSDataBlock*) pBlock)->info.rows);
     tables++;
   }
   uint32_t tmpPos = encoder->pos;
@@ -4515,6 +4514,7 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWal
   }
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, rsp->ver));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, rsp->verTime));
   tEndEncode(&encoder);
 
 _exit:
@@ -4608,6 +4608,7 @@ int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerW
     blockDataEmpty(pBlock);
   }
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->ver));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->verTime));
 
   tEndDecode(&decoder);
 
