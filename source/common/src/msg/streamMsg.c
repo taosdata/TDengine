@@ -2372,6 +2372,10 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.stateWin.expr, stateExprLen));
       break;
     }
+    case WINDOW_TYPE_INTERVAL: {
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->trigger.sliding.overlap));
+      break;
+    }
     default: {
       break;
     }
@@ -2662,6 +2666,10 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       if (!tDecodeIsEnd(pDecoder)) {
         TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.stateWin.expr, NULL));
       }
+      break;
+    }
+    case WINDOW_TYPE_INTERVAL: {
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.sliding.overlap));
       break;
     }
     default:

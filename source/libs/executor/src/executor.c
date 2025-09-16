@@ -1771,7 +1771,7 @@ SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListIn
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }
 
 void streamDestroyExecTask(qTaskInfo_t tInfo) {
-  qInfo("streamDestroyExecTask called, task:%p", tInfo);
+  qDebug("streamDestroyExecTask called, task:%p", tInfo);
   qDestroyTask(tInfo);
 }
 

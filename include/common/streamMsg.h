@@ -198,6 +198,7 @@ typedef struct SSlidingTrigger {
   int64_t offset;
   int64_t sliding;
   int64_t soffset;
+  int8_t  overlap;
 } SSlidingTrigger;
 
 typedef struct SEventTrigger {
@@ -1007,8 +1008,8 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t sessionId;
   bool    withExternalWindow;
   int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
-  bool    extWinProjMode; // true if proj mode for external window, else agg mode
   int32_t triggerType;
+  int32_t addOptions;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);

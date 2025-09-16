@@ -28,6 +28,7 @@
 #include "mndVgroup.h"
 #include "mndSnode.h"
 #include "mndMnode.h"
+#include "cmdnodes.h"
 
 void msmDestroyActionQ() {
   SStmQNode* pQNode = NULL;
@@ -920,6 +921,9 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->addOptions = pStream->pCreate->addOptions;
+  if(pStream->pCreate->trigger.sliding.overlap) {
+    pMsg->addOptions |= CALC_SLIDING_OVERLAP;
+  }
   pMsg->outCols = pInfo->pCreate->outCols;
   pMsg->outTags = pInfo->pCreate->outTags;
   pMsg->outStbUid = pStream->pCreate->outStbUid;
@@ -4635,6 +4639,7 @@ void msmHandleVgroupLost(SMnode *pMnode, int32_t vgId, SStmVgroupStatus* pVg) {
 
 void msmCheckVgroupStatus(SMnode *pMnode) {
   void* pIter = NULL;
+  int32_t code = 0;
   
   while (true) {
     pIter = taosHashIterate(mStreamMgmt.vgroupMap, pIter);
@@ -4650,6 +4655,17 @@ void msmCheckVgroupStatus(SMnode *pMnode) {
     SStmVgroupStatus* pVg = (SStmVgroupStatus*)pIter;
 
     if (MST_PASS_ISOLATION(pVg->lastUpTs, 1)) {
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+      if (NULL == pVgroup) {
+        mstDebug("vgroup %d no longer exits, will remove all %d tasks in it", vgId, (int32_t)taosHashGetSize(pVg->streamTasks));
+        code = taosHashRemove(mStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
+        if (code) {
+          mstWarn("remove vgroup %d from vgroupMap failed since %s", vgId, tstrerror(code));
+        }
+        continue;
+      }
+      mndReleaseVgroup(pMnode, pVgroup);
+      
       mstWarn("vgroup %d lost, lastUpTs:%" PRId64 ", streamNum:%d", vgId, pVg->lastUpTs, (int32_t)taosHashGetSize(pVg->streamTasks));
       
       msmHandleVgroupLost(pMnode, vgId, pVg);
