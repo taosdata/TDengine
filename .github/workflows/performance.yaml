@@ -61,13 +61,14 @@ jobs:
         run: |
           TD_BIN_DIR=TDengine/debug/build/bin
           [ -d "$TD_BIN_DIR" ] || { echo "Bin dir $TD_BIN_DIR not found"; ls -R TDengine/debug || true; exit 1; }
-          chmod +x $TD_BIN_DIR/taos* || true
-          $TD_BIN_DIR/taos -V
-          $TD_BIN_DIR/taosd -V
-          $TD_BIN_DIR/taosBenchmark -V
+          chmod +x $TD_BIN_DIR/* || true
           echo "Move binaries to $BASE_DIR/taosd/bin"
-          mv $TD_BIN_DIR/taos $TD_BIN_DIR/taosd $TD_BIN_DIR/taosBenchmark $BASE_DIR/taosd/bin/
+          mv $TD_BIN_DIR/* $BASE_DIR/taosd/bin/
           ls -l $BASE_DIR/taosd/bin
+          echo "Check taosd version:"
+          $BASE_DIR/taosd/bin/taos -V || true
+          $BASE_DIR/taosd/bin/taosd -V || true
+          $BASE_DIR/taosd/bin/taosBenchmark -V || true
 
   setup_taosd:
     name: Setup TDengine
