@@ -514,22 +514,18 @@ class TestTimeRangeWise:
                 tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
 
     def test_time_range_wise(self):
-        """summary: xxx
+        """Database SMA and Retentions Test
 
-        description: xxx
+        this case is obsolete, reserved for reference only
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci,skip
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_time_range_wise.py
 
         """
         self.rows = 10

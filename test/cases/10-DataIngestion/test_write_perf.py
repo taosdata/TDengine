@@ -111,24 +111,23 @@ class TestInsertPerf:
         # tdSql.checkData(0, 0, once*qtime)
 
     def test_insert_perf(self):
-        """summary: xxx
+        """ Write Data Performance
 
-        description: xxx
+        1. Test write performance for bigint data type
+        2. Test write performance for double data type
+        3. Test write performance for uint   data type
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_insert_perf.py
+  
         """
+
         tdSql.prepare(replica = self.replicaVar)
         # self.make_csv(self.once, 1)
         # self.make_csv(self.once, 2)

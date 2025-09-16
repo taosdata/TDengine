@@ -1348,23 +1348,29 @@ class TestInfluxdbLineTaoscInsert:
 
 
 
-    def test_influxdb_line_taosc_insert(self):
-        """summary: xxx
+    def test_write_sml_influxdb_line(self):
+        """ Schemaless Write with InfluxDB Line Protocol
 
-        description: xxx
+        1. Basic InfluxDB line protocol parsing
+        2. Automatic table schema creation  
+        3. Data type inference and conversion
+        4. Dynamic schema evolution support
+        5. Batch insertion functionality
+        6. Multi-threading concurrent insertion
+        7. Column and tag limit validation
+        8. String length boundary testing
+        9. Error handling and validation
+        10. Timestamp format compatibility
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_influxdb_line_taosc_insert.py
 
         """
         self.create_database()

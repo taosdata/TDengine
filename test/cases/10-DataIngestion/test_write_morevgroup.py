@@ -360,23 +360,20 @@ class TestInsertwithmorevgroup:
         return
 
     # run case
-    def test_insertWithMoreVgroup(self):
-        """summary: xxx
+    def test_write_morevgroup(self):
+        """ Write Data with More Vgroups
 
-        description: xxx
+        1. Write data with taosBenchmark with 5 threads
+        2. Write data with taosBenchmark with 8 threads
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_insertWithMoreVgroup.py
 
         """
 

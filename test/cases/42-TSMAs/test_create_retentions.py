@@ -287,22 +287,18 @@ class TestCreateRetentions:
 
 
     def test_create_retentions(self):
-        """summary: xxx
+        """Database Retentions Test
 
-        description: xxx
+        this case is obsolete, reserved for reference only
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci,skip
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_create_retentions.py
 
         """
         self.rows = 10

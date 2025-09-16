@@ -24,23 +24,20 @@ class TestInsertFromCsv:
         tdSql.query(f"select count(*) from {self.table}")
         tdSql.checkData(0, 0, 5)
 
-    def test_insert_from_csv(self):
-        """summary: xxx
+    def test_write_import_csv(self):
+        """ Import Data from CSV File
 
-        description: xxx
+        1. Create table and import data from csv file
+        2. Check the imported data
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_insert_from_csv.py
 
         """
         tdSql.prepare()

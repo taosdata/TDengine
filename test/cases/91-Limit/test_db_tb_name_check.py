@@ -103,22 +103,19 @@ class TestDbTbNameCheck:
         tdSql.execute(f'drop database `{dbname}`')
 
     def test_db_tb_name_check(self):
-        """summary: xxx
+        """ Check Database/Table Name validation
 
-        description: xxx
+        1. Database name validation
+        2. Table name validation
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_db_tb_name_check.py
 
         """
         self.db_name_check()

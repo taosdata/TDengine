@@ -1466,23 +1466,29 @@ class TestOpentsdbTelnetLineTaoscInsert:
         # self.sStbDtbDdataDtsInsertMultiThreadCheckCase()
         # self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
 
-    def test_opentsdb_telnet_line_taosc_insert(self):
-        """summary: xxx
+    def test_write_sml_opentsdb_telnet(self):
+        """ Schemaless Write with OpenTSDB Telnet Protocol
 
-        description: xxx
+        1. Basic OpenTSDB Telnet protocol parsing
+        2. Automatic table schema creation and evolution
+        3. Data type validation with overflow detection
+        4. Multi-threading concurrent insertion safety
+        5. TCP telnet protocol network insertion
+        6. String length and encoding boundaries
+        7. Table naming restrictions and validation
+        8. Batch insertion performance testing
+        9. Error handling and exception management
+        10. Tag and column limit enforcement
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_opentsdb_telnet_line_taosc_insert.py
 
         """
         print("running {}".format(__file__))

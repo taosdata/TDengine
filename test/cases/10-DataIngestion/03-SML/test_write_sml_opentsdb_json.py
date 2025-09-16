@@ -1776,23 +1776,29 @@ class TestOpentsdbJsonTaoscInsert:
         # self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
         # self.lengthIcreaseCrashCheckCase()
 
-    def test_opentsdb_json_taosc_insert(self):
-        """summary: xxx
+    def test_write_sml_opentsdb_json(self):
+        """ Schemaless Write with OpenTSDB Json Protocol
 
-        description: xxx
+        1. Basic OpenTSDB JSON protocol parsing
+        2. Automatic schema creation and evolution
+        3. Data type validation and conversion
+        4. Timestamp format compatibility testing
+        5. Multi-threading concurrent insertion safety
+        6. Table and column naming restrictions
+        7. Batch insertion functionality validation
+        8. String length and encoding boundaries
+        9. Error handling and exception management
+        10. Performance and memory usage optimization
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_opentsdb_json_taosc_insert.py
 
         """
         print("running {}".format(__file__))

@@ -523,23 +523,24 @@ class TestDatabasePreSuf:
         else :
             tdLog.exit(f"checkEqual error, stream_data=={stream_data},sql_data={sql_data}") 
                             
-    def test_database_pre_suf(self):
-        """summary: xxx
+    def test_stable_create_presuf(self):
+        """Super Table Create with Random Prefix and Suffix
 
-        description: xxx
+        1. Create Database with random vgroups
+        2. Create Super Table with random prefix and suffix
+        3. Create Sub Tables with random prefix and suffix
+        4. Insert data into Sub Tables
+        5. Check data in Sub Tables and Super Table
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_database_pre_suf.py
 
         """
         startTime = time.time()  
