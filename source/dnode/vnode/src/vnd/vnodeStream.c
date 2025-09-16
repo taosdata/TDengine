@@ -405,30 +405,30 @@ end:
   return code;
 }
 
-static int32_t scanAlterSTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, void* data, int32_t len) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  SDecoder decoder = {0};
-  SMAlterStbReq reqAlter = {0};
-  SVCreateStbReq req = {0};
-  tDecoderInit(&decoder, data, len);
-  void* pTask = sStreamReaderInfo->pTask;
+// static int32_t scanAlterSTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, void* data, int32_t len) {
+//   int32_t  code = 0;
+//   int32_t  lino = 0;
+//   SDecoder decoder = {0};
+//   SMAlterStbReq reqAlter = {0};
+//   SVCreateStbReq req = {0};
+//   tDecoderInit(&decoder, data, len);
+//   void* pTask = sStreamReaderInfo->pTask;
   
-  STREAM_CHECK_RET_GOTO(tDecodeSVCreateStbReq(&decoder, &req));
-  STREAM_CHECK_CONDITION_GOTO(req.suid != sStreamReaderInfo->suid, TDB_CODE_SUCCESS);
-  if (req.alterOriData != 0) {
-    STREAM_CHECK_RET_GOTO(tDeserializeSMAlterStbReq(req.alterOriData, req.alterOriDataLen, &reqAlter));
-    STREAM_CHECK_CONDITION_GOTO(reqAlter.alterType != TSDB_ALTER_TABLE_DROP_TAG && reqAlter.alterType != TSDB_ALTER_TABLE_UPDATE_TAG_NAME, TDB_CODE_SUCCESS);
-  }
+//   STREAM_CHECK_RET_GOTO(tDecodeSVCreateStbReq(&decoder, &req));
+//   STREAM_CHECK_CONDITION_GOTO(req.suid != sStreamReaderInfo->suid, TDB_CODE_SUCCESS);
+//   if (req.alterOriData != 0) {
+//     STREAM_CHECK_RET_GOTO(tDeserializeSMAlterStbReq(req.alterOriData, req.alterOriDataLen, &reqAlter));
+//     STREAM_CHECK_CONDITION_GOTO(reqAlter.alterType != TSDB_ALTER_TABLE_DROP_TAG && reqAlter.alterType != TSDB_ALTER_TABLE_UPDATE_TAG_NAME, TDB_CODE_SUCCESS);
+//   }
   
-  STREAM_CHECK_RET_GOTO(reloadTableList(sStreamReaderInfo));
+//   STREAM_CHECK_RET_GOTO(reloadTableList(sStreamReaderInfo));
 
-  ST_TASK_ILOG("stream reader scan alter suid %" PRId64, req.suid);
-end:
-  tFreeSMAltertbReq(&reqAlter);
-  tDecoderClear(&decoder);
-  return code;
-}
+//   ST_TASK_ILOG("stream reader scan alter suid %" PRId64, req.suid);
+// end:
+//   tFreeSMAltertbReq(&reqAlter);
+//   tDecoderClear(&decoder);
+//   return code;
+// }
 
 static int32_t scanDropSTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, void* data, int32_t len) {
   int32_t  code = 0;
@@ -689,7 +689,7 @@ static int32_t processMeta(int16_t msgType, SStreamTriggerReaderInfo* sStreamRea
   } else if (msgType == TDMT_VND_CREATE_TABLE) {
     STREAM_CHECK_RET_GOTO(scanInsertTableNew(sStreamReaderInfo, data, len));
   } else if (msgType == TDMT_VND_ALTER_STB) {
-    STREAM_CHECK_RET_GOTO(scanAlterSTableNew(sStreamReaderInfo, data, len));
+    // STREAM_CHECK_RET_GOTO(scanAlterSTableNew(sStreamReaderInfo, data, len));
   } else if (msgType == TDMT_VND_ALTER_TABLE) {
     STREAM_CHECK_RET_GOTO(scanAlterTableNew(sStreamReaderInfo, data, len));
   }

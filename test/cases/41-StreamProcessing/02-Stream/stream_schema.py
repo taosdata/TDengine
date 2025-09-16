@@ -34,7 +34,10 @@ class TestStreamSchema:
         self.prepareData()
         # 创建一个 stream
         self.createOneStream()
-        self.insertData()
+        self.insertCheckData1()
+        self.insertCheckData2()
+        self.insertCheckData3()
+        self.insertCheckData4()
 
     def prepareData(self):
         tdLog.info(f"prepare data")
@@ -43,7 +46,7 @@ class TestStreamSchema:
             "alter dnode 1 'debugflag 135';",
             "create snode on dnode 1;",
             "create database db vgroups 1;",
-            "create table db.stb (ts timestamp, c0 int) tags(t1 int);"
+            "create table db.stb (ts timestamp, c0 int) tags(t1 int, t2 int);"
         ]
 
         tdSql.executes(sqls)
@@ -70,36 +73,131 @@ class TestStreamSchema:
             
             time.sleep(1)
     
-    def insertData(self):
-        tdLog.info(f"insert data")
+    def insertCheckData1(self):
+        tdLog.info(f"insertCheckData1 start")
 
+        # create ctable
         sqls = [
             "use db",
-            "create table t1 using stb tags(1);",                       
+            "create table t1 using stb tags(1, 0);",                       
             "insert into t1 values(now,1);", 
             "insert into t1 values(now+1s,-1);", 
             "insert into t1 values(now+2s,2);", 
             "insert into t1 values(now+3s,3);", 
-            "create table t2 using stb tags(2);",                       
+            "create table t2 using stb tags(2, 0);",                       
             "insert into t2 values(now+10s,12);",                       
             "insert into t2 values(now+12s,-12);",                       
             "insert into t2 values(now+14s,12);",                       
             "insert into t2 values(now+15s,12);", 
-            "create table t3 using stb tags(-1);",                       
+            "create table t3 using stb tags(-1, 0);",                       
             "insert into t3 values(now,1);", 
             "insert into t3 values(now+1s,-1);", 
             "insert into t3 values(now+2s,2);", 
             "insert into t3 values(now+3s,3);",                      
-            # "create",                       //drop   ctable
-            # "create",                       //create ctable
-            # "create",                       //drop   stable
-            # "create",                       //alter  stable, drop tag
-            # "create",                       //alter  stable, alter tag name
-            # "create",                       //alter  ctable tag value
-            # "create table db.stb (ts timestamp, c0 int) tags(t1 int);"
         ]
 
         tdSql.executes(sqls)
-        time.sleep(200)
-        tdLog.info(f"insert successfully.")
+
+        while True:
+            tdSql.query(f"select count(*) from db.stb_out")
+            if tdSql.getData(0,0) == 6:
+                tdLog.info("get 6 rows")
+                break
+            
+            time.sleep(1)
+
+        tdLog.info(f"check create/insert ctable successfully.")
+
+    def insertCheckData2(self):
+        tdLog.info(f"insertCheckData2 start")
+
+        #drop   ctable
+        #create ctable
+        sqls = [
+            "use db",
+            "drop table t2",
+            "create table t2 using stb tags(2, 0);",                       
+            "insert into t2 values(now+10s,122);",                       
+            "insert into t2 values(now+12s,-122);",                       
+            "insert into t2 values(now+14s,122);",                       
+        ]
+
+        tdSql.executes(sqls)
+
+        while True:
+            tdSql.query(f"select count(*) from db.stb_out")
+            if tdSql.getData(0,0) == 5:
+                tdLog.info("get 5 rows")
+                break
+            
+            time.sleep(1)
+
+        while True:
+            tdSql.query(f"select count(*) from db.stb_out where tag_tbname='t2'")
+            if tdSql.getData(0,0) == 2:
+                tdLog.info("get 2 rows where tag_tbname='t2'")
+                break
+            
+            time.sleep(1)
+
+        tdLog.info(f"check drop/create ctable successfully.")
+
+    def insertCheckData3(self):
+        tdLog.info(f"insertCheckData3 start")
+
+        #alter ctable tag
+        sqls = [
+            "use db",
+            
+            "alter table t2 set tag t1 = -3;",                       
+            "insert into t2 values(now+130s,23);",                       
+            "alter table t3 set tag t1 = 98;",                       
+            "insert into t3 values(now+7s,111);", 
+        ]
+
+        tdSql.executes(sqls)
+
+        while True:
+            tdSql.query(f"select count(*) from db.stb_out")
+            if tdSql.getData(0,0) == 6:
+                tdLog.info("get 6 rows")
+                break
+            
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.stb_out where `avg(c0)`=23")
+        tdSql.checkRows(0)
+        tdSql.query(f"select * from db.stb_out where `avg(c0)`=111")
+        tdSql.checkRows(1)
+
+        tdLog.info(f"alter ctable tag successfully.")
+
+    def insertCheckData4(self):
+        tdLog.info(f"insertCheckData4 start")
+
+        #alter ctable tag
+        sqls = [
+            "use db",
+            
+            "alter table stb rename tag t1 tnew",                     
+            "insert into t3 values(now+72s,1131);", 
+            "alter table stb drop tag tnew",                     
+            "insert into t3 values(now+722s,324);", 
+        ]
+
+        tdSql.executes(sqls)
+        while True:
+            tdSql.query(f"select count(*) from db.stb_out")
+            if tdSql.getData(0,0) == 8:
+                tdLog.info("get 8 rows")
+                break
+            
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.stb_out where `avg(c0)`=23")
+        tdSql.checkRows(0)
+        tdSql.query(f"select * from db.stb_out where `avg(c0)`=1131")
+        tdSql.checkRows(1)
+
+        tdLog.info(f"alter ctable tag successfully.")
     

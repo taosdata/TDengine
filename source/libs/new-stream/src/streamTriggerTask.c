@@ -28,6 +28,7 @@
 #include "thash.h"
 #include "tmsg.h"
 #include "ttime.h"
+#include "tutil.h"
 
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS    1000                    // 1s
 #define STREAM_TRIGGER_WAIT_TIME_NS         1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
@@ -2438,35 +2439,6 @@ static void stRealtimeContextDestroy(void *ptr) {
   taosMemFreeClear(*ppContext);
 }
 
-static FORCE_INLINE SSTriggerRealtimeGroup *stRealtimeContextGetCurrentGroup(SSTriggerRealtimeContext *pContext) {
-  // todo(kjq): return the group when checking max delay
-  if (pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ) {
-    int64_t *gid = taosArrayGet(pContext->groupsToDelete, pContext->dropReqIndex);
-    if (gid == NULL) {
-      SStreamTriggerTask *pTask = pContext->pTask;
-      ST_TASK_ELOG("failed to get the delete group id in realtime context %" PRId64, pContext->sessionId);
-      terrno = TSDB_CODE_INTERNAL_ERROR;
-      return NULL;
-    }
-    SSTriggerRealtimeGroup **ppGroup = tSimpleHashGet(pContext->pGroups, gid, sizeof(int64_t));
-    if (ppGroup == NULL || *ppGroup == NULL) {
-      SStreamTriggerTask *pTask = pContext->pTask;
-      ST_TASK_ELOG("failed to get the delete group in realtime, gid:%" PRId64 " context %" PRId64, *gid,
-                   pContext->sessionId);
-      terrno = TSDB_CODE_INTERNAL_ERROR;
-      return NULL;
-    }
-    return *ppGroup;
-  } else if (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
-    return TD_DLIST_HEAD(&pContext->groupsToCheck);
-  } else {
-    terrno = TSDB_CODE_INTERNAL_ERROR;
-    SStreamTriggerTask *pTask = pContext->pTask;
-    ST_TASK_ELOG("failed to get the group in realtime context %" PRId64, pContext->sessionId);
-    return NULL;
-  }
-}
-
 static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPullType type) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
@@ -2533,9 +2505,17 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     }
 
     case STRIGGER_PULL_GROUP_COL_VALUE: {
-      SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
-      if (pGroup == NULL) {
+      SSTriggerRealtimeGroup *pGroup = NULL;
+      if (pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ) {
+        int64_t* gid = taosArrayGet(pContext->groupsToDelete, pContext->dropReqIndex);
+        QUERY_CHECK_NULL(gid, code, lino, _end, terrno);
+        void* px = tSimpleHashGet(pContext->pGroups, gid, sizeof(int64_t));
+        QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        pGroup = *(SSTriggerRealtimeGroup **)px;
+      } else {
         // todo(kjq): get group from max delay heap
+        pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
+        QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       }
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pGroup->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
