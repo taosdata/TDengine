@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdStream
 
 class TestStateWindowExtend:
     # init
@@ -20,77 +20,51 @@ class TestStateWindowExtend:
         tdLog.info(f"start to excute {__file__}")
     
     def prepare_data(self):
+        tdSql.prepare()
         tdSql.execute("drop database if exists testdb")
         tdSql.execute("create database if not exists testdb", show=True)
         tdSql.execute("use testdb")
+        values = """
+                 ('2025-09-01 10:00:00', null,    20), \
+                 ('2025-09-01 10:00:01', 'a',     23.5), \
+                 ('2025-09-01 10:00:02', 'a',     25.9), \
+                 ('2025-09-01 10:02:15', null,    26), \
+                 ('2025-09-01 10:02:45', 'a',     28), \
+                 ('2025-09-01 10:04:00', null,    24.3), \
+                 ('2025-09-01 10:05:00', null,    null), \
+                 ('2025-09-01 11:01:10', 'b',     18), \
+                 ('2025-09-01 12:03:22', 'b',     14.4), \
+                 ('2025-09-01 12:20:19', 'a',     17.7), \
+                 ('2025-09-01 13:00:00', 'a',     null), \
+                 ('2025-09-01 14:00:00', null,    22.3), \
+                 ('2025-09-01 18:18:18', 'b',     18.18), \
+                 ('2025-09-01 20:00:00', 'b',     19.5), \
+                 ('2025-09-02 08:00:00', null,    9.9)
+                 """
+        # normal table
+        tdSql.execute("create table ntb (ts timestamp, s varchar(10), v double)", show=True)
+        tdSql.execute(f"insert into ntb values {values}", show=True)
+
         # super table
         tdSql.execute("create table stb (ts timestamp, s varchar(10), v double) tags (gid int)", show=True)
         tdSql.execute("create table ctb1 using stb tags (1)", show=True)
         tdSql.execute("create table ctb2 using stb tags (2)", show=True)
-
-        tdSql.execute("insert into ctb1 values \
-                      ('2025-09-01 10:00:00', null,    20), \
-                      ('2025-09-01 10:00:01', 'a',     23.5), \
-                      ('2025-09-01 10:00:02', 'a',     25.9), \
-                      ('2025-09-01 10:02:15', null,    26), \
-                      ('2025-09-01 10:02:45', 'a',     28), \
-                      ('2025-09-01 10:04:00', null,    24.3), \
-                      ('2025-09-01 10:05:00', null,    null), \
-                      ('2025-09-01 11:01:10', 'b',     18), \
-                      ('2025-09-01 12:03:22', 'b',     14.4), \
-                      ('2025-09-01 12:20:19', 'a',     17.7), \
-                      ('2025-09-01 13:00:00', 'a',     null), \
-                      ('2025-09-01 14:00:00', null,    22.3), \
-                      ('2025-09-01 18:18:18', 'b',     18.18), \
-                      ('2025-09-01 20:00:00', 'b',     19.5), \
-                      ('2025-09-02 08:00:00', null,    9.9)", show=True)
-        tdSql.execute("insert into ctb2 values \
-                      ('2025-09-01 10:00:00', null,    20), \
-                      ('2025-09-01 10:00:01', 'a',     23.5), \
-                      ('2025-09-01 10:00:02', 'a',     25.9), \
-                      ('2025-09-01 10:02:15', null,    26), \
-                      ('2025-09-01 10:02:45', 'a',     28), \
-                      ('2025-09-01 10:04:00', null,    24.3), \
-                      ('2025-09-01 10:05:00', null,    null), \
-                      ('2025-09-01 11:01:10', 'b',     18), \
-                      ('2025-09-01 12:03:22', 'b',     14.4), \
-                      ('2025-09-01 12:20:19', 'a',     17.7), \
-                      ('2025-09-01 13:00:00', 'a',     null), \
-                      ('2025-09-01 14:00:00', null,    22.3), \
-                      ('2025-09-01 18:18:18', 'b',     18.18), \
-                      ('2025-09-01 20:00:00', 'b',     19.5), \
-                      ('2025-09-02 08:00:00', null,    9.9)", show=True)
-
+        tdSql.execute(f"insert into ctb1 values {values}", show=True)
+        tdSql.execute(f"insert into ctb2 values {values}", show=True)
 
         # db precision ns
         tdSql.execute("drop database if exists testdb_ns")
         tdSql.execute("create database if not exists testdb_ns precision 'ns'")
         tdSql.execute("use testdb_ns")
         tdSql.execute("create table ntb (ts timestamp, s varchar(10), v double)", show=True)
-        tdSql.execute("insert into ntb values \
-                      ('2025-09-01 10:00:00', null,    20), \
-                      ('2025-09-01 10:00:01', 'a',     23.5), \
-                      ('2025-09-01 10:00:02', 'a',     25.9), \
-                      ('2025-09-01 10:02:15', null,    26), \
-                      ('2025-09-01 10:02:45', 'a',     28), \
-                      ('2025-09-01 10:04:00', null,    24.3), \
-                      ('2025-09-01 10:05:00', null,    null), \
-                      ('2025-09-01 11:01:10', 'b',     18), \
-                      ('2025-09-01 12:03:22', 'b',     14.4), \
-                      ('2025-09-01 12:20:19', 'a',     17.7), \
-                      ('2025-09-01 13:00:00', 'a',     null), \
-                      ('2025-09-01 14:00:00', null,    22.3), \
-                      ('2025-09-01 18:18:18', 'b',     18.18), \
-                      ('2025-09-01 20:00:00', 'b',     19.5), \
-                      ('2025-09-02 08:00:00', null,    9.9)", show=True)
-
+        tdSql.execute(f"insert into ntb values {values}", show=True)
 
     def check_extend_normal_table(self):
         tdSql.execute("use testdb")
         # no extend, default 0
         tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
-                    from ctb1 state_window(s)", show=True)
+                    from ntb state_window(s)", show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
         tdSql.checkData(0, 1, 165000)
@@ -136,7 +110,7 @@ class TestStateWindowExtend:
         # extend = 0
         tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
-                    from ctb1 state_window(s, 0)", show=True)
+                    from ntb state_window(s, 0)", show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
         tdSql.checkData(0, 1, 165000)
@@ -182,7 +156,7 @@ class TestStateWindowExtend:
         # extend = 1
         tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
-                    from ctb1 state_window(s, 1)", show=True)
+                    from ntb state_window(s, 1)", show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
         tdSql.checkData(0, 1, 3669999)
@@ -225,10 +199,34 @@ class TestStateWindowExtend:
         tdSql.checkData(3, 8, "2025-09-02 08:00:00.000")
         tdSql.checkData(3, 9, "2025-09-02 08:00:00.000")
 
+        # extend = 1, with time range
+        tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
+                    avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
+                    from ntb where ts >= '2025-09-01 11:00:00.000' \
+                    and ts <= '2025-09-01 13:00:00.000' \
+                    state_window(s, 1)", show=True)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2025-09-01 11:01:10.000")
+        tdSql.checkData(0, 1, 4748999)
+        tdSql.checkData(0, 2, "2025-09-01 12:20:18.999")
+        tdSql.checkData(0, 5, 2)
+        tdSql.checkData(0, 6, 16.2)
+        tdSql.checkData(0, 7, 18)
+        tdSql.checkData(0, 8, "2025-09-01 12:03:22.000")
+        tdSql.checkData(0, 9, "2025-09-01 12:03:22.000")
+        tdSql.checkData(1, 0, "2025-09-01 12:20:19.000")
+        tdSql.checkData(1, 1, 2381000)
+        tdSql.checkData(1, 2, "2025-09-01 13:00:00.000")
+        tdSql.checkData(1, 5, 1)
+        tdSql.checkData(1, 6, 17.7)
+        tdSql.checkData(1, 7, 17.7)
+        tdSql.checkData(1, 8, "2025-09-01 12:20:19.000")
+        tdSql.checkData(1, 9, "2025-09-01 13:00:00.000")
+
         # extend = 2
         tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
-                    from ctb1 state_window(s, 2)", show=True)
+                    from ntb state_window(s, 2)", show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
         tdSql.checkData(0, 1, 165000)
@@ -270,6 +268,34 @@ class TestStateWindowExtend:
         tdSql.checkData(3, 7, 22.3)
         tdSql.checkData(3, 8, "2025-09-02 08:00:00.000")
         tdSql.checkData(3, 9, "2025-09-02 08:00:00.000")
+
+        # extend = 2, with time range
+        tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
+                    avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
+                    from ntb where ts >= '2025-09-01 11:00:00.000' \
+                    and ts <= '2025-09-01 14:00:00.000' \
+                    state_window(s, 2)", show=True)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2025-09-01 11:01:10.000")
+        tdSql.checkData(0, 1, 3732000)
+        tdSql.checkData(0, 2, "2025-09-01 12:03:22.000")
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 4, 2)
+        tdSql.checkData(0, 5, 2)
+        tdSql.checkData(0, 6, 16.2)
+        tdSql.checkData(0, 7, 18)
+        tdSql.checkData(0, 8, "2025-09-01 12:03:22.000")
+        tdSql.checkData(0, 9, "2025-09-01 12:03:22.000")
+        tdSql.checkData(1, 0, "2025-09-01 12:03:22.001")
+        tdSql.checkData(1, 1, 6997999)
+        tdSql.checkData(1, 2, "2025-09-01 14:00:00.000")
+        tdSql.checkData(1, 3, 3)
+        tdSql.checkData(1, 4, 2)
+        tdSql.checkData(1, 5, 2)
+        tdSql.checkData(1, 6, 20)
+        tdSql.checkData(1, 7, 17.7)
+        tdSql.checkData(1, 8, "2025-09-01 14:00:00.000")
+        tdSql.checkData(1, 9, "2025-09-01 14:00:00.000")
 
     def check_extend_super_table(self):
         tdSql.execute("use testdb")
@@ -411,6 +437,30 @@ class TestStateWindowExtend:
         tdSql.checkData(3, 8, "2025-09-02 08:00:00.000")
         tdSql.checkData(3, 9, "2025-09-02 08:00:00.000")
 
+        # extend = 1, with time range
+        tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
+                    avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
+                    from stb where ts >= '2025-09-01 11:00:00.000' \
+                    and ts <= '2025-09-01 13:00:00.000' \
+                    state_window(s, 1)", show=True)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2025-09-01 11:01:10.000")
+        tdSql.checkData(0, 1, 4748999)
+        tdSql.checkData(0, 2, "2025-09-01 12:20:18.999")
+        tdSql.checkData(0, 5, 4)
+        tdSql.checkData(0, 6, 16.2)
+        tdSql.checkData(0, 7, 18)
+        tdSql.checkData(0, 8, "2025-09-01 12:03:22.000")
+        tdSql.checkData(0, 9, "2025-09-01 12:03:22.000")
+        tdSql.checkData(1, 0, "2025-09-01 12:20:19.000")
+        tdSql.checkData(1, 1, 2381000)
+        tdSql.checkData(1, 2, "2025-09-01 13:00:00.000")
+        tdSql.checkData(1, 5, 2)
+        tdSql.checkData(1, 6, 17.7)
+        tdSql.checkData(1, 7, 17.7)
+        tdSql.checkData(1, 8, "2025-09-01 12:20:19.000")
+        tdSql.checkData(1, 9, "2025-09-01 13:00:00.000")
+
         # extend = 2
         tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
                     avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
@@ -456,6 +506,34 @@ class TestStateWindowExtend:
         tdSql.checkData(3, 7, 22.3)
         tdSql.checkData(3, 8, "2025-09-02 08:00:00.000")
         tdSql.checkData(3, 9, "2025-09-02 08:00:00.000")
+
+        # extend = 2, with time range
+        tdSql.query("select _wstart, _wduration, _wend, count(*), count(s), count(v), \
+                    avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts) \
+                    from stb where ts >= '2025-09-01 11:00:00.000' \
+                    and ts <= '2025-09-01 14:00:00.000' \
+                    state_window(s, 2)", show=True)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2025-09-01 11:01:10.000")
+        tdSql.checkData(0, 1, 3732000)
+        tdSql.checkData(0, 2, "2025-09-01 12:03:22.000")
+        tdSql.checkData(0, 3, 4)
+        tdSql.checkData(0, 4, 4)
+        tdSql.checkData(0, 5, 4)
+        tdSql.checkData(0, 6, 16.2)
+        tdSql.checkData(0, 7, 18)
+        tdSql.checkData(0, 8, "2025-09-01 12:03:22.000")
+        tdSql.checkData(0, 9, "2025-09-01 12:03:22.000")
+        tdSql.checkData(1, 0, "2025-09-01 12:03:22.001")
+        tdSql.checkData(1, 1, 6997999)
+        tdSql.checkData(1, 2, "2025-09-01 14:00:00.000")
+        tdSql.checkData(1, 3, 6)
+        tdSql.checkData(1, 4, 4)
+        tdSql.checkData(1, 5, 4)
+        tdSql.checkData(1, 6, 20)
+        tdSql.checkData(1, 7, 17.7)
+        tdSql.checkData(1, 8, "2025-09-01 14:00:00.000")
+        tdSql.checkData(1, 9, "2025-09-01 14:00:00.000")
 
     def check_extend_ns_db(self):
         tdSql.execute("use testdb_ns")
@@ -518,6 +596,8 @@ class TestStateWindowExtend:
         tdSql.error("select count(*) from ntb state_window(s, *)")
         tdSql.error("select count(*) from ntb state_window(s, '2025-09-03')")
         tdSql.error("select count(*) from ntb state_window(s, 1, 2)")
+        tdSql.error("select count(*) from ntb state_window(s, 1+1)")
+        tdSql.error("select count(*) from ntb state_window(s, case when now < 2025-01-01 then 0 else 1)")
 
     # run
     def test_state_window_extend(self):
@@ -544,3 +624,7 @@ class TestStateWindowExtend:
         self.check_extend_normal_table()
         self.check_extend_super_table()
         self.check_extend_ns_db()
+
+        tdStream.createSnode()
+        # self.check_extend_stream_computing()
+        # self.check_extend_stream_trigger()
