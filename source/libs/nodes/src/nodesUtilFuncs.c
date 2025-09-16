@@ -1229,6 +1229,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pState->pCol);
       nodesDestroyNode(pState->pExpr);
       nodesDestroyNode(pState->pTrueForLimit);
+      nodesDestroyNode(pState->pExtend);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
