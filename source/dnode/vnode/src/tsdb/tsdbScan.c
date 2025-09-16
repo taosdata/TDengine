@@ -183,6 +183,9 @@ void tsdbCancelScanTask(STsdb *tsdb) {
     return;
   }
 
+  // TODO: fix here
+  return;
+
   (void)taosThreadMutexLock(&tsdb->mutex);
 
   atomic_store_32(&tsdb->pScanMonitor->killed, 1);
