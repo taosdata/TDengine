@@ -1673,6 +1673,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   do_query(taos, "drop database if exists stmt2_testdb_18");
   do_query(taos, "create database IF NOT EXISTS stmt2_testdb_18");
   do_query(taos, "create stable `stmt2_testdb_18`.`stb1`(ts timestamp, int_col int) tags(int_tag int)");
+  do_query(taos, "create stable `stmt2_testdb_18`.`stb2`(ts timestamp, int_col int) tags(int_tag int)");
   do_query(taos, "create table `stmt2_testdb_18`.`tb1` using `stmt2_testdb_18`.`stb1` (int_tag)tags(1)");
   TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
@@ -1778,7 +1779,33 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   ASSERT_EQ(getRecordCounts, 2);
   taos_free_result(pRes);
 
-  // do_query(taos, "drop database if exists stmt2_testdb_18");
+  // insert same tbname from different stb
+  option = {0, true, true, NULL, NULL};
+  stmt = taos_stmt2_init(taos, &option);
+  code =
+      taos_stmt2_prepare(stmt, "INSERT INTO `stmt2_testdb_18`.`stb2` (ts,int_col,int_tag,tbname)  VALUES (?,?,?,?)", 0);
+  checkError(stmt, code);
+  char*            tbname3[2] = {"tb1", "tb10"};
+  TAOS_STMT2_BIND  tag = {TSDB_DATA_TYPE_INT, &tag_i[0], &tag_l[0], NULL, 1};
+  TAOS_STMT2_BIND* pTag[2] = {&tag, &tag};
+  TAOS_STMT2_BINDV bindv3 = {2, &tbname3[0], &pTag[0], &paramvs2[0]};
+
+  code = taos_stmt2_bind_param(stmt, &bindv3, -1);
+  checkError(stmt, code);
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  ASSERT_EQ(code, TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
+
+  stmt = taos_stmt2_init(taos, &option);
+  taos_stmt2_prepare(stmt, "INSERT INTO `stmt2_testdb_18`.`stb2` (ts,int_col,tbname)  VALUES (?,?,?)", 0);
+  bindv3 = {1, &tbname3[0], NULL, &paramvs2[0]};
+  code = taos_stmt2_bind_param(stmt, &bindv3, -1);
+  checkError(stmt, code);
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  ASSERT_EQ(code, TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
+
+  taos_stmt2_close(stmt);
+
+  do_query(taos, "drop database if exists stmt2_testdb_18");
   taos_close(taos);
 }
 
