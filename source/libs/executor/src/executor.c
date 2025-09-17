@@ -1736,14 +1736,14 @@ int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STable
   return tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
 }
 
-int32_t  qStreamSetTableList(void** pTableListInfo, STableKeyInfo* data){
+int32_t  qStreamSetTableList(void** pTableListInfo, uint64_t uid, uint64_t gid){
   if (*pTableListInfo == NULL) {
     *pTableListInfo = tableListCreate();
     if (*pTableListInfo == NULL) {
       return terrno;
     }
   }
-  return taosArrayPush(((STableListInfo*)(*pTableListInfo))->pTableList, data) != NULL ? 0 : terrno;
+  return tableListAddTableInfo(*pTableListInfo, uid, gid);
 }
 
 int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {

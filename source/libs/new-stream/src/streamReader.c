@@ -20,6 +20,9 @@ void releaseStreamTask(void* p) {
   if (pTask == NULL) return;
   blockDataDestroy(pTask->pResBlock);
   blockDataDestroy(pTask->pResBlockDst);
+  if (pTask->options.sStreamReaderInfo->isVtableStream) {
+    qStreamDestroyTableList(pTask->pTableList);
+  }
   // qStreamDestroyTableList(pTask->pTableList);
   pTask->api.tsdReader.tsdReaderClose(pTask->pReader);
   // filterFreeInfo(pTask->pFilterInfo);
@@ -144,7 +147,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
   STREAM_CHECK_NULL_GOTO(pTask, terrno);
   pTask->api = *api;
   pTask->options = *options;
-  pTask->pTableList = options->sStreamReaderInfo->historyTableList;
+  pTask->pTableList = options->sStreamReaderInfo->isVtableStream ? NULL : options->sStreamReaderInfo->historyTableList;
   pTask->pFilterInfo = options->sStreamReaderInfo->pFilterInfo;
   options->schemas = NULL;
   if (pResBlock != NULL) {
@@ -161,8 +164,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       void*   px = tSimpleHashIterate(options->mapInfo, NULL, &iter);
       while (px != NULL) {
         int64_t* uid = tSimpleHashGetKey(px, NULL);
-        STableKeyInfo data = {*uid, *uid};
-        STREAM_CHECK_RET_GOTO(qStreamSetTableList(&pTask->pTableList, &data));
+        STREAM_CHECK_RET_GOTO(qStreamSetTableList(&pTask->pTableList, *uid, *uid));
         px = tSimpleHashIterate(options->mapInfo, px, &iter);
       }
       
