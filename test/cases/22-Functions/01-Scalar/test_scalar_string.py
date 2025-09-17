@@ -1,3 +1,4 @@
+import time
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
@@ -7,18 +8,12 @@ class TestString:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_string(self):
-        """Scalar: string
+        """Scalar: String
 
-        Char_length
-        lower
-        upper
-        ltrim
-        rtrim
-        concat
-        concat_ws
+        Test string functions, including Char_length, lower, upper, ltrim, rtrim, concat, and concat_ws.
 
         Catalog:
-            - Function:SingleRow
+            - Function:Sclar
 
         Since: v3.0.0.0
 
@@ -35,6 +30,8 @@ class TestString:
         self.CharScalar()
         tdStream.dropAllStreamsAndDbs()
         self.Concat()
+        tdStream.dropAllStreamsAndDbs()
+        self.xxxInSet()
         tdStream.dropAllStreamsAndDbs()
 
     def CharScalar(self):
@@ -527,3 +524,213 @@ class TestString:
         tdSql.execute(f'select concat(name2,"你好") from {self.tbname}')
         tdSql.execute(f'select concat(name2,"") from {self.tbname}')
         tdSql.execute(f'select concat("", name2) from {self.tbname}')
+
+    def xxxInSet(self):
+        self.dbname = "db"
+        self.tbname = "xxxinset"
+        tdSql.execute(f"drop database if exists {self.dbname}")
+        tdSql.execute(f"create database {self.dbname}")
+        tdSql.execute(f"use {self.dbname}")
+        tdSql.execute(f"create table if not exists {self.tbname}(ts timestamp, cnname varchar(100), enname nchar(100))")
+
+        tdSql.query(f'select like_in_set("_京", "北京,朝阳区,望京")')
+
+        tdLog.info(f"====> find_in_set")
+
+        tdSql.query(f'select find_in_set(null, "a,b,c")')
+        tdSql.checkData(0, 0, None)
+        tdSql.query(f'select find_in_set("a", null)')
+        tdSql.checkData(0, 0, None)
+
+        # Beijing
+        tdSql.execute(f'insert into {self.tbname} values(now(), "北京,朝阳区,望京", "Beijing,Chaoyang,Wangjing")')
+        time.sleep(0.5)
+
+        tdSql.query(f'select find_in_set("北京", cnname) from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select find_in_set("朝阳区", cnname) from {self.tbname}')
+        tdSql.checkData(0, 0, 2)
+        tdSql.query(f'select find_in_set("望京", cnname) from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select find_in_set("金辉大厦",cnname) from {self.tbname}')
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f'select find_in_set("北京", cnname,",") from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select find_in_set("朝阳区", cnname,",") from {self.tbname}')
+        tdSql.checkData(0, 0, 2)
+        tdSql.query(f'select find_in_set("望京", cnname,",") from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select find_in_set("金辉大厦", cnname,",") from {self.tbname}')
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f'select find_in_set("Beijing", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select find_in_set("Chaoyang", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 2)
+        tdSql.query(f'select find_in_set("Wangjing", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select find_in_set("Jinhui", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f'select find_in_set("Beijing", enname,",") from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select find_in_set("Chaoyang", enname,",") from {self.tbname}')
+        tdSql.checkData(0, 0, 2)
+        tdSql.query(f'select find_in_set("Wangjing", enname,",") from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select find_in_set("Jinhui", enname,",") from {self.tbname}')
+        tdSql.checkData(0, 0, 0)
+
+        # Shanghai
+        tdSql.execute(f'insert into {self.tbname} values(now(), "上海,,闵行区,,新虹", "Shanghai,,Minhang,,Xinhong")')
+        time.sleep(0.5)
+
+        tdSql.query(f'select find_in_set("上海", cnname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(f'select find_in_set("闵行区", cnname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 2)
+        tdSql.query(f'select find_in_set("新虹", cnname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 3)
+        tdSql.query(f'select find_in_set("金辉大厦",cnname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 0)
+
+        tdSql.query(f'select find_in_set("Shanghai", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(f'select find_in_set("Minhang", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 2)
+        tdSql.query(f'select find_in_set("Xinhong", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 3)
+        tdSql.query(f'select find_in_set("Jinhui", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 0)
+
+        # Tianjin
+        tdSql.execute(f'insert into {self.tbname} values(now(), "天津，和平区，劝业场", "Tianjin，Heping，Quanyechang")')
+        time.sleep(0.5)
+
+        tdSql.query(f'select find_in_set("天津", cnname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 1)
+        tdSql.query(f'select find_in_set("和平区", cnname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 2)
+        tdSql.query(f'select find_in_set("劝业场", cnname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 3)
+        tdSql.query(f'select find_in_set("金辉大厦",cnname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 0)
+
+        tdSql.query(f'select find_in_set("Tianjin", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 1)
+        tdSql.query(f'select find_in_set("Heping", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 2)
+        tdSql.query(f'select find_in_set("Quanyechang", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 3)
+        tdSql.query(f'select find_in_set("Jinhui", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 0)
+
+
+        tdLog.info(f"====> like_in_set")
+
+        tdSql.query(f'select like_in_set(null, "a,b,c")')
+        tdSql.checkData(0, 0, None)
+        tdSql.query(f'select like_in_set("a", null)')
+        tdSql.checkData(0, 0, None)
+
+        # Beijing
+        tdSql.query(f'select like_in_set("%京", cnname) from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select like_in_set("望%", cnname) from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select like_in_set("%jing", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select like_in_set("Wang%", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select like_in_set("Jinhui%", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f'select like_in_set("%京", cnname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select like_in_set("望%", cnname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select like_in_set("%jing", enname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select like_in_set("Wang%", enname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select like_in_set("Jinhui%", enname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 0)
+
+        # Shanghai
+        tdSql.query(f'select like_in_set("%海", cnname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(f'select like_in_set("上%", cnname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(f'select like_in_set("Shang%", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(f'select like_in_set("___hang", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 2)
+        tdSql.query(f'select like_in_set("Jinhui%", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 0)
+
+        # Tianjin
+        tdSql.query(f'select like_in_set("天%", cnname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 1)
+        tdSql.query(f'select like_in_set("%平区", cnname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 2)
+        tdSql.query(f'select like_in_set("Tian%", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 1)
+        tdSql.query(f'select like_in_set("__ping", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 2)
+        tdSql.query(f'select like_in_set("Jinhui%", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 0)
+
+        tdLog.info(f"====> regexp_in_set")
+
+        tdSql.query(f'select regexp_in_set(null, "a,b,c")')
+        tdSql.checkData(0, 0, None)
+        tdSql.query(f'select regexp_in_set("a", null)')
+        tdSql.checkData(0, 0, None)
+
+        # Beijing
+        tdSql.query(f'select regexp_in_set(".*京", cnname) from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select regexp_in_set("望.", cnname) from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select regexp_in_set(".+jing", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select regexp_in_set("Wang.+", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select regexp_in_set("Jinhui.*", enname) from {self.tbname}')
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f'select regexp_in_set(".*京", cnname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select regexp_in_set("望.", cnname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select regexp_in_set(".+jing", enname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select regexp_in_set("Wang.+", enname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select regexp_in_set("Jinhui.*", enname, ",") from {self.tbname}')
+        tdSql.checkData(0, 0, 0)
+
+        # Shanghai
+        tdSql.query(f'select regexp_in_set(".海", cnname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(f'select regexp_in_set("上.", cnname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(f'select regexp_in_set("Shang.+", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(f'select regexp_in_set(".+nhang", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 2)
+        tdSql.query(f'select regexp_in_set("Jinhui.*", enname, ",,") from {self.tbname}')
+        tdSql.checkData(1, 0, 0)
+
+        # Tianjin
+        tdSql.query(f'select regexp_in_set("天.", cnname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 1)
+        tdSql.query(f'select regexp_in_set(".平区", cnname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 2)
+        tdSql.query(f'select regexp_in_set("Tian.+", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 1)
+        tdSql.query(f'select regexp_in_set(".*ping", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 2)
+        tdSql.query(f'select regexp_in_set("Jinhui.*", enname, "，") from {self.tbname}')
+        tdSql.checkData(2, 0, 0)

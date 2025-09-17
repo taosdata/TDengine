@@ -24,6 +24,7 @@ from .sql import *
 from .server.dnodes import *
 from .common import *
 from taos.tmq import Consumer
+from new_test_framework.utils import clusterComCheck
 
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
@@ -203,6 +204,7 @@ class CompatibilityBase:
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
+        time.sleep(5)
         global dbname, stb, first_consumer_rows
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
@@ -216,7 +218,7 @@ class CompatibilityBase:
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
 
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database curdb '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'alter database curdb  cachemodel \"both\" '")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select count(*) from curdb.meters '")
@@ -267,12 +269,12 @@ class CompatibilityBase:
 
         consumer.close()
         
-        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/13-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
+        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/41-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
 
         # os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f cases/13-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f cases/41-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
 
         # add deleted  data
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{deletedDataSql}" ')

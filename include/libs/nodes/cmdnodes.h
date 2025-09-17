@@ -530,6 +530,10 @@ typedef struct SShowCompactDetailsStmt {
   SNode*    pCompactId;
 } SShowCompactDetailsStmt;
 
+typedef struct SShowSsMigratesStmt {
+  ENodeType type;
+} SShowSsMigratesStmt;
+
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
   SNode*    pTransactionId;

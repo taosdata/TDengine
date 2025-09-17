@@ -1189,13 +1189,13 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
-  if (pAlter->ssKeepLocal > TSDB_MIN_SS_KEEP_LOCAL && pAlter->ssKeepLocal != pDb->cfg.ssKeepLocal) {
+  if (pAlter->ssKeepLocal >= TSDB_MIN_SS_KEEP_LOCAL && pAlter->ssKeepLocal <= TSDB_MAX_SS_KEEP_LOCAL && pAlter->ssKeepLocal != pDb->cfg.ssKeepLocal) {
     pDb->cfg.ssKeepLocal = pAlter->ssKeepLocal;
     pDb->vgVersion++;
     code = 0;
   }
 
-  if (pAlter->ssCompact >= TSDB_MIN_SS_COMPACT && pAlter->ssCompact != pDb->cfg.ssCompact) {
+  if (pAlter->ssCompact >= TSDB_MIN_SS_COMPACT && pAlter->ssCompact <= TSDB_MAX_SS_COMPACT && pAlter->ssCompact != pDb->cfg.ssCompact) {
     pDb->cfg.ssCompact = pAlter->ssCompact;
     pDb->vgVersion++;
     code = 0;
@@ -2268,62 +2268,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetSsMigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t ssMigrateTs) {
-  int32_t code = 0;
-  SDbObj  dbObj = {0};
-  memcpy(&dbObj, pDb, sizeof(SDbObj));
-  dbObj.ssMigrateStartTime = ssMigrateTs;
-
-  SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
-  if (pCommitRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    TAOS_RETURN(code);
-  }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-    sdbFreeRaw(pCommitRaw);
-    TAOS_RETURN(code);
-  }
-
-  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-  TAOS_RETURN(code);
-}
-
-static int32_t mndSetSsMigrateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t ssMigrateTs, SSsMigrateDbRsp *pSsMigrateRsp) {
-  int32_t code = 0;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-
-  // startTime is in seconds, so convert milliseconds to seconds
-  SSsMigrateObj ssMigrate = { .startTime = ssMigrateTs/1000 };
-  if ((code = mndAddSsMigrateToTran(pMnode, pTrans, &ssMigrate, pDb)) != 0) {
-    TAOS_RETURN(code);
-  }
-  pSsMigrateRsp->ssMigrateId = ssMigrate.id;
-
-  int32_t j = 0;
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    if (pVgroup->mountVgId || pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    if ((code = mndBuildSsMigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, &ssMigrate)) != 0) {
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pVgroup);
-      TAOS_RETURN(code);
-    }
-
-    sdbRelease(pSdb, pVgroup);
-  }
-
-  TAOS_RETURN(code);
-}
-
 static int32_t mndBuildSsMigrateDbRsp(SSsMigrateDbRsp *pSsMigrateRsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
   int32_t code = 0;
   int32_t rspLen = tSerializeSSsMigrateDbRsp(NULL, 0, pSsMigrateRsp);
@@ -2378,7 +2322,6 @@ int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
     return TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST;
   }
 
-  int64_t ssMigrateTs = taosGetTimestampMs();
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "ssmigrate-db");
   if (pTrans == NULL) {
     mError("failed to create ssmigrate-db trans since %s", terrstr());
@@ -2389,12 +2332,13 @@ int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   mndTransSetDbName(pTrans, pDb->name, NULL);
   TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
 
-  TAOS_CHECK_GOTO(mndSetSsMigrateDbCommitLogs(pMnode, pTrans, pDb, ssMigrateTs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetSsMigrateDbRedoActions(pMnode, pTrans, pDb, ssMigrateTs, &ssMigrateRsp), NULL, _OVER);
+  SSsMigrateObj ssMigrate = { .startTime = taosGetTimestampMs() };
+  TAOS_CHECK_GOTO(mndAddSsMigrateToTran(pMnode, pTrans, &ssMigrate, pDb), NULL, _OVER);
 
   if (pReq) {
     int32_t rspLen = 0;
     void   *pRsp = NULL;
+    ssMigrateRsp.ssMigrateId = ssMigrate.id;
     ssMigrateRsp.bAccepted = true;
     TAOS_CHECK_GOTO(mndBuildSsMigrateDbRsp(&ssMigrateRsp, &rspLen, &pRsp, false), NULL, _OVER);
     mndTransSetRpcRsp(pTrans, pRsp, rspLen);
@@ -2432,7 +2376,7 @@ static int32_t mndProcessSsMigrateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SSMIGRATE_DB, pDb), NULL, _OVER);
 
   if(pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;

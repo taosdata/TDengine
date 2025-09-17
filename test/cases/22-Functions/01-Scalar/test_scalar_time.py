@@ -7,14 +7,12 @@ class TestTime:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_time(self):
-        """Truncate 函数
+        """Scalar: Time
 
-        1. 创建超级表、子表并写入数据
-        2. 执行最基本的 Truncate 函数
-        3. 进行一些 timestamp 的转换操作
+        Test time functions, including TIMETRUNCATE, TIMEDIFF, and their combined usage.
 
         Catalog:
-            - Function:SingleRow
+            - Function:Sclar
 
         Since: v3.0.0.0
 

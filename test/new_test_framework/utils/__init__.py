@@ -20,4 +20,5 @@ from .compatibilityUtil import *
 from .pathFinding import *
 from .tserror import *
 from .stmt2 import tdStmt2
+from .tmqUtil import *
 import random
