@@ -230,13 +230,14 @@ taos-jdbcdriver implements the JDBC standard Driver interface, providing 3 imple
 #### URL Specification
 
 The JDBC URL format for TDengine is:
-`jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
+`jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host1:port1,host2:port2,...,hostN:portN]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
-The host_name parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.  
-All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.   
+- The host parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.  
+- **Only the WebSocket connection method supports multiple endpoint addresses**, which should be separated by commas when used. These multiple endpoint addresses will be randomly used during connection to achieve load balancing.
+- All properties in **Properties** are supported in the JDBC URL. For details, please refer to the **Properties** section below.   
 
 **Native Connection**  
-`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`, using the TSDBDriver for native JDBC connection, establishes a connection to the hostname taosdemo.com, port 6030 (TDengine's default port), and database name power. This URL specifies the username (user) as root and the password (password) as taosdata.
+`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`, using the TSDBDriver for native JDBC connection, establishes a connection to the host taosdemo.com, port 6030 (TDengine's default port), and database name power. This URL specifies the username (user) as root and the password (password) as taosdata.
 
 **Note**: For native JDBC connections, taos-jdbcdriver depends on the client driver (libtaos.so on Linux; taos.dll on Windows; libtaos.dylib on macOS).
 
@@ -252,7 +253,7 @@ The supported common configuration parameters for native connection URLs are as 
 
 Using TDengine Client Driver Configuration File to Establish Connection:
 
-When connecting to a TDengine cluster using a native JDBC connection, you can use the TDengine client driver configuration file, specifying parameters such as firstEp and secondEp in the configuration file. In this case, do not specify `hostname` and `port` in the JDBC URL.
+When connecting to a TDengine cluster using a native JDBC connection, you can use the TDengine client driver configuration file, specifying parameters such as firstEp and secondEp in the configuration file. In this case, do not specify `host` and `port` in the JDBC URL.
 Configuration such as `jdbc:TAOS://:/power?user=root&password=taosdata`.
 In the TDengine client driver configuration file, specify firstEp and secondEp, and JDBC will use the client's configuration file to establish a connection. If the firstEp node in the cluster fails, JDBC will attempt to connect to the cluster using secondEp.
 In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a connection to the cluster can be established normally.
@@ -260,11 +261,12 @@ In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a con
 > **Note**: The configuration file here refers to the configuration file on the machine where the application calling the JDBC Connector is located, with the default value on Linux OS being /etc/taos/taos.cfg, and on Windows OS being C://TDengine/cfg/taos.cfg.
 
 **WebSocket Connection**  
-Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6041/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
+Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
 
 1. Specify driverClass as "com.taosdata.jdbc.ws.WebSocketDriver";
 2. Start jdbcUrl with "jdbc:TAOS-WS://";
 3. Use 6041 as the connection port.
+4. It supports configuring multiple endpoints, which are randomly selected during connection to achieve load balancing.
 
 For WebSocket connections, the common configuration parameters in the URL are as follows:
 
@@ -1411,7 +1413,9 @@ JDBC standards do not support data subscription, therefore all interfaces in thi
 Consumer support property list:
 
 - td.connect.type: Connection method. jni: indicates using a dynamic library connection, ws/WebSocket: indicates using WebSocket for data communication. The default is jni.
-- bootstrap.servers: `ip:port` of the TDengine server, if using WebSocket connection, then it is the `ip:port` where taosAdapter is located.
+- bootstrap.servers: 
+  1. If using a WebSocket connection, it is the `ip:port` where taosAdapter is located. Multiple endpoints are supported, separated by commas, such as `ip1:port1,ip2:port2`. If the connection is disconnected during the poll process, it can switch to other nodes (requires setting the auto-reconnect parameter `TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT` to `true`).  
+  2. If using a Native connection, it is the `ip:port` where the TDengine TSDB server is located. Native connections do not support multiple endpoints.
 - enable.auto.commit: Whether to allow automatic commit.
 - group.id: The group where the consumer belongs.
 - value.deserializer: Result set deserialization method, you can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer`, specify the result set bean, and implement deserialization. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and customize the deserialization method based on the SQL resultSet.
