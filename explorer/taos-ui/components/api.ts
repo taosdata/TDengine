@@ -155,14 +155,14 @@ export function getStableTags(dbName: string, stableList: Recordable[]) {
   });
 }
 
-export function getTagHierachy(dbName: string, stableName: string, tagName: string, tagType: string) {
+export function getTagHierarchy(dbName: string, stableName: string, tagName: string, tagType: string) {
   const TagValueSQL = `select tag_value, count(*) as total from information_schema.ins_tags where db_name="${dbName}" and stable_name="${stableName}" and tag_name="${tagName}" group by tag_value`;
   return getAllData(TagValueSQL).then(data => {
-    return handleTagHierachyData(data[0], dbName, stableName, tagType, tagName);
+    return handleTagHierarchyData(data[0], dbName, stableName, tagType, tagName);
   });
 }
 
-export function handleTagHierachyData(
+export function handleTagHierarchyData(
   data: Recordable[],
   dbName: string,
   stableName: string,
@@ -200,7 +200,7 @@ export function handleTagHierachyData(
         currentItem = currentItem[subItem].children;
       });
     });
-    const result = generateTagHierachy(tmpTags);
+    const result = generateTagHierarchy(tmpTags);
     tagTree = result?.obj;
   } else {
     tagTree = data?.map(item => {
@@ -219,14 +219,14 @@ export function handleTagHierachyData(
   return [tagTree, tagTree.length];
 }
 
-function generateTagHierachy(tmpTags: Recordable) {
+function generateTagHierarchy(tmpTags: Recordable) {
   let total = 0;
   const result = Object.keys(tmpTags)
     .sort()
     .map(item => {
       const tmpObj = tmpTags[item];
       if (Object.keys(tmpObj.children).length > 0) {
-        const result = generateTagHierachy(tmpObj.children);
+        const result = generateTagHierarchy(tmpObj.children);
         tmpObj.children = result.obj;
         tmpObj.total = result.total;
       } else {
@@ -255,7 +255,7 @@ export function getStableStructReq(dbName: string, stableName: string) {
         if (item.note == 'TAG') {
           tags.push(item as TagStruct);
         } else {
-          columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY' } as ColumnStruct);
+          columns.push({ ...item, primaryKey: item.note == 'COMPOSITE KEY' } as ColumnStruct);
         }
       }
       return {
@@ -276,7 +276,7 @@ export async function getNormalTableStructReq(dbName: string, stableName: string
     const columns: ColumnStruct[] = [];
     for (let i = 0; i < list.length; i++) {
       const item = list[i];
-      columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY' } as ColumnStruct);
+      columns.push({ ...item, primaryKey: item.note == 'COMPOSITE KEY' } as ColumnStruct);
     }
     return columns;
   }
@@ -292,7 +292,7 @@ export async function createVirtualNormalTableReq(formData: CreateVirtualNormalT
   console.log("Create virtual normal table with:", formData);
   const columnDefinitions = columns.map((item: any, index) => {
     if (index === 0) {
-      // The first column is the primary key, so we add PRIMARY KEY constraint
+      // The first column is the primary key, so we add COMPOSITE KEY constraint
       return `${escapeName(item.field)} ${composeType(item)}`;
     } else {
       return `${escapeName(item.field)} ${composeType(item)} FROM ${buildVirtualColumn(item)}`;
@@ -311,7 +311,7 @@ export async function createVirtualNormalTableReq(formData: CreateVirtualNormalT
 export async function createNormalTableReq(formData: CreateTableForm, dbName: string) {
   const { name, columns } = formData;
   const columnDefinitions = columns.map(item => {
-    return `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}${item.primaryKey ? ' PRIMARY KEY' : ''}`;
+    return `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}${item.primaryKey ? ' COMPOSITE KEY' : ''}`;
   }).join(',');
 
   try {
@@ -355,7 +355,7 @@ export async function createStableReq(formData: CreateStableForm, dbName: string
         .map(
           item =>
             `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''
-            }${item.primaryKey ? ' PRIMARY KEY' : ''}`
+            }${item.primaryKey ? ' COMPOSITE KEY' : ''}`
         )
         .join(
           ','

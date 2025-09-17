@@ -487,7 +487,7 @@ export default {
   colname: 'Field(Source)',
   rename: 'Column(Target)',
   coltype: 'Data Type',
-  primarykey: 'Primary Key',
+  primarykey: 'Composite Key',
   usageType: 'Usage Type',
   name: 'Child Table Naming Rule',
   normalname: 'Normal Table Naming Rule',

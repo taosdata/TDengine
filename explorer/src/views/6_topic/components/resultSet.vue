@@ -44,9 +44,9 @@ import { deepClone } from '@/utils';
 import { getMatrixStructReq } from '@/api/tables';
 import { getStableStructReq } from '@/api/stables';
 import {
-  NumbericFn,
+  NumericFn,
   StringFn,
-  CoversionFn,
+  ConversionFn,
   DatetimeFN,
   AggregationFn,
   SelectorFn,
@@ -61,9 +61,9 @@ import {
 } from '@/const';
 import { isArray } from '@/utils/validate';
 const fnMap = {
-  NUMBER: NumbericFn,
+  NUMBER: NumericFn,
   STRING: StringFn,
-  COVERSION: CoversionFn,
+  CONVERSION: ConversionFn,
   DATETIME: DatetimeFN,
   AVGFN: AggregationFn,
   SELECTION: SelectorFn,
@@ -71,9 +71,9 @@ const fnMap = {
   SYSTEM: SystemFn
 };
 const fnMapName = new Map([
-  ['NUMBER', 'NumbericFn'],
+  ['NUMBER', 'NumericFn'],
   ['STRING', 'StringFn'],
-  ['COVERSION', 'CoversionFn'],
+  ['CONVERSION', 'ConversionFn'],
   ['DATETIME', 'DatetimeFN'],
   ['AVGFN', 'AggregationFn'],
   ['SELECTION', 'SelectorFn'],

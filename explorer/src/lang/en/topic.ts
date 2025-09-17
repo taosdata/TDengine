@@ -123,9 +123,9 @@ export default {
     delTopic: 'Delete Topic',
     validTopicSqlDesc: 'SQL statements are not supported for creating topics',
     explorerfns: {
-      NumbericFn: 'Mathematical Functions',
+      NumericFn: 'Mathematical Functions',
       StringFn: 'Concatenation Functions',
-      CoversionFn: 'Conversion Functions',
+      ConversionFn: 'Conversion Functions',
       DatetimeFN: 'Time and Date Functions',
       AggregationFn: 'Aggregate Functions',
       SelectorFn: 'Selection Functions',

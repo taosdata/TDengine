@@ -20,6 +20,7 @@ export default {
   network: '网络',
   total: '总数',
   tips: '提示',
+  compositeKeyTooltip: '指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。',
   orderByAscending: '设置为升序',
   orderByDescending: '设置为降序',
   export: '导出',

@@ -1,6 +1,6 @@
 import { t } from 'locales';
 // 数学函数
-export const NumbericFn: TDFnType[] = [
+export const NumericFn: TDFnType[] = [
   {
     label: 'ABS'
   },
@@ -150,7 +150,7 @@ export const StringFn: TDFnType[] = [
   }
 ];
 // 转换函数
-export const CoversionFn = [
+export const ConversionFn = [
   // "CAST",
   'TO_ISO8601',
   'TO_JSON',
@@ -219,7 +219,7 @@ export const AggregationFn: TDFnType[] = [
             value: '1u'
           },
           {
-            label: 'millsecond',
+            label: 'millisecond',
             value: '1a'
           },
           {
@@ -648,7 +648,7 @@ export const TimeSeriesFn: TDFnType[] = [
             value: '1u'
           },
           {
-            label: 'millsecond',
+            label: 'millisecond',
             value: '1a'
           },
           {
@@ -714,7 +714,7 @@ function filterFNInclude(fnList: TDFnType[], type: string) {
 
 // 流计算支持的函数
 export const StreamSupportFnMap: Recordable<TDFnType[]> = {
-  NUMBER: NumbericFn.concat(filterFNInclude(SelectorFn, 'NUMBER'), filterFNInclude(AggregationFn, 'NUMBER'))
+  NUMBER: NumericFn.concat(filterFNInclude(SelectorFn, 'NUMBER'), filterFNInclude(AggregationFn, 'NUMBER'))
     .filter(item => !StreamNotSupportFn.includes(item.label))
     .sort((a, b) => a.label.localeCompare(b.label)),
   STRING: StringFn.concat(filterFNInclude(SelectorFn, 'STRING'), filterFNInclude(AggregationFn, 'STRING'))
@@ -789,14 +789,14 @@ export const conditionMap = {
   BOOL: ['=', '!='].concat(getGeneralFn('BOOL'))
 };
 export const resultFnMap = {
-  NUMBER: NumbericFn,
+  NUMBER: NumericFn,
   STRING: StringFn,
   AVGFN: AggregationFn
 };
 
 export const TwoVariableTableColumnType = ['DECIMAL']
 export const VariableTableColumnType = ['BINARY', 'NCHAR', 'VARCHAR', 'GEOMETRY', 'VARBINARY'];
-export const VariableTableColumnTypeMaxLenthMap = {
+export const VariableTableColumnTypeMaxLengthMap = {
   BINARY: 16374,
   NCHAR: 4093,
   VARCHAR: 16374,
@@ -828,7 +828,7 @@ export const TDengineTimeUnit = [
     value: 'u'
   },
   {
-    label: t('date.millsecond'),
+    label: t('date.millisecond'),
     value: 'a'
   },
   {

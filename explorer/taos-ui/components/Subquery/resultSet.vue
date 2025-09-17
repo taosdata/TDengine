@@ -41,7 +41,7 @@
 import Result from './result.vue';
 import { getSubtbCurrentStruct, getStableStructReq } from '../api';
 import {
-  NumbericFn,
+  NumericFn,
   TimeSeriesFn,
   StringFn,
   AggregationFn,
@@ -81,7 +81,7 @@ const currentValue = computed(() => {
     .slice((page.value - 1) * pageSize.value, page.value * pageSize.value);
 });
 const fnMap = computed(() => {
-  const NUMBER = NumbericFn;
+  const NUMBER = NumericFn;
   const STRING = StringFn;
   const AVGFN = AggregationFn.concat(SelectorFn, TimeSeriesFn).sort((a, b) => a.label.localeCompare(b.label));
   if (props.avgFn) {
