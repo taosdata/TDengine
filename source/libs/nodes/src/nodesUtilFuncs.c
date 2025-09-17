@@ -306,6 +306,10 @@ int32_t nodesAcquireAllocator(int64_t allocatorId) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool nodesIsAllocatorAcquired() {
+  return NULL != g_pNodeAllocator;
+}
+
 int32_t nodesReleaseAllocator(int64_t allocatorId) {
   if (allocatorId <= 0) {
     return TSDB_CODE_SUCCESS;

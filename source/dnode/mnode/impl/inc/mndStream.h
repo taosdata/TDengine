@@ -364,6 +364,8 @@ typedef struct SStmGrpCtx {
   SStreamHbMsg*     pReq;
   SMStreamHbRspMsg* pRsp;
 
+  int64_t           allocatorRefId;
+
   int32_t           tidx;
 
   // status update

@@ -30,6 +30,37 @@
 #include "mndMnode.h"
 #include "cmdnodes.h"
 
+static int32_t msmBuildAcquireAllocator(SStmGrpCtx* pCtx, int64_t streamId) {
+  if (pCtx->allocatorRefId > 0 && nodesIsAllocatorAcquired()) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  
+  TAOS_CHECK_EXIT(nodesCreateAllocator(streamId, tsQueryNodeChunkSize, &pCtx->allocatorRefId));
+
+  TAOS_CHECK_EXIT(nodesAcquireAllocator(pCtx->allocatorRefId));
+
+_exit:
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;  
+}
+
+static void msmReleaseDestroyAllocator(SStmGrpCtx* pCtx) {
+  if (pCtx->allocatorRefId <= 0) {
+    return;
+  }
+
+  (void)nodesReleaseAllocator(pCtx->allocatorRefId);
+
+  nodesDestroyAllocator(pCtx->allocatorRefId);
+}
+
+
 void msmDestroyActionQ() {
   SStmQNode* pQNode = NULL;
 
@@ -1314,6 +1345,8 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   int64_t streamId = pStream->pCreate->streamId;
   int64_t key[2] = {streamId, 0};
   SStmTaskSrcAddr addr;
+
+  TAOS_CHECK_EXIT(msmBuildAcquireAllocator(pCtx, streamId));
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
   addr.isFromCache = false;
   
@@ -1363,6 +1396,8 @@ int32_t msmUPAddCacheTask(SStmGrpCtx* pCtx, SStreamCalcScan* pScan, SStreamObj* 
   SSubplan* pSubplan = NULL;
   int64_t streamId = pStream->pCreate->streamId;
   int64_t key[2] = {streamId, 0};
+
+  TAOS_CHECK_EXIT(msmBuildAcquireAllocator(pCtx, streamId));
   TAOS_CHECK_EXIT(nodesStringToNode(pScan->scanPlan, (SNode**)&pSubplan));
 
   SStmTaskSrcAddr addr;
@@ -1789,6 +1824,7 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
     nodesDestroyNode((SNode *)pDag);
     pDag = NULL;
     
+    TAOS_CHECK_EXIT(msmBuildAcquireAllocator(pCtx, streamId));
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
 
     mstsDebug("total %d runner tasks added for deploy %d", totalTaskNum, deployId);
@@ -1888,6 +1924,7 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
     nodesDestroyNode((SNode *)pDag);
     pDag = NULL;
 
+    TAOS_CHECK_EXIT(msmBuildAcquireAllocator(pCtx, streamId));
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
   }
 
@@ -1932,6 +1969,7 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
   int64_t streamId = pStream->pCreate->streamId;
   SQueryPlan* pPlan = NULL;
 
+  TAOS_CHECK_EXIT(msmBuildAcquireAllocator(pCtx, streamId));
   TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
 
   for (int32_t i = 0; i < pInfo->runnerDeploys; ++i) {
@@ -2396,6 +2434,7 @@ static int32_t msmReLaunchRunnerDeploy(SStmGrpCtx* pCtx, SStreamObj* pStream, SS
   TAOS_CHECK_EXIT(msmUPPrepareReaderTasks(pCtx, pStatus, pStream));
   
   SQueryPlan* pPlan = NULL;
+  TAOS_CHECK_EXIT(msmBuildAcquireAllocator(pCtx, streamId));
   TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
   
   TAOS_CHECK_EXIT(msmReBuildRunnerTasks(pCtx, pPlan, pStatus, pStream, pAction));
@@ -3109,6 +3148,7 @@ void msmCleanStreamGrpCtx(SStreamHbMsg* pHb) {
   if (mStreamMgmt.tCtx) {
     taosHashClear(mStreamMgmt.tCtx[tidx].actionStm[pHb->streamGId]);
     taosHashClear(mStreamMgmt.tCtx[tidx].deployStm[pHb->streamGId]);
+    msmReleaseDestroyAllocator(&mStreamMgmt.tCtx[tidx].grpCtx[pHb->streamGId]);
   }
 }
 
@@ -5076,6 +5116,8 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
 
   int32_t activeStreamNum = 0;
   sdbTraverse(pMnode->pSdb, SDB_STREAM, msmUpdateProfileStreams, &MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN), &activeStreamNum, NULL);
+
+  TAOS_CHECK_EXIT(nodesInitAllocatorSet());
 
   if (activeStreamNum > 0) {
     msmSetInitRuntimeState(MND_STM_STATE_WATCH);
