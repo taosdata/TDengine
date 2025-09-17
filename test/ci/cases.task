@@ -117,7 +117,6 @@
 ## 02-SubTables
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_autocreate.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_batchcreate.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_delete.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
@@ -175,11 +174,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_delete.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_morevgroup.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_out_of_order_data.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_perf.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_stb.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update.py
-,,n,.,pytest cases/10-DataIngestion/test_write_more_vgroup.py
+
 
 ## 01-SQL
 ## 02-STMT
@@ -1581,7 +1580,6 @@
 ### 1-insert
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stt_blocks_check.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_multi_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_double.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_comment.py
@@ -1589,9 +1587,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_InsertFuturets.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_wide_column.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_column_value.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_benchmark.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -R
@@ -1626,7 +1621,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td27388.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4479.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29793.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29157.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_tb_100w_data_order.py

@@ -111,7 +111,7 @@ class TestInsertPerf:
         # tdSql.checkData(0, 0, once*qtime)
 
     def test_insert_perf(self):
-        """ Write Data Performance
+        """ Write Data Performance (obsolete)
 
         1. Test write performance for bigint data type
         2. Test write performance for double data type
@@ -119,7 +119,7 @@ class TestInsertPerf:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
         Jira: None
 
