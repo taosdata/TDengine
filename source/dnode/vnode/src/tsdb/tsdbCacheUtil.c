@@ -2293,27 +2293,19 @@ int32_t tsdbCacheLoadFromRaw(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SAr
     if (/*!pTmpColArray*/ lastrowTmpIndexArray && !lastrowTmpColArray) {
       continue;
     }
-
+#ifndef TSDB_CACHE_ROW_BASED
     // store result back to rocks cache
     code = tsdbCachePutToRocksdb(pTsdb, &idxKey->key, pLastCol);
     if (code) {
       tsdbError("vgId:%d, %s failed at line %d since %s.", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
       TAOS_CHECK_EXIT(code);
     }
-
-#if TSDB_CACHE_ROW_BASED
-    // Convert column to row-based cache
-    SLastRowKey rowKey = {.uid = uid, .lflag = (idxKey->key.lflag == LFLAG_LAST) ? LFLAG_LAST_ROW : LFLAG_LAST_ROW};
-    STsdbRowKey tsdbRowKey = {.key = pLastCol->rowKey};
-    SLastRow    tmpRow = {.rowKey = tsdbRowKey, .pRow = NULL, .dirty = 0, .numCols = 0, .colStatus = NULL};
-    code = tsdbRowCachePutToLRU(pTsdb, &rowKey, &tmpRow, 0);
-#else
     code = tsdbCachePutToLRU(pTsdb, &idxKey->key, pLastCol, 0);
-#endif
     if (code) {
       tsdbError("vgId:%d, %s failed at line %d since %s.", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
       TAOS_CHECK_EXIT(code);
     }
+#endif
 
     if (extraTS && i == 0) {
       tsdbCacheFreeSLastColItem(pLastCol);
