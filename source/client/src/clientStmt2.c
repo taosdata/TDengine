@@ -1893,7 +1893,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
                          .pTransporter = pStmt->taos->pAppInfo->pTransporter,
                          .pStmtCb = NULL,
                          .pUser = pStmt->taos->user,
-                         .isStmtBind = pStmt->exec.pRequest->isStmtBind};
+                         .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
     ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     code = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
