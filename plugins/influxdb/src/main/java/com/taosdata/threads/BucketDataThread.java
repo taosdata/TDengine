@@ -5,6 +5,7 @@ import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.enums.StatusEnums;
@@ -98,7 +99,7 @@ public class BucketDataThread implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (LocalConfig.isRunBucketDataThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();

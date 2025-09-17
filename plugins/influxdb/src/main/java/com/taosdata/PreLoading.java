@@ -3,6 +3,7 @@ package com.taosdata;
 import com.alibaba.fastjson.JSONObject;
 import com.influxdb.client.domain.HealthCheck;
 import com.taosdata.caches.BucketCache;
+import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.InfluxdbConfig;
@@ -176,6 +177,7 @@ public class PreLoading implements CommandLineRunner {
             // 启动线程MonitorThread
             MonitorThread monitor = new MonitorThread();
             Thread monitorThread = new Thread(monitor);
+            monitorThread.setDaemon(true);
             monitorThread.setName("MonitorThread");
             monitorThread.start();
             ThreadInfo threadInfo = new ThreadInfo();
@@ -187,6 +189,7 @@ public class PreLoading implements CommandLineRunner {
             // 启动线程MessageThread
             MessageThread message = new MessageThread();
             Thread messageThread = new Thread(message);
+            messageThread.setDaemon(true);
             messageThread.setName("MessageThread");
             messageThread.start();
             threadInfo = new ThreadInfo();
@@ -208,8 +211,8 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.noteNetty(this.nettyClientConfig.getHost(), this.nettyClientConfig.getPort());
             // 增加退出信号处理方法
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                logger.info("receive shutdown signal, system exit!");
-                System.exit(1);
+                processShutdown();
+                logger.info("receive shutdown signal, The system has safe exited!");
             }));
             // 状态默认正常，线程内部会再次更新
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());
@@ -544,6 +547,7 @@ public class PreLoading implements CommandLineRunner {
                     BucketThread bucket = new BucketThread(influxdbConfig.getOrgId(),
                             influxdbBucketEntity.getBucketName());
                     Thread bucketThread = new Thread(bucket);
+                    bucketThread.setDaemon(true);
                     bucketThread.setName("BucketThread-" + influxdbBucketEntity.getBucketName());
                     bucketThread.start();
                     ThreadInfo threadInfo = new ThreadInfo();
@@ -567,6 +571,7 @@ public class PreLoading implements CommandLineRunner {
             // 启动ScheduleThread
             ScheduleThread schedule = new ScheduleThread(performanceConfig.getMaxThread());
             Thread scheduleThread = new Thread(schedule);
+            scheduleThread.setDaemon(true);
             scheduleThread.setName("ScheduleThread");
             scheduleThread.start();
             ThreadInfo threadInfo = new ThreadInfo();
@@ -578,6 +583,7 @@ public class PreLoading implements CommandLineRunner {
             // 启动PushPrepareThread
             PushPrepareThread pushPrepare = new PushPrepareThread();
             Thread pushPrepareThread = new Thread(pushPrepare);
+            pushPrepareThread.setDaemon(true);
             pushPrepareThread.setName("PushPrepareThread");
             pushPrepareThread.start();
             threadInfo = new ThreadInfo();
@@ -676,50 +682,52 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 处理退出信号
      */
-    /*private void processShutdown() {
-        // 停止BucketThread、ScheduleThread线程（在ScheduleThread中停止所有BucketDataThread）
+    public static void processShutdown() {
         LocalConfig.isRunBucketThread = false;
+        LocalConfig.isRunBucketDataThread = false;
         LocalConfig.isRunScheduleThread = false;
-        // 停止PushPrepareThread线程（在PushPrepareThread中停止所有PushThread，并且把所有数据写回主队列）
         LocalConfig.isRunPushPrepareThread = false;
+        LocalConfig.isRunPushThread = false;
+        LocalConfig.isRunMonitorThread = false;
+        LocalConfig.isRunMessageThread = false;
+        try { Thread.sleep(1000); } catch (InterruptedException ignore) {}
+
         // 等待系统清理完成
-        try {
-            // 先等待2秒
-            Thread.sleep(2000L);
-            // 当前内存队列大小
-            int fetchRecordsSize = StatisticCache.completedTaskSet.size();
-            int queueRecordsSize = BucketDataCache.getBucketDataQueueSize();
-            // 再等待2秒
-            Thread.sleep(2000L);
-            // 判断是否变化
-            if (fetchRecordsSize != StatisticCache.completedTaskSet.size() || queueRecordsSize != BucketDataCache.getBucketDataQueueSize()) {
-                logger.error("Memory data changes during system security exit.");
-            }
-        } catch (Exception e) {
-            logger.error("Failed to determine data changes during system security exit.", e);
-        }
+//        try {
+//            // 当前内存队列大小
+//            int fetchRecordsSize = StatisticCache.completedTaskSet.size();
+//            int queueRecordsSize = BucketDataCache.getBucketDataQueueSize();
+//            // 再等待500ms
+//            Thread.sleep(500L);
+//            // 判断是否变化
+//            if (fetchRecordsSize != StatisticCache.completedTaskSet.size() || queueRecordsSize != BucketDataCache.getBucketDataQueueSize()) {
+//                logger.warn("Memory data changes during system security exit.");
+//            }
+//        } catch (Exception e) {
+//            logger.error("Failed to determine data changes during system security exit.", e);
+//        }
         // 操作系统临时目录
-        String temporaryPath = System.getProperty("java.io.tmpdir");
-        // 将数据读取记录写入文件
-        try {
-            String fetchRecords = StringUtils.join(StatisticCache.completedTaskSet.toArray(), RECORD_DELIMITER);
-            FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_FETCH, fetchRecords);
-        } catch (Exception e) {
-            logger.error("Failed to save read records during system security exit.", e);
-        }
+//        String temporaryPath = System.getProperty("java.io.tmpdir");
+//        // 将数据读取记录写入文件
+//        try {
+//            String fetchRecords = StringUtils.join(StatisticCache.completedTaskSet.toArray(), RECORD_DELIMITER);
+//            FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_FETCH, fetchRecords);
+//        } catch (Exception e) {
+//            logger.error("Failed to save read records during system security exit.", e);
+//        }
         // 将内存队列写入文件
-        try {
-            StringBuffer sb = new StringBuffer();
-            // 内存队列所有内容
-            List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(BucketDataCache.getBucketDataQueueSize());
-            // 遍历拼装内容
-            for (InfluxdbBucketDataEntity influxdbBucketDataEntity : influxdbBucketDataEntityList) {
-                sb.append(influxdbBucketDataEntity.toString() + RECORD_DELIMITER);
-            }
-            FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_QUEUE, sb.toString());
-        } catch (Exception e) {
-            logger.error("Failed to save read records during system security exit.", e);
-        }
-        logger.info("The system has executed a secure exit.");
-    }*/
+//        try {
+//            StringBuffer sb = new StringBuffer();
+//            // 内存队列所有内容
+//            List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(BucketDataCache.getBucketDataQueueSize());
+//            // 遍历拼装内容
+//            for (InfluxdbBucketDataEntity influxdbBucketDataEntity : influxdbBucketDataEntityList) {
+//                sb.append(influxdbBucketDataEntity.toString() + RECORD_DELIMITER);
+//            }
+//            FileUtils.writeAbsoluteFile(temporaryPath, RECORD_FILE_QUEUE, sb.toString());
+//        } catch (Exception e) {
+//            logger.error("Failed to save read records during system security exit.", e);
+//        }
+//        logger.info("The system has executed a secure exit.");
+    }
 }

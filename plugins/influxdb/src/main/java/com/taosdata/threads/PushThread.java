@@ -5,6 +5,7 @@ import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
@@ -81,7 +82,7 @@ public class PushThread implements Runnable {
 
     @Override
     public void run() {
-        while (this.channel.isOpen()) {
+        while (this.channel.isOpen() && LocalConfig.isRunPushThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();
@@ -169,7 +170,7 @@ public class PushThread implements Runnable {
         // 线程结束
         this.logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除连接信息
-        BucketDataCache.socketMap.remove(this.dataSourceKey);
+        BucketDataCache.socketMap.remove(this.dataSourceKey).close();
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }
