@@ -187,7 +187,7 @@ static void tsdbScanDataFile(SScanContext *pCtx) {
     code = tsdbDataFileReadBrinBlock(reader, brinBlk, &brinBlock);
     if (code) {
       tsdbError("vgId:%d %s failed to read BRIN block since %s, min table id:(%" PRId64 ", %" PRId64
-                ") max table id:(%" PRId64 ", %" PRId64 ") BRIN block offset:%" PRId64 " BRIN block size:%d",
+                ") max table id:(%" PRId64 ", %" PRId64 ") BRIN block offset:%" PRId64 " BRIN block size:%" PRId64,
                 TD_VID(pCtx->tsdb->pVnode), logPrefix, tstrerror(code), brinBlk->minTbid.suid, brinBlk->minTbid.uid,
                 brinBlk->maxTbid.suid, brinBlk->maxTbid.uid, brinBlk->dp[0].offset, brinBlk->dp[0].size);
       continue;
