@@ -164,6 +164,13 @@ class TestAggFunction:
         tdSql.error("select var_pop(name) from ts_4893.meters;")
         tdSql.error("select var_pop(nonexistent_column) from ts_4893.meters;")
 
+    def run_variance(self):
+        self.run_normal_query_new("variance")
+        tdSql.error("select variance(var1) from ts_4893.meters;")
+        tdSql.error("select variance(current) from empty_ts_4893.meters;")
+        tdSql.error("select variance(name) from ts_4893.meters;")
+        tdSql.error("select variance(nonexistent_column) from ts_4893.meters;")
+
     def run_rand(self):
         self.run_normal_query_new("rand")
         tdSql.query("select rand();")
@@ -445,6 +452,7 @@ class TestAggFunction:
         """
         self.run_stddev_pop()
         self.run_varpop()
+        self.run_variance()
         self.run_avg()
         self.run_sum()
         self.run_leastsquares()
