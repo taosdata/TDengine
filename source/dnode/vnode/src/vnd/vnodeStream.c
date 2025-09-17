@@ -1017,7 +1017,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     STREAM_CHECK_CONDITION_GOTO(numOfRows <= 0, TDB_CODE_SUCCESS);
 
     int32_t pos = pCoder->pos;
-    for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
+    for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       STREAM_CHECK_NULL_GOTO(pColData, terrno);
       if (pColData->info.colId == -1) continue;
@@ -1100,7 +1100,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
         continue;
       }
      
-      for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
+      for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
         if (pColData->info.colId == -1) continue;
@@ -1116,6 +1116,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
           } else {
             colId = -1;
           }
+          // ST_TASK_DLOG("%s vtable colId:%d, i:%d, uid:%" PRId64, __func__, colId, i, submitTbData.uid);
         } else {
           colId = pColData->info.colId;
         }
@@ -1148,9 +1149,12 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
   }
 
   if (numOfRows > 0) {
-    SStorageAPI  api = {0};
-    initStorageAPI(&api);
-    STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, &api, submitTbData.uid, pBlock, blockStart, numOfRows, 1));
+    if (!sStreamReaderInfo->isVtableStream) {
+      SStorageAPI  api = {0};
+      initStorageAPI(&api);
+      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, &api, submitTbData.uid, pBlock, blockStart, numOfRows, 1));
+    }
+    
     SColumnInfoData* pColData = taosArrayGetLast(pBlock->pDataBlock);
     STREAM_CHECK_NULL_GOTO(pColData, terrno);
     STREAM_CHECK_RET_GOTO(colDataSetNItems(pColData, blockStart, (const char*)&ver, numOfRows, 1, false));
