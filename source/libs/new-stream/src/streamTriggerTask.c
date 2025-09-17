@@ -40,6 +40,7 @@
 
 #define IS_TRIGGER_GROUP_NONE_WINDOW(pGroup) (TRINGBUF_CAPACITY(&(pGroup)->winBuf) == 0)
 #define IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) (TRINGBUF_SIZE(&(pGroup)->winBuf) > 0)
+#define container_of(ptr, type, member)      ((type *)((char *)(ptr) - offsetof(type, member)))
 
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid);
 static void    stRealtimeGroupDestroy(void *ptr);
@@ -51,6 +52,9 @@ static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup);
 static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup);
 // Clear metadatas that have been checked
 static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_t prevWindowEnd);
+// Compare next execution time
+static int32_t stRealtimeGroupCompare(const HeapNode *a, const HeapNode *b);
+static int32_t stRealtimeGroupGatherPendingCalc(SSTriggerRealtimeGroup *pGroup);
 
 static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistoryContext *pContext, int64_t gid);
 static void    stHistoryGroupDestroy(void *ptr);
@@ -2591,6 +2595,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_NULL(pContext->pGroups, code, lino, _end, terrno);
   tSimpleHashSetFreeFp(pContext->pGroups, stRealtimeGroupDestroy);
   TD_DLIST_INIT(&pContext->groupsToCheck);
+  pContext->pMaxDelayHeap = heapCreate(stRealtimeGroupCompare);
+  QUERY_CHECK_NULL(pContext->pMaxDelayHeap, code, lino, _end, terrno);
   pContext->groupsToDelete = taosArrayInit(0, sizeof(int64_t));
   QUERY_CHECK_NULL(pContext->groupsToDelete, code, lino, _end, terrno);
 
@@ -2679,6 +2685,10 @@ static void stRealtimeContextDestroy(void *ptr) {
   if (pContext->pGroups != NULL) {
     tSimpleHashCleanup(pContext->pGroups);
     pContext->pGroups = NULL;
+  }
+  if (pContext->pMaxDelayHeap != NULL) {
+    heapDestroy(pContext->pMaxDelayHeap);
+    pContext->pMaxDelayHeap = NULL;
   }
   if (pContext->groupsToDelete != NULL) {
     taosArrayDestroy(pContext->groupsToDelete);
@@ -2845,8 +2855,9 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         void *px = tSimpleHashGet(pContext->pGroups, gid, sizeof(int64_t));
         QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         pGroup = *(SSTriggerRealtimeGroup **)px;
+      } else if (pContext->pMinGroup != NULL) {
+        pGroup = pContext->pMinGroup;
       } else {
-        // todo(kjq): get group from max delay heap
         pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
         QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       }
@@ -3460,6 +3471,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
+  int64_t             now = taosGetTimestampNs();
 
   if (listNEles(&pContext->retryPullReqs) > 0) {
     while (listNEles(&pContext->retryPullReqs) > 0) {
@@ -3574,7 +3586,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     }
 
     // check if to start for period trigger
-    int64_t now = taosGetTimestampNs();
     if (pContext->periodWindow.skey == INT64_MIN) {
       pContext->periodWindow = stTriggerTaskGetTimeWindow(pTask, now);
     }
@@ -3692,6 +3703,74 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
 
+  if (pContext->pMinGroup == NULL && pContext->pMaxDelayHeap->min != NULL) {
+    pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
+    if (pContext->pMinGroup->nextExecTime > now) {
+      pContext->pMinGroup = NULL;
+    }
+  }
+  while (pContext->pMinGroup != NULL) {
+    SSTriggerRealtimeGroup *pGroup = pContext->pMinGroup;
+    switch (pContext->status) {
+      case STRIGGER_CONTEXT_FETCH_META: {
+        pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
+      }
+      case STRIGGER_CONTEXT_ACQUIRE_REQUEST: {
+        if (pContext->pCalcReq == NULL && pTask->calcEventType != STRIGGER_EVENT_WINDOW_NONE) {
+          code = stTriggerTaskAcquireRequest(pTask, pContext->sessionId, pGroup->gid, &pContext->pCalcReq);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (pContext->pCalcReq == NULL) {
+            ST_TASK_DLOG("no available runner for group %" PRId64, pGroup->gid);
+            goto _end;
+          }
+        }
+        pContext->status = STRIGGER_CONTEXT_CHECK_CONDITION;
+      }
+      case STRIGGER_CONTEXT_CHECK_CONDITION: {
+        code = stRealtimeGroupGatherPendingCalc(pGroup);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pContext->status = STRIGGER_CONTEXT_SEND_CALC_REQ;
+      }
+      case STRIGGER_CONTEXT_SEND_CALC_REQ: {
+        int64_t prevWindowEnd = INT64_MIN;
+        if (pContext->pCalcReq == NULL) {
+          // do nothing
+        } else if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
+          if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
+            prevWindowEnd = ((SSTriggerCalcParam *)taosArrayGetLast(pContext->pCalcReq->params))->wend;
+          }
+          code = stRealtimeContextSendCalcReq(pContext);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (pContext->pCalcReq != NULL) {
+            // calc req has not been set
+            goto _end;
+          }
+          stRealtimeGroupClearTempState(pGroup);
+        } else {
+          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        break;
+      }
+      default: {
+        ST_TASK_ELOG("invalid context status %d at %s:%d", pContext->status, __func__, __LINE__);
+        code = TSDB_CODE_INVALID_PARA;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    }
+    heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
+    if (pGroup->nextExecTime > 0) {
+      heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
+    }
+    if (pContext->pMaxDelayHeap->min != NULL) {
+      pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
+      if (pContext->pMinGroup->nextExecTime <= now) {
+        continue;
+      }
+    }
+    pContext->pMinGroup = NULL;
+  }
+
   int32_t deleteGroupNum = taosArrayGetSize(pContext->groupsToDelete);
   if (deleteGroupNum > 0) {
     pContext->status = STRIGGER_CONTEXT_SEND_DROP_REQ;
@@ -3720,7 +3799,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   // todo(kjq): implement max delay and batch window mode using min heap
 
 #define STRIGGER_CHECKPOINT_INTERVAL_NS 10 * NANOSECOND_PER_MINUTE  // 10min
-  int64_t now = taosGetTimestampNs();
   if (pContext->lastCheckpointTime + STRIGGER_CHECKPOINT_INTERVAL_NS <= now) {
     // do checkpoint
     uint8_t *buf = NULL;
@@ -6271,7 +6349,6 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
   pGroup->prevWindow = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
   code = taosObjListInit(&pGroup->windows, &pContext->windowPool);
   QUERY_CHECK_CODE(code, lino, _end);
-  pGroup->prevCalcTime = INT64_MIN;
   code = taosObjListInit(&pGroup->pPendingCalcParams, &pContext->calcParamPool);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -6370,6 +6447,46 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_
 
   taosObjListClear(&pGroup->tableUids);
   pGroup->oldThreshold = pGroup->newThreshold;
+}
+
+static int32_t stRealtimeGroupCompare(const HeapNode *a, const HeapNode *b) {
+  SSTriggerRealtimeGroup *pGroup1 = container_of(a, SSTriggerRealtimeGroup, heapNode);
+  SSTriggerRealtimeGroup *pGroup2 = container_of(b, SSTriggerRealtimeGroup, heapNode);
+  return pGroup1->nextExecTime < pGroup2->nextExecTime;
+}
+
+static int32_t stRealtimeGroupGatherPendingCalc(SSTriggerRealtimeGroup *pGroup) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SSTriggerRealtimeContext *pContext = pGroup->pContext;
+  SStreamTriggerTask       *pTask = pContext->pTask;
+
+  ST_TASK_DLOG("group %" PRId64 " starts to exec %" PRId64 " pending params", pGroup->gid,
+               pGroup->pPendingCalcParams.neles);
+
+  if (pGroup->pPendingCalcParams.neles > 0) {
+    SSTriggerCalcParam *pParam = NULL;
+    SObjListIter        iter = {0};
+    taosObjListInitIter(&pGroup->pPendingCalcParams, &iter, TOBJLIST_ITER_FORWARD);
+    while ((pParam = taosObjListIterNext(&iter)) != NULL) {
+      void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      pParam->extraNotifyContent = NULL;
+    }
+    taosObjListClear(&pGroup->pPendingCalcParams);
+  }
+
+  if (pContext->pCalcReq != NULL) {
+    QUERY_CHECK_CONDITION(TARRAY_SIZE(pContext->pCalcReq->params) <= STREAM_CALC_REQ_MAX_WIN_NUM, code, lino, _end,
+                          TSDB_CODE_INTERNAL_ERROR);
+    pGroup->nextExecTime = 0;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vgId, SSTriggerMetaData *pMeta) {
@@ -7224,14 +7341,46 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup) {
     }
   }
 
-  if (pContext->pCalcReq != NULL && TARRAY_SIZE(pContext->pCalcReq->params) > STREAM_CALC_REQ_MAX_WIN_NUM) {
-    for (int32_t i = STREAM_CALC_REQ_MAX_WIN_NUM; i < TARRAY_SIZE(pContext->pCalcReq->params); i++) {
-      SSTriggerCalcParam *pParam = TARRAY_GET_ELEM(pContext->pCalcReq->params, i);
-      code = taosObjListAppend(&pGroup->pPendingCalcParams, pParam);
-      QUERY_CHECK_CODE(code, lino, _end);
-      pParam->extraNotifyContent = NULL;
+  if (pContext->pCalcReq != NULL) {
+    if (TARRAY_SIZE(pContext->pCalcReq->params) >= STREAM_CALC_REQ_MAX_WIN_NUM) {
+      for (int32_t i = STREAM_CALC_REQ_MAX_WIN_NUM; i < TARRAY_SIZE(pContext->pCalcReq->params); i++) {
+        SSTriggerCalcParam *pParam = TARRAY_GET_ELEM(pContext->pCalcReq->params, i);
+        code = taosObjListAppend(&pGroup->pPendingCalcParams, pParam);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pParam->extraNotifyContent = NULL;
+      }
+      pContext->pCalcReq->params->size = STREAM_CALC_REQ_MAX_WIN_NUM;
+    } else if (!pTask->lowLatencyCalc) {
+      for (int32_t i = 0; i < TARRAY_SIZE(pContext->pCalcReq->params); i++) {
+        SSTriggerCalcParam *pParam = TARRAY_GET_ELEM(pContext->pCalcReq->params, i);
+        code = taosObjListAppend(&pGroup->pPendingCalcParams, pParam);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pParam->extraNotifyContent = NULL;
+      }
+      taosArrayClear(pContext->pCalcReq->params);
     }
-    pContext->pCalcReq->params->size = STREAM_CALC_REQ_MAX_WIN_NUM;
+    if (pTask->lowLatencyCalc) {
+      pContext->needCheckAgain = (pGroup->pPendingCalcParams.neles > 0);
+    } else {
+      pContext->needCheckAgain = (pGroup->pPendingCalcParams.neles >= STREAM_CALC_REQ_MAX_WIN_NUM);
+    }
+
+    if (!pTask->lowLatencyCalc) {
+      if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
+        if (pGroup->nextExecTime > 0) {
+          pGroup->nextExecTime = 0;
+          heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
+        }
+      }
+      if (pGroup->pPendingCalcParams.neles > 0) {
+        if (pGroup->nextExecTime == 0) {
+          pGroup->nextExecTime = now + STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS;
+          heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
+          ST_TASK_DLOG("group %" PRId64 " holds %" PRId64 " params, expecting to exec at %" PRId64, pGroup->gid,
+                       pGroup->pPendingCalcParams.neles, pGroup->nextExecTime);
+        }
+      }
+    }
   }
 
   taosArrayClearEx(pContext->pWindows, stRealtimeContextDestroyWindow);

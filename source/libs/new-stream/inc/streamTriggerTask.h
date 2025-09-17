@@ -80,10 +80,10 @@ typedef struct SSTriggerRealtimeGroup {
   int32_t     numPendingNull;      // for state window trigger
   STimeWindow prevWindow;          // the last closed window, for sliding trigger
   SObjList    windows;             // SObjList<SSTriggerWindow>, windows not yet closed
-  int64_t     prevCalcTime;        // only used in batch window mode (lowLatencyCalc is false)
   SObjList    pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
 
-  HeapNode heapNode;  // todo(kjq): used for max delay and batch window mode
+  int64_t  nextExecTime;  // use for max delay and batch window mode
+  HeapNode heapNode;      // used for max delay and batch window mode
 } SSTriggerRealtimeGroup;
 
 typedef struct SSTriggerHistoryGroup {
@@ -153,8 +153,9 @@ typedef struct SSTriggerRealtimeContext {
 
   SSHashObj *pGroups;  // SSHashObj<gid, SSTriggerRealtimeGroup*>
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;
-  Heap   *pMaxDelayHeap;
-  SArray *groupsToDelete;
+  Heap                   *pMaxDelayHeap;
+  SSTriggerRealtimeGroup *pMinGroup;
+  SArray                 *groupsToDelete;
 
   // these fields need to be cleared each round
   SSHashObj *pSlices;  // SSHashObj<uid, SSTriggerDataSlice>
@@ -180,9 +181,9 @@ typedef struct SSTriggerRealtimeContext {
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
-  SList retryPullReqs;  // SList<SSTriggerPullRequest*>
-  SList retryCalcReqs;  // SList<SSTriggerCalcRequest*>
-  SList dropTableReqs;  // SList<SSTriggerDropRequest*>
+  SList   retryPullReqs;  // SList<SSTriggerPullRequest*>
+  SList   retryCalcReqs;  // SList<SSTriggerCalcRequest*>
+  SList   dropTableReqs;  // SList<SSTriggerDropRequest*>
   int32_t dropReqIndex;
 
   bool    haveReadCheckpoint;
