@@ -154,8 +154,10 @@ watch(
 );
 
 function closeConnect() {
-  connectData.close(dataInProps.agent.webSoketUrl);
   hasConnect.value = false;
+  if (connectData && connectData.close) {
+    connectData.close(dataInProps.agent.webSoketUrl);
+  }
 }
 
 onMounted(() => {
@@ -219,6 +221,7 @@ const getAgents = async () => {
   try {
     requestIng.value = true;
     await getAgentList(dataInProps.agent.api);
+    closeConnect();
     nextTick(() => {
       if (!hasConnect.value) {
         hasConnect.value = true;

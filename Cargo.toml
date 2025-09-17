@@ -115,6 +115,7 @@ actix-files = "0.6.6"
 actix-multipart = "0.7.2"
 actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
 actix-ws = "0.3.0"
+actix-http = "3.11.1"
 
 hex = "0.4.3"
 csv = "1.2"
@@ -426,7 +427,6 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
-actix-http = { git = "https://github.com/bitcapybara/actix-web", rev = "5ec0783" }
 orc-rust = { git = "https://github.com/datafusion-contrib/orc-rust.git", rev = "refs/pull/49/head" }
 
 [lints]
