@@ -1,5 +1,6 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
-
+from new_test_framework.utils.stmt2 import tdStmt2
+import time
 
 class TestDatatypeBlob:
 
@@ -15,6 +16,9 @@ class TestDatatypeBlob:
         3. Auto-create table
         4. Alter tag value
         5. Handle illegal input
+        6. Clean up data
+        7. stmt2 insert
+        8. query
 
         Catalog:
             - DataTypes
@@ -38,6 +42,7 @@ class TestDatatypeBlob:
         self.illegal_input()
         self.clearup_data()
         self.checkUnderedData()
+        self.run_stmt2_insert()
 
     def check_limit(self):  
         tdLog.info(f"create super table")
@@ -426,8 +431,87 @@ class TestDatatypeBlob:
             tdSql.checkData(i, 1, None)
         tdSql.execute(f"drop database blob_ordered")
 
+    def run_basic_stmt2(self):
+        """Test basic stmt2 operations """
+        
+        dbname = "stmt2_test"
+        tdSql.prepare(dbname=dbname)
+        tdSql.execute("CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity INT, location BINARY(50)), b blob")
+        
+        # Single record insert using stmt2
+        sql = "INSERT INTO sensor_data VALUES (?, ?, ?, ?, ?)"
+        current_ts = int(time.time() * 1000) 
+        params = [current_ts, 25.5, 60, "Beijing", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+        
+        affected_rows = tdStmt2.execute_single(sql, params, check_affected=True, expected_rows=1)
+        tdLog.debug(f"Single insert: {affected_rows} rows affected")
 
-         
+    def run_batch_insert(self):
+        """Test stmt2 API"""
+        
+        dbname = "stmt2_batch_test"
+        tdSql.prepare(dbname=dbname)
+        tdSql.execute("CREATE TABLE batch_test (ts TIMESTAMP, val1 INT, val2 DOUBLE, val3 BINARY(50)), val4 blob")
+        
+        batch_size = 1000
+        base_ts = int(time.time() * 1000)  
+        sql = "INSERT INTO batch_test VALUES (?, ?, ?, ?, ?)"
+        batch_params = []
+        for i in range(batch_size):
+            params = [base_ts + i * 1000, i, float(i * 0.1), f"data_{i}", f"data_blob_{i}"] 
+            batch_params.append(params)
+        
+        affected_rows = tdStmt2.execute_batch(sql, batch_params, check_affected=True, expected_rows=batch_size)
+        tdLog.debug(f"Batch insert: {affected_rows} rows affected")
+                    
+        # Verify the data if needed
+        tdSql.query("SELECT COUNT(*) FROM batch_test")
+        tdSql.checkData(0, 0, batch_size)
+
+    def run_super_table(self):
+        """Test super table operations with stmt2 API"""
+        
+        dbname = "stmt2_stable_test"
+        tdSql.prepare(dbname=dbname)
+        tdSql.execute("CREATE TABLE device_metrics (ts TIMESTAMP,val DOUBLE,status INT, b blob) TAGS (device_id BINARY(50),type INT,location BINARY(100))")
+        
+        sql = "INSERT INTO ? USING device_metrics TAGS(?, ?, ?) VALUES (?, ?, ?, ?)"
+        current_ts = int(time.time() * 1000)
+        tbnames = ["device_001_data", "device_002_data", "device_003_data"]
+    
+        tags = [
+            ["device_001", 1, "Building_A"],
+            ["device_002", 2, "Building_B"], 
+            ["device_003", 1, "Building_C"]
+        ]
+        
+        datas = [
+            # device_001_data
+            [
+                [current_ts,      100.1, 1, "xxxxxxxxxxxx"],
+                [current_ts+1000, 100.2, 1, "yyyyyyyyyyyyyyy"],
+                [current_ts+2000, 100.3, 1, "zzzzzzzzzzzzzzzz"]
+            ],
+            # device_002_data
+            [
+                [current_ts+3000, 200.1, 2, "aaaaaaaaaaaaaaaaaaa"],
+                [current_ts+4000, 200.2, 2, "bbbbbbbbbbbbbbbbbbbb"]
+            ],
+            # device_003_data
+            [
+                [current_ts+5000, 300.1, 1, "ccccccccccccccccccccccccccccc"],
+                [current_ts+6000, 300.2, 1, "dddddddddddddddddddddddddddddd"],
+                [current_ts+7000, 300.3, 1, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeee"],
+                [current_ts+8000, 300.4, 1, "fffffffffffffffffffffffffffffff"]
+            ]
+        ]
+        
+        affected_rows = tdStmt2.execute_super_table(sql, tbnames, tags, datas, check_affected=True, expected_rows=9)
+        tdLog.debug(f"Super table insert: {affected_rows} rows affected")
+    def run_stmt2_insert(self):
+        self.run_basic_stmt2()
+        self.run_batch_insert()
+        self.run_super_table()
         
          
     
