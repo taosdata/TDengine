@@ -467,7 +467,7 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
 
-  STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
+  // STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     if (tStartDecode(pCoder) < 0) {
       code = TSDB_CODE_INVALID_MSG;
@@ -925,7 +925,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
   }
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
-  STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
+  // STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     if (tStartDecode(pCoder) < 0) {
       code = TSDB_CODE_INVALID_MSG;
@@ -1232,7 +1232,7 @@ static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* s
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
 
-  STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
+  // STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     if (tStartDecode(pCoder) < 0) {
       code = TSDB_CODE_INVALID_MSG;
