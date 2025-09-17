@@ -263,7 +263,6 @@ static int32_t buildDropTableBlock(SSDataBlock* pBlock, int64_t id, int64_t ver)
   STREAM_CHECK_RET_GOTO(addColData(pBlock, index++, &ver));
 
 end:
-  STREAM_PRINT_LOG_END(code, lino)
   return code;
 }
 
@@ -1140,6 +1139,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
   }
 
   pSlice->currentRowIdx += numOfRows;
+  pBlock->info.rows += numOfRows;
   ST_TASK_DLOG("%s process submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
         ", uid:%" PRId64 ", ver:%d, row index:%d, rows:%d", __func__, window.skey, window.ekey, 
         id, submitTbData.uid, submitTbData.sver, pSlice->currentRowIdx, numOfRows);
@@ -1503,10 +1503,11 @@ end:
   return code;
 }
 
-static int32_t filterData(SSTriggerWalNewRsp* resultRsp, SStreamTriggerReaderInfo* sStreamReaderInfo, int32_t totalRows) {
+static int32_t filterData(SSTriggerWalNewRsp* resultRsp, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t      code = 0;
   int32_t       lino = 0;
   SColumnInfoData* pRet = NULL;
+  int64_t totalRows = ((SSDataBlock*)resultRsp->dataBlock)->info.rows;
   STREAM_CHECK_RET_GOTO(qStreamFilter(((SSDataBlock*)resultRsp->dataBlock), sStreamReaderInfo->pFilterInfo, &pRet));
   if (((SSDataBlock*)resultRsp->dataBlock)->info.rows < totalRows) {
     filterIndexHash(sStreamReaderInfo->indexHash, pRet);
@@ -1549,14 +1550,13 @@ static int32_t processWalVerMetaDataNew(SVnode* pVnode, SStreamTriggerReaderInfo
     STREAM_CHECK_RET_GOTO(scanSubmitData(pVnode, sStreamReaderInfo, pBody, bodyLen, NULL, resultRsp, wCont->version));
   }
 
-  ((SSDataBlock*)resultRsp->dataBlock)->info.rows = resultRsp->totalRows;
-  STREAM_CHECK_RET_GOTO(filterData(resultRsp, sStreamReaderInfo, resultRsp->totalRows));
-  resultRsp->totalRows = ((SSDataBlock*)resultRsp->dataBlock)->info.rows;
-
-  ST_TASK_DLOG("vgId:%d %s end, get result totalRows:%d, process:%"PRId64"/%"PRId64, TD_VID(pVnode), __func__, 
-          resultRsp->totalRows, resultRsp->ver, walGetAppliedVer(pWalReader->pWal));
+  int32_t metaRows = resultRsp->totalRows - ((SSDataBlock*)resultRsp->dataBlock)->info.rows;
+  STREAM_CHECK_RET_GOTO(filterData(resultRsp, sStreamReaderInfo));
+  resultRsp->totalRows = ((SSDataBlock*)resultRsp->dataBlock)->info.rows + metaRows;
 
 end:
+  ST_TASK_DLOG("vgId:%d %s end, get result totalRows:%d, process:%"PRId64"/%"PRId64, TD_VID(pVnode), __func__, 
+          resultRsp->totalRows, resultRsp->ver, walGetAppliedVer(pWalReader->pWal));
   walCloseReader(pWalReader);
   return code;
 }
@@ -1600,14 +1600,12 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
     STREAM_CHECK_RET_GOTO(scanSubmitData(pVnode, sStreamReaderInfo, pBody, bodyLen, ranges, rsp, wCont->version));
   }
 
-  ((SSDataBlock*)rsp->dataBlock)->info.rows = rsp->totalRows;
-  STREAM_CHECK_RET_GOTO(filterData(rsp, sStreamReaderInfo, rsp->totalRows));
+  STREAM_CHECK_RET_GOTO(filterData(rsp, sStreamReaderInfo));
   rsp->totalRows = ((SSDataBlock*)rsp->dataBlock)->info.rows;
 
+end:
   ST_TASK_DLOG("vgId:%d %s end, get result totalRows:%d, process:%"PRId64"/%"PRId64, TD_VID(pVnode), __func__, 
             rsp->totalRows, rsp->ver, walGetAppliedVer(pWalReader->pWal));
-
-end:
   walCloseReader(pWalReader);
   return code;
 }
@@ -2523,7 +2521,6 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   resultRsp.ver = req->walMetaDataNewReq.lastVer;
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, &resultRsp));
 
-  ST_TASK_DLOG("vgId:%d %s get result last ver:%"PRId64" rows:%d", TD_VID(pVnode), __func__, resultRsp.ver, resultRsp.totalRows);
   STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, sStreamReaderInfo->indexHash);
   buf = rpcMallocCont(size);
