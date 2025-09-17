@@ -417,6 +417,7 @@ typedef struct SSTriggerNewVtableMerger {
 
   bool         inUse;
   SSDataBlock *pPseudoColValues;  // value of pseudo columns, could be NULL if no pseudo columns
+  int32_t      tsSlotId;
 
   int32_t                 nReaders;
   SArray                 *pReaderInfos;  // SArray<SNewVtableMergerReaderInfo>

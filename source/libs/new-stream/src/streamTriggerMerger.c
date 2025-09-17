@@ -1663,14 +1663,16 @@ static int32_t stNewVtableMergerReaderInfoCompare(const void *pLeft, const void 
 
     int64_t leftTs = INT64_MAX;
     if (pLeftReaderInfo->startIdx < pLeftReaderInfo->endIdx) {
-      SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pLeftReaderInfo->pReader->pDataBlock->pDataBlock, 0);
-      int64_t         *pTsData = (int64_t *)pTsCol->pData;
+      SColumnInfoData *pTsCol =
+          TARRAY_GET_ELEM(pLeftReaderInfo->pReader->pDataBlock->pDataBlock, pLeftReaderInfo->pReader->tsSlotId);
+      int64_t *pTsData = (int64_t *)pTsCol->pData;
       leftTs = pTsData[pLeftReaderInfo->startIdx];
     }
     int64_t rightTs = INT64_MAX;
     if (pRightReaderInfo->startIdx < pRightReaderInfo->endIdx) {
-      SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pRightReaderInfo->pReader->pDataBlock->pDataBlock, 0);
-      int64_t         *pTsData = (int64_t *)pTsCol->pData;
+      SColumnInfoData *pTsCol =
+          TARRAY_GET_ELEM(pRightReaderInfo->pReader->pDataBlock->pDataBlock, pRightReaderInfo->pReader->tsSlotId);
+      int64_t *pTsData = (int64_t *)pTsCol->pData;
       rightTs = pTsData[pRightReaderInfo->startIdx];
     }
 
@@ -1714,8 +1716,8 @@ int32_t stNewVtableMergerInit(SSTriggerNewVtableMerger *pMerger, struct SStreamT
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pMerger->pIsPseudoCol != NULL) {
-    code = createDataBlock(&pMerger->pPseudoColValues);
-    QUERY_CHECK_CODE(code, lino, _end);
+    pMerger->pPseudoColValues = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    QUERY_CHECK_NULL(pMerger->pPseudoColValues, code, lino, _end, terrno);
   }
 
   pMerger->pReaderInfos = taosArrayInit(0, sizeof(SNewVtableMergerReaderInfo));
@@ -1806,6 +1808,7 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
   pMerger->inUse = true;
   pMerger->nReaders = 0;
   pMerger->pDataBlock->info.id.uid = vtbUid;
+  pMerger->tsSlotId = tsSlotId;
 
   int32_t      nTables = taosArrayGetSize(pTableColRefs);
   int64_t     *ar = NULL;
@@ -1889,12 +1892,12 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
   }
 
   SSDataBlock     *pVirDataBlock = pMerger->pDataBlock;
-  SColumnInfoData *pVirTsCol = taosArrayGet(pVirDataBlock->pDataBlock, 0);
+  SColumnInfoData *pVirTsCol = taosArrayGet(pVirDataBlock->pDataBlock, pMerger->tsSlotId);
   QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
   int64_t *pVirTsData = (int64_t *)pVirTsCol->pData;
 
   SSDataBlock     *pOrigDataBlock = pReaderInfo->pReader->pDataBlock;
-  SColumnInfoData *pOrigTsCol = taosArrayGet(pOrigDataBlock->pDataBlock, 0);
+  SColumnInfoData *pOrigTsCol = taosArrayGet(pOrigDataBlock->pDataBlock, pMerger->tsSlotId);
   QUERY_CHECK_NULL(pOrigTsCol, code, lino, _end, terrno);
   int64_t *pOrigTsData = (int64_t *)pOrigTsCol->pData;
 
@@ -1910,7 +1913,7 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
   }
 
   *filled = true;
-  int32_t nCols = taosArrayGetSize(pReaderInfo->pColRef->pColMatches);
+  int32_t nCols = taosArrayGetSize(pReaderInfo->pColRef->pNewColMatches);
   if (pMerger->nReaders == 1) {
     // copy whole data block from the single original table
     int32_t nRowsToCopy =
@@ -1918,10 +1921,10 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
     code = colDataAssignNRows(pVirTsCol, virStartIdx, pOrigTsCol, pReaderInfo->startIdx, nRowsToCopy);
     QUERY_CHECK_CODE(code, lino, _end);
     for (int32_t i = 0; i < nCols; i++) {
-      SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pReaderInfo->pColRef->pColMatches, i);
+      SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pReaderInfo->pColRef->pNewColMatches, i);
       SColumnInfoData   *pVirCol = taosArrayGet(pVirDataBlock->pDataBlock, pColMatch->vtbSlotId);
       QUERY_CHECK_NULL(pVirCol, code, lino, _end, terrno);
-      SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, i + 1);
+      SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, pColMatch->otbSlotId);
       QUERY_CHECK_NULL(pOrigCol, code, lino, _end, terrno);
       code = colDataAssignNRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1941,10 +1944,10 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
     code = colDataSetVal(pVirTsCol, virStartIdx, pData, false);
     QUERY_CHECK_CODE(code, lino, _end);
     for (int32_t i = 0; i < nCols; i++) {
-      SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pReaderInfo->pColRef->pColMatches, i);
+      SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pReaderInfo->pColRef->pNewColMatches, i);
       SColumnInfoData   *pVirCol = taosArrayGet(pVirDataBlock->pDataBlock, pColMatch->vtbSlotId);
       QUERY_CHECK_NULL(pVirCol, code, lino, _end, terrno);
-      SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, i + 1);
+      SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, pColMatch->otbSlotId);
       QUERY_CHECK_NULL(pOrigCol, code, lino, _end, terrno);
       if (colDataIsNull_s(pOrigCol, pReaderInfo->startIdx)) {
         colDataSetNULL(pVirCol, virStartIdx);
@@ -2008,12 +2011,14 @@ _retrieve:
   int32_t nrows = blockDataGetNumOfRows(pMerger->pDataBlock);
   if (nrows > 0) {
     if (pMerger->pIsPseudoCol != NULL) {
-      int32_t          nPseudoCols = blockDataGetNumOfCols(pMerger->pPseudoColValues);
-      SColumnInfoData *pSrc = TARRAY_DATA(pMerger->pPseudoColValues->pDataBlock);
+      int32_t j = 0;
       for (int32_t i = 0; i < ncols; i++) {
         if (!pMerger->pIsPseudoCol[i]) {
           continue;
         }
+        SColumnInfoData *pSrc = taosArrayGet(pMerger->pPseudoColValues->pDataBlock, j);
+        QUERY_CHECK_NULL(pSrc, code, lino, _end, terrno);
+        j++;
         SColumnInfoData *pDst = TARRAY_GET_ELEM(pMerger->pDataBlock->pDataBlock, i);
         if (!colDataIsNull_s(pSrc, 0)) {
           if (!IS_VAR_DATA_TYPE(pDst->info.type) && pDst->nullbitmap != NULL) {
@@ -2044,6 +2049,8 @@ _retrieve:
   if (nrows == 0) {
     goto _end;
   }
+
+  printDataBlock(pMerger->pDataBlock, __func__, "stream_vtable_data");
 
   if (ppDataBlock != NULL) {
     *ppDataBlock = pMerger->pDataBlock;
