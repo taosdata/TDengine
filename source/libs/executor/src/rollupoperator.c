@@ -57,6 +57,47 @@ _exit:
   return code;
 }
 
+static int32_t createDataBlockForTargets(SNodeList *pTargets, SSDataBlock **ppDataBlock, int32_t maxBufRows) {
+  int32_t      code = 0, lino = 0;
+  int32_t      numOfCols = LIST_LENGTH(pTargets);
+  SSDataBlock *pBlock = NULL;
+
+  if (numOfCols < 1) {
+    TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+  }
+  TAOS_CHECK_EXIT(createDataBlock(&pBlock));
+  for (int32_t i = 0; i < numOfCols; ++i) {  // the first timestamp column is not included in targets
+    STargetNode *pTargetNode = (STargetNode *)nodesListGetNode(pTargets, i);
+    if (!pTargetNode) {
+      TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+    }
+    SFunctionNode *pFuncNode = (SFunctionNode *)pTargetNode->pExpr;
+    if (!pFuncNode || pFuncNode->node.type != QUERY_NODE_FUNCTION) {
+      TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+    }
+    if (pFuncNode->pParameterList == NULL || LIST_LENGTH(pFuncNode->pParameterList) != 1) {
+      TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+    }
+    SColumnNode *pColNode = (SColumnNode *)nodesListGetNode(pFuncNode->pParameterList, 0);
+    if (!pColNode || pColNode->node.type != QUERY_NODE_COLUMN) {
+      TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+    }
+
+    SColumnInfoData colInfoData =
+        createColumnInfoData(pFuncNode->node.resType.type, pFuncNode->node.resType.bytes, pColNode->colId);
+    TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
+  }
+  TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, maxBufRows));
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  *ppDataBlock = pBlock;
+  return code;
+}
+
 int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, const char *dbName) {
   int32_t         code = 0, lino = 0;
   STSchema       *pTSchema = pRSchema->tSchema;
@@ -74,6 +115,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   int32_t         nCols = pTSchema->numOfCols;
   int32_t         exprNum = 0;
   SExprInfo      *pExprInfo = NULL;
+  char            buf[512] = "\0";
 
   if (!(pExprSup = taosMemoryCalloc(1, sizeof(SExprSupp)))) {
     TAOS_CHECK_EXIT(terrno);
@@ -135,11 +177,13 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     // snprintf(pColNode->colName, TSDB_COL_NAME_LEN, "c%d", i); // TODO: fill if necessary
 
     // build the function node
-    pFuncNode->node.resType = pColNode->node.resType;
-    pFuncNode->funcId = pRSchema->funcIds[i];
-    pFuncNode->funcType = fmGetFuncTypeById(pFuncNode->funcId);
-    (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", fmGetFuncName(pFuncNode->funcId));
+    // pFuncNode->node.resType = pColNode->node.resType;
+    // pFuncNode->funcId = pRSchema->funcIds[i];
+    // pFuncNode->funcType = fmGetFuncTypeById(pFuncNode->funcId);
+    (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", fmGetFuncName(pRSchema->funcIds[i]));
     TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pColNode));
+    TAOS_CHECK_EXIT(fmGetFuncInfo(pFuncNode, buf, sizeof(buf)));
+
     pColNode = NULL;
 
     // build the target node
@@ -163,9 +207,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   }
 
   TAOS_CHECK_EXIT(createDataBlockForSchema(pRSchema->tSchema, &pCtx->pInputBlock, pCtx->maxBufRows));
-  // TODO: 1. If sum(...) is used, should we update the origin colType to int64_t? 2. If the Primary ts key is necessary
-  // in pResBlock?
-  TAOS_CHECK_EXIT(createDataBlockForSchema(pRSchema->tSchema, &pCtx->pResBlock, pCtx->maxBufRows));
+  TAOS_CHECK_EXIT(createDataBlockForTargets(pCtx->pTargets, &pCtx->pResBlock, pCtx->maxBufRows));
 
   initResultRowInfo(pResultRowInfo);
 
@@ -193,7 +235,11 @@ _exit:
   nodesDestroyNode((SNode *)pFuncNode);
   nodesDestroyNode((SNode *)pTargetNode);
   if (code != 0) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    if (buf[0] != 0) {
+      qError("%s failed at line %d since %s(%s)", __func__, lino, tstrerror(code), buf);
+    } else {
+      qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    }
   }
 
   return code;
