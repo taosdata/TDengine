@@ -3620,6 +3620,13 @@ _exit:
   return tlen;
 }
 
+static void destroyHash(void* data){
+  if (data){
+    SSHashObj* tmp = *(SSHashObj**)data;
+    tSimpleHashCleanup(tmp);
+  }
+}
+
 static int32_t decodeSetTableMapInfo(SDecoder* decoder, SSHashObj** ppInfo) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -3629,7 +3636,7 @@ static int32_t decodeSetTableMapInfo(SDecoder* decoder, SSHashObj** ppInfo) {
   if (*ppInfo == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
-  tSimpleHashSetFreeFp(*ppInfo, (_hash_free_fn_t)tSimpleHashCleanup);
+  tSimpleHashSetFreeFp(*ppInfo, destroyHash);
   
   for (int32_t i = 0; i < size; ++i) {
     int64_t uid = 0;
