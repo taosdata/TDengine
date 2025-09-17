@@ -112,6 +112,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   STargetNode    *pTargetNode = NULL;
   SFunctionNode  *pFuncNode = NULL;
   SColumnNode    *pColNode = NULL;
+  SColumnNode    *pPrimaryColNode = NULL;
   int32_t         nCols = pTSchema->numOfCols;
   int32_t         exprNum = 0;
   SExprInfo      *pExprInfo = NULL;
@@ -151,7 +152,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     TAOS_CHECK_EXIT(terrno);
   }
 
-  int32_t inputRowSize = 8;
+  int32_t inputRowSize = sizeof(int64_t);  // for the timestamp column
   for (int32_t i = 1; i < nCols; i++) {  // skip the first timestamp column
     STColumn *pCol = pTSchema->columns + i;
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pColNode));
@@ -182,9 +183,21 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     // pFuncNode->funcType = fmGetFuncTypeById(pFuncNode->funcId);
     (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", fmGetFuncName(pRSchema->funcIds[i]));
     TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pColNode));
+    pColNode = NULL;
     TAOS_CHECK_EXIT(fmGetFuncInfo(pFuncNode, buf, sizeof(buf)));
 
-    pColNode = NULL;
+    if (fmIsImplicitTsFunc(pFuncNode->funcId)) {
+      TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pPrimaryColNode));
+      pPrimaryColNode->node.resType.type = pCol->type;
+      pPrimaryColNode->node.resType.precision = precision;
+      pPrimaryColNode->node.resType.bytes = pCol->bytes;
+      pPrimaryColNode->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pPrimaryColNode->colType = COLUMN_TYPE_COLUMN;
+      (void)snprintf(pPrimaryColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
+      (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", pFuncNode->functionName);
+      TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pPrimaryColNode));
+      pPrimaryColNode = NULL;
+    }
 
     // build the target node
     pTargetNode->slotId = (int16_t)(i - 1);
@@ -231,6 +244,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   TAOS_CHECK_EXIT(initGroupedResultInfo(pCtx->pGroupResInfo, pCtx->aggSup->pResultRowHashTable, 0));
 
 _exit:
+  nodesDestroyNode((SNode *)pPrimaryColNode);
   nodesDestroyNode((SNode *)pColNode);
   nodesDestroyNode((SNode *)pFuncNode);
   nodesDestroyNode((SNode *)pTargetNode);

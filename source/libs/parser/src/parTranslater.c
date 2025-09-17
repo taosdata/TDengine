@@ -16132,17 +16132,21 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
     if (!pFunc->pParameterList || LIST_LENGTH(pFunc->pParameterList) != 1 ||
         nodeType(pFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
-                                     "Invalid func param for rsma, only one non-timestamp column allowed: %s",
+                                     "Invalid func param for rsma, only one non-primary key column allowed: %s",
                                      pFunc->functionName);
     }
-    PAR_ERR_JRET(fmGetFuncInfo(pFunc, NULL, 0));
+    PAR_ERR_JRET(fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len));
     if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
                                      pFunc->functionName);
     }
 
     SColumnNode* pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
-    int32_t      i = 0;
+    if (!pCol) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
+                                     "Invalid func param for rsma since column node is NULL: %s", pFunc->functionName);
+    }
+    int32_t i = 0;
     for (; i < columnNum; ++i) {
       if (strcmp(pCols[i].name, pCol->colName) == 0) {
         pCol->colId = pCols[i].colId;
@@ -16153,10 +16157,15 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
     }
     if (i == columnNum) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
-                                     "Invalid func param for rsma, only one non-timestamp column allowed: %s(%s)",
+                                     "Invalid func param for rsma since column not exist: %s(%s)",
                                      pFunc->functionName, pCol->colName);
     }
-    snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
+    if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
+                                     "Invalid func param for rsma since column is primary key: %s(%s)",
+                                     pFunc->functionName, pCol->colName);
+    }
+    (void)snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
   }
 
   if (nFuncs > 1) {
@@ -16251,13 +16260,18 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Rsma must be created on super table"));
   }
 
-  for (int32_t c = 0; c < numOfCols; ++c) {
+  for (int32_t c = 1; c < numOfCols; ++c) {
     int8_t type = pCols[c].type;
     if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64 || type == TSDB_DATA_TYPE_BLOB ||
         type == TSDB_DATA_TYPE_MEDIUMBLOB) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                            "Rsma does not support column type %" PRIi8 " currently",
                                            type));  // TODO: support later
+    }
+    if (((pCols[c].flags) & COL_IS_KEY)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                           "Rsma does not support composite primary key column currently: %s",
+                                           pCols[c].name));
     }
   }
 
