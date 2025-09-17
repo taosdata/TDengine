@@ -3785,6 +3785,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
     }
     pContext->pMinGroup = NULL;
+    pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
 
   int32_t deleteGroupNum = taosArrayGetSize(pContext->groupsToDelete);
