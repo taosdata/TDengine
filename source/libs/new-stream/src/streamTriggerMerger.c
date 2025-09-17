@@ -1930,6 +1930,7 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
       QUERY_CHECK_CODE(code, lino, _end);
     }
     pReaderInfo->startIdx += nRowsToCopy;
+    pVirDataBlock->info.rows = virStartIdx + nRowsToCopy;
     if (pReaderInfo->startIdx >= pReaderInfo->endIdx) {
       // this original data block is fully processed
       code =
@@ -1957,6 +1958,7 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    pVirDataBlock->info.rows = virStartIdx + 1;
     pReaderInfo->startIdx++;
     if (pReaderInfo->startIdx >= pReaderInfo->endIdx) {
       // this original data block is fully processed
