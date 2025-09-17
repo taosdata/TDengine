@@ -1149,7 +1149,7 @@ _OVER:
 
 static int32_t mndProcessScanTimer(SRpcMsg *pReq) {
   mTrace("start to process scan timer");
-  // TODO: mndScanPullup(pReq->info.node);
+  mndScanPullup(pReq->info.node);
   return 0;
 }
 

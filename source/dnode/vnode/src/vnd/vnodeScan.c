@@ -56,8 +56,8 @@ int32_t vnodeQueryScanProgress(SVnode *pVnode, SRpcMsg *pMsg) {
   // query scan progress
   rsp.dnodeId = req.dnodeId;
   tsdbScanMonitorGetInfo(pVnode->pTsdb, &rsp);
-  vInfo("update scan progress, scanId:%d vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", rsp.scanId, rsp.vgId,
-        rsp.dnodeId, rsp.numberFileset, rsp.finished);
+  vDebug("update scan progress, scanId:%d vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", rsp.scanId, rsp.vgId,
+         rsp.dnodeId, rsp.numberFileset, rsp.finished);
   rsp.scanId = req.scanId;
 
   // serialize response
