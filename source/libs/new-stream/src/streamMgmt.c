@@ -33,6 +33,7 @@ void smRemoveReaderFromVgMap(SStreamTask* pTask) {
   int32_t taskNum = taosArrayGetSize(pVg->taskList);
   for (int32_t i = 0; i < taskNum; ++i) {
     SStreamTask** ppTask = taosArrayGet(pVg->taskList, i);
+    ST_TASK_DLOG("%s %d task %p in vg %d", __func__, i, *ppTask, pTask->nodeId);
     if ((*ppTask)->taskId == pTask->taskId && (*ppTask)->seriousId == pTask->seriousId) {
       ST_TASK_ILOG("task %p removed from vgroupMap, tidx:%d", *ppTask, pTask->taskIdx);
       taosArrayRemove(pVg->taskList, i);
@@ -133,8 +134,6 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
   int64_t streamId = pDeploy->streamId;
   int32_t readerNum = 0, triggerNum = 0, runnerNum = 0;
   void*   taskAddr = NULL;
-
-  taosRLockLatch(&pStream->lock);
 
   if (pDeploy->readerTasks) {
     readerNum = taosArrayGetSize(pDeploy->readerTasks);
@@ -276,8 +275,6 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
   }  
 
 _exit:
-
-  taosRUnLockLatch(&pStream->lock);
 
   if (code) {
     stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -580,7 +577,7 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
       SStreamTask* pTask = (SStreamTask*)listNode->data;
       if (pTask->taskId == *taskId && pTask->seriousId == *seriousId) {
         SListNode* tmp = tdListPopNode(pTaskList, listNode);
-        ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(pTaskList));
+        ST_TASK_DLOG("task %p removed from stream taskList, remain:%d", pTask, TD_DLIST_NELES(pTaskList));
         taosMemoryFreeClear(tmp);
         smRemoveTaskPostCheck(streamId, pStream, &isLastTask);
         break;
@@ -593,6 +590,8 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
   if (!isLastTask) {
     return;
   }
+
+  atomic_store_8(&pStream->destroyed, 1);
   
   int32_t code = taosHashRemove(gStreamMgmt.stmGrp[gid], &streamId, sizeof(streamId));
   if (TSDB_CODE_SUCCESS == code) {
@@ -797,7 +796,7 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
       if (pReq && pReq->reqId == pRsp->reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->pMgmtReq, pReq, NULL)) {
         taosWLockLatch(&pTask->mgmtReqLock);
-        stmDestroySStreamMgmtReq(pReq);
+        tFreeSStreamMgmtReq(pReq);
         taosWUnLockLatch(&pTask->mgmtReqLock);
         taosMemoryFree(pReq);
       }
@@ -807,6 +806,18 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
     case STREAM_MSG_UPDATE_RUNNER:
     case STREAM_MSG_USER_RECALC: {
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
+      break;
+    }
+    case STREAM_MSG_RUNNER_ORIGTBL_READER: {
+      SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
+      if (pReq && pReq->reqId == pRsp->reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->pMgmtReq, pReq, NULL)) {
+        taosWLockLatch(&pTask->mgmtReqLock);
+        tFreeSStreamMgmtReq(pReq);
+        taosWUnLockLatch(&pTask->mgmtReqLock);
+        taosMemoryFree(pReq);
+      }
+
+      STM_CHK_SET_ERROR_EXIT(stRunnerSetMgmtRsp((SStreamRunnerTask*)pTask, pRsp->cont.execRspList));
       break;
     }
     default:
@@ -859,9 +870,18 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
   int32_t taskNum = 0;
   SStreamInfo* pStream = taosHashAcquire(pGrp, &streamId, sizeof(streamId));
   if (NULL != pStream) {
-    stsDebug("stream already exists, remain taskNum:%d", pStream->taskNum);
-    TAOS_CHECK_EXIT(smAddTasksToStreamMap(pDeploy, pStream));
-    taskNum = atomic_load_32(&pStream->taskNum);
+    taosRLockLatch(&pStream->lock);
+    if (atomic_load_8(&pStream->destroyed)) {
+      taosRUnLockLatch(&pStream->lock);
+      TAOS_CHECK_EXIT(smAddTasksToStreamMap(pDeploy, &stream));
+      TAOS_CHECK_EXIT(taosHashPut(pGrp, &streamId, sizeof(streamId), &stream, sizeof(stream)));
+      taskNum = stream.taskNum;
+    } else {
+      stsDebug("stream already exists, remain taskNum:%d", pStream->taskNum);
+      TAOS_CHECK_EXIT(smAddTasksToStreamMap(pDeploy, pStream));
+      taskNum = atomic_load_32(&pStream->taskNum);
+      taosRUnLockLatch(&pStream->lock);
+    }
   } else {
     TAOS_CHECK_EXIT(smAddTasksToStreamMap(pDeploy, &stream));
     TAOS_CHECK_EXIT(taosHashPut(pGrp, &streamId, sizeof(streamId), &stream, sizeof(stream)));

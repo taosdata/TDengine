@@ -493,15 +493,16 @@ int32_t mndInitSync(SMnode *pMnode) {
       .syncEqMsg = mndSyncEqMsg,
       .syncEqCtrlMsg = mndSyncEqCtrlMsg,
       .pingMs = 5000,
-      .electMs = 3000,
-      .heartbeatMs = 500,
+      .electMs = tsMnodeElectIntervalMs,
+      .heartbeatMs = tsMnodeHeartbeatIntervalMs,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
 
-  mInfo("vgId:1, start to open mnode sync, replica:%d selfIndex:%d", pMgmt->numOfReplicas, pMgmt->selfIndex);
   SSyncCfg *pCfg = &syncInfo.syncCfg;
+  mInfo("vgId:1, start to open mnode sync, replica:%d selfIndex:%d, electMs:%d, heartbeatMs:%d", pMgmt->numOfReplicas, 
+    pMgmt->selfIndex, syncInfo.electMs, syncInfo.heartbeatMs);
   pCfg->totalReplicaNum = pMgmt->numOfTotalReplicas;
   pCfg->replicaNum = pMgmt->numOfReplicas;
   pCfg->myIndex = pMgmt->selfIndex;

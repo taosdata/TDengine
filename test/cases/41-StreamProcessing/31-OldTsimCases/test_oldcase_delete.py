@@ -13,7 +13,7 @@ class TestStreamOldCaseDelete:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_delete(self):
-        """Stream delete
+        """OldTsim: delete data
 
         Test the correctness of results when deleting data in various trigger windows
 

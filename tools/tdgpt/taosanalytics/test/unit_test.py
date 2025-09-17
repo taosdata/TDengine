@@ -130,14 +130,15 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 2)
+        self.assertEqual(len(service_list["details"]), 3)
 
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
                 self.assertEqual(len(item["algo"]), 6)
-            else:
+            elif item["type"] == "forecast":
                 self.assertEqual(len(item["algo"]), 7)
-
+            else:
+                self.assertEqual(len(item["algo"]), 1)
 
 if __name__ == '__main__':
     unittest.main()

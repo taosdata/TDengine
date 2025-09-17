@@ -10,6 +10,7 @@
 #include "tdef.h"
 #include "tjson.h"
 #include "ttime.h"
+#include "tcompare.h"
 
 typedef float (*_float_fn)(float);
 typedef float (*_float_fn_2)(float, float);
@@ -1296,6 +1297,428 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   pOutput->numOfRows = numOfRows;
 _return:
   taosMemoryFree(outputBuf);
+
+  return code;
+}
+
+
+static int32_t matchInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, bool (*compare)(const char*, int32_t, const char*, int32_t)) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+
+  SColumnInfoData *pats = pInput[0].columnData, *sets = pInput[1].columnData, *seps = NULL;
+  char  *patstr = NULL, *setstr = NULL, *sepstr = ","; // "," is the default seperator
+  int32_t patLen = 0, setLen = 0, sepLen = 1;
+  int32_t patNum = pInput[0].numOfRows, setNum = pInput[1].numOfRows, sepNum = 0;
+  bool needFreePat = false, needFreeSep = false;
+
+  if (inputNum == 3) {
+    sepNum = pInput[2].numOfRows;
+    seps = pInput[2].columnData;
+  }
+  int32_t numOfRows = TMAX(TMAX(patNum, setNum), sepNum);
+
+  int32_t setType = GET_PARAM_TYPE(&pInput[1]);
+
+  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))
+    || IS_NULL_TYPE(setType))
+    || (patNum == 1 && colDataIsNull_s(pats, 0))
+    || (setNum == 1 && colDataIsNull_s(sets, 0))) {
+    colDataSetNNULL(pOutput->columnData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return code;
+  }
+
+  // if there's only one pat/set/sep, get it now to improve performance
+  if (patNum == 1) {
+    patLen = varDataLen(colDataGetData(pats, 0));
+    patstr = varDataVal(colDataGetData(pats, 0));
+    if (GET_PARAM_TYPE(&pInput[0]) != setType) {
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(patstr, &patstr, patLen, &patLen, setType, pInput[0].charsetCxt)); 
+      needFreePat = true;
+    }
+  }
+
+  if (setNum == 1) {
+    setLen = varDataLen(colDataGetData(sets, 0));
+    setstr = varDataVal(colDataGetData(sets, 0));
+  }
+
+  if (sepNum == 0) {
+    // use default seperator if was not provided, but we may need to convert it to nchar.
+    if (setType == TSDB_DATA_TYPE_NCHAR) {
+        SCL_ERR_RET(convVarcharToNchar(sepstr, &sepstr, 1, &sepLen, NULL));
+        needFreeSep = true;
+    }
+  } else if (sepNum > 1) {
+    // do nothing in this case
+  } else if (colDataIsNull_s(seps, 0)) {
+    // treat null seperator as empty
+    sepstr = NULL;
+    sepLen = 0;
+  } else {
+    sepLen = varDataLen(colDataGetData(seps, 0));
+    sepstr = varDataVal(colDataGetData(seps, 0));
+    if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != setType) {
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, setType, pInput[2].charsetCxt));
+      needFreeSep = true;
+    }
+  }
+
+  bool utf8 = strcasecmp(pInput[1].charsetCxt ? pInput[1].charsetCxt : tsCharset, "UTF-8") == 0;
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int64_t offset = 0;
+
+    // get set first is better for performance because some alloc/free of pat & sep can be avoided.
+    if (setNum > 1) {
+      if (colDataIsNull_s(sets, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      setstr = varDataVal(colDataGetData(sets, i));
+      setLen = varDataLen(colDataGetData(sets, i));
+    }
+
+    if (patNum > 1) {
+      if (colDataIsNull_s(pats, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      if (needFreePat) {
+        taosMemoryFree(patstr);
+        needFreePat = false;
+      }
+      patstr = varDataVal(colDataGetData(pats, i));
+      patLen = varDataLen(colDataGetData(pats, i));
+      if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) != setType) {
+        SCL_ERR_JRET(convBetweenNcharAndVarchar(patstr, &patstr, patLen, &patLen, setType, pInput[0].charsetCxt)); 
+        needFreePat = true;
+      }
+    }
+
+    if (sepNum > 1) {
+      if (needFreeSep) {
+        taosMemoryFree(sepstr);
+        needFreeSep = false;
+      }
+      if (colDataIsNull_s(seps, i)) {
+        sepstr = NULL;
+        sepLen = 0;
+      } else {
+        sepLen = varDataLen(colDataGetData(seps, i));
+        sepstr = varDataVal(colDataGetData(seps, i));
+        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != setType) {
+          SCL_ERR_JRET(convBetweenNcharAndVarchar(sepstr, &sepstr, sepLen, &sepLen, setType, pInput[2].charsetCxt));
+          needFreeSep = true;
+        }
+      }
+    }
+
+    // compare pat & set directly when seperator is empty
+    if (sepLen == 0) {
+      if (compare(patstr, patLen, setstr, setLen)) {
+        offset = 1;
+      }
+      colDataSetInt64(pOutput->columnData, i, &offset);
+      continue;
+    }
+
+    char *start = setstr;
+    for (int32_t j = 0; start < setstr + setLen; j++) {
+      char* end = start;
+
+      while (true) {
+        // set [end] to the end of [setstr] if not enough characters for a seperator
+        if (end + sepLen > setstr + setLen) {
+          end = setstr + setLen;
+          break;
+        }
+        // a seperator is found
+        if (memcmp(end, sepstr, sepLen) == 0) {
+          break;
+        }
+        // not a seperator, advance one character
+        if (setType == TSDB_DATA_TYPE_NCHAR) {
+          end += TSDB_NCHAR_SIZE;
+        } else if (utf8) {
+          for (end++; end - setstr < setLen && ((*end & 0xC0) == 0x80); end++);
+        } else {
+          end++;
+        }
+      }
+
+      if (compare(patstr, patLen, start, end - start)) {
+        offset = j + 1;
+        break;
+      }
+
+      start = end + sepLen;
+    }
+
+    colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  if (needFreePat) {
+    taosMemoryFree(patstr);
+  }
+  if (needFreeSep) {
+    taosMemoryFree(sepstr);
+  }
+
+  return code;
+}
+
+static bool findInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  return (aLen == bLen) && (memcmp(a, b, aLen) == 0);
+}
+
+int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return matchInSetFunction(pInput, inputNum, pOutput, findInSetCompare);
+}
+
+static bool likeInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
+  return patternMatch(a, aLen, b, bLen, &pInfo) == TSDB_PATTERN_MATCH;
+}
+
+static bool wcsLikeInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
+  return wcsPatternMatch((TdUcs4*)a, aLen/TSDB_NCHAR_SIZE, (TdUcs4*)b, bLen/TSDB_NCHAR_SIZE, &pInfo) == TSDB_PATTERN_MATCH;
+}
+
+int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+    return matchInSetFunction(pInput, inputNum, pOutput, wcsLikeInSetCompare);
+  }
+  return matchInSetFunction(pInput, inputNum, pOutput, likeInSetCompare);
+}
+
+// to improve performance, the implementation of regexp_in_set is a little different from
+// find_in_set & like_in_set.
+int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
+
+static bool regexpInSetCompare(const char* a, int32_t aLen, const char* b, int32_t bLen) {
+  char patBuf[256], strBuf[256], msgbuf[256];
+
+  char  *pattern = patBuf, *str = strBuf;
+  if (aLen >= sizeof(patBuf)) {
+    pattern = taosMemoryMalloc(aLen + 1);
+    if (NULL == pattern) {
+      return false;  // terrno has been set
+    }
+  }
+  (void)memcpy(pattern, a, aLen);
+  pattern[aLen] = 0;
+
+  if (bLen >= sizeof(strBuf)) {
+    str = taosMemoryMalloc(bLen + 1);
+    if (NULL == str) {
+      if (pattern != patBuf) {
+        taosMemoryFree(pattern);
+      }
+      return false;  // terrno has been set
+    }
+  }
+  (void)memcpy(str, b, bLen);
+  str[bLen] = 0;
+
+  regex_t *regex = NULL;
+  int32_t ret = threadGetRegComp(&regex, pattern);
+  if (ret != 0) {
+    goto _return;
+  }
+
+  regmatch_t pmatch[1];
+  ret = regexec(regex, str, 1, pmatch, 0);
+  if (ret != 0 && ret != REG_NOMATCH) {
+    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+    (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
+    qDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf);
+  }
+
+_return:
+  if (str != strBuf) {
+    taosMemoryFree(str);
+  }
+  if( pattern != patBuf) {
+    taosMemoryFree(pattern);
+  }
+
+  return ret == 0;
+}
+
+int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+
+  SColumnInfoData *pats = pInput[0].columnData, *sets = pInput[1].columnData, *seps = NULL;
+  char  *patstr = NULL, *setstr = NULL, *sepstr = ","; // "," is the default seperator
+  int32_t patLen = 0, setLen = 0, sepLen = 1;
+  int32_t patNum = pInput[0].numOfRows, setNum = pInput[1].numOfRows, sepNum = 0;
+  bool needFreePat = false, needFreeSet = false, needFreeSep = false;
+
+  if (inputNum == 3) {
+    sepNum = pInput[2].numOfRows;
+    seps = pInput[2].columnData;
+  }
+  int32_t numOfRows = TMAX(TMAX(patNum, setNum), sepNum);
+
+  if ((IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))
+    || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))
+    || (patNum == 1 && colDataIsNull_s(pats, 0))
+    || (setNum == 1 && colDataIsNull_s(sets, 0)))) {
+    colDataSetNNULL(pOutput->columnData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return code;
+  }
+
+  // if there's only one pat/set/sep, get it now to improve performance
+  if (patNum == 1) {
+    patLen = varDataLen(colDataGetData(pats, 0));
+    patstr = varDataVal(colDataGetData(pats, 0));
+    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+      needFreePat = true;
+    }
+  }
+
+  if (setNum == 1) {
+    setLen = varDataLen(colDataGetData(sets, 0));
+    setstr = varDataVal(colDataGetData(sets, 0));
+    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+      needFreeSet = true;
+    }
+  }
+
+  if (sepNum != 1) {
+    // do nothing in this case
+  } else if (colDataIsNull_s(seps, 0)) {
+    // treat null seperator as empty
+    sepstr = NULL;
+    sepLen = 0;
+  } else {
+    sepLen = varDataLen(colDataGetData(seps, 0));
+    sepstr = varDataVal(colDataGetData(seps, 0));
+    if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
+      needFreeSep = true;
+    }
+  }
+
+  bool utf8 = strcasecmp(tsCharset, "UTF-8") == 0;
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int64_t offset = 0;
+
+    if (patNum > 1) {
+      if (colDataIsNull_s(pats, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      if (needFreePat) {
+        taosMemoryFree(patstr);
+        needFreePat = false;
+      }
+      patstr = varDataVal(colDataGetData(pats, i));
+      patLen = varDataLen(colDataGetData(pats, i));
+      if (patLen > 0 && GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
+        SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+        needFreePat = true;
+      }
+    }
+
+    if (setNum > 1) {
+      if (colDataIsNull_s(sets, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      if (needFreeSet) {
+        taosMemoryFree(setstr);
+        needFreeSet = false;
+      }
+      setstr = varDataVal(colDataGetData(sets, i));
+      setLen = varDataLen(colDataGetData(sets, i));
+      if (setLen > 0 && GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+        SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
+        needFreeSet = true;
+      }
+    }
+
+    if (sepNum > 1) {
+      if (needFreeSep) {
+        taosMemoryFree(sepstr);
+        needFreeSep = false;
+      }
+      if (colDataIsNull_s(seps, i)) {
+        sepstr = NULL;
+        sepLen = 0;
+      } else {
+        sepLen = varDataLen(colDataGetData(seps, i));
+        sepstr = varDataVal(colDataGetData(seps, i));
+        if (sepLen > 0 && GET_PARAM_TYPE(&pInput[2]) != TSDB_DATA_TYPE_NCHAR) {
+          SCL_ERR_RET(convNcharToVarchar(sepstr, &sepstr, sepLen, &sepLen, pInput[2].charsetCxt));
+          needFreeSep = true;
+        }
+      }
+    }
+
+    // match pat & set directly when seperator is empty
+    if (sepLen == 0) {
+      if (regexpInSetCompare(patstr, patLen, setstr, setLen)) {
+        offset = 1;
+      }
+      colDataSetInt64(pOutput->columnData, i, &offset);
+      continue;
+    }
+
+    char *start = setstr;
+    for (int32_t j = 0; start < setstr + setLen; j++) {
+      char* end = start;
+
+      while (true) {
+        // set [end] to the end of [setstr] if not enough characters for a seperator
+        if (end + sepLen > setstr + setLen) {
+          end = setstr + setLen;
+          break;
+        }
+        // a seperator is found
+        if (memcmp(end, sepstr, sepLen) == 0) {
+          break;
+        }
+        // not a seperator, advance one character
+        if (utf8) {
+          for (end++; end - setstr < setLen && ((*end & 0xC0) == 0x80); end++);
+        } else {
+          end++;
+        }
+      }
+
+      if (regexpInSetCompare(patstr, patLen, start, end - start)) {
+        offset = j + 1;
+        break;
+      }
+
+      start = end + sepLen;
+    }
+
+    colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  if (needFreePat) {
+    taosMemoryFree(patstr);
+  }
+  if (needFreeSet) {
+    taosMemoryFree(setstr);
+  }
+  if (needFreeSep) {
+    taosMemoryFree(sepstr);
+  }
 
   return code;
 }
@@ -3415,6 +3838,11 @@ int32_t charLengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 
 bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv) {
   pEnv->calcMemSize = sizeof(int64_t);
+  return true;
+}
+
+bool getMaskPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv) {
+  pEnv->calcMemSize = sizeof(int32_t);
   return true;
 }
 

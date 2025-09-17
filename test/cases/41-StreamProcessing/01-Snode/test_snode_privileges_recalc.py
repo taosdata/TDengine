@@ -15,7 +15,7 @@ import os
 import subprocess
 
 
-class TestStreamRecalc:
+class TestStreamPrivilegesRecalc:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -28,7 +28,7 @@ class TestStreamRecalc:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_params_privilage_recalc(self):
         """Privilege: recalculate
 
         1. Check normal user no write privilege to recalc stream.

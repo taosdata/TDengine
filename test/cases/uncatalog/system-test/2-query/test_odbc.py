@@ -1,5 +1,6 @@
 import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
+import platform
 
 class TestOdbc:
 
@@ -41,7 +42,8 @@ class TestOdbc:
 
     def check_get_db_name(self):
         buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/get_db_name_test'%(buildPath)
+        exe_file = "get_db_name_test" if platform.system() != "Windows" else "get_db_name_test.exe"
+        cmdStr = os.path.join(buildPath, "build", "bin", exe_file)
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)
         if ret != 0:

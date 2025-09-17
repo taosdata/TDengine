@@ -880,7 +880,7 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
 
 _end:
   if (needUnlock) {
-    taosWUnLockLatch(&pTask->recalcRequestLock);
+    taosRUnLockLatch(&pTask->recalcRequestLock);
   }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1062,8 +1062,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   }
   int32_t nPseudoCols = TARRAY_SIZE(pVirColIds) - nDataCols;
   if (nPseudoCols > 0) {
-    taosSort((char *)TARRAY_DATA(pVirColIds) + nDataCols * sizeof(col_id_t), nPseudoCols, sizeof(col_id_t),
-             compareUint16Val);
+    taosSort((char *)TARRAY_DATA(pVirColIds) + nDataCols * sizeof(col_id_t), nPseudoCols, sizeof(col_id_t), compareUint16Val);
     col_id_t *pColIds = pVirColIds->pData;
     int32_t   j = nDataCols;
     for (int32_t i = nDataCols + 1; i < TARRAY_SIZE(pVirColIds); i++) {
@@ -1175,17 +1174,8 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   code = cxt.errCode;
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (pTask->trigTsIndex < taosArrayGetSize(pTrigSlotids)) {
-    void *px = taosArrayGet(pTrigSlotids, pTask->trigTsIndex);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-    pTask->trigTsIndex = *(int32_t *)px;
-  }
-
-  if (pTask->calcTsIndex < taosArrayGetSize(pCalcSlotids)) {
-    void *px = taosArrayGet(pCalcSlotids, pTask->calcTsIndex);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-    pTask->calcTsIndex = *(int32_t *)px;
-  }
+  pTask->trigTsIndex = 0;
+  pTask->calcTsIndex = 0;
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     void *px = taosArrayGet(pTrigSlotids, pTask->stateSlotId);
@@ -1681,7 +1671,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
 
   SStreamMgmtReq *pMgmtReq = atomic_load_ptr(&pTask->task.pMgmtReq);
   if (pMgmtReq && pMgmtReq == atomic_val_compare_exchange_ptr(&pTask->task.pMgmtReq, pMgmtReq, NULL)) {
-    stmDestroySStreamMgmtReq(pMgmtReq);
+    tFreeSStreamMgmtReq(pMgmtReq);
     taosMemoryFree(pMgmtReq);
   }
 
@@ -1940,7 +1930,8 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     switch (pRsp->code) {
       case TSDB_CODE_SUCCESS:
       case TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER:
-      case TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND: {
+      case TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND:
+      case TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY: {
         // todo(kjq): retry calc request when trigger could clear data cache manually
         if (pRsp->code != TSDB_CODE_SUCCESS && (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS)) {
           *pErrTaskId = pReq->runnerTaskId;
@@ -3645,12 +3636,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
       pReq->reqId = atomic_fetch_add_64(&pTask->mgmtReqId, 1);
       pReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
-      pReq->cont.fullTableNames = pOrigTableNames;
+      pReq->cont.pReqs = pOrigTableNames;
       pOrigTableNames = NULL;
 
       // wait to be exeucted again
       pContext->status = STRIGGER_CONTEXT_IDLE;
-      pTask->task.pMgmtReq = pReq;
+      atomic_store_ptr(&pTask->task.pMgmtReq, pReq);
       pTask->task.status = STREAM_STATUS_INIT;
       break;
     }
@@ -4353,6 +4344,8 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
           goto _end;
         } else {
           QUERY_CHECK_CONDITION(pContext->pMetaToFetch == NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          taosArrayClearP(pContext->pCalcDataBlocks, (FDelete)blockDataDestroy); 
+          pContext->calcDataBlockIdx = 0;
           for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
                pContext->curReaderIdx++) {
             code = stHistoryContextSendPullReq(
@@ -5701,6 +5694,8 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
   pAddedUids = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pAddedUids, code, lino, _end, terrno);
 
+  bool hasData = false;
+
   for (int32_t i = 0; i < TARRAY_SIZE(pMetadatas); i++) {
     SSDataBlock *pBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pMetadatas, i);
     int32_t      vgId = *(int32_t *)TARRAY_GET_ELEM(pVgIds, i);
@@ -5744,6 +5739,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
       if (!inGroup) {
         continue;
       }
+      hasData = true;
 
       if (pSkeys[i] <= pGroup->oldThreshold &&
           ((pTypes[i] == WAL_DELETE_DATA) || (pTypes[i] == WAL_SUBMIT_DATA && !pTask->ignoreDisorder))) {
@@ -5862,7 +5858,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
   }
 
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
-    pGroup->newThreshold = INT64_MAX;
+    if(hasData) pGroup->newThreshold = INT64_MAX;
     goto _end;
   }
 

@@ -3134,7 +3134,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
       numOfElems++;
       char* pkData = NULL;
-      if (pCtx->hasPrimaryKey) {
+      if (pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, i)) {
+        // pkCol[i] might be null when using cachemodel
+        // however, if using cachemodel, we don't need pk to determine the order
+        // because ts is enough
         pkData = colDataGetData(pkCol, i);
       }
       if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i] ||
@@ -3291,6 +3294,9 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   // handle selectivity
   code = setSelectivityValue(pCtx, pBlock, &pRes->pos, pBlock->info.rows);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at %d, msg:%s", __func__, __LINE__, tstrerror(code));
+  }
 
   return code;
 }
@@ -3430,7 +3436,7 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 
       break;
     }
-  } else if (!pCtx->hasPrimaryKey && pCtx->order == TSDB_ORDER_DESC) {
+  } else if (pCtx->order == TSDB_ORDER_DESC && !pCtx->hasPrimaryKey) {
     // the optimized version only valid if all tuples in one block are monotonious increasing or descreasing.
     // this assumption is NOT always works if project operator exists in downstream.
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
@@ -4752,9 +4758,8 @@ int32_t elapsedFunctionMerge(SqlFunctionCtx* pCtx) {
 
 int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  double        result = (double)pInfo->max - (double)pInfo->min;
-  result = (result >= 0) ? result : -result;
-  pInfo->result = result / pInfo->timeUnit;
+  double        result = (double)(pInfo->max - pInfo->min);
+  pInfo->result = fabs(result) / pInfo->timeUnit;
   return functionFinalize(pCtx, pBlock);
 }
 
@@ -7532,8 +7537,7 @@ int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {
     pkCompareFn = getKeyComparFunc(pInfo->pkType, TSDB_ORDER_DESC);
   }
 
-  // TODO it traverse the different way.
-  // last_row function does not ignore the null value
+  // data is guaranteed to be in descending order
   for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
     numOfElems++;
 

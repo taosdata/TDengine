@@ -99,6 +99,7 @@ struct STFileSet {
   SVATaskID mergeTask;
   SVATaskID compactTask;
   SVATaskID retentionTask;
+  SVATaskID migrateTask;
 
   // block commit variables
   TdThreadCond canCommit;

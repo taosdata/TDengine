@@ -6,10 +6,13 @@ import time
 class TestWindowTrueFor:
 
     def test_window_true_for(self):
-        """迁移自老用例
+        """OldPy: true for
 
         tests/system-test/2-query/test_window_true_for.py
 
+        Catalog:
+            - Streams:OldPyCases
+            
         Since: v3.3.7.0
 
         Labels: common,ci

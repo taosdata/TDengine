@@ -15,7 +15,7 @@ import os
 import subprocess
 
 
-class TestStreamParametersCheck:
+class TestStreamParametersCheckMinVal:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     dbname = "test1"
     dbname2 = "test2"
@@ -28,7 +28,7 @@ class TestStreamParametersCheck:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_snode_mgmt(self):
+    def test_params_check_minval(self):
         """Parameter: check maximum value
 
         Check the maximum values of the following parameters:
