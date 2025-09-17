@@ -887,6 +887,9 @@ int32_t smDeployStreams(SStreamDeployActions* actions) {
   int32_t lino = 0;
   int64_t streamId = 0;
   int32_t listNum = taosArrayGetSize(actions->streamList);
+  int64_t allocatorRefId = 0;
+  
+  TAOS_CHECK_EXIT(stmBuildAcquireAllocator(&allocatorRefId, streamId));
   
   for (int32_t i = 0; i < listNum; ++i) {
     SStmStreamDeploy* pDeploy = taosArrayGet(actions->streamList, i);
@@ -895,12 +898,14 @@ int32_t smDeployStreams(SStreamDeployActions* actions) {
     (void)smDeployTasks(pDeploy);
   }
 
-  return code;
-
 _exit:
 
-  stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  stmReleaseDestroyAllocator(allocatorRefId);
 
+  if (code) {
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
   return code;
 }
 

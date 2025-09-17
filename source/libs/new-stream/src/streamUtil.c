@@ -933,3 +933,42 @@ _end:
   }
   return code;
 }
+
+int32_t stmBuildAcquireAllocator(int64_t* allocatorRefId, int64_t streamId) {
+  if (*allocatorRefId > 0 && nodesIsAllocatorAcquired()) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  
+  TAOS_CHECK_EXIT(nodesCreateAllocator(streamId, tsQueryNodeChunkSize, allocatorRefId));
+
+  TAOS_CHECK_EXIT(nodesAcquireAllocator(*allocatorRefId));
+
+  cJSON_Hooks hooks = {nodesMalloc, nodesFree};
+  cJSON_InitHooks(&hooks);
+    
+_exit:
+
+  if (code) {
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;  
+}
+
+void stmReleaseDestroyAllocator(int64_t allocatorRefId) {
+  if (allocatorRefId <= 0) {
+    return;
+  }
+
+  (void)nodesReleaseAllocator(allocatorRefId);
+
+  nodesDestroyAllocator(allocatorRefId);
+
+  cJSON_Hooks empty_hooks = {0};
+  cJSON_InitHooks(&empty_hooks);
+}
+
+
+

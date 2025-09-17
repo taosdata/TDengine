@@ -278,6 +278,9 @@ void    smUndeploySnodeTasks(bool cleanup);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
 
+int32_t stmBuildAcquireAllocator(int64_t* allocatorRefId, int64_t streamId);
+void stmReleaseDestroyAllocator(int64_t allocatorRefId);
+
 #ifdef __cplusplus
 }
 #endif

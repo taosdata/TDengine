@@ -181,6 +181,16 @@ static int32_t nodesCalloc(int32_t num, int32_t size, void** pOut) {
   return TSDB_CODE_SUCCESS;
 }
 
+void* nodesMalloc(size_t size) {
+  void* out = NULL;
+  int32_t code = nodesCalloc(1, size, out);
+  if (code) {
+    terrno = code;
+  }
+  
+  return out;
+}
+
 void nodesFree(void* p) {
   char* ptr = (char*)p - NODE_ALLOCATOR_HEAD_LEN;
   if (0 == *ptr) {
