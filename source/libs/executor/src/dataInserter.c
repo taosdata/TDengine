@@ -2712,6 +2712,7 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
   SVDropTbBatchReq         req = {.nReqs = 1};
   SVDropTbReq*             pDropReq = NULL;
   int32_t                  msgLen = 0;
+  tsem_t*                  pSem = NULL;
 
   SInsertTableInfo** ppTbInfo = NULL;
   int32_t            vgId = 0;
@@ -2728,6 +2729,9 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
     pDropReq->uid = (*ppTbInfo)->uid;
     pDropReq->igNotExists = true;
     vgId = (*ppTbInfo)->vgid;
+
+    int64_t key[2] = {pReq->streamId, pReq->gid};
+    TAOS_UNUSED(taosHashRemove(gStreamGrpTableHash, key, sizeof(key)));
   } else {
     // code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
     // stDebug("stRunnerOutputBlock tbname: %s", pExec->tbname);
@@ -2756,6 +2760,7 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
   SDropTbCtx ctx = {.req = pReq};
   code = tsem_init(&ctx.ready, 0, 0);
   QUERY_CHECK_CODE(code, lino, _end);
+  pSem = &ctx.ready;
 
   code = sendDropTbRequest(&ctx, pMsg, msgLen, pMsgCb->clientRpc, &vgInfo.epSet);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2773,7 +2778,10 @@ _end:
       taosMemoryFreeClear(pMsg);
     }
   }
-  taosArrayDestroy(req.pArray);
+  if (pSem) tsem_destroy(pSem);
   if (pDropReq && pDropReq->name) taosMemoryFreeClear(pDropReq->name);
+  if (ppTbInfo) releaseStreamInsertTableInfo(ppTbInfo);
+  taosArrayDestroy(req.pArray);
+
   return code;
 }

@@ -3158,7 +3158,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   // amend ekey of interval window trigger and sliding trigger
   for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); i++) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
-    if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+    if (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval > 0) {
       pParam->wend++;
       pParam->wduration++;
     }
@@ -5337,7 +5337,7 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
   // amend ekey of interval window trigger and sliding trigger
   for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); i++) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
-    if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+    if (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval > 0) {
       pParam->wend++;
       pParam->wduration++;
     }
