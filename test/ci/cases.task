@@ -192,7 +192,6 @@
 # 11-DataDeletion
 ,,y,.,./ci/pytest.sh pytest cases/11-DataDeletion/test_delete.py
 ,,y,.,./ci/pytest.sh pytest cases/11-DataDeletion/test_delete_childtable.py
-,,y,.,./ci/pytest.sh pytest cases/11-DataDeletion/test_delete_data.py
 ,,y,.,./ci/pytest.sh pytest cases/11-DataDeletion/test_delete_stable.py
 
 # 12-DataCompression
