@@ -2777,7 +2777,41 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerWalDataNewRequest *pReq = &pProgress->pullReq.walDataNewReq;
       pReq->versions = pProgress->pVersions;
       pReq->ranges = pContext->pRanges;
-      // todo(kjq): fill range
+      // fill versions according to groupsToCheck
+      taosArrayClear(pReq->versions);
+      SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
+      while (pGroup != NULL) {
+        if (pGroup->oldThreshold < pGroup->newThreshold) {
+          SObjList *pMetas = tSimpleHashGet(pGroup->pWalMetas, &pProgress->pTaskAddr->nodeId, sizeof(int32_t));
+          if (pMetas != NULL) {
+            SSTriggerMetaData *pMeta = NULL;
+            SObjListIter       iter = {0};
+            taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
+            while ((pMeta = taosObjListIterNext(&iter)) != NULL) {
+              if (pMeta->skey > pGroup->newThreshold) {
+                continue;
+              }
+              void *px = taosArrayPush(pReq->versions, &pMeta->ver);
+              QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+            }
+          }
+        }
+        pGroup = TD_DLIST_NODE_NEXT(pGroup);
+      }
+      taosArraySort(pReq->versions, compareInt64Val);
+      int64_t *pv = TARRAY_DATA(pReq->versions);
+      for (int32_t i = 1; i < TARRAY_SIZE(pReq->versions); i++) {
+        int64_t *pi = TARRAY_GET_ELEM(pReq->versions, i);
+        if (*pv != *pi) {
+          pv++;
+          if (pv != pi) {
+            *pv = *pi;
+          }
+        }
+      }
+      if (TARRAY_SIZE(pReq->versions) > 0) {
+        TARRAY_SIZE(pReq->versions) = TARRAY_ELEM_IDX(pReq->versions, pv) + 1;
+      }
       break;
     }
 
@@ -2961,6 +2995,36 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
           }
         }
         pInfo = tSimpleHashIterate(pTask->pOrigTableInfos, pInfo, &iter1);
+      }
+      int32_t iter = 0;
+      void   *px = tSimpleHashIterate(pReq->uidInfoTrigger, NULL, &iter);
+      while (px != NULL) {
+        int64_t   *pUid = tSimpleHashGetKey(px, NULL);
+        SSHashObj *info = *(SSHashObj **)px;
+        int32_t    iter1 = 0;
+        void      *px1 = tSimpleHashIterate(info, NULL, &iter1);
+        while (px1 != NULL) {
+          int16_t *slot = tSimpleHashGetKey(px1, NULL);
+          int16_t *cid = (int16_t *)px1;
+          ST_TASK_DLOG("SetTable: [trigger] uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *slot, *cid);
+          px1 = tSimpleHashIterate(info, px1, &iter1);
+        }
+        px = tSimpleHashIterate(pReq->uidInfoTrigger, px, &iter);
+      }
+      iter = 0;
+      px = tSimpleHashIterate(pReq->uidInfoCalc, NULL, &iter);
+      while (px != NULL) {
+        int64_t   *pUid = tSimpleHashGetKey(px, NULL);
+        SSHashObj *info = *(SSHashObj **)px;
+        int32_t    iter1 = 0;
+        void      *px1 = tSimpleHashIterate(info, NULL, &iter1);
+        while (px1 != NULL) {
+          int16_t *slot = tSimpleHashGetKey(px1, NULL);
+          int16_t *cid = (int16_t *)px1;
+          ST_TASK_DLOG("SetTable: [calc] uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *slot, *cid);
+          px1 = tSimpleHashIterate(info, px1, &iter1);
+        }
+        px = tSimpleHashIterate(pReq->uidInfoCalc, px, &iter);
       }
       break;
     }
@@ -3958,7 +4022,17 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         code = stRealtimeContextCheck(pContext);
         QUERY_CHECK_CODE(code, lino, _end);
       } else {
-        // todo(kjq): fill ranges and versions according to groupsToCheck
+        // fill ranges according to groupsToCheck
+        tSimpleHashClear(pContext->pRanges);
+        SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
+        while (pGroup != NULL) {
+          if (pGroup->oldThreshold < pGroup->newThreshold) {
+            int64_t range[2] = {pGroup->oldThreshold + 1, pGroup->newThreshold};
+            code = tSimpleHashPut(pContext->pRanges, &pGroup->gid, sizeof(int64_t), range, sizeof(range));
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          pGroup = TD_DLIST_NODE_NEXT(pGroup);
+        }
         for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
              pContext->curReaderIdx++) {
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_DATA_NEW);
