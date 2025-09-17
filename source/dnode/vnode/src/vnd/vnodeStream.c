@@ -1086,7 +1086,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
       for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
-
+        if (pColData->info.colId == -1) continue;
         int16_t colId = 0;
         if (sStreamReaderInfo->isVtableStream){
           void* px = tSimpleHashGet(rsp->isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &submitTbData.uid, sizeof(submitTbData.uid));
