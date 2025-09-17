@@ -6872,10 +6872,10 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[i];
             TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
           } else {
-            if (pTask->stateExtend == 1) {
+            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[i] - 1;
-            } else if (pTask->stateExtend == 2) {
+            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
               startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
             }
             if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
@@ -6893,7 +6893,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
                                                  &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
-          if (pTask->stateExtend == 2) {
+          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD || IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
             code = stRealtimeGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true);
             QUERY_CHECK_CODE(code, lino, _end);
             TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
@@ -6901,6 +6901,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             code = stRealtimeGroupOpenWindow(pGroup, pTsData[i], &pExtraNotifyContent, false, true);
             QUERY_CHECK_CODE(code, lino, _end);
           }
+          TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[i];
           memcpy(pStateData, newVal, bytes);
         }
         pGroup->numPendingNull = 0;

@@ -978,7 +978,7 @@ void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsLis
   int32_t rowIndex, uint64_t groupId, const EStateWinExtendOption* extendOption, bool hasPrevWin) {
   pRowSup->groupId = groupId;
   if (*extendOption == STATE_WIN_EXTEND_OPTION_DEFAULT ||
-      *extendOption == STATE_WIN_EXTEND_OPTION_BACKWORD) {
+      *extendOption == STATE_WIN_EXTEND_OPTION_BACKWARD) {
     pRowSup->win.skey = hasPrevWin ? tsList[rowIndex] : tsList[0];
     pRowSup->startRowIndex = hasPrevWin ? rowIndex : 0;
     pRowSup->numOfRows = !hasPrevWin && hasContinuousNullRows(pRowSup) ?
@@ -997,7 +997,7 @@ void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsLis
 // @param rowIndex the index of the first row of next window
 void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, 
   int32_t rowIndex, const EStateWinExtendOption* extendOption) {
-  if (*extendOption == STATE_WIN_EXTEND_OPTION_BACKWORD) {
+  if (*extendOption == STATE_WIN_EXTEND_OPTION_BACKWARD) {
       pRowSup->win.ekey = tsList[rowIndex] - 1;
       // continuous rows having null state col should be included in this window
       pRowSup->numOfRows += hasContinuousNullRows(pRowSup) ?
@@ -1469,7 +1469,7 @@ static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIn
   if (pIntervalInfo->pPrevValues != NULL) {
     taosArrayDestroyEx(pIntervalInfo->pPrevValues, freeItem);
     pIntervalInfo->pPrevValues = NULL;
-    initWindowInterpPrevVal(pIntervalInfo);
+    code = initWindowInterpPrevVal(pIntervalInfo);
   }
 
   cleanupGroupResInfo(&pIntervalInfo->groupResInfo);
