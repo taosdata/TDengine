@@ -372,8 +372,6 @@ _exit:
 }
 
 static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
-  int32_t tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid);
-
   int32_t code = 0;
   int32_t lino = 0;
 
