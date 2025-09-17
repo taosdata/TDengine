@@ -591,28 +591,98 @@ class TestStateWindowExtend:
         tdSql.error("select count(*) from ntb state_window(s, '1')")
         tdSql.error("select count(*) from ntb state_window(s, 'abc')")
         tdSql.error("select count(*) from ntb state_window(s, true)")
-        tdSql.error("select count(*) from ntb state_window(s, 3d)")
+        tdSql.error("select count(*) from ntb state_window(s, 1d)")
         tdSql.error("select count(*) from ntb state_window(s, 1.5)")
         tdSql.error("select count(*) from ntb state_window(s, *)")
         tdSql.error("select count(*) from ntb state_window(s, '2025-09-03')")
         tdSql.error("select count(*) from ntb state_window(s, 1, 2)")
         tdSql.error("select count(*) from ntb state_window(s, 1+1)")
+        tdSql.error("select count(*) from ntb state_window(s, 1*1)")
         tdSql.error("select count(*) from ntb state_window(s, case when now < 2025-01-01 then 0 else 1)")
 
-    def check_extend_stream_computing(self):
+    def check_stream_computing_normal_table(self):
         tdSql.execute("use testdb")
 
         # create streams
         streams: list[StreamItem] = []
         stream = StreamItem (
             id=0,
-            stream="create stream sc0 interval(5s) sliding(5s) from stb \
-                        partition by tbname into res_sc0 as \
+            stream="create stream scn0 count_window(5) from ntb into res_scn0 as \
+                        select _wstart, _wduration, _wend, _twstart, _twend, \
+                        count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v \
+                        from ntb where ts >= _twstart and ts <= _twend \
+                        state_window(s, 0)",
+            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_scn0 \
+                        where _wend <= '2025-09-02 08:00:04.000'",
+            exp_query="select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v) from ntb \
+                        where ts >= '2025-09-02 08:00:00.000' and ts <= '2025-09-02 08:00:04.000' state_window(s)",
+        )
+        streams.append(stream)
+
+        stream = StreamItem (
+            id=1,
+            stream="create stream scn1 count_window(5) from ntb into res_scn1 as \
+                        select _wstart, _wduration, _wend, _twstart, _twend, \
+                        count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v \
+                        from ntb where ts >= _twstart and ts <= _twend \
+                        state_window(s, 1)",
+            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_scn1 \
+                        where _wend <= '2025-09-02 08:00:04.000'",
+            exp_query="select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v) from ntb \
+                        where ts >= '2025-09-02 08:00:00.000' and ts <= '2025-09-02 08:00:04.000' state_window(s, 1)",
+        )
+        streams.append(stream)
+
+        stream = StreamItem (
+            id=2,
+            stream="create stream scn2 count_window(5) from ntb into res_scn2 as \
+                        select _wstart, _wduration, _wend, _twstart, _twend, \
+                        count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v \
+                        from ntb where ts >= _twstart and ts <= _twend \
+                        state_window(s, 2)",
+            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_scn2 \
+                        where _wend <= '2025-09-02 08:00:04.000'",
+            exp_query="select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v) from ntb \
+                        where ts >= '2025-09-02 08:00:00.000' and ts <= '2025-09-02 08:00:04.000' state_window(s, 2)",
+        )
+        streams.append(stream)
+
+        # start streams
+        for s in streams:
+            s.createStream()
+        tdStream.checkStreamStatus()
+
+        # insert data
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:00.000', 'a', 3.3)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:01.000', 'a', 4.4)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:02.000', 'b', 5.5)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:03.000', 'a', 2.2)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:04.000', null, 1.1)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:05.000', null, 6.6)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:06.000', 'b', 9.9)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:07.000', null, 7.7)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:08.000', 'a', 8.8)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:09.000', 'a', 4.4)")
+        tdSql.execute("insert into ntb values('2025-09-02 08:00:10.000', 'b', 5.5)")
+
+        # check results
+        for s in streams:
+            s.checkResults()
+
+    def check_stream_computing_super_table(self):
+        tdSql.execute("use testdb")
+
+        # create streams
+        streams: list[StreamItem] = []
+        stream = StreamItem (
+            id=3,
+            stream="create stream scs0 interval(5s) sliding(5s) from stb \
+                        partition by tbname into res_scs0 as \
                         select _wstart, _wduration, _wend, _twstart, _twend, \
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v \
                         from %%tbname where ts >= _twstart and ts < _twend \
                         state_window(s, 0)",
-            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_sc0 \
+            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_scs0 \
                         where _wend < '2025-09-02 08:00:05.000'",
             exp_query="select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v) from ctb1 \
                         where ts >= '2025-09-02 08:00:00.000' and ts < '2025-09-02 08:00:05.000' state_window(s)",
@@ -620,14 +690,14 @@ class TestStateWindowExtend:
         streams.append(stream)
 
         stream = StreamItem (
-            id=1,
-            stream="create stream sc1 interval(5s) sliding(5s) from stb \
-                        partition by tbname into res_sc1 as \
+            id=4,
+            stream="create stream scs1 interval(5s) sliding(5s) from stb \
+                        partition by tbname into res_scs1 as \
                         select _wstart, _wduration, _wend, _twstart, _twend, \
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v \
                         from %%tbname where ts >= _twstart and ts < _twend \
                         state_window(s, 1)",
-            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_sc1 \
+            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_scs1 \
                         where _wend < '2025-09-02 08:00:05.000'",
             exp_query="select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v) from ctb1 \
                         where ts >= '2025-09-02 08:00:00.000' and ts < '2025-09-02 08:00:05.000' state_window(s, 1)",
@@ -635,14 +705,14 @@ class TestStateWindowExtend:
         streams.append(stream)
 
         stream = StreamItem (
-            id=2,
-            stream="create stream sc2 interval(5s) sliding(5s) from stb \
-                        partition by tbname into res_sc2 as \
+            id=5,
+            stream="create stream scs2 interval(5s) sliding(5s) from stb \
+                        partition by tbname into res_scs2 as \
                         select _wstart, _wduration, _wend, _twstart, _twend, \
                         count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v \
                         from %%tbname where ts >= _twstart and ts < _twend \
                         state_window(s, 2)",
-            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_sc2 \
+            res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_scs2 \
                         where _wend < '2025-09-02 08:00:05.000'",
             exp_query="select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v) from ctb1 \
                         where ts >= '2025-09-02 08:00:00.000' and ts < '2025-09-02 08:00:05.000' state_window(s, 2)",
@@ -668,12 +738,135 @@ class TestStateWindowExtend:
         tdSql.execute("insert into ctb1 values('2025-09-02 08:00:10.000', 'b', 5.5)")
 
         # check results
+        # for s in streams:
+        #     s.checkResults()
+
+    def check_stream_trigger_normal_table(self):
+        tdSql.execute("use testdb")
+
+        # create streams
+        streams: list[StreamItem] = []
+        stream = StreamItem (
+            id=6,
+            stream="create stream stn0 state_window(s, 0) from ntb into res_stn0 as \
+                        select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, \
+                        count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend",
+            res_query="select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn0",
+            exp_query="select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb \
+                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s) limit 5",
+        )
+        streams.append(stream)
+
+        stream = StreamItem (
+            id=7,
+            stream="create stream stn1 state_window(s, 1) from ntb into res_stn1 as \
+                        select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, \
+                        count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend",
+            res_query="select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn1",
+            exp_query="select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb \
+                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s, 1) limit 5",
+        )
+        streams.append(stream)
+
+        stream = StreamItem (
+            id=8,
+            stream="create stream stn2 state_window(s, 2) from ntb into res_stn2 as \
+                        select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, \
+                        count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend",
+            res_query="select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn2",
+            exp_query="select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb \
+                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s, 2) limit 5",
+        )
+        streams.append(stream)
+
+        # start streams
+        for s in streams:
+            s.createStream()
+        tdStream.checkStreamStatus("stn0")
+        tdStream.checkStreamStatus("stn1")
+        tdStream.checkStreamStatus("stn2")
+
+        # insert data
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:00.000', null, 3.3)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:01.000', 'a', 4.4)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:02.000', 'b', 5.5)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:03.000', 'a', 2.2)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:04.000', null, 1.1)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:05.000', null, 6.6)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:06.000', 'b', 9.9)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:07.000', null, 7.7)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:08.000', 'a', 8.8)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:09.000', null, 4.4)")
+        tdSql.execute("insert into ntb values('2025-09-03 08:00:10.000', 'b', 5.5)")
+
+        # check results
+        for s in streams:
+            s.checkResults()
+    
+    def check_stream_trigger_super_table(self):
+        tdSql.execute("use testdb")
+
+        # create streams
+        streams: list[StreamItem] = []
+        stream = StreamItem (
+            id=9,
+            stream="create stream sts0 state_window(s, 0) from stb partition by tbname into res_sts0 as \
+                        select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, \
+                        count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend",
+            res_query="select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts0",
+            exp_query="select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 \
+                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s) limit 5",
+        )
+        streams.append(stream)
+
+        stream = StreamItem (
+            id=10,
+            stream="create stream sts1 state_window(s, 1) from stb partition by tbname into res_sts1 as \
+                        select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, \
+                        count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend",
+            res_query="select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts1",
+            exp_query="select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 \
+                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s, 1) limit 5",
+        )
+        streams.append(stream)
+
+        stream = StreamItem (
+            id=11,
+            stream="create stream sts2 state_window(s, 2) from stb partition by tbname into res_sts2 as \
+                        select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, \
+                        count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend",
+            res_query="select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts2",
+            exp_query="select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 \
+                        where ts >= '2025-09-03 08:00:00.000' and ts <= '2025-09-03 08:00:10.000' state_window(s, 2) limit 5",
+        )
+        streams.append(stream)
+
+        # start streams
+        for s in streams:
+            s.createStream()
+        tdStream.checkStreamStatus()
+
+        # insert data
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:00.000', null, 3.3)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:01.000', 'a', 4.4)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:02.000', 'b', 5.5)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:03.000', 'a', 2.2)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:04.000', null, 1.1)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:05.000', null, 6.6)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:06.000', 'b', 9.9)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:07.000', null, 7.7)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:08.000', 'a', 8.8)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:09.000', null, 4.4)")
+        tdSql.execute("insert into ctb1 values('2025-09-03 08:00:10.000', 'b', 5.5)")
+
+        # check results
         for s in streams:
             s.checkResults()
 
     # run
     def test_state_window_extend(self):
-        """
+        """summary: test extend parameter in state window
+
         description: test extend parameter in state window
             in both batch query and stream computing scenarios
 
@@ -681,7 +874,7 @@ class TestStateWindowExtend:
 
         Labels: state window, extend, stream
 
-        Jira: https://jira.taosdata.com:18080/browse/TS-7129
+        Jira: TS-7129
 
         Catalog:
             - xxx:xxx
@@ -692,11 +885,14 @@ class TestStateWindowExtend:
         """
 
         self.prepare_data()
+        tdStream.createSnode()
+
         self.check_wrong_input()
         self.check_extend_normal_table()
         self.check_extend_super_table()
         self.check_extend_ns_db()
 
-        tdStream.createSnode()
-        self.check_extend_stream_computing()
-        # self.check_extend_stream_trigger()
+        self.check_stream_computing_normal_table()
+        self.check_stream_computing_super_table()
+        self.check_stream_trigger_normal_table()
+        self.check_stream_trigger_super_table()

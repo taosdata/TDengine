@@ -7653,8 +7653,8 @@ static int32_t checkStateExtend(STranslateContext *pCxt, SNode *pNode) {
   }
   int32_t option = pExtend->datum.i;
   if (option != STATE_WIN_EXTEND_OPTION_DEFAULT &&
-      option != STATE_WIN_EXTEND_OPTION_FORWORD &&
-      option != STATE_WIN_EXTEND_OPTION_BACKWORD) {
+      option != STATE_WIN_EXTEND_OPTION_FORWARD &&
+      option != STATE_WIN_EXTEND_OPTION_BACKWARD) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND);
   }
   return TSDB_CODE_SUCCESS;

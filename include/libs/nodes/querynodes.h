@@ -360,8 +360,8 @@ typedef struct SLimitNode {
 
 typedef enum EStateWinExtendOption {
   STATE_WIN_EXTEND_OPTION_DEFAULT  = 0,
-  STATE_WIN_EXTEND_OPTION_BACKWORD = 1,
-  STATE_WIN_EXTEND_OPTION_FORWORD  = 2,
+  STATE_WIN_EXTEND_OPTION_BACKWARD = 1,
+  STATE_WIN_EXTEND_OPTION_FORWARD  = 2,
 } EStateWinExtendOption;
 
 typedef struct SStateWindowNode {
