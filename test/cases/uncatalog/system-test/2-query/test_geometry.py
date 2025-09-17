@@ -5,21 +5,21 @@ class TestGeometry:
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        # tdSql.init(conn.cursor())
 
         # WKT strings to be input as GEOMETRY type
-        self.point = "POINT (3.000000 6.000000)"
-        self.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
-        self.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
-        self.polygon_irregular = "POLYGON ((3 006, 5.00 6, 05.0 8, 3.000 8.00, 3.0 6))" # actually same with self.polygon
+        cls.point = "POINT (3.000000 6.000000)"
+        cls.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
+        cls.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
+        cls.polygon_irregular = "POLYGON ((3 006, 5.00 6, 05.0 8, 3.000 8.00, 3.0 6))" # actually same with self.polygon
 
         # expected errno
-        self.errno_TSC_SQL_SYNTAX_ERROR = -2147483114;
-        self.errno_PAR_SYNTAX_ERROR = -2147473920
+        cls.errno_TSC_SQL_SYNTAX_ERROR = -2147483114
+        cls.errno_PAR_SYNTAX_ERROR = -2147473920
 
-        self.errno_FUNTION_PARA_NUM = -2147473407;
-        self.errno_FUNTION_PARA_TYPE = -2147473406;
-        self.errno_FUNTION_PARA_VALUE = -2147473405;
+        cls.errno_FUNTION_PARA_NUM = -2147473407
+        cls.errno_FUNTION_PARA_TYPE = -2147473406
+        cls.errno_FUNTION_PARA_VALUE = -2147473405
 
     def prepare_data(self, dbname = "db"):
         tdSql.execute(
