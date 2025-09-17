@@ -314,18 +314,18 @@ static int32_t tsdbLastRowInitColStatus(SLastRow *pLastRow, STSchema *pTSchema) 
   return TSDB_CODE_SUCCESS;
 }
 
-static ELastCacheStatus tsdbLastRowGetLastColValColStatus(SLastRow *pLastRow, int16_t cid) {
+static SColCacheStatus *tsdbLastRowGetLastColValColStatus(SLastRow *pLastRow, int16_t cid) {
   if (!pLastRow || !pLastRow->colStatus) {
-    return TSDB_LAST_CACHE_NO_CACHE;
+    return NULL;
   }
 
   for (int32_t i = 0; i < pLastRow->numCols; i++) {
     if (pLastRow->colStatus[i].cid == cid) {
-      return pLastRow->colStatus[i].status;
+      return &pLastRow->colStatus[i];
     }
   }
 
-  return TSDB_LAST_CACHE_NO_CACHE;
+  return NULL;
 }
 
 static int32_t tsdbLastRowSetColStatus(SLastRow *pLastRow, int16_t cid, ELastCacheStatus status) {
@@ -1527,9 +1527,9 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       }
 
       // Check column-specific cache status
-      ELastCacheStatus colStatus = tsdbLastRowGetLastColValColStatus(pLastRow, cid);
+      SColCacheStatus *colStatus = tsdbLastRowGetLastColValColStatus(pLastRow, cid);
 
-      if (colStatus == TSDB_LAST_CACHE_NO_CACHE) {
+      if (colStatus == NULL || colStatus->status == TSDB_LAST_CACHE_NO_CACHE) {
         // Column is invalid in LRU cache, keep it in remainCols for RocksDB/TSDB loading
         int16_t  cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
         SLastCol noneCol = {.rowKey.ts = TSKEY_MIN,
@@ -1548,7 +1548,9 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       // Column is valid in LRU cache, extract it and add to result
       SLastCol lastCol;
       lastCol.rowKey = pLastRow->rowKey.key;
-      lastCol.cacheStatus = colStatus;
+      lastCol.rowKey.ts = colStatus->lastTs;
+      
+      lastCol.cacheStatus = colStatus->status;
 
       if (pCol && colIndex >= 0) {
         // Extract column value from row
@@ -1633,8 +1635,8 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
           }
 
           // Check if this column is still invalid in the cached row
-          ELastCacheStatus colStatus = tsdbLastRowGetLastColValColStatus(pLastRow, cid);
-          if (colStatus == TSDB_LAST_CACHE_NO_CACHE) {
+          SColCacheStatus *colStatus = tsdbLastRowGetLastColValColStatus(pLastRow, cid);
+          if (colStatus == NULL || colStatus->status == TSDB_LAST_CACHE_NO_CACHE) {
             // Column is still invalid, keep it in remainCols
             taosArrayPush(newRemainCols, idxKey);
             continue;
@@ -1643,7 +1645,8 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
           // Column is now valid, extract from cached row
           SLastCol lastCol;
           lastCol.rowKey = pLastRow->rowKey.key;
-          lastCol.cacheStatus = colStatus;
+          lastCol.rowKey.ts = colStatus->lastTs;
+          lastCol.cacheStatus = colStatus->status;
 
           if (pCol && colIndex >= 0) {
             SColVal colVal;
@@ -1725,8 +1728,8 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
                 }
 
                 // Check column status in RocksDB row
-                ELastCacheStatus colStatus = tsdbLastRowGetLastColValColStatus(pRocksRow, cid);
-                if (colStatus == TSDB_LAST_CACHE_NO_CACHE) {
+                SColCacheStatus *colStatus = tsdbLastRowGetLastColValColStatus(pRocksRow, cid);
+                if (colStatus == NULL || colStatus->status == TSDB_LAST_CACHE_NO_CACHE) {
                   // Column is still invalid in RocksDB, keep it for TSDB loading
                   taosArrayPush(newRemainCols, idxKey);
                   continue;
@@ -1735,7 +1738,8 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
                 // Column is valid in RocksDB, extract it
                 SLastCol lastCol;
                 lastCol.rowKey = pRocksRow->rowKey.key;
-                lastCol.cacheStatus = colStatus;
+                lastCol.rowKey.ts = colStatus->lastTs;
+                lastCol.cacheStatus = colStatus->status;
 
                 if (pCol && colIndex >= 0) {
                   SColVal colVal;
