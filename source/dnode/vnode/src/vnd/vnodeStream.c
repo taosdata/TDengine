@@ -342,7 +342,7 @@ static int32_t reloadTableList(SStreamTriggerReaderInfo* sStreamReaderInfo){
   return generateTablistForStreamReader(sStreamReaderInfo->pVnode, sStreamReaderInfo, false);
 }
 
-static int32_t scanInsertTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, void* data, int32_t len) {
+static int32_t scanCreateTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, void* data, int32_t len) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SDecoder decoder = {0};
@@ -360,10 +360,10 @@ static int32_t scanInsertTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, v
     uint64_t id = 0;
     if (pCreateReq->type == TSDB_NORMAL_TABLE || 
         uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false)) {
-      ST_TASK_ILOG("stream reader scan insert table jump, %s", pCreateReq->name);
+      ST_TASK_ILOG("stream reader scan create table jump, %s", pCreateReq->name);
       continue;
     }
-    ST_TASK_ILOG("stream reader scan insert table %s", pCreateReq->name);
+    ST_TASK_ILOG("stream reader scan create table %s", pCreateReq->name);
 
     found = true;
     break;
@@ -374,6 +374,23 @@ static int32_t scanInsertTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, v
 end:
   tDeleteSVCreateTbBatchReq(&req);
   tDecoderClear(&decoder);
+  return code;
+}
+
+static int32_t processAutoCreateTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SVCreateTbReq* pCreateReq) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  void*    pTask = sStreamReaderInfo->pTask;
+  uint64_t id = 0;
+  if (pCreateReq->type == TSDB_NORMAL_TABLE || 
+      uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false)) {
+    ST_TASK_DLOG("stream reader scan autu create table jump, %s", pCreateReq->name);
+    goto end;
+  }
+  ST_TASK_ILOG("stream reader scan autu create table %s", pCreateReq->name);
+
+  STREAM_CHECK_RET_GOTO(reloadTableList(sStreamReaderInfo));
+end:
   return code;
 }
 
@@ -451,13 +468,13 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
   int32_t code = 0;
   int32_t lino = 0;
   WalMetaResult walMeta = {0};
+  SSubmitTbData submitTbData = {0};
   
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  SSubmitTbData submitTbData = {0};
   uint8_t       version = 0;
   if (tDecodeI32v(pCoder, &submitTbData.flags) < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -468,11 +485,10 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
 
   // STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    if (tStartDecode(pCoder) < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      TSDB_CHECK_CODE(code, lino, end);
-    }
-    tEndDecode(pCoder);
+    submitTbData.pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    STREAM_CHECK_NULL_GOTO(submitTbData.pCreateTbReq, terrno);
+    STREAM_CHECK_RET_GOTO(tDecodeSVCreateTbReq(pCoder, submitTbData.pCreateTbReq));
+    STREAM_CHECK_RET_GOTO(processAutoCreateTableNew(sStreamReaderInfo, submitTbData.pCreateTbReq));
   }
 
   // submit data
@@ -557,6 +573,8 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
   }
 
 end:
+  tDestroySVSubmitCreateTbReq(submitTbData.pCreateTbReq, TSDB_MSG_FLG_DECODE);
+  taosMemoryFreeClear(submitTbData.pCreateTbReq);
   tEndDecode(pCoder);
   return code;
 }
@@ -687,7 +705,7 @@ static int32_t processMeta(int16_t msgType, SStreamTriggerReaderInfo* sStreamRea
   } else if (msgType == TDMT_VND_DROP_STB) {
     STREAM_CHECK_RET_GOTO(scanDropSTableNew(sStreamReaderInfo, data, len));
   } else if (msgType == TDMT_VND_CREATE_TABLE) {
-    STREAM_CHECK_RET_GOTO(scanInsertTableNew(sStreamReaderInfo, data, len));
+    STREAM_CHECK_RET_GOTO(scanCreateTableNew(sStreamReaderInfo, data, len));
   } else if (msgType == TDMT_VND_ALTER_STB) {
     // STREAM_CHECK_RET_GOTO(scanAlterSTableNew(sStreamReaderInfo, data, len));
   } else if (msgType == TDMT_VND_ALTER_TABLE) {
@@ -1234,11 +1252,10 @@ static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* s
 
   // STREAM_CHECK_CONDITION_GOTO(version < 2, TDB_CODE_SUCCESS);
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    if (tStartDecode(pCoder) < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      TSDB_CHECK_CODE(code, lino, end);
-    }
-    tEndDecode(pCoder);
+    submitTbData.pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    STREAM_CHECK_NULL_GOTO(submitTbData.pCreateTbReq, terrno);
+    STREAM_CHECK_RET_GOTO(tDecodeSVCreateTbReq(pCoder, submitTbData.pCreateTbReq));
+    STREAM_CHECK_RET_GOTO(processAutoCreateTableNew(sStreamReaderInfo, submitTbData.pCreateTbReq));
   }
 
   // submit data
@@ -1315,6 +1332,8 @@ static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* s
   }
   
 end:
+  tDestroySVSubmitCreateTbReq(submitTbData.pCreateTbReq, TSDB_MSG_FLG_DECODE);
+  taosMemoryFreeClear(submitTbData.pCreateTbReq);
   tEndDecode(pCoder);
   return code;
 }
