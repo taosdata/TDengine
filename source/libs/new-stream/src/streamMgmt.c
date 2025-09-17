@@ -900,7 +900,7 @@ int32_t smDeployStreams(SStreamDeployActions* actions) {
 
 _exit:
 
-  stmReleaseDestroyAllocator(allocatorRefId);
+  //stmReleaseDestroyAllocator(allocatorRefId);
 
   if (code) {
     stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

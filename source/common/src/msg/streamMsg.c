@@ -2008,7 +2008,7 @@ void tFreeSStmStreamDeploy(void* param) {
   int32_t runnerNum = taosArrayGetSize(pDeploy->runnerTasks);
   for (int32_t i = 0; i < runnerNum; ++i) {
     SStmTaskDeploy* pRunner = taosArrayGet(pDeploy->runnerTasks, i);
-    taosMemoryFree(pRunner->msg.runner.pPlan);
+    //taosMemoryFree(pRunner->msg.runner.pPlan);
   }
   taosArrayDestroy(pDeploy->runnerTasks);
 }
