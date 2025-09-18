@@ -2383,7 +2383,9 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
     if (1 == res->numOfRows && pb->info.rows > 0) {
       SCL_ERR_JRET(sclExtendResRowsRange(pDst, rowStartIdx, rowEndIdx, res, pBlockList));
     } else {
-      SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows, true));
+      if (!pDst->colAlloced || pDst->numOfRows < res->numOfRows) {
+        SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows, true));
+      }
       SCL_ERR_JRET(colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL));
       pDst->numOfRows = res->numOfRows;
       pDst->numOfQualified = res->numOfQualified;
