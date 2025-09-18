@@ -42,7 +42,8 @@
 #define IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) (TRINGBUF_SIZE(&(pGroup)->winBuf) > 0)
 #define container_of(ptr, type, member)      ((type *)((char *)(ptr) - offsetof(type, member)))
 
-static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid);
+static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid,
+                                   int32_t vgId);
 static void    stRealtimeGroupDestroy(void *ptr);
 // Add metadatas to the group, which are used to check trigger conditions later.
 static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vgId, SSTriggerMetaData *pMeta);
@@ -3753,7 +3754,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
             taosMemoryFreeClear(pGroup);
             QUERY_CHECK_CODE(code, lino, _end);
           }
-          code = stRealtimeGroupInit(pGroup, pContext, 0);
+          code = stRealtimeGroupInit(pGroup, pContext, 0, 0);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           int32_t iter = 0;
@@ -4200,7 +4201,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                   taosMemoryFreeClear(pGroup);
                   QUERY_CHECK_CODE(code, lino, _end);
                 }
-                code = stRealtimeGroupInit(pGroup, pContext, pGids[i]);
+                code = stRealtimeGroupInit(pGroup, pContext, pGids[i], vgId);
                 QUERY_CHECK_CODE(code, lino, _end);
               } else {
                 pGroup = *(SSTriggerRealtimeGroup **)px;
@@ -4226,7 +4227,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                 taosMemoryFreeClear(pGroup);
                 QUERY_CHECK_CODE(code, lino, _end);
               }
-              code = stRealtimeGroupInit(pGroup, pContext, pGids[i]);
+              code = stRealtimeGroupInit(pGroup, pContext, pGids[i], vgId);
               QUERY_CHECK_CODE(code, lino, _end);
             } else {
               pGroup = *(SSTriggerRealtimeGroup **)px;
@@ -4252,6 +4253,19 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
         int64_t *pGids = (int64_t *)pGidCol->pData;
         for (int32_t i = 0; i < nrows; i++) {
+          int64_t gid = pGids[i];
+          void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+          if (pGroup == NULL) {
+            pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+            QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+            code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+            if (code != TSDB_CODE_SUCCESS) {
+              taosMemoryFreeClear(pGroup);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+            code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
           void *px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
           QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         }
@@ -4382,7 +4396,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                     taosMemoryFreeClear(pGroup);
                     QUERY_CHECK_CODE(code, lino, _end);
                   }
-                  code = stRealtimeGroupInit(pGroup, pContext, gid);
+                  code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
                   QUERY_CHECK_CODE(code, lino, _end);
                 } else {
                   pGroup = *(SSTriggerRealtimeGroup **)px;
@@ -4409,7 +4423,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                   taosMemoryFreeClear(pGroup);
                   QUERY_CHECK_CODE(code, lino, _end);
                 }
-                code = stRealtimeGroupInit(pGroup, pContext, gid);
+                code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
                 QUERY_CHECK_CODE(code, lino, _end);
               } else {
                 pGroup = *(SSTriggerRealtimeGroup **)px;
@@ -4430,6 +4444,20 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
           int64_t *pGids = (int64_t *)pGidCol->pData;
           for (int32_t i = 0; i < nrows; i++) {
+            int64_t gid = pGids[i];
+            void *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+            if (pGroup == NULL) {
+              pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+              QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+              code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+              if (code != TSDB_CODE_SUCCESS) {
+                taosMemoryFreeClear(pGroup);
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+              code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+
             void *px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
@@ -6630,7 +6658,8 @@ _end:
 #define TRIGGER_GROUP_HAS_OPEN_WINDOW(pGroup)   ((pGroup)->windows.neles > 0)
 #define TRIGGER_GROUP_NEVER_OPEN_WINDOW(pGroup) ((pGroup)->prevWinEnd == INT64_MIN)
 
-static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid) {
+static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid,
+                                   int32_t vgId) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
@@ -6638,6 +6667,7 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
   pGroup->pContext = pContext;
   pGroup->gid = gid;
   pGroup->recalcNextWindow = pTask->fillHistory;
+  pGroup->vgId = vgId;
 
   pGroup->pWalMetas = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   QUERY_CHECK_NULL(pGroup->pWalMetas, code, lino, _end, terrno);
