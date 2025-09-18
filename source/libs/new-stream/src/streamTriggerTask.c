@@ -2502,7 +2502,7 @@ static void stRealtimeContextDestroyWindow(void *ptr) {
 }
 
 static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSDataBlock *pDataBlock, SNode *pExpr,
-                                         SColumnInfoData **ppResCol) {
+                                         SColumnInfoData *pResCol) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
@@ -2513,18 +2513,14 @@ static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSD
   void *px = taosArrayPush(pList, &pDataBlock);
   QUERY_CHECK_NULL(px, code, lino, _end, terrno);
 
-  if (*ppResCol == NULL) {
-    SDataType *pType = &((SExprNode *)pExpr)->resType;
-    *ppResCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-    QUERY_CHECK_NULL(*ppResCol, code, lino, _end, terrno);
-    (*ppResCol)->info.type = pType->type;
-    (*ppResCol)->info.bytes = pType->bytes;
-    (*ppResCol)->info.scale = pType->scale;
-    (*ppResCol)->info.precision = pType->precision;
-  }
+  SDataType *pType = &((SExprNode *)pExpr)->resType;
+  pResCol->info.type = pType->type;
+  pResCol->info.bytes = pType->bytes;
+  pResCol->info.scale = pType->scale;
+  pResCol->info.precision = pType->precision;
 
   int32_t      nrows = blockDataGetNumOfRows(pDataBlock);
-  SScalarParam output = {.columnData = *ppResCol};
+  SScalarParam output = {.columnData = pResCol};
   code = scalarCalculate(pExpr, pList, &output, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -2757,18 +2753,9 @@ static void stRealtimeContextDestroy(void *ptr) {
     stNewVtableMergerDestroy(&pContext->pCalcMerger);
   }
 
-  if (pContext->pStateCol != NULL) {
-    colDataDestroy(pContext->pStateCol);
-    pContext->pStateCol = NULL;
-  }
-  if (pContext->pEventStartCol != NULL) {
-    colDataDestroy(pContext->pEventStartCol);
-    pContext->pEventStartCol = NULL;
-  }
-  if (pContext->pEventEndCol != NULL) {
-    colDataDestroy(pContext->pEventEndCol);
-    pContext->pEventEndCol = NULL;
-  }
+  colDataDestroy(&pContext->stateCol);
+  colDataDestroy(&pContext->eventStartCol);
+  colDataDestroy(&pContext->eventEndCol);
   taosObjPoolDestroy(&pContext->metaPool);
   taosObjPoolDestroy(&pContext->tableUidPool);
   taosObjPoolDestroy(&pContext->windowPool);
@@ -4507,32 +4494,35 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
           SColumnInfoData *pStartCol = NULL;
           SColumnInfoData *pEndCol = NULL;
-          if (!firstDataBlock) {
-            pEndCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
-            QUERY_CHECK_NULL(pEndCol, code, lino, _end, terrno);
-            pStartCol = pEndCol - 1;
-          }
-          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pStartCond, &pStartCol);
-          QUERY_CHECK_CODE(code, lino, _end);
-          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pEndCond, &pEndCol);
-          QUERY_CHECK_CODE(code, lino, _end);
           if (firstDataBlock) {
-            void *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, pStartCol);
+            SColumnInfoData startCol = {0};
+            void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &startCol);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-            px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, pEndCol);
+            SColumnInfoData endCol = {0};
+            px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &endCol);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
+          pEndCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
+          QUERY_CHECK_NULL(pEndCol, code, lino, _end, terrno);
+          pStartCol = pEndCol - 1;
+          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pStartCond, pStartCol);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pEndCond, pEndCol);
+          QUERY_CHECK_CODE(code, lino, _end);
           code = colInfoDataEnsureCapacity(pStartCol, pProgress->pTrigBlock->info.capacity, true);
           QUERY_CHECK_CODE(code, lino, _end);
           code = colInfoDataEnsureCapacity(pEndCol, pProgress->pTrigBlock->info.capacity, true);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (pTask->triggerType == STREAM_TRIGGER_STATE && pTask->stateSlotId == -1) {
           SColumnInfoData *pStateCol = NULL;
-          if (!firstDataBlock) {
-            pStateCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
-            QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+          if (firstDataBlock) {
+            SColumnInfoData stateCol = {0};
+            void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &stateCol);
+            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
-          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pStateExpr, &pStateCol);
+          pStateCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
+          QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pStateExpr, pStateCol);
           QUERY_CHECK_CODE(code, lino, _end);
           if (firstDataBlock) {
             void *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, pStateCol);
@@ -7260,9 +7250,9 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateSlotId);
       QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
     } else if (pTask->isVirtualTable) {
-      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pStateExpr, &pContext->pStateCol);
+      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pStateExpr, &pContext->stateCol);
       QUERY_CHECK_CODE(code, lino, _end);
-      pStateCol = pContext->pStateCol;
+      pStateCol = &pContext->stateCol;
     } else {
       pStateCol = taosArrayGetLast(pDataBlock->pDataBlock);
       QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
@@ -7376,12 +7366,12 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
     SColumnInfoData *psCol = NULL;
     SColumnInfoData *peCol = NULL;
     if (pTask->isVirtualTable) {
-      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pStartCond, &pContext->pEventStartCol);
+      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pStartCond, &pContext->eventStartCol);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pEndCond, &pContext->pEventEndCol);
+      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pEndCond, &pContext->eventEndCol);
       QUERY_CHECK_CODE(code, lino, _end);
-      psCol = pContext->pEventStartCol;
-      peCol = pContext->pEventEndCol;
+      psCol = &pContext->eventStartCol;
+      peCol = &pContext->eventEndCol;
     } else {
       peCol = taosArrayGetLast(pDataBlock->pDataBlock);
       QUERY_CHECK_NULL(peCol, code, lino, _end, terrno);
