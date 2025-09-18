@@ -56,7 +56,9 @@ jobs:
         run: C:\Windows\SysWOW64\regsvr32.exe C:\Windows\SysWOW64\gbda_aut.dll
 
       - name: install da simulator
-        run: choco install grayboxsimulator
+        run: |
+          Start-BitsTransfer -Source https://github.com/huskar-t/opcdatest/releases/download/simulation/gbopcsim18.msi
+          msiexec /norestart /quiet /i "gbopcsim18.msi"
 
       - name: Test OPCDA
         env:
