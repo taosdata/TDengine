@@ -13,6 +13,7 @@ logging.basicConfig(level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
+failed_cases = 0
 
 def get_git_commit_id():
     try:
@@ -78,7 +79,6 @@ def process_pytest_file(input_file, log_path= "C:\CI_logs", exclusion_file=os.pa
     # 初始化统计变量
     total_cases = 0
     success_cases = 0
-    failed_cases = 0
     skipped_cases = 0
     failed_case_list = []
     start_time = time.time()
@@ -223,3 +223,8 @@ if __name__ == "__main__":
         process_pytest_file(input_file, log_path)
     else:
         process_pytest_file(input_file)
+        
+    if failed_cases > 0:
+        sys.exit(1)
+    else:
+        sys.exit(0)       
