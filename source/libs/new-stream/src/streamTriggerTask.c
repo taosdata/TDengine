@@ -3170,7 +3170,6 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   SStreamRunnerTarget  *pCalcRunner = NULL;
   bool                  needTagValue = false;
   SRpcMsg               msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
-  SSDataBlock          *pCalcDataBlock = NULL;
 
   QUERY_CHECK_NULL(pCalcReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -3290,7 +3289,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         }
         if (startPos < endPos) {
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
-                                    pContext->pCurParam->wend, pCalcDataBlock, startPos, endPos - 1);
+                                    pContext->pCurParam->wend, pDataBlock, startPos, endPos - 1);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
@@ -3348,10 +3347,6 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   pContext->pCalcReq = NULL;
 
 _end:
-  if (pCalcDataBlock != NULL) {
-    taosArrayClear(pCalcDataBlock->pDataBlock);
-    blockDataDestroy(pCalcDataBlock);
-  }
   if (code != TSDB_CODE_SUCCESS) {
     destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
