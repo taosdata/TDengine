@@ -58,7 +58,8 @@ class TestMutilStage:
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql), True)
         cls.taos_cfg_path = tdDnodes.dnodes[0].cfgPath
-        cls.taos_data_dir = tdDnodes.dnodes[0].dataDir
+        cls.taos_data_dir = tdDnodes.dnodes[0].dataDir[0]
+        tdLog.info(f"cls.taos_data_dir: {cls.taos_data_dir}")
 
 
     def cfg(self, filename, **update_dict):
@@ -80,11 +81,17 @@ class TestMutilStage:
             self.cfg_str(filename, update_str)
 
     def del_old_datadir(self, filename):
-        cmd = f"sed -i '/^dataDir/d' {filename}"
-        if platform.system().lower() == 'darwin':
-            cmd = f"sed -i '' '/^dataDir/d' {filename}"
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        with open(filename, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        filtered_lines = [line for line in lines if not line.startswith('dataDir')]
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.writelines(filtered_lines)
+
+        # cmd = f"sed -i '/^dataDir/d' {filename}"
+        # if platform.system().lower() == 'darwin':
+        #     cmd = f"sed -i '' '/^dataDir/d' {filename}"
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
 
     @property
     def __err_cfg(self):

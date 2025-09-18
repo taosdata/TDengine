@@ -11,7 +11,7 @@ class TestStreamOldCaseFillInterval:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_fill_interval(self):
-        """Stream fill interval
+        """OldTsim: fill interval
 
         Test the results of various numerical fillings in the interval window
 

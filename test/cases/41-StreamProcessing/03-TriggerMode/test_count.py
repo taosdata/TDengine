@@ -9,7 +9,7 @@ class TestStreamCountTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_count_trigger(self):
-        """basic qdb 2
+        """Count: 
 
         Verification testing during the development process.
 

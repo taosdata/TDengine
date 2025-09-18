@@ -211,7 +211,7 @@ class TestInsertDecimal:
 
     def check_cmd_normal(self, benchmark, options=""):
         # exec
-        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(24,10)' -t 10 -y"
+        cmd = f'{benchmark} {options} -b "int,decimal(10,6),decimal(24,10)" -t 10 -y'
         eos.exe(cmd)
 
         db_name     = 'test'
@@ -227,24 +227,24 @@ class TestInsertDecimal:
 
     def check_cmd_others(self, benchmark, options=""):
         # check precision
-        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(0,0)' -t 10 -y"
+        cmd = f'{benchmark} {options} -b "int,decimal(10,6),decimal(0,0)" -t 10 -y'
         rlist = eos.runRetList(cmd, True, False, True)
         self.checkListString(rlist, "Invalid precision value of decimal type in args")
 
-        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(-3,0)' -t 10 -y"
+        cmd = f'{benchmark} {options} -b "int,decimal(10,6),decimal(-3,0)" -t 10 -y'
         rlist = eos.runRetList(cmd, True, False, True)
         self.checkListString(rlist, "Invalid precision value of decimal type in args")
 
-        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(39,0)' -t 10 -y"
+        cmd = f'{benchmark} {options} -b "int,decimal(10,6),decimal(39,0)" -t 10 -y'
         rlist = eos.runRetList(cmd, True, False, True)
         self.checkListString(rlist, "Invalid precision value of decimal type in args")
 
         # check scale
-        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(10,-3)' -t 10 -y"
+        cmd = f'{benchmark} {options} -b "int,decimal(10,6),decimal(10,-3)" -t 10 -y'
         rlist = eos.runRetList(cmd, True, False, True)
         self.checkListString(rlist, "Invalid scale value of decimal type in args")
 
-        cmd = f"{benchmark} {options} -b 'int,decimal(10,6),decimal(10,11)' -t 10 -y"
+        cmd = f'{benchmark} {options} -b "int,decimal(10,6),decimal(10,11)" -t 10 -y'
         rlist = eos.runRetList(cmd, True, False, True)
         self.checkListString(rlist, "Invalid scale value of decimal type in args")
 

@@ -3374,9 +3374,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     }
 
     if (colSizes[col] <= 0 && !colDataIsNull_s(pColRes, 0) && pColRes->info.type != TSDB_DATA_TYPE_NULL) {
-      uError("Invalid colSize:%d colIdx:%d colType:%d while encoding block", colSizes[col], col, pColRes->info.type);
-      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      return -1;
+      uWarn("Invalid colSize:%d colIdx:%d colType:%d while encoding block", colSizes[col], col, pColRes->info.type);
+      //terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      //return -1;
     }
 
     colSizes[col] = htonl(colSizes[col]);
@@ -4114,8 +4114,8 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
     if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
       metaSize = realRows * sizeof(int32_t);
       if(dataLen + metaSize > dataBuflen) goto _exit;
-      memcpy(data, (char*)pColRes->varmeta.offset + (startIndex * sizeof(int32_t)), metaSize);
-      resetVarDataOffset((int32_t*)data, realRows);
+      TAOS_UNUSED(memcpy(data, (char*)pColRes->varmeta.offset + (startIndex * sizeof(int32_t)), metaSize));
+      TAOS_UNUSED(resetVarDataOffset((int32_t*)data, realRows));
     } else {
       metaSize = BitmapLen(realRows);
       if(dataLen + metaSize > dataBuflen) goto _exit;

@@ -1046,8 +1046,7 @@ static int32_t tsdbAsyncMigrateFileSetImpl(STsdb *tsdb,  const SSsMigrateFileSet
   pmm->state = SSMIGRATE_FILESET_STATE_IN_PROGRESS;
   pmm->startTimeSec = pReq->startTimeSec;
 
-  code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
-                    &fset->retentionTask);
+  code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg, &fset->migrateTask);
   if (code) {
     tsdbError("vgId:%d, fid:%d, ssMigrateId:%d, schedule async task failed", vid, pReq->fid, pReq->ssMigrateId);
     taosMemoryFree(arg);
@@ -1066,6 +1065,37 @@ int32_t tsdbAsyncSsMigrateFileSet(STsdb *tsdb, SSsMigrateFileSetReq *pReq) {
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   return code;
+}
+
+
+void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId) {
+  (void)taosThreadMutexLock(&tsdb->mutex);
+
+  if (tsdb->pSsMigrateMonitor == NULL) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  if (tsdb->pSsMigrateMonitor->ssMigrateId != ssMigrateId) {
+    tsdbInfo("vgId:%d, ssMigrateId:%d, migration task not found", TD_VID(tsdb->pVnode), ssMigrateId);
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  if (tsdb->pSsMigrateMonitor->state != SSMIGRATE_FILESET_STATE_IN_PROGRESS) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    return;
+  }
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    if (fset->fid == tsdb->pSsMigrateMonitor->fid) {
+      (void)vnodeACancel(&fset->migrateTask);
+      break;
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 }
 
 #endif

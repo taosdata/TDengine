@@ -803,10 +803,14 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
   COPY_OBJECT_FIELD(stbJoin.srcScan, sizeof(pDst->stbJoin.srcScan));
   COPY_SCALAR_FIELD(vtbScan.scanAllCols);
+  COPY_SCALAR_FIELD(vtbScan.isSuperTable);
+  COPY_SCALAR_FIELD(vtbScan.rversion);
   COPY_SCALAR_FIELD(vtbScan.suid);
+  COPY_SCALAR_FIELD(vtbScan.uid);
   COPY_CHAR_ARRAY_FIELD(vtbScan.dbName);
-  COPY_CHAR_ARRAY_FIELD(vtbScan.stbName);
+  COPY_CHAR_ARRAY_FIELD(vtbScan.tbName);
   CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
+  CLONE_NODE_LIST_FIELD(vtbScan.pOrgVgIds);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1046,7 +1050,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_FIELD(pHaving);
   CLONE_NODE_LIST_FIELD(pOrderByList);
   CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
-  CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
+  CLONE_NODE_FIELD_EX(pSlimit, SLimitNode*);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isSubquery);
@@ -1253,6 +1257,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       code = logicInterpFuncCopy((const SInterpFuncLogicNode*)pNode, (SInterpFuncLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+      code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
       code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:

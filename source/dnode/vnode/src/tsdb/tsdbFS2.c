@@ -804,7 +804,8 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     if (taosArrayPush(asyncTasks, &fset->mergeTask) == NULL       //
         || taosArrayPush(asyncTasks, &fset->compactTask) == NULL  //
-        || taosArrayPush(asyncTasks, &fset->retentionTask) == NULL) {
+        || taosArrayPush(asyncTasks, &fset->retentionTask) == NULL
+        || taosArrayPush(asyncTasks, &fset->migrateTask) == NULL) {
       taosArrayDestroy(asyncTasks);
       (void)taosThreadMutexUnlock(&pTsdb->mutex);
       return terrno;

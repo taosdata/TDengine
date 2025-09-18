@@ -508,6 +508,8 @@ int64_t metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock) {
   }
   if (me.type == TSDB_CHILD_TABLE) {
     createTime = me.ctbEntry.btime;
+  } else if (me.type == TSDB_NORMAL_TABLE) {
+    createTime = me.ntbEntry.btime;
   }
   tDecoderClear(&dc);
 

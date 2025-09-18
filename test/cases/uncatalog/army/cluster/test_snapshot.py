@@ -16,9 +16,6 @@ import time
 import random
 
 
-
-
-
 class TestSnapshot:
     updatecfgDict = {
         "countAlwaysReturnValue" : "1",

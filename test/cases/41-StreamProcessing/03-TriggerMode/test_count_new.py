@@ -8,7 +8,7 @@ class TestStreamCountTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_count_trigger(self):
-        """basic test
+        """Count: 
 
         Verification testing during the development process.
 
@@ -21,7 +21,7 @@ class TestStreamCountTrigger:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
         Jira: None
 

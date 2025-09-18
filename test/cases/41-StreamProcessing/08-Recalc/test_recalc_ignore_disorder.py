@@ -9,7 +9,7 @@ class TestStreamRecalcIgnoreDisorder:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_ignore_disorder(self):
-        """Stream Recalculation IGNORE_DISORDER Option Test
+        """Recalc: IGNORE_DISORDER
 
         Test IGNORE_DISORDER option behavior with six different window types to verify out-of-order data handling:
 

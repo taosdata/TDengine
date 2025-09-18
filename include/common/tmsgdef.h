@@ -340,7 +340,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_SSMIGRATE_PROGRESS, "vnode-query-ssmigrate-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_SSMIGRATE_FILESET, "vnode-ssmigrate-fileset", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FOLLOWER_SSMIGRATE, "vnode-follower-ssmigrate", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL) // placeholder for future use
+  TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_START_RSMA, "vnode-start-rsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_STOP_RSMA, "vnode-stop-rsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_RSMA_TASK, "vnode-kill-rsma-task", NULL, NULL)

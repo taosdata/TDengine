@@ -427,6 +427,7 @@ typedef enum ENodeType {
   QUERY_NODE_RECALCULATE_STREAM_STMT,
   QUERY_NODE_CREATE_BNODE_STMT,
   QUERY_NODE_DROP_BNODE_STMT,
+  QUERY_NODE_KILL_SSMIGRATE_STMT,
   QUERY_NODE_CREATE_RSMA_STMT,
   QUERY_NODE_DROP_RSMA_STMT,
   QUERY_NODE_ALTER_RSMA_STMT,
@@ -484,6 +485,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_VTABLES_STMT,
   QUERY_NODE_SHOW_BNODES_STMT,
   QUERY_NODE_SHOW_MOUNTS_STMT,
+  QUERY_NODE_SHOW_SSMIGRATES_STMT,
   QUERY_NODE_SHOW_RSMAS_STMT,
   QUERY_NODE_SHOW_RSMA_TASKS_STMT,
 
@@ -507,6 +509,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL,
   QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
   QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN,
+  QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -576,6 +579,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INSERT,
+  QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC,
 } ENodeType;
 
 typedef struct {
@@ -1886,6 +1890,26 @@ int tSerializeSSsMigrateProgress(void* buf, int32_t bufLen, SSsMigrateProgress* 
 int tDeserializeSSsMigrateProgress(void* buf, int32_t bufLen, SSsMigrateProgress* pProgress);
 
 
+// Request for TDMT_MND_KILL_SSMIGRATE
+typedef struct {
+  int32_t ssMigrateId;
+  int32_t sqlLen;
+  char*   sql;
+} SKillSsMigrateReq;
+
+int32_t tSerializeSKillSsMigrateReq(void* buf, int32_t bufLen, SKillSsMigrateReq* pReq);
+int32_t tDeserializeSKillSsMigrateReq(void* buf, int32_t bufLen, SKillSsMigrateReq* pReq);
+void    tFreeSKillSsMigrateReq(SKillSsMigrateReq* pReq);
+
+// Request for TDMT_VND_KILL_SSMIGRATE
+typedef struct {
+  int32_t ssMigrateId;
+} SVnodeKillSsMigrateReq;
+
+int32_t tSerializeSVnodeKillSsMigrateReq(void* buf, int32_t bufLen, SVnodeKillSsMigrateReq* pReq);
+int32_t tDeserializeSVnodeKillSsMigrateReq(void* buf, int32_t bufLen, SVnodeKillSsMigrateReq* pReq);
+
+
 typedef struct {
   int32_t timestampSec;
   int32_t ttlDropMaxCount;
@@ -2154,6 +2178,7 @@ typedef struct {
   int8_t        encryptionKeyStat;
   uint32_t      encryptionKeyChksum;
   SMonitorParas monitorParas;
+  int32_t       statusIntervalMs;
 } SClusterCfg;
 
 typedef struct {
