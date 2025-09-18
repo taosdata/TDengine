@@ -176,7 +176,7 @@ async function toggleFavorite() {
 }
 
 function normalizeSql(sql: string) {
-  return sql.replace(/\s+/g, '').toLowerCase();
+  return sql.trim();
 }
 
 function addDesc() {

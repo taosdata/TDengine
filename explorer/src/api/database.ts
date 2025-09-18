@@ -101,6 +101,7 @@ export function createDB(data: Recordable) {
     .then(data => {
       data = JSON.parse(JSON.stringify(data));
       if (data.code == 0) return data;
+      ElMessage.error(JSON.stringify(data));
       return Promise.reject(data);
     })
     .catch(err => {

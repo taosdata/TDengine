@@ -5,6 +5,7 @@ import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
@@ -75,13 +76,13 @@ public class PushThread implements Runnable {
     private ArrowUtils arrowUtils = null;
 
     /**
-     * 空跑次数，超过预定次数则断开连接
+     * 空跑总时间统计，超过 5 分钟则断开连接
      */
-    private int emptyTimes = 0;
+    private long emptyTime = 0;
 
     @Override
     public void run() {
-        while (this.channel.isOpen()) {
+        while (this.channel.isOpen() && LocalConfig.isRunPushThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();
@@ -90,18 +91,25 @@ public class PushThread implements Runnable {
                 }
                 logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 读取内存中的数据
+                long _start = System.currentTimeMillis();
                 List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = BucketDataCache.getBucketData(this.dataSourceKey, this.performanceConfig.getLimitBatch());
                 // 判断是否读到数据
                 if (influxdbBucketDataEntityList == null || influxdbBucketDataEntityList.size() == 0) {
                     // 判断空跑次数
-                    if (this.emptyTimes++ >= 30000 && this.arrowUtils != null) {
-                        this.channel.writeAndFlush(this.arrowUtils.closeArrow()).sync();
+                    if (this.emptyTime >= 300000) {
+                        if (this.arrowUtils != null) {
+                            this.channel.writeAndFlush(this.arrowUtils.closeArrow()).sync();
+                        }
+                        this.channel.close();
+                        logger.info(this.name + "#Thread exit with no any data coming#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
+                        break;
                     }
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getPushEmptyInterval(), start, StatusEnums.NORMAL);
+                    this.emptyTime += System.currentTimeMillis() - _start;
                     continue;
                 } else {
-                    this.emptyTimes = 0;
+                    this.emptyTime = 0;
                 }
                 // 速度控制
                 FluxManager.getInstance().getFluxControl(FluxEnums.PushData.getCode()).cycleCheck(influxdbBucketDataEntityList.size(), this.performanceConfig.getLimitSpeed());
@@ -109,16 +117,15 @@ public class PushThread implements Runnable {
                 push(influxdbBucketDataEntityList);
                 // 线程结束
                 sleep(this.performanceConfig.getThread().getPushInterval(), start, StatusEnums.NORMAL);
-            } catch (InterruptedException e) {
-                exception(start, StatusEnums.EXCEPTION, e);
-                break;
-            } catch (Exception e) {
-                exception(start, StatusEnums.EXCEPTION, e);
+            } catch (Throwable e) {
+                exit();
+                this.logger.error(this.name + "#Push Thread meet error#err msg: " + e.getMessage() + " Throwable:" + e);
                 try {
-                    Thread.sleep(1000L);
-                } catch (InterruptedException e1) {
-                    this.logger.error(this.name + "#Thread sleep exception#" + e.getMessage(), e);
+                    this.channel.close();
+                } catch (Throwable e2) {
+                    this.logger.warn(this.name + "#try close channel, could ignore#err msg: " + e2.getMessage() + " Throwable:" + e2);
                 }
+                break;
             }
         }
         exit();
@@ -163,7 +170,7 @@ public class PushThread implements Runnable {
         // 线程结束
         this.logger.info(this.name + "#Thread completed and exited#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
         // 清除连接信息
-        BucketDataCache.socketMap.remove(this.dataSourceKey);
+        BucketDataCache.socketMap.remove(this.dataSourceKey).close();
         // 清除线程信息
         StatusCache.forgetThread(this.name);
     }
@@ -216,7 +223,7 @@ public class PushThread implements Runnable {
             if (!subtableMap.isEmpty()) {
                 this.channel.writeAndFlush(this.arrowUtils.transformSubtable(subtableMap, this.first)).sync();
             }
-            this.channel.writeAndFlush(this.arrowUtils.transformDataByTime(influxdbBucketDataEntityList)).sync();
+            this.channel.writeAndFlush(this.arrowUtils.transformDataByTagTime(influxdbBucketDataEntityList)).sync();
             // 修改当前线程/schema的首条标记
             this.first = false;
             // 记录统计信息

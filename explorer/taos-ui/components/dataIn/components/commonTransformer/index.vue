@@ -107,7 +107,7 @@
           </template>
         </el-popover>
       </div>
-      <div v-if="sourceForm.type !== 'csv' && !supportTransform.supportSQL" class="extrac-parse">
+      <div v-if="sourceForm.type !== 'csv' && !supportTransform.supportSQL" class="extract-parse">
         <el-form :rules="parseRules" :model="parseruleForm">
           <el-form-item prop="type">
             <el-select
@@ -127,7 +127,7 @@
               size="default"
             >
             </el-input>
-            <div v-else-if="parseruleForm.type == 'json'" class="josn-wrap">
+            <div v-else-if="parseruleForm.type == 'json'" class="json-wrap">
               <span>depth </span>
               <el-input-number
                 v-model="parseruleForm.depth"
@@ -238,7 +238,7 @@
           :msg-form="msgForm"
           :extract-arr="extractArr"
           :extract-columns="item.columns"
-          :indentified-columns="indentifiedColumns"
+          :identified-columns="identifiedColumns"
           :is-viewable="isViewable"
           @update-extract-arr="updateExtractArr"
           @validate-msgbody="validateMsgBody"
@@ -289,7 +289,7 @@
           :payload="msgForm.msgbody"
           :msg-form="msgForm"
           :datasource-type="sourceForm.type"
-          :indentified-columns="indentifiedColumns"
+          :identified-columns="identifiedColumns"
           @validate-msgbody="validateMsgBody"
           @delete-filter="deleteFilter"
           @change-filter="changeFilter"
@@ -532,7 +532,7 @@
               </div>
             </el-pagination>
 
-            <el-button size="default" @click="caculateMappingResult">
+            <el-button size="default" @click="calculateMappingResult">
               <Icon name="PREVIEW" style="width: 16px; height: 16px"></Icon>
             </el-button>
           </div>
@@ -631,7 +631,7 @@ const maptypes = ['value', 'generator', 'join', 'format', 'sum', 'expr'];
 const pageSize = ref(20);
 const pageCount = ref(10);
 const currentPage = ref(1);
-const isbreak = ref<boolean>(false); //tranformer创建是否出错
+const isbreak = ref<boolean>(false); //transformer创建是否出错
 const isCSV = ref<boolean>(false);
 const options = ref<any[]>([]);
 const mappingcolumns = ref<Recordable[]>([]);
@@ -662,7 +662,7 @@ const uploadData = reactive({
 
 const fileList = ref([]);
 // parseIndetntifiedCols: [],
-const indentifiedColumns = ref<Recordable[]>([]);
+const identifiedColumns = ref<Recordable[]>([]);
 const columnsArr = ref<Record<string, any>[]>([]);
 const tableData = ref<TableRow[]>([]);
 const pageTableData = ref<any[]>([]);
@@ -734,7 +734,7 @@ watch(
 );
 
 watch(
-  () => transformerState.transformerMapCloumns,
+  () => transformerState.transformerMapColumns,
   val => {
     options.value = val;
     mappingcolumns.value = val.filter(item => item.value == 'mapping')[0].children;
@@ -888,7 +888,7 @@ function clearMsgBody() {
   msgForm.topicbody = [];
 }
 
-function showIndentifyResulttb() {
+function showIdentifyResulttb() {
   transformerState.showResultTb = true;
   transformerState.resultTbTitle = 'parseResTb';
   if (sourceForm.type == 'csv') {
@@ -959,8 +959,8 @@ async function submitParse() {
     const topParser = getTopParserData();
     await handleParseResult(topParser);
     // 删除 extractArr 中没有包含 columnsArr 中拆分的字段
-    handelExtractArr(columnsArr.value, extractArr.value);
-    showIndentifyResulttb();
+    handleExtractArr(columnsArr.value, extractArr.value);
+    showIdentifyResulttb();
   } catch (error: any) {
     console.log(error);
     ElMessage.error(error?.message);
@@ -979,7 +979,7 @@ function getTopParserData() {
     switch (parseruleForm.type) {
       case 'split':
         expressionObj = {
-          [parseruleForm.type]: transformerState.splitExpresList
+          [parseruleForm.type]: transformerState.splitExpressList
         };
         break;
       case 'json':
@@ -1082,7 +1082,7 @@ async function handleParseResult(topParser: TopParseType) {
       })
     }
   ];
-  transformerState.transformerMapCloumns = transformerColumns;
+  transformerState.transformerMapColumns = transformerColumns;
   isbreak.value = false;
   let hiddenCols: string[] = [];
   if (sourceForm.type == 'mqtt') {
@@ -1251,7 +1251,7 @@ async function getParserData(data: TransformerfullparamsType | TransformerSpbful
     nextTick(() => {
       transformerState.showResultTb = true;
       transformerState.resultTbTitle = 'mappingResTb';
-      transformerState.transResultName = 'mappping';
+      transformerState.transResultName = 'mapping';
     });
 
     setPageTableData();
@@ -1259,7 +1259,7 @@ async function getParserData(data: TransformerfullparamsType | TransformerSpbful
     console.log(error);
   }
 }
-function handelExtractArr(columnsArr: any[], extractArr: Recordable) {
+function handleExtractArr(columnsArr: any[], extractArr: Recordable) {
   const names = columnsArr.map(obj => obj.name);
   // 过滤 extractArr，移除不在 names 中的对象
   const arr = extractArr.filter((obj: Recordable) => names.includes(obj.columnname));
@@ -1566,7 +1566,7 @@ function echoFetchMap(echoData: Recordable) {
       tableData.value[0]['Expression'] = echoData.model.name.toString();
     }
     clearTargetTBWhenDelete();
-    caculateMappingResult();
+    calculateMappingResult();
   }
 }
 function clearTargetTBWhenDelete() {
@@ -1584,7 +1584,7 @@ function clearStbMapping() {
 }
 //初始化列下拉框数据，适用于新增和编辑，拷贝
 function initColumnLists(columns: Recordable[]) {
-  indentifiedColumns.value = columns.map(item => {
+  identifiedColumns.value = columns.map(item => {
     return {
       ...item,
       show: true
@@ -1619,7 +1619,7 @@ async function validateTargetStb(): Promise<boolean> {
 }
 
 //计算mapping的结果
-async function caculateMappingResult() {
+async function calculateMappingResult() {
   if (!(await validateTransform())) {
     isbreak.value = true;
     return;
@@ -1820,7 +1820,7 @@ function changeExtractColumns(index: number, colList: Recordable[]) {
 }
 //获取transformer的所有参数
 async function getTransformerParams() {
-  await caculateMappingResult();
+  await calculateMappingResult();
   if (isbreak.value) return;
   const parserDataParser = {
     global: getWriteConfigData(sourceForm.data),
@@ -1894,7 +1894,7 @@ function generateInput() {
 
   let inputList = demo_list?.map(msg => {
     let inputobj: any;
-    indentifiedColumns.value.forEach((item: any) => {
+    identifiedColumns.value.forEach((item: any) => {
       if (msg) {
         if (sourceForm.type == 'mqtt') {
           inputobj = inputobj ? inputobj : {};
@@ -2011,9 +2011,9 @@ async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean, transf
         select \`precision\` from information_schema.ins_databases where name = '${sourceForm.targetDB}'
         `);
 
-    if (!isEmpty(transformerState.transformerMapCloumns)) {
-      options.value = transformerState.transformerMapCloumns;
-      mappingcolumns.value = (transformerState.transformerMapCloumns as any[])
+    if (!isEmpty(transformerState.transformerMapColumns)) {
+      options.value = transformerState.transformerMapColumns;
+      mappingcolumns.value = (transformerState.transformerMapColumns as any[])
         .filter(item => item.value === 'mapping')[0]
         .children.filter((val: any) => val);
     }
@@ -2042,7 +2042,7 @@ async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean, transf
       tableRow.Type = val[1] == 'TIMESTAMP' ? val[1] + '(' + precision.data[0][0] + ')' : val[1];
       tableRow.maptype = equalindex > -1 ? ['mapping', `${defaultmap[equalindex]}`] : ['expression', 'value'];
       tableRow.Expression = equalindex > -1 && !isEcho ? defaultmap[equalindex] : '';
-      tableRow.PrimaryKey = val[3] == 'PRIMARY KEY' || (val[1].includes('TIMESTAMP') && !index);
+      tableRow.PrimaryKey = val[3] == 'COMPOSITE KEY' || (val[1].includes('TIMESTAMP') && !index);
 
       return tableRow;
     });
@@ -2184,7 +2184,7 @@ function formatCSVExtract(columns: Recordable[]) {
       value: ''
     };
   });
-  indentifiedColumns.value = columns.map(item => {
+  identifiedColumns.value = columns.map(item => {
     return {
       description: item,
       name: item,
@@ -2286,7 +2286,7 @@ $color-description: rgb(137 130 130);
   color: #4259ce;
 }
 
-.josn-wrap {
+.json-wrap {
   display: inline-flex;
   align-items: start;
   width: 100%;
@@ -2486,7 +2486,7 @@ $color-description: rgb(137 130 130);
   }
 }
 
-.extrac-parse {
+.extract-parse {
   display: flex;
 
   :deep(.el-form) {

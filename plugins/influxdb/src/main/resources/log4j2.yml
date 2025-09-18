@@ -28,7 +28,7 @@ Configuration:
         onMismatch: DENY
       # 日志打印格式
       PatternLayout:
-        pattern: "%d{HH:mm:ss.SSS} %pid %-5level %logger{20} - [%method,%line] - %msg%n"
+        pattern: "%d{YYYY-MM-dd HH:mm:ss.SSS} %pid %-5level %logger{20} - [%method,%line] - %msg%n"
 #    # 输出到文件
 #    RollingFile:
 #      # ref=sys-info

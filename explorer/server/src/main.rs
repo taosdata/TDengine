@@ -6,6 +6,7 @@ use clap_verbosity_flag::{InfoLevel, Verbosity};
 use deadpool::managed::{Object, PoolError};
 use faststr::FastStr;
 use favorites::FavoritesSql;
+use futures_util::StreamExt;
 use geos::{Geom, Geometry};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use http_auth_basic::Credentials;
@@ -42,6 +43,7 @@ use actix_web::{
     App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
 };
 use anyhow::bail;
+use awc::Client as AwcClient;
 use clap::Parser;
 use qid::{headers_with_qid, Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
 use rust_embed::RustEmbed;
@@ -62,13 +64,11 @@ use tracing_subscriber::{
 
 use sql::need_limit;
 
-use crate::stream_with_cancel::StreamWithCancel;
-
 mod favorites;
+mod monitor;
 mod qid;
 mod sql;
-mod stream_with_cancel;
-pub mod verification;
+mod verification;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -81,6 +81,7 @@ struct UserPool {
 }
 
 static TAOS_POOL: OnceLock<scc::HashMap<String, UserPool>> = OnceLock::new();
+static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 static EXPLORER_SKIP_REGISTER: LazyLock<bool> = LazyLock::new(|| {
     std::env::var("EXPLORER_SKIP_REGISTER").is_ok_and(|s| {
@@ -89,6 +90,8 @@ static EXPLORER_SKIP_REGISTER: LazyLock<bool> = LazyLock::new(|| {
             tracing::info!("skip register by env");
         }
         skip
+    }) || CONFIG_DIR.get().is_some_and(|config_dir| {
+        std::fs::exists(config_dir.join("explorer-register.cfg")).unwrap_or_default()
     })
 });
 
@@ -167,6 +170,12 @@ async fn main() -> anyhow::Result<()> {
             file_path = value;
         }
     }
+    let _ = CONFIG_DIR.set(
+        file_path
+            .parent()
+            .map_or_else(|| PathBuf::from("."), |p| p.to_path_buf()),
+    );
+
     let mut args = if let Ok(mut file) = File::open(&file_path) {
         let mut content = String::new();
         file.read_to_string(&mut content).context(format!(
@@ -287,6 +296,9 @@ async fn main() -> anyhow::Result<()> {
     args.profile.grpc.get_or_insert(EXPLORER_GRPC.to_string());
 
     let port = args.port.unwrap();
+
+    let monitor = monitor::Monitor::new(args.monitor.clone(), port);
+    monitor.init();
     let app_args = web::Data::new(args.clone());
     let cors = app_args.cors.unwrap_or_default();
 
@@ -955,66 +967,144 @@ async fn proxy(
     append_headers: Option<HeaderMap>,
 ) -> Result<HttpResponse, actix_web::Error> {
     if req.headers().contains_key("upgrade") {
-        // Websocket proxy.
+        // Proper websocket proxy: backend (awc) <-> client (actix_ws)
+        use awc::ws::{Frame as AwcFrame, Message as AwcMessage};
+        use futures_util::{SinkExt, StreamExt};
 
-        // Forward the request.
-        let mut builder = client.get(url);
-        if let Some(headers) = append_headers {
-            builder = builder.headers(headers);
+        let backend_url = url.to_string();
+        // 1. Connect to backend first so we can fail early if it does not upgrade.
+        let awc_client = AwcClient::new();
+        let mut ws_req = awc_client.ws(&backend_url);
+        for (k, v) in req.headers().iter() {
+            let name = k.as_str().to_ascii_lowercase();
+            if name.starts_with("sec-websocket")
+                || matches!(
+                    name.as_str(),
+                    "authorization" | "cookie" | "origin" | "sec-websocket-protocol"
+                )
+            {
+                ws_req = ws_req.set_header(k.clone(), v.clone());
+            }
         }
-
-        let builder = real_ip_forward(&req, builder);
-
-        let target_response = builder
-            .send()
+        if let Some(extra) = append_headers.as_ref() {
+            for (k, v) in extra.iter() {
+                ws_req = ws_req.set_header(k, v.clone());
+            }
+        }
+        let (backend_res, backend_framed) = ws_req
+            .connect()
             .await
             .map_err(error::ErrorInternalServerError)?;
-
-        // Make sure the server is willing to accept the websocket.
-        let status = target_response.status().as_u16();
-        if status != 101 {
+        if backend_res.status() != actix_web::http::StatusCode::SWITCHING_PROTOCOLS {
             return Err(actix_web::error::ErrorBadRequest(format!(
                 "Unexpected status code from target: {}",
-                status
+                backend_res.status()
             )));
         }
 
-        // Copy headers from the target back to the client.
-        let mut client_response = HttpResponse::SwitchingProtocols();
-        client_response.upgrade("websocket");
-        for (header, value) in target_response.headers() {
-            client_response.insert_header((header.as_str(), value.as_bytes()));
+        // 2. Perform actix_ws handshake with client.
+        let (mut client_resp, session, mut client_stream) = actix_ws::handle(&req, payload)?;
+        // Propagate chosen subprotocol from backend if present.
+        if let Some(sp) = backend_res.headers().get("sec-websocket-protocol").cloned() {
+            use actix_web::http::header::HeaderName;
+            client_resp
+                .headers_mut()
+                .insert(HeaderName::from_static("sec-websocket-protocol"), sp);
         }
 
-        let target_upgrade = target_response
-            .upgrade()
-            .await
-            .map_err(error::ErrorInternalServerError)?;
-        let (target_rx, mut target_tx) = tokio::io::split(target_upgrade);
-
+        // 3. Split backend framed.
+        let (mut backend_sink, mut backend_stream) = backend_framed.split();
         let cancel = CancellationToken::new();
 
-        // Copy byte stream from the client to the target.
-        tokio::task::spawn_local({
+        // Task A: client -> backend
+        actix_web::rt::spawn({
             let cancel = cancel.clone();
             async move {
-                let mut client_stream = payload.map_err(std::io::Error::other);
-                let mut client_read = tokio_util::io::StreamReader::new(&mut client_stream);
-                if let Some(Err(e)) = cancel
-                    .run_until_cancelled(tokio::io::copy(&mut client_read, &mut target_tx))
-                    .await
-                {
-                    tracing::error!("Error proxying websocket client bytes to target: {e}");
-                };
-
-                tracing::info!("Websocket client closed");
+                while let Some(msg) = client_stream.next().await {
+                    match msg {
+                        Ok(actix_ws::Message::Text(t)) => {
+                            if backend_sink.send(AwcMessage::Text(t)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(actix_ws::Message::Binary(b)) => {
+                            if backend_sink.send(AwcMessage::Binary(b)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(actix_ws::Message::Ping(b)) => {
+                            let _ = backend_sink.send(AwcMessage::Ping(b)).await;
+                        }
+                        Ok(actix_ws::Message::Pong(_)) => { /* ignore */ }
+                        Ok(actix_ws::Message::Close(reason)) => {
+                            let _ = backend_sink.send(AwcMessage::Close(reason)).await;
+                            break;
+                        }
+                        Ok(actix_ws::Message::Continuation(_)) => { /* ignore */ }
+                        Ok(actix_ws::Message::Nop) => { /* ignore */ }
+                        Err(e) => {
+                            tracing::error!("client ws error: {e}");
+                            break;
+                        }
+                    }
+                }
+                if let Err(e) = backend_sink.send(AwcMessage::Close(None)).await {
+                    tracing::error!("send close frame to backend failed: {e}");
+                }
+                if let Err(e) = backend_sink.close().await {
+                    tracing::error!("close backend sink failed: {e}");
+                }
+                cancel.cancel();
             }
         });
 
-        // Copy byte stream from the target back to the client.
-        let target_stream =
-            StreamWithCancel::new(tokio_util::io::ReaderStream::new(target_rx), cancel);
-        Ok(client_response.streaming(target_stream))
+        // Task B: backend -> client
+        actix_web::rt::spawn({
+            let cancel = cancel.clone();
+            let mut session = session.clone();
+            async move {
+                while let Some(frame) = backend_stream.next().await {
+                    match frame {
+                        Ok(AwcFrame::Text(t)) => {
+                            if session
+                                .text(std::str::from_utf8(&t).unwrap_or_default())
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Ok(AwcFrame::Binary(b)) => {
+                            if session.binary(b).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(AwcFrame::Ping(b)) => {
+                            let _ = session.pong(&b).await;
+                        }
+                        Ok(AwcFrame::Pong(_)) => { /* ignore */ }
+                        Ok(AwcFrame::Close(reason)) => {
+                            let _ = session.close(reason).await;
+                            break;
+                        }
+                        Ok(_) => { /* ignore */ }
+                        Err(e) => {
+                            tracing::error!("backend ws error: {e}");
+                            break;
+                        }
+                    }
+                }
+                cancel.cancel();
+            }
+        });
+
+        // Optional cleanup watcher
+        actix_web::rt::spawn(async move {
+            cancel.cancelled().await;
+            tracing::debug!("ws proxy closed {backend_url}");
+        });
+
+        Ok(client_resp)
     } else {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -1454,7 +1544,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     )
 };
 
-#[derive(Parser, Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
 #[clap(name = env!("CUS_CLI_NAME"), author, version = CLAP_SHORT_VERSION, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
     /// Configuration file
@@ -1512,6 +1602,10 @@ struct Args {
     #[clap(long, env = "EXPLORER_DATA_DIR")]
     #[serde(default)]
     data_dir: Option<String>,
+
+    #[clap(flatten)]
+    #[serde(default)]
+    monitor: monitor::MonitorCfg,
 }
 
 #[serde_as]
@@ -1894,7 +1988,7 @@ impl From<actix_web::Error> for RestErrResponse {
     fn from(err: actix_web::Error) -> Self {
         Self {
             code: Code::FAILED,
-            desc: format!("{:#}", err),
+            desc: format!("{err:#}"),
         }
     }
 }
@@ -1902,7 +1996,7 @@ impl From<serde_json::Error> for RestErrResponse {
     fn from(err: serde_json::Error) -> Self {
         Self {
             code: Code::FAILED,
-            desc: format!("{:#}", err),
+            desc: format!("{err:#}"),
         }
     }
 }
@@ -2237,7 +2331,7 @@ certificate_key = "tests/assets/cert-key.pem"
             );
 
             // 写入测试数据
-            let sql = r#"insert into `test_ts_seconds_format`.`tb1` using `test_ts_seconds_format`.`stb` tags ('a') 
+            let sql = r#"insert into `test_ts_seconds_format`.`tb1` using `test_ts_seconds_format`.`stb` tags ('a')
                         values ('2025-01-01T00:00:00Z', 19.81) ('2025-01-01T00:00:01.100Z', 19.60)
                                ('2025-01-01T00:00:03.999Z', 19.25)"#;
             let tz = Some("Asia/Shanghai".to_string());
@@ -2304,7 +2398,7 @@ certificate_key = "tests/assets/cert-key.pem"
         );
 
         // 写入测试数据
-        let sql = r#"insert into `test_explorer`.`t_with_float` using `test_explorer`.`stb_with_float` tags ('a') 
+        let sql = r#"insert into `test_explorer`.`t_with_float` using `test_explorer`.`stb_with_float` tags ('a')
                         values ('2025-01-01T00:00:00Z', 19.81) ('2025-01-01T00:00:01Z', 19.60)
                                ('2025-01-01T00:00:03Z', 19.25) ('2025-01-01T00:00:04Z', 19.50)"#;
         let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
@@ -2338,5 +2432,77 @@ certificate_key = "tests/assets/cert-key.pem"
         args.query_inner(&dsn, sql, None, 0).await.unwrap();
 
         Ok(())
+    }
+
+    /// Test parse monitor config from cli, env and config file.
+    #[test]
+    fn test_parse_monitor() {
+        let args = Args::parse_from(["explorer", "--monitor-fqdn", "localhost"]).monitor;
+        assert_eq!(args.monitor_fqdn, Some("localhost".to_string()));
+        assert_eq!(args.monitor_port, 6043);
+        assert_eq!(args.monitor_interval, 10);
+
+        std::env::set_var("MONITOR_FQDN", "fake1");
+        std::env::set_var("MONITOR_PORT", "6044");
+        std::env::set_var("MONITOR_INTERVAL", "5");
+        let args = Args::parse_from(["explorer"]).monitor;
+        assert_eq!(args.monitor_fqdn, Some("fake1".to_string()));
+        assert_eq!(args.monitor_port, 6044);
+        assert_eq!(args.monitor_interval, 5);
+        std::env::remove_var("MONITOR_FQDN");
+        std::env::remove_var("MONITOR_PORT");
+        std::env::remove_var("MONITOR_INTERVAL");
+
+        let args = Args::parse_from([
+            "explorer",
+            "--monitor-fqdn",
+            "localhost",
+            "--monitor-port",
+            "6043",
+            "--monitor-interval",
+            "2",
+        ])
+        .monitor;
+        assert_eq!(args.monitor_fqdn, Some("localhost".to_string()));
+        assert_eq!(args.monitor_port, 6043);
+        assert_eq!(args.monitor_interval, 2);
+
+        let args: Args = serde_json::from_str(
+            r#"{
+            }"#,
+        )
+        .unwrap();
+        let args = args.monitor;
+        assert!(args.monitor_fqdn.is_none());
+        assert_eq!(args.monitor_port, 6043);
+        assert_eq!(args.monitor_interval, 10);
+
+        let args: Args = serde_json::from_str(
+            r#"{
+                "monitor": {
+                    "fqdn": "fake2",
+                    "port": 6045,
+                    "interval": 3
+                }
+            }"#,
+        )
+        .unwrap();
+        let args = args.monitor;
+        assert_eq!(args.monitor_fqdn, Some("fake2".to_string()));
+        assert_eq!(args.monitor_port, 6045);
+        assert_eq!(args.monitor_interval, 3);
+
+        let args: Args = serde_json::from_str(
+            r#"{
+                "monitor": {
+                    "fqdn": "fake3"
+                }
+            }"#,
+        )
+        .unwrap();
+        let args = args.monitor;
+        assert_eq!(args.monitor_fqdn, Some("fake3".to_string()));
+        assert_eq!(args.monitor_port, 6043);
+        assert_eq!(args.monitor_interval, 10);
     }
 }

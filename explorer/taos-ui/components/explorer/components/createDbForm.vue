@@ -7,23 +7,7 @@
         <el-form-item :label="t('common.name')" prop="name">
           <el-input v-model="formData.name" :disabled="isEdit" :maxlength="32" style="max-width: 620px" />
         </el-form-item>
-        <el-form-item v-if="isHa" :label="t('db.replica')" prop="replica">
-          <template #label>
-            <span>
-              REPLICA
-              <el-tooltip placement="bottom" effect="light">
-                <template #content>
-                  <div v-dompurify-html="t('db.replicaTip', [isHa ? 3 : 1])"></div>
-                </template>
-                <Icon name="info" class="label-tips-icon"></Icon>
-              </el-tooltip>
-            </span>
-          </template>
-          <el-select v-model="formData.replica" :disabled="isRecplicaDisabled">
-            <el-option v-for="item in replicaList" :key="item" :value="item"></el-option>
-          </el-select>
-          <p v-if="formData.replica == 1" class="errorText">{{ t('db.replica1Tip') }}</p>
-        </el-form-item>
+        
       </div>
       <div class="section2">
         <div class="sub-title">{{ t('common.configurationParameters') }}</div>
@@ -134,6 +118,22 @@
                     controls-position="right"
                     placeholder="4kb"
                   ></el-input-number>
+                </el-form-item>
+                <el-form-item :label="t('db.replica')" prop="replica">
+                  <template #label>
+                    <span>
+                      REPLICA
+                      <el-tooltip placement="bottom" effect="light">
+                        <template #content>
+                          <div v-dompurify-html="t('db.replicaTip')"></div>
+                        </template>
+                        <Icon name="info" class="label-tips-icon"></Icon>
+                      </el-tooltip>
+                    </span>
+                  </template>
+                  <el-select v-model="formData.replica" :disabled="isEdit">
+                    <el-option v-for="item in replicaList" :key="item" :value="item"></el-option>
+                  </el-select>
                 </el-form-item>
               </div>
               <div class="column2">
@@ -706,7 +706,6 @@ const rules = {
     }
   ]
 };
-const isRecplicaDisabled = computed(() => formData.value.replica == 3 && props.isEdit);
 const emits = defineEmits(['cancel', 'success', 'update']);
 
 function handleCreateDb() {

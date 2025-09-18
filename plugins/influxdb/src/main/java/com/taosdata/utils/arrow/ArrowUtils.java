@@ -319,7 +319,7 @@ public class ArrowUtils {
      * @return
      * @throws IOException
      */
-    public byte[] transformDataByTime(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) throws IOException {
+    public byte[] transformDataByTagTime(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) throws IOException {
         // 分配1G内存; 创建arrow数据结构体; 输出字节流，完整结构体的字节流
         try (
                 RootAllocator rootAllocator = new RootAllocator(1_000_000_000);
@@ -342,20 +342,21 @@ public class ArrowUtils {
             typeVector.setSafe(0, 3);
             recordVector.startNewValue(0);
             // 按时间分组
-            Map<Instant, List<InfluxdbBucketDataEntity>> entityByTime = new HashMap<>();
+            Map<Map.Entry<Map<String, Object>, Instant>, List<InfluxdbBucketDataEntity>> entityByTagTime = new HashMap<>();
             for (int i = 0; i < influxdbBucketDataEntityList.size(); i++) {
                 InfluxdbBucketDataEntity entity = influxdbBucketDataEntityList.get(i);
-                Instant time = entity.getTime();
-                if (!entityByTime.containsKey(time)) {
-                    entityByTime.put(time, new ArrayList<>());
+                Map.Entry<Map<String, Object>, Instant> key = new AbstractMap.SimpleImmutableEntry<>(entity.getTags(), entity.getTime());
+                if (!entityByTagTime.containsKey(key)) {
+                    entityByTagTime.put(key, new ArrayList<>());
                 }
-                entityByTime.get(time).add(entity);
+                entityByTagTime.get(key).add(entity);
             }
             // 遍历数据
-            Object[] keyList = entityByTime.keySet().toArray();
+            Object[] keyList = entityByTagTime.keySet().toArray();
             for (int i = 0; i < keyList.length; i++) {
-                Instant time = (Instant) keyList[i];
-                List<InfluxdbBucketDataEntity> entities = entityByTime.get(time);
+                Map.Entry<Map<String, Object>, Instant> key = (Map.Entry<Map<String, Object>, Instant>) keyList[i];
+                Instant time = key.getValue();
+                List<InfluxdbBucketDataEntity> entities = entityByTagTime.get(key);
                 StructVector recordDataVector = (StructVector) recordVector.getChildrenFromFields().get(0);
                 recordDataVector.setIndexDefined(i); // 标记i行有数据
                 setData(recordDataVector, "time", time, "timestamp", i);
@@ -366,7 +367,7 @@ public class ArrowUtils {
                 }
             }
             // 设置recordVector写数据结束
-            recordVector.endValue(0, entityByTime.size());
+            recordVector.endValue(0, entityByTagTime.size());
             // 这里固定传1
             vectorSchemaRoot.setRowCount(1);
             writer.writeBatch();

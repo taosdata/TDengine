@@ -20,6 +20,7 @@ export default {
   network: 'Network',
   total: 'Total',
   tips: 'Tips',
+  compositeKeyTooltip: 'Second column can be designated as an additional composite primary key using the COMPOSITE KEY keyword.',
   orderByAscending: 'Order by ascending',
   orderByDescending: 'Order by descending',
   export: 'Export',

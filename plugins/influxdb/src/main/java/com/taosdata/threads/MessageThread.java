@@ -3,6 +3,7 @@ package com.taosdata.threads;
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.MessageCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.model.dto.MessageDto;
@@ -36,7 +37,7 @@ public class MessageThread implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (LocalConfig.isRunMessageThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();

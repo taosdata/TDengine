@@ -283,7 +283,7 @@ export function generateCreateStbSql(data: CreateStableForm, dbName: string) {
     .map(
       item =>
         `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''
-        }${item.primaryKey ? ' PRIMARY KEY' : ''}`
+        }${item.primaryKey ? ' COMPOSITE KEY' : ''}`
     )
     .join(
       ','

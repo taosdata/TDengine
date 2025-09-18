@@ -264,6 +264,7 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
                 dsn.addresses = d.addresses;
                 dsn.path = d.path;
                 dsn.subject = d.subject;
+                params_map.extend(d.params);
             }
         }
         _ => {}

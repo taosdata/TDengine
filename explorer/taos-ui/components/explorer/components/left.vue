@@ -70,7 +70,7 @@ import { t } from 'locales';
 import CustomTreeNode from './customTreeNode.vue';
 import {
   getStableListReq,
-  getTagHierachy,
+  getTagHierarchy,
   getTableWithTags,
   getTableListReq,
   getSubtbTagAndColumnList,
@@ -154,7 +154,7 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
       // eslint-disable-next-line no-case-declarations
       const currentStbFilter = stableTagFilterMap[data['node-key']];
       if (currentStbFilter.name) {
-        return resolve(...(await getTagHierachy(data.parent, data.name, currentStbFilter.name, currentStbFilter.type)));
+        return resolve(...(await getTagHierarchy(data.parent, data.name, currentStbFilter.name, currentStbFilter.type)));
       } else {
         // eslint-disable-next-line no-case-declarations
         let conditions = '';

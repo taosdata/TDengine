@@ -38,7 +38,7 @@ public class BucketDataCache {
      * 读取倍率，经验值
      */
     public static final long readDataRatio1 = 2;
-    public static final long readDataRatio2 = 70;
+    public static final long readDataRatio2 = 100;
 
     /**
      * 添加数据并获取队列大小
@@ -59,11 +59,9 @@ public class BucketDataCache {
      * @param influxdbBucketDataEntityList
      * @return
      */
-    public static int addBucketData(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) {
+    public static void addBucketData(List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList) {
         // 放入队列中
         bucketDataQueue.addAll(influxdbBucketDataEntityList);
-        // 返回当前队列大小
-        return bucketDataQueue.size();
     }
 
     /**
@@ -73,13 +71,11 @@ public class BucketDataCache {
      * @param influxdbBucketDataEntity
      * @return
      */
-    public static int addBucketData(String key, InfluxdbBucketDataEntity influxdbBucketDataEntity) {
+    public static void addBucketData(String key, InfluxdbBucketDataEntity influxdbBucketDataEntity) {
         if (!bucketDataQueueMap.containsKey(key)) {
             bucketDataQueueMap.put(key, new ConcurrentLinkedQueue<>());
         }
         bucketDataQueueMap.get(key).add(influxdbBucketDataEntity);
-        // 返回当前队列大小
-        return bucketDataQueueMap.get(key).size();
     }
 
     /**
@@ -114,6 +110,9 @@ public class BucketDataCache {
      */
     public static List<InfluxdbBucketDataEntity> getBucketData(String key, long batch) {
         List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
+        if (!bucketDataQueueMap.containsKey(key)) {
+            return influxdbBucketDataEntityList;
+        }
         // 遍历获取
         for (long i = 0; influxdbBucketDataEntityList.size() < batch; i++) {
             InfluxdbBucketDataEntity influxdbBucketDataEntity = bucketDataQueueMap.getOrDefault(key, new ConcurrentLinkedQueue<>()).poll();

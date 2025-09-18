@@ -5,6 +5,7 @@ import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.enums.StatusEnums;
@@ -19,8 +20,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -67,6 +67,11 @@ public class BucketDataThread implements Runnable {
     @Getter
     private String key;
 
+    /**
+     * 按tagset查询条件存time-based cursor的最后一次查询时间
+     */
+    private Map<String, Long> cond_last_time;
+
     public BucketDataThread(String orgId, String bucket, String measurement, String startTime, String stopTime) {
         this.orgId = orgId;
         this.bucket = bucket;
@@ -74,6 +79,7 @@ public class BucketDataThread implements Runnable {
         this.startTime = startTime;
         this.stopTime = stopTime;
         this.key = bucket + "," + measurement + "," + startTime + "," + stopTime;
+        this.cond_last_time = new HashMap<>();
     }
 
     /**
@@ -93,7 +99,7 @@ public class BucketDataThread implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (LocalConfig.isRunBucketDataThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();
@@ -114,6 +120,7 @@ public class BucketDataThread implements Runnable {
                 // 数据量
                 AtomicLong amount = new AtomicLong();
 
+                boolean is_first_time = this.cond_last_time.isEmpty();
                 if (influxdbService.getInfluxdbVersion().startsWith("1")) {
                     List<List<Pair<String, String>>> tagSet = influxdbService.getTagSet(bucket, measurement);
                     // 按 tag set 去查询
@@ -127,8 +134,19 @@ public class BucketDataThread implements Runnable {
                         }
                         String tagCondition = sb.substring(5);
                         try {
-                            List<InfluxdbBucketDataEntity> entityList = influxdbService.selectBucketDataV1(this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, queryLimit, this.offset);
-                            addToBucketDataCache(entityList, amount, start);
+                            long last_time = this.cond_last_time.getOrDefault(tagCondition, -1L);
+                            if (is_first_time || last_time != -1) {
+//                                List<InfluxdbBucketDataEntity> entityList = influxdbService.selectBucketDataV1(this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, queryLimit, this.offset);
+                                List<InfluxdbBucketDataEntity> entityList = influxdbService.selectBucketDataV1(this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, queryLimit, this.offset, last_time);
+                                addToBucketDataCache(entityList, amount, start);
+                                long time = -1;
+                                logger.info("tagset query result compare: tag {}, entiyList size: {}, query limit: {}, fieldMap size: {}", tagCondition, entityList.size(), queryLimit, fieldMap.size());
+                                if (!entityList.isEmpty()) {
+                                    InfluxdbBucketDataEntity last_one = entityList.get(entityList.size() - 1);
+                                    time = last_one.getTime().getEpochSecond() * 1000_000_000L + last_one.getTime().getNano();
+                                }
+                                this.cond_last_time.put(tagCondition, time);
+                            }
                         } catch (ArtificialException ae) {
                             logger.error("querying data from InfluxDB v1.x occurred error, {}:{}:{}:{}-{}", this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, ae);
                         }
