@@ -1669,6 +1669,52 @@ static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
   }
 }
 
+static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  STableScanInfo*   pInfo = pOper->info;
+  pOper->status = OP_NOT_OPENED;
+
+  pInfo->scanTimes = 0;
+  pInfo->currentGroupId = -1;
+  pInfo->tableEndIndex = -1;
+  pInfo->tableStartIndex = 0;
+  pInfo->currentTable = 0;
+  pInfo->scanMode = 0;
+  pInfo->countState = 0;
+  if (pInfo->base.readerAPI.tsdReaderClose) {
+    pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
+  }
+  pInfo->base.dataReader = NULL;
+
+  pInfo->base.limitInfo.remainOffset = pInfo->base.limitInfo.limit.offset;
+  pInfo->base.limitInfo.remainGroupOffset = pInfo->base.limitInfo.slimit.offset;
+
+  tableListDestroy(pInfo->base.pTableListInfo);
+
+  pInfo->base.pTableListInfo = tableListCreate();
+  if (!pInfo->base.pTableListInfo) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
+  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
+  
+  STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
+  if (!pTableScanNode->scan.node.dynamicOp) {
+    code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                    &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
+                                    pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+    if (code) {
+      qError("%s failed to createScanTableListInfo, code:%s, %s", __func__, tstrerror(code));
+      return code;
+    }
+  }
+
+  blockDataEmpty(pInfo->pResBlock);
+  blockDataEmpty(pInfo->pOrgBlock);
+  taosHashClear(pInfo->pIgnoreTables);
+  return code;
+}
+
 int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
@@ -1682,7 +1728,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
     code = terrno;
     goto _error;
   }
-
+  pOperator->pPhyNode = pTableScanNode;
   SScanPhysiNode*     pScanNode = &pTableScanNode->scan;
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
 
@@ -1762,7 +1808,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL, destroyTableScanOperatorInfo,
                                          optrDefaultBufFn, getTableScannerExecInfo, optrDefaultGetNextExtFn, NULL);
-
+  setOperatorResetStateFn(pOperator, resetTableScanOperatorState);                                    
   // for non-blocking operator, the open cost is always 0
   pOperator->cost.openCost = 0;
   *pOptrInfo = pOperator;

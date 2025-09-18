@@ -351,9 +351,7 @@ int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range) {
   if (range.skey != 0 && range.ekey != 0) {
     pScanBaseInfo->cond.twindows = range;
   }
-  setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
-  qStreamSetOpen(pTaskInfo);
-  return pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
+  return pOperator->fpSet.resetStateFn(pOperator);
 }
 
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,

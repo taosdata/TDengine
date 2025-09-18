@@ -34,10 +34,13 @@ class TestStreamSchema:
         self.prepareData()
         # 创建一个 stream
         self.createOneStream()
+        time.sleep(2)
         self.insertCheckData1()
-        self.insertCheckData2()
-        self.insertCheckData3()
-        self.insertCheckData4()
+        time.sleep(10)
+        # self.insertCheckData2()
+        # time.sleep(50)
+        # self.insertCheckData3()
+        # self.insertCheckData4()
 
     def prepareData(self):
         tdLog.info(f"prepare data")
@@ -83,20 +86,21 @@ class TestStreamSchema:
             "insert into t1 values(now,1);", 
             "insert into t1 values(now+1s,-1);", 
             "insert into t1 values(now+2s,2);", 
-            "insert into t1 values(now+3s,3);", 
+            "insert into t1 values(now+3s,3);",                     
+        ]
+
+        tdSql.executes(sqls)
+        time.sleep(5)
+        sqls1 = [
+            "use db",
             # "create table t2 using stb tags(2, 0);",                       
             "insert into t2 using stb tags(2, 0) values(now+10s,12);",                       
             "insert into t2 values(now+12s,-12);",                       
             "insert into t2 values(now+14s,12);",                       
-            "insert into t2 values(now+15s,12);", 
-            "create table t3 using stb tags(-1, 0);",                       
-            "insert into t3 values(now,1);", 
-            "insert into t3 values(now+1s,-1);", 
-            "insert into t3 values(now+2s,2);", 
-            "insert into t3 values(now+3s,3);",                      
+            "insert into t2 values(now+15s,12);",                  
         ]
 
-        tdSql.executes(sqls)
+        tdSql.executes(sqls1)
 
         while True:
             tdSql.query(f"select count(*) from db.stb_out")

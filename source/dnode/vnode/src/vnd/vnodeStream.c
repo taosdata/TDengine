@@ -2969,14 +2969,15 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_NULL_GOTO(calcInfoList, terrno);
 
   STREAM_CHECK_CONDITION_GOTO(req.execId < 0, TSDB_CODE_INVALID_PARA);
-  SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
+  SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, 0);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
   void* pTask = sStreamReaderCalcInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, execId:%d, reset:%d, pTaskInfo:%p, scan type:%d", TD_VID(pVnode), __func__, req.execId, req.reset,
                sStreamReaderCalcInfo->pTaskInfo, nodeType(sStreamReaderCalcInfo->calcAst->pNode));
 
-  if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
-    qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
+  // if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
+  if (req.reset) {
+    // qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
     int64_t uid = 0;
     if (req.dynTbname) {
       SArray* vals = req.pStRtFuncInfo->pStreamPartColVals;
@@ -3007,13 +3008,13 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
     handle.streamRtInfo = &sStreamReaderCalcInfo->rtInfo;
 
-    // if (sStreamReaderCalcInfo->pTaskInfo == NULL) {
+    if (sStreamReaderCalcInfo->pTaskInfo == NULL) {
     STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
                                                     sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, TD_VID(pVnode),
                                                     req.taskId));
-    // } else {
-    // STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, handle.winRange));
-    // }
+    } else {
+    STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, handle.winRange));
+    }
 
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
   }
