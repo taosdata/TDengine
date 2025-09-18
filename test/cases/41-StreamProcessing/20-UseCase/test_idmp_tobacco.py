@@ -47,10 +47,10 @@ class TestIdmpTobacco:
             "tobacco",
             "idmp_sample_tobacco",
             "idmp",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
+            "cases/41-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco",
+            "cases/41-StreamProcessing/20-UseCase/tobacco_data/idmp/vstb.sql",
+            "cases/41-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
+            "cases/41-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
         )
         # 这里可以指定需要创建的 stream_ids
         tobac.stream_ids = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
