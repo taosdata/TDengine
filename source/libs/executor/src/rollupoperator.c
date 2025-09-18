@@ -41,7 +41,8 @@ static int32_t createDataBlockForSchema(STSchema *pTSchema, SSDataBlock **ppData
   }
   TAOS_CHECK_EXIT(createDataBlock(&pBlock));
 
-  for (int32_t i = 1; i < numOfCols; ++i) {  // skip the first timestamp column
+  // the primary timestamp column is included since it's needed by funcs like first/last.
+  for (int32_t i = 0; i < numOfCols; ++i) {
     STColumn       *pCol = pTSchema->columns + i;
     SColumnInfoData colInfoData = createColumnInfoData(pCol->type, pCol->bytes, pCol->colId);
     TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
@@ -75,12 +76,12 @@ static int32_t createDataBlockForTargets(SNodeList *pTargets, SSDataBlock **ppDa
     if (!pFuncNode || pFuncNode->node.type != QUERY_NODE_FUNCTION) {
       TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
     }
-    if (pFuncNode->pParameterList == NULL || LIST_LENGTH(pFuncNode->pParameterList) != 1) {
-      TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+    if (LIST_LENGTH(pFuncNode->pParameterList) != 1 && LIST_LENGTH(pFuncNode->pParameterList) != 2) {
+      TAOS_CHECK_EXIT(TSDB_CODE_RSMA_INVALID_FUNC_PARAM);
     }
     SColumnNode *pColNode = (SColumnNode *)nodesListGetNode(pFuncNode->pParameterList, 0);
     if (!pColNode || pColNode->node.type != QUERY_NODE_COLUMN) {
-      TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+      TAOS_CHECK_EXIT(TSDB_CODE_RSMA_INVALID_FUNC_PARAM);
     }
 
     SColumnInfoData colInfoData =
@@ -91,6 +92,7 @@ static int32_t createDataBlockForTargets(SNodeList *pTargets, SSDataBlock **ppDa
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     blockDataDestroy(pBlock);
     pBlock = NULL;
   }
@@ -112,7 +114,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   STargetNode    *pTargetNode = NULL;
   SFunctionNode  *pFuncNode = NULL;
   SColumnNode    *pColNode = NULL;
-  SColumnNode    *pPrimaryColNode = NULL;
+  SColumnNode    *pPrimaryKeyColNode = NULL;
   int32_t         nCols = pTSchema->numOfCols;
   int32_t         exprNum = 0;
   SExprInfo      *pExprInfo = NULL;
@@ -153,7 +155,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   }
 
   int32_t inputRowSize = sizeof(int64_t);  // for the timestamp column
-  for (int32_t i = 1; i < nCols; i++) {  // skip the first timestamp column
+  for (int32_t i = 1; i < nCols; i++) {    // skip the first timestamp column
     STColumn *pCol = pTSchema->columns + i;
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pColNode));
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&pFuncNode));
@@ -168,7 +170,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     pColNode->colId = pCol->colId;
     pColNode->colType = COLUMN_TYPE_COLUMN;
 
-    pColNode->slotId = (int16_t)(i - 1);
+    pColNode->slotId = i;
 
     pColNode->tableId = pRSchema->tbUid;
     pColNode->tableType = pRSchema->tbType;
@@ -187,16 +189,17 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     TAOS_CHECK_EXIT(fmGetFuncInfo(pFuncNode, buf, sizeof(buf)));
 
     if (fmIsImplicitTsFunc(pFuncNode->funcId)) {
-      TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pPrimaryColNode));
-      pPrimaryColNode->node.resType.type = pCol->type;
-      pPrimaryColNode->node.resType.precision = precision;
-      pPrimaryColNode->node.resType.bytes = pCol->bytes;
-      pPrimaryColNode->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      pPrimaryColNode->colType = COLUMN_TYPE_COLUMN;
-      (void)snprintf(pPrimaryColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
+      TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pPrimaryKeyColNode));
+      pPrimaryKeyColNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+      pPrimaryKeyColNode->node.resType.precision = precision;
+      pPrimaryKeyColNode->node.resType.bytes = sizeof(int64_t);
+      pPrimaryKeyColNode->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pPrimaryKeyColNode->colType = COLUMN_TYPE_COLUMN;
+      pPrimaryKeyColNode->slotId = 0;  // put the timestamp column at the 1st position
+      (void)snprintf(pPrimaryKeyColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
       (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", pFuncNode->functionName);
-      TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pPrimaryColNode));
-      pPrimaryColNode = NULL;
+      TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pPrimaryKeyColNode));
+      pPrimaryKeyColNode = NULL;
     }
 
     // build the target node
@@ -244,7 +247,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   TAOS_CHECK_EXIT(initGroupedResultInfo(pCtx->pGroupResInfo, pCtx->aggSup->pResultRowHashTable, 0));
 
 _exit:
-  nodesDestroyNode((SNode *)pPrimaryColNode);
+  nodesDestroyNode((SNode *)pPrimaryKeyColNode);
   nodesDestroyNode((SNode *)pColNode);
   nodesDestroyNode((SNode *)pFuncNode);
   nodesDestroyNode((SNode *)pTargetNode);
