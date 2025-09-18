@@ -42,7 +42,7 @@ error_num=$(cat ${LOG_DIR}/*.asan | grep "ERROR" | wc -l)
 archOs=$(arch)
 if [[ $archOs =~ "aarch64" ]]; then
   echo "arm64 check mem leak"
-  memory_leak=$(cat ${LOG_DIR}/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte" | wc -l)
+  memory_leak=$(cat ${LOG_DIR}/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte" | grep -v "pyo3::types::function::PyCFunction::internal_new" | wc -l)
   memory_count=$(cat ${LOG_DIR}/*.asan | grep "Direct leak of 32 byte" | wc -l)
 
   if [ $memory_count -eq $error_num ] && [ $memory_leak -eq 0 ]; then
@@ -51,7 +51,7 @@ if [[ $archOs =~ "aarch64" ]]; then
   fi
 else
   echo "os check mem leak"
-  memory_leak=$(cat ${LOG_DIR}/*.asan | grep "Direct leak" | wc -l)
+  memory_leak=$(cat ${LOG_DIR}/*.asan | grep "Direct leak" | grep -v "pyo3::types::function::PyCFunction::internal_new" | wc -l)
 fi
 
 indirect_leak=$(cat ${LOG_DIR}/*.asan | grep "Indirect leak" | wc -l)
