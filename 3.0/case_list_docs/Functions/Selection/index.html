@@ -1808,6 +1808,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#22-Functions.03-Selection.test_select_last_as_param.TestFuncLastAsParam.test_last_as_operator_param" class="md-nav__link">
+        Last keepColumnName 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#22-Functions.03-Selection.test_select_all.TestSelectFunction.test_select_function" class="md-nav__link">
         Select: all 
       </a>
@@ -1876,6 +1887,17 @@
     <li class="md-nav__item">
       <a href="#22-Functions.03-Selection.test_select_with_json.TestSelectWithJson.test_select_with_json" class="md-nav__link">
         Select: with json params 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.03-Selection.test_select_last_as_param.TestFuncLastAsParam.test_last_as_func_param" class="md-nav__link">
+        Test that 'timediff(last(col), first(col))' is not equal to zero when keepColumnName is 1. 
       </a>
       
     </li>
@@ -2851,6 +2873,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#22-Functions.03-Selection.test_select_last_as_param.TestFuncLastAsParam.test_last_as_operator_param" class="md-nav__link">
+        Last keepColumnName 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#22-Functions.03-Selection.test_select_all.TestSelectFunction.test_select_function" class="md-nav__link">
         Select: all 
       </a>
@@ -2919,6 +2952,17 @@
     <li class="md-nav__item">
       <a href="#22-Functions.03-Selection.test_select_with_json.TestSelectWithJson.test_select_with_json" class="md-nav__link">
         Select: with json params 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#22-Functions.03-Selection.test_select_last_as_param.TestFuncLastAsParam.test_last_as_func_param" class="md-nav__link">
+        Test that 'timediff(last(col), first(col))' is not equal to zero when keepColumnName is 1. 
       </a>
       
     </li>
@@ -3002,6 +3046,78 @@
                     <strong>Path:</strong>
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/22-Functions/03-Selection/test_select_first_last.py" target="_blank">
                       cases/22-Functions/03-Selection/test_select_first_last.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="22-Functions.03-Selection.test_select_last_as_param.TestFuncLastAsParam.test_last_as_operator_param" class="doc doc-heading">
+
+<a href="#22-Functions.03-Selection.test_select_last_as_param.TestFuncLastAsParam.test_last_as_operator_param" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Last keepColumnName
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test that &#39;last(col) - first(col)&#39; is not equal to zero when keepColumnName is 1.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Steps:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a database and a stable table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create sub-tables and insert data where the first and last values are different.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Set &#39;alter local &#39;keepColumnName&#39; &#39;1&#39;&#39;.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute &#39;select last(tbcol) - first(tbcol) from stable_table group by tgcol&#39;.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify that the result is the difference between the last and first value, which is not zero.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/22-Functions/03-Selection/test_select_last_as_param.py" target="_blank">
+                      cases/22-Functions/03-Selection/test_select_last_as_param.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="22-Functions.03-Selection.test_select_last_as_param.TestFuncLastAsParam.test_last_as_func_param" class="doc doc-heading">
+
+<a href="#22-Functions.03-Selection.test_select_last_as_param.TestFuncLastAsParam.test_last_as_func_param" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Test that 'timediff(last(col), first(col))' is not equal to zero when keepColumnName is 1.
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Steps:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a database and a stable table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create sub-tables and insert data where the first and last timestamps are different.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Set &#39;alter local &#39;keepColumnName&#39; &#39;1&#39;&#39;.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute &#39;select timediff(last(ts), first(ts)) from stable_table group by tgcol&#39;.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify that the result is the difference between the last and first timestamp, which is not zero.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/22-Functions/03-Selection/test_select_last_as_param.py" target="_blank">
+                      cases/22-Functions/03-Selection/test_select_last_as_param.py
                     </a>
                   </div>
         </div>
