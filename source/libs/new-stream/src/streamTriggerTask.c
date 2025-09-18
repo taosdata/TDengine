@@ -3778,6 +3778,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     if (pGroup->nextExecTime > 0) {
       heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
     }
+    pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
     if (pContext->pMaxDelayHeap->min != NULL) {
       pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
       if (pContext->pMinGroup->nextExecTime <= now) {
@@ -3785,7 +3786,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
     }
     pContext->pMinGroup = NULL;
-    pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
 
   int32_t deleteGroupNum = taosArrayGetSize(pContext->groupsToDelete);
@@ -6601,8 +6601,8 @@ static int32_t stRealtimeGroupGatherPendingCalc(SSTriggerRealtimeGroup *pGroup) 
   if (pContext->pCalcReq != NULL) {
     QUERY_CHECK_CONDITION(TARRAY_SIZE(pContext->pCalcReq->params) <= STREAM_CALC_REQ_MAX_WIN_NUM, code, lino, _end,
                           TSDB_CODE_INTERNAL_ERROR);
-    pGroup->nextExecTime = 0;
   }
+  pGroup->nextExecTime = 0;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
