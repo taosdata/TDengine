@@ -1,3 +1,4 @@
+# not used from 3.3.7.7
 log_file = "log.time-moe_server"
 import logging
 
