@@ -980,13 +980,16 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
   // Build new row with the added column
   code = metaBuildTSchemaFromSchemaWrapper(pOldSchemaWrapper, &pOldTSchema);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
   code = metaBuildTSchemaFromSchemaWrapper(pNewSchemaWrapper, &pNewTSchema);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
+
+  tsdbInfo("vgId:%d, %s old schema version: %d, new schema version: %d", TD_VID(pTsdb->pVnode), __func__,
+           pOldTSchema->version, pNewTSchema->version);
 
   // Schema-based column addition logic for existing tables
   // For row-based cache, handle the specific lflag passed from caller
@@ -1002,7 +1005,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
   code = tsdbCacheGetValuesFromRocks(pTsdb, 1, (const char *const *)&rowKeyPtr, &rowKeySize, &values_list,
                                      &values_list_sizes);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
   if (values_list && values_list[0] != NULL) {
@@ -1010,7 +1013,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
     code = tsdbRowCacheDeserialize(values_list[0], values_list_sizes[0], &pLastRow);
     if (code != TSDB_CODE_SUCCESS) {
       tsdbFreeLastRow(pLastRow);
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
     if (pLastRow && pLastRow->pRow) {
       // Extract existing column values
@@ -1018,7 +1021,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
       if (colVals == NULL) {
         tsdbFreeLastRow(pLastRow);
         code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
 
       // Copy existing columns
@@ -1027,12 +1030,12 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
         code = tRowGetLastColVal(pLastRow->pRow, pOldTSchema, j, &colVal);
         if (code != TSDB_CODE_SUCCESS) {
           tsdbFreeLastRow(pLastRow);
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
         if (!taosArrayPush(colVals, &colVal)) {
           tsdbFreeLastRow(pLastRow);
           code = terrno;
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
       }
 
@@ -1041,7 +1044,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
       if (!taosArrayPush(colVals, &newColVal)) {
         tsdbFreeLastRow(pLastRow);
         code = terrno;
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
 
       // Build new row
@@ -1051,7 +1054,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
       code = tRowBuild(colVals, pNewTSchema, &pNewRow, &scanInfo);
       if (code != TSDB_CODE_SUCCESS) {
         tsdbFreeLastRow(pLastRow);
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
 
       // Update the cached row - extend existing colStatus
@@ -1065,7 +1068,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
           taosMemoryFreeClear(pNewRow);
           tsdbFreeLastRow(pLastRow);
           code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
         // Copy existing status entries
         memcpy(newLastRow.colStatus, pLastRow->colStatus, pLastRow->numCols * sizeof(SColCacheStatus));
@@ -1077,7 +1080,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
         if (code != TSDB_CODE_SUCCESS) {
           taosMemoryFreeClear(pNewRow);
           tsdbFreeLastRow(pLastRow);
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
       }
 
@@ -1086,7 +1089,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
         taosMemoryFreeClear(pNewRow);
         taosMemoryFree(newLastRow.colStatus);
         tsdbFreeLastRow(pLastRow);
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
 
       // Clean up - free the new colStatus we allocated and the new row
@@ -1113,7 +1116,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
       colVals = taosArrayInit(pNewTSchema->numOfCols, sizeof(SColVal));
       if (colVals == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
 
       // Extract existing columns from current row
@@ -1123,7 +1126,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
         if (code == TSDB_CODE_SUCCESS) {
           taosArrayPush(colVals, &colVal);
         } else if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
       }
 
@@ -1131,7 +1134,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
       SColVal newColVal = COL_VAL_NONE(cid, col_type);
       if (!taosArrayPush(colVals, &newColVal)) {
         code = terrno;
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
 
       // Re-encode into new row with updated schema
@@ -1139,7 +1142,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
       SRowBuildScanInfo scanInfo = {0};
       code = tRowBuild(colVals, pNewTSchema, &pNewRow, &scanInfo);
       if (code != TSDB_CODE_SUCCESS) {
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
 
       // Create updated row structure
@@ -1151,7 +1154,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
         newLastRow.colStatus = taosMemoryMalloc(newLastRow.numCols * sizeof(SColCacheStatus));
         if (newLastRow.colStatus == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
         // Copy existing status entries
         memcpy(newLastRow.colStatus, pLastRow->colStatus, pLastRow->numCols * sizeof(SColCacheStatus));
@@ -1162,19 +1165,19 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
         // Initialize colStatus for the first time
         code = tsdbLastRowInitColStatus(&newLastRow, pNewTSchema);
         if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
       }
 
       if (code == TSDB_CODE_SUCCESS && newLastRow.colStatus == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       // Put the updated row back to LRU cache - cache will make its own copy
       code = tsdbRowCachePutToLRU(pTsdb, &rowKey, &newLastRow, 1);
       if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(newLastRow.colStatus);
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
       // Always clean up our allocated memory since LRU cache makes its own copy
       if (newLastRow.colStatus && newLastRow.colStatus != pLastRow->colStatus) {
@@ -1191,7 +1194,8 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s failed at line %d since %s.", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at %s:%d since %s.", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
 
   rocksdb_free(values_list[0]);
@@ -1220,11 +1224,11 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
 
   code = metaBuildTSchemaFromSchemaWrapper(pOldSchemaWrapper, &pTOldSchema);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
   code = metaBuildTSchemaFromSchemaWrapper(pNewSchemaWrapper, &pNewTSchema);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
   // For row-based cache, handle the specific lflag passed from caller
@@ -1247,7 +1251,7 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
     SLastRow *pLastRow = NULL;
     code = tsdbRowCacheDeserialize(values_list[0], values_list_sizes[0], &pLastRow);
     if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
     if (pLastRow && pLastRow->pRow) {
       // Check if column exists in the row
@@ -1262,11 +1266,12 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
       if (columnExists) {
         // Build new row without the dropped column
         colVals = taosArrayInit(pTOldSchema->numOfCols - 1, sizeof(SColVal));
-        if (colVals) {
+        if (!colVals) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           tsdbFreeLastRow(pLastRow);
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
+
         // Extract all columns except the one to be dropped
         for (int j = 0; j < pTOldSchema->numOfCols; j++) {
           if (pTOldSchema->columns[j].colId != cid) {
@@ -1274,57 +1279,58 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
             code = tRowGetLastColVal(pLastRow->pRow, pTOldSchema, j, &colVal);
             if (code != TSDB_CODE_SUCCESS) {
               tsdbFreeLastRow(pLastRow);
-              goto _exit;
+              TAOS_CHECK_GOTO(code, &lino, _exit);
             }
             if (!taosArrayPush(colVals, &colVal)) {
               tsdbFreeLastRow(pLastRow);
-              goto _exit;
+              TAOS_CHECK_GOTO(code, &lino, _exit);
             }
           }
+        }
 
-          // Build new row
-          SRow             *pNewRow = NULL;
-          SRowBuildScanInfo scanInfo = {0};
-          code = tRowBuild(colVals, pNewTSchema, &pNewRow, &scanInfo);
-          if (code == TSDB_CODE_SUCCESS && pNewRow) {
-            // Update the cached row
-            SLastRow newLastRow = {.rowKey = pLastRow->rowKey,
-                                   .pRow = pNewRow,
-                                   .dirty = 1,
-                                   .numCols = pLastRow->numCols,
-                                   .colStatus = pLastRow->colStatus};
+        // Build new row
+        SRow             *pNewRow = NULL;
+        SRowBuildScanInfo scanInfo = {0};
+        code = tRowBuild(colVals, pNewTSchema, &pNewRow, &scanInfo);
+        if (code == TSDB_CODE_SUCCESS && pNewRow) {
+          // Update the cached row
+          SLastRow newLastRow = {.rowKey = pLastRow->rowKey,
+                                 .pRow = pNewRow,
+                                 .dirty = 1,
+                                 .numCols = pLastRow->numCols,
+                                 .colStatus = pLastRow->colStatus};
 
-            // Reuse original column status and remove the dropped column
-            if (newLastRow.colStatus) {
-              // Update column status to remove the dropped column
-              for (int k = 0; k < newLastRow.numCols; k++) {
-                if (newLastRow.colStatus[k].cid == cid) {
-                  // Remove this column status entry
-                  memmove(&newLastRow.colStatus[k], &newLastRow.colStatus[k + 1],
-                          (newLastRow.numCols - k - 1) * sizeof(SColCacheStatus));
-                  newLastRow.numCols--;
-                  break;
-                }
+          // Reuse original column status and remove the dropped column
+          if (newLastRow.colStatus) {
+            // Update column status to remove the dropped column
+            for (int k = 0; k < newLastRow.numCols; k++) {
+              if (newLastRow.colStatus[k].cid == cid) {
+                // Remove this column status entry
+                memmove(&newLastRow.colStatus[k], &newLastRow.colStatus[k + 1],
+                        (newLastRow.numCols - k - 1) * sizeof(SColCacheStatus));
+                newLastRow.numCols--;
+                break;
               }
             }
+          }
 
-            // Serialize and write back to RocksDB
-            code = tsdbRowCachePutToRocksdb(pTsdb, &rowKey, &newLastRow);
-            if (code != TSDB_CODE_SUCCESS) {
-              taosMemoryFree(pNewRow);
-              tsdbFreeLastRow(pLastRow);
-              goto _exit;
-            }
-            if (pNewRow) {
-              taosMemoryFree(pNewRow);
-            }
-          } else {
+          // Serialize and write back to RocksDB
+          code = tsdbRowCachePutToRocksdb(pTsdb, &rowKey, &newLastRow);
+          if (code != TSDB_CODE_SUCCESS) {
             taosMemoryFree(pNewRow);
             tsdbFreeLastRow(pLastRow);
-            goto _exit;
+            TAOS_CHECK_GOTO(code, &lino, _exit);
           }
-          taosArrayDestroy(colVals);
+          if (pNewRow) {
+            taosMemoryFree(pNewRow);
+          }
+        } else {
+          taosMemoryFree(pNewRow);
+          tsdbFreeLastRow(pLastRow);
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
+        taosArrayDestroy(colVals);
+
       } else {
         // Column doesn't exist in row, just delete the column status if present
         bool statusUpdated = false;
@@ -1379,12 +1385,12 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
               if (code != TSDB_CODE_SUCCESS) {
                 taosMemoryFree(colVals);
                 tsdbFreeLastRow(pLastRow);
-                goto _exit;
+                TAOS_CHECK_GOTO(code, &lino, _exit);
               }
               if (!taosArrayPush(colVals, &colVal)) {
                 taosMemoryFree(colVals);
                 tsdbFreeLastRow(pLastRow);
-                goto _exit;
+                TAOS_CHECK_GOTO(code, &lino, _exit);
               }
             }
           }
@@ -1395,7 +1401,7 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
           if (code != TSDB_CODE_SUCCESS) {
             taosMemoryFree(colVals);
             tsdbFreeLastRow(pLastRow);
-            goto _exit;
+            TAOS_CHECK_GOTO(code, &lino, _exit);
           }
           if (pNewRow) {
             // Update the cached row
@@ -1424,7 +1430,7 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
             if (code != TSDB_CODE_SUCCESS) {
               taosMemoryFree(pNewRow);
               tsdbFreeLastRow(pLastRow);
-              goto _exit;
+              TAOS_CHECK_GOTO(code, &lino, _exit);
             }
           }
 
@@ -1454,7 +1460,8 @@ int32_t tsdbRowCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8
   }
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, %s failed at line %d since %s.", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at %s:%d since %s.", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
   }
   taosMemoryFree(pTOldSchema);
   taosMemoryFree(pNewTSchema);
@@ -1549,7 +1556,7 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       SLastCol lastCol;
       lastCol.rowKey = pLastRow->rowKey.key;
       lastCol.rowKey.ts = colStatus->lastTs;
-      
+
       lastCol.cacheStatus = colStatus->status;
 
       if (pCol && colIndex >= 0) {
@@ -1602,7 +1609,7 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
 
       if (taosArrayPush(pLastArray, &noneCol) == NULL) {
         code = terrno;
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
     }
   }
@@ -1824,7 +1831,7 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
         code = tRowGetLastColVal(pLastRow->pRow, pTSchema, j, &colVal);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(colVals);
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
       } else {
         colVal = COL_VAL_NONE(pTSchema->columns[j].colId, pTSchema->columns[j].type);
@@ -1833,14 +1840,14 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       if (!taosArrayPush(colVals, &colVal)) {
         taosArrayDestroy(colVals);
         code = terrno;
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
     }
     SColCacheStatus *colStatus = taosMemoryMalloc(pTSchema->numOfCols * sizeof(SColCacheStatus));
     if (!colStatus) {
       taosArrayDestroy(colVals);
       code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
     if (pLastRow != NULL && pLastRow->colStatus != NULL) {
       memcpy(colStatus, pLastRow->colStatus, pLastRow->numCols * sizeof(SColCacheStatus));
@@ -1879,14 +1886,14 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(colStatus);
       taosArrayDestroy(colVals);
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     if (!pNewRow) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       taosMemoryFree(colStatus);
       taosArrayDestroy(colVals);
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     // Update the cached row
@@ -1901,7 +1908,7 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pNewRow);
       taosArrayDestroy(colVals);
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     // Update LRU cache
@@ -1909,7 +1916,7 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pNewRow);
       taosArrayDestroy(colVals);
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
     taosMemoryFree(colStatus);
@@ -2031,7 +2038,7 @@ int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, T
 
   if (!keys_list || !keys_list_sizes) {
     code = terrno;
-    goto _exit;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
   const size_t klen = ROCKS_ROW_KEY_LEN;
 
@@ -2039,7 +2046,7 @@ int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, T
     char *key = taosMemoryCalloc(1, sizeof(SLastRowKey));
     if (!key) {
       code = terrno;
-      goto _exit;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
     }
     SLastRowKey *pRowKey = taosArrayGet(remainKeys, i);
 
@@ -2063,7 +2070,7 @@ int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, T
       if (code != TSDB_CODE_SUCCESS) {
         tsdbError("vgId:%d, %s deserialize failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
                   tstrerror(code));
-        goto _exit;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
       }
     }
 
@@ -2086,12 +2093,12 @@ int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, T
         if ((code = tsdbRowCachePutToRocksdb(pTsdb, pRowKey, pLastRow)) != TSDB_CODE_SUCCESS) {
           taosMemoryFreeClear(pLastRow);
           tsdbError("tsdb/cache/del: vgId:%d, put to rocks failed since %s.", TD_VID(pTsdb->pVnode), tstrerror(code));
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
         if ((code = tsdbRowCachePutToLRU(pTsdb, pRowKey, pLastRow, 0)) != TSDB_CODE_SUCCESS) {
           taosMemoryFreeClear(pLastRow);
           tsdbError("tsdb/cache/del: vgId:%d, put to lru failed since %s.", TD_VID(pTsdb->pVnode), tstrerror(code));
-          goto _exit;
+          TAOS_CHECK_GOTO(code, &lino, _exit);
         }
       }
     }
