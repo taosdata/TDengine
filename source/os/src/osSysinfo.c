@@ -933,6 +933,10 @@ int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferK
       TAOS_SKIP_ERROR(taosCloseFile(&pFile));
       return terrno;
     }
+    if (line[0] != 'M' && line[0] != 'B' && line[0] != 'C' && line[0] != 'S') {
+      line[0] = 0;
+      continue;
+    }
     taosGetMemValue(line, key, &value);
     if(strncmp(key, "MemTotal", 1024) == 0) {total = value; continue;}
     if(strncmp(key, "MemFree", 1024) == 0) {mfree = value; continue;}
