@@ -127,6 +127,7 @@ int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
   const SRSmaParam *pParam = &pME->stbEntry.rsmaParam;
   const SSchema    *pSchema = pME->stbEntry.schemaRow.pSchema;
   int32_t           nCols = pME->stbEntry.schemaRow.nCols;
+
   *rsmaSchema = (SSchemaRsma *)taosMemoryMalloc(sizeof(SSchemaRsma));
   if (*rsmaSchema == NULL) {
     return terrno;
@@ -149,17 +150,16 @@ int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
   func_id_t *pFuncIds = (*rsmaSchema)->funcIds;
   int32_t    i = 0, j = 0;
   for (i = 0; i < nCols; ++i) {
-    for (j = 0; j < pParam->nFuncs;) {
+    while (j < pParam->nFuncs) {
       if (pParam->funcColIds[j] == pSchema[i].colId) {
         pFuncIds[i] = pParam->funcIds[j];
-        ++j;
         break;
-      } else if (pParam->funcColIds[j] > pSchema[i].colId) {
+      }
+      if (pParam->funcColIds[j] > pSchema[i].colId) {
         pFuncIds[i] = 36;  // use last if not specified, fmGetFuncId("last") = 36
         break;
-      } else {
-        ++j;
       }
+      ++j;
     }
     if (j >= pParam->nFuncs) {
       for (; i < nCols; ++i) {
