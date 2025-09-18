@@ -243,6 +243,13 @@ export default {
           description: '数据采集相关配置项。',
           children: [
             {
+              label: '上报异常值',
+              description: '是否上报异常值（Bad Quality）的数据，默认上报异常值数据。',
+              field: 'contains_bad',
+              type: 'switch',
+              defaultValue: true
+            },
+            {
               label: '采集间隔',
               description: '数据点位采集间隔，单位为：秒。',
               field: 'interval',

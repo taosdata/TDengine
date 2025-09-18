@@ -261,6 +261,13 @@ export default {
           description: 'Configurations for collecting data from OPC',
           children: [
             {
+              label: 'Contains Bad',
+              description: 'Whether to collect data with Bad Quality. Default is true.',
+              field: 'contains_bad',
+              type: 'switch',
+              defaultValue: true
+            },
+            {
               label: 'Collect Interval',
               description: 'Collect data interval in second',
               field: 'interval',

@@ -420,6 +420,13 @@ export default {
           description: 'Configurations for collecting data from OPC UA server.',
           children: [
             {
+              label: 'Contains Bad',
+              description: 'Whether to collect data with Bad Quality. Default is false.',
+              field: 'contains_bad',
+              type: 'switch',
+              defaultValue: false
+            },
+            {
               label: 'Collect Mode',
               description: 'observe or subscribe. default is subscribe',
               field: 'collect_mode',

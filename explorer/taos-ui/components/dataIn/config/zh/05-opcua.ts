@@ -414,6 +414,13 @@ export default {
           description: '数据采集相关配置项。',
           children: [
             {
+              label: '上报异常值',
+              description: '是否上报异常值（Bad Quality）的数据，默认不上报异常值数据。',
+              field: 'contains_bad',
+              type: 'switch',
+              defaultValue: false
+            },
+            {
               label: '采集模式',
               description:
                 '`observe` 模式（读取点位最新值上报）或 `subscribe`（订阅模式，变更时上报）。默认为 `subscribe`。',
