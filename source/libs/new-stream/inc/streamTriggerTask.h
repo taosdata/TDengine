@@ -125,7 +125,8 @@ typedef struct SSTriggerWalProgress {
   SSHashObj                *uidInfoTrigger;  // SSHashObj<uid, SSHashObj<slotId, colId>>
   SSHashObj                *uidInfoCalc;     // SSHashObj<uid, SSHashObj<slotId, colId>>
   SArray                   *pVersions;       // SArray<int64_t>
-  SSDataBlock              *pDataBlock;
+  SSDataBlock              *pTrigBlock;
+  SSDataBlock              *pCalcBlock;
 } SSTriggerWalProgress;
 
 typedef enum ESTriggerWalMode {
@@ -167,6 +168,12 @@ typedef struct SSTriggerRealtimeContext {
   SSTriggerNewVtableMerger    *pMerger;
   SArray                      *pWindows;       // SArray<SSTriggerNotifyWindow>, valid windows in this round
   SArray                      *pNotifyParams;  // SArray<SSTriggerCalcParam>
+  STimeWindow                  calcRange;
+  SSTriggerCalcParam          *pCurParam;
+  SObjList                     pAllCalcTableUids;  // SObjList<{uid, vgId}>
+  SObjList                     pCalcTableUids;     // SObjList<{uid, vgId}>
+  SSTriggerNewTimestampSorter *pCalcSorter;
+  SSTriggerNewVtableMerger    *pCalcMerger;
   // these fields are shared by all groups and do not need to reset for each group
   STimeWindow           periodWindow;  // for period trigger
   SSTriggerCalcRequest *pCalcReq;
