@@ -219,6 +219,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
   if (fd == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   pCurrent = (char *)taosMemoryCalloc(1, sz + 1);
   if (pCurrent == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
@@ -228,6 +229,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
   if (nread != sz) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   if (taosCloseFile(&fd) != 0) {
     bseError("vgId:%d failed to close file %s since %s", BSE_VGID(pBse), name, tstrerror(terrno));
     TSDB_CHECK_CODE(code = terrno, lino, _error);
@@ -338,6 +340,7 @@ int32_t bseInitStartSeq(SBse *pBse) {
   if (pLastFile != NULL) {
     lastSeq = pLastFile->range.eseq;
   }
+
   pBse->seq = lastSeq + 1;
   return code;
 }
@@ -418,6 +421,7 @@ int32_t bseCreateCommitInfo(SBse *pBse) {
   if (pCommit->pFileList == NULL) {
     return terrno;
   }
+
   pCommit->fmtVer = BSE_FMT_VER;
   return 0;
 }
