@@ -219,15 +219,17 @@ export default {
     topdesc1:
       '  to build a data monitoring and alerting system seamlessly without a line of code. And you can visualize the data stored inside TDengine on a dashboard. Learn more about using the TDengine plugin on ',
     topdesc3: '.',
-    step1: 'Install Grafana',
+    step1: 'Prerequisites',
     step1desc:
-      'TDengine currently supports Grafana versions 7.5 and above. Please go to the Grafana official website to download the installation package(',
+      'Please make sure that Grafana has been installed. TDengine currently supports Grafana versions 7.5 and above. Please refer to (',
     step1desc1: ').',
     step2: 'Install TDengine plugin',
-    step2desc: 'Open Grafana from browser, click the three horizontal bar icon, then click "Connections". ',
-    step2desc11: 'Inside the search bar, search TDengine, then "TDengine Data Source" should pop up. ',
-    step2desc12: 'Click "Install" to install the TDengine plugin. ',
-    step2desc13: "Once it's installed, you can add TDengine data source right away.",
+    step2link: 'https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip',
+    step2desc:
+      'Use the grafana-cli command line tool to install the plugin. After installation, Grafana needs to be restarted. On Linux or macOS, run the following command in your terminal:',
+    step2desc1:
+      'On Windows, first ensure that the plugin installation directory exists (by default, it is located in the data/plugins subdirectory of your Grafana installation directory). Then, run the following command in the bin directory of the Grafana installation path using an administrator account:',
+
     step2desc2:
       'If you can access Github easily, please run below script from Linux terminal to install TDengine Datasource plugin.',
     step2desc3: 'After that completed, please restart grafana-server.',
@@ -241,14 +243,51 @@ export default {
     step4desc:
       'Please add new dashboard or import exist dashboard to explore the data stored in the TDengine. You can refer to the ',
     step4desc2: 'documentation',
+    step4link: 'https://docs.tdengine.com/third-party-tools/visualization/grafana/#creating-a-dashboard',
     step4desc3: ' for more details.'
   },
+  perspective: {
+    desc: ' is an open-source and powerful data visualization library developed by Prospective.co. Leveraging the technologies of WebAssembly and Web Workers, it enables interactive real-time data analysis in web applications and provides high-performance visualization capabilities on the browser side. With its help, developers can build dashboards, charts, etc. that update in real time, and users can easily interact with the data, filtering, sorting, and exploring it as needed. It boasts high flexibility, adapting to various data formats and business scenarios. It is also fast, ensuring smooth interaction even when dealing with large-scale data. Moreover, it has excellent usability, allowing both beginners and professional developers to quickly build visualization interfaces.',
+    desc1:
+      'In terms of data connection, Perspective, through the Python connector of TDengine, perfectly supports TDengine data sources. It can efficiently retrieve various types of data, such as massive time-series data, from TDengine. Additionally, it offers real-time functions including the display of complex charts, in-depth statistical analysis, and trend prediction, helping users gain insights into the value of the data and providing strong support for decision-making. It is an ideal choice for building applications with high requirements for real-time data visualization and analysis.',
+    step1: 'Introduction',
+    step1full: 'Introduction',
+    step2: 'Install Driver',
+    step2full: 'Install Driver',
+    step2desc1: 'Install Python version 3.10 or higher（if not installed, please refer to ',
+    step2desc2: 'Python Installation',
+    step2desc3: '）。',
+    step2desc4: 'Install the latest version of the TDengine Python connector. The installation command is as follows:',
+    step3: 'Configure Data Source',
+    step3full: 'Configure Data Source',
+    step3desc:
+      'Start a Perspective Python server. This server will read data from TDengine and stream the data to a Perspective table via Tornado WebSocket.',
+    step3desc1: 'Start a Perspective Python server.',
+    step3desc2: 'Establish a connection to TDengine.',
+    step3desc3:
+      'Create a Perspective table (the table structure needs to match the type of the table in the TDengine database).',
+    step3desc4:
+      'Call the Tornado.PeriodicCallback function to start a scheduled task, thereby achieving the update of the data in the Perspective table. The sample code is as follows:',
+    step3desc5: 'view source code',
+    step4: 'Visual Display',
+    step4full: 'Visual Display',
+    step4desc:
+      'Write an HTML file to embed the Perspective Viewer into an HTML page. It connects to the Perspective server via WebSocket and displays real-time data according to the chart configuration.',
+    step4desc1: 'Configure the displayed charts and the rules for data analysis.',
+    step4desc2: 'Establish a Websocket connection with the Perspective server.',
+    step4desc3:
+      'Import the Perspective library, connect to the Perspective server via a WebSocket, and load the meters_values table to display dynamic data.',
+    step4desc4: 'view source code',
+    step4desc5: 'For more information about the Perspective, please refer to the ',
+    step4desc6: 'Integration With Perspective ',
+    step4desc7: ' 。'
+  },
   gds: {
-    desc: 'Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development.',
+    desc: 'Google Looker Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development.',
     topdesc: 'Using its ',
     topconnector: 'partner connector',
     topdesc1:
-      ', Google Data Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. Embed your report on any web page.',
+      ', Google Looker Studio can quickly access TDengine and create interactive reports and dashboards using its web-based reporting features.The whole process does not require any code development. Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. Embed your report on any web page.',
     topdesc2: 'Refer to ',
     topdesc3: 'for additional information on utilizing the Data Studio with TDengine.',
     step1: 'Choose Data Source',
@@ -278,7 +317,7 @@ export default {
     step221desc3: 'In fact, you can speed up the data loading in your report by using these filters.',
     step221desc4:
       'Click "CONNECT" once configuration is complete, then you can connect to your "TDengine Cloud" with the given database and table.',
-    step3: 'Create Report Or Dashboard',
+    step3: 'Create Report or Dashboard',
     step3desc:
       'Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in TDengine.',
     step3desc1: 'And refer to',
@@ -290,23 +329,23 @@ export default {
     topdesc: 'Designed specifically for analyzing process data, ',
     topdesc1:
       ' works across all verticals with time series data in historians or other storage platforms. TDengine can be added as a data source into Seeq via JDBC connector. Once data source is configured, Seeq can read data from TDengine and offers functionalities such as data visualization, analysis, and forecasting.',
-    step1: 'Prerequisite',
+    step1: 'Prerequisites',
     step1desc: 'Install Seeq Server and Seeq Data Lab software (check ',
     step1desc1: ').',
-    step2: 'Install TDengine Java Connector',
+    step2: 'Install Driver',
     step2desc: 'Get Seeq data location configuration. For Linux, execute the command below:',
     step2desc11: 'Download the latest TDengine Java connector from ',
     step2desc12: ' (current version is ',
     step2desc13: '), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/ .',
     step2desc2: 'Restart Seeq server. For Linux, execute the command below:',
-    step3: 'Add TDengine Data Source',
-    step3full: "Add TDengine into Seeq's data source",
+    step3: 'Configure Data Source',
+    step3full: 'Configure Data Source',
     step3desc: 'Open Seeq, login as admin, go to Administration, click "Add Data Source"',
     step3desc1: 'For connector, choose SQL connector v2',
     step3desc2: 'Inside the "Additional Configuration" input box, copy and paste the following:',
-    step3desc3: 'For the "QueryDefintions", please follow the examples below to write your own.',
-    step4: 'Smart Meter Example',
-    step4full: 'Import a large number of time series: smart meter example',
+    step3desc3: 'For the "QueryDefinitions", please follow the examples below to write your own.',
+    step4: 'Data Analysis',
+    step4full: 'Data Analysis',
     step4desc:
       'TDengine has its own unique data model. It requires creating a table for each data collection point by using a super table as its template. Each table can be associated with up to 128 labels (static attributes). A database may contain one million or even one billion tables. Through variables in Seeq, you can import all the time series (tables) under a super table into Seeq by querying a super table instead of an individual table. In addition, you can import the labels associated with tables stored inside TDengine into Seeq, so you can find a time series easily by searching those labels.',
     step4desc1:
@@ -321,18 +360,18 @@ export default {
   },
   powerbi: {
     desc: ' is a business analytics tool provided by Microsoft. With the TDengine ODBC driver, PowerBI can access time series data stored in the TDengine Cloud instance. You can import tag data, original time series data, or aggregated data into Power BI from an instance in the TDengine Cloud service, to create reports or dashboard without any coding effort.',
-    step1: 'Prerequisite',
-    step1full: 'Prerequisite',
+    step1: 'Prerequisites',
+    step1full: 'Prerequisites',
     step1desc:
       'Power BI Desktop has been installed and running. You can download and install the latest version for Windows X64 from ',
     step1desc1: 'PowerBI',
     step1desc2: '.',
     step2: 'Install ODBC',
-    step2full: 'Install ODBC Connector',
+    step2full: 'Install ODBC',
     step3: 'Configure ODBC',
-    step3full: 'Configure ODBC DataSource',
-    step4: 'Import Data',
-    step4full: 'Import Data from TDengine to Power BI',
+    step3full: 'Configure ODBC',
+    step4: 'Prepare Data',
+    step4full: 'Prepare Data',
     step4desc:
       'Open Power BI and logon. Then add the data source by clicking on "Home Page" -> "Get data" -> "Other" -> "ODBC" -> "Connect".',
     step4desc1:
@@ -360,8 +399,8 @@ export default {
       ': When curve plotting or aggregating data based on time lines, date is normally required. Data or time can be imported from Excel, or retrieved from TDengine using SQL statement like `select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0)`, in which the fill() subclause indicates the fill mode when there is data missing. The pseudo column _wstart indicates the beginning of the time interval, in this case the date.',
     step4desc11label: 'Correlation',
     step4desc11: ': Indicates how to correlate data. Dimensions and metrics can be correlated by tbname or dates.',
-    step5: 'Example',
-    step5full: 'Example - Meters',
+    step5: 'Data Analysis',
+    step5full: 'Data Analysis',
     step5desc:
       'TDengine has its own specific data model which uses a "supertable" as a template and creates a specific table for each device. Each table can have maximum 4,096 data columns and 128 tags. In ',
     step5desc01: 'the example of smart meters',
@@ -375,5 +414,453 @@ export default {
       'Correlate Dimensions and Metrics: In Power BI, open model view, correlate "tags" and "data", and set "tabname" as the correlation column, then you can use the data in histogram, pie chart, etc. For more information about building visual reports in PowerBI, please refer to ',
     step5desc4: 'Power BI',
     step5desc5: '.'
+  },
+  superset: {
+    desc: ' is a modern enterprise-level business intelligence (BI) web application, mainly used for data exploration and visualization. Supported by the Apache Software Foundation, it is an open-source project with an active community and a rich ecosystem. Superset provides an intuitive user interface, making it easy to create, share, and visualize data. It also supports multiple data sources and offers a wide range of visualization options.',
+    topdesc:
+      'Through the Python connector of TDengine, Superset can support TDengine data sources and provide functions such as data presentation and analysis.',
+    setup: 'Installed',
+    end: '.',
+
+    step1: 'Prerequisites',
+    step1full: 'Prerequisites',
+    step11desc: 'Apache Superset v2.1.0 or a higher version has been installed. For the installation, refer to ',
+    step11desc1: 'the official documentation',
+    step12desc: 'The Python connector taospy version 2.7.18 or higher has been ',
+    step13desc: 'The Python connector (WebSocket) taos-ws-py version 0.3.9 or higher has been ',
+
+    step2: 'Configure Data Source',
+    step2full: 'Configure Data Source',
+    step21desc: 'Go to the new database connection page: “Superset”->“Setting”->“Database Connections”->“+DATABASE”.',
+    step22desc:
+      'Select other database connections and choose the last option “Other” from the “SUPPORTED DATABASES” dropdown list.',
+    step23desc: 'Enter a connection name in “DISPLAY NAME”. You can enter any name.',
+    step24desc: 'Enter the connection string in “SQLALCHEMY URI”. Please enter the following content:',
+    step25desc:
+      'Click “TEST CONNECTION” to check if the connection is successful. After passing the test, click the “CONNECT” button to save the configuration.',
+
+    step3: 'Data Preparation',
+    step3full: 'Data Preparation',
+    step3desc:
+      'There is no difference in the usage of the TDengine data source compared to other data sources. Here is an introduction to dataset preparation:',
+    step3desc1:
+      'Click the “+” button in the upper right corner of the Superset web page and select “SQL query” to enter the query page.',
+    step3desc2:
+      'Select the previously created data source from the “DATABASE” dropdown list in the upper left corner of the query page.',
+    step3desc3:
+      'Select the database name you want to operate on from the “SCHEMA” dropdown list (system databases are not displayed).',
+    step3desc4:
+      'Select the supertable name or ordinary table name you want to operate on from the “SEE TABLE SCHEMA” dropdown list (subtables are not displayed), and the SCHEMA information of the selected table will be shown below.',
+    step3desc5:
+      'You can enter SQL statements that conform to TDengine syntax in the SQL editor area above, and then click the “Run” button to execute them.',
+    step3desc6:
+      'Click the “v” button next to the “SAVE” button in the SQL editor area above, and then select the “Save dataset” button to save the dataset.',
+
+    step4: 'Data Analysis',
+    step4full: 'Data Analysis',
+    step4desc1: 'Click the “Datasets” menu on the Superset web page to open the “Datasets” page.',
+    step4desc2: 'Click the dataset you just saved on the “Datasets” page to open the “Chart” page.',
+    step4desc3:
+      'Select the fields for the horizontal and vertical coordinates in the second column on the left side of the “Chart” page.',
+    step4desc4: 'After selection, click “UPDATE CHART” to generate the chart.',
+    step4desc5: 'For more information on using Superset, please refer to its ',
+    step4desc6: 'Superset documentation',
+    step4desc7: '.'
+  },
+  tableau: {
+    desc: ' is a well-known business intelligence tool that supports multiple data sources, making it easy to connect, import, and integrate data. And through an intuitive user interface, users can create rich and diverse visual charts, with powerful analysis and filtering functions, providing strong support for data decision-making. Users can import tag data, raw time-series data, or time-series data aggregated over time from TDengine into Tableau via the TDengine ODBC Connector to create reports or dashboards, and no code writing is required throughout the entire process.',
+    step1: 'Prerequisites',
+    step1full: 'Prerequisites',
+    step1desc:
+      'Tableau Desktop has been installed and running. You can download and install the latest version for Windows X64 from ',
+    step1desc1: 'Tableau',
+    step1desc2: '.',
+    step2: 'Install ODBC',
+    step2full: 'Install ODBC',
+    step3: 'Configure ODBC',
+    step3full: 'Configure ODBC',
+    step23desc1: 'the default database to access, required field, such as "test"',
+    step4: 'Import Data',
+    step4full: 'Import Data',
+    step4desc:
+      'Start Tableau in the Windows system environment, then search for "ODBC" on its connection page and select "Other Databases (ODBC)".',
+    step4desc1:
+      'Click the "DSN" radio button, then select the configured data source (such as MyTDengine), and click the Connect button. After the connection is successful, delete the content of the string attachment, and finally click the Sign In button.',
+    step4desc2:
+      'On the workbook page, select the connected data source, then click on the database dropdown list and choose the database that requires data analysis.',
+    step4desc3:
+      'Click the "Find" button in the table options, and all the tables in the database will be displayed. Drag the table you need to analyze to the right - hand area, and the table structure will be shown.',
+    step4desc4: 'Click the "Update Now" button below, and the data in the table will be displayed.',
+    step5: 'Data Analysis',
+    step5full: 'Data Analysis',
+    step5desc1: 'On the workbook page, click "Worksheet", and the "Data Analysis" page will pop up.',
+    step5desc2: 'All the fields of the table will be displayed in the sidebar of the "Data Analysis" page.',
+    step5desc3:
+      'Drag the fields classified as "Dimensions" and "Measures" onto the "Table Component" in the right - hand rows and columns, and a chart will be displayed below.',
+    step5desc4: 'For more information about the Tableau tool, please refer to the',
+    step5desc5: ' Tableau documentation',
+    step5desc6: '.'
+  },
+  excel: {
+    desc: ' is a powerful and widely-used spreadsheet software developed by Microsoft Corporation. By configuring the use of the ODBC connector, Excel can quickly access data from TDengine. Users can import tag data, raw time-series data, or time-aggregated time series data from TDengine into Excel to create reports or dashboards, all without the need for any coding.',
+    step1: 'Prerequisites',
+    step1full: 'Prerequisites',
+    step1desc:
+      'Excel has been installed and running, If not installed, please download and install it, for specific instructions, please refer to ',
+    step1desc1: "Microsoft's official documentation",
+    step1desc2: '.',
+    step2: 'Install ODBC',
+    step2full: 'Install ODBC Connector',
+    step3: 'Configure ODBC',
+    step3full: 'Configure ODBC DataSource',
+    step4: 'Import Data',
+    step4full: 'Import Data from TDengine to Excel',
+    step4desc:
+      'Start Excel in the Windows system environment, then select "Data" -> "Get Data" -> "From Other Sources" -> "From ODBC".',
+    step4desc1:
+      'In the pop-up window, select the data source you need to connect to from the drop-down list of "Data source name (DSN)", and then click the "OK" button.',
+    step4desc2:
+      'In the popped-up "ODBC Driver" window, select the "Default or Custom" menu and then click the "Connect" button.',
+    step4desc3:
+      'In the pop-up "Navigator" dialog box, select the database tables you want to load, and then click "Load" to complete the data loading.',
+    step5: 'Example',
+    step5full: 'Data Analysis',
+    step5desc1: 'In the Excel worksheet where data has been imported, select the desired data range.',
+    step5desc2: 'In the Excel menu bar, find and click the "Insert" tab, then select the desired chart type.',
+    step5desc3: 'Excel will immediately generate a chart based on the selected data in the worksheet.',
+    step5desc4: 'For more information about the Excel, please refer to the',
+    step5desc5: ' Excel documentation',
+    step5desc6: '.'
+  },
+  finebi: {
+    desc: "Fanruan is a technology company specializing in the field of business intelligence and data analytics. With its self-developed core products, FineBI and FineReport, the company has established a leading position in the industry. Fanruan's BI tools are widely adopted by enterprises across various sectors, empowering users to achieve data visualization analysis, report generation, and data-driven decision support.",
+    desc1:
+      'By using the TDengine Java connector, FineBI can quickly access the data in TDengine. Users can directly connect to the TDengine database in FineBI, obtain time-series data for analysis, and create visual reports, and the entire process does not require any code writing.',
+    step1: 'Prerequisites',
+    step1full: 'Prerequisites',
+    step11desc: 'FineBI has been installed,(if not installed, please download and install ',
+    step11desc1: 'Download FineBI',
+    step11desc2: ').',
+    step12desc: 'Download the fine_conf_entity plugin to support the addition of JDBC drivers, ',
+    step12desc1: 'Download link',
+    step12desc2: '.',
+    step2: 'Install Driver',
+    step2full: 'Install Driver',
+    step2desc: 'Download the TDengine JDBC connector file taos-jdbcdriver-3.4.0-dist.jar or a higher version from ',
+    step2desc1: ' .',
+    step3: 'Configure Data Source',
+    step3full: 'Configure Data Source',
+    step31desc:
+      'In the db.script configuration file of the FineBI server, find the SystemConfig.driverUpload configuration item and change its value to true.',
+    step31desc1:
+      'Linux/Mac system: The path of the configuration file is /usr/local/FineBI6.1/webapps/webroot/WEB-INF/embed/finedb/db.script.',
+    step31desc2:
+      'Windows system: The path of the configuration file is webapps/webroot/WEB-INF/embed/finedb/db.script under the installation directory.',
+    step32desc:
+      'Start the FineBI service. Enter http://ip:37799/webroot/decision in the browser, where "ip" is the IP address of the FineBI server.',
+    step33desc:
+      'After logging in to the FineBI Web page, click [System Management] -> [Plugin Management]. In the [Store App] on the right side, click [Install From Local] and select the downloaded fine_conf_entity plugin for installation.',
+    step34desc:
+      'Click [System Management] -> [Data Connection] -> [Data Connection Management]. On the right-hand page, click the [Driver Management] button to open the configuration page. Then click the [New Driver] button, and in the pop-up window, enter a name (for example, tdengine-websocket) to configure the JDBC driver.',
+    step35desc:
+      'On the driver configuration page, click the [Upload File] button. Select the downloaded TDengine Java Connector (e.g., taos-jdbcdriver-3.4.0-dist.jar) for uploading. After the upload is complete, select com.taosdata.jdbc.ws.WebSocketDriver from the drop-down list of [Driver], and then click [Save].',
+    step36desc:
+      'On the "Data Connection Management" page, click the [New Data Connection] button. Subsequently, click "Others", and then on the right-side page, click "Other JDBC" to perform the connection configuration.',
+
+    step37desc:
+      'On the configuration page, first enter the data connection name. In the [Driver] option, select "Custom" and choose the configured driver "com.taosdata.jdbc.ws.WebSocketDriver" from the dropdown list. Enter the following content in the "Data Connection URL":',
+    step37desc1: 'Explanation: The parameter fineBIDialect=mysql indicates using MySQL database dialect rules.',
+    step38desc:
+      'After completing the above settings, click [Test Connection] in the upper right corner of the page to test the connection. After the verification is successful, click [Save] to complete the entire configuration process.',
+
+    step4: 'Import Data',
+    step4full: 'Import Data',
+    step41desc:
+      'Click [Public Data]. On the right - hand page, click [New Folder] to create a folder (e.g., TDengine). Then, click the [+] button on the right side of the folder to create a "Database Table" dataset or an "SQL Dataset".',
+    step41desc1:
+      'Click "Database Table" to open the database table selection page. In the "Data Connection" section on the left, select the previously created connection. Then, all the tables in the database of the current connection will be displayed on the right. Select the table you need to load (e.g., meters), and click [OK]. The data in the meters table will then be displayed.',
+    step41desc2:
+      'Click "SQL Dataset" to open the configuration page for the SQL dataset. First, enter the table name (used for display on the FineBI page). Then, select the previously created connection from the drop-down list of "Data from Data Connection". After that, enter the SQL statement and click "Preview" to view the query results. Finally, click [OK] to successfully create the SQL dataset.',
+    step5: 'Data Analysis',
+    step5full: 'Data Analysis',
+    step51desc:
+      'Click [My Analysis]. On the right-hand page, click [New Folder] to create a folder (for example, TDengine). Then, click the [+] button on the right side of the folder to create an "Analysis Subject".',
+    step51desc1:
+      'On the analysis subject page, select the dataset (for example, meters) and then click the [OK] button to complete the association of the dataset.',
+    step51desc2:
+      'Click the [Component] tab at the bottom of the analysis subject page to open the chart configuration page. Drag the fields to the horizontal axis or the vertical axis, and then the chart will be displayed.'
+  },
+  ssrs: {
+    desc: 'A powerful report production and distribution product under Microsoft.',
+    brief:
+      '(SSRS), a built-in component of the Microsoft SQL Server database platform, provides powerful support for enterprise-class report creation, viewing, and management. It provides powerful support for enterprise-level report creation, viewing, and management. SSRS is better suited for traditional fixed-format reports than Power BI, another Microsoft tool for flexible reporting.',
+    endmark: '.',
+
+    step1: 'Prerequisites',
+    step1full: 'Prerequisites',
+    step1pre1:
+      'This example requires the preparation of one server and two clients to build the SSRS example environment, prepare the environment as follows:',
+
+    step11: 'SSRS Server',
+    step11item1: 'Requires Windows OS.',
+    step11item2:
+      'TDengine 3.3.3.0 or above Windows client version installed (TDengine ODBC driver installed by default).',
+    step11item3: 'Microsoft SQL Server 2022 is installed and the database service is running normally,',
+    step11item4: 'Install Microsoft SQL Server 2022 Reporting Service and the reporting service is running properly,',
+    step11item5:
+      'Configure Microsoft SQL Server 2022 Reporting Service to provide external services using IP addresses and record external service URLs.',
+    step11link1: 'download and install',
+
+    step12: 'Report Builder Client',
+    step12item1: 'Requires Windows OS.',
+    step12item2:
+      'TDengine 3.3.3.0 or above Windows client version installed (TDengine ODBC driver installed by default).',
+    step12item3: 'Install Microsoft Report Builder (32-bit), which provides report development services,',
+    step12item4:
+      'Configure Microsoft Report Builder to report the server address and fill in the external service URLs recorded earlier.',
+    step12link1: 'download and install',
+
+    step13: 'Office Client',
+    step13item1: 'There is no restriction on the OS.',
+    step13item2: 'Network requirements are to be able to connect to an SSRS server.',
+    step13item3: 'Install any browser software.',
+
+    step2: 'Configure Data Source',
+    step2full: 'Configure Data Source',
+    step2pre1: 'SSRS accesses the TDengine data source through ODBC, and the configuration steps are as follows:',
+
+    step21: 'Configure ODBC data source on SSRS Server. ',
+    step21pre1:
+      'Open ODBC Data Source Manager (64-bit), select "System DSN" -> "Add..." -> "TDengine"->"Finish", the configuration window will pop up as follows:',
+    step21item1: '* DSN: fill in "TDengine".',
+    step21item2: '* Connect type: select "WebSocket".',
+    step21item3:
+      '* URL: Please fill in the following content, which is the authorization URL with TOKEN automatically generated by the website based on your login account.',
+    step21item4: '* User/Password: No need to fill in.',
+    step21end1:
+      'Click on "Test Connection", successful connection indicates correct configuration, click "OK" to save the configuration.',
+
+    step22: 'Configure the ODBC data source on Report Builder Client. ',
+    step22pre1:
+      'Open ODBC Data Source Manager (32-bit), select "System DSN" -> "Add..." -> "TDengine" -> "Finish", the ODBC Data Source Configuration window will pop up, please fill in the same content as the previous step.',
+    step22end1:
+      'Click on "Test Connection", successful connection indicates correct configuration, click "OK" to save the configuration.',
+
+    step23: 'Create data source connection on Report Builder Client.',
+    step23pre1:
+      'Start Report Builder, right-click on the "Data Source" item in the left area and click "Add Data Source..." menu, the pop-up window should be filled in as following:',
+    step23item1: '* Name: fill in the name of the data source.',
+    step23item2: '* Data Source Method: Select the second item "Use a connection embedded in my report".',
+    step23item3: '* Select Connection type: Select "ODBC" data source.',
+    step23item4: '* Connection string: fill in "Dsn=TDengine".',
+    step23end1:
+      'Click on "Test Connection", successful connection indicates correct configuration, click "OK" to save the configuration.',
+
+    step3: 'Data Analysis',
+    step3full: 'Data Analysis',
+
+    step31: 'Scenario Introduction',
+    step31pre1:
+      'There are 500 smart meters in a community, and the data is stored in the TDengine database. The electric power company asks the data operation department to create a report that can browse the last reported voltage and current values of each smart meter in the community in a page by page to analyze the electricity consumption of the residents, and at the same time, it is requested that the report can be browsed by logging in to any of the office computers in the company.',
+    step31end1:
+      'The developer uses the SSRS reporting service provided by Microsoft to accomplish this task. The report is created using Report Builder and uploaded to the report server for viewing by the relevant personnel.',
+
+    step32: 'Data Preparation',
+    step32pre1:
+      'Create a super meter with 500 sub-meters, each sub-meter represents a smart meter, and generates voltage data that fluctuates between 198 and 235, and current data that fluctuates between 10A and 30A.',
+
+    step33: 'Create Report',
+    step331: 'Open Report Builder to start creating a report.',
+    step332: 'Create a new dataset. ',
+    step332pre1: 'In the left area, "DataSource" -> "DataSource1" -> "Add Dataset...", fill in as following:',
+    step332item1: '* Name: Fill in the dataset name.',
+    step332item2: '* Dataset method: choose the second item "Use a dataset embedded im my report".',
+    step332item3: '* Data source: choose "DataSource1" created earlier.',
+    step332item4: '* Query type: choose "text" type query, fill in the following query analysis SQL:',
+
+    step333: 'Create the report page. ',
+    step333pre1:
+      'Menu "Insert" -> "Table" -> "Insert Table", insert an empty table, use the mouse to drag the data columns of "DataSet1" to the right side of the report.',
+
+    step334: 'Preview, click the "Home" ->"Run" button in the menu to preview the report effect.',
+    step335:
+      'Exit the preview, click the first icon "Design" on the left side of the toolbar to close the preview and go back to the design interface to continue designing.',
+
+    step34: 'Send Report',
+    step341: 'Save the report to the server, click menu "File" -> "Save".',
+    step342:
+      'Click on the "File" menu ->"Publish Report Parts" to start uploading the data source used for the report.',
+    step343:
+      'Click on the first option "Publish all report parts with default settings" in the pop-up window to complete the upload.',
+
+    step35: 'Browse Report',
+    step35pre1:
+      'After the report is saved to the server, it is already shared and can be accessed by any client through a browser.',
+    step351: 'View the report viewing address. ',
+    step351pre1:
+      'The report browsing address can be found in the SSRS server configuration window ->"Web Service URLs" ->"Report Server Web Service URLs" ->"URLs".',
+    step352: 'Enter the access authorization.',
+    step352pre1:
+      'When the client accesses the report data for the first time, an authorization window will pop up requesting login. Simply enter the report server operating system login account, and after successfully entering the account, the report list page will open, where you can see the previously saved and uploaded report "meters".',
+    step353: 'Paging through reports.',
+    step353pre1:
+      'Click "meters", it will display the latest collected data of all smart meters in the district in pages.',
+
+    step36: 'Manage Report',
+    step36pre1: 'To manage reports on SSRS server, you can refer to',
+    step36link1: 'Microsoft official document',
+
+    docend:
+      'In the above process, we have used SSRS to develop a simple report creation, distribution and browsing system based on TDengine data source, and more rich reports are still waiting for your further development.'
+  },
+  nodered: {
+    desc: 'Node-RED is a powerful low-code visual programming tool for IoT.',
+    brief1:
+      'is an open-source visual programming tool developed by IBM based on Node.js. It enables users to assemble and connect various nodes via a graphical interface to create connections for IoT devices, APIs, and online services. It supports multiple protocols and is cross-platform, has an active community, and is ideal for event-driven application development in smart home, industrial automation, and other scenarios. Its main strengths are low-code and visual programming.',
+    brief2:
+      'The deep integration between TDengine and Node-RED provides a comprehensive solution for industrial IoT scenarios. Node-RED MQTT/OPC UA/Modbus protocol nodes​ enable ​millisecond-latency data collection​ from PLCs, sensors, and other devices. Real-time queries in TDengine can trigger physical control actions such as relay operations and valve switching, enabling immediate command execution.',
+    brief3:
+      'node-red-node-tdengine is the official plugin developed by TDengine for Node-RED. It is composed of two nodes:',
+    briefitem1:
+      'tdengine-operator: Provides SQL execution capabilities for data writing/querying and metadata management.',
+    briefitem2:
+      'tdengine-consumer: Offers data subscription and consumption capabilities from specified subscription servers and topics.',
+
+    endmark: '.',
+
+    step1: 'Prerequisites',
+    step1pre1: 'Prepare the following environment components:',
+
+    step1item1: 'Node-RED version >=3.0.0,',
+    step1item2: 'Node.js version >=3.1.8,',
+    step1item3: 'node-red-node-tdengine latest version, ',
+    step11link1: 'Node-RED setup',
+    step12link1: 'npmjs.com setup',
+    step13link1: 'npmjs.com setup',
+
+    step2: 'Configuring Data Source',
+    step2pre1: 'Plugin data sources are configured in the node properties using the Node.js connector:',
+
+    step21: 'Start Node-RED service and access the Node-RED homepage in a browser.',
+    step22: 'Drag the tdengine-operator or tdengine-consumer node from the left node palette to the workspace canvas.',
+    step23:
+      'Double-click the selected node on the canvas. In the ​Database Connection URI​ field that opens, enter the following content:',
+    step24:
+      'After configuration, click the "Deploy" button in the upper right. Green node status indicates successful connection.',
+
+    step3: 'Usage Examples',
+
+    step31: 'Scenario Preparation',
+
+    step311: 'Scenario Overview',
+    step311pre1:
+      'In a production workshop with multiple smart meters, where each meter generates one data record per second to be stored in the TDengine database, it is required to real-time output the average current, voltage, and power consumption of each smart meter per minute, and simultaneously alarm for equipment with excessive load when current > 25A or voltage > 230V.',
+    step311pre2: 'Implementation uses Node-RED + TDengine:  ',
+    step311item1: 'Inject + function nodes simulate devices. ',
+    step311item2: 'tdengine-operator writes data.',
+    step311item3: 'Real-time queries via tdengine-operator.',
+    step311item4: 'Overload alerts via tdengine-consumer subscription.',
+    step311sec1: 'Assumptions:',
+    step311secitem1: 'TDengine: already has a cloud service account',
+    step311secitem2: 'Simulated devices: d0, d1, d2.',
+
+    step312: 'Data Modeling',
+    step312pre1: 'Use taos-CLI to manually create the data model:',
+    step312item1: 'Super table "meters". ',
+    step312item2: 'Child tables d0, d1, d2. ',
+    step312pre2: 'SQL:',
+
+    step32: 'Business Processing',
+
+    step321: 'Data Collection',
+    step321pre1:
+      'This example uses randomly generated numbers to simulate real device data. The tdengine-operator node is configured with TDengine data source connection information, writes data to TDengine, and uses the debug node to monitor the number of successfully written records displayed on the interface.',
+    step321pre2: 'Steps',
+
+    step3211: '- Add Writer Node',
+    step3211item1: 'Select the tdengine-operator node in the node palette and drag it to the canvas.',
+    step3211item2:
+      'Double-click the node to open property settings, fill in the name as "td-writer", and click the "+" icon to the right of the database field.',
+    step3211item3:
+      'In the pop-up window, fill in the name "db server", select the connection type to use string connection, and enter the following content:',
+    step3211item4: 'Click "Add" and return.',
+
+    step3212: '- Simulate Device Data',
+    step3212item1: 'Select the "function" node from the palette and drag it before "td-writer" on the canvas.',
+    step3212item2:
+      'Double click the node to open the property settings, fill in the name "write d0", select the "run function" tab below, fill in the following content, save and return to the canvas.',
+    step3212item3: 'Drag an "inject" node before "write d0".',
+    step3212item4: 'Configure the inject node: Name: “inject1”, Trigger: "Repeat", Interval: 1 second.',
+    step3212item5: 'Repeat steps 1-4 for other devices (d1, d2).',
+
+    step3213: '- Add Output Monitor',
+    step3213item1: 'Drag a "debug" node after "td-writer".',
+    step3213item2: 'Configure it, node status set checked and select "message count" from the drop-down list.',
+
+    step321secpre1: 'After adding all nodes, connect them in sequence to form a pipeline. ',
+    step321secpre2: 'Click "Deploy" to publish changes. When running successfully:',
+    step321secitem1: '"td-writer" turns green.',
+    step321secitem2: '"debug1" shows data count.',
+    step321secpre3: 'Successful write output (exceptions thrown on failure):',
+
+    step322: 'Data Query',
+    step322pre1:
+      'The data query workflow consists of three nodes (inject/tdengine-operator/debug) designed to calculate the average current, voltage, and power consumption per minute for each smart meter. The inject node triggers the query request every minute. The results are sent to the downstream debug node, which displays the count of successful query executions.',
+    step322pre2: 'Steps:',
+    step322item1: 'Drag an inject node to the canvas, set name to "query", set msg.topic:',
+    step322item2:
+      'Drag the tdengine-operator node onto the canvas, double-click the node to set its properties, select the previously created data source "db-server" for the "Database" field, save the settings, and return to the canvas.',
+    step322item3:
+      'Drag the debug node onto the canvas, double-click the node to set its properties, checked the "Node status", select "message count" from the dropdown list, save the settings, and return to the canvas.',
+    step322item4: 'Connect nodes sequentially → Click "Deploy".',
+    step322pre3: 'When the flow is successfully started:',
+    step322secitem1: '"td-reader" turns green.',
+    step322secitem2: 'Debug node shows result count.',
+    step322pre4: 'Output from "td-reader" (exceptions thrown on failure):',
+
+    step323: 'Data Subscription',
+    step323pre1:
+      'The data subscription workflow consists of two nodes (tdengine-consumer/debug) that provide equipment overload alert functionality.The debug node visually displays the count of subscription messages pushed downstream. In production, replace it with functional nodes to process the subscription data.',
+    step323pre2: 'Steps',
+    step323item1: 'Manually create a subscription topic “topic_overload” using taos-CLI:',
+    step323item2: 'Drag tdengine-consumer node to canvas, double click node and set:',
+    step323item2opt1: 'Name: td-consumer',
+    step323item2opt2: 'Subscription Server(URI):',
+    step323item2opt3: 'User: not filled in',
+    step323item2opt4: 'Password: not filled in',
+    step323item2opt5: 'Topics: topic_overload',
+    step323item2opt6: 'Offset reset: latest',
+    step323item2opt7: 'Other settings: default.',
+    step323item3:
+      'Drag debug node to canvas and configure it: name: "debug3", node status: checked, select "message count" from the drop-down list.',
+    step323item4: 'Connect nodes sequentially → Click "Deploy".',
+    step323pre3:
+      'After the process is successfully started, you can see that the td consumer node status changes to "green" to indicate that the process is working properly, and the debug node number represents the number of consumption times.',
+    step323pre4:
+      'If the overload device warning message pushed to downstream nodes fails, an exception will be thrown:',
+
+    step33: 'Error Handling',
+    step33pre1:
+      'Errors in data collection, querying, and subscription workflows are routed to catch nodes for handling in Node-RED. To implement error monitoring:',
+    step33item1: 'Drag a "catch" node to the canvas.  ',
+    step33item2: 'Configure the node attributes, name: "catch all except"，scope: "All nodes".',
+    step33item3: 'Drag debug node to canvas.',
+    step33item4: 'Configure it, name: "debug4", node status: checked, select "message count" from the drop-down list.',
+    step33item5: 'Connect nodes by order and deploy. ',
+    step33pre2: 'When errors occur: ',
+    step33secitem1: 'Debug node shows error count.',
+    step33secitem2: 'View details in Node-RED logs. ',
+
+    step4: 'Summary',
+    step4pre1: 'This article demonstrates, through an industrial monitoring scenario:',
+    step4item1: 'Three integration patterns between Node-RED and TDengine:',
+    step4item1opt1: 'Data collection (tdengine-operator writes).',
+    step4item1opt2: 'Real-time queries (tdengine-operator queries).',
+    step4item1opt3: 'Event-driven architecture (tdengine-consumer subscriptions).',
+    step4item2: 'Complete error handling mechanisms.',
+    step4item3: 'Production-ready deployment reference architecture.',
+
+    docend:
+      'This article focuses on an example-based introduction. For complete documentation, refer to online document for the Node-RED node.'
   }
 };

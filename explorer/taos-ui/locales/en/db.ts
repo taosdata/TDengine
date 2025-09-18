@@ -26,7 +26,7 @@ export default {
   precisionTip:
     'specifies the precision at which a database records timestamps. Enter ms for milliseconds, us for microseconds, or ns for nanoseconds. The default value is ms.',
   replicaTip:
-    'specifies the number of replicas that are made of the database. Enter 1 or 3. The default value is {0}. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.',
+    'specifies the number of replicas that are made of the database. Enter 1、2 or 3. The default value is {0}. The value of the REPLICA parameter cannot exceed the number of dnodes in the cluster.',
   retentionsTip:
     'specifies the retention period for data aggregated at various intervals. For example, RETENTIONS 15s:7d,1m:21d,15m:50d indicates that data aggregated every 15 seconds is retained for 7 days, data aggregated every 1 minute is retained for 21 days, and data aggregated every 15 minutes is retained for 50 days. You must enter three aggregation intervals and corresponding retention periods.',
   strictTip: `specifies whether strong data consistency is enabled. The default value is off.

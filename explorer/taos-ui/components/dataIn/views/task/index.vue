@@ -331,7 +331,7 @@ import PageTitle from '../../components/pageTitle.vue';
 import TaskImport from '../../components/task-import.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getDataInProps } from '../../model/useDataIn';
-import { useActivitySubscription, ActivitieProps } from '../../model/useWebSoket';
+import { useActivitySubscription, ActivitieProps } from '../../model/useWebSocket';
 import { useRouter } from 'hooks/useCurrentRouter';
 import { t } from 'locales';
 const router = useRouter();
@@ -408,6 +408,7 @@ async function getList() {
 
   taskList.value = [];
   const result: any = await dataInProps.task.api.getTask('datain');
+  // eslint-disable-next-line no-debugger
   if (result.desc || result.message) {
     throw result.desc || result.message;
   }
@@ -433,7 +434,8 @@ async function getList() {
         });
         statusFilterSet[item.status] = true;
       }
-      (item['taskid'] = item.id), (item['localname'] = item.name);
+
+      ((item['taskid'] = item.id), (item['localname'] = item.name));
       item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
       item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
@@ -449,7 +451,7 @@ async function getList() {
   nextTick(() => {
     if (!hasConnect.value) {
       hasConnect.value = true;
-      const { activity, close } = useActivitySubscription(dataInProps.task.webSoketUrl);
+      const { activity, close } = useActivitySubscription(dataInProps.task.webSocketUrl);
       connectData.activity = activity;
       connectData.close = close;
     } else {
@@ -536,7 +538,7 @@ async function refreshCurrentTask(data: Recordable) {
       index,
       1,
       [].concat(result).map((item: any) => {
-        (item['taskid'] = item.id), (item['localname'] = item.name);
+        ((item['taskid'] = item.id), (item['localname'] = item.name));
         item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
         // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
         item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
@@ -572,7 +574,7 @@ async function exportCurrentTask(data: Recordable) {
 
 function handlerConfirm(
   content: string,
-  excuteFn: RequestApiFn<Recordable[]> | null,
+  executeFn: RequestApiFn<Recordable[]> | null,
   ids: any[],
   showConfirmButton: boolean
 ) {
@@ -583,7 +585,7 @@ function handlerConfirm(
       type: 'warning',
       confirmButtonClass: showConfirmButton ? '' : 'not-show'
     }).then(async () => {
-      await excuteFn!({ ids });
+      await executeFn!({ ids });
       dataSourceTableRef.value.clearSelection();
       await refresh();
     });
@@ -615,25 +617,25 @@ async function handleExportTask() {
 async function handleBatchTask(type: string) {
   let ids: any[] = [];
   let content: string = '';
-  let excuteFn: RequestApiFn<Recordable[]> | null = null;
+  let executeFn: RequestApiFn<Recordable[]> | null = null;
   let showConfirmButton: boolean = true;
   // requestIng.value = true;
   switch (type) {
     case 'start':
       ids = filterBatchIds(permitStartStatus);
-      excuteFn = dataInProps.task.api.batchStartTask;
+      executeFn = dataInProps.task.api.batchStartTask;
       content = t('dataIn.taskStart', [ids]);
       break;
 
     case 'stop':
       ids = filterBatchIds(permitStopStatus);
-      excuteFn = dataInProps.task.api.batchStopTask;
+      executeFn = dataInProps.task.api.batchStopTask;
       content = t('dataIn.taskStop', { ids });
       break;
 
     case 'delete':
       ids = filterBatchIds(permitDeleteStatus);
-      excuteFn = dataInProps.task.api.batchDelTask;
+      executeFn = dataInProps.task.api.batchDelTask;
       content = t('dataIn.taskDel', [ids]);
       break;
   }
@@ -641,7 +643,7 @@ async function handleBatchTask(type: string) {
     showConfirmButton = false;
     content = t('dataIn.noTaskOperateTip', [`${t(`dataIn.${type}`)}`]);
   }
-  handlerConfirm(content, excuteFn, ids, showConfirmButton);
+  handlerConfirm(content, executeFn, ids, showConfirmButton);
 }
 
 function handlePageChange() {}
@@ -885,7 +887,7 @@ function getStatusClass(status: string) {
 function closeConnect() {
   hasConnect.value = false;
   if (connectData && connectData.close) {
-    connectData.close(dataInProps.task.webSoketUrl);
+    connectData.close(dataInProps.task.webSocketUrl);
   }
 }
 
@@ -975,7 +977,7 @@ const skipToLatest = async () => {
   padding: 8px 10px;
 }
 
-.tabel-expand {
+.table-expand {
   min-width: 70%;
   padding: 0 5px;
   margin-left: 40px;

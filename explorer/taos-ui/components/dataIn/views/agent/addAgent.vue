@@ -20,7 +20,7 @@
         class="mb10"
         @keyup.enter="next"
       ></el-input>
-      <p v-if="isNamError" class="error-text">
+      <p v-if="isNameError" class="error-text">
         {{ t('dataIn.agentNameExist', [name]) }}
       </p>
     </section>
@@ -89,7 +89,7 @@ import 'github-markdown-css/github-markdown-light.css';
 import { t } from 'locales';
 import { trim } from 'lodash-es';
 import { getDataInProps } from '../../model/useDataIn';
-import { OfficalUrl, isEn, TdDocsUrl, instance } from 'config';
+import { OfficialUrl, isEn, TdDocsUrl, instance } from 'config';
 const dataInProps = getDataInProps();
 
 interface Props {
@@ -137,7 +137,7 @@ const checkBtnType = computed(() => {
   return checkIng.value ? 'primary' : '';
 });
 const downloadUrl = computed(() => {
-  const assetsUrl = OfficalUrl.value + '/assets-download/3.0/taosx-agent-' + instance.version + '-';
+  const assetsUrl = OfficialUrl.value + '/assets-download/3.0/taosx-agent-' + instance.version + '-';
   return {
     linuxDL: assetsUrl + 'linux-x64.tar.gz',
     windowDL: assetsUrl + 'windows-x64-installer.exe'
@@ -146,7 +146,7 @@ const downloadUrl = computed(() => {
 const agentList = computed(() => {
   return props.agentList.filter(item => item.id !== props.agent?.id);
 });
-const isNamError = computed(() => {
+const isNameError = computed(() => {
   if (name.value) {
     return agentList.value.some(item => item.name == name.value);
   } else {
@@ -174,7 +174,7 @@ const toml = computed(() => {
 const nextButton = computed(() => {
   if (loading.value) return true;
   if (active.value == 2) {
-    if (!name.value || isNamError.value) {
+    if (!name.value || isNameError.value) {
       return true;
     }
   }

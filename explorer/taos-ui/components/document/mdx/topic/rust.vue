@@ -30,7 +30,7 @@ group.id=test_group_rs&\
 client.id=test_consumer_ws", tmq_str);
 println!("request tmq URI is {tmq_uri}\n");
 let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
-let mut consumer = tmq.build()?;</code></pre>
+let mut consumer = tmq.build().await?;</code></pre>
     <h2 id="subscribe-consume">{{ t('topic.step4') }}</h2>
     <p>{{ t('topic.step4desc', [topicName]) }}</p>
     <pre
@@ -81,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
   client.id=test_consumer_ws&quot;, tmq_str);
   println!(&quot;request tmq URI is {tmq_uri}\n&quot;);
   let tmq = TmqBuilder::from_dsn(tmq_uri,)?;
-  let mut consumer = tmq.build()?;
+  let mut consumer = tmq.build().await?;
   consumer.subscribe([&quot;${topicName}&quot;]).await?;
 
   // consume loop

@@ -28,16 +28,16 @@ url &lt;- Sys.getenv("TDENGINE_JDBC_URL")
     <p>{{ t('connector.r.step23desc') }}</p>
     <h2 id="connect">{{ t('connector.r.step3') }}</h2>
     <p>{{ t('connector.r.step31desc') }}</p>
-    <pre v-highlight><code class="language-r">drv &lt;- JDBC("com.taosdata.jdbc.rs.RestfulDriver", driverPath)
+    <pre v-highlight><code class="language-r">drv &lt;- JDBC("com.taosdata.jdbc.ws.WebSocketDriver", driverPath)
 </code></pre>
     <p>{{ t('connector.r.step32desc') }}</p>
     <pre v-highlight><code class="language-r">conn &lt;- dbConnect(drv, url)
 </code></pre>
     <p>
       {{ t('connector.bottom2') }}
-      <a :href="`${docs.urlPrefix}/programming/insert/`">{{ `${docs.urlPrefix}/programming/insert/` }}</a>
+      <a :href="`${docs.urlPrefix}/programming/insert/`">{{ t('common.insert') }}</a>
       {{ t('connector.bottomand') }}
-      <a :href="`${docs.urlPrefix}/programming/query/`">{{ `${docs.urlPrefix}/programming/query/` }}</a
+      <a :href="`${docs.urlPrefix}/programming/query/`">{{ t('common.query') }}</a
       >{{ t('connector.bottom3end') }}
     </p>
     <p>

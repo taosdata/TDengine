@@ -40,7 +40,7 @@ export default [
   {
     name: 'Node.js',
     type: 'client',
-    desc: t('connector.desc', ['@tdengine/rest']),
+    desc: t('connector.desc', ['@tdengine/websocket']),
     docs: mdx.nodeDoc,
     steps: [
       { title: t('connector.node.step1'), dom: 'install-connector' },

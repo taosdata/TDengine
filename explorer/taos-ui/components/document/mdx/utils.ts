@@ -11,7 +11,7 @@ export const dsn = computed(() => {
 
 export const jdbcURL = computed(
   () =>
-    'jdbc:TAOS-RS://' +
+    'jdbc:TAOS-WS://' +
     instance.gatewayUrl.replace(/https?:\/\//, '') +
     '?useSSL=' +
     instance.gatewayUrl.startsWith('https') +

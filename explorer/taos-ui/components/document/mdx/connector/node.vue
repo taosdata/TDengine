@@ -27,11 +27,9 @@ let conn = null;
 </code></pre>
     <p>
       {{ t('connector.bottom1') }} {{ t('connector.bottom2') }}
-      <a target="_blank" :href="`${docs.urlPrefix}/programming/insert/`">{{
-        `${docs.urlPrefix}/programming/insert/`
-      }}</a>
+      <a target="_blank" :href="`${docs.urlPrefix}/programming/insert/`">{{ t('common.insert') }}</a>
       {{ t('connector.bottomand') }}
-      <a target="_blank" :href="`${docs.urlPrefix}/programming/query/`">{{ `${docs.urlPrefix}/programming/query/` }}</a
+      <a target="_blank" :href="`${docs.urlPrefix}/programming/query/`">{{ t('common.query') }}</a
       >{{ t('connector.bottom3end') }}
     </p>
     <p>
@@ -47,5 +45,5 @@ import DocConfig from '../configTabs.vue';
 import { t } from 'locales';
 import { docs, instance, project } from 'config';
 
-const wsUrl = computed(() => instance.gatewayUrl.replace('http', 'ws'));
+const wsUrl = computed(() => instance.gatewayUrl.replace('http', 'ws') + '?token=' + instance.token);
 </script>

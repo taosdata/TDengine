@@ -1,9 +1,11 @@
+import { project, organization, user } from 'config';
+
 // import { ComputedRef } from 'vue';
 export interface DataInProps {
   isCommunity?: boolean;
   isOem?: boolean;
   isCloud?: boolean;
-  isIndusty: boolean;
+  isIndustry: boolean;
   hover: boolean;
   task: TaskProps;
   timeZone: string;
@@ -14,11 +16,12 @@ export interface DataInProps {
   uploadFileUrl: string;
   dataSource: dataSourceProps;
   transform: transformProps;
+  tasoxVersion?: string;
   // pageTitle: string | ComputedRef<string>;
 }
 
 interface TaskProps {
-  webSoketUrl: string;
+  webSocketUrl: string;
   api: {
     getTask: RequestApiFn<Recordable[]>;
     refreshTask: RequestApiFn<Recordable[]>;
@@ -35,7 +38,7 @@ interface TaskProps {
 }
 
 interface MetricsProps {
-  webSoketUrl: string;
+  webSocketUrl: string;
   api: {
     getMetrics: RequestApiFn<Recordable[]>;
     getMetricsDesc: RequestApiFn<Recordable[]>;
@@ -45,7 +48,7 @@ interface MetricsProps {
 }
 
 interface AgentProps {
-  webSoketUrl: string;
+  webSocketUrl: string;
   api: {
     getAgentsData: RequestApiFn<Recordable[]>;
     addNewAgent: RequestApiFn<Recordable>;
@@ -80,7 +83,7 @@ interface transformProps {
     getParser: RequestApiFn<Recordable>;
     getSampleDataMsgbody: RequestApiFn<Recordable>;
     listParserPlugins: RequestApiFn<Recordable[]>;
-    getStabelParser: RequestApiFn<Recordable>;
+    getStableParser: RequestApiFn<Recordable>;
     getCSVColumns: RequestApiFn<Recordable>;
   };
 }
@@ -90,3 +93,12 @@ export const dataInPropsKey = Symbol('dataInProps');
 export function getDataInProps(): DataInProps {
   return inject(dataInPropsKey) as DataInProps;
 }
+
+export const uploadHeaders = computed(() => {
+  return project.isCloud
+    ? {
+        Authorization: user.token,
+        'Account-Id': organization.orgId
+      }
+    : {};
+});

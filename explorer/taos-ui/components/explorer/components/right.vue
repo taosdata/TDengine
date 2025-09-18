@@ -180,7 +180,7 @@ function normalizeSql(sql: string) {
 }
 
 function addDesc() {
-    return new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     ElMessageBox.prompt('', t('explorer.addDesc'), {
       closeOnClickModal: false,
       confirmButtonText: t('common.confirm'),

@@ -2,7 +2,7 @@ export default {
   noDatabase: 'No database',
   createDatabase: 'Create database',
   refreshDatabaseList: 'Refresh database list',
-  tdKewordTip: 'The "{0}" is a reserved keyword for TDengine, please wrap it in backquotes',
+  tdKeywordTip: 'The "{0}" is a reserved keyword for TDengine, please wrap it in backquotes',
   delFavirote: 'Delete Favorite',
   addSharedFavirote: 'Add Shared Favorite',
   persionalFavorites: 'Personal Favorites',
@@ -21,7 +21,7 @@ export default {
   xAxis: 'X Axis',
   series: 'Series',
   draw: 'Draw',
-  resultLimitWaringTip:
+  resultLimitWarningTip:
     "This SQL will return up to 1000 pieces of data if you input without any conditions to limit the input and output. It's strongly recommended to add some conditions to filter by time range, tags, and use 'limit/slimit' to control the number of output groups.",
   sqlCodeTip:
     'In SQL statement, table name must be prefixed with database name.\nFor example, select * from testdb.table1;',
@@ -43,7 +43,7 @@ export default {
   tableInfo: 'Subtable Info',
   databaseControl: 'Database "{0}" Access Control',
   stableControl: 'STable "{0}" Access Control',
-  delDBUseingByDatasource:
+  delDBUsingByDatasource:
     'The database "{0}" is in use by data source "{1}". Stop the data source before deleting the database.',
   delDatabaseMsgDBMart:
     'The database "{0}" is published in DB mart. If you delete it, the already added users can not access it. Please pay attention to delete it. Do you still want to delete it?',
@@ -61,5 +61,7 @@ export default {
   editDesc: 'Edit description',
   descPlaceholder: 'Description of the SQL,no more than {0} characters.',
   characterLen: 'Only {0} characters are allowed',
-  addToPersonal: 'Add to personal favorite'
+  addToPersonal: 'Add to personal favorite',
+  configurationParametersForAd: 'Configuration Parameters For Advanced Users',
+  sqlGoesHere: 'Sql goes here...'
 };

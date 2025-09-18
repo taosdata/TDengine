@@ -9,7 +9,7 @@
           <template #footer>
             <p>
               {{ t('topic.enddesc') }}
-              <a :href="TdDocsUrl + `/cloud/data-subscription/`">{{ TdDocsUrl + `/cloud/data-subscription/` }}</a>
+              <a :href="TdDocsUrl + `/cloud/data-subscription/`" target="_blank">{{ t('topic.pageTitle') }}</a>
               {{ t('topic.enddesc1') }}
             </p>
           </template>
@@ -37,7 +37,7 @@ import Docs from '../../document/index.vue';
 import { t } from 'locales';
 import { useRoute } from 'hooks/useCurrentRouter';
 
-const langList = ['Go', 'Rust', 'Python', 'Java'];
+const langList = ['Go', 'Rust', 'Python', 'Java', 'C#', 'Node.js'];
 type langType = (typeof langList)[number];
 const currentTopic = ref('');
 const activeLang = ref<langType>(langList[0]);
@@ -49,7 +49,7 @@ const topicTitle = computed(() => {
   const foundItem = topicList.value.find(item => {
     return item.topicId === currentTopic.value;
   });
-  return foundItem?.topicName ?? '';
+  return foundItem?.topicName ?? '<TDC_TOPIC>';
 });
 
 init();

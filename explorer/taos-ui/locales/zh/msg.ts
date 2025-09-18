@@ -10,6 +10,5 @@ export default {
   copySuccess: '复制成功！',
   getTableListFailed: '获取表列表失败（{0}.{1}.{2}）：{3}！',
   getTableColumnsFailed: '获取表字段失败（{0}.{1}.{2}）：{3}！',
-  passwordFormatTip:
-    "<div>密码长度必须为8到16位，并且至少包含以下3中字符:</div><ul><li><el-icon class='el-icon-circle-check'></el-icon> 大写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 小写字母</li><li><el-icon class='el-icon-circle-check'></el-icon> 数字</li><li><el-icon class='el-icon-circle-check'></el-icon> 特殊字符</li></ul>"
+  passwordFormatTip: `密码长度必须为8到20位，其中必须含有数字、特殊字符(.,~,!,{'@'},#,$,^,&,*)、字母。`
 };

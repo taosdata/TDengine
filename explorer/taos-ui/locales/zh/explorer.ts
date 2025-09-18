@@ -4,7 +4,7 @@ export default {
   createNormalTable: '创建普通表',
   createVirtualNormalTable: '创建虚拟普通表',
   refreshDatabaseList: '刷新数据库列表',
-  tdKewordTip: '"{0}"是 TDengine 的一个保留关键词，请使用反引号包裹起来',
+  tdKeywordTip: '"{0}"是 TDengine 的一个保留关键词，请使用反引号包裹起来',
   delFavirote: '删除收藏',
   addSharedFavirote: '添加共享收藏',
   persionalFavorites: '个人收藏',
@@ -23,7 +23,7 @@ export default {
   xAxis: 'X 轴',
   series: '系列',
   draw: '绘制',
-  resultLimitWaringTip:
+  resultLimitWarningTip:
     '当前查询最多返回1000条数据，如必要可添加主键时间范围、过滤条件、LIMIT/SLIMIT等限制条件进行优化',
   sqlCodeTip: '在SQL语句中，表名必须以数据库名作为前缀。\n例如，select * from testdb.table1;',
   execute: '执行',
@@ -44,7 +44,7 @@ export default {
   tableInfo: '子表信息',
   databaseControl: '数据库“{0}”访问控制',
   stableControl: '超级表“{0}”访问控制',
-  delDBUseingByDatasource: '数据库“{0}”正在被数据源“{1}”使用，请先停止该任务，然后尝试删除。',
+  delDBUsingByDatasource: '数据库“{0}”正在被数据源“{1}”使用，请先停止该任务，然后尝试删除。',
   delDatabaseMsgDBMart:
     '数据库”{0}“已经在数据库集市发布。如果你删除该数据库，已经加入的用户将无法访问该数据库，请谨慎删除。您仍然要删除该数据库吗？',
   delDatabaseMsg: '请您确认要删除数据库“{0}”？',
@@ -61,5 +61,7 @@ export default {
   editDesc: '编辑描述',
   descPlaceholder: '对收藏的 SQL 进行描述，可不填，不超过{0}个字符。',
   characterLen: '只允许输入{0}个字符',
-  addToPersonal: '添加到个人收藏'
+  addToPersonal: '添加到个人收藏',
+  configurationParametersForAd: '高级用户的配置参数',
+  sqlGoesHere: '此处输入 sql 语句...'
 };

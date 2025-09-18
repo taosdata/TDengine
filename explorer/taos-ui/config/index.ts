@@ -1,16 +1,26 @@
-import { computed, reactive, type WritableComputedRef } from 'vue';
+import { computed, reactive, provide, type WritableComputedRef } from 'vue';
 import { i18n } from 'locales';
-export { setLocale } from 'locales';
-export { setTimezone } from 'utils/date';
+import { ZINDEX_INJECTION_KEY, useZIndex } from 'element-plus';
+export { setLocale } from '../locales';
+export { setTimezone } from '../utils/date';
 export { setExecuteSqlFn, setGetDbListFn } from 'components/api';
 export { setTopicApi } from 'components/topic/api';
 
 export const isEn = computed(() => (i18n.global.locale as WritableComputedRef<string>).value == 'en');
-export const OfficalUrl = computed(() => (isEn.value ? 'https://tdengine.com' : 'https://taosdata.com'));
+export const OfficialUrl = computed(() => (isEn.value ? 'https://tdengine.com' : 'https://taosdata.com'));
 export const TdDocsUrl = computed(() => (isEn.value ? 'https://docs.taosdata.com' : 'https://docs.tdengine.com'));
-
+export function setElementPlusZIndexDefaultValue(zIndexOverrides = 4000) {
+  provide(ZINDEX_INJECTION_KEY, {
+    current: zIndexOverrides
+  });
+  useZIndex().nextZIndex();
+}
+export const DownloadUrl = computed(() =>
+  isEn.value ? 'https://downloads.taosdata.com' : 'https://downloads.tdengine.com'
+);
 export const organization = reactive({
-  orgName: ''
+  orgName: '',
+  orgId: ''
 });
 
 export const instance = reactive({
@@ -26,6 +36,7 @@ export const instance = reactive({
 });
 
 export const user = reactive({
+  token: '',
   id: ''
 });
 export const project = {

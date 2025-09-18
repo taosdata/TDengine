@@ -1,9 +1,9 @@
 <template>
   <codemirror
     v-model="code"
-    :placeholder="props.placeholder"
+    :placeholder="placeholder"
     class="w-full"
-    :style="{ height: props.height }"
+    :style="{ height: props.height, minHeight: props.minHeight }"
     :autofocus="true"
     :indent-with-tab="true"
     :disabled="props.disabled"
@@ -18,11 +18,12 @@ import { Codemirror } from 'vue-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { lintGutter } from '@codemirror/lint';
 import { search } from '@codemirror/search';
-import { keymap } from '@codemirror/view';
+import { keymap, EditorView, ViewPlugin } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { TDengineSqlKeywrods } from 'constants1/tdengine';
 import { basicSetup } from 'codemirror';
+import { t } from 'locales';
 
 const props = withDefaults(
   defineProps<{
@@ -30,13 +31,19 @@ const props = withDefaults(
     placeholder?: string;
     disabled?: boolean;
     height?: string;
+    minHeight?: string;
     dbList?: Recordable[];
+    placeholders?: ViewPlugin<any>;
+    otherCompletions?: any[];
   }>(),
   {
-    placeholder: 'Code goes here...',
+    placeholder: '',
     disabled: false,
     height: '400px',
-    dbList: () => []
+    minHeight: '400px',
+    dbList: () => [],
+    placeholders: undefined,
+    otherCompletions: undefined
   }
 );
 
@@ -48,15 +55,29 @@ const code = computed({
     emits('update:modelValue', value);
   }
 });
+
+const placeholder = computed(() => {
+  return props.placeholder || t('explorer.sqlGoesHere');
+});
+
 const keywords = TDengineSqlKeywrods.concat(TDengineSqlKeywrods.map(item => item.toLowerCase()));
 const extensions = shallowRef<any[]>([]);
-const emits = defineEmits(['update:modelValue', 'execute', 'ready']);
+const emits = defineEmits(['update:modelValue', 'execute', 'ready', 'format']);
 // Codemirror EditorView instance ref
 const view = shallowRef();
 
 const handleReady = (payload: Recordable) => {
   view.value = payload.view;
   emits('ready', payload);
+};
+const formatKey = {
+  key: 'Ctrl-Shift-f',
+  mac: 'Cmd-Shift-f', // Mac 系统使用 Cmd
+  run: () => {
+    // 发出格式化事件
+    emits('format');
+    return true;
+  }
 };
 setExtension();
 function setExtension() {
@@ -67,40 +88,50 @@ function setExtension() {
       return true;
     };
   }
-  extensions.value = [
+  const extensionsValue = [
     basicSetup,
-    keymap.of(defaultKeymap),
+    keymap.of([...defaultKeymap, formatKey]),
     sql({}),
     autocompletion({
       override: [myCompletions]
     }),
     lintGutter(),
-    search()
+    search(),
+    EditorView.lineWrapping // 添加自动换行配置
   ];
+  if (props.placeholders) {
+    extensionsValue.push(props.placeholders);
+  }
+  extensions.value = extensionsValue;
 }
 function myCompletions(context: CompletionContext) {
-  const word = context.matchBefore(/\w*/);
+  const word = context.matchBefore(/[\w\u4e00-\u9fa5]*/);
   if (!word) return null;
   if (word.from == word.to && !context.explicit) return null;
-  return {
-    from: word.from,
-    options: keywords
-      .filter(option => option.startsWith(word.text))
-      .map(option => {
+  const optionsValue = keywords
+    .filter(option => option.startsWith(word.text))
+    .map(option => {
+      return {
+        label: option,
+        type: 'keyword'
+      };
+    })
+    .concat(
+      props.dbList.map(item => {
         return {
-          label: option,
-          type: 'keyword'
+          label: item.name,
+          type: 'namespace',
+          info: 'Database'
         };
       })
-      .concat(
-        props.dbList.map(item => {
-          return {
-            label: item.name,
-            type: 'namespace',
-            info: 'Database'
-          };
-        })
-      )
+    );
+  if (props.otherCompletions) {
+    optionsValue.push(...props.otherCompletions);
+  }
+  return {
+    from: word.from,
+    validFor: /^[\w\u4e00-\u9fa5]*$/,
+    options: optionsValue
   };
 }
 </script>

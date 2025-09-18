@@ -12,22 +12,21 @@
       >{{ t('tools.grafana.step1desc1') }}
     </p>
     <h2 id="install-tdengine-plugin">{{ t('tools.grafana.step2') }}</h2>
-    <el-tabs model-value="plugins">
-      <el-tab-pane name="plugins" label="Plugins">
-        <ol class="seeq-ol">
-          <li>
-            <span class="seeq-span">{{ t('tools.grafana.step2desc') }}</span>
-          </li>
-          <li>
-            <span class="seeq-span">{{ t('tools.grafana.step2desc11') }}</span>
-          </li>
-          <li>
-            <span class="seeq-span">{{ t('tools.grafana.step2desc12') }}</span>
-          </li>
-          <li>
-            <span class="seeq-span">{{ t('tools.grafana.step2desc13') }}</span>
-          </li>
-        </ol>
+    <el-tabs model-value="Grafana CLI">
+      <el-tab-pane name="Grafana CLI" label="Grafana CLI">
+        <p>{{ $t('tools.grafana.step2desc') }}</p>
+        <pre
+          v-highlight="
+            `sudo -u grafana grafana-cli --pluginUrl ${$t('tools.grafana.step2link')} plugins install tdengine-datasource`
+          "
+        ><code class="language-bash"></code></pre>
+
+        <p>{{ $t('tools.grafana.step2desc1') }}</p>
+        <pre
+          v-highlight="
+            `./grafana-cli.exe --pluginUrl ${$t('tools.grafana.step2link')} plugins install tdengine-datasource`
+          "
+        ><code class="language-bash"></code></pre>
       </el-tab-pane>
       <el-tab-pane name="script" label="Script">
         <p>{{ t('tools.grafana.step2desc2') }}</p>
@@ -60,8 +59,7 @@
     <p>{{ t('tools.grafana.step3desc3') }}</p>
     <h2 id="use-grafana">{{ t('tools.grafana.step4') }}</h2>
     <p>
-      {{ t('tools.grafana.step4desc')
-      }}<a :href="`${TdDocsUrl}/third-party/grafana#create-dashboard`">{{ t('tools.grafana.step4desc2') }}</a
+      {{ t('tools.grafana.step4desc') }}<a :href="t('tools.grafana.step4link')">{{ t('tools.grafana.step4desc2') }}</a
       >{{ t('tools.grafana.step4desc3') }}
     </p>
   </div>
@@ -69,7 +67,7 @@
 
 <script lang="ts" setup>
 import { t } from 'locales';
-import { TdDocsUrl, instance } from 'config';
+import { instance } from 'config';
 </script>
 <style scoped lang="scss">
 .gf-input {

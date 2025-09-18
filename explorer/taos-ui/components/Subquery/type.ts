@@ -5,16 +5,16 @@ export interface TDFnDataStruct {
 }
 
 export interface WindowClauseValue {
-  tol_val: number;
-  tol_unit: string;
-  interval_val: number;
-  column: string;
-  interval_unit: string;
-  sliding_val: number;
-  sliding_unit: string;
-  parttionSet: string;
-  window_type: string;
-  state_column: string;
+  tol_val?: number;
+  tol_unit?: string;
+  interval_val?: number;
+  column?: string;
+  interval_unit?: string;
+  sliding_val?: number;
+  sliding_unit?: string;
+  parttionSet?: string[];
+  window_type?: string;
+  state_column?: string;
 }
 
 export interface SubqueryValue extends Partial<WindowClauseValue> {

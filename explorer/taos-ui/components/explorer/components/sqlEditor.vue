@@ -12,7 +12,7 @@
       ></SqlEditor>
     </div>
     <div class="float-in-sql-editor">
-      <el-alert v-if="isSelectSql" :title="t('explorer.resultLimitWaringTip')" type="warning" show-icon> </el-alert>
+      <el-alert v-if="isSelectSql" :title="t('explorer.resultLimitWarningTip')" type="warning" show-icon> </el-alert>
     </div>
   </div>
 </template>
@@ -101,8 +101,8 @@ function addCodeAtPosition(code: string) {
 .sql-code-editor {
   position: relative;
   display: flex;
-  flex-direction: column;
   flex-shrink: 0;
+  flex-direction: column;
   width: 100%;
   min-height: 20vh;
   padding: 0;

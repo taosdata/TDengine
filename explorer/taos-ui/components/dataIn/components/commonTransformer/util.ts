@@ -179,7 +179,7 @@ export function configureSupportFlags(data: string) {
     data == 'mongodb' ||
     data == 'sparkplugb';
   supportTransform.supportTopicBody = data == 'mqtt' || data == 'sparkplugb' || data == 'kafka';
-  supportTransform.is_sparkplugb = data == 'sparkplugb'
+  supportTransform.is_sparkplugb = data == 'sparkplugb';
 }
 
 const initialState: TransformerState = {
@@ -187,11 +187,11 @@ const initialState: TransformerState = {
   transformExtractParseData: null,
   csvTransformerParser: null,
   transformerFilterParseData: null,
-  transformerMapCloumns: [],
+  transformerMapColumns: [],
   transformerParserData: null,
   transformColumnIdentify: [],
   csvTransformerlocalCols: [], //csv无头部时候的自定义列
-  splitExpresList: null, //transformer的split
+  splitExpressList: null, //transformer的split
   mappingjoin: '', //mapping时候映射值是join时候的
   definitions: [],
   topParse: null,
@@ -207,9 +207,9 @@ const initialState: TransformerState = {
   resultTbTitle: '',
   activeColumns: [] as string[], // 转换拆分出来的新字段
   resultCurrentPage: 1,
-  stbDefaultColumns: [], // transfrom 创建超级表时默认的列
-  convertExpresList: null,
-  jsonExtractListType: null,
+  stbDefaultColumns: [], // transform 创建超级表时默认的列
+  convertExpressList: null,
+  jsonExtractListType: null
 };
 
 // 用一个大的对象包裹起来 方便数据管理和赋值

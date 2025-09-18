@@ -16,9 +16,7 @@
       }}<a href="https://datastudio.google.com/data?search=TDengine">{{ t('tools.gds.step1desc1') }}</a>
       {{ t('tools.gds.step1desc2') }}
     </p>
-    <p>
-      <img src="../assets/gds/gds_data_source.webp" alt="Data Studio Data Source Selection" />
-    </p>
+
     <h2 id="connector-configuration">{{ t('tools.gds.step2') }}</h2>
     <h3 id="mandatory-config">{{ t('tools.gds.step21') }}</h3>
     <h4 id="url">{{ t('tools.gds.step21desc') }}</h4>
@@ -52,9 +50,6 @@
 select * from test.demo where ts &gt;= &#39;2022-05-10 18:24:15&#39; and ts&lt;=&#39;2022-05-12 18:24:15&#39;
 </code></pre>
     <p>{{ t('tools.gds.step221desc3') }}</p>
-    <p>
-      <img src="../assets/gds/gds_cloud_login.webp" alt="TDengine Cloud Config Page" />
-    </p>
     <p>{{ t('tools.gds.step221desc4') }}</p>
     <h2 id="create-report-or-dashboard">{{ t('tools.gds.step3') }}</h2>
     <p>{{ t('tools.gds.step3desc') }}</p>

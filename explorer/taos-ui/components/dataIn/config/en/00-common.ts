@@ -34,9 +34,9 @@ export default {
         ]
       },
       {
-        "label": "Datebase Not Exist",
+        "label": "Database Not Exist",
         "field": "database_not_exist",
-        "description": "Represents the operation when datebase not exists. options: Archive, Skip, Break. Default: Break.",
+        "description": "Represents the operation when database not exists. options: Archive, Skip, Break. Default: Break.",
         "defaultValue": "break",
         "required": false,
         "type": "select",
@@ -372,7 +372,7 @@ export default {
         ]
       },
       {
-        "name": "field_length_extend",
+        "field": "field_length_extend",
         "label": "field Length Extend",
         "type": "switch",
         "defaultValue": true,

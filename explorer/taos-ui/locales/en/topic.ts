@@ -7,6 +7,9 @@ export default {
       'First, you need to install the `taos-ws-py` module version >= `0.2.1`. Run the command below in your terminal.',
     step1desc1: "You'll need to have Python3 installed."
   },
+  node: {
+    step1: 'Install connector'
+  },
   go: {
     step1: 'Initialize',
     step1desc: 'You need generate the go example model and the `driver-go` dependency:'

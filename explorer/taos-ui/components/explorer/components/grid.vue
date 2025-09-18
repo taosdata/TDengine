@@ -39,7 +39,7 @@
     <section v-if="currentHistory && currentTableData.length" class="time-wrapper">
       <div class="time-block">
         <span class="title">{{ t('explorer.execute') }}:</span>
-        <span class="value">{{ currentHistory.executTime }} ms</span>
+        <span class="value">{{ currentHistory.executeTime }} ms</span>
       </div>
       <div class="time-block">
         <span class="title">{{ t('explorer.network') }}:</span>
@@ -51,8 +51,8 @@
       </div>
       <div class="idmptip">
         <router-link to="/idmp">
-        <span class="title">{{ t('explorer.idmptip') }}</span>
-      </router-link>
+          <span class="title">{{ t('explorer.idmptip') }}</span>
+        </router-link>
       </div>
     </section>
   </div>
@@ -136,6 +136,22 @@ function loadLeft() {
     cursor: unset;
   }
 
+  .idmptip {
+    position: absolute;
+    right: 0;
+    display: inline-block;
+
+    .title {
+      margin-right: 5px;
+      font-size: 16px;
+      color: #4d6992;
+    }
+
+    .title:hover {
+      color: #1976d2; /* 悬浮时变为蓝色 */
+    }
+  }
+
   .time-wrapper {
     position: absolute;
     right: 0;
@@ -157,22 +173,6 @@ function loadLeft() {
         font-size: 14px;
         color: #999;
       }
-    }
-  }
-
-  .idmptip {
-    position: absolute;
-    right: 0;
-    display: inline-block;
-
-    .title {
-      margin-right: 5px;
-      font-size: 16px;
-      color: #4d6992;
-    }
-
-    .title:hover {
-      color: #1976d2; /* 悬浮时变为蓝色 */
     }
   }
 }

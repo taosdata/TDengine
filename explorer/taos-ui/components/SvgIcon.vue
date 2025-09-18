@@ -1,7 +1,7 @@
 <template>
   <div v-if="isExternal" :style="styleExternalIcon" class="svg-external-icon svg-icon" />
   <svg v-else :class="svgClass">
-    <use :xlink:href="iconName" />
+    <use :href="iconName" />
   </svg>
 </template>
 

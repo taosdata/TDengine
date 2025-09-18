@@ -33,9 +33,9 @@ async fn main() -&gt; Result&lt;()&gt; {
     <p>{{ t('connector.rust.step42desc') }}</p>
     <p>
       {{ t('connector.bottom2') }}
-      <a :href="`${docs.urlPrefix}/programming/insert/`">{{ `${docs.urlPrefix}/programming/insert/` }}</a>
+      <a :href="`${docs.urlPrefix}/programming/insert/`">{{ t('common.insert') }}</a>
       {{ t('connector.bottomand') }}
-      <a :href="`${docs.urlPrefix}/programming/query/`">{{ `${docs.urlPrefix}/programming/query/` }}</a
+      <a :href="`${docs.urlPrefix}/programming/query/`">{{ t('common.query') }}</a
       >{{ t('connector.bottom3end') }}
     </p>
     <p>

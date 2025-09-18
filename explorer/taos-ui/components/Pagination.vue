@@ -1,5 +1,5 @@
 <template>
-  <div v-if="props.total" class="px-[10px] py-[16px] mt-[20px] flex justify-center">
+  <div v-if="!isHidden" class="px-[10px] py-[16px] mt-[20px] flex justify-center">
     <el-pagination
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"
@@ -32,7 +32,7 @@ const props = withDefaults(defineProps<Props>(), {
   total: 0,
   pageSizes: () => [10, 20, 30, 50],
   layout: 'total, sizes, prev, pager, next, jumper',
-  hideOnSinglePage: true,
+  hideOnSinglePage: false,
   size: 'small'
 });
 const emits = defineEmits(['update:currentPage', 'update:pageSize', 'pageChange', 'sizeChange']);
@@ -41,6 +41,9 @@ const currentPage = computed({
   set: (val: number) => {
     emits('update:currentPage', val);
   }
+});
+const isHidden = computed(() => {
+  return props.total <= 0 || (props.hideOnSinglePage && props.total <= props.pageSize);
 });
 
 const pageSize = computed({

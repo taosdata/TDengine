@@ -1,5 +1,8 @@
 <template>
-  <div>
+  <div class="relative">
+    <section v-if="dataInProps.tasoxVersion" class="version-block">
+      {{ t('dataIn.version') }}{{ dataInProps.tasoxVersion }}
+    </section>
     <el-tabs v-model="activeName" @tab-click="tabClick">
       <el-tab-pane v-for="item in currentTabs" :key="item.key" :name="item.key" :label="item.label">
         <component :is="item.comp" :key="item.key"></component>
@@ -16,11 +19,13 @@ import Task from './task/index.vue';
 import Agent from './agent/index.vue';
 import DataCollectionAgents from 'components/document/party.vue';
 import { t } from 'locales';
+import { getDataInProps } from '../model/useDataIn';
 const isOem = false;
 
 const route = useRoute();
 const router = useRouter();
 const activeName = ref('');
+const dataInProps = getDataInProps();
 
 watchEffect(() => {
   activeName.value = (route?.params.tab as string) ?? '';
@@ -64,4 +69,11 @@ onMounted(() => {
 });
 </script>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.version-block {
+  position: absolute;
+  top: 10px;
+  right: 30px;
+  z-index: 1;
+}
+</style>

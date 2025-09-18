@@ -30,20 +30,25 @@ export default {
   },
   python: {
     step1: '安装连接器',
-    step1desc: '首先您需要安装最新的 taospy 模块，Python要求是 Python 3.6+。请在终端中执行下面的命令：',
+    'step1-1': `
+        <h3>安装前准备</h3>
+        您必须先安装 Python3 和 Pip3。
+        <ol>
+        <li>安装 Python。新版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考<a target="_blank" href="https://wiki.python.org/moin/BeginnersGuide/Download">Python Beginners Guide</a>安装。</li>
+        <li>安装 Pip3。大部分情况下 Python 的安装包都自带了 pip 工具， 如果没有请参考<a target="_blank" href="https://pypi.org/project/pip/">pip documentation</a>安装。</li>
+        </ol>
+        `,
+    'step1-2': `<h3>用 Pip 安装</h3>如果以前安装过旧版本的 Python 连接器, 请提前卸载。`,
+    'step1-2-1': `安装最新或指定版本<code>taospy</code> or <code>taos-ws-py</code>, 在终端里面执行下面的命令。`,
+    'step1-3': '安装验证',
+    'step1-3-1': '对于 REST 连接，只需验证是否能成功导入<code>taosrest</code> 模块。可在 Python 交互式 Shell 中输入：',
+    'step1-3-2':
+      '对于 WebSocket 连接，只需验证是否能成功导入 <code>taosws</code> 模块。可在 Python 交互式 Shell 中输入：',
+
     step2: '配置',
     step3: '建立连接',
     step3desc:
-      '请复制下面代码到您的编辑器中然后运行它。如果您正在使用 Jupyter 并假设您已经按照 Jupyter 的指南完成准备，请复制下面代码到您的浏览器的 Jupter 编辑器里面。',
-    step41Title: '第一步：安装',
-    step41Desc:
-      '对于在 Python 中熟悉 Jupyter 的用户, 需要现在您的环境中准备好 TDengine Python 连接器和 Jupyter 。 如果您还没有这样做，请运行下面的命令：',
-    step42Title: '第二步：配置',
-    step42Desc:
-      '为了让 Jupyter 连接上 TDengine Cloud 的实例，您需要先启动 Jupyter，然后设置好环境变量。我们以 Linux 终端作为例子：',
-    step43Title: '第二步：建立连接',
-    step43Desc:
-      '一旦 jupyter lab 启动好后， Jupyter lab 服务就会自动连接上您的浏览器中。然后您可以创建一个新的 notebook ，复制下面代码并运行它。'
+      '请复制下面代码到您的编辑器中然后运行它。如果您正在使用 Jupyter 并假设您已经按照 Jupyter 的指南完成准备，请复制下面代码到您的浏览器的 Jupter 编辑器里面。'
   },
   node: { step1: '安装连接器', step2: '配置', step3: '建立连接' },
   csharp: {

@@ -36,7 +36,7 @@ export const tbNameRule = [
   {
     validator: (_: any, value: string, callback: AnyFunction) => {
       if (validTDKeywords(value)) {
-        return callback(new Error(t('explorer.tdKewordTip', [value])));
+        return callback(new Error(t('explorer.tdKeywordTip', [value])));
       }
       callback(validTableName(value) ? undefined : new Error(t('common.formatErrorTemp', [t('common.name')])));
     },
@@ -53,7 +53,7 @@ export const stbNameRule = [
   {
     validator: (_: any, value: string, callback: AnyFunction) => {
       if (validTDKeywords(value)) {
-        return callback(new Error(t('explorer.tdKewordTip', [value])));
+        return callback(new Error(t('explorer.tdKeywordTip', [value])));
       }
       callback(validTableName(value) ? undefined : new Error(t('common.formatErrorTemp', [t('common.name')])));
     },
@@ -62,7 +62,7 @@ export const stbNameRule = [
 ];
 
 export function generateCreateSubTableSql(data: CreateSubTbForm, dbName: string, isVirtual: boolean) {
-  console.log("generate sub table", data, isVirtual);
+  console.log('generate sub table', data, isVirtual);
   if (isVirtual) return generateCreateVirtualSubTableSql(data, dbName);
   const { name, stbTmpl, tags } = data;
   return `CREATE TABLE \`${dbName}\`.${name} USING \`${dbName}\`.\`${stbTmpl}\` (${tags.map(item => `\`${item.field}\``).join(',')}) TAGS (${tags
@@ -72,7 +72,7 @@ export function generateCreateSubTableSql(data: CreateSubTbForm, dbName: string,
 
 export function generateCreateVirtualSubTableSql(data: CreateSubTbForm, dbName: string) {
   const { name, stbTmpl, columns, tags } = data;
-  console.log("Virtual subtable", data);
+  console.log('Virtual subtable', data);
   return `CREATE VTABLE \`${dbName}\`.${name} (${columns.map(item => item.value).join(',')}) USING \`${dbName}\`.\`${stbTmpl}\` (${tags.map(item => `\`${item.field}\``).join(',')}) TAGS (${tags
     .map(item => processStringTagValue(item.type, item.value))
     .join(',')});`;
@@ -180,9 +180,9 @@ export function handleSqlExecuteFail(data: RestApiResult, sql: string, startTime
 function generateExecTime(data: RestApiResult, startTime: number) {
   const totalTime = Date.now() - startTime;
   // timimg为纳秒，转为毫秒
-  const executTime = (data.timing ?? 0) / 1e6 || 1;
-  const networkTime = totalTime - executTime;
-  return { totalTime, executTime, networkTime };
+  const executeTime = (data.timing ?? 0) / 1e6 || 1;
+  const networkTime = totalTime - executeTime;
+  return { totalTime, executeTime, networkTime };
 }
 
 export const editorFocusEvent = useEventBus('editorFocus');
