@@ -157,6 +157,13 @@ class TestAggFunction:
         tdSql.error("select stddev_pop(name) from ts_4893.meters;")
         tdSql.error("select stddev_pop(nonexistent_column) from ts_4893.meters;")
 
+    def run_stddev_samp(self):
+        self.run_normal_query_new("stddev_samp")
+        tdSql.error("select stddev_samp(var1) from ts_4893.meters;")
+        tdSql.error("select stddev_samp(current) from empty_ts_4893.meters;")
+        tdSql.error("select stddev_samp(name) from ts_4893.meters;")
+        tdSql.error("select stddev_samp(nonexistent_column) from ts_4893.meters;")
+
     def run_varpop(self):
         self.run_normal_query_new("varpop")
         tdSql.error("select var_pop(var1) from ts_4893.meters;")
@@ -170,6 +177,13 @@ class TestAggFunction:
         tdSql.error("select variance(current) from empty_ts_4893.meters;")
         tdSql.error("select variance(name) from ts_4893.meters;")
         tdSql.error("select variance(nonexistent_column) from ts_4893.meters;")
+
+    def run_var_samp(self):
+        self.run_normal_query_new("var_samp")
+        tdSql.error("select var_samp(var1) from ts_4893.meters;")
+        tdSql.error("select var_samp(current) from empty_ts_4893.meters;")
+        tdSql.error("select var_samp(name) from ts_4893.meters;")
+        tdSql.error("select var_samp(nonexistent_column) from ts_4893.meters;")
 
     def run_rand(self):
         self.run_normal_query_new("rand")
@@ -451,8 +465,10 @@ class TestAggFunction:
 
         """
         self.run_stddev_pop()
+        self.run_stddev_samp()
         self.run_varpop()
         self.run_variance()
+        self.run_var_samp()
         self.run_avg()
         self.run_sum()
         self.run_leastsquares()
