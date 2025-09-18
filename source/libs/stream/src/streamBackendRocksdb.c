@@ -4611,7 +4611,10 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   }
   int32_t klen = ginitDict[cfIdx].enFunc((void*)key, buf);
 
-  ginitDict[cfIdx].toStrFunc((void*)key, toString);
+  if (ginitDict[cfIdx].toStrFunc((void*)key, toString) < 0) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
+  }
   stTrace("[StreamInternal] write cfIdx:%d key:%s user len:%d, rocks len:%zu", cfIdx, toString, vlen, size);
 
   char*   ttlV = tmpBuf;
