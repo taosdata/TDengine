@@ -779,12 +779,11 @@ static void stmtAsyncOutput(STscStmt2* pStmt, void* param) {
   } else {
     int code = qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
                                       &pStmt->sql.siInfo, pParam->pCreateTbReq);
-    // taosMemoryFree(pParam->pTbData);
-    (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
     if (code != TSDB_CODE_SUCCESS) {
       STMT2_ELOG("async append stmt output failed, tbname:%s, err:%s", pParam->tblData.tbName, tstrerror(code));
       pStmt->errCode = code;
     }
+    (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
   }
 }
 
