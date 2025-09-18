@@ -714,7 +714,7 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
 }
 
 bool mstEventPassIsolation(int32_t num, int32_t event) {
-  bool ret = ((mStreamMgmt.lastTs[event].ts + num * MST_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs);
+  bool ret = ((mStreamMgmt.lastTs[event].ts + num * MST_SHORT_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs);
   if (ret) {
     mstDebug("event %s passed %d isolation, last:%" PRId64 ", curr:%" PRId64, 
         gMndStreamEvent[event], num, mStreamMgmt.lastTs[event].ts, mStreamMgmt.hCtx.currentTs);
