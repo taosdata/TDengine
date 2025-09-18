@@ -1111,8 +1111,8 @@ impl CsvSource {
             total_csv_files_completed_rows as u64,
         );
         metrics.set_extra_metric(&CSV_FILES, total_csv_files as u64);
-        metrics.add_extra_metric(&CSV_FILES_COMPLETED, 0);
-        metrics.add_extra_metric(&CSV_FILES_COMPLETED_ROWS, 0);
+        metrics.set_extra_metric(&CSV_FILES_COMPLETED, 0);
+        metrics.set_extra_metric(&CSV_FILES_COMPLETED_ROWS, 0);
 
         let readers = option.open_many(paths.as_slice())?;
         Ok(CsvSource {

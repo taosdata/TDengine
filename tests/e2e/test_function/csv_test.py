@@ -183,6 +183,7 @@ def test_case_performance_scenario1(env_data):
         payload, 1, "1 task ,1 stable,10w subtables, 5 columns(int, double)", True
     )
 
+
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32573")
 def test_sanity_csv_td32573_01(env_data):
@@ -227,13 +228,13 @@ def test_sanity_csv_td32573_01(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
         else:
             time.sleep(5)
-    
+
     # 获取运行指标
     metrics = task.get_task_metrics(task_info["id"])
 
@@ -247,11 +248,14 @@ def test_sanity_csv_td32573_01(env_data):
     print(rows_count)
 
     # check file is exists
-    file_absoulte_path = os.path.join(os.path.dirname("/var/lib/taos/taosx/"), upload_file_path)
+    file_absoulte_path = os.path.join(
+        os.path.dirname("/var/lib/taos/taosx/"), upload_file_path
+    )
     assert os.path.exists(file_absoulte_path), csv_test_logger.info(
         "TD-32573: file should be exists"
     )
     print(file_absoulte_path)
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32573")
@@ -300,7 +304,7 @@ def test_sanity_csv_td32573_02(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -320,18 +324,23 @@ def test_sanity_csv_td32573_02(env_data):
     print(rows_count)
 
     # check file1 is exists
-    file_absoulte_path1 = os.path.join(os.path.dirname("/var/lib/taos/taosx/"), upload_file_path1)
+    file_absoulte_path1 = os.path.join(
+        os.path.dirname("/var/lib/taos/taosx/"), upload_file_path1
+    )
     assert not os.path.exists(file_absoulte_path1), csv_test_logger.info(
         "TD-32573: file should be removed"
     )
     print(file_absoulte_path1)
 
     # check file2 is exists
-    file_absoulte_path2 = os.path.join(os.path.dirname("/var/lib/taos/taosx/"), upload_file_path2)
+    file_absoulte_path2 = os.path.join(
+        os.path.dirname("/var/lib/taos/taosx/"), upload_file_path2
+    )
     assert not os.path.exists(file_absoulte_path2), csv_test_logger.info(
         "TD-32573: file should be removed"
     )
     print(file_absoulte_path2)
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32573")
@@ -377,7 +386,7 @@ def test_sanity_csv_td32573_03(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -397,18 +406,23 @@ def test_sanity_csv_td32573_03(env_data):
     print(rows_count)
 
     # check file1 is exists
-    file_absoulte_path1 = os.path.join(os.path.dirname("/var/lib/taos/taosx/"), upload_file_path1)
+    file_absoulte_path1 = os.path.join(
+        os.path.dirname("/var/lib/taos/taosx/"), upload_file_path1
+    )
     assert os.path.exists(file_absoulte_path1), csv_test_logger.info(
         "TD-32573: file should be exists"
     )
     print(file_absoulte_path1)
 
     # check file2 is exists
-    file_absoulte_path2 = os.path.join(os.path.dirname("/var/lib/taos/taosx/"), upload_file_path2)
+    file_absoulte_path2 = os.path.join(
+        os.path.dirname("/var/lib/taos/taosx/"), upload_file_path2
+    )
     assert os.path.exists(file_absoulte_path2), csv_test_logger.info(
         "TD-32573: file should be exists"
     )
     print(file_absoulte_path2)
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32576")
@@ -464,7 +478,7 @@ def test_sanity_csv_td32576_01(env_data):
     os.system(f"cp config/csv/d0-15.csv /data/test-csv/d0-17.csv")
 
     # 等待 20s 或任务结束
-    for _ in range(4): 
+    for _ in range(4):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -504,6 +518,7 @@ def test_sanity_csv_td32576_01(env_data):
     assert metrics["total"]["total_csv_files"] == 2, csv_test_logger.info(
         "TD-32576: total_task_file should be 2"
     )
+
 
 @pytest.mark.sanity
 @pytest.mark.skip
@@ -557,7 +572,7 @@ def test_sanity_csv_td32576_02(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -576,17 +591,21 @@ def test_sanity_csv_td32576_02(env_data):
     # 继续添加文件
     os.system(f"cp config/csv/d0-15.csv /data/test-csv/d0-17.csv")
     os.makedirs("/data/test-csv/subdir", exist_ok=True)
-    os.system(f"cp config/csv/d0-15.csv config/csv/d0-18.csv & mv config/csv/d0-18.csv /data/test-csv/subdir/d0-18.csv")
-    os.system(f"sshpass -p 'Tbaseapp2!' scp root@192.168.0.201:/app2/test-csv/d0-15.csv /data/test-csv/subdir/d0-19.csv")
+    os.system(
+        f"cp config/csv/d0-15.csv config/csv/d0-18.csv & mv config/csv/d0-18.csv /data/test-csv/subdir/d0-18.csv"
+    )
+    os.system(
+        f"sshpass -p 'Tbaseapp2!' scp root@192.168.0.201:/app2/test-csv/d0-15.csv /data/test-csv/subdir/d0-19.csv"
+    )
 
     # 等待 30s 或任务结束
-    for _ in range(6): 
+    for _ in range(6):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
         else:
             time.sleep(5)
-    
+
     # 清空目录
     os.system(f"rm -rf /data/test-csv")
 
@@ -612,6 +631,7 @@ def test_sanity_csv_td32576_02(env_data):
         "TD-32576: total_task_file should be 5"
     )
 
+
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32576")
 def test_sanity_csv_td32576_03(env_data):
@@ -635,7 +655,9 @@ def test_sanity_csv_td32576_03(env_data):
 
     # set new_file_notify to false and file_pattern="^\\?\\-\\*\\-\\[\\-\\]\\-[ab]\\-[^ef]\\-.\\-.*\\.csv$"
     case_data["from"]["new_file_notify"] = "false"
-    case_data["from"]["file_pattern"] = "^\\?\\-\\*\\-\\[\\-\\]\\-[ab]\\-[^ef]\\-.\\-.*\\.csv$"
+    case_data["from"][
+        "file_pattern"
+    ] = "^\\?\\-\\*\\-\\[\\-\\]\\-[ab]\\-[^ef]\\-.\\-.*\\.csv$"
 
     # set data source to a directory
     os.makedirs("/data/test-csv", exist_ok=True)
@@ -660,7 +682,7 @@ def test_sanity_csv_td32576_03(env_data):
     os.system(f"cp config/csv/d0-15.csv /data/test-csv/xxxx?-*-[-]-a-c-1-123.csv")
     # 不符合通配符的文件名：后缀
     os.system(f"cp config/csv/d0-15.csv /data/test-csv/?-*-[-]-a-c-1-123.csvxxxx")
-    
+
     case_data["from"]["fromhost"] = "csv:/data/test-csv"
 
     task = Task(env_data, case_data)
@@ -678,13 +700,13 @@ def test_sanity_csv_td32576_03(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
         else:
             time.sleep(5)
-    
+
     # 清空目录
     os.system(f"rm -rf /data/test-csv")
 
@@ -704,6 +726,7 @@ def test_sanity_csv_td32576_03(env_data):
     assert metrics["total"]["total_csv_files"] == 1, csv_test_logger.info(
         "TD-32576: total_task_file should be 1"
     )
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
@@ -745,7 +768,7 @@ def test_sanity_csv_td32578_01(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -770,6 +793,7 @@ def test_sanity_csv_td32578_01(env_data):
     assert metrics["current"]["csv_files_completed_rows"] == 10, csv_test_logger.info(
         "TD-32578: csv_files_completed_rows should be 10"
     )
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
@@ -817,7 +841,7 @@ def test_sanity_csv_td32578_02(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -845,6 +869,7 @@ def test_sanity_csv_td32578_02(env_data):
     assert metrics["current"]["csv_files_completed_rows"] == 10, csv_test_logger.info(
         "TD-32578: csv_files_completed_rows should be 10"
     )
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
@@ -887,13 +912,13 @@ def test_sanity_csv_td32578_03(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
         else:
             time.sleep(5)
-    
+
     # 重新启动任务
     task.start_task(task_info["id"])
     time.sleep(2)
@@ -913,9 +938,10 @@ def test_sanity_csv_td32578_03(env_data):
     )
 
     # check total_csv_files_completed_rows
-    assert metrics["total"]["total_csv_files_completed_rows"] == 10, csv_test_logger.info(
-        "TD-32578: total_csv_files_completed_rows should be 10"
-    )
+    assert (
+        metrics["total"]["total_csv_files_completed_rows"] == 10
+    ), csv_test_logger.info("TD-32578: total_csv_files_completed_rows should be 10")
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
@@ -964,7 +990,7 @@ def test_sanity_csv_td32578_04(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -993,9 +1019,10 @@ def test_sanity_csv_td32578_04(env_data):
     )
 
     # check total_csv_files_completed_rows
-    assert metrics["total"]["total_csv_files_completed_rows"] == 10, csv_test_logger.info(
-        "TD-32578: total_csv_files_completed_rows should be 10"
-    )
+    assert (
+        metrics["total"]["total_csv_files_completed_rows"] == 10
+    ), csv_test_logger.info("TD-32578: total_csv_files_completed_rows should be 10")
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32577")
@@ -1038,16 +1065,16 @@ def test_sanity_csv_td32577_01(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
         else:
             time.sleep(5)
-    
+
     # 重新启动任务
     task.start_task(task_info["id"])
-    time.sleep(2)
+    time.sleep(5)
 
     # 获取运行指标
     metrics = task.get_task_metrics(task_info["id"])
@@ -1067,6 +1094,7 @@ def test_sanity_csv_td32577_01(env_data):
     assert metrics["current"]["csv_files_completed_rows"] == 0, csv_test_logger.info(
         "TD-32578: csv_files_completed_rows should be 0"
     )
+
 
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
@@ -1119,7 +1147,7 @@ def test_sanity_csv_td32577_02(env_data):
     task_info = task.sanity_test_create_task(additional_params=additional_params)
 
     # 等待 10s 或任务结束
-    for _ in range(2): 
+    for _ in range(2):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -1136,7 +1164,7 @@ def test_sanity_csv_td32577_02(env_data):
     os.system(f"cp config/csv/d0-15.csv /data/test-csv/d0-17.csv")
 
     # 等待 20s 或任务结束
-    for _ in range(4): 
+    for _ in range(4):
         task_status = task.get_task_status(task_info["id"])
         if task_status["status"] == "completed":
             break
@@ -1161,9 +1189,9 @@ def test_sanity_csv_td32577_02(env_data):
     )
 
     # check total_csv_files_completed_rows
-    assert metrics["total"]["total_csv_files_completed_rows"] == 15, csv_test_logger.info(
-        "TD-32578: total_csv_files_completed_rows should be 15"
-    )
+    assert (
+        metrics["total"]["total_csv_files_completed_rows"] == 15
+    ), csv_test_logger.info("TD-32578: total_csv_files_completed_rows should be 15")
 
     # check csv_files
     assert metrics["current"]["csv_files"] == 3, csv_test_logger.info(

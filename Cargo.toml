@@ -116,6 +116,8 @@ actix-multipart = "0.7.2"
 actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
 actix-ws = "0.3.0"
 actix-http = "3.11.1"
+awc = { version = "3", features = ["rustls-0_23"] }
+async-stream = "0.3"
 
 hex = "0.4.3"
 csv = "1.2"

@@ -1076,6 +1076,7 @@ impl TaskController {
         } else {
             anyhow::bail!("from is required");
         };
+        // task.oneshot_topic is used to set topic name for backup(tmq2local) task
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -1111,14 +1112,17 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         license::validate_task(&from, &to, Some(&self.pool)).await?;
+
         if let ("tmq", "local") = (from.driver.as_str(), to.driver.as_str()) {
             BackupConfigBuilder::new(None, &from, &to).build().await?;
         }
-
+        if task.trigger.is_none() {
+            tracing::info!("Inject default trigger strategy with health options");
+            task.trigger = Some(Strategy::const_new());
+        }
         if task.via.is_none() && !task.not_start {
             validate_dsn(&from).await.ok()?;
         }
-
         if task.clear && to.driver == "taos" {
             taosx_core::utils::clear_database(&to)
                 .await
@@ -1359,6 +1363,15 @@ impl TaskController {
         } else {
             task.from.as_deref().unwrap_or(old.from.as_str())
         };
+
+        // Inject default trigger if both old and incoming have no trigger.
+        if task.trigger.is_none() && old.trigger.is_none() {
+            tracing::info!(
+                task.id = id,
+                "Inject default trigger strategy with health options"
+            );
+            task.trigger = Some(Strategy::const_new());
+        }
 
         // 云服务的UpdateTask没有name，需要从labels中解析
         if task.name.is_none() {

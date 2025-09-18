@@ -6,6 +6,7 @@ use clap_verbosity_flag::{InfoLevel, Verbosity};
 use deadpool::managed::{Object, PoolError};
 use faststr::FastStr;
 use favorites::FavoritesSql;
+use futures_util::StreamExt;
 use geos::{Geom, Geometry};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use http_auth_basic::Credentials;
@@ -42,6 +43,7 @@ use actix_web::{
     App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
 };
 use anyhow::bail;
+use awc::Client as AwcClient;
 use clap::Parser;
 use qid::{headers_with_qid, Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
 use rust_embed::RustEmbed;
@@ -62,13 +64,10 @@ use tracing_subscriber::{
 
 use sql::need_limit;
 
-use crate::stream_with_cancel::StreamWithCancel;
-
 mod favorites;
 mod monitor;
 mod qid;
 mod sql;
-mod stream_with_cancel;
 mod verification;
 
 #[cfg(feature = "mimalloc")]
@@ -968,66 +967,144 @@ async fn proxy(
     append_headers: Option<HeaderMap>,
 ) -> Result<HttpResponse, actix_web::Error> {
     if req.headers().contains_key("upgrade") {
-        // Websocket proxy.
+        // Proper websocket proxy: backend (awc) <-> client (actix_ws)
+        use awc::ws::{Frame as AwcFrame, Message as AwcMessage};
+        use futures_util::{SinkExt, StreamExt};
 
-        // Forward the request.
-        let mut builder = client.get(url);
-        if let Some(headers) = append_headers {
-            builder = builder.headers(headers);
+        let backend_url = url.to_string();
+        // 1. Connect to backend first so we can fail early if it does not upgrade.
+        let awc_client = AwcClient::new();
+        let mut ws_req = awc_client.ws(&backend_url);
+        for (k, v) in req.headers().iter() {
+            let name = k.as_str().to_ascii_lowercase();
+            if name.starts_with("sec-websocket")
+                || matches!(
+                    name.as_str(),
+                    "authorization" | "cookie" | "origin" | "sec-websocket-protocol"
+                )
+            {
+                ws_req = ws_req.set_header(k.clone(), v.clone());
+            }
         }
-
-        let builder = real_ip_forward(&req, builder);
-
-        let target_response = builder
-            .send()
+        if let Some(extra) = append_headers.as_ref() {
+            for (k, v) in extra.iter() {
+                ws_req = ws_req.set_header(k, v.clone());
+            }
+        }
+        let (backend_res, backend_framed) = ws_req
+            .connect()
             .await
             .map_err(error::ErrorInternalServerError)?;
-
-        // Make sure the server is willing to accept the websocket.
-        let status = target_response.status().as_u16();
-        if status != 101 {
+        if backend_res.status() != actix_web::http::StatusCode::SWITCHING_PROTOCOLS {
             return Err(actix_web::error::ErrorBadRequest(format!(
                 "Unexpected status code from target: {}",
-                status
+                backend_res.status()
             )));
         }
 
-        // Copy headers from the target back to the client.
-        let mut client_response = HttpResponse::SwitchingProtocols();
-        client_response.upgrade("websocket");
-        for (header, value) in target_response.headers() {
-            client_response.insert_header((header.as_str(), value.as_bytes()));
+        // 2. Perform actix_ws handshake with client.
+        let (mut client_resp, session, mut client_stream) = actix_ws::handle(&req, payload)?;
+        // Propagate chosen subprotocol from backend if present.
+        if let Some(sp) = backend_res.headers().get("sec-websocket-protocol").cloned() {
+            use actix_web::http::header::HeaderName;
+            client_resp
+                .headers_mut()
+                .insert(HeaderName::from_static("sec-websocket-protocol"), sp);
         }
 
-        let target_upgrade = target_response
-            .upgrade()
-            .await
-            .map_err(error::ErrorInternalServerError)?;
-        let (target_rx, mut target_tx) = tokio::io::split(target_upgrade);
-
+        // 3. Split backend framed.
+        let (mut backend_sink, mut backend_stream) = backend_framed.split();
         let cancel = CancellationToken::new();
 
-        // Copy byte stream from the client to the target.
-        tokio::task::spawn_local({
+        // Task A: client -> backend
+        actix_web::rt::spawn({
             let cancel = cancel.clone();
             async move {
-                let mut client_stream = payload.map_err(std::io::Error::other);
-                let mut client_read = tokio_util::io::StreamReader::new(&mut client_stream);
-                if let Some(Err(e)) = cancel
-                    .run_until_cancelled(tokio::io::copy(&mut client_read, &mut target_tx))
-                    .await
-                {
-                    tracing::error!("Error proxying websocket client bytes to target: {e}");
-                };
-
-                tracing::info!("Websocket client closed");
+                while let Some(msg) = client_stream.next().await {
+                    match msg {
+                        Ok(actix_ws::Message::Text(t)) => {
+                            if backend_sink.send(AwcMessage::Text(t)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(actix_ws::Message::Binary(b)) => {
+                            if backend_sink.send(AwcMessage::Binary(b)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(actix_ws::Message::Ping(b)) => {
+                            let _ = backend_sink.send(AwcMessage::Ping(b)).await;
+                        }
+                        Ok(actix_ws::Message::Pong(_)) => { /* ignore */ }
+                        Ok(actix_ws::Message::Close(reason)) => {
+                            let _ = backend_sink.send(AwcMessage::Close(reason)).await;
+                            break;
+                        }
+                        Ok(actix_ws::Message::Continuation(_)) => { /* ignore */ }
+                        Ok(actix_ws::Message::Nop) => { /* ignore */ }
+                        Err(e) => {
+                            tracing::error!("client ws error: {e}");
+                            break;
+                        }
+                    }
+                }
+                if let Err(e) = backend_sink.send(AwcMessage::Close(None)).await {
+                    tracing::error!("send close frame to backend failed: {e}");
+                }
+                if let Err(e) = backend_sink.close().await {
+                    tracing::error!("close backend sink failed: {e}");
+                }
+                cancel.cancel();
             }
         });
 
-        // Copy byte stream from the target back to the client.
-        let target_stream =
-            StreamWithCancel::new(tokio_util::io::ReaderStream::new(target_rx), cancel);
-        Ok(client_response.streaming(target_stream))
+        // Task B: backend -> client
+        actix_web::rt::spawn({
+            let cancel = cancel.clone();
+            let mut session = session.clone();
+            async move {
+                while let Some(frame) = backend_stream.next().await {
+                    match frame {
+                        Ok(AwcFrame::Text(t)) => {
+                            if session
+                                .text(std::str::from_utf8(&t).unwrap_or_default())
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Ok(AwcFrame::Binary(b)) => {
+                            if session.binary(b).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(AwcFrame::Ping(b)) => {
+                            let _ = session.pong(&b).await;
+                        }
+                        Ok(AwcFrame::Pong(_)) => { /* ignore */ }
+                        Ok(AwcFrame::Close(reason)) => {
+                            let _ = session.close(reason).await;
+                            break;
+                        }
+                        Ok(_) => { /* ignore */ }
+                        Err(e) => {
+                            tracing::error!("backend ws error: {e}");
+                            break;
+                        }
+                    }
+                }
+                cancel.cancel();
+            }
+        });
+
+        // Optional cleanup watcher
+        actix_web::rt::spawn(async move {
+            cancel.cancelled().await;
+            tracing::debug!("ws proxy closed {backend_url}");
+        });
+
+        Ok(client_resp)
     } else {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -1911,7 +1988,7 @@ impl From<actix_web::Error> for RestErrResponse {
     fn from(err: actix_web::Error) -> Self {
         Self {
             code: Code::FAILED,
-            desc: format!("{:#}", err),
+            desc: format!("{err:#}"),
         }
     }
 }
@@ -1919,7 +1996,7 @@ impl From<serde_json::Error> for RestErrResponse {
     fn from(err: serde_json::Error) -> Self {
         Self {
             code: Code::FAILED,
-            desc: format!("{:#}", err),
+            desc: format!("{err:#}"),
         }
     }
 }

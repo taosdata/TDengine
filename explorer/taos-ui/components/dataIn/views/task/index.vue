@@ -191,7 +191,7 @@
         >
           <template #default="scope">
             <div
-              v-if="showHealthStatus.includes(scope.row.status)"
+              v-if="showHealthStatus.includes((scope.row.status || '').toLowerCase())"
               class="status-operation"
               style="display: flex; white-space: nowrap"
             >
@@ -205,10 +205,11 @@
                   ></div>
                 </template>
                 <span style="display: inline-block; width: 80px">{{
-                  scope.row.healthStatus ? t('dataIn.healthStatus.' + scope.row.healthStatus) : ''
+                  scope.row.healthStatus ? t('dataIn.healthStatus.' + scope.row.healthStatus) : '-'
                 }}</span>
               </el-tooltip>
             </div>
+            <span v-else style="display: inline-block; width: 80px">-</span>
           </template>
         </el-table-column>
         <el-table-column class="with-operations" width="50">
@@ -437,7 +438,8 @@ async function getList() {
       item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
       item['activities'] = reactive(activityOfTask[item.id] || []);
-      // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
+      // 初始化 healthStatus，后端目前未返回则设为空字符串
+      item['healthStatus'] = item.healthStatus || item.health_status || '';
       return item;
     });
   }
@@ -766,10 +768,12 @@ function handleTaskActivities(activity: ActivitieProps) {
 function getHealthStatus(activities: ActivitieProps[], lastHealthStatus: string) {
   for (const activity of activities) {
     if (activity.status === 'health') {
-      return activity.activity !== lastHealthStatus ? activity.activity : lastHealthStatus;
+      return activity.activity || lastHealthStatus || '';
     }
   }
+  return lastHealthStatus || '';
 }
+
 function getStatusText(value: string): string {
   return value ? t('dataIn.statuses.' + value) : '';
 }
@@ -844,6 +848,7 @@ function handleResize() {
 }
 function getHealthStatusFilters() {
   taskList.value.forEach(item => {
+    if (!item.healthStatus) return; // 空值不加入筛选
     if (!filterMap.healthStatusFilterSet[item.healthStatus]) {
       filterMap.healthStatus.push({
         value: item.healthStatus,

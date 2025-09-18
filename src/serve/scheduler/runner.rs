@@ -214,6 +214,7 @@ async fn run_task(
             let global_sender = global_sender.clone();
             tokio::spawn(async move {
                 while let Ok(item) = rx.recv().await {
+                    tracing::debug!("health state: {:?}", item);
                     global_sender.send_task_activity(Activity::health_state(task_id, item));
                 }
             });
