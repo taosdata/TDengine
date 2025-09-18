@@ -735,7 +735,6 @@ struct SSchema {
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
 };
-
 struct SSchemaExt {
   col_id_t colId;
   uint32_t compress;

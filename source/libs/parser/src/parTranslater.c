@@ -7178,13 +7178,9 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
   PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCond));
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
-LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)pCond)->condType &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode *)pCond)->condType &&
       LIST_LENGTH(((SLogicConditionNode *)pCond)->pParameterList) == 2 &&
-<<<<<<< HEAD
-pCxt->createStreamCalc) {
-=======
       inStreamCalcClause(pCxt)) {
->>>>>>> 3.0
     SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pCond;
     SNode *pLeft = nodesListGetNode(pLogicCond->pParameterList, 0);
     SNode *pRight = nodesListGetNode(pLogicCond->pParameterList, 1);
