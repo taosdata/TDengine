@@ -579,7 +579,7 @@ int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuild
 }
 
 int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
-                             uint64_t* uid, int32_t* vgId) {
+                             uint64_t* uid, int32_t* vgId, uint64_t* suid) {
   STableVgUid* pTbInfo = NULL;
   int32_t      code = 0;
 
@@ -613,8 +613,9 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
 
     *uid = pTableMeta->uid;
     *vgId = pTableMeta->vgId;
+    *suid = pTableMeta->suid;
 
-    STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId};
+    STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId, .suid = *suid};
     code = tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
     if (TSDB_CODE_SUCCESS == code) {
       code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
@@ -624,6 +625,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
   } else {
     *uid = pTbInfo->uid;
     *vgId = pTbInfo->vgid;
+    *suid = pTbInfo->suid;
   }
 
   return code;
@@ -726,10 +728,11 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
+  uint64_t suid;
 
   pTbCtx->pData->aRowP = pTbData->aCol;
 
-  code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
+  code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId, &suid);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -781,12 +784,12 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
+  uint64_t suid;
 
   pTbCtx->pData->aRowP = pTbData->aCol;
   pTbCtx->pData->pBlobSet = pTbData->pBlobSet;
 
-  code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
-  if (ctbReq != NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+  if (ctbReq != NULL) {
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = (int32_t)ctbReq->uid;
     uid = 0;
@@ -797,9 +800,14 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
   } else {
+    code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId, &suid);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+    if (pTbCtx->pData->suid != suid) {
+      return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+    }
+
     pTbCtx->pMeta->vgId = vgId;
     pTbCtx->pMeta->uid = uid;
     pTbCtx->pData->uid = uid;
