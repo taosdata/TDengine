@@ -1853,6 +1853,14 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->fillHistory = pMsg->fillHistory;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
   pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
+  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+    // always enable low latency calc if period trigger is longer than delay
+    int64_t delay =
+        convertTimePrecision(STREAM_TRIGGER_WAIT_TIME_NS, TSDB_TIME_PRECISION_NANO, pTask->interval.precision);
+    if (pTask->interval.interval > delay) {
+      pTask->lowLatencyCalc = true;
+    }
+  }
   pTask->hasPartitionBy = pMsg->hasPartitionBy;
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
   pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
