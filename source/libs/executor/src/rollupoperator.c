@@ -174,9 +174,9 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
 
     pColNode->tableId = pRSchema->tbUid;
     pColNode->tableType = pRSchema->tbType;
-    (void)snprintf(pColNode->dbName, TSDB_DB_NAME_LEN, "%s", dbName);
-    (void)snprintf(pColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
-    (void)snprintf(pColNode->tableAlias, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
+    // (void)snprintf(pColNode->dbName, TSDB_DB_NAME_LEN, "%s", dbName);
+    // (void)snprintf(pColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
+    // (void)snprintf(pColNode->tableAlias, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
     // snprintf(pColNode->colName, TSDB_COL_NAME_LEN, "c%d", i); // TODO: fill if necessary
 
     // build the function node
@@ -196,7 +196,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
       pPrimaryKeyColNode->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pPrimaryKeyColNode->colType = COLUMN_TYPE_COLUMN;
       pPrimaryKeyColNode->slotId = 0;  // put the timestamp column at the 1st position
-      (void)snprintf(pPrimaryKeyColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
+      // (void)snprintf(pPrimaryKeyColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
       (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", pFuncNode->functionName);
       TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pPrimaryKeyColNode));
       pPrimaryKeyColNode = NULL;
