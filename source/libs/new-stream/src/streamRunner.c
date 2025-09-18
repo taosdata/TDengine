@@ -121,7 +121,7 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   }
   SListNode* pNode = listNode(pExec);
   pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
-  tdListAppendNode(pMgr->pFreeExecs, pNode);
+  tdListPrependNode(pMgr->pFreeExecs, pNode);
   TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
 }
 

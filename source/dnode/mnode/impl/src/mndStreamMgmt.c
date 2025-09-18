@@ -4463,7 +4463,7 @@ static bool msmCheckLoopStreamSdb(SMnode *pMnode, void *pObj, void *p1, void *p2
     return true;
   }
 
-  if (NULL == pStatus && !MST_STM_STATIC_PASS_ISOLATION(pStream)) {
+  if (NULL == pStatus && !MST_STM_STATIC_PASS_SHORT_ISOLATION(pStream)) {
     mstsDebug("stream not pass static isolation time, updateTime:%" PRId64 ", currentTs %" PRId64 ", ignore check it", 
         pStream->updateTime, mStreamMgmt.hCtx.currentTs);
     return true;

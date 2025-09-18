@@ -67,7 +67,10 @@ typedef struct SExternalWindowOperator {
   // for agg
   SAggSupporter      aggSup;
   STimeWindowAggSupp twAggSup;
+
+  int32_t            resultRowCapacity;
   SResultRow*        pResultRow;
+
   int64_t            lastSKey;
   int32_t            lastWinId;
   SSDataBlock*       pEmptyInputBlock;
@@ -1800,6 +1803,42 @@ _exit:
 
   return code;
 }
+
+static int32_t extWinInitResultRow(SExecTaskInfo*        pTaskInfo, SExternalWindowOperator* pExtW, int32_t winNum) {
+  if (EEXT_MODE_SCALAR == pExtW->mode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (winNum <= pExtW->resultRowCapacity) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  taosMemoryFreeClear(pExtW->pResultRow);
+  pExtW->resultRowCapacity = -1;
+
+  int32_t code = 0, lino = 0;
+  
+  pExtW->pResultRow = taosMemoryCalloc(winNum, pExtW->aggSup.resultRowSize);
+  QUERY_CHECK_NULL(pExtW->pResultRow, code, lino, _exit, terrno);
+
+  pExtW->resultRowCapacity = winNum;
+
+_exit:
+
+  if (code) {
+    qError("%s %s failed at line %d since %s", pTaskInfo->id.str, __func__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+static void extWinFreeResultRow(SExternalWindowOperator* pExtW) {
+  if (pExtW->resultRowCapacity * pExtW->aggSup.resultRowSize >= 1048576) {
+    taosMemoryFreeClear(pExtW->pResultRow);
+    pExtW->resultRowCapacity = -1;
+  }
+}
+
 static int32_t extWinInitWindowList(SExternalWindowOperator* pExtW, SExecTaskInfo*        pTaskInfo) {
   if (taosArrayGetSize(pExtW->pWins) > 0) {
     return TSDB_CODE_SUCCESS;
@@ -1810,6 +1849,8 @@ static int32_t extWinInitWindowList(SExternalWindowOperator* pExtW, SExecTaskInf
   size_t size = taosArrayGetSize(pInfo->pStreamPesudoFuncVals);
   SExtWinTimeWindow* pWin = taosArrayReserve(pExtW->pWins, size);
   TSDB_CHECK_NULL(pWin, code, lino, _exit, terrno);
+
+  TAOS_CHECK_EXIT(extWinInitResultRow(pTaskInfo, pExtW, size));
 
   if (pExtW->timeRangeExpr && pExtW->timeRangeExpr->needCalc) {
     TAOS_CHECK_EXIT(scalarCalculateExtWinsTimeRange(pExtW->timeRangeExpr, pInfo, pWin));
@@ -1968,6 +2009,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     TAOS_CHECK_EXIT(extWinNonAggOutputRes(pOperator, ppRes));
     if (NULL == *ppRes) {
       setOperatorCompleted(pOperator);
+      extWinFreeResultRow(pExtW);
     }
   } else {
 #if 0    
@@ -1981,6 +2023,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 #else
     TAOS_CHECK_EXIT(extWinAggOutputRes(pOperator, ppRes));
     setOperatorCompleted(pOperator);
+    extWinFreeResultRow(pExtW);
 #endif      
   }
 
@@ -2082,10 +2125,6 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, 0, 0);
     QUERY_CHECK_CODE(code, lino, _error);
 
-    pExtW->pResultRow = taosMemoryCalloc(STREAM_CALC_REQ_MAX_WIN_NUM, pExtW->aggSup.resultRowSize);
-    QUERY_CHECK_NULL(pExtW->pResultRow, code, lino, _error, terrno);
-
-
     nodesWalkExprs(pPhynode->window.pFuncs, extWinHasCountLikeFunc, &pExtW->hasCountFunc);
     if (pExtW->hasCountFunc) {
       code = extWinCreateEmptyInputBlock(pOperator, &pExtW->pEmptyInputBlock);
@@ -2123,9 +2162,6 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
                               pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
     TSDB_CHECK_CODE(code, lino, _error);
     pOperator->exprSupp.hasWindowOrGroup = false;
-
-    pExtW->pResultRow = taosMemoryCalloc(STREAM_CALC_REQ_MAX_WIN_NUM, pExtW->aggSup.resultRowSize);
-    QUERY_CHECK_NULL(pExtW->pResultRow, code, lino, _error, terrno);
     
     //code = setFunctionResultOutput(pOperator, &pExtW->binfo, &pExtW->aggSup, MAIN_SCAN, numOfExpr);
     //TSDB_CHECK_CODE(code, lino, _error);
