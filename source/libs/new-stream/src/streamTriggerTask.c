@@ -32,7 +32,7 @@
 
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS    1000                    // 1s
 #define STREAM_TRIGGER_WAIT_TIME_NS         1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
-#define STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS 1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 30s
+#define STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS 5 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 30s
 #define STREAM_TRIGGER_REALTIME_SESSIONID   1
 #define STREAM_TRIGGER_HISTORY_SESSIONID    2
 
