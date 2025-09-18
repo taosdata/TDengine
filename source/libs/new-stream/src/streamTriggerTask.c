@@ -2515,10 +2515,8 @@ static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSD
     (*ppResCol)->info.precision = pType->precision;
   }
 
-  int32_t nrows = blockDataGetNumOfRows(pDataBlock);
-  code = colInfoDataEnsureCapacity(*ppResCol, nrows, true);
-  QUERY_CHECK_CODE(code, lino, _end);
-  SScalarParam output = {.columnData = *ppResCol, .colAlloced = true, .numOfRows = nrows};
+  int32_t      nrows = blockDataGetNumOfRows(pDataBlock);
+  SScalarParam output = {.columnData = *ppResCol};
   code = scalarCalculate(pExpr, pList, &output, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -4390,6 +4388,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             px = taosArrayPush(pProgress->pDataBlock->pDataBlock, pEndCol);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
+          code = colInfoDataEnsureCapacity(pStartCol, pProgress->pDataBlock->info.capacity, true);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = colInfoDataEnsureCapacity(pEndCol, pProgress->pDataBlock->info.capacity, true);
+          QUERY_CHECK_CODE(code, lino, _end);
         } else if (pTask->triggerType == STREAM_TRIGGER_STATE && pTask->stateSlotId == -1) {
           SColumnInfoData *pStateCol = NULL;
           if (!firstDataBlock) {
@@ -4402,6 +4404,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             void *px = taosArrayPush(pProgress->pDataBlock->pDataBlock, pStateCol);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
+          code = colInfoDataEnsureCapacity(pStateCol, pProgress->pDataBlock->info.capacity, true);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
 
