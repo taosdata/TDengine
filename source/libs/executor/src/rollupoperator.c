@@ -357,3 +357,11 @@ void tdRollupCtxCleanup(SRollupCtx *pCtx, bool deep) {
     blockDataDestroy(pCtx->pResBlock);
   }
 }
+
+void tdRollupCtxReset(SRollupCtx *pCtx) {
+  pCtx->winTotalRows = 0;
+  pCtx->pGroupResInfo->index = 0;
+  pCtx->pGroupResInfo->delIndex = 0;
+  clearResultRowInitFlag(pCtx->exprSup->pCtx, pCtx->exprSup->numOfExprs);
+  // resetResultRow(pCtx->aggSup->pResultBuf)
+}
