@@ -396,6 +396,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsCompactPullupInterval == 0) {
     mndPullupCompacts(pMnode);
   }
+
+  if (sec % tsScanPullupInterval == 0) {
+    mndPullupScans(pMnode);
+  }
 #ifdef USE_TOPIC
   if (sec % tsMqRebalanceInterval == 0) {
     mndCalMqRebalance(pMnode);
