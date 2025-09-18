@@ -779,11 +779,13 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
   SMetaReader mr = {0};
   SArray* tagCache = NULL;
 
-  if (info->numOfExpr == 0) {
+  SHashObj* metaCache = isCalc ? info->pTableMetaCacheCalc : info->pTableMetaCacheTrigger;
+  SExprInfo*   pExprInfo = isCalc ? info->pExprInfoCalcTag : info->pExprInfoTriggerTag; 
+  int32_t      numOfExpr = isCalc ? info->numOfExprCalcTag : info->numOfExprCalcTag;
+  if (numOfExpr == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SHashObj* metaCache = isCalc ? info->pTableMetaCacheCalc : info->pTableMetaCacheTrigger;
   void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
   if (uidData == NULL) {
     api->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &api->metaFn);
@@ -791,7 +793,7 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
     api->metaReaderFn.readerReleaseLock(&mr);
     STREAM_CHECK_RET_GOTO(code);
 
-    tagCache = taosArrayInit(info->numOfExpr, POINTER_BYTES);
+    tagCache = taosArrayInit(numOfExpr, POINTER_BYTES);
     STREAM_CHECK_NULL_GOTO(tagCache, terrno);
     if(taosHashPut(metaCache, &uid, LONG_BYTES, &tagCache, POINTER_BYTES) != 0) {
       taosArrayDestroyP(tagCache, taosMemFree);
@@ -800,11 +802,11 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
     }
   } else {
     tagCache = *(SArray**)uidData;
-    STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != info->numOfExpr, TSDB_CODE_INVALID_PARA);
+    STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != numOfExpr, TSDB_CODE_INVALID_PARA);
   }
   
-  for (int32_t j = 0; j < info->numOfExpr; ++j) {
-    const SExprInfo* pExpr1 = &info->pExprInfo[j];
+  for (int32_t j = 0; j < numOfExpr; ++j) {
+    const SExprInfo* pExpr1 = &pExprInfo[j];
     int32_t          dstSlotId = pExpr1->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);

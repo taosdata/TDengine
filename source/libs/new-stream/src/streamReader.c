@@ -237,8 +237,10 @@ static void releaseStreamReaderInfo(void* p) {
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
   blockDataDestroy(pInfo->tsBlock);
-  destroyExprInfo(pInfo->pExprInfo, pInfo->numOfExpr);
-  taosMemoryFreeClear(pInfo->pExprInfo);
+  destroyExprInfo(pInfo->pExprInfoTriggerTag, pInfo->numOfExprTriggerTag);
+  taosMemoryFreeClear(pInfo->pExprInfoTriggerTag);
+  destroyExprInfo(pInfo->pExprInfoCalcTag, pInfo->numOfExprCalcTag);
+  taosMemoryFreeClear(pInfo->pExprInfoCalcTag);
   tSimpleHashCleanup(pInfo->uidHashTrigger);
   tSimpleHashCleanup(pInfo->uidHashCalc);
   qStreamDestroyTableList(pInfo->tableList);
@@ -386,7 +388,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     sStreamReaderInfo->triggerPseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
     if (sStreamReaderInfo->triggerPseudoCols != NULL) {
       STREAM_CHECK_RET_GOTO(
-          createExprInfo(sStreamReaderInfo->triggerPseudoCols, NULL, &sStreamReaderInfo->pExprInfo, &sStreamReaderInfo->numOfExpr));
+          createExprInfo(sStreamReaderInfo->triggerPseudoCols, NULL, &sStreamReaderInfo->pExprInfoTriggerTag, &sStreamReaderInfo->numOfExprTriggerTag));
     }
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
@@ -408,6 +410,10 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     
 
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
+    if (pseudoCols != NULL) {
+      STREAM_CHECK_RET_GOTO(
+          createExprInfo(pseudoCols, NULL, &sStreamReaderInfo->pExprInfoCalcTag, &sStreamReaderInfo->numOfExprCalcTag));
+    }
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock));

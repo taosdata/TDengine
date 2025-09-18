@@ -37,8 +37,10 @@ typedef struct SStreamTriggerReaderInfo {
   SSDataBlock* triggerResBlock;
   SSDataBlock* calcResBlock;
   SSDataBlock* tsBlock;
-  SExprInfo*   pExprInfo;
-  int32_t      numOfExpr;
+  SExprInfo*   pExprInfoTriggerTag;
+  int32_t      numOfExprTriggerTag;
+  SExprInfo*   pExprInfoCalcTag;
+  int32_t      numOfExprCalcTag;
   SSHashObj*   uidHashTrigger;  // < uid -> SHashObj < slotId -> colId > >
   SSHashObj*   uidHashCalc;     // < uid -> SHashObj < slotId -> colId > >
   bool         isVtableStream;  // whether is virtual table stream
