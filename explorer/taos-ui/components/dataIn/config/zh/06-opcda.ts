@@ -57,6 +57,10 @@ export default {
           accept: '.csv',
           templateUrl: 'template-zh.csv',
           required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
           multiple: true,
           editable: true,
           selectable: true,

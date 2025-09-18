@@ -233,6 +233,10 @@ export default {
           templateUrl: 'template-zh.csv',
           placeholder: '上传 CSV 配置文件，定义数据点位到 TDengine 数据子表的映射规则。\n',
           required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
           multiple: true,
           editable: true,
           selectable: true,

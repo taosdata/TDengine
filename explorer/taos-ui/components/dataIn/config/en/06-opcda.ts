@@ -57,6 +57,10 @@ export default {
           templateUrl: 'template-en.csv',
           placeholder: 'OPC DA point configuration list.\n',
           required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
           multiple: true,
           editable: true,
           selectable: true,

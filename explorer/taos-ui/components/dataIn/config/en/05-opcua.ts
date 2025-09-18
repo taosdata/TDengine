@@ -232,6 +232,10 @@ export default {
           templateUrl: 'template-en.csv',
           placeholder: 'Upload a csv file to define the mapping rules for each data point to the TDengine table.\n',
           required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
           multiple: true,
           editable: true,
           selectable: true,
