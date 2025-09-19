@@ -121,6 +121,7 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
   int32_t       code = 0;
   int32_t       lino = 0;
   int32_t       readOnly = 1;
+
   SSubTableMgt *pSubMgt = NULL;
   SBse *pBse = pMgt->pBse;
 
@@ -135,7 +136,10 @@ int32_t bseTableMgtGet(STableMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *
       TSDB_CHECK_CODE(code, lino, _error);
 
       code = taosHashPut(pMgt->pHashObj, &timestamp, sizeof(timestamp), &pSubMgt, sizeof(SSubTableMgt *));
-      TSDB_CHECK_CODE(code, lino, _error);
+      if (code != 0) {
+        destroySubTableMgt(pSubMgt);
+        TSDB_CHECK_CODE(code, lino, _error);
+      } 
 
     } else {
       pSubMgt = *ppSubMgt;
