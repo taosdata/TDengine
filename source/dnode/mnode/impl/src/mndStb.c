@@ -1676,7 +1676,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
 */  
 }
 
-static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId, bool isTag) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -1687,6 +1687,14 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
 
     mInfo("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, sql:%s", pSma->name, stbFullName,
           suid, colId, pSma->sql);
+
+    if (isTag) {
+      code = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TSMA;
+      mError("tsma:%s, check tag:%d conflicted", pSma->name, colId);
+      sdbRelease(pSdb, pSma);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_RETURN(code);
+    }
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pSma->ast, &pAst) != 0) {
@@ -1732,10 +1740,10 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId, bool isTag) {
   TAOS_CHECK_RETURN(mndCheckAlterColForTopic(pMnode, stbFullName, suid, colId));
   TAOS_CHECK_RETURN(mndCheckAlterColForStream(pMnode, stbFullName, suid, colId));
-  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, stbFullName, suid, colId));
+  TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, stbFullName, suid, colId, isTag));
   TAOS_RETURN(0);
 }
 
@@ -1748,7 +1756,7 @@ static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId));
+  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, true));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
 
@@ -1784,7 +1792,7 @@ static int32_t mndAlterStbTagName(SMnode *pMnode, const SStbObj *pOld, SStbObj *
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId));
+  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, true));
 
   if (mndFindSuperTableTagIndex(pOld, newTagName) >= 0) {
     code = TSDB_CODE_MND_TAG_ALREADY_EXIST;
@@ -1815,7 +1823,7 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId));
+  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, true));
 
   uint32_t nLen = 0;
   for (int32_t i = 0; i < pOld->numOfTags; ++i) {
@@ -2013,7 +2021,7 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
   }
 
   col_id_t colId = pOld->pColumns[col].colId;
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId));
+  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, false));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
 
@@ -2050,7 +2058,7 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId));
+  TAOS_CHECK_RETURN(mndCheckColAndTagModifiable(pMnode, pOld->name, pOld->uid, colId, false));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));
 

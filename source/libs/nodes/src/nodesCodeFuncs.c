@@ -217,8 +217,12 @@ const char* nodesNodeName(ENodeType type) {
       return "DescribeStmt";
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return "CompactDatabaseStmt";
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return "ScanDatabaseStmt";
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return "CompactVgroupsStmt";
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return "ScanVgroupsStmt";
     case QUERY_NODE_CREATE_STREAM_STMT:
       return "CreateStreamStmt";
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -333,8 +337,12 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowTableTagsStmt";
     case QUERY_NODE_SHOW_COMPACTS_STMT:
       return "ShowCompactsStmt";
+    case QUERY_NODE_SHOW_SCANS_STMT:
+      return "ShowScansStmt";
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       return "ShowCompactDetailsStmt";
+    case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
+      return "ShowScanDetailsStmt";
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       return "ShowTransactionDetailsStmt";
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
@@ -8603,6 +8611,7 @@ static int32_t jsonToDescribeStmt(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkCompactDatabaseStmtDbName = "DbName";
+static const char* jkScanDatabaseStmtDbName = "DbName";
 
 static int32_t compactDatabaseStmtToJson(const void* pObj, SJson* pJson) {
   const SCompactDatabaseStmt* pNode = (const SCompactDatabaseStmt*)pObj;
@@ -8614,6 +8623,16 @@ static int32_t jsonToCompactDatabaseStmt(const SJson* pJson, void* pObj) {
   return tjsonGetStringValue(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
 }
 
+static int32_t scanDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SScanDatabaseStmt* pNode = (const SScanDatabaseStmt*)pObj;
+  return tjsonAddStringToObject(pJson, jkScanDatabaseStmtDbName, pNode->dbName);
+}
+
+static int32_t jsonToScanDatabaseStmt(const SJson* pJson, void* pObj) {
+  SScanDatabaseStmt* pNode = (SScanDatabaseStmt*)pObj;
+  return tjsonGetStringValue(pJson, jkScanDatabaseStmtDbName, pNode->dbName);
+}
+
 static int32_t compactVgroupsStmtToJson(const void* pObj, SJson* pJson) {
   const SCompactVgroupsStmt* pNode = (const SCompactVgroupsStmt*)pObj;
   return 0;
@@ -8621,6 +8640,16 @@ static int32_t compactVgroupsStmtToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToCompactVgroupsStmt(const SJson* pJson, void* pObj) {
   SCompactVgroupsStmt* pNode = (SCompactVgroupsStmt*)pObj;
+  return 0;
+}
+
+static int32_t scanVgroupsStmtToJson(const void* pObj, SJson* pJson) {
+  const SScanVgroupsStmt* pNode = (const SScanVgroupsStmt*)pObj;
+  return 0;
+}
+
+static int32_t jsonToScanVgroupsStmt(const SJson* pJson, void* pObj) {
+  SScanVgroupsStmt* pNode = (SScanVgroupsStmt*)pObj;
   return 0;
 }
 
@@ -9574,8 +9603,12 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return describeStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return compactDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return scanDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return compactVgroupsStmtToJson(pObj, pJson);
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return scanVgroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return createStreamStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -9981,8 +10014,12 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDescribeStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return jsonToCompactDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_SCAN_DATABASE_STMT:
+      return jsonToScanDatabaseStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return jsonToCompactVgroupsStmt(pJson, pObj);
+    case QUERY_NODE_SCAN_VGROUPS_STMT:
+      return jsonToScanVgroupsStmt(pJson, pObj);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return jsonToCreateStreamStmt(pJson, pObj);
     case QUERY_NODE_DROP_STREAM_STMT:

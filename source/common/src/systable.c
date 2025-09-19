@@ -423,8 +423,25 @@ static const SSysDbTableSchema userCompactsSchema[] = {
     {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
+static const SSysDbTableSchema userScansSchema[] = {
+    {.name = "scan_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
 static const SSysDbTableSchema userCompactsDetailSchema[] = {
     {.name = "compact_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "number_fileset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "finished", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "progress(%)", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "remain_time(s)", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+};
+
+static const SSysDbTableSchema userScanDetailSchema[] = {
+    {.name = "scan_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "number_fileset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
@@ -610,6 +627,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_FILESETS, filesetsFullSchema, tListLen(filesetsFullSchema), false},
     {TSDB_INS_TABLE_TRANSACTION_DETAILS, userTransactionDetailSchema, tListLen(userTransactionDetailSchema), false},
     {TSDB_INS_TABLE_MOUNTS, mountSchema, tListLen(mountSchema), true},
+    {TSDB_INS_TABLE_SCANS, userScansSchema, tListLen(userScansSchema), false},
+    {TSDB_INS_TABLE_SCAN_DETAILS, userScanDetailSchema, tListLen(userScanDetailSchema), false},
     {TSDB_INS_TABLE_RSMAS, rsmaSchema, tListLen(rsmaSchema), false},
     {TSDB_INS_TABLE_RSMA_TASKS, rsmaTaskSchema, tListLen(rsmaTaskSchema), false},
 };

@@ -40,6 +40,8 @@ int64_t tsdbGetEarliestTs(STsdb *pTsdb) {
   return ts;
 }
 
+extern int32_t tsdbScanMonitorOpen(STsdb *tsdb);
+
 int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback, bool force) {
   STsdb  *pTsdb = NULL;
   int     slen = 0;
@@ -94,6 +96,8 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   TAOS_CHECK_GOTO(tsdbOpenSsMigrateMonitor(pTsdb), &lino, _exit);
 #endif
 
+  TAOS_CHECK_GOTO(tsdbScanMonitorOpen(pTsdb), &lino, _exit);
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s, path:%s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code),
@@ -109,6 +113,8 @@ _exit:
   }
   return code;
 }
+
+extern void tsdbScanMonitorClose(STsdb *tsdb);
 
 void tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
@@ -127,6 +133,7 @@ void tsdbClose(STsdb **pTsdb) {
     tsdbCloseCompMonitor(*pTsdb);
 #endif
     tsdbCloseSsMigrateMonitor(*pTsdb);
+    tsdbScanMonitorClose(*pTsdb);
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }

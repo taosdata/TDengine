@@ -6,14 +6,6 @@ slug: /tdengine-reference/components/tdinsight
 
 import Tabs from '@theme/Tabs'
 import TabItem from '@theme/TabItem'
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/tdinsight-01.png';
-import imgStep02 from '../../assets/tdinsight-02.png';
-import imgStep03 from '../../assets/tdinsight-03.png';
-import imgStep04 from '../../assets/tdinsight-04.png';
-import imgStep05 from '../../assets/tdinsight-05.png';
-import imgStep06 from '../../assets/tdinsight-06.png';
-import imgStep07 from '../../assets/tdinsight-07.png';
 
 TDinsight is a monitoring solution for TDengine using [Grafana].
 
@@ -57,9 +49,7 @@ It mainly includes Cluster Status, DNodes Overview, MNode Overview, Requests, Da
 
 This section includes current information and status of the cluster.
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](../../assets/tdinsight-01.png)
 
 Metric details (from top to bottom, left to right):
 
@@ -78,9 +68,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes basic information about the cluster's dnodes.
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](../../assets/tdinsight-02.png)
 
 Metric details:
 
@@ -91,9 +79,7 @@ Metric details:
 
 This section includes basic information about the cluster's mnode.
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](../../assets/tdinsight-03.png)
 
 Metric details:
 
@@ -104,9 +90,7 @@ Metric details:
 
 This section includes statistical metrics for SQL execution in the cluster.
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![](../../assets/tdinsight-04.png)
 
 Metric details:
 
@@ -120,9 +104,7 @@ Metric details:
 
 This section includes statistical metrics for tables in the cluster.
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![](../../assets/tdinsight-05.png)
 
 Metric details:
 
@@ -135,9 +117,7 @@ Metric details:
 
 This section includes a display of resource usage for all data nodes in the cluster, with each data node shown as a Row.
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![](../../assets/tdinsight-06.png)
 
 Metric details (from top to bottom, left to right):
 
@@ -159,9 +139,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes detailed statistics for taosAdapter rest and websocket requests.
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![](../../assets/tdinsight-07.png)
 
 Metric details:
 

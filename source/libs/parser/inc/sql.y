@@ -251,6 +251,8 @@ cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                  
 cmd ::= SSMIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createSsMigrateDatabaseStmt(pCxt, &A); }
 cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D); }
 cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E); }
+cmd ::= SCAN DATABASE db_name(A) start_opt(B) end_opt(C).                                          { pCxt->pRootNode = createScanStmt(pCxt, &A, B, C); }
+cmd ::= SCAN db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D).   { pCxt->pRootNode = createScanVgroupsStmt(pCxt, A, B, C, D); }
 
 %type meta_only                                                                  { bool }
 %destructor meta_only                                                            { }
@@ -685,6 +687,8 @@ cmd ::= SHOW CREATE VIEW full_table_name(A).                                    
 cmd ::= SHOW COMPACTS.                                                            { pCxt->pRootNode = createShowCompactsStmt(pCxt, QUERY_NODE_SHOW_COMPACTS_STMT); }
 cmd ::= SHOW COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createShowCompactDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW db_name_cond_opt(A) DISK_INFO.                                       { pCxt->pRootNode = createShowDiskUsageStmt(pCxt, A,    QUERY_NODE_SHOW_USAGE_STMT); }
+cmd ::= SHOW SCANS.                                                               { pCxt->pRootNode = createShowScansStmt(pCxt, QUERY_NODE_SHOW_SCANS_STMT); }
+cmd ::= SHOW SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createShowScanDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW SSMIGRATES.                                                          { pCxt->pRootNode = createShowSsMigratesStmt(pCxt, QUERY_NODE_SHOW_SSMIGRATES_STMT); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
@@ -1072,6 +1076,7 @@ cmd ::= KILL CONNECTION NK_INTEGER(A).                                          
 cmd ::= KILL QUERY NK_STRING(A).                                                  { pCxt->pRootNode = createKillQueryStmt(pCxt, &A); }
 cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
 cmd ::= KILL COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_COMPACT_STMT, &A); }
+cmd ::= KILL SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SCAN_STMT, &A); }
 cmd ::= KILL SSMIGRATE NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SSMIGRATE_STMT, &A); }
 
 /************************************************ merge/redistribute/ vgroup ******************************************/

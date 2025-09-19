@@ -84,6 +84,7 @@ typedef enum {
   MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_MOUNT,
   MND_OPER_DROP_MOUNT,
+  MND_OPER_SCAN_DB,
   MND_OPER_CREATE_RSMA,
   MND_OPER_DROP_RSMA,
 } EOperType;
@@ -506,6 +507,7 @@ typedef struct {
   int64_t  stateTs;
   int64_t  compactStartTime;
   int32_t  tsmaVersion;
+  int64_t  scanStartTime;
 } SDbObj;
 
 typedef struct {
@@ -998,11 +1000,32 @@ typedef struct {
 } SCompactDetailObj;
 
 typedef struct {
+  int32_t scanDetailId;
+  int32_t scanId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+  int64_t startTime;
+  int32_t newNumberFileset;
+  int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
+} SScanDetailObj;
+
+typedef struct {
   int32_t compactId;
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime;
   SArray* compactDetail;
 } SCompactObj;
+
+typedef struct {
+  int32_t scanId;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t startTime;
+  SArray* scanDetail;
+} SScanObj;
 
 typedef struct {
   int32_t nodeId;    // dnode id of the leader vnode
