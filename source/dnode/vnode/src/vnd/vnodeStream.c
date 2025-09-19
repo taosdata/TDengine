@@ -795,7 +795,7 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
 
   SHashObj* metaCache = isCalc ? info->pTableMetaCacheCalc : info->pTableMetaCacheTrigger;
   SExprInfo*   pExprInfo = isCalc ? info->pExprInfoCalcTag : info->pExprInfoTriggerTag; 
-  int32_t      numOfExpr = isCalc ? info->numOfExprCalcTag : info->numOfExprCalcTag;
+  int32_t      numOfExpr = isCalc ? info->numOfExprCalcTag : info->numOfExprTriggerTag;
   if (numOfExpr == 0) {
     return TSDB_CODE_SUCCESS;
   }
