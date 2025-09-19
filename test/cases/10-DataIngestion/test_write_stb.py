@@ -609,24 +609,27 @@ class TestInsertStb:
         tdSql.execute('drop database insert_stb3')
         
     def test_insert_stb(self):
-        """summary: xxx
+        """Insert Super Table
 
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
+        1. Create a super table containing multiple tag types
+        2. Insert super table with multiple data types
+        3. Insert super table with consecutive data
+        4. Insert super table data with stmt
 
         Catalog:
-        - xxx:xxx
+            - SuperTables:Insert
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-09-12 AlexDaun Migrated from uncatelog/system-test/test_insert_stb.py
+ 
         """
+
         self.run_normal()
         self.run_insert_stb()
         self.run_stmt_error()

@@ -20,19 +20,14 @@ from random import randint
 import os
 import time
 
-class TestDeleteStable:
-    updatecfgDict = {'tsdbdebugFlag': 131}
+class TestDeleteNormaltable:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        #tdSql.init(conn.cursor(), logSql), True)
+        #tdSql.init(conn.cursor(), logSql),True)
         cls.dbname = 'db_test'
-        cls.ns_dbname = 'ns_test'
-        cls.us_dbname = 'us_test'
-        cls.ms_dbname = 'ms_test'
         cls.setsql = TDSetSql()
-        cls.stbname = 'stb'
         cls.ntbname = 'ntb'
-        cls.rowNum = 3
+        cls.rowNum = 10
         cls.tbnum = 3
         cls.ts = 1537146000000
         cls.binary_str = 'taosdata'
@@ -112,34 +107,32 @@ class TestDeleteStable:
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['binary']}")''')
             elif 'nchar' in col_type.lower():
                 tdSql.execute(f'''insert into {tbname} values({self.ts+i},"{base_data['nchar']}")''')
-    def delete_all_data(self,tbname,col_type,row_num,base_data,dbname,tb_num=1):
+    def delete_all_data(self,tbname,col_type,row_num,base_data,dbname,tb_num=1,stbname=''):
         tdSql.query(f'select count(*) from {tbname}')
         tdSql.execute(f'delete from {tbname}')
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
         tdSql.query(f'select * from {tbname}')
         tdSql.checkRows(0)
-        for i in range(tb_num):
-            self.insert_base_data(col_type,f'{tbname}_{i}',row_num,base_data)
+        self.insert_base_data(col_type,tbname,row_num,base_data)
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
         tdSql.query(f'select * from {tbname}')
-        tdSql.checkRows(row_num*tb_num)
+        tdSql.checkRows(row_num)
     def delete_one_row(self,tbname,column_type,column_name,base_data,row_num,dbname,tb_num=1):
         tdSql.execute(f'delete from {tbname} where ts={self.ts}')
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
         tdSql.query(f'select {column_name} from {tbname}')
-        tdSql.checkRows((row_num-1)*tb_num)
+        tdSql.checkRows(row_num-1)
         tdSql.query(f'select {column_name} from {tbname} where ts={self.ts}')
         tdSql.checkRows(0)
-        for i in range(tb_num):
-            if 'binary' in column_type.lower():
-                tdSql.execute(f'''insert into {tbname}_{i} values({self.ts},"{base_data['binary']}")''')
-            elif 'nchar' in column_type.lower():
-                tdSql.execute(f'''insert into {tbname}_{i} values({self.ts},"{base_data['nchar']}")''')
-            else:
-                tdSql.execute(f'insert into {tbname}_{i} values({self.ts},{base_data[column_type]})')
+        if 'binary' in column_type.lower():
+            tdSql.execute(f'''insert into {tbname} values({self.ts},"{base_data['binary']}")''')
+        elif 'nchar' in column_type.lower():
+            tdSql.execute(f'''insert into {tbname} values({self.ts},"{base_data['nchar']}")''')
+        else:
+            tdSql.execute(f'insert into {tbname} values({self.ts},{base_data[column_type]})')
         tdSql.query(f'select {column_name} from {tbname} where ts={self.ts}')
         if column_type.lower() == 'float' or column_type.lower() == 'double':
             if abs(tdSql.queryResult[0][0] - base_data[column_type]) / base_data[column_type] <= 0.0001:
@@ -158,55 +151,39 @@ class TestDeleteStable:
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            tdSql.checkRows((i+1)*tb_num)
-            for j in range(tb_num):
-                self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(i+1)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts>={self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            tdSql.checkRows(i*tb_num)
-            for j in range(tb_num):
-                self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(i)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts<={self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            tdSql.checkRows((row_num-i-1)*tb_num)
-            for j in range(tb_num):
-                self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(row_num-i-1)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts<{self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            tdSql.checkRows((row_num-i)*tb_num)
-            for j in range(tb_num):
-                self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(row_num-i)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
         for i in range(row_num):
             tdSql.execute(f'delete from {tbname} where ts between {self.ts} and {self.ts+i}')
             tdSql.execute(f'flush database {dbname}')
             tdSql.execute('reset query cache')
             tdSql.query(f'select {col_name} from {tbname}')
-            tdSql.checkRows(tb_num*(row_num - i-1))
-            for j in range(tb_num):
-                self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.checkRows(row_num - i-1)
+            self.insert_base_data(col_type,tbname,row_num,base_data)
             tdSql.execute(f'delete from {tbname} where ts between {self.ts+i+1} and {self.ts}')
             tdSql.query(f'select {col_name} from {tbname}')
-            tdSql.checkRows(tb_num*row_num)
-        for i in range(row_num):
-            tdSql.execute(f'delete from {tbname} where t1 = 1')
-            tdSql.execute(f'flush database {dbname}')
-            tdSql.execute('reset query cache')
-            tdSql.query(f'select {col_name} from {tbname}')
-            tdSql.checkRows(0)
-            for j in range(tb_num):
-                self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
-            tdSql.execute(f'delete from {tbname} where t1 = 0')
-            tdSql.query(f'select {col_name} from {tbname}')
-            tdSql.checkRows(tb_num*row_num)
+            tdSql.checkRows(row_num)
     def delete_error(self,tbname,column_name,column_type,base_data):
         for error_list in ['',f'ts = {self.ts} and',f'ts = {self.ts} or']:
             if 'binary' in column_type.lower():
@@ -215,78 +192,44 @@ class TestDeleteStable:
                 tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
             else:
                 tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
-    def delete_data_stb(self):
+
+    def delete_data_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname}')
         tdSql.execute(f'use {self.dbname}')
         for col_name,col_type in self.column_dict.items():
-            tdSql.execute(f'create table {self.stbname} (ts timestamp,{col_name} {col_type}) tags(t1 int)')
-            for i in range(self.tbnum):
-                tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags(1)')
-                self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
-            self.delete_error(self.stbname,col_name,col_type,self.base_data)
-            self.delete_one_row(self.stbname,col_type,col_name,self.base_data,self.rowNum,self.dbname,self.tbnum)
-            self.delete_all_data(self.stbname,col_type,self.rowNum,self.base_data,self.dbname,self.tbnum)
-            self.delete_rows(self.dbname,self.stbname,col_name,col_type,self.base_data,self.rowNum,self.tbnum)
+            tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
+            self.insert_base_data(col_type,self.ntbname,self.rowNum,self.base_data)
+            self.delete_one_row(self.ntbname,col_type,col_name,self.base_data,self.rowNum,self.dbname)
+            self.delete_all_data(self.ntbname,col_type,self.rowNum,self.base_data,self.dbname)
+            self.delete_error(self.ntbname,col_name,col_type,self.base_data)
+            self.delete_rows(self.dbname,self.ntbname,col_name,col_type,self.base_data,self.rowNum)
             for func in ['first','last']:
-                tdSql.query(f'select {func}(*) from {self.stbname}')
-            tdSql.execute(f'drop table {self.stbname}')
+                tdSql.query(f'select {func}(*) from {self.ntbname}')
+            tdSql.execute(f'drop table {self.ntbname}')
         tdSql.execute(f'drop database {self.dbname}')
+    def test_delete_normaltable(self):
+        """Delete Data in Normal Table
 
-    def precision_now_check(self):
-        for dbname in [self.ms_dbname, self.us_dbname, self.ns_dbname]:
-            self.ts = 1537146000000
-            if dbname == self.us_dbname:
-                self.ts = int(self.ts*1000)
-                precision = "us"
-            elif dbname == self.ns_dbname:
-                precision = "ns"
-                self.ts = int(self.ts*1000000)
-            else:
-                precision = "ms"
-                self.ts = int(self.ts)
-            tdSql.execute(f'drop database if exists {dbname}')
-            tdSql.execute(f'create database if not exists {dbname} precision "{precision}"')
-            tdSql.execute(f'use {dbname}')
-            self.base_data = {
-                'tinyint':self.tinyint_val
-                        }
-            self.column_dict = {
-                'col1': 'tinyint'
-            }
-            for col_name,col_type in self.column_dict.items():
-                tdSql.execute(f'create table if not exists {self.stbname} (ts timestamp,{col_name} {col_type}) tags(t1 int)')
-                for i in range(self.tbnum):
-                    tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags(1)')
-                    self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
-                tdSql.query(f'select * from {self.stbname}')
-                tdSql.checkEqual(tdSql.queryRows, self.tbnum*self.rowNum)
-                tdSql.execute(f'delete from {self.stbname} where ts < now()')
-                tdSql.query(f'select * from {self.stbname}')
-                tdSql.checkEqual(tdSql.queryRows, 0)
+        1. Create normal table
+        2. Insert data into normal table
+        3. Delete data from normal table with one row, all rows, multiple rows
+        4. Delete data from normal table with error sql
+        5. Check  data in normal table
 
-    def test_delete_stable(self):
-        """summary: xxx
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_delete_normaltable.py
 
         """
-        self.delete_data_stb()
+        self.delete_data_ntb()
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
-        self.delete_data_stb()
-        self.precision_now_check()
+        self.delete_data_ntb()
         
         tdLog.success(f"{__file__} successfully executed")
+        

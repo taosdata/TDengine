@@ -901,24 +901,30 @@ class TestCompositePrimaryKeyInsert:
         tdSql.query(f'select * from {table_nam} order by ts desc, pk asc')
 
     def test_composite_primary_key_insert(self):
-        """summary: xxx
+        """ Composite Primary Key Insert Test
 
-        description: xxx
+        1. insert into value with pk
+        2. insert into value without pk
+        3. insert into illegal data
+        4. insert into select
+        5. insert into values special cases
+        6. test implicit conversion
+        7. insert into value to mutiple tables
+        8. stmt insert into value with pk
+        9. insert data by schemaless model is not allowed
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-15 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_composite_primary_key_insert.py
 
         """
+
+
         tdSql.prepare(replica = self.replicaVar)
         self.prepare_db()
 

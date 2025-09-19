@@ -76,24 +76,23 @@ class TestDdlInSysdb:
         self.ddl_systb()
 
     def test_ddl_in_sysdb(self):
-        """summary: xxx
+        """ Create Same Name with System Database/Table Name
 
-        description: xxx
+        1. Create/Drop Database with same name as system database
+        2. Restart taosd service
+        3. Create/Drop Table with same name as system table
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_ddl_in_sysdb.py
 
         """
+
         self.ddl_in_sysdb()
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)

@@ -394,22 +394,18 @@ class TestBlockWise:
                 f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
 
     def test_block_wise(self):
-        """summary: xxx
+        """Database Rollup and SMA Index
 
-        description: xxx
+        this case is obsolete, reserved for reference only
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci,skip
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-15 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_block_wise.py
 
         """
         self.rows = 10

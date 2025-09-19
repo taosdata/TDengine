@@ -52,10 +52,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_repeat.py
 ,,n,.,pytest cases/02-Databases/02-Drop/test_db_writing.py
 ## 03-Alter
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_database.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_13.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replicas_31.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replica.py -N 4
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_table.py
@@ -120,16 +120,22 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
+## 03-PrimaryKey
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_create.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_delete.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_insert.py
 
 # 04-SuperTables
 ## 01-Create
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_basic.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_presuf.py
 ## 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_repeat.py
 ## 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_overall.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_write_data.py
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_column_datatypes.py
@@ -161,16 +167,32 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 
 # 10-DataIngestion
+,,n,.,pytest cases/10-DataIngestion/test_write.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_basic.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_column_value.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_delete.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_morevgroup.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_out_of_order_data.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_stb.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update.py
+
+
+## 01-SQL
+## 02-STMT
+## 03-SML
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/03-SML/test_write_sml_influxdb_line.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/03-SML/test_write_sml_opentsdb_json.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/03-SML/test_write_sml_opentsdb_telnet.py
+## 04-Import
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/04-Import/test_write_import_csv.py
 
 # 11-DataDeletion
 ,,y,.,./ci/pytest.sh pytest cases/11-DataDeletion/test_delete.py
+,,y,.,./ci/pytest.sh pytest cases/11-DataDeletion/test_delete_childtable.py
+,,y,.,./ci/pytest.sh pytest cases/11-DataDeletion/test_delete_stable.py
 
 # 12-DataCompression
 ,,y,.,./ci/pytest.sh pytest cases/12-DataCompression/test_compress_alter_option.py
@@ -455,12 +477,15 @@
 
 # 42-TSMAs
 #,,y,.,./ci/pytest.sh pytest cases/42-TSMAs/test_tsma.py
+#,,y,.,./ci/pytest.sh pytest cases/42-TSMAs/test_block_wise.py
 
 ## 43-RSMAs
 
 # 50-Meta
+,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ddl_in_sysdb.py
 #,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ins_stables.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ins_tables.py
+
 
 # 51-Perf
 
@@ -527,6 +552,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/90-Escape/test_binary_escape_character.py
 
 # 91-Limit
+,,y,.,./ci/pytest.sh pytest cases/91-Limit/test_boundary.py
+,,y,.,./ci/pytest.sh pytest cases/91-Limit/test_db_tb_name_check.py
 ,,y,.,./ci/pytest.sh pytest cases/91-Limit/test_dbtbname_validate.py
 
 # 92-Keywords
@@ -549,7 +576,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/99-Others/01-Valgrind/test_valgrind_checkerror8.py
 #,,y,.,./ci/pytest.sh pytest cases/99-Others/01-Valgrind/test_valgrind_udf.py
 
-# uncatalog
+# uncatalogf
 # army
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3
@@ -1551,39 +1578,15 @@
 
 
 ### 1-insert
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_stb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_stable.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stt_blocks_check.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_database_pre_suf.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_multi_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_create.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_composite_primary_key_delete.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_double.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_database.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_replica.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_influxdb_line_taosc_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_telnet_line_taosc_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_opentsdb_json_taosc_insert.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_stable.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_alter_table.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_boundary.py
-,,n,.,pytest cases/uncatalog/system-test/1-insert/test_insertWithMoreVgroup.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_comment.py
-#,,n,.,pytest cases/uncatalog/system-test/1-insert/test_time_range_wise.py
-#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_block_wise.py
-#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_create_retentions.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_mutil_stage.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_db_tb_name_check.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_InsertFuturets.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_wide_column.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_column_value.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_from_csv.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_benchmark.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k.py -R
@@ -1618,13 +1621,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td27388.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4479.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29793.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_insert_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29157.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_ddl_in_sysdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_tb_100w_data_order.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_childtable.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_delete_normaltable.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_keep_expired.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_stmt_error.py
 

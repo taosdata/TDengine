@@ -20,15 +20,16 @@ from random import randint
 import os
 import time
 
-class TestDeleteNormaltable:
+class TestDeleteChildtable:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        #tdSql.init(conn.cursor(), logSql),True)
+        #tdSql.init(conn.cursor(), logSql), True)
         cls.dbname = 'db_test'
         cls.setsql = TDSetSql()
+        cls.stbname = 'stb'
         cls.ntbname = 'ntb'
-        cls.rowNum = 10
-        cls.tbnum = 3
+        cls.rowNum = 5
+        cls.tbnum = 2
         cls.ts = 1537146000000
         cls.binary_str = 'taosdata'
         cls.nchar_str = '涛思数据'
@@ -114,6 +115,12 @@ class TestDeleteNormaltable:
         tdSql.execute('reset query cache')
         tdSql.query(f'select * from {tbname}')
         tdSql.checkRows(0)
+        tdSql.query(f'select count(*) from {stbname}')
+        if tb_num <= 1:
+            if len(tdSql.queryResult) != 1 and tdSql.queryResult[0][0] != 0:
+                tdLog.exit('delete case failure!')
+        else:
+            tdSql.checkEqual(tdSql.queryResult[0][0],(tb_num-1)*row_num)
         self.insert_base_data(col_type,tbname,row_num,base_data)
         tdSql.execute(f'flush database {dbname}')
         tdSql.execute('reset query cache')
@@ -193,43 +200,43 @@ class TestDeleteNormaltable:
             else:
                 tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
 
-    def delete_data_ntb(self):
+    def delete_data_ctb(self):
         tdSql.execute(f'create database if not exists {self.dbname}')
         tdSql.execute(f'use {self.dbname}')
         for col_name,col_type in self.column_dict.items():
-            tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
-            self.insert_base_data(col_type,self.ntbname,self.rowNum,self.base_data)
-            self.delete_one_row(self.ntbname,col_type,col_name,self.base_data,self.rowNum,self.dbname)
-            self.delete_all_data(self.ntbname,col_type,self.rowNum,self.base_data,self.dbname)
-            self.delete_error(self.ntbname,col_name,col_type,self.base_data)
-            self.delete_rows(self.dbname,self.ntbname,col_name,col_type,self.base_data,self.rowNum)
-            for func in ['first','last']:
-                tdSql.query(f'select {func}(*) from {self.ntbname}')
-            tdSql.execute(f'drop table {self.ntbname}')
-        tdSql.execute(f'drop database {self.dbname}')
-    def test_delete_normaltable(self):
-        """summary: xxx
+            tdSql.execute(f'create table {self.stbname} (ts timestamp,{col_name} {col_type}) tags(t1 int)')
+            for i in range(self.tbnum):
+                tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags(1)')
+                self.insert_base_data(col_type,f'{self.stbname}_{i}',self.rowNum,self.base_data)
+                self.delete_one_row(f'{self.stbname}_{i}',col_type,col_name,self.base_data,self.rowNum,self.dbname,)
+                self.delete_all_data(f'{self.stbname}_{i}',col_type,self.rowNum,self.base_data,self.dbname,i+1,self.stbname)
+                self.delete_error(f'{self.stbname}_{i}',col_name,col_type,self.base_data)
+                self.delete_rows(self.dbname,f'{self.stbname}_{i}',col_name,col_type,self.base_data,self.rowNum)
+                for func in ['first','last']:
+                    tdSql.query(f'select {func}(*) from {self.stbname}_{i}')
+            tdSql.execute(f'drop table {self.stbname}')
+    def test_delete_childtable(self):
+        """Delete Data in Child Table
 
-        description: xxx
+        1. Create child table
+        2. Insert data into child table
+        3. Delete data from child table with one row, all rows, multiple rows 
+        4. Delete data from child table with error sql
+        5. Check  data in child table
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_delete_childtable.py
 
         """
-        self.delete_data_ntb()
+        self.delete_data_ctb()
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
-        self.delete_data_ntb()
-        
-        tdLog.success(f"{__file__} successfully executed")
-        
+        self.delete_data_ctb()
+
+        tdLog.success("%s successfully executed" % __file__)

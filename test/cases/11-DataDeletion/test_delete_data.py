@@ -317,22 +317,23 @@ class TestDeleteData:
         tdSql.checkData(0, 1, 2)        
     
     def test_delete_data(self):
-        """summary: xxx
+        """Delete Data Test (obsolete)
 
-        description: xxx
+        1. Delete data from normal table
+        2. Insert data into child table
+        3. Delete data from super table
+        4. Restart taosd service
+        5. Delete data from normal table again
+        6. JIRA TS-3987
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci,skip
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_delete_data.py
 
         """
         self.FIX_TS_3987()

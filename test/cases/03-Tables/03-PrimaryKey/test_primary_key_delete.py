@@ -216,23 +216,34 @@ class TestCompositePrimaryKeyDelete:
                 if result1[i][j] != result2[i][j]:
                     tdSql.checkEqual(False, True)
 
-    def test_composite_primary_key_delete(self):
-        """summary: xxx
+    def test_primary_key_delete(self):
+        """ Composite Primary Key Delete Tests
 
-        description: xxx
+        This test ensures that TDengine's delete operations strictly follow time-series database design principles: only allowing data deletion by time dimension.
 
-        Since: xxx
+        1. Data Preparation
+        - Creates super tables and normal tables, both containing composite primary keys (ts + pk columns)
+        - Supports multiple data types for primary keys: INT, UINT, BIGINT, UBIGINT, VARCHAR, BINARY
+        - Inserts test data into child tables and normal tables
 
-        Labels: xxx
+        2. Legal Delete Operation Tests
+        - Delete by timestamp: `DELETE FROM table WHERE ts = 'xxx'`
+        - Delete by time range: `DELETE FROM table WHERE ts > 'xxx' AND ts < 'yyy'`
+        - Delete entire table: `DELETE FROM table`
 
-        Jira: xxx
+        3. Illegal Delete Operation Tests
+        - Delete by primary key column: `DELETE FROM table WHERE pk = 1`
+        - Delete by timestamp + primary key: `DELETE FROM table WHERE ts = 'xxx' AND pk = 1`
+        - Delete by time range + primary key: `DELETE FROM table WHERE ts > 'xxx' AND ts < 'yyy' AND pk = 1`
 
-        Catalog:
-        - xxx:xxx
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-15 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_composite_primary_key_delete.py
 
         """
         tdSql.prepare(replica = self.replicaVar)
@@ -243,4 +254,3 @@ class TestCompositePrimaryKeyDelete:
             self.check_delete_data_illegal(date_type[1])
         self.check_delete_data()
         tdLog.success(f"{__file__} successfully executed")
-        

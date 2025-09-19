@@ -520,23 +520,23 @@ class TestInsertColumnValue:
             tdSql.query(f'select * from {dbname}.{_tb}', show=True)
             tdSql.checkRows(4)
 
-    def test_insert_column_value(self):
-        """summary: xxx
+    def test_write_column_value(self):
+        """ Write Data with Special Columns
 
-        description: xxx
+        1. Write data with different data types 
+        2. Write data to super table with special column
+        3. Write data to child table with special column
+        4. Write data to normal table with special column
+        5. JIRA TS-5184
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-16 Alex Duan Migrated from uncatalog/system-test/1-insert/test_insert_column_value.py
 
         """
         self.__create_tb()
