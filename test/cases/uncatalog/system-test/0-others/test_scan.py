@@ -3,6 +3,7 @@ from new_test_framework.utils import tdLog, tdSql
 import socket
 import taos
 import time
+# ./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact.py -N 3
 
 class TestScan:
 
