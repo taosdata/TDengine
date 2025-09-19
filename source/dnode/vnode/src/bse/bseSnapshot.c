@@ -173,6 +173,7 @@ int32_t bseSnapWriterWrite(SBseSnapWriter *p, uint8_t *data, int32_t len) {
   if (pHdr->size + sizeof(SSnapDataHdr) != len) {
     return TSDB_CODE_INVALID_MSG;
   }
+
   SBseSnapMeta *pMeta = (SBseSnapMeta *)pHdr->data;
 
   uint8_t *pBuf = pHdr->data + sizeof(SBseSnapMeta);
