@@ -1837,6 +1837,9 @@ static void extWinFreeResultRow(SExternalWindowOperator* pExtW) {
     taosMemoryFreeClear(pExtW->pResultRow);
     pExtW->resultRowCapacity = -1;
   }
+  if (pExtW->binfo.pRes && pExtW->binfo.pRes->info.rows * pExtW->aggSup.resultRowSize >= 1048576) {
+    blockDataFreeCols(pExtW->binfo.pRes);
+  }
 }
 
 static int32_t extWinInitWindowList(SExternalWindowOperator* pExtW, SExecTaskInfo*        pTaskInfo) {
@@ -2112,8 +2115,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     
     size_t keyBufSize = sizeof(int64_t) * 2 + POINTER_BYTES;
     initResultSizeInfo(&pOperator->resultInfo, 4096);
-    code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
-    QUERY_CHECK_CODE(code, lino, _error);
+    //code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
+    //QUERY_CHECK_CODE(code, lino, _error);
 
     pExtW->pWinRowIdx = taosArrayInit(4096, sizeof(int64_t));
     TSDB_CHECK_NULL(pExtW->pWinRowIdx, code, lino, _error, terrno);

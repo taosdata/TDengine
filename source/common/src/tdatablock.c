@@ -1788,6 +1788,25 @@ void blockDataFreeRes(SSDataBlock* pBlock) {
   memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
 }
 
+void blockDataFreeCols(SSDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return;
+  }
+
+  int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    if (pColInfoData == NULL) {
+      continue;
+    }
+
+    colDataDestroy(pColInfoData);
+  }
+
+  taosMemoryFreeClear(pBlock->pBlockAgg);
+  memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
+}
+
 void blockDataDestroy(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return;
@@ -2392,6 +2411,8 @@ void colDataDestroy(SColumnInfoData* pColData) {
 
   if (IS_VAR_DATA_TYPE(pColData->info.type)) {
     taosMemoryFreeClear(pColData->varmeta.offset);
+    pColData->varmeta.allocLen = 0;
+    pColData->varmeta.length = 0;
   } else {
     taosMemoryFreeClear(pColData->nullbitmap);
   }
