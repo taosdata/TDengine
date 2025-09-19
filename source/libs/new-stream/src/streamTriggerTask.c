@@ -3276,8 +3276,10 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
           endPos++;
         }
         if (startPos < endPos) {
+          TARRAY_SIZE(pDataBlock->pDataBlock)--;
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
                                     pContext->pCurParam->wend, pDataBlock, startPos, endPos - 1);
+          TARRAY_SIZE(pDataBlock->pDataBlock)++;
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
