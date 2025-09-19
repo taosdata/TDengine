@@ -697,7 +697,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   initBasicInfo(&pExtW->binfo, pResBlock);
 
-  pExtW->pWins = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, sizeof(STimeWindow));
+  pExtW->pWins = taosArrayInit(4096, sizeof(STimeWindow));
   if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _error);
 
   pExtW->pWinRowIdx = taosArrayInit(4096, sizeof(int64_t));
@@ -1837,6 +1837,9 @@ static void extWinFreeResultRow(SExternalWindowOperator* pExtW) {
     taosMemoryFreeClear(pExtW->pResultRow);
     pExtW->resultRowCapacity = -1;
   }
+  if (pExtW->binfo.pRes && pExtW->binfo.pRes->info.rows * pExtW->aggSup.resultRowSize >= 1048576) {
+    blockDataFreeCols(pExtW->binfo.pRes);
+  }
 }
 
 static int32_t extWinInitWindowList(SExternalWindowOperator* pExtW, SExecTaskInfo*        pTaskInfo) {
@@ -2112,8 +2115,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     
     size_t keyBufSize = sizeof(int64_t) * 2 + POINTER_BYTES;
     initResultSizeInfo(&pOperator->resultInfo, 4096);
-    code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
-    QUERY_CHECK_CODE(code, lino, _error);
+    //code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
+    //QUERY_CHECK_CODE(code, lino, _error);
 
     pExtW->pWinRowIdx = taosArrayInit(4096, sizeof(int64_t));
     TSDB_CHECK_NULL(pExtW->pWinRowIdx, code, lino, _error, terrno);
@@ -2183,7 +2186,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     QUERY_CHECK_NULL(pExtW->pFreeBlocks, code, lino, _error, terrno);  
   }
 
-  pExtW->pWins = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, sizeof(SExtWinTimeWindow));
+  pExtW->pWins = taosArrayInit(4096, sizeof(SExtWinTimeWindow));
   if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _error);
   
   //initResultRowInfo(&pExtW->binfo.resultRowInfo);

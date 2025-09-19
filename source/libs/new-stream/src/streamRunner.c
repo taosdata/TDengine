@@ -919,7 +919,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   }
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
-  ST_TASK_DLOG("expand stream task completed, elapsed time:%.2fsec", el);
+  ST_TASK_ILOG("The %dth runner exec built completed, elapsed time:%.2fsec", atomic_fetch_add_32(&pTask->execMgr.execBuildNum, 1), el);
 
   return code;
 }
