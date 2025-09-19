@@ -27,334 +27,289 @@ export default {
       ]
     },
     {
-      label: 'Groups-before',
-      field: 'groups_before',
+      label: 'SASL Authentication',
+      field: 'sasl',
       hide: true,
       children: [
         {
-          label: 'SASL Authentication',
-          field: 'sasl',
-          description: 'Simple Authentication and Security Layer.',
-          hide: false,
-          type: 'switch',
-          defaultValue: false,
-          valueField: 'isEnable',
-          hasValue: true,
-          children: [
+          label: 'Mechanism',
+          description: 'SASL authentication mechanism.',
+          field: 'sasl_mechanism',
+          placeholder: '',
+          defaultValue: '',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
             {
-              label: 'Mechanism',
-              description: 'SASL authentication mechanism.',
-              field: 'sasl_mechanism',
-              placeholder: '',
-              defaultValue: 'PLAIN',
-              pattern: null,
-              grid_two: false,
-              type: 'select',
-              options: [
-                {
-                  label: 'PLAIN',
-                  value: 'PLAIN'
-                },
-                {
-                  label: 'SCRAM-SHA-256',
-                  value: 'SCRAM-SHA-256'
-                },
-                {
-                  label: 'GSSAPI',
-                  value: 'GSSAPI'
-                }
-              ],
-              meta: {
-                allowCreate: true,
-                filterable: true
-              },
-              hasParentSwitch: true, //是否有父级开关
-              displayDependsOn: ['groups_before/sasl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
+              label: 'PLAIN',
+              value: 'PLAIN'
             },
             {
-              label: 'Username',
-              description: 'The username for SASL authentication mechanism.',
-              field: 'sasl_username',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'input',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/sasl/isEnable', 'groups_before/sasl/sasl_mechanism'],
-              displayDependsOnValues: {
-                isEnable: [true],
-                sasl_mechanism: ['PLAIN', 'SCRAM-SHA-256']
-              }
+              label: 'SCRAM-SHA-256',
+              value: 'SCRAM-SHA-256'
             },
             {
-              label: 'Password',
-              description: 'The password for SASL authentication mechanism.',
-              field: 'sasl_password',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'password',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/sasl/isEnable', 'groups_before/sasl/sasl_mechanism'],
-              displayDependsOnValues: {
-                isEnable: [true],
-                sasl_mechanism: ['PLAIN', 'SCRAM-SHA-256']
-              }
-            },
-            {
-              label: 'Kerberos Service Name',
-              description: 'The Kerberos service name for GSSAPI authentication mechanism.',
-              field: 'sasl_kerberos_service_name',
-              placeholder: 'for example: kafka',
-              pattern: null,
-              grid_two: false,
-              type: 'input',
-              displayDependsOn: ['groups_before/sasl/sasl_mechanism'],
-              displayDependsOnValues: {
-                sasl_mechanism: ['GSSAPI']
-              }
-            },
-            {
-              label: ' Kerberos Principal',
-              description: 'The Kerberos principal for GSSAPI authentication mechanism.',
-              field: 'sasl_kerberos_principal',
-              placeholder: 'for example: kafkaclient',
-              pattern: null,
-              grid_two: false,
-              type: 'input',
-              displayDependsOn: ['groups_before/sasl/sasl_mechanism'],
-              displayDependsOnValues: {
-                sasl_mechanism: ['GSSAPI']
-              }
-            },
-            {
-              label: 'Kerberos Init Command',
-              description: 'The Kerberos init command for GSSAPI authentication mechanism.',
-              field: 'sasl_kerberos_kinit_cmd',
-              placeholder: "for example: kinit -R -t '%{sasl.kerberos.keytab}' -k %{sasl.kerberos.principal}",
-              pattern: null,
-              grid_two: false,
-              type: 'input',
-              displayDependsOn: ['groups_before/sasl/sasl_mechanism'],
-              displayDependsOnValues: {
-                sasl_mechanism: ['GSSAPI']
-              }
-            },
-            {
-              label: 'Kerberos Keytab',
-              description: 'The Kerberos keytab for GSSAPI authentication mechanism.',
-              field: 'sasl_kerberos_keytab',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              displayDependsOn: ['groups_before/sasl/sasl_mechanism'],
-              displayDependsOnValues: {
-                sasl_mechanism: ['GSSAPI']
-              }
-            }
-          ]
-        },
-        {
-          label: 'Enable SSL',
-          field: 'ssl',
-          description: 'Use self-signed certificate file and private key.',
-          hide: false,
-          type: 'switch',
-          defaultValue: false,
-          valueField: 'isEnable',
-          hasValue: true,
-          children: [
-            {
-              label: 'CA',
-              description: "CA certificate file(PEM format) for verifying the broker's key.",
-              field: 'ca',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            },
-            {
-              label: 'CA Password',
-              description: 'CA private key passphrase.',
-              field: 'ca_password',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'password',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            },
-            {
-              label: 'Client certificate',
-              description: "Client's public key file(PEM format) used for authentication.",
-              field: 'cert',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            },
-            {
-              label: 'Client key',
-              description: "Client's private key file(PEM format) used for authentication.",
-              field: 'cert_key',
-              placeholder: '',
-              pattern: null,
-              grid_two: false,
-              type: 'file',
-              templateUrl: '',
-              hasParentSwitch: true,
-              displayDependsOn: ['groups_before/ssl/isEnable'],
-              displayDependsOnValues: {
-                isEnable: [true]
-              }
-            }
-          ]
-        },
-        {
-          label: 'Collect',
-          field: 'collect_options',
-          description: 'Configurations for collecting data.',
-          children: [
-            {
-              label: 'Timeout',
-              description:
-                'Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 0 ms.\nWhen use `timeout=0`, it will wait for an usable message forever and never stop the subscription until any error caused.\n',
-              field: 'timeout',
-              placeholder: 'The value is an integer ranging [0,60000]',
-              pattern: null,
-              patternMsg: 'The value can only be a positive integer or 0',
-              grid_two: false,
-              defaultValue: '0ms',
-              type: 'composeAppend',
-              options: [
-                {
-                  value: 'm',
-                  label: 'Minute'
-                },
-                {
-                  value: 's',
-                  label: 'Second'
-                },
-                {
-                  value: 'ms',
-                  label: 'Millisecond'
-                }
-              ],
-              min: 0,
-              max: 60000
-            },
-            {
-              label: 'Topics',
-              description: 'Specifies one topic or several topics to consume. e.g. topics=tp1,tp2\n',
-              field: 'topics',
-              required: true,
-              placeholder: 'tp1,tp2',
-              pattern: null,
-              grid_two: false,
-              type: 'input'
-            },
-            {
-              label: 'Client ID',
-              description: 'Client id used to connect to Kafka broker.',
-              field: 'client_id',
-              required: true,
-              placeholder: 'for example: client_id',
-              pattern: null,
-              grid_two: false,
-              type: 'customId'
-            },
-            {
-              label: 'Group ID',
-              description: 'Kafka Group ID。',
-              field: 'group',
-              required: true,
-              placeholder: 'for example: group_id',
-              pattern: null,
-              grid_two: false,
-              type: 'customId'
-            },
-            {
-              label: 'Fallback Offset',
-              description:
-                "Possible values when querying a topic's offset.\n* `Earliest`: Receive the earliest available offset. \n* `Latest`: Receive the latest offset. \n* default is Earliest.",
-              field: 'fallback_offset',
-              placeholder: 'Earliest',
-              defaultValue: 'Earliest',
-              pattern: null,
-              grid_two: false,
-              type: 'select',
-              options: [
-                {
-                  label: 'Earliest',
-                  value: 'Earliest'
-                },
-                {
-                  label: 'Latest',
-                  value: 'Latest'
-                }
-              ],
-              meta: {
-                allowCreate: true,
-                filterable: true
-              }
-            },
-            {
-              label: 'Char Encoding',
-              description:
-                'TaosX only accepts UTF8 encoded strings by default. If the sender uses non UTF8 encoding, it needs to be specified here.',
-              field: 'char_encoding',
-              placeholder: '',
-              defaultValue: 'UTF_8',
-              pattern: null,
-              grid_two: false,
-              type: 'select',
-              options: [
-                {
-                  label: 'UTF_8',
-                  value: 'UTF_8'
-                },
-                {
-                  label: 'GBK',
-                  value: 'GBK'
-                },
-                {
-                  label: 'GB18030',
-                  value: 'GB18030'
-                },
-                {
-                  label: 'BIG5',
-                  value: 'BIG5'
-                }
-              ],
-              meta: {
-                allowCreate: true,
-                filterable: true
-              }
+              label: 'GSSAPI',
+              value: 'GSSAPI'
             }
           ],
-          hide: false
+          meta: {
+            allowCreate: true,
+            filterable: true
+          }
+        },
+        {
+          label: 'Username',
+          description: 'The username for SASL authentication mechanism.',
+          field: 'sasl_username',
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'input',
+          displayDependsOn: ['sasl/sasl_mechanism'],
+          displayDependsOnValues: {
+            sasl_mechanism: ['PLAIN', 'SCRAM-SHA-256']
+          }
+        },
+        {
+          label: 'Password',
+          description: 'The password for SASL authentication mechanism.',
+          field: 'sasl_password',
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'password',
+          displayDependsOn: ['sasl/sasl_mechanism'],
+          displayDependsOnValues: {
+            sasl_mechanism: ['PLAIN', 'SCRAM-SHA-256']
+          }
+        },
+        {
+          label: 'Kerberos Service Name',
+          description: 'The Kerberos service name for GSSAPI authentication mechanism.',
+          field: 'sasl_kerberos_service_name',
+          placeholder: 'for example: kafka',
+          pattern: null,
+          grid_two: false,
+          type: 'input',
+          displayDependsOn: ['sasl/sasl_mechanism'],
+          displayDependsOnValues: {
+            sasl_mechanism: ['GSSAPI']
+          }
+        },
+        {
+          label: ' Kerberos Principal',
+          description: 'The Kerberos principal for GSSAPI authentication mechanism.',
+          field: 'sasl_kerberos_principal',
+          placeholder: 'for example: kafkaclient',
+          pattern: null,
+          grid_two: false,
+          type: 'input',
+          displayDependsOn: ['sasl/sasl_mechanism'],
+          displayDependsOnValues: {
+            sasl_mechanism: ['GSSAPI']
+          }
+        },
+        {
+          label: 'Kerberos Init Command',
+          description: 'The Kerberos init command for GSSAPI authentication mechanism.',
+          field: 'sasl_kerberos_kinit_cmd',
+          placeholder: "for example: kinit -R -t '%{sasl.kerberos.keytab}' -k %{sasl.kerberos.principal}",
+          pattern: null,
+          grid_two: false,
+          type: 'input',
+          displayDependsOn: ['sasl/sasl_mechanism'],
+          displayDependsOnValues: {
+            sasl_mechanism: ['GSSAPI']
+          }
+        },
+        {
+          label: 'Kerberos Keytab',
+          description: 'The Kerberos keytab for GSSAPI authentication mechanism.',
+          field: 'sasl_kerberos_keytab',
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: '',
+          displayDependsOn: ['sasl/sasl_mechanism'],
+          displayDependsOnValues: {
+            sasl_mechanism: ['GSSAPI']
+          }
         }
       ]
+    },
+    {
+      label: 'SSL Authentication',
+      field: 'ssl',
+      description: 'Use self-signed certificate file and private key.',
+      hide: true,
+      children: [
+        {
+          label: 'CA',
+          description: "CA certificate file(PEM format) for verifying the broker's key.",
+          field: 'ca',
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: ''
+        },
+        {
+          label: 'CA Password',
+          description: 'CA private key passphrase.',
+          field: 'ca_password',
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'password',
+        },
+        {
+          label: 'Client certificate',
+          description: "Client's public key file(PEM format) used for authentication.",
+          field: 'cert',
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: ''
+        },
+        {
+          label: 'Client key',
+          description: "Client's private key file(PEM format) used for authentication.",
+          field: 'cert_key',
+          placeholder: '',
+          pattern: null,
+          grid_two: false,
+          type: 'file',
+          templateUrl: ''
+        }
+      ]
+    },
+    {
+      label: 'Collect',
+      field: 'collect_options',
+      description: 'Configurations for collecting data.',
+      children: [
+        {
+          label: 'Timeout',
+          description:
+            'Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. The default value is 0 ms.\nWhen use `timeout=0`, it will wait for an usable message forever and never stop the subscription until any error caused.\n',
+          field: 'timeout',
+          placeholder: 'The value is an integer ranging [0,60000]',
+          pattern: null,
+          patternMsg: 'The value can only be a positive integer or 0',
+          grid_two: false,
+          defaultValue: '0ms',
+          type: 'composeAppend',
+          options: [
+            {
+              value: 'm',
+              label: 'Minute'
+            },
+            {
+              value: 's',
+              label: 'Second'
+            },
+            {
+              value: 'ms',
+              label: 'Millisecond'
+            }
+          ],
+          min: 0,
+          max: 60000
+        },
+        {
+          label: 'Topics',
+          description: 'Specifies one topic or several topics to consume. e.g. topics=tp1,tp2\n',
+          field: 'topics',
+          required: true,
+          placeholder: 'tp1,tp2',
+          pattern: null,
+          grid_two: false,
+          type: 'input'
+        },
+        {
+          label: 'Client ID',
+          description: 'Client id used to connect to Kafka broker.',
+          field: 'client_id',
+          required: true,
+          placeholder: 'for example: client_id',
+          pattern: null,
+          grid_two: false,
+          type: 'customId'
+        },
+        {
+          label: 'Group ID',
+          description: 'Kafka Group ID。',
+          field: 'group',
+          required: true,
+          placeholder: 'for example: group_id',
+          pattern: null,
+          grid_two: false,
+          type: 'customId'
+        },
+        {
+          label: 'Fallback Offset',
+          description:
+            "Possible values when querying a topic's offset.\n* `Earliest`: Receive the earliest available offset. \n* `Latest`: Receive the latest offset. \n* default is Earliest.",
+          field: 'fallback_offset',
+          placeholder: 'Earliest',
+          defaultValue: 'Earliest',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
+            {
+              label: 'Earliest',
+              value: 'Earliest'
+            },
+            {
+              label: 'Latest',
+              value: 'Latest'
+            }
+          ],
+          meta: {
+            allowCreate: true,
+            filterable: true
+          }
+        },
+        {
+          label: 'Char Encoding',
+          description:
+            'TaosX only accepts UTF8 encoded strings by default. If the sender uses non UTF8 encoding, it needs to be specified here.',
+          field: 'char_encoding',
+          placeholder: '',
+          defaultValue: 'UTF_8',
+          pattern: null,
+          grid_two: false,
+          type: 'select',
+          options: [
+            {
+              label: 'UTF_8',
+              value: 'UTF_8'
+            },
+            {
+              label: 'GBK',
+              value: 'GBK'
+            },
+            {
+              label: 'GB18030',
+              value: 'GB18030'
+            },
+            {
+              label: 'BIG5',
+              value: 'BIG5'
+            }
+          ],
+          meta: {
+            allowCreate: true,
+            filterable: true
+          }
+        }
+      ],
+      hide: false
     },
     {
       field: 'checkConnectivity',
