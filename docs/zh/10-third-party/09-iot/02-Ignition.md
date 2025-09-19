@@ -1,4 +1,3 @@
-<!-- filepath: 02-Ignition.md -->
 ---
 sidebar_label: Ignition
 title: 与 Ignition 集成
@@ -35,7 +34,7 @@ Ignition 通过其 SQL Bridge 模块支持多种 SQL 数据库，您可以通过
     - **URL Format:** 输入 `jdbc:TAOS-RS://<taosAdapter-address:port>/<database-name>`  
     - 其他选项保持默认，无需配置数据库翻译器。
     
-4.  按照 [Ignition 文档](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases#add-a-database-connection) 添加新的数据库连接。  
+4.  按照 [Ignition 文档](https://www.docs.inductiveautomation.com/docs/8.1/platform/database-connections/connecting-to-databases#add-a-database-connection) 添加新的数据库连接： 
     - 选择上一步创建的 JDBC 驱动。  
     - 在 **Connect URL** 字段输入 `jdbc:TAOS-RS://<taosAdapter-address:port>/<database-name>`
     
