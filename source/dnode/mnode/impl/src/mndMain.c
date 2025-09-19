@@ -17,10 +17,10 @@
 #include "mndAcct.h"
 #include "mndAnode.h"
 #include "mndArbGroup.h"
+#include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
-#include "mndSsMigrate.h"
 #include "mndConfig.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
@@ -36,9 +36,12 @@
 #include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndQuery.h"
+#include "mndScan.h"
+#include "mndScanDetail.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndSnode.h"
+#include "mndSsMigrate.h"
 #include "mndStb.h"
 #include "mndStream.h"
 #include "mndSubscribe.h"
@@ -49,7 +52,6 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
-#include "mndBnode.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
@@ -116,6 +118,19 @@ static void mndPullupCompacts(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMPACT_TIMER, .pCont = pReq, .contLen = contLen};
+    // TODO check return value
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
+static void mndPullupScans(SMnode *pMnode) {
+  mTrace("pullup scan timer msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_SCAN_TIMER, .pCont = pReq, .contLen = contLen};
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
@@ -258,7 +273,8 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
       if (pGid->dnodeId == dnodeId) {
         if (pGid->syncState != TAOS_SYNC_STATE_OFFLINE) {
           mInfo(
-              "vgId:%d, state changed by offline check, old state:%s restored:%d canRead:%d new state:error restored:0 "
+              "vgId:%d, state changed by offline check, old state:%s restored:%d canRead:%d new state:offline "
+              "restored:0 "
               "canRead:0",
               pVgroup->vgId, syncStr(pGid->syncState), pGid->syncRestore, pGid->syncCanRead);
           pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
@@ -341,8 +357,6 @@ static int32_t minCronTime() {
   min = TMIN(min, tsTransPullupInterval);
   min = TMIN(min, tsCompactPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
-  min = TMIN(min, tsArbHeartBeatIntervalSec);
-  min = TMIN(min, tsArbCheckSyncIntervalSec);
 
   int64_t telemInt = TMIN(60, (tsTelemInterval - 1));
   min = TMIN(min, telemInt);
@@ -382,6 +396,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsCompactPullupInterval == 0) {
     mndPullupCompacts(pMnode);
   }
+
+  if (sec % tsScanPullupInterval == 0) {
+    mndPullupScans(pMnode);
+  }
 #ifdef USE_TOPIC
   if (sec % tsMqRebalanceInterval == 0) {
     mndCalMqRebalance(pMnode);
@@ -393,14 +411,18 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
   }
+}
+
+void mndDoArbTimerPullupTask(SMnode *pMnode, int64_t ms) {
+  int32_t code = 0;
 #ifndef TD_ASTRA
-  if (sec % (tsArbHeartBeatIntervalSec) == 0) {
+  if (ms % (tsArbHeartBeatIntervalMs) == 0) {
     if ((code = mndPullupArbHeartbeat(pMnode)) != 0) {
       mError("failed to pullup arb heartbeat, since:%s", tstrerror(code));
     }
   }
 
-  if (sec % (tsArbCheckSyncIntervalSec) == 0) {
+  if (ms % (tsArbCheckSyncIntervalMs) == 0) {
     if ((code = mndPullupArbCheckSync(pMnode)) != 0) {
       mError("failed to pullup arb check sync, since:%s", tstrerror(code));
     }
@@ -408,10 +430,13 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 #endif
 }
 
-void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
-  if (sec % (tsStatusInterval * 5) == 0) {
+void mndDoTimerCheckStatus(SMnode *pMnode, int64_t ms) {
+  if (ms % (tsStatusTimeoutMs) == 0) {
     mndCheckDnodeOffline(pMnode);
   }
+}
+
+void mndDoTimerCheckSync(SMnode *pMnode, int64_t sec) {
   if (sec % (MNODE_TIMEOUT_SEC / 2) == 0) {
     mndSyncCheckTimeout(pMnode);
   }
@@ -420,7 +445,7 @@ void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
   }
 }
 
-static void *mndThreadFp(void *param) {
+static void *mndThreadSecFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
   setThreadName("mnode-timer");
@@ -438,9 +463,34 @@ static void *mndThreadFp(void *param) {
     }
 
     int64_t sec = lastTime / 10;
-    mndDoTimerCheckTask(pMnode, sec);
+    mndDoTimerCheckSync(pMnode, sec);
 
     mndDoTimerPullupTask(pMnode, sec);
+  }
+
+  return NULL;
+}
+
+static void *mndThreadMsFp(void *param) {
+  SMnode *pMnode = param;
+  int64_t lastTime = 0;
+  setThreadName("mnode-arb-timer");
+
+  while (1) {
+    lastTime += 100;
+    taosMsleep(100);
+
+    if (mndGetStop(pMnode)) break;
+    if (lastTime % 10 != 0) continue;
+
+    if (mnodeIsNotLeader(pMnode)) {
+      mTrace("timer not process since mnode is not leader");
+      continue;
+    }
+
+    mndDoTimerCheckStatus(pMnode, lastTime);
+
+    mndDoArbTimerPullupTask(pMnode, lastTime);
   }
 
   return NULL;
@@ -454,12 +504,26 @@ static int32_t mndInitTimer(SMnode *pMnode) {
 #ifdef TD_COMPACT_OS
   (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
 #endif
-  if ((code = taosThreadCreate(&pMnode->thread, &thAttr, mndThreadFp, pMnode)) != 0) {
+  if ((code = taosThreadCreate(&pMnode->thread, &thAttr, mndThreadSecFp, pMnode)) != 0) {
     mError("failed to create timer thread since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
 
   (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("mnode-timer", "initialized");
+
+  TdThreadAttr arbAttr;
+  (void)taosThreadAttrInit(&arbAttr);
+  (void)taosThreadAttrSetDetachState(&arbAttr, PTHREAD_CREATE_JOINABLE);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&arbAttr, STACK_SIZE_SMALL);
+#endif
+  if ((code = taosThreadCreate(&pMnode->arbThread, &arbAttr, mndThreadMsFp, pMnode)) != 0) {
+    mError("failed to create arb timer thread since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  (void)taosThreadAttrDestroy(&arbAttr);
   tmsgReportStartup("mnode-timer", "initialized");
   TAOS_RETURN(code);
 }
@@ -468,6 +532,10 @@ static void mndCleanupTimer(SMnode *pMnode) {
   if (taosCheckPthreadValid(pMnode->thread)) {
     (void)taosThreadJoin(pMnode->thread, NULL);
     taosThreadClear(&pMnode->thread);
+  }
+  if (taosCheckPthreadValid(pMnode->arbThread)) {
+    (void)taosThreadJoin(pMnode->arbThread, NULL);
+    taosThreadClear(&pMnode->arbThread);
   }
 }
 
@@ -615,7 +683,9 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan", mndInitScan, mndCleanupScan));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact-detail", mndInitCompactDetail, mndCleanupCompactDetail));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan-detail", mndInitScanDetail, mndCleanupScanDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ssmigrate", mndInitSsMigrate, mndCleanupSsMigrate));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile));
@@ -882,7 +952,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
       pMsg->msgType == TDMT_MND_SSMIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
-      pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER) {
+      pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || pMsg->msgType == TDMT_MND_SCAN_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);
@@ -1161,6 +1231,10 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
   mndReleaseRpc(pMnode);
   TAOS_RETURN(code);
+}
+
+int32_t mndResetTimer(SMnode *pMnode){
+  return syncResetTimer(pMnode->syncMgmt.sync, tsMnodeElectIntervalMs, tsMnodeHeartbeatIntervalMs);
 }
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {

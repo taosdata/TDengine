@@ -169,7 +169,7 @@ int32_t doSetTaskId(SOperatorInfo* pOperator, SStorageAPI* pAPI) {
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
   SExecTaskInfo* pTaskInfo = tinfo;
   pTaskInfo->id.queryId = queryId;
-  buildTaskId(taskId, queryId, pTaskInfo->id.str);
+  buildTaskId(taskId, queryId, pTaskInfo->id.str, 64);
 
   // set the idstr for tsdbReader
   return doSetTaskId(pTaskInfo->pRoot, &pTaskInfo->storageAPI);
@@ -1608,6 +1608,7 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   int32_t        code = 0;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   SOperatorInfo* pOper = pTaskInfo->pRoot;
+  pTaskInfo->code = TSDB_CODE_SUCCESS;
   code = clearStatesForOperator(pOper);
   return code;
 }

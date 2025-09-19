@@ -115,8 +115,10 @@ typedef struct SStreamRunnerTask {
   void                         *pSubTableExpr;
   SArray                       *forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
+  int8_t                        vtableDeployGot;
   char                         *streamName;
   int32_t                       addOptions;
+  int64_t                       mgmtReqId;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {

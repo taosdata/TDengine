@@ -15,6 +15,7 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 import subprocess
 import time
+import os
 
 class TestSysinfo:
 
@@ -36,7 +37,9 @@ class TestSysinfo:
         taos_list = ['server','client']
         for i in taos_list:
             tdSql.query(f'select {i}_version()')
-            version_info = str(subprocess.run('cat ../source/util/src/version.c |grep "char td_version"', shell=True,capture_output=True).stdout.decode('utf8')).split('"')[1]
+            version_c_file = os.path.join(os.path.dirname(os.getcwd()), 'source', 'util', 'src', 'version.c')
+            tdLog.info(f"version_c_file: {version_c_file}")
+            version_info = str(subprocess.run(f'cat {version_c_file} |grep "char td_version"', shell=True,capture_output=True).stdout.decode('utf8')).split('"')[1]
             tdSql.checkData(0,0,version_info)
 
     def get_server_status(self):

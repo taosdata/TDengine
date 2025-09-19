@@ -5,15 +5,21 @@ class TestGeometry:
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
+        # tdSql.init(conn.cursor())
+
+        # WKT strings to be input as GEOMETRY type
         cls.point = "POINT (3.000000 6.000000)"
         cls.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
         cls.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
-        cls.errno_TSC_SQL_SYNTAX_ERROR = -2147483114;
+        cls.polygon_irregular = "POLYGON ((3 006, 5.00 6, 05.0 8, 3.000 8.00, 3.0 6))" # actually same with self.polygon
+
+        # expected errno
+        cls.errno_TSC_SQL_SYNTAX_ERROR = -2147483114
         cls.errno_PAR_SYNTAX_ERROR = -2147473920
-        cls.errno_FUNTION_PARA_NUM = -2147473407;
-        cls.errno_FUNTION_PARA_TYPE = -2147473406;
-        cls.errno_FUNTION_PARA_VALUE = -2147473405;
+
+        cls.errno_FUNTION_PARA_NUM = -2147473407
+        cls.errno_FUNTION_PARA_TYPE = -2147473406
+        cls.errno_FUNTION_PARA_VALUE = -2147473405
 
     def prepare_data(self, dbname = "db"):
         tdSql.execute(
@@ -50,12 +56,16 @@ class TestGeometry:
         tdSql.error(f"insert into {dbname}.ct2 values(now(), 1, 1.1, NULL, 2)", self.errno_TSC_SQL_SYNTAX_ERROR)
 
     def geomFromText_test(self, dbname = "db"):
-        # [ToDo] remove ST_AsText() calling in geomFromText_test once GEOMETRY type is supported in taos-connector-python
+        # [TODO] remove ST_AsText() calling in geomFromText_test once GEOMETRY type is supported in taos-connector-python
 
         # column input, including NULL value
         tdSql.query(f"select ST_AsText(ST_GeomFromText(c3)), ST_AsText(c4) from {dbname}.t1")
         for i in range(tdSql.queryRows):
             tdSql.checkEqual(tdSql.queryResult[i][0], tdSql.queryResult[i][1])
+
+        # handle irregular WKT
+        tdSql.query(f"select * from t1 where c4 = ST_GeomFromText('{self.polygon_irregular}')")
+        tdSql.checkRows(1)
 
         # constant input
         tdSql.query(f"select ST_AsText(ST_GeomFromText('{self.point}'))")
@@ -134,6 +144,9 @@ class TestGeometry:
         tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[3])
 
         tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.polygon}'), ST_GeomFromText('{self.point}'))")
+        tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[4])
+
+        tdSql.query(f"select {geomRelationFuncName}(ST_GeomFromText('{self.polygon_irregular}'), ST_GeomFromText('{self.point}'))")
         tdSql.checkEqual(tdSql.queryResult[0][0], expectedResults[4])
 
         # NULL type input

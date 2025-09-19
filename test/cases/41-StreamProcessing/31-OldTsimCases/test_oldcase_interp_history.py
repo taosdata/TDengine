@@ -13,7 +13,7 @@ class TestStreamOldCaseInterpHistory:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_interp_history(self):
-        """Stream interp history
+        """OldTsim: interp history
 
         Validate the calculation results of the interp function when processing historical data
 

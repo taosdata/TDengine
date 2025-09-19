@@ -3,12 +3,6 @@ title: Architecture
 slug: /inside-tdengine/architecture
 ---
 
-import Image from '@theme/IdealImage';
-import imgArch from '../assets/architecture-01.png';
-import imgFlow from '../assets/architecture-02.png';
-import imgLeader from '../assets/architecture-03.png';
-import imgFollower from '../assets/architecture-04.png';
-
 ## Cluster and Basic Logical Units
 
 TDengine is designed based on the assumption that a single hardware or software system is unreliable, and that no single computer can provide sufficient computing power and storage capacity to handle massive amounts of data. Therefore, from the first day of its development, TDengine has been designed with a distributed and highly reliable architecture that supports horizontal scaling. This ensures that the system's availability and reliability are not affected by hardware failures or software errors in any single or multiple servers. Additionally, through node virtualization and load balancing technology, TDengine can efficiently utilize the computing and storage resources in a heterogeneous cluster to reduce hardware investment.
@@ -17,10 +11,7 @@ TDengine is designed based on the assumption that a single hardware or software 
 
 The logical structure diagram of the TDengine distributed architecture is as follows:
 
-<figure>
-<Image img={imgArch} alt="TDengine architecture diagram"/>
-<figcaption>Figure 1. TDengine architecture diagram</figcaption>
-</figure>
+![TDengine architecture diagram](../assets/architecture-01.png)
 
 A complete TDengine system runs on one to several physical nodes. Logically, it includes data nodes (dnode), TDengine application drivers (taosc), and applications (app). There are one or more data nodes in the system, which form a cluster (cluster). Applications interact with the TDengine cluster through the API of taosc. Below is a brief introduction to each logical unit.
 
@@ -164,10 +155,7 @@ Furthermore, to ensure that all nodes in the cluster can timely receive the late
 
 To explain the relationship between vnode, mnode, taosc, and applications, as well as the roles they play, the process of a typical operation of writing data is analyzed below.
 
-<figure>
-<Image img={imgFlow} alt="Typical operation flow in TDengine"/>
-<figcaption>Figure 2. Typical operation flow in TDengine</figcaption>
-</figure>
+![Typical operation flow in TDengine](../assets/architecture-02.png)
 
 1. The application initiates a request to insert data through JDBC or other API interfaces.
 2. taosc checks the cache to see if it has the vgroup-info of the database where the table is located. If it does, go directly to step 4. If not, taosc sends a get vgroup-info request to mnode.
@@ -241,10 +229,7 @@ Through this design, TDengine ensures data reliability and consistency in a dist
 
 The Leader Vnode follows the writing process below:
 
-<figure>
-<Image img={imgLeader} alt="Leader write process"/>
-<figcaption>Figure 3. Leader write process</figcaption>
-</figure>
+![Leader write process](../assets/architecture-03.png)
 
 - Step 1: The leader vnode receives a write data request from the application, verifies OK, and proceeds to step 2 after verifying validity;
 - Step 2: The vnode writes the original data packet of the request into the database log file WAL. If `wal_level` is set to 2 and `wal_fsync_period` is set to 0, TDengine will also immediately persist the WAL data to disk to ensure that data can be recovered from the database log file in case of a crash, preventing data loss;
@@ -257,12 +242,7 @@ The Leader Vnode follows the writing process below:
 
 For the follower vnode, the writing process is:
 
-<figure>
-<Image img={imgFollower} alt="Follower write process"/>
-<figcaption>Figure 4. Follower write process</figcaption>
-</figure>
-
-<center> Figure 4 TDengine Follower Writing Process </center>
+![Follower write process](../assets/architecture-04.png)
 
 - Step 1: The follower vnode receives a data insertion request forwarded by the leader vnode.
 - Step 2: The vnode writes the original data packet of the request into the database log file WAL. If `wal_level` is set to 2 and `wal_fsync_period` is set to 0, TDengine will also immediately persist the WAL data to disk to ensure that data can be recovered from the database log file in case of a crash, preventing data loss.

@@ -13,7 +13,7 @@ class TestStreamOldCaseForceWindowClose:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_force_window_close(self):
-        """Stream force window close
+        """OldTsim: force window close
 
         Verify the alternative approach to the original force window close trigger mode in the new streaming computation
 

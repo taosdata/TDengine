@@ -415,7 +415,8 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
 }
 static bool rpcNoDelayMsg(tmsg_t msgType) {
   if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_QUERY_SSMIGRATE_PROGRESS ||
-      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE) {
+      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE ||
+      msgType == TDMT_VND_QUERY_SCAN_PROGRESS) {
     return true;
   }
   return false;

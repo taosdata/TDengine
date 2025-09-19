@@ -9,7 +9,7 @@ class TestStreamRecalcExpiredTime:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_expired_time(self):
-        """Stream Recalculation EXPIRED_TIME Option Test
+        """Recalc: EXPIRED_TIME
 
         Test EXPIRED_TIME(1h) option with 6 different window types and verify expired data handling:
 

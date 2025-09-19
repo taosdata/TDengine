@@ -74,7 +74,7 @@ class TestHavingBuffix:
 
         tdSql.execute("use db_ts4806;")
         tdSql.query(
-            "select _wstart, cj.id, count(*) from st cj where cj.ts >= '2024-01-21 04:52:52.000' and cj.ts <= ' 2024-01-21 07:39:31.000' \
+            "select _wstart, cj.id, count(*) from st cj where cj.ts >= '2024-01-21 04:52:52.000' and cj.ts <= '2024-01-21 07:39:31.000' \
             and cj.zdy_flag = 1 and cj.id in ('30000001', '30000002') partition by cj.id event_window start with \
             (CASE WHEN cj.adl >= cj.bdl AND cj.adl >= cj.cdl THEN cj.adl WHEN cj.bdl >= cj.adl AND cj.bdl >= cj.cdl \
             THEN cj.bdl ELSE cj.cdl END) * cj.ct_ratio * 0.4 * 1.732 / cj.rated_cap > 1 end with (CASE WHEN cj.adl >= \
@@ -112,9 +112,9 @@ class TestHavingBuffix:
         )
         csv_file = os.sep.join(
             [os.path.dirname(__file__), "create_table_by_csv_0627_5.csv"]
-        )
+        ).replace("\\", "\\\\")
         tdSql.execute(
-            f"insert into db_td31880.stb (ts,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,tbname) file '{csv_file}';"
+            f'insert into db_td31880.stb (ts,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,tbname) file "{csv_file}";'
         )
 
         tdSql.execute("use db_td31880;")

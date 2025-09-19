@@ -65,6 +65,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STATE_COUNT,
   FUNCTION_TYPE_STATE_DURATION,
   FUNCTION_TYPE_FORECAST,
+  FUNCTION_TYPE_IMPUTATION,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -113,6 +114,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_REPEAT,
   FUNCTION_TYPE_SUBSTR_IDX,
   FUNCTION_TYPE_BASE64,
+  FUNCTION_TYPE_FIND_IN_SET,
+  FUNCTION_TYPE_LIKE_IN_SET,
+  FUNCTION_TYPE_REGEXP_IN_SET,
+
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -177,6 +182,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TGRPID,             // _tgrpid
   FUNCTION_TYPE_PLACEHOLDER_COLUMN, // %%n
   FUNCTION_TYPE_PLACEHOLDER_TBNAME, // %%tbname
+  FUNCTION_TYPE_IMPUTATION_ROWTS,
+  FUNCTION_TYPE_IMPUTATION_MARK,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -299,6 +306,7 @@ bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
 bool fmIsLastFunc(int32_t funcId);
 bool fmIsForecastFunc(int32_t funcId);
+bool fmIsImputationFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
 bool fmIsSystemInfoFunc(int32_t funcId);

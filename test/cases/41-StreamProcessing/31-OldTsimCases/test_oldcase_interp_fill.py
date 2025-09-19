@@ -13,7 +13,7 @@ class TestStreamOldCaseInterpFill:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_interp_fill(self):
-        """Stream interp fill
+        """OldTsim: interp fill
 
         Validate the calculation results of the interp function when filling data
 

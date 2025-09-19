@@ -84,6 +84,7 @@ typedef enum {
   MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_MOUNT,
   MND_OPER_DROP_MOUNT,
+  MND_OPER_SCAN_DB,
 } EOperType;
 
 typedef enum {
@@ -504,6 +505,7 @@ typedef struct {
   int64_t  stateTs;
   int64_t  compactStartTime;
   int32_t  tsmaVersion;
+  int64_t  scanStartTime;
 } SDbObj;
 
 typedef struct {
@@ -766,23 +768,19 @@ void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t
 
 typedef struct {
   int32_t vgId;
-  //  char*   qmsg;  // SubPlanToString
   SEpSet epSet;
 } SMqVgEp;
 
-SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
-void     tDeleteSMqVgEp(SMqVgEp* pVgEp);
 int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
 void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
 
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
-  SArray* vgs;         // SArray<SMqVgEp*>
-  SArray* offsetRows;  // SArray<OffsetRows*>
+  SArray* vgs;         // SArray<SMqVgEp>
+  SArray* offsetRows;  // SArray<OffsetRows>
 } SMqConsumerEp;
 
-// SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
-// void           tDeleteSMqConsumerEp(void* pEp);
+void    freeSMqConsumerEp(void* data);
 int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
 void*   tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
 
@@ -795,7 +793,7 @@ typedef struct {
   int8_t    withMeta;
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
-  SArray*   unassignedVgs;  // SArray<SMqVgEp*>
+  SArray*   unassignedVgs;  // SArray<SMqVgEp>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
   char*     qmsg;  // SubPlanToString
@@ -807,26 +805,6 @@ void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
 void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
 
-// typedef struct {
-//   int32_t epoch;
-//   SArray* consumers;  // SArray<SMqConsumerEp*>
-// } SMqSubActionLogEntry;
-
-// SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-// void                  tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-// int32_t               tEncodeSMqSubActionLogEntry(void** buf, const SMqSubActionLogEntry* pEntry);
-// void*                 tDecodeSMqSubActionLogEntry(const void* buf, SMqSubActionLogEntry* pEntry);
-//
-// typedef struct {
-//   char    key[TSDB_SUBSCRIBE_KEY_LEN];
-//   SArray* logs;  // SArray<SMqSubActionLogEntry*>
-// } SMqSubActionLogObj;
-//
-// SMqSubActionLogObj* tCloneSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-// void                tDeleteSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-// int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogObj* pLog);
-// void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
-
 typedef struct {
   int32_t           oldConsumerNum;
   const SMqRebInfo* pRebInfo;
@@ -835,7 +813,7 @@ typedef struct {
 typedef struct {
   int64_t  oldConsumerId;
   int64_t  newConsumerId;
-  SMqVgEp* pVgEp;
+  SMqVgEp  pVgEp;
 } SMqRebOutputVg;
 
 typedef struct {
@@ -844,7 +822,6 @@ typedef struct {
   SArray*          removedConsumers;  // SArray<int64_t>
   SArray*          modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj* pSub;
-  //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
 typedef struct {
@@ -1001,11 +978,32 @@ typedef struct {
 } SCompactDetailObj;
 
 typedef struct {
+  int32_t scanDetailId;
+  int32_t scanId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+  int64_t startTime;
+  int32_t newNumberFileset;
+  int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
+} SScanDetailObj;
+
+typedef struct {
   int32_t compactId;
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime;
   SArray* compactDetail;
 } SCompactObj;
+
+typedef struct {
+  int32_t scanId;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t startTime;
+  SArray* scanDetail;
+} SScanObj;
 
 typedef struct {
   int32_t nodeId;    // dnode id of the leader vnode

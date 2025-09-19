@@ -1890,7 +1890,7 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
     taosArrayClear(pVals);
 
-    bool tsIsNull = false;
+    bool tsOrPrimaryKeyIsNull = false;
     for (int32_t k = 0; k < numOfCols; ++k) {  // iterate by column
       int16_t colIdx = k + 1;
 
@@ -1911,6 +1911,11 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
       }
       void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
 
+      if (colDataIsNull_s(pColInfoData, j) && (pCol->flags & COL_IS_KEY)) {
+        tsOrPrimaryKeyIsNull = true;
+        qDebug("Primary key column should not be null, skip this row");
+        break;
+      }
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_NCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
@@ -1955,8 +1960,8 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
           if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
             if (colDataIsNull_s(pColInfoData, j)) {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == colIdx) {
-                tsIsNull = true;
-                qInfo("Primary timestamp column should not be null, skip this row");
+                tsOrPrimaryKeyIsNull = true;
+                qDebug("Primary timestamp column should not be null, skip this row");
                 break;
               }
 
@@ -1989,9 +1994,9 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
           }
           break;
       }
-      if (tsIsNull) break;  // skip remaining columns because the primary key is null
+      if (tsOrPrimaryKeyIsNull) break;  // skip remaining columns because the primary key is null
     }
-    if (tsIsNull) continue;  // skip this row if primary key is null
+    if (tsOrPrimaryKeyIsNull) continue;  // skip this row if primary key is null
     SRow*             pRow = NULL;
     SRowBuildScanInfo sinfo = {0};
     if ((code = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) != TSDB_CODE_SUCCESS) {
@@ -2004,16 +2009,21 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
     }
   }
   if (dataInsertInfo->isLastBlock) {
+    int32_t nRows = taosArrayGetSize(tbData->aRowP);
     if (taosArrayGetSize(tbData->aRowP) == 0) {
       stDebug("no valid data to insert, skip this block");
       code = TSDB_CODE_STREAM_NO_DATA;
     }
+    stDebug("appendInsertData, isLastBlock:%d, needSortMerge:%d, totalRows:%d", dataInsertInfo->isLastBlock,
+            dataInsertInfo->needSortMerge, nRows);
     if (dataInsertInfo->needSortMerge) {
       if ((tRowSort(tbData->aRowP) != TSDB_CODE_SUCCESS) ||
           (code = tRowMerge(tbData->aRowP, (STSchema*)pTSchema, KEEP_CONSISTENCY)) != 0) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    nRows = taosArrayGetSize(tbData->aRowP);
+    stDebug("appendInsertData, after merge, totalRows:%d", nRows);
   }
 
 _end:

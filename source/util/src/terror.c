@@ -410,6 +410,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_NOT_EXIST,           "view not exists in db
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn't exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SCAN_ID,          "Invalid scan id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SCAN_DETAIL_NOT_EXIST,    "scan detail doesn't exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SCAN_ALREADY_EXIST,       "scan already exist")
 
 // mnode-mount
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_CLUSTER_EXIST,  "Cluster id identical to the host cluster id")
@@ -1007,6 +1010,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_STOPPED,         "Stream was not stop
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG,     "Stream output table name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE,    "Stream output table not created")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table name calc failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY,    "Stream vtable calculate need redeploy")
 
 #ifdef TAOS_ERROR_C
 };

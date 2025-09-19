@@ -89,6 +89,7 @@ static void          updateComposedBlockInfo(STsdbReader* pReader, double el, ST
 static int32_t       buildFromPreFilesetBuffer(STsdbReader* pReader);
 
 static void resetPreFilesetMemTableListIndex(SReaderStatus* pStatus);
+int32_t     tsdbReaderSuspend2(STsdbReader* pReader);
 
 FORCE_INLINE int32_t pkCompEx(SRowKey* p1, SRowKey* p2) {
   if (p2 == NULL) {
@@ -669,29 +670,27 @@ static int32_t initResBlockInfo(SResultBlockInfo* pResBlockInfo, int64_t capacit
 
   if (pResBlockInfo->pResBlock == NULL) {
     pResBlockInfo->freeBlock = true;
-    pResBlockInfo->pResBlock = NULL;
-
     code = createResBlock(pCond, pResBlockInfo->capacity, &pResBlockInfo->pResBlock);
     TSDB_CHECK_CODE(code, lino, _end);
-
-    if (pSup->numOfPks > 0) {
-      p = pResBlockInfo->pResBlock;
-      p->info.pks[0].type = pSup->pk.type;
-      p->info.pks[1].type = pSup->pk.type;
-
-      if (IS_VAR_DATA_TYPE(pSup->pk.type)) {
-        p->info.pks[0].pData = taosMemoryCalloc(1, pSup->pk.bytes);
-        TSDB_CHECK_NULL(p->info.pks[0].pData, code, lino, _end, terrno);
-
-        p->info.pks[1].pData = taosMemoryCalloc(1, pSup->pk.bytes);
-        TSDB_CHECK_NULL(p->info.pks[0].pData, code, lino, _end, terrno);
-
-        p->info.pks[0].nData = pSup->pk.bytes;
-        p->info.pks[1].nData = pSup->pk.bytes;
-      }
-    }
   } else {
     pResBlockInfo->freeBlock = false;
+  }
+
+  if (pSup->numOfPks > 0) {
+    p = pResBlockInfo->pResBlock;
+    p->info.pks[0].type = pSup->pk.type;
+    p->info.pks[1].type = pSup->pk.type;
+
+    if (IS_VAR_DATA_TYPE(pSup->pk.type) && (p->info.pks[0].pData == NULL)) {
+      p->info.pks[0].pData = taosMemoryCalloc(1, pSup->pk.bytes);
+      TSDB_CHECK_NULL(p->info.pks[0].pData, code, lino, _end, terrno);
+
+      p->info.pks[1].pData = taosMemoryCalloc(1, pSup->pk.bytes);
+      TSDB_CHECK_NULL(p->info.pks[0].pData, code, lino, _end, terrno);
+
+      p->info.pks[0].nData = pSup->pk.bytes;
+      p->info.pks[1].nData = pSup->pk.bytes;
+    }
   }
 
 _end:
@@ -1114,7 +1113,7 @@ static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, 
     *len = 0; 
     return code;
   } else {
-    tGetU64(pKey, &seq);
+    int32_t unusedRet = tGetU64(pKey, &seq);
   }
  
   if (seq == 0) {
@@ -5806,6 +5805,9 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
             pReader, numOfTables, pReader->info.window.skey, pReader->info.window.ekey, pReader->info.verRange.minVer,
             pReader->info.verRange.maxVer, pReader->idStr);
 
+  // NOTE: simulate the suspend operation after the reader is suspended, ref: TD-38007.
+  // tsdbReaderSuspend2(pReader);
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s, %s", __func__, lino, tstrerror(code), idstr);
@@ -5943,9 +5945,7 @@ static int32_t doSuspendCurrentReader(STsdbReader* pCurrentReader) {
   int32_t iter = 0;
   while ((p = tSimpleHashIterate(pStatus->pTableMap, p, &iter)) != NULL) {
     STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
-    clearBlockScanInfo(pInfo);
-    //    pInfo->sttKeyInfo.nextProcKey = pInfo->lastProcKey.ts + step;
-    //    pInfo->sttKeyInfo.nextProcKey = pInfo->lastProcKey + step;
+    clearBlockScanInfoLoadInfo(pInfo);
   }
 
   pStatus->uidList.currentIndex = 0;

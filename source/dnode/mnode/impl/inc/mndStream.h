@@ -118,6 +118,8 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 
 #define MST_COPY_STR(_p) ((_p) ? (taosStrdup(_p)) : NULL)
 
+#define MST_LIST_SIZE(_l) ((_l) ? TD_DLIST_NELES(_l) : 0)
+
 // clang-format off
 #define mstFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("MSTM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
 #define mstError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("MSTM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
@@ -180,6 +182,7 @@ typedef struct SStmTaskId {
   int64_t seriousId;
   int32_t nodeId;
   int32_t taskIdx;
+  int64_t uid;
 } SStmTaskId;
 
 
@@ -277,7 +280,7 @@ typedef struct SStmStatus {
 
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
   SArray*           trigOReaders;       // SArray<SStmTaskStatus>, virtable table only
-  SArray*           calcReaders;        // SArray<SStmTaskStatus>  
+  SList*            calcReaders;        // SList<SStmTaskStatus>
   SStmTaskStatus*   triggerTask;
   SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
 
@@ -496,6 +499,7 @@ int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq,
 int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
 int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
+int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid);
 int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
 void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
@@ -523,7 +527,6 @@ void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus);
 void mstDestroySStmSnodeStreamStatus(void* p);
 int32_t mstBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes);
 int32_t mstGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId);
-void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p);
 void mstDestroyDbVgroupsHash(SSHashObj *pDbVgs);
 void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
 void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);

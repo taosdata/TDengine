@@ -62,6 +62,9 @@ extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t       tsStatusInterval;
+extern int32_t       tsStatusIntervalMs;
+extern int32_t       tsStatusSRTimeoutMs;
+extern int32_t       tsStatusTimeoutMs;
 extern int32_t       tsNumOfSupportVnodes;
 extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];
@@ -131,17 +134,25 @@ extern int32_t tsNumOfRetentionThreads;
 // sync raft
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
+extern int32_t tsVnodeElectIntervalMs;
+extern int32_t tsVnodeHeartbeatIntervalMs;
+extern int32_t tsMnodeElectIntervalMs;
+extern int32_t tsMnodeHeartbeatIntervalMs;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
+extern int32_t tsSyncTimeout;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
 extern int32_t tsArbCheckSyncIntervalSec;
 extern int32_t tsArbSetAssignedTimeoutSec;
+extern int32_t tsArbHeartBeatIntervalMs;
+extern int32_t tsArbCheckSyncIntervalMs;
+extern int32_t tsArbSetAssignedTimeoutMs;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
@@ -291,6 +302,7 @@ extern bool    tsWalForceRepair;
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
+extern int32_t tsScanPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;

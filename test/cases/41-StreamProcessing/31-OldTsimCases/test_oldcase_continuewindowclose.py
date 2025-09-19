@@ -13,7 +13,7 @@ class TestStreamOldCaseContinueWindowClose:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_continue_window_close(self):
-        """Stream continue window close
+        """OldTsim: continue window close
 
         Verify the alternative approach to the original continuous window close trigger mode in the new streaming computation
 

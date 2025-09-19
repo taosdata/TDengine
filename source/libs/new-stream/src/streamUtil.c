@@ -181,10 +181,12 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
       pTask = (SStreamTask*)pRunner;
-      TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pRunner->task), code, lino, _exit, terrno);
-      //if (pRunner->task.pMgmtReq) {
-      //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
-      //}
+      if (atomic_val_compare_exchange_8(&pRunner->vtableDeployGot, 1, 0)) {
+        TAOS_CHECK_EXIT(stRunnerBuildTaskMgmtReq(pRunner));
+        TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask));
+      } else {
+        TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pRunner->task), code, lino, _exit, terrno);
+      }
       ST_TASK_DLOG("task status added to hb %s mgmtReq", pRunner->task.pMgmtReq ? "with" : "without");
     }
 
@@ -281,14 +283,6 @@ void stmDestroySStreamInfo(void* param) {
   p->undeployTriggers = NULL;
   taosArrayDestroy(p->undeployRunners);
   p->undeployRunners = NULL;
-}
-
-void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq) {
-  if (NULL == pReq) {
-    return;
-  }
-
-  taosArrayDestroy(pReq->cont.fullTableNames);
 }
 
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \

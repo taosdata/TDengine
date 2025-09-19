@@ -429,13 +429,32 @@ int32_t tEncodeSStreamMgmtReq(SEncoder* pEncoder, const SStreamMgmtReq* pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->type));
   switch (pReq->type) {
     case STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER: {
-      if (pReq->cont.fullTableNames) {
-        int32_t num = taosArrayGetSize(pReq->cont.fullTableNames);
+      if (pReq->cont.pReqs) {
+        int32_t num = taosArrayGetSize(pReq->cont.pReqs);
         TAOS_CHECK_EXIT(tEncodeI32(pEncoder, num));
         for (int32_t i = 0; i < num; ++i) {
-          SStreamDbTableName* pName = taosArrayGet(pReq->cont.fullTableNames, i);
+          SStreamDbTableName* pName = taosArrayGet(pReq->cont.pReqs, i);
           TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->dbFName, strlen(pName->dbFName) + 1));
           TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->tbName, strlen(pName->tbName) + 1));
+        }
+      } else {
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 0));
+      }
+      break;
+    }
+    case STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER: {
+      if (pReq->cont.pReqs) {
+        int32_t num = taosArrayGetSize(pReq->cont.pReqs);
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, num));
+        for (int32_t i = 0; i < num; ++i) {
+          SStreamOReaderDeployReq* pDeploy = taosArrayGet(pReq->cont.pReqs, i);
+          int32_t vgIdNum = taosArrayGetSize(pDeploy->vgIds);
+          TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pDeploy->execId));
+          TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pDeploy->uid));
+          TAOS_CHECK_EXIT(tEncodeI32(pEncoder, vgIdNum));
+          for (int32_t n = 0; n < vgIdNum; ++n) {
+            TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *(int32_t*)taosArrayGet(pDeploy->vgIds, n)));
+          }
         }
       } else {
         TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 0));
@@ -452,12 +471,30 @@ _exit:
   return code;
 }
 
+void tFreeRunnerOReaderDeployReq(void* param) {
+  if (NULL == param || NULL == *(void**)param) {
+    return;
+  }
+
+  SStreamOReaderDeployReq* pReq = (SStreamOReaderDeployReq*)param;
+  taosArrayDestroy(pReq->vgIds);
+}
+
 void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq) {
   if (NULL == pReq) {
     return;
   }
 
-  taosArrayDestroy(pReq->cont.fullTableNames);
+  switch (pReq->type) {
+    case STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER:
+      taosArrayDestroy(pReq->cont.pReqs);
+      break;
+    case STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER:
+      taosArrayDestroyEx(pReq->cont.pReqs, tFreeRunnerOReaderDeployReq);
+      break;
+    default:
+      break;
+  }
 }
 
 
@@ -473,9 +510,29 @@ int32_t tCloneSStreamMgmtReq(SStreamMgmtReq* pSrc, SStreamMgmtReq** ppDst) {
   TSDB_CHECK_NULL(*ppDst, code, lino, _exit, terrno);
 
   memcpy(*ppDst, pSrc, sizeof(*pSrc));
-  if (pSrc->cont.fullTableNames) {
-    (*ppDst)->cont.fullTableNames = taosArrayDup(pSrc->cont.fullTableNames, NULL);
-    TSDB_CHECK_NULL((*ppDst)->cont.fullTableNames, code, lino, _exit, terrno);
+  if (pSrc->cont.pReqs) {
+    switch (pSrc->type) {
+      case STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER:
+        (*ppDst)->cont.pReqs = taosArrayDup(pSrc->cont.pReqs, NULL);
+        TSDB_CHECK_NULL((*ppDst)->cont.pReqs, code, lino, _exit, terrno);
+        break;
+      case STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER: {
+        int32_t reqNum = taosArrayGetSize(pSrc->cont.pReqs);
+        (*ppDst)->cont.pReqs = taosArrayInit_s(sizeof(SStreamOReaderDeployReq), reqNum);
+        TSDB_CHECK_NULL((*ppDst)->cont.pReqs, code, lino, _exit, terrno);
+        for (int32_t i = 0; i < reqNum; ++i) {
+          SStreamOReaderDeployReq* pNew = taosArrayGet((*ppDst)->cont.pReqs, i);
+          SStreamOReaderDeployReq* pReq = taosArrayGet(pSrc->cont.pReqs, i);
+          pNew->vgIds = taosArrayDup(pReq->vgIds, NULL);
+          TSDB_CHECK_NULL(pNew->vgIds, code, lino, _exit, terrno);
+          pNew->execId = pReq->execId;
+          pNew->uid = pReq->uid;
+        }
+        break;
+      }  
+      default:
+        break;
+    }
   }
   
 _exit:
@@ -501,12 +558,35 @@ int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq) {
       int32_t num = 0;
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &num));
       if (num > 0) {
-        pReq->cont.fullTableNames = taosArrayInit(num, sizeof(SStreamDbTableName));
-        TSDB_CHECK_NULL(pReq->cont.fullTableNames, code, lino, _exit, terrno);
+        pReq->cont.pReqs = taosArrayInit(num, sizeof(SStreamDbTableName));
+        TSDB_CHECK_NULL(pReq->cont.pReqs, code, lino, _exit, terrno);
         for (int32_t i = 0; i < num; ++i) {
-          SStreamDbTableName* p = taosArrayReserve(pReq->cont.fullTableNames, 1);
+          SStreamDbTableName* p = taosArrayReserve(pReq->cont.pReqs, 1);
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->dbFName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->tbName));
+        }
+      }
+      break;
+    }
+    case STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER: {
+      int32_t num = 0, vgIdNum = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &num));
+      if (num > 0) {
+        pReq->cont.pReqs = taosArrayInit_s(sizeof(SStreamOReaderDeployReq), num);
+        TSDB_CHECK_NULL(pReq->cont.pReqs, code, lino, _exit, terrno);
+        for (int32_t i = 0; i < num; ++i) {
+          SStreamOReaderDeployReq* p = taosArrayGet(pReq->cont.pReqs, i);
+          TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &p->execId));
+          TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &p->uid));
+          TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgIdNum));
+          if (vgIdNum > 0) {
+            p->vgIds = taosArrayInit_s(sizeof(int32_t), vgIdNum);
+            TSDB_CHECK_NULL(p->vgIds, code, lino, _exit, terrno);
+          }
+          for (int32_t n = 0; n < vgIdNum; ++n) {
+            int32_t* vgId = taosArrayGet(p->vgIds, n);
+            TAOS_CHECK_EXIT(tDecodeI32(pDecoder, vgId));
+          }
         }
       }
       break;
@@ -1284,13 +1364,28 @@ int32_t tEncodeSStreamMgmtRspCont(SEncoder* pEncoder, SStreamMsgType msgType, co
       }
       break;
     }
-    case STREAM_MSG_USER_RECALC:{
+    case STREAM_MSG_USER_RECALC: {
       int32_t recalcNum = taosArrayGetSize(pRsp->recalcList);
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, recalcNum));
       
       for (int32_t i = 0; i < recalcNum; ++i) {
         SStreamRecalcReq* recalc = taosArrayGet(pRsp->recalcList, i);
         TAOS_CHECK_EXIT(tEncodeSStreamRecalcReq(pEncoder, recalc));
+      }
+      break;
+    }
+    case STREAM_MSG_RUNNER_ORIGTBL_READER: {
+      int32_t rspNum = taosArrayGetSize(pRsp->execRspList);
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, rspNum));
+      
+      for (int32_t i = 0; i < rspNum; ++i) {
+        SStreamOReaderDeployRsp* pDeployRsp = taosArrayGet(pRsp->execRspList, i);
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pDeployRsp->execId));
+        int32_t vgNum = taosArrayGetSize(pDeployRsp->vgList);
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, vgNum));
+        for (int32_t n = 0; n < vgNum; ++n) {
+          TAOS_CHECK_EXIT(tEncodeSStreamTaskAddr(pEncoder, taosArrayGet(pDeployRsp->vgList, n)));
+        }
       }
       break;
     }
@@ -1849,6 +1944,28 @@ int32_t tDecodeSStreamMgmtRspCont(SDecoder* pDecoder, SStreamMsgType msgType, SS
       }
       break;
     }
+    case STREAM_MSG_RUNNER_ORIGTBL_READER: {
+      int32_t rspNum = 0, vgNum = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &rspNum));  
+      if (rspNum > 0) {
+        pCont->execRspList = taosArrayInit_s(sizeof(SStreamOReaderDeployRsp), rspNum);
+        TSDB_CHECK_NULL(pCont->execRspList, code, lino, _exit, terrno);
+      }
+      for (int32_t i = 0; i < rspNum; ++i) {
+        SStreamOReaderDeployRsp *pDeployRsp = taosArrayGet(pCont->execRspList, i);
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pDeployRsp->execId));  
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgNum));
+        if (vgNum > 0) {
+          pDeployRsp->vgList = taosArrayInit_s(sizeof(SStreamTaskAddr), vgNum);
+          TSDB_CHECK_NULL(pDeployRsp->vgList, code, lino, _exit, terrno);
+        }
+        for (int32_t n = 0; n < vgNum; ++n) {
+          SStreamTaskAddr* pAddr = taosArrayGet(pDeployRsp->vgList, n);
+          TAOS_CHECK_EXIT(tDecodeSStreamTaskAddr(pDecoder, pAddr));  
+        }
+      }
+      break;
+    }
     default:
       break;
   }
@@ -1874,6 +1991,15 @@ _exit:
   return code;
 }
 
+void tFreeSStreamOReaderDeployRsp(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SStreamOReaderDeployRsp* pRsp = (SStreamOReaderDeployRsp*)param;
+  taosArrayDestroy(pRsp->vgList);
+}
+
 void tFreeSStreamMgmtRsp(void* param) {
   if (NULL == param) {
     return;
@@ -1885,6 +2011,7 @@ void tFreeSStreamMgmtRsp(void* param) {
   taosArrayDestroy(pRsp->cont.readerList);
   taosArrayDestroy(pRsp->cont.runnerList);
   taosArrayDestroy(pRsp->cont.recalcList);
+  taosArrayDestroyEx(pRsp->cont.execRspList, tFreeSStreamOReaderDeployRsp);
 }
 
 void tFreeSStreamReaderDeployMsg(SStreamReaderDeployMsg* pReader) {
