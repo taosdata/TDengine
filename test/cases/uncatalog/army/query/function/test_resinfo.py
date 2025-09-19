@@ -14,7 +14,7 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 import hashlib
 
-initial_hash_resinfoInt = "eae723d1ecdd18993a11d43d1b00316d"
+initial_hash_resinfoInt = "e6ad237680fe123645e36bab74afc342"
 initial_hash_resinfo = "172d04aa7af0d8cd2e4d9df284079958"
 
 class TestResinfo:
@@ -45,7 +45,7 @@ class TestResinfo:
         current_hash = self.get_file_hash(resinfoIntFile)
         tdLog.info(current_hash)
         if current_hash != initial_hash_resinfoInt:
-            tdLog.exit(f"{resinfoIntFile} has been modified.")
+            tdLog.exit(f"{resinfoIntFile} has been modified. ch: {current_hash}")
         else:
             tdLog.success(f"{resinfoIntFile} is not modified.")
         current_hash = self.get_file_hash(resinfoFile)

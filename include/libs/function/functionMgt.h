@@ -48,6 +48,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_HISTOGRAM,
   FUNCTION_TYPE_HYPERLOGLOG,
   FUNCTION_TYPE_STDVAR,
+  FUNCTION_TYPE_STDDEV_SAMP,
+  FUNCTION_TYPE_STDVAR_SAMP,
+  FUNCTION_TYPE_GROUP_CONCAT,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -235,7 +238,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STD_STATE_MERGE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
-
+  FUNCTION_TYPE_STDDEV_SAMP_MERGE,
+  FUNCTION_TYPE_STDVAR_SAMP_MERGE,
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -333,7 +337,8 @@ bool fmIsPlaceHolderFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
-int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** pFunc);
+int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList,
+                                  SFunctionNode** pFunc);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
                         SFunctionNode** pMergeFunc);
@@ -381,13 +386,15 @@ bool    fmIsCountLikeFunc(int32_t funcId);
 
 // } SStreamPseudoFuncType;
 
-int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv);
+int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv* pEnv);
 
-int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes,
+                                      const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 
-void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen);
+void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data,
+                                    int32_t* dataLen);
 #ifdef __cplusplus
 }
 #endif
