@@ -231,6 +231,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_tb_multi.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_tb.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-Insert/test_insert_blob.py
 ## 02-Import
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-Import/test_import_commit.py
