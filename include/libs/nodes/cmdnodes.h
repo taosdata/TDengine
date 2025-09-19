@@ -55,6 +55,10 @@ extern "C" {
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
 #define COMPACT_DB_RESULT_FIELD3_LEN 128
 
+#define SCAN_DB_RESULT_COLS       3
+#define SCAN_DB_RESULT_FIELD1_LEN 32
+#define SCAN_DB_RESULT_FIELD3_LEN 128
+
 #define SHOW_ALIVE_RESULT_COLS 1
 
 #define BIT_FLAG_MASK(n)               (1 << n)
@@ -184,6 +188,13 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
 } SCompactDatabaseStmt;
 
+typedef struct SScanDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SScanDatabaseStmt;
+
 typedef struct SCreateMountStmt {
   ENodeType type;
   int32_t   dnodeId;
@@ -206,6 +217,14 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pEnd;
   bool       metaOnly;
 } SCompactVgroupsStmt;
+
+typedef struct SScanVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SScanVgroupsStmt;
 
 typedef struct STableOptions {
   ENodeType  type;
@@ -525,10 +544,19 @@ typedef struct SShowCompactsStmt {
   ENodeType type;
 } SShowCompactsStmt;
 
+typedef struct SShowScansStmt {
+  ENodeType type;
+} SShowScansStmt;
+
 typedef struct SShowCompactDetailsStmt {
   ENodeType type;
   SNode*    pCompactId;
 } SShowCompactDetailsStmt;
+
+typedef struct SShowScanDetailsStmt {
+  ENodeType type;
+  SNode*    pScanId;
+} SShowScanDetailsStmt;
 
 typedef struct SShowSsMigratesStmt {
   ENodeType type;
