@@ -1540,11 +1540,6 @@ int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E*
       return terrno;
     }
 
-    SSchema* schema = &pSchema[pDataBlock->boundColsInfo.pColIndex[0]];
-    if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
-      (*fields)[0].precision = pDataBlock->pMeta->tableInfo.precision;
-    }
-
     int32_t actualIdx = 0;
     for (int32_t i = 0; i < numOfBound; ++i) {
       SSchema* schema;
@@ -1557,6 +1552,9 @@ int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E*
       tstrncpy((*fields)[i].name, schema->name, 65);
       (*fields)[i].type = schema->type;
       (*fields)[i].bytes = calcTypeBytesFromSchemaBytes(schema->type, schema->bytes, true);
+      if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
+        (*fields)[i].precision = pDataBlock->pMeta->tableInfo.precision;
+      }
     }
   }
 
