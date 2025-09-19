@@ -120,37 +120,50 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   SExprInfo      *pExprInfo = NULL;
   char            buf[512] = "\0";
 
-  if (!(pExprSup = taosMemoryCalloc(1, sizeof(SExprSupp)))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  pCtx->exprSup = pExprSup;
-  if (!(pAggSup = taosMemoryCalloc(1, sizeof(SAggSupporter)))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  pCtx->aggSup = pAggSup;
-  if (!(pResultRowInfo = taosMemoryCalloc(1, sizeof(SResultRowInfo)))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  pCtx->resultRowInfo = pResultRowInfo;
-  if (!(pGroupResInfo = taosMemoryCalloc(1, sizeof(SGroupResInfo)))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  pCtx->pGroupResInfo = pGroupResInfo;
-  if (!(pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo)))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  pCtx->pTaskInfo = pTaskInfo;
-
-  pTaskInfo->id.str = taosStrdup("rollup");
-  if (!pTaskInfo->id.str) {
-    TAOS_CHECK_EXIT(terrno);
+  if (!(pExprSup = pCtx->exprSup)) {
+    if (!(pExprSup = taosMemoryCalloc(1, sizeof(SExprSupp)))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    pCtx->exprSup = pExprSup;
   }
 
-  if (!(pCtx->pColValArr = taosArrayInit(nCols, sizeof(SColVal)))) {
+  if (!(pAggSup = pCtx->aggSup)) {
+    if (!(pAggSup = taosMemoryCalloc(1, sizeof(SAggSupporter)))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    pCtx->aggSup = pAggSup;
+  }
+
+  if (!(pResultRowInfo = pCtx->resultRowInfo)) {
+    if (!(pResultRowInfo = taosMemoryCalloc(1, sizeof(SResultRowInfo)))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    pCtx->resultRowInfo = pResultRowInfo;
+  }
+
+  if (!(pGroupResInfo = pCtx->pGroupResInfo)) {
+    if (!(pGroupResInfo = taosMemoryCalloc(1, sizeof(SGroupResInfo)))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    pCtx->pGroupResInfo = pGroupResInfo;
+  }
+
+  if (!(pTaskInfo = pCtx->pTaskInfo)) {
+    if (!(pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo)))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    pCtx->pTaskInfo = pTaskInfo;
+    pTaskInfo->id.str = taosStrdup("rollup");
+    if (!pTaskInfo->id.str) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+
+  if (!pCtx->pColValArr && !(pCtx->pColValArr = taosArrayInit(nCols, sizeof(SColVal)))) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  if (!(pCtx->pBuf = taosMemoryMalloc(TSDB_MAX_BYTES_PER_ROW + VARSTR_HEADER_SIZE))) {
+  if (!pCtx->pBuf && !(pCtx->pBuf = taosMemoryMalloc(TSDB_MAX_BYTES_PER_ROW + VARSTR_HEADER_SIZE))) {
     TAOS_CHECK_EXIT(terrno);
   }
 
