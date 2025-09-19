@@ -27,7 +27,7 @@ select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col)
 select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by bool_col interval(1d) order by 1,2,3,4 slimit 10 limit 10;
 select _wstart, _wend, bool_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_stb partition by bool_col interval(1d) order by 1,2,3,4 slimit 10 limit 10;
 
-select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col state_window(bool_col) order by 1,2,3,4 slimit 10 limit 10;
+select _wstart, _wend, count(*) from (select * from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col order by ts, bool_col) state_window(bool_col) order by 1,2,3 limit 10;
 select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb partition by tinyint_col state_window(bool_col) order by 1,2,3,4 slimit 10 limit 10;
 select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_stb partition by bool_col state_window(bool_col) order by 1,2,3,4 slimit 10 limit 10;
 select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_stb partition by bool_col state_window(bool_col) order by 1,2,3,4 slimit 10 limit 10;
