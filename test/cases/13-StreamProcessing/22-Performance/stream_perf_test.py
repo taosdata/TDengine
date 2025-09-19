@@ -990,7 +990,7 @@ class StreamSQLTemplates_bak_for_phase1:
     """
     
     s2_14 = """
-    create stream stream_from.s2_14 EVENT_WINDOW(START WITH c0 > -10000000 END WITH c0 < 10000000) 
+    create stream stream_from.s2_14 EVENT_WINDOW(START WITH c0 > 5 END WITH c0 < 5) 
             from stream_from.stb partition by tbname 
             into stream_to.stb2_14
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
@@ -1418,7 +1418,7 @@ class StreamSQLTemplates:
         partition_line = f"\n            {partition_clause}" if partition_clause else ""
         
         return f"""
-    create stream {stream_name} EVENT_WINDOW(START WITH c0 > -10000000 END WITH c0 < 10000000)
+    create stream {stream_name} EVENT_WINDOW(START WITH c0 > 5 END WITH c0 < 5)
             from {from_source}{partition_line}
             into {target_table}
             as select _twstart ts, {columns}
@@ -2165,7 +2165,7 @@ class StreamSQLTemplates:
         columns = self._build_columns(agg_or_select, custom_columns)
         from_clause = self._build_from_clause(tbname_or_trows_or_sourcetable)
         return f"""
-    create stream stream_from.s2_14 EVENT_WINDOW(START WITH c0 > -10000000 END WITH c0 < 10000000) 
+    create stream stream_from.s2_14 EVENT_WINDOW(START WITH c0 > 5 END WITH c0 < 5) 
             from stream_from.stb partition by tbname 
             into stream_to.stb2_14
             as select _twstart ts, {columns}
@@ -2721,7 +2721,7 @@ def format_sql_for_display(sql_text):
 class StreamBatchTester:
     """流计算批量测试器 - 自动执行多种参数组合测试"""
     
-    def __init__(self, base_args=None, specified_sql_types=None, filter_mode='all', single_template_mode='default'):
+    def __init__(self, base_args=None, specified_sql_types=None, filter_mode='all', single_template_mode='default', perf_node='dnode1'):
         """初始化批量测试器
         
         Args:
@@ -2738,10 +2738,12 @@ class StreamBatchTester:
         self.specified_sql_types = specified_sql_types or []
         self.filter_mode = filter_mode
         self.single_template_mode = single_template_mode
+        self.perf_node = perf_node
+        self.realtime_report_file = None
         
         # 缓存已知失败测试列表，避免重复调用和打印
         self._known_failure_tests = None
-        # 缓存已知性能不好的测试列表
+        # 缓存已知没有实际意义的测试列表
         self._known_poor_performance_tests = None
         
         self.delay_trends_analysis =  base_args.get('delay_trends_analysis', True)
@@ -2762,7 +2764,8 @@ class StreamBatchTester:
             'disorder_ratio': 0,
             'vgroups': 10,
             'debug_flag': 131,
-            'num_of_log_lines': 500000
+            'num_of_log_lines': 500000,
+            'perf_node': 'dnode1'
         }
         
         # 更新固定参数
@@ -2792,9 +2795,9 @@ class StreamBatchTester:
             poor_performance_count = len(self.get_known_poor_performance_tests())
             total_skip_count = failure_count + poor_performance_count
             print(f"  已知失败测试: {failure_count} 个")
-            print(f"  已知性能不好测试: {poor_performance_count} 个")
+            print(f"  已知没有实际意义测试: {poor_performance_count} 个")
             print(f"  总跳过测试: {total_skip_count} 个")
-            print(f"  将跳过已知失败和性能不好的测试场景，专注于优质场景")
+            print(f"  将跳过已知失败和没有实际意义的测试场景，专注于优质场景")
         elif self.filter_mode != 'all':
             failure_count = len(self.get_known_failure_tests())
             print(f"  已知失败测试: {failure_count} 个")
@@ -2909,23 +2912,23 @@ class StreamBatchTester:
     
     
     def get_known_poor_performance_tests(self):
-        """获取已知性能不好的测试场景列表
+        """获取已知没有实际意义的测试场景列表
         
         这里维护所有已知性能表现不佳的测试场景名称
         这些场景虽然可以成功运行，但性能表现不理想
-        您可以直接在这里添加或删除性能不好的测试名称
+        您可以直接在这里添加或删除没有实际意义的测试名称
         
         Returns:
-            set: 已知性能不好的测试名称集合
+            set: 已知没有实际意义的测试名称集合
         """
         # 使用缓存避免重复创建和打印
         if self._known_poor_performance_tests is not None:
             return self._known_poor_performance_tests
         
-        # 在这里维护已知性能不好的测试名称列表
+        # 在这里维护已知没有实际意义的测试名称列表
         # 这些测试可以运行成功，但性能表现不理想，需要后期优化
         poor_performance_cases = set({
-            # 示例: 以下是一些可能性能不好的场景，可以根据实际测试结果添加
+            # 示例: 以下是一些可能没有实际意义的场景，可以根据实际测试结果添加
             # 某些大表分区查询性能不佳的场景，通过%%tbname替代
             'intervalsliding_stb_partition_by_tbname_agg_sourcetable_stb',
             'sliding_stb_partition_by_tbname_agg_sourcetable_stb',
@@ -2989,15 +2992,15 @@ class StreamBatchTester:
             'period_tb_select_trows',
             
             
-            # 注意: 这里只是示例，实际的性能不好的场景需要根据测试结果来添加
+            # 注意: 这里只是示例，实际的没有实际意义的场景需要根据测试结果来添加
             # 可以在批量测试完成后，根据性能报告中的CPU/内存使用情况来识别
         })
         
         # 缓存结果并只打印一次
         self._known_poor_performance_tests = poor_performance_cases
-        print(f"维护的已知性能不好测试列表包含 {len(poor_performance_cases)} 个场景")
+        print(f"维护的已知没有实际意义测试列表包含 {len(poor_performance_cases)} 个场景")
         if poor_performance_cases:
-            print(f"已知性能不好的场景: {', '.join(list(poor_performance_cases)[:5])}{'...' if len(poor_performance_cases) > 5 else ''}")
+            print(f"已知没有实际意义的场景: {', '.join(list(poor_performance_cases)[:5])}{'...' if len(poor_performance_cases) > 5 else ''}")
         return self._known_poor_performance_tests
     
     def extract_stream_names_from_sql(self, sql_templates):
@@ -3059,14 +3062,14 @@ class StreamBatchTester:
         known_failures = self.get_known_failure_tests()
         known_poor_performance = self.get_known_poor_performance_tests()
         print(f"调试过滤: 已知失败流数量: {len(known_failures)}")
-        print(f"调试过滤: 已知性能不好流数量: {len(known_poor_performance)}")
+        print(f"调试过滤: 已知没有实际意义流数量: {len(known_poor_performance)}")
         
         failed_streams = stream_names.intersection(known_failures)
         poor_performance_streams = stream_names.intersection(known_poor_performance)
         success_streams = stream_names - known_failures - known_poor_performance
         
         print(f"调试过滤: 匹配到的失败流: {failed_streams}")
-        print(f"调试过滤: 匹配到的性能不好流: {poor_performance_streams}")
+        print(f"调试过滤: 匹配到的没有实际意义流: {poor_performance_streams}")
         print(f"调试过滤: 成功流: {success_streams}")
         
         if self.filter_mode == 'skip-known-failures':
@@ -3082,11 +3085,11 @@ class StreamBatchTester:
             return False, ""
             
         elif self.filter_mode == 'skip-known-case':
-            # 如果包含已知失败的流或已知性能不好的流，跳过
+            # 如果包含已知失败的流或已知没有实际意义的流，跳过
             if failed_streams:
                 return True, f"包含已知失败流: {', '.join(failed_streams)}"
             elif poor_performance_streams:
-                return True, f"包含已知性能不好流: {', '.join(poor_performance_streams)} (待后期优化，跳过测试)"
+                return True, f"包含已知没有实际意义流: {', '.join(poor_performance_streams)} (待后期优化，跳过测试)"
             return False, ""
             
         return False, ""
@@ -3544,6 +3547,7 @@ class StreamBatchTester:
         config['perf_file'] = os.path.join(result_dir, 'performance', f'{test_name}_perf.log')
         config['delay_log_file'] = os.path.join(result_dir, 'logs', f'{test_name}_delay.log')
         config['test_log_file'] = os.path.join(result_dir, 'logs', f'{test_name}_test.log')
+        config['perf_node'] = self.perf_node
         
         # 调试输出：验证延迟检查配置
         print(f"调试: 为测试 {test_name} 设置性能文件: {config['perf_file']}")
@@ -3616,9 +3620,9 @@ class StreamBatchTester:
                     if "已知失败流" in skip_reason:
                         skip_status = "SKIP_FAILURE"
                         print(f"⏭️  跳过测试 - 已知失败: {skip_reason}")
-                    elif "已知性能不好流" in skip_reason:
+                    elif "已知没有实际意义流" in skip_reason:
                         skip_status = "SKIP_POOR_PERFORMANCE"
-                        print(f"⏭️  跳过测试 - 性能不好: {skip_reason}")
+                        print(f"⏭️  跳过测试 - 没有实际意义: {skip_reason}")
                     else:
                         skip_status = "SKIPPED"
                         print(f"⏭️  跳过测试 - 其他原因: {skip_reason}")
@@ -3822,42 +3826,48 @@ class StreamBatchTester:
             
             # 强制清理环境，为下一个测试做准备
             print("测试后全面清理环境...")
-            try:
-                # 1. 强制停止所有taosd进程
-                print("  → 停止所有taosd进程")
-                subprocess.run('pkill -9 taosd', shell=True)
-                time.sleep(2)
-                
-                # 2. 清理可能的监控线程和文件句柄
-                print("  → 清理系统资源")
-                import gc
-                gc.collect()
-                
-                # 3. 清理临时文件
-                print("  → 清理临时文件")
-                subprocess.run('rm -f /tmp/stream_from*.json', shell=True)
-                subprocess.run('rm -f /tmp/taosBenchmark_result.log', shell=True)
-                
-                # 4. 检查活跃线程数
-                import threading
-                active_threads = threading.active_count()
-                print(f"  → 当前活跃线程数: {active_threads}")
-                
-                # 5. 验证清理结果
-                check_result = subprocess.run('ps -ef | grep taosd | grep -v grep', 
-                                            shell=True, capture_output=True, text=True)
-                if check_result.stdout:
-                    print(f"  ⚠️  警告: 仍有taosd进程运行，可能影响下个测试")
-                else:
-                    print(f"  ✅ 环境清理完成")
-                    
-            except Exception as cleanup_e:
-                print(f"  ⚠️  清理过程出错: {str(cleanup_e)}")
-            
-            # 5. 为下一个测试留出缓冲时间
+           
+            # 为下一个测试留出缓冲时间
             if self.current_test_index < self.total_tests:
+                
+                try:
+                    # 1. 强制停止所有taosd进程
+                    print("  → 停止所有taosd进程")
+                    subprocess.run('pkill -9 taosd', shell=True)
+                    time.sleep(2)
+                    
+                    # 2. 清理可能的监控线程和文件句柄
+                    print("  → 清理系统资源")
+                    import gc
+                    gc.collect()
+                    
+                    # 3. 清理临时文件
+                    print("  → 清理临时文件")
+                    subprocess.run('rm -f /tmp/stream_from*.json', shell=True)
+                    subprocess.run('rm -f /tmp/taosBenchmark_result.log', shell=True)
+                    
+                    # 4. 检查活跃线程数
+                    import threading
+                    active_threads = threading.active_count()
+                    print(f"  → 当前活跃线程数: {active_threads}")
+                    
+                    # 5. 验证清理结果
+                    check_result = subprocess.run('ps -ef | grep taosd | grep -v grep', 
+                                                shell=True, capture_output=True, text=True)
+                    if check_result.stdout:
+                        print(f"  ⚠️  警告: 仍有taosd进程运行，可能影响下个测试")
+                    else:
+                        print(f"  ✅ 环境清理完成")
+                        
+                except Exception as cleanup_e:
+                    print(f"  ⚠️  清理过程出错: {str(cleanup_e)}")
+                    
                 print("  → 等待3秒后开始下一个测试...")
                 time.sleep(3)
+                
+            else:
+                print("✅ 这是最后一个测试，保留环境供分析使用")
+                print("💡 如需停止所有进程，请手动执行: pkill taosd")
             
         return result
             
@@ -4074,30 +4084,11 @@ class StreamBatchTester:
             
             # 找到所有检查记录
             check_matches = re.findall(check_pattern, content, re.DOTALL)
-            print(f"调试: 延迟趋势分析 - 找到 {len(check_matches)} 个检查记录")
-        
-            
-            # #old：不在显示时间了，统一换成下面的显示
-            # for check_num, check_time in check_matches:
-            #     # 在这次检查的内容中查找延迟信息
-            #     section_start = content.find(f'第 {check_num} 次检查')
-            #     next_check = content.find(f'第 {int(check_num)+1} 次检查')
-            #     if next_check == -1:
-            #         section = content[section_start:]
-            #     else:
-            #         section = content[section_start:next_check]
-                
-            #     # 提取延迟时间数据
-            #     delay_info = self._extract_delay_times_from_section(section)
-                
-            #     if delay_info:
-            #         trend_lines.append(f"检查{check_num}: {check_time} | {delay_info}")
-            #     else:
-            #         trend_lines.append(f"检查{check_num}: {check_time} | 无延迟数据")
+            #print(f"调试: 延迟趋势分析 - 找到 {len(check_matches)} 个检查记录")
                     
             for check_index, check_match in enumerate(check_matches):
                 try:
-                    print(f"调试: 处理第 {check_index + 1} 个检查记录: {check_match}")
+                    check_num, check_time = check_match
                     
                     # 修复解包问题：检查 check_match 的结构
                     if isinstance(check_match, tuple) and len(check_match) >= 1:
@@ -4112,29 +4103,28 @@ class StreamBatchTester:
                     
                     # 在这次检查的内容中查找延迟信息
                     section_start = content.find(f'第 {check_num} 次检查')
+                    next_check_num = int(check_num) + 1
                     next_check = content.find(f'第 {int(check_num)+1} 次检查')
                     if next_check == -1:
                         section = content[section_start:]
                     else:
                         section = content[section_start:next_check]
                     
-                    #print(f"调试: 检查 {check_num} 的内容长度: {len(section)}")
                     
                     # 提取延迟时间数据
                     delay_info = self._extract_delay_times_from_section(section)
                     
                     if delay_info and delay_info != "无延迟数据":
-                        # 简化格式：只显示延迟值
-                        trend_lines.append(delay_info)
+                        trend_lines.append(f"{delay_info}")
                     else:
-                        trend_lines.append("无数据")
+                        trend_lines.append(f"无数据")
                         
-                    print(f"调试: 检查 {check_num} 的延迟信息: {delay_info}")
+                    # print(f"调试: 检查 {check_num} 的延迟信息: {delay_info}")
                         
                 except Exception as e:
                     print(f"调试: 处理检查记录 {check_index + 1} 时出错: {str(e)}")
                     print(f"调试: 问题记录内容: {check_match}")
-                    trend_lines.append(f"解析错误: {str(e)}")
+                    trend_lines.append(f"检查{check_index+1}: 解析失败")
                     continue
             
             # 确保至少有1行内容，不够的话补充空行
@@ -4145,7 +4135,7 @@ class StreamBatchTester:
             result = " | ".join(trend_lines) if trend_lines else "无趋势数据 | 　 | 　"
             
             # 调试输出
-            print(f"调试: 延迟趋势分析结果长度: {len(result)}")
+            # print(f"调试: 延迟趋势分析结果长度: {len(result)}")
             print(f"调试: 趋势行数: {len(trend_lines)}")
             print(f"调试: 最终结果前200字符: {result[:200]}")
             
@@ -4180,52 +4170,36 @@ class StreamBatchTester:
             
             # 提取正常延迟时间
             delay_matches = re.findall(delay_pattern, section, re.DOTALL)
-            print(f"调试: 找到 {len(delay_matches)} 个延迟记录")
-            print(f"调试: 延迟匹配结果: {delay_matches}")
+            # print(f"调试: 找到 {len(delay_matches)} 个延迟记录")
+            # print(f"调试: 延迟匹配结果: {delay_matches}")
             
             for match_index, delay_match in enumerate(delay_matches):
                 try:
                     if isinstance(delay_match, tuple) and len(delay_match) >= 2:
                         stream_name = delay_match[0].strip()
                         delay_str = delay_match[1].strip()
-                        print(f"调试: 延迟记录 {match_index + 1}: 流={stream_name}, 延迟={delay_str}")
+                        #print(f"调试: 延迟记录 {match_index + 1}: 流={stream_name}, 延迟={delay_str}")
                     else:
                         print(f"调试: 延迟记录 {match_index + 1} 格式异常: {delay_match}")
                         continue
-                
-                # # 解析延迟时间，提取毫秒数-old
-                # # 格式eg：检查11: 2025-09-10 13:40:00 | period_stb_partition_by_tag_agg_sourcetable_stb:20ms
-                # delay_ms = self._parse_delay_string(delay_str)
-                # if delay_ms is not None:
-                #     formatted_delay = self._format_delay_time_simple(delay_ms)
-                #     delay_times.append(f"{stream_name}:{formatted_delay}")
                     
-                    # 解析延迟时间，提取毫秒数-new
-                    # 格式eg：20ms | 25ms | 无数据
                     delay_ms = self._parse_delay_string(delay_str)
-                    print(f"调试: 解析后的延迟毫秒数: {delay_ms}")
+                
+                    #print(f"调试: 解析后的延迟毫秒数: {delay_ms}")
                     if delay_ms is not None:
-                        # 只保留数值和单位，去掉流名称
-                        if delay_ms < 1000:  # 小于1秒，显示毫秒
-                            delay_values.append(f"{delay_ms}ms")
-                        elif delay_ms < 60000:  # 小于1分钟，显示秒
-                            seconds = delay_ms / 1000.0
-                            delay_values.append(f"{seconds:.1f}s")
-                        else:  # 更长时间，显示分钟
-                            minutes = delay_ms / 60000.0
-                            delay_values.append(f"{minutes:.1f}m")
+                        formatted_delay = self._format_delay_time_simple(delay_ms)
+                        delay_values.append(formatted_delay)
                     else:
                         print(f"调试: 无法解析延迟字符串: {delay_str}")
                         delay_values.append("解析失败")
                     
                 except Exception as e:
                     print(f"调试: 处理延迟记录 {match_index + 1} 时出错: {str(e)}")
-                    delay_values.append("处理错误")
                     continue
             
             # 提取无数据情况
             no_data_matches = re.findall(no_data_pattern, section, re.DOTALL)
-            print(f"调试: 找到 {len(no_data_matches)} 个无数据记录")
+            #print(f"调试: 找到 {len(no_data_matches)} 个无数据记录")
             for no_data_match in no_data_matches:
                 try:
                     if isinstance(no_data_match, tuple):
@@ -4241,7 +4215,7 @@ class StreamBatchTester:
             
             # 提取错误情况
             error_matches = re.findall(error_pattern, section, re.DOTALL)
-            print(f"调试: 找到 {len(error_matches)} 个错误记录")
+            #print(f"调试: 找到 {len(error_matches)} 个错误记录")
             for error_match in error_matches:
                 try:
                     if isinstance(error_match, tuple):
@@ -4255,11 +4229,11 @@ class StreamBatchTester:
                     print(f"调试: 处理错误记录时出错: {str(e)}")
                     delay_values.append("表不存在")
             
-            print(f"调试: 总共收集到 {len(delay_values)} 个延迟值: {delay_values}")
+            #print(f"调试: 总共收集到 {len(delay_values)} 个延迟值: {delay_values}")
             
             if delay_values:
                 result = " | ".join(delay_values)
-                print(f"调试: 生成结果: {result}")
+                #print(f"调试: 生成结果: {result}")
                 return result
             else:
                 print(f"调试: 无延迟数据")
@@ -4282,68 +4256,72 @@ class StreamBatchTester:
         """
         try:
             delay_str = delay_str.strip()
-            print(f"调试: _parse_delay_string 输入: '{delay_str}'")
+            # print(f"调试: _parse_delay_string 输入: '{delay_str}'")
             
-            # 匹配复合时间格式: 1m25.9s, 2h30m15s 等
-            complex_time_match = re.search(r'(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?', delay_str)
-            if complex_time_match and any(complex_time_match.groups()):
-                hours = float(complex_time_match.group(1)) if complex_time_match.group(1) else 0
-                minutes = float(complex_time_match.group(2)) if complex_time_match.group(2) else 0  
-                seconds = float(complex_time_match.group(3)) if complex_time_match.group(3) else 0
-                
-                total_ms = int((hours * 3600 + minutes * 60 + seconds) * 1000)
-                print(f"调试: 匹配到复合时间格式: {hours}h {minutes}m {seconds}s -> {total_ms}ms")
-                return total_ms
-            
-            # 匹配分钟格式: 1.5m, 25m
-            m_match = re.search(r'(\d+(?:\.\d+)?)m(?!s)', delay_str)  # 避免匹配ms中的m
-            if m_match:
-                m_value = float(m_match.group(1))
-                ms_value = int(m_value * 60 * 1000)
-                print(f"调试: 匹配到分钟格式: {m_match.group(1)}m -> {ms_value}ms")
-                return ms_value
-        
-            # 匹配毫秒格式: 1500ms
-            ms_match = re.search(r'(\d+(?:\.\d+)?)ms', delay_str)
+            # ✅ 修复：更精确的毫秒格式匹配 - 优先级最高
+            ms_match = re.search(r'(\d+(?:\.\d+)?)ms\b', delay_str)
             if ms_match:
                 ms_value = int(float(ms_match.group(1)))
-                print(f"调试: 匹配到毫秒格式: {ms_match.group(1)} -> {ms_value}ms")
+                print(f"调试: 匹配到毫秒格式: {ms_match.group(1)}ms -> {ms_value}ms")
                 return ms_value
             
-            # 匹配秒格式: 1.5s, 25s
-            s_match = re.search(r'(\d+(?:\.\d+)?)秒', delay_str)
+            # ✅ 修复：更精确的秒格式匹配（英文s）
+            s_match = re.search(r'(\d+(?:\.\d+)?)s\b', delay_str)
             if s_match:
                 s_value = float(s_match.group(1))
                 ms_value = int(s_value * 1000)
-                print(f"调试: 匹配到秒格式: {s_match.group(1)}秒 -> {ms_value}ms")
+                # print(f"调试: 匹配到秒格式: {s_match.group(1)}s -> {ms_value}ms")
                 return ms_value
-        
-            # 匹配中文秒格式
-            cn_s_match = re.search(r'(\d+(?:\.\d+)?)秒', delay_str)
+            
+            # ✅ 修复：中文秒格式匹配
+            cn_s_match = re.search(r'(\d+(?:\.\d+)?)秒\b', delay_str)
             if cn_s_match:
                 s_value = float(cn_s_match.group(1))
                 ms_value = int(s_value * 1000)
                 print(f"调试: 匹配到中文秒格式: {cn_s_match.group(1)}秒 -> {ms_value}ms")
                 return ms_value
             
-            # 匹配小时格式: 1.5h, 2h
-            h_match = re.search(r'(\d+(?:\.\d+)?)h', delay_str)
+            # 复合时间格式: 1m25.9s, 2h30m15s 等 - 放在后面处理
+            complex_time_match = re.search(r'(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?', delay_str)
+            if complex_time_match and any(complex_time_match.groups()):
+                hours = float(complex_time_match.group(1)) if complex_time_match.group(1) else 0
+                minutes = float(complex_time_match.group(2)) if complex_time_match.group(2) else 0  
+                seconds = float(complex_time_match.group(3)) if complex_time_match.group(3) else 0
+                
+                # ✅ 只有在真正包含复合格式时才处理
+                if hours > 0 or minutes > 0:
+                    total_ms = int((hours * 3600 + minutes * 60 + seconds) * 1000)
+                    print(f"调试: 匹配到复合时间格式: {hours}h {minutes}m {seconds}s -> {total_ms}ms")
+                    return total_ms
+            
+            # 匹配分钟格式: 1.5m, 25m (独立的分钟，不是复合格式的一部分)
+            m_match = re.search(r'(\d+(?:\.\d+)?)m\b(?!s)', delay_str)  # 避免匹配ms中的m
+            if m_match:
+                m_value = float(m_match.group(1))
+                ms_value = int(m_value * 60 * 1000)
+                print(f"调试: 匹配到分钟格式: {m_match.group(1)}m -> {ms_value}ms")
+                return ms_value
+            
+            # 匹配小时格式: 1.5h, 2h (独立的小时)
+            h_match = re.search(r'(\d+(?:\.\d+)?)h\b', delay_str)
             if h_match:
                 h_value = float(h_match.group(1))
                 ms_value = int(h_value * 3600 * 1000)
                 print(f"调试: 匹配到小时格式: {h_match.group(1)}h -> {ms_value}ms")
                 return ms_value
             
-            # 匹配纯数字（假设是毫秒）
-            num_match = re.search(r'(\d+(?:\.\d+)?)', delay_str)
+            # 匹配纯数字（假设是毫秒）- 最后处理
+            num_match = re.search(r'^(\d+(?:\.\d+)?)$', delay_str)
             if num_match:
                 num_value = int(float(num_match.group(1)))
                 print(f"调试: 匹配到纯数字: {num_match.group(1)} -> 假设为{num_value}ms")
                 return num_value
             
+            print(f"调试: 无法解析延迟字符串: '{delay_str}'")
             return None
             
-        except Exception:
+        except Exception as e:
+            print(f"调试: 解析延迟字符串时出错: {str(e)}")
             return None
 
     def _format_delay_time_simple(self, delay_ms):
@@ -4474,6 +4452,8 @@ class StreamBatchTester:
     def generate_final_report(self, result_dir):
         """生成最终测试报告"""
         report_file = os.path.join(result_dir, 'reports', 'final_report.html')
+        perf_node = getattr(self, 'perf_node', 'dnode1')
+        # perf_file_node = perf_file.replace('.log', f'-{perf_node}.log')
         
         success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
         failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
@@ -4533,8 +4513,19 @@ class StreamBatchTester:
             efficiency = 0
         else:
             success_rate = (success_count / total_tests) * 100
-            avg_duration = total_duration / total_tests / 60
-            efficiency = total_tests / (total_duration / 3600) if total_duration > 0 else 0
+            # avg_duration = total_duration / total_tests / 60
+            # efficiency = total_tests / (total_duration / 3600) if total_duration > 0 else 0
+            # 平均时长只计算成功的测试
+            if success_count > 0:
+                avg_duration = sum(r.get('duration', 0) for r in self.test_results if r['status'] == 'SUCCESS') / success_count / 60
+            else:
+                avg_duration = 0
+            
+            # 效率计算也基于成功的测试
+            if success_count > 0 and total_duration > 0:
+                efficiency = success_count / (total_duration / 3600)  # 成功测试数/小时
+            else:
+                efficiency = 0
         
         # 获取系统信息
         def get_system_info():
@@ -4875,14 +4866,29 @@ class StreamBatchTester:
         function sortTable(columnIndex) {{
             const table = document.getElementById('resultsTable');
             const rows = Array.from(table.rows).slice(1);
-            const isNumeric = columnIndex === 5 || columnIndex === 7 || columnIndex === 8; // 耗时、CPU、内存列
+            //const isNumeric = columnIndex === 5 || columnIndex === 7 || columnIndex === 8|| columnIndex === 9 || columnIndex === 10 || columnIndex === 11; // 耗时、CPU峰值、内存峰值、CPU平均、内存平均、窗口生成比例列
+            // ✅ 更新列索引注释：
+            // 列索引: 0=测试名称, 1=SQL类型, 2=查询类型, 3=FROM类型, 4=状态, 5=耗时
+            // 6=SQL预览, 7=CPU峰值, 8=内存峰值, 9=CPU平均, 10=内存平均, 11=窗口生成比例
+            // 12=延迟趋势(原来是13), 13=错误信息(原来是14)
+            const isNumeric = columnIndex === 5 || columnIndex === 7 || columnIndex === 8|| columnIndex === 9 || columnIndex === 10 || columnIndex === 11; // 耗时、CPU峰值、内存峰值、CPU平均、内存平均、窗口生成比例列
+            
             
             rows.sort((a, b) => {{
                 const aVal = a.cells[columnIndex].textContent;
                 const bVal = b.cells[columnIndex].textContent;
                 
                 if (isNumeric) {{
-                    return parseFloat(aVal) - parseFloat(bVal);
+                    // 特殊处理窗口生成比例列（第11列）
+                    if (columnIndex === 11) {{
+                        // 提取百分比数值
+                        const aPercent = parseFloat(aVal.replace('%', '').trim()) || 0;
+                        const bPercent = parseFloat(bVal.replace('%', '').trim()) || 0;
+                        return aPercent - bPercent;
+                    }} else {{
+                        // 其他数值列的处理
+                        return parseFloat(aVal) - parseFloat(bVal);
+                    }}
                 }} else {{
                     return aVal.localeCompare(bVal);
                 }}
@@ -5152,7 +5158,7 @@ class StreamBatchTester:
         <p>📅 生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         <p>⏰ 测试周期: {self.start_time} → {datetime.datetime.now().isoformat()}</p>
         <p>🏗️ 测试配置: {self.fixed_params.get('deployment_mode', 'single')}模式 | 
-           {self.fixed_params.get('table_count', 1000)}张自表 | 
+           {self.fixed_params.get('table_count', 1000)}张子表 | 
            {self.fixed_params.get('real_time_batch_rows', 200)}条/轮 | 
            每轮写入间隔{self.fixed_params.get('real_time_batch_sleep', 0)}秒</p>
         <p>💻 测试环境: CPU核数{system_cpu_count or '未知'} | 总内存{system_total_memory or '未知'}</p>
@@ -5179,19 +5185,19 @@ class StreamBatchTester:
             <small>{(skip_failure_count/self.total_tests*100):.1f}%</small>
         </div>
         <div class="metric warning">
-            <h3>⚠️ 跳过(性能不好)</h3>
+            <h3>⚠️ 跳过(没有实际意义)</h3>
             <h2>{skip_poor_performance_count}</h2>
             <small>{(skip_poor_performance_count/self.total_tests*100):.1f}%</small>
         </div>
         <div class="metric info">
             <h3>⏱️ 总耗时</h3>
             <h2>{total_duration/3600:.1f}h</h2>
-            <small>平均{total_duration/self.total_tests/60:.1f}分钟/测试</small>
+            <small>平均{avg_duration:.1f}分钟/成功测试</small>
         </div>
         <div class="metric info">
             <h3>💪 效率</h3>
-            <h2>{self.total_tests/(total_duration/3600):.1f}</h2>
-            <small>测试场景个数/小时</small>
+            <h2>{efficiency:.1f}</h2>
+            <small>成功测试/小时</small>
         </div>
     </div>
     
@@ -5203,7 +5209,7 @@ class StreamBatchTester:
                 <option value="SUCCESS">成功</option>
                 <option value="FAILED">失败</option>
                 <option value="SKIP_FAILURE">跳过(已知失败)</option>
-                <option value="SKIP_POOR_PERFORMANCE">跳过(性能不好)</option>
+                <option value="SKIP_POOR_PERFORMANCE">跳过(没有实际意义)</option>
                 <option value="SKIPPED">跳过(其他)</option>
             </select>
         </div>
@@ -5254,11 +5260,14 @@ class StreamBatchTester:
                 <th onclick="sortTable(4)" style="cursor: pointer;">🎯 状态</th>
                 <th onclick="sortTable(5)" style="cursor: pointer;">⏱️ 耗时(秒)</th>
                 <th>🔍 SQL预览</th>
-                <th onclick="sortTable(7)" style="cursor: pointer;">💻 CPU峰值范围(%)</th>
-                <th onclick="sortTable(8)" style="cursor: pointer;">🧠 内存峰值范围(MB)</th>
-                <th onclick="sortTable(9)" style="cursor: pointer;">📊 CPU平均值(%)</th>
-                <th onclick="sortTable(10)" style="cursor: pointer;">📈 内存平均值(MB)</th>
+                <th onclick="sortTable(7)" style="cursor: pointer;">💻 {perf_node} CPU峰值范围(%)</th>
+                <th onclick="sortTable(8)" style="cursor: pointer;">🧠 {perf_node} 内存峰值范围(MB)</th>
+                <th onclick="sortTable(9)" style="cursor: pointer;">📊 {perf_node} CPU平均值(%)</th>
+                <th onclick="sortTable(10)" style="cursor: pointer;">📈 {perf_node} 内存平均值(MB)</th>
+                <th onclick="sortTable(11)" style="cursor: pointer;">📊 流窗口生成比例(%)</th>
+                <!-- ✅ 注释掉原始延迟统计列
                 <th>📈 原始延迟统计</th>
+                -->
                 <th>📊 原始延迟趋势</th>
                 <th>❌ 错误信息</th>
             </tr>
@@ -5266,6 +5275,9 @@ class StreamBatchTester:
         
         for result_index, result in enumerate(self.test_results):
             config = result['config']
+            perf_file = config.get('perf_file', '')
+            # perf_node = getattr(self, 'perf_node', 'dnode1')
+            perf_file_node = perf_file.replace('.log', f'-{perf_node}.log')
             
             if result['status'] == 'SUCCESS':
                 status_class = 'status-success'
@@ -5292,7 +5304,7 @@ class StreamBatchTester:
                 if result['status'] == 'SKIP_FAILURE':
                     error_msg = f"跳过原因: {skip_reason}"
                 elif result['status'] == 'SKIP_POOR_PERFORMANCE':
-                    error_msg = f"已知性能不好，待后期再优化: {skip_reason}"
+                    error_msg = f"已知没有实际意义，待后期再优化: {skip_reason}"
                 else:
                     error_msg = f"跳过原因: {skip_reason}"
             
@@ -5383,18 +5395,20 @@ class StreamBatchTester:
             if result['status'] == 'SUCCESS':
                 try:
                     perf_file = config.get('perf_file', '')
-                    print(f"调试: 第 {result_index + 1} 个测试，尝试读取性能文件: {perf_file}")
+                    perf_node = getattr(self, 'perf_node', 'dnode1')
+                    perf_file_node = perf_file.replace('.log', f'-{perf_node}.log')
+                    print(f"调试: 第 {result_index + 1} 个测试，尝试读取性能文件: {perf_file_node}")
                     
                     # 检查各种可能的性能文件路径
                     possible_files = []
-                    if perf_file:
+                    if perf_file_node:
                         # 原始文件路径
-                        possible_files.append(perf_file)
+                        possible_files.append(perf_file_node)
                         # 去掉扩展名加-all.log
-                        base_name = os.path.splitext(perf_file)[0]
+                        base_name = os.path.splitext(perf_file_node)[0]
                         possible_files.append(f"{base_name}-all.log")
                         # 直接加-all.log
-                        possible_files.append(f"{perf_file}-all.log")
+                        possible_files.append(f"{perf_file_node}-all.log")
                     
                     # 添加一些常见的性能文件路径
                     possible_files.extend([
@@ -5450,7 +5464,7 @@ class StreamBatchTester:
                                 
                             # 查找包含CPU和Memory的行
                             # 格式: 2025-09-01 17:34:18 [dnode1] CPU: 271.4%, Memory: 787.64MB (1.23%), Read: 0.00MB (7492031), Write: 665.98MB (13546146)
-                            if 'CPU:' in line and 'Memory:' in line and '%' in line and 'MB' in line:
+                            if 'CPU:' in line and 'Memory:' in line and '%' in line and 'MB' in line and f'[{perf_node}]' in line:
                                 
                                 # 检查是否是预热期数据
                                 is_warm_up_data = '[预热期数据]' in line
@@ -5812,10 +5826,14 @@ class StreamBatchTester:
             # 读取延迟统计
             delay_stats = "N/A"
             delay_stats_html = "N/A"
-            cleanup_delay_stats_html = "N/A"
-            delay_class = ""
+            # cleanup_delay_stats_html = "N/A"
+            # delay_class = ""
             delay_trends_html = "N/A"
             delay_trends_preview = "N/A"
+            window_completion_ratio_display = "N/A" 
+            window_details_display = ""
+            window_interval_display = "N/A"
+            
             
             if result['status'] == 'SUCCESS':
                 try:
@@ -5878,133 +5896,192 @@ class StreamBatchTester:
                             
                             if len(content) > 0:
                                 print(f"调试: 第 {result_index + 1} 个测试，延迟文件内容前200字符: {content[:200]}")
+                                                           
+                            # ✅ 新增：提取窗口生成比例
+                            window_info_pattern = r'理论窗口数:\s*(\d+).*?实际生成记录数:\s*(\d+).*?窗口生成比例:\s*\d+/\d+\s*=\s*([\d.]+)%'
+                            window_matches = re.findall(window_info_pattern, content, re.DOTALL)
                             
-                            # 统计延迟分布
-                            delay_counts = {
-                                '优秀': content.count('延迟等级: 优秀'),
-                                '良好': content.count('延迟等级: 良好'), 
-                                '正常': content.count('延迟等级: 正常'),
-                                '轻微延迟': content.count('延迟等级: 轻微延迟'),
-                                '明显延迟': content.count('延迟等级: 明显延迟'),
-                                '严重延迟': content.count('延迟等级: 严重延迟'),
-                                '目标表无数据': content.count('延迟等级: 目标表无数据'),
-                                '目标表不存在': content.count('延迟等级: 目标表不存在')
-                            }
-                            
-                            print(f"调试: 第 {result_index + 1} 个测试，延迟分布统计: {delay_counts}")
-                            
-                            # 尝试从内容中提取检查次数信息
-                            check_count = 0
-                            
-                            # 方法1: 统计包含"第 X 次检查"的行数
-                            check_pattern = r'第\s+(\d+)\s+次检查'
-                            check_matches = re.findall(check_pattern, content)
-                            if check_matches:
-                                # 获取最大的检查次数
-                                check_count = max(int(match) for match in check_matches)
-                                print(f"调试: 从内容中解析出检查次数: {check_count}")
-                            
-                            # 方法2: 如果方法1失败，尝试统计"流名称:"的出现次数来估算
-                            if check_count == 0:
-                                stream_mentions = content.count('流名称:')
-                                if stream_mentions > 0:
-                                    # 假设每次检查涉及的流数量，可以从content中进一步分析
-                                    # 简单估算：如果有流名称提及，至少有1次检查
-                                    check_count = max(1, stream_mentions // 10)  # 粗略估算
-                                    print(f"调试: 通过流名称估算检查次数: {check_count} (基于{stream_mentions}个流名称提及)")
-                            
-                            # 方法3: 如果仍然为0，设置默认值
-                            if check_count == 0:
-                                check_count = 1  # 设置最小值
-                                print(f"调试: 使用默认检查次数: {check_count}")
-                            
-                            # 计算每次检查的流数量
-                            total_delay_records = sum(delay_counts.values())
-                            if total_delay_records > 0 and check_count > 0:
-                                stream_count_per_check = total_delay_records // check_count
+                            if window_matches:
+                                # 取最后一次的记录
+                                last_match = window_matches[-1]
+                                expected_windows = int(last_match[0])
+                                actual_windows = int(last_match[1])
+                                completion_percentage = float(last_match[2])
+                                
+                                window_completion_ratio_display = f"{completion_percentage:.1f}%"
+                                window_details_display = f"实际: {actual_windows} / 理论: {expected_windows}"
+                                
+                                print(f"调试: 第 {result_index + 1} 个测试，解析到窗口信息: {expected_windows}/{actual_windows} = {completion_percentage:.1f}%")
                             else:
-                                stream_count_per_check = 0
+                                # 尝试从延迟日志中提取简单的比例信息
+                                ratio_pattern = r'窗口生成比例:\s*([\d.]+)%'
+                                ratio_matches = re.findall(ratio_pattern, content)
+                                window_detail_pattern = r'理论窗口数:\s*(\d+).*?实际生成记录数:\s*(\d+)'
+                                detail_matches = re.findall(window_detail_pattern, content, re.DOTALL)
                                 
-                            print(f"调试: 第 {result_index + 1} 个测试，总延迟记录数: {total_delay_records}")
-                            print(f"调试: 第 {result_index + 1} 个测试，计算出的每次检查流数: {stream_count_per_check}")
-                            
-                            # 验证计算是否正确
-                            expected_total = check_count * stream_count_per_check
-                            actual_total = sum(delay_counts.values())
-                            
-                            print(f"调试: 第 {result_index + 1} 个测试，检查次数: {check_count}")
-                            print(f"调试: 第 {result_index + 1} 个测试，每次检查流数: {stream_count_per_check}")
-                            print(f"调试: 第 {result_index + 1} 个测试，预期总计数: {expected_total}")
-                            print(f"调试: 第 {result_index + 1} 个测试，实际总计数: {actual_total}")
-                            
-                            # 使用实际总数作为基准，更可靠
-                            total_checks = actual_total if actual_total > 0 else expected_total
-                            
-                            print(f"调试: 第 {result_index + 1} 个测试，最终使用的总检查次数: {total_checks}")
-                            
-                            if total_checks > 0:
-                                # 定义延迟级别对应的CSS类
-                                delay_level_classes = {
-                                    '优秀': 'delay-excellent',
-                                    '良好': 'delay-good',
-                                    '正常': 'delay-normal',
-                                    '轻微延迟': 'delay-warning',
-                                    '明显延迟': 'delay-danger',
-                                    '严重延迟': 'delay-critical',
-                                    '目标表无数据': 'delay-no-data',
-                                    '目标表不存在': 'delay-table-missing'
-                                }
-                            
-                                # 构建纯文本版本（用于导出等）
-                                delay_parts = []
-                                # 构建HTML版本（每个级别有自己的颜色）
-                                delay_parts_html = []
-                                
-                                for level, count in delay_counts.items():
-                                    if count > 0:
-                                        percentage = count / total_checks * 100
-                                        text_part = f"{level}:{count}({percentage:.0f}%)"
-                                        delay_parts.append(text_part)
-                                        
-                                        # HTML版本：每个级别用对应的CSS类包装
-                                        css_class = delay_level_classes.get(level, 'delay-normal')
-                                        html_part = f'<span class="{css_class}">{level}:{count}({percentage:.0f}%)</span>'
-                                        delay_parts_html.append(html_part)
-                                
-                                # 纯文本版本
-                                delay_stats = " | ".join(delay_parts) if delay_parts else "无有效延迟数据"
-                                
-                                # HTML版本（多颜色显示）
-                                delay_stats_html = " | ".join(delay_parts_html) if delay_parts_html else "无有效延迟数据"
-                                
-                                print(f"调试: 第 {result_index + 1} 个测试，生成的延迟统计: {delay_stats}")
-                                print(f"调试: 第 {result_index + 1} 个测试，生成的HTML延迟统计: {delay_stats_html}")
-                                
-                                # 根据主要延迟级别设置颜色
-                                if delay_counts['目标表不存在'] > 0:
-                                    delay_class = "delay-table-missing"
-                                elif delay_counts['目标表无数据'] > 0:
-                                    delay_class = "delay-no-data"
-                                elif delay_counts['严重延迟'] > 0:
-                                    delay_class = "delay-critical"
-                                elif delay_counts['明显延迟'] > 0:
-                                    delay_class = "delay-danger"
-                                elif delay_counts['轻微延迟'] > 0:
-                                    delay_class = "delay-warning"
-                                elif delay_counts['正常'] + delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.6:
-                                    delay_class = "delay-normal"
-                                elif delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.7:
-                                    delay_class = "delay-good"
-                                elif delay_counts['优秀'] > total_checks * 0.8:
-                                    delay_class = "delay-excellent"
-                                else:
-                                    delay_class = "delay-normal"
+                                if ratio_matches and detail_matches:
+                                    # 取最后一次的记录
+                                    last_ratio = float(ratio_matches[-1])
+                                    last_detail = detail_matches[-1]
+                                    expected_windows = int(last_detail[0])
+                                    actual_windows = int(last_detail[1])
                                     
-                                print(f"调试: 第 {result_index + 1} 个测试，延迟颜色类: {delay_class}")
+                                    window_completion_ratio_display = f"{last_ratio:.1f}%"
+                                    window_details_display = f"实际: {actual_windows} / 理论: {expected_windows}"
+                                    
+                                    print(f"调试: 第 {result_index + 1} 个测试，从检查结果解析到窗口信息: {expected_windows}/{actual_windows} = {last_ratio:.1f}%")
+                                elif ratio_matches:
+                                    # 只有比例，没有详情
+                                    last_ratio = float(ratio_matches[-1])
+                                    window_completion_ratio_display = f"{last_ratio:.1f}%"
+                                    window_details_display = "详情可用"
+                                    print(f"调试: 第 {result_index + 1} 个测试，仅解析到比例: {last_ratio:.1f}%")
+                                else:
+                                    window_completion_ratio_display = "无数据"
+                                    window_details_display = ""
+                                    print(f"调试: 第 {result_index + 1} 个测试，未找到窗口比例信息")
+                                    
+                            # 新增：提取窗口间隔信息
+                            window_interval_match = re.search(r'窗口间隔检测结果:\s*(\d+)ms\s*\(([\d.]+)秒\)', content)
+                            if window_interval_match:
+                                interval_ms = int(window_interval_match.group(1))
+                                interval_sec = float(window_interval_match.group(2))
+                                window_interval_display = f"{interval_ms}ms ({interval_sec:.1f}s)"
                             else:
-                                print(f"调试: 第 {result_index + 1} 个测试，总检查次数为0，延迟监控可能未正常工作")
-                                delay_stats = "延迟监控未生成有效数据"
-                                delay_stats_html = "延迟监控未生成有效数据"
+                                # 如果没有找到具体的间隔信息，尝试从动态阈值信息中提取
+                                dynamic_threshold_match = re.search(r'动态延迟阈值:\s*([^\n]+)', content)
+                                if dynamic_threshold_match:
+                                    threshold_info = dynamic_threshold_match.group(1)
+                                    window_interval_display = f"阈值: {threshold_info}"
+                                else:
+                                    window_interval_display = "N/A"
+                            
+                            # # 统计延迟分布
+                            # delay_counts = {
+                            #     '优秀': content.count('延迟等级: 优秀'),
+                            #     '良好': content.count('延迟等级: 良好'), 
+                            #     '正常': content.count('延迟等级: 正常'),
+                            #     '轻微延迟': content.count('延迟等级: 轻微延迟'),
+                            #     '明显延迟': content.count('延迟等级: 明显延迟'),
+                            #     '严重延迟': content.count('延迟等级: 严重延迟'),
+                            #     '目标表无数据': content.count('延迟等级: 目标表无数据'),
+                            #     '目标表不存在': content.count('延迟等级: 目标表不存在')
+                            # }
+                            
+                            # print(f"调试: 第 {result_index + 1} 个测试，延迟分布统计: {delay_counts}")
+                            
+                            # # 尝试从内容中提取检查次数信息
+                            # check_count = 0
+                            
+                            # # 方法1: 统计包含"第 X 次检查"的行数
+                            # check_pattern = r'第\s+(\d+)\s+次检查'
+                            # check_matches = re.findall(check_pattern, content)
+                            # if check_matches:
+                            #     # 获取最大的检查次数
+                            #     check_count = max(int(match) for match in check_matches)
+                            #     print(f"调试: 从内容中解析出检查次数: {check_count}")
+                            
+                            # # 方法2: 如果方法1失败，尝试统计"流名称:"的出现次数来估算
+                            # if check_count == 0:
+                            #     stream_mentions = content.count('流名称:')
+                            #     if stream_mentions > 0:
+                            #         # 假设每次检查涉及的流数量，可以从content中进一步分析
+                            #         # 简单估算：如果有流名称提及，至少有1次检查
+                            #         check_count = max(1, stream_mentions // 10)  # 粗略估算
+                            #         print(f"调试: 通过流名称估算检查次数: {check_count} (基于{stream_mentions}个流名称提及)")
+                            
+                            # # 方法3: 如果仍然为0，设置默认值
+                            # if check_count == 0:
+                            #     check_count = 1  # 设置最小值
+                            #     print(f"调试: 使用默认检查次数: {check_count}")
+                            
+                            # # 计算每次检查的流数量
+                            # total_delay_records = sum(delay_counts.values())
+                            # if total_delay_records > 0 and check_count > 0:
+                            #     stream_count_per_check = total_delay_records // check_count
+                            # else:
+                            #     stream_count_per_check = 0
+                                
+                            # print(f"调试: 第 {result_index + 1} 个测试，总延迟记录数: {total_delay_records}")
+                            # print(f"调试: 第 {result_index + 1} 个测试，计算出的每次检查流数: {stream_count_per_check}")
+                            
+                            # # 验证计算是否正确
+                            # expected_total = check_count * stream_count_per_check
+                            # actual_total = sum(delay_counts.values())
+                            
+                            # print(f"调试: 第 {result_index + 1} 个测试，检查次数: {check_count}")
+                            # print(f"调试: 第 {result_index + 1} 个测试，每次检查流数: {stream_count_per_check}")
+                            # print(f"调试: 第 {result_index + 1} 个测试，预期总计数: {expected_total}")
+                            # print(f"调试: 第 {result_index + 1} 个测试，实际总计数: {actual_total}")
+                            
+                            # # 使用实际总数作为基准，更可靠
+                            # total_checks = actual_total if actual_total > 0 else expected_total
+                            
+                            # print(f"调试: 第 {result_index + 1} 个测试，最终使用的总检查次数: {total_checks}")
+                            
+                            # if total_checks > 0:
+                            #     # 定义延迟级别对应的CSS类
+                            #     delay_level_classes = {
+                            #         '优秀': 'delay-excellent',
+                            #         '良好': 'delay-good',
+                            #         '正常': 'delay-normal',
+                            #         '轻微延迟': 'delay-warning',
+                            #         '明显延迟': 'delay-danger',
+                            #         '严重延迟': 'delay-critical',
+                            #         '目标表无数据': 'delay-no-data',
+                            #         '目标表不存在': 'delay-table-missing'
+                            #     }
+                            
+                            #     # 构建纯文本版本（用于导出等）
+                            #     delay_parts = []
+                            #     # 构建HTML版本（每个级别有自己的颜色）
+                            #     delay_parts_html = []
+                                
+                            #     for level, count in delay_counts.items():
+                            #         if count > 0:
+                            #             percentage = count / total_checks * 100
+                            #             text_part = f"{level}:{count}({percentage:.0f}%)"
+                            #             delay_parts.append(text_part)
+                                        
+                            #             # HTML版本：每个级别用对应的CSS类包装
+                            #             css_class = delay_level_classes.get(level, 'delay-normal')
+                            #             html_part = f'<span class="{css_class}">{level}:{count}({percentage:.0f}%)</span>'
+                            #             delay_parts_html.append(html_part)
+                                
+                            #     # 纯文本版本
+                            #     delay_stats = " | ".join(delay_parts) if delay_parts else "无有效延迟数据"
+                                
+                            #     # HTML版本（多颜色显示）
+                            #     delay_stats_html = " | ".join(delay_parts_html) if delay_parts_html else "无有效延迟数据"
+                                
+                            #     print(f"调试: 第 {result_index + 1} 个测试，生成的延迟统计: {delay_stats}")
+                            #     print(f"调试: 第 {result_index + 1} 个测试，生成的HTML延迟统计: {delay_stats_html}")
+                                
+                            #     # 根据主要延迟级别设置颜色
+                            #     if delay_counts['目标表不存在'] > 0:
+                            #         delay_class = "delay-table-missing"
+                            #     elif delay_counts['目标表无数据'] > 0:
+                            #         delay_class = "delay-no-data"
+                            #     elif delay_counts['严重延迟'] > 0:
+                            #         delay_class = "delay-critical"
+                            #     elif delay_counts['明显延迟'] > 0:
+                            #         delay_class = "delay-danger"
+                            #     elif delay_counts['轻微延迟'] > 0:
+                            #         delay_class = "delay-warning"
+                            #     elif delay_counts['正常'] + delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.6:
+                            #         delay_class = "delay-normal"
+                            #     elif delay_counts['良好'] + delay_counts['优秀'] > total_checks * 0.7:
+                            #         delay_class = "delay-good"
+                            #     elif delay_counts['优秀'] > total_checks * 0.8:
+                            #         delay_class = "delay-excellent"
+                            #     else:
+                            #         delay_class = "delay-normal"
+                                    
+                            #     print(f"调试: 第 {result_index + 1} 个测试，延迟颜色类: {delay_class}")
+                            # else:
+                            #     print(f"调试: 第 {result_index + 1} 个测试，总检查次数为0，延迟监控可能未正常工作")
+                            #     delay_stats = "延迟监控未生成有效数据"
+                            #     delay_stats_html = "延迟监控未生成有效数据"
                                 
                         # # 新增：清理后延迟统计
                         # if hasattr(self, 'delay_trends_analysis') and self.delay_trends_analysis  :
@@ -6055,10 +6132,14 @@ class StreamBatchTester:
                     else:
                         delay_trends_html = "日志文件不存在"
                         delay_trends_preview = "日志文件不存在"
+                        window_completion_ratio_display = "N/A"
+                        window_details_display = ""
                         
                 except Exception as e:
                     delay_trends_html = f"分析失败: {str(e)}"
                     delay_trends_preview = f"分析失败: {str(e)[:30]}..."
+                    window_completion_ratio_display = "分析失败"
+                    window_details_display = ""
                                 
             else:
                 print(f"调试: 第 {result_index + 1} 个测试状态为 {result['status']}，跳过延迟数据读取")
@@ -6066,6 +6147,8 @@ class StreamBatchTester:
                 delay_stats_html = "N/A"
                 delay_trends_html = "N/A"
                 delay_trends_preview = "N/A"
+                window_completion_ratio_display = "N/A"
+                window_details_display = ""
             
              # 调试：打印每个结果的错误信息
             print(f"调试HTML报告 - 测试 {result['test_name']}:")
@@ -6136,7 +6219,14 @@ class StreamBatchTester:
                 <td class="{memory_avg_class}">
                     {memory_avg_display}
                 </td>
+                <td style="font-size: 10px; text-align: center;">
+                    <div style="font-weight: bold; color: #2196F3;">{window_completion_ratio_display}</div>
+                    <div style="font-size: 9px; color: #666; margin-top: 2px;">{window_details_display}</div>
+                    <div style="font-size: 8px; color: #888; margin-top: 1px;">窗口间隔: {window_interval_display}</div>
+                </td>
+                <!-- ✅ 注释掉原始延迟统计列
                 <td style="font-size: 10px;">{delay_stats_html}</td>
+                -->
                 <td>
                     <div class="trends-tooltip">
                         <div class="delay-trends-preview">{delay_trends_preview}</div>
@@ -6161,7 +6251,7 @@ class StreamBatchTester:
                 <span class="badge-success">成功</span> - 流创建成功并正常运行
                 <span class="badge-failed">失败</span> - 流创建失败，通常为SQL语法或功能限制
                 <span class="badge-skipped">跳过(已知失败)</span> - 已知失败场景，被过滤器跳过测试
-                <span class="badge-warning">跳过(性能不好)</span> - 已知性能表现不佳，待后期优化的场景
+                <span class="badge-warning">跳过(没有实际意义)</span> - 已知没有实际意义的场景
                 <span class="badge-skipped">跳过(其他)</span> - 其他原因跳过的测试场景
             </li>
             <li><strong>SQL预览</strong>: 鼠标悬停查看完整SQL语句</li>
@@ -6182,6 +6272,23 @@ class StreamBatchTester:
                 <br>CPU平均值: 显示测试期间的CPU平均值
                 <br>内存平均值: 显示内存使用平均值
             </li>
+            <li><strong>📊 流窗口生成比例说明</strong>:
+                <br><strong>作用</strong>: 评估流计算的窗口生成效率和完整性
+                <br><strong>计算公式</strong>: 实际生成窗口数 ÷ 理论应生成窗口数 × 100%
+                <br><strong>理论窗口数</strong>: 根据源数据时间跨度和窗口间隔(15秒)计算的期望窗口数量
+                <br>　　计算方式: (源表last(ts) - 目标表first(ts)) ÷ 15秒【针对interval、sliding、period场景适用，其他暂时不适用】
+                <br><strong>实际窗口数</strong>: 目标表中实际生成的记录条数
+                <br><strong>显示格式</strong>: 
+                <br>　　第一行: 百分比(如 95.2%) - 窗口生成比例
+                <br>　　第二行: 实际数/理论数(如 实际: 95 / 理论: 100) - 详细数值
+                <br><strong>比例解读</strong>:
+                <br>　　• 100%: 理想状态，所有窗口都已生成
+                <br>　　• 90%-99%: 优秀，少量窗口延迟或丢失
+                <br>　　• 80%-89%: 良好，存在一定延迟
+                <br>　　• 70%-79%: 一般，有明显延迟或丢失
+                <br>　　• < 70%: 需要关注，可能存在性能瓶颈
+            </li>
+            <!-- ✅ 注释掉延迟统计说明
             <li><strong>延迟等级</strong> (基于最大延迟阈值{self.fixed_params.get('max_delay_threshold', 30000)}ms进行分级):                  
                 <br>• 延迟时间 = 源数据表的Last（Ts）- 流生成数据表的Last（Ts）
                 <br>• 延迟倍数 = 延迟时间 / 最大延迟阈值 
@@ -6194,6 +6301,7 @@ class StreamBatchTester:
                 <br><span class="delay-no-data">📊 目标表无数据</span>: 流计算尚未生成结果或者流状态异常
                 <br><span class="delay-table-missing">💥 目标表不存在</span>: 流创建失败或者目标表配置问题
             </li>
+            -->
             <li><strong>延迟统计说明</strong>:
                 <br><strong>原始延迟统计</strong>: 统计所有延迟检查的分布情况
                 <br><strong>原始延迟趋势</strong>: 显示各次延迟检查的时间序列趋势
@@ -6292,6 +6400,12 @@ class StreamBatchTester:
         result_dir = self.create_batch_result_dir()
         print(f"测试结果将保存到: {result_dir}")
         
+        # ✅ 初始化实时HTML报告
+        self.realtime_report_file = os.path.join(result_dir, 'reports', 'realtime_report.html')
+        self.initialize_realtime_report(result_dir)
+        print(f"实时HTML报告: {self.realtime_report_file}")
+        print(f"💡 可以在浏览器中打开该文件实时查看测试进度")
+        
         # 如果没有测试要执行，直接生成报告并返回
         if self.total_tests == 0:
             print(f"\n⚠️ 没有测试需要执行，直接生成报告")
@@ -6320,6 +6434,9 @@ class StreamBatchTester:
             result = self.execute_single_test(config)
             self.test_results.append(result)
             
+            # ✅ 每个测试完成后立即更新实时HTML报告
+            self.update_realtime_report()
+            
             # 生成进度报告
             self.generate_progress_report(result_dir)
             
@@ -6342,10 +6459,11 @@ class StreamBatchTester:
             if skip_failure_count > 0:
                 print(f"  跳过(已知失败): {skip_failure_count}")
             if skip_poor_performance_count > 0:
-                print(f"  跳过(性能不好): {skip_poor_performance_count}")
+                print(f"  跳过(没有实际意义): {skip_poor_performance_count}")
             if skipped_count > 0:
                 print(f"  跳过(其他): {skipped_count}")
             print(f"  剩余估计时间: {estimated_remaining_time:.0f}分钟 ({estimated_remaining_time/60:.1f}小时)")
+            print(f"  📊 实时报告: {self.realtime_report_file}")
             
             # 在测试之间添加短暂休息
             if i < len(combinations):
@@ -6353,7 +6471,16 @@ class StreamBatchTester:
                 time.sleep(2)
         
         # 生成最终报告
+        final_report_file = os.path.join(result_dir, 'reports', 'final_report.html')
         self.generate_final_report(result_dir)
+        
+        # 复制最终报告为实时报告（确保一致性）
+        try:
+            import shutil
+            shutil.copy2(final_report_file, self.realtime_report_file)
+            print(f"✅ 最终报告已更新: {self.realtime_report_file}")
+        except Exception as e:
+            print(f"⚠️ 复制最终报告失败: {str(e)}")
         
         print(f"\n{'='*80}")
         print("批量测试完成!")
@@ -6371,7 +6498,7 @@ class StreamBatchTester:
             if skip_failure_count > 0:
                 print(f"跳过(已知失败): {skip_failure_count}")
             if skip_poor_performance_count > 0:
-                print(f"跳过(性能不好): {skip_poor_performance_count}")
+                print(f"跳过(没有实际意义): {skip_poor_performance_count}")
             if skipped_count > 0:
                 print(f"跳过(其他): {skipped_count}")
             print(f"成功率: {(success_count/self.total_tests*100):.1f}%")
@@ -6379,7 +6506,7 @@ class StreamBatchTester:
             if self.filter_mode == 'skip-known-case':
                 total_skip_count = skip_failure_count + skip_poor_performance_count
                 print(f"过滤模式: {self.filter_mode}")
-                print(f"过滤效果: 成功跳过 {total_skip_count} 个测试 (失败: {skip_failure_count}, 性能不好: {skip_poor_performance_count})")
+                print(f"过滤效果: 成功跳过 {total_skip_count} 个测试 (失败: {skip_failure_count}, 没有实际意义: {skip_poor_performance_count})")
             elif self.filter_mode != 'all':
                 total_skip_count = skip_failure_count + skip_poor_performance_count + skipped_count
                 print(f"过滤模式: {self.filter_mode}")
@@ -6391,6 +6518,354 @@ class StreamBatchTester:
         print(f"结果目录: {result_dir}")
         print(f"{'='*80}")
 
+
+    def initialize_realtime_report(self, result_dir):
+        """初始化实时HTML报告"""
+        try:
+            # 确保reports目录存在
+            reports_dir = os.path.join(result_dir, 'reports')
+            os.makedirs(reports_dir, exist_ok=True)
+            
+            # 获取系统信息
+            def get_system_info():
+                try:
+                    # 获取CPU核数
+                    cpu_count = None
+                    try:
+                        result = subprocess.run('lscpu | grep "^CPU(s):"', shell=True, 
+                                            capture_output=True, text=True)
+                        if result.returncode == 0:
+                            cpu_line = result.stdout.strip()
+                            cpu_count = cpu_line.split(':')[1].strip()
+                    except Exception as e:
+                        pass
+                    
+                    # 获取总内存
+                    total_memory_gb = None
+                    try:
+                        result = subprocess.run('free -m | grep "^Mem:"', shell=True, 
+                                            capture_output=True, text=True)
+                        if result.returncode == 0:
+                            mem_line = result.stdout.strip()
+                            total_memory_mb = int(mem_line.split()[1])
+                            total_memory_gb = f"{total_memory_mb/1024:.1f}GB"
+                    except Exception as e:
+                        pass
+                        
+                    return cpu_count, total_memory_gb
+                except Exception as e:
+                    return None, None
+            
+            system_cpu_count, system_total_memory = get_system_info()
+            current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # 创建初始HTML结构
+            initial_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>流计算批量测试实时报告</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="30">
+    <style>
+        body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 20px; }}
+        .summary {{ display: flex; justify-content: space-around; margin: 20px 0; flex-wrap: wrap; }}
+        .metric {{ text-align: center; padding: 20px; background-color: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); min-width: 150px; margin: 5px; }}
+        .metric h3 {{ margin: 0 0 10px 0; color: #666; font-size: 14px; }}
+        .metric h2 {{ margin: 0; font-size: 24px; }}
+        .success {{ color: #28a745; }}
+        .failed {{ color: #dc3545; }}
+        .warning {{ color: #ffc107; }}
+        .info {{ color: #17a2b8; }}
+        .running {{ color: #007bff; }}
+        
+        .progress-container {{ background: white; border-radius: 10px; padding: 20px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        .progress-bar {{ width: 100%; height: 30px; background-color: #e9ecef; border-radius: 15px; overflow: hidden; margin: 10px 0; }}
+        .progress-fill {{ height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); transition: width 0.5s ease; }}
+        .progress-text {{ text-align: center; color: white; font-weight: bold; line-height: 30px; }}
+        
+        .status-pending {{ background-color: #f8f9fa !important; }}
+        .status-running {{ background-color: #cce5ff !important; }}
+        .status-success {{ background-color: #d4edda !important; }}
+        .status-failed {{ background-color: #f8d7da !important; }}
+        .status-skipped {{ background-color: #f8f9fa !important; }}
+        
+        .status-badge {{ padding: 4px 8px; border-radius: 15px; font-size: 10px; font-weight: bold; text-transform: uppercase; }}
+        .badge-pending {{ background-color: #6c757d; color: white; }}
+        .badge-running {{ background-color: #007bff; color: white; }}
+        .badge-success {{ background-color: #28a745; color: white; }}
+        .badge-failed {{ background-color: #dc3545; color: white; }}
+        .badge-skipped {{ background-color: #6c757d; color: white; }} 
+        .badge-warning {{ background-color: #ffc107; color: #212529; }} 
+        
+        .table-container {{ background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 8px; text-align: left; font-weight: 600; font-size: 12px; }}
+        td {{ border: none; padding: 12px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 11px; }}
+        tr:hover {{ background-color: #f8f9fa; }}
+        
+        .refresh-info {{ position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 12px; }}
+        .test-log {{ background: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; margin: 10px 0; border-radius: 0 5px 5px 0; }}
+        .test-log h4 {{ margin-top: 0; color: #007bff; }}
+    </style>
+    <script>
+        var lastUpdateTime = new Date();
+        
+        function updateRefreshInfo() {{
+            var now = new Date();
+            var elapsed = Math.floor((now - lastUpdateTime) / 1000);
+            var refreshElement = document.getElementById('refreshInfo');
+            if (refreshElement) {{
+                refreshElement.innerHTML = '🔄 自动刷新: ' + (30 - elapsed) + '秒后刷新<br>📅 ' + now.toLocaleString();
+            }}
+        }}
+        
+        setInterval(updateRefreshInfo, 1000);
+        
+        window.onload = function() {{
+            lastUpdateTime = new Date();
+            updateRefreshInfo();
+        }};
+    </script>
+</head>
+<body>
+    <div id="refreshInfo" class="refresh-info">🔄 自动刷新: 30秒</div>
+    
+    <div class="header">
+        <h1>🚀 TDengine 流计算批量测试实时报告</h1>
+        <p>📅 开始时间: {self.start_time}</p>
+        <p>🔄 最后更新: {current_time}</p>
+        <p>🏗️ 测试配置: {self.fixed_params.get('deployment_mode', 'single')}模式 | 
+           {self.fixed_params.get('table_count', 1000)}张子表 | 
+           {self.fixed_params.get('real_time_batch_rows', 200)}条/轮 | 
+           每轮写入间隔{self.fixed_params.get('real_time_batch_sleep', 0)}秒</p>
+        <p>💻 测试环境: CPU核数{system_cpu_count or '未知'} | 总内存{system_total_memory or '未知'}</p>
+    </div>
+    
+    <div class="progress-container">
+        <h3>📊 测试进度</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 0%" id="progressFill">
+                <div class="progress-text" id="progressText">准备开始测试...</div>
+            </div>
+        </div>
+        <p id="progressDetails">总计: {self.total_tests} 个测试 | 已完成: 0 | 剩余: {self.total_tests}</p>
+    </div>
+    
+    <div class="summary">
+        <div class="metric">
+            <h3>📊 总测试数</h3>
+            <h2 id="totalTests">{self.total_tests}</h2>
+        </div>
+        <div class="metric success">
+            <h3>✅ 成功</h3>
+            <h2 id="successCount">0</h2>
+            <small id="successPercent">0.0%</small>
+        </div>
+        <div class="metric failed">
+            <h3>❌ 失败</h3>
+            <h2 id="failedCount">0</h2>
+            <small id="failedPercent">0.0%</small>
+        </div>
+        <div class="metric skipped">
+            <h3>⏭️ 跳过</h3>
+            <h2 id="skippedCount">0</h2>
+            <small id="skippedPercent">0.0%</small>
+        </div>
+        <div class="metric running">
+            <h3>🔄 当前状态</h3>
+            <h2 id="currentStatus">准备中</h2>
+            <small id="currentTest">-</small>
+        </div>
+    </div>
+    
+    <div class="test-log">
+        <h4>📝 最新测试日志</h4>
+        <div id="latestLog">等待测试开始...</div>
+    </div>
+    
+    <div class="table-container">
+        <h2 style="margin: 0; padding: 20px; border-bottom: 1px solid #eee;">📋 测试结果列表</h2>
+        <table id="resultsTable">
+            <tr>
+                <th>📝 测试名称</th>
+                <th>🔧 SQL类型</th>
+                <th>📊 查询类型</th>
+                <th>📂 FROM类型</th>
+                <th>🎯 状态</th>
+                <th>⏱️ 耗时(秒)</th>
+                <th>❌ 错误信息</th>
+            </tr>
+            <tbody id="resultsBody">
+                <!-- 测试结果将在这里动态添加 -->
+            </tbody>
+        </table>
+    </div>
+    
+    <div style="margin-top: 20px; text-align: center; color: #666; font-size: 12px;">
+        <p>📁 详细日志文件位置: {result_dir}</p>
+        <p>🏃‍♂️ TDengine 流计算性能测试工具 | 实时更新中...</p>
+        <p>💡 此页面每30秒自动刷新，您也可以手动刷新页面查看最新状态</p>
+    </div>
+</body>
+</html>
+"""
+            
+            # 写入初始HTML文件
+            with open(self.realtime_report_file, 'w', encoding='utf-8') as f:
+                f.write(initial_html)
+                
+            print(f"✅ 实时HTML报告已初始化: {self.realtime_report_file}")
+            
+        except Exception as e:
+            print(f"❌ 初始化实时报告失败: {str(e)}")
+            self.realtime_report_file = None
+
+    def update_realtime_report(self):
+        """更新实时HTML报告"""
+        if not self.realtime_report_file:
+            return
+            
+        try:
+            # 统计当前状态
+            success_count = len([r for r in self.test_results if r['status'] == 'SUCCESS'])
+            failed_count = len([r for r in self.test_results if r['status'] == 'FAILED'])
+            skip_failure_count = len([r for r in self.test_results if r['status'] == 'SKIP_FAILURE'])
+            skip_poor_performance_count = len([r for r in self.test_results if r['status'] == 'SKIP_POOR_PERFORMANCE'])
+            skipped_count = len([r for r in self.test_results if r['status'] == 'SKIPPED'])
+            
+            total_skipped = skip_failure_count + skip_poor_performance_count + skipped_count
+            completed_count = len(self.test_results)
+            remaining_count = self.total_tests - completed_count
+            
+            # 计算进度百分比
+            if self.total_tests > 0:
+                progress_percentage = (completed_count / self.total_tests) * 100
+                success_rate = (success_count / self.total_tests) * 100
+                failed_rate = (failed_count / self.total_tests) * 100
+                skipped_rate = (total_skipped / self.total_tests) * 100
+            else:
+                progress_percentage = 100
+                success_rate = failed_rate = skipped_rate = 0
+                
+            current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # 获取当前测试信息
+            if self.current_test_index <= self.total_tests:
+                current_status = f"正在执行第 {self.current_test_index} 个测试"
+                if self.test_results:
+                    last_result = self.test_results[-1]
+                    current_test_info = f"{last_result['test_name']} - {last_result['status']}"
+                else:
+                    current_test_info = "准备中..."
+            else:
+                current_status = "测试完成"
+                current_test_info = f"共完成 {completed_count} 个测试"
+            
+            # 读取现有HTML内容
+            with open(self.realtime_report_file, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+            
+            # 更新统计数据
+            html_content = re.sub(r'🔄 最后更新: [^<]+', f'🔄 最后更新: {current_time}', html_content)
+            html_content = re.sub(r'<h2 id="successCount">\d+</h2>', f'<h2 id="successCount">{success_count}</h2>', html_content)
+            html_content = re.sub(r'<h2 id="failedCount">\d+</h2>', f'<h2 id="failedCount">{failed_count}</h2>', html_content)
+            html_content = re.sub(r'<h2 id="skippedCount">\d+</h2>', f'<h2 id="skippedCount">{total_skipped}</h2>', html_content)
+            html_content = re.sub(r'<h2 id="currentStatus">[^<]+</h2>', f'<h2 id="currentStatus">{current_status}</h2>', html_content)
+            
+            html_content = re.sub(r'<small id="successPercent">[^<]+</small>', f'<small id="successPercent">{success_rate:.1f}%</small>', html_content)
+            html_content = re.sub(r'<small id="failedPercent">[^<]+</small>', f'<small id="failedPercent">{failed_rate:.1f}%</small>', html_content)
+            html_content = re.sub(r'<small id="skippedPercent">[^<]+</small>', f'<small id="skippedPercent">{skipped_rate:.1f}%</small>', html_content)
+            html_content = re.sub(r'<small id="currentTest">[^<]+</small>', f'<small id="currentTest">{current_test_info}</small>', html_content)
+            
+            # 更新进度条
+            progress_text = f"{progress_percentage:.1f}% ({completed_count}/{self.total_tests})"
+            html_content = re.sub(r'style="width: [\d.]+%"', f'style="width: {progress_percentage:.1f}%"', html_content)
+            html_content = re.sub(r'<div class="progress-text" id="progressText">[^<]+</div>', 
+                                f'<div class="progress-text" id="progressText">{progress_text}</div>', html_content)
+            
+            # 更新进度详情
+            progress_details = f"总计: {self.total_tests} 个测试 | 已完成: {completed_count} | 剩余: {remaining_count}"
+            html_content = re.sub(r'<p id="progressDetails">[^<]+</p>', f'<p id="progressDetails">{progress_details}</p>', html_content)
+            
+            # 更新最新测试日志
+            if self.test_results:
+                last_result = self.test_results[-1]
+                latest_log = f"""
+                <strong>测试 {len(self.test_results)}/{self.total_tests}:</strong> {last_result['test_name']}<br>
+                <strong>状态:</strong> {last_result['status']} | 
+                <strong>耗时:</strong> {last_result.get('duration', 0):.1f}秒<br>
+                <strong>时间:</strong> {last_result.get('end_time', current_time)}<br>
+                """
+                if last_result.get('error'):
+                    error_msg = str(last_result['error'])[:100]
+                    latest_log += f"<strong>错误:</strong> <span style='color: #dc3545;'>{error_msg}...</span><br>"
+                    
+                html_content = re.sub(r'<div id="latestLog">[^<]*(?:<[^>]*>[^<]*)*</div>', 
+                                    f'<div id="latestLog">{latest_log}</div>', html_content, flags=re.DOTALL)
+            
+            # 更新测试结果表格
+            tbody_content = ""
+            for result in self.test_results:
+                config = result['config']
+                
+                if result['status'] == 'SUCCESS':
+                    status_class = 'status-success'
+                    status_badge = 'badge-success'
+                elif result['status'] == 'FAILED':
+                    status_class = 'status-failed'
+                    status_badge = 'badge-failed'
+                elif result['status'] in ['SKIP_FAILURE', 'SKIP_POOR_PERFORMANCE', 'SKIPPED']:
+                    status_class = 'status-skipped'
+                    status_badge = 'badge-skipped'
+                else:
+                    status_class = ''
+                    status_badge = ''
+                
+                error_msg = result.get('error', '')
+                if error_msg:
+                    if len(error_msg) > 150:
+                        error_msg = error_msg[:150] + "..."
+                    error_msg = error_msg.replace('<', '&lt;').replace('>', '&gt;')
+                else:
+                    error_msg = ""
+                
+                # 处理跳过原因显示
+                if result['status'] in ['SKIPPED', 'SKIP_FAILURE', 'SKIP_POOR_PERFORMANCE']:
+                    skip_reason = result.get('skip_reason', '未知原因')
+                    if result['status'] == 'SKIP_FAILURE':
+                        error_msg = f"跳过原因: {skip_reason}"
+                    elif result['status'] == 'SKIP_POOR_PERFORMANCE':
+                        error_msg = f"已知没有实际意义: {skip_reason}"
+                    else:
+                        error_msg = f"跳过原因: {skip_reason}"
+                
+                tbody_content += f"""
+                <tr class="{status_class}">
+                    <td><strong>{result['test_name']}</strong></td>
+                    <td>{config['sql_type']}</td>
+                    <td>{config['agg_or_select']}</td>
+                    <td>{config['tbname_or_trows_or_sourcetable']}</td>
+                    <td><span class="status-badge {status_badge}">{result['status']}</span></td>
+                    <td>{result.get('duration', 0):.1f}</td>
+                    <td style="color: #dc3545; font-size: 10px;">{error_msg}</td>
+                </tr>
+                """
+            
+            # 替换表格内容
+            tbody_pattern = r'<tbody id="resultsBody">.*?</tbody>'
+            new_tbody = f'<tbody id="resultsBody">{tbody_content}</tbody>'
+            html_content = re.sub(tbody_pattern, new_tbody, html_content, flags=re.DOTALL)
+            
+            # 写入更新后的HTML
+            with open(self.realtime_report_file, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+                
+            print(f"✅ 实时报告已更新: 进度 {progress_percentage:.1f}% ({completed_count}/{self.total_tests})")
+            
+        except Exception as e:
+            print(f"❌ 更新实时报告失败: {str(e)}")
         
         
 class StreamStarter:
@@ -6402,7 +6877,9 @@ class StreamStarter:
                 agg_or_select='agg', tbname_or_trows_or_sourcetable='sourcetable', custom_columns=None,
                 check_stream_delay=False, max_delay_threshold=30000, delay_check_interval=10,
                 real_time_batch_sleep=0, delay_log_file=None, auto_combine=False, monitor_warm_up_time=None,
-                delay_trends_analysis=False) -> None:
+                delay_trends_analysis=False, keep_taosd_alive=True, use_tcmalloc=False, perf_node='dnode1') -> None:
+        
+        self.cleanup_environment_variables()
         
         self.stream_perf_test_dir = stream_perf_test_dir if stream_perf_test_dir else '/home/taos_stream_cluster'        
         self.table_count = table_count      
@@ -6422,6 +6899,8 @@ class StreamStarter:
         self.auto_combine = auto_combine
         self.monitor_warm_up_time = monitor_warm_up_time
         self.delay_trends_analysis = delay_trends_analysis
+        self.keep_taosd_alive = keep_taosd_alive 
+        self.use_tcmalloc = use_tcmalloc
         
         self.sql_type = sql_type
         self.stream_num = stream_num
@@ -7340,6 +7819,37 @@ class StreamStarter:
             print(f"创建测试数据时出错: {str(e)}")
             return False
         
+    
+    def cleanup_environment_variables(self):
+        """清理可能有问题的环境变量"""
+        print("清理环境变量...")
+        
+        # 清理 LD_PRELOAD 中的无效路径
+        current_ld_preload = os.environ.get('LD_PRELOAD', '')
+        if current_ld_preload:
+            print(f"  当前 LD_PRELOAD: {current_ld_preload}")
+            
+            # 移除不存在的jemalloc路径
+            invalid_paths = ['/usr/local/taos/driver/libjemalloc.so']
+            
+            valid_paths = []
+            for path in current_ld_preload.split(':'):
+                path = path.strip()
+                if path and path not in invalid_paths:
+                    if os.path.exists(path):
+                        valid_paths.append(path)
+                    else:
+                        print(f"    移除无效路径: {path}")
+            
+            # 更新 LD_PRELOAD
+            new_ld_preload = ':'.join(valid_paths)
+            os.environ['LD_PRELOAD'] = new_ld_preload
+            print(f"    更新后 LD_PRELOAD: {new_ld_preload}")
+        else:
+            # 如果没有设置，确保为空
+            os.environ['LD_PRELOAD'] = ''
+            print("  LD_PRELOAD 已设置为空")
+        
     def prepare_env(self):
         """
         清理环境并启动TDengine服务
@@ -7347,6 +7857,18 @@ class StreamStarter:
         """
         try:
             print_title(f"\n=== 开始准备环境 (模式: {self.deployment_mode}) ===")
+            
+            # 再次确保环境变量清理
+            print("验证环境变量清理状态...")
+            current_ld_preload = os.environ.get('LD_PRELOAD', '')
+            if current_ld_preload:
+                print(f"警告: LD_PRELOAD 仍然设置为: {current_ld_preload}")
+                # 强制清空
+                os.environ['LD_PRELOAD'] = ''
+                print("已强制清空 LD_PRELOAD")
+            else:
+                print("✓ LD_PRELOAD 环境变量已清理")
+                
             # 停止已存在的taosd进程
             print_info("停止现有taosd进程")
             self.stop_taosd()
@@ -7416,7 +7938,58 @@ EOF
             self.taosd_processes = []  
             for instance in self.instances:
                 cfg_file = f"{self.stream_perf_test_dir}/{instance['name']}/conf/taos.cfg"
-                cmd = f'nohup taosd -c {cfg_file} > /dev/null 2>&1 &'
+                
+                # # 构建启动命令，优先尝试使用 set_taos_malloc.sh 脚本
+                # script_dir = os.path.dirname(os.path.abspath(__file__))
+                # malloc_script = os.path.join(script_dir, 'set_taos_malloc.sh')
+
+                # if os.path.exists(malloc_script) and os.access(malloc_script, os.X_OK):                   
+                #     #cmd = f'nohup taosd -c {cfg_file} > /dev/null 2>&1 &'
+                #     cmd = f'env LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc.so HEAPCHECK=strict HEAPPROFILE=/root/pw/taosd HEAP_PROFILE_ALLOCATION_INTERVAL=1024 HEAP_PROFILE_INUSE_INTERVAL=1024 && nohup taosd -c {cfg_file} > /dev/null 2>&1 &'
+                #     #cmd = f'bash -c "{malloc_script} -m 4 && . /usr/local/taos/bin/set_taos_malloc_env.sh && nohup taosd -c {cfg_file} > /dev/null 2>&1 &"'
+                #     #ok cmd = f'bash -c "{malloc_script} -m 4 && unset MALLOC_CONF && unset JEMALLOC_CONF  &&  . /usr/local/taos/bin/set_taos_malloc_env.sh && taosd -c {cfg_file} > /dev/null 2>&1 "'                    
+                #     #faile cmd = f'bash -c "{malloc_script} -m 4 && cp /coredump/set_taos_malloc_env.sh /usr/local/taos/bin/set_taos_malloc_env.sh && unset MALLOC_CONF && unset JEMALLOC_CONF  &&  . /usr/local/taos/bin/set_taos_malloc_env.sh && taosd -c {cfg_file} > /dev/null 2>/tmp/dlog "'                    
+                    
+                #     # print(f"使用内存配置脚本启动: {malloc_script} -m 4")
+                # else:
+                #     # 如果脚本不存在或不可执行，直接启动 taosd
+                #     cmd = f'nohup taosd -c {cfg_file} > /dev/null 2>&1 &'
+                #     if os.path.exists(malloc_script):
+                #         print(f"警告: 发现脚本 {malloc_script} 但不可执行，跳过内存配置")
+                #     else:
+                #         print(f"未找到内存配置脚本 {malloc_script}，使用默认启动方式")
+                
+                # 根据参数决定是否使用tcmalloc
+                if self.use_tcmalloc:
+                    tcmalloc_path = '/usr/lib/x86_64-linux-gnu/libtcmalloc.so'
+                    if os.path.exists(tcmalloc_path):
+                        print(f"使用 tcmalloc 启动 {instance['name']} (--use-tcmalloc 参数启用)")
+                        
+                        # 确保输出目录存在
+                        profile_dir = '/root/pw'
+                        os.makedirs(profile_dir, exist_ok=True)
+                        
+                        # 使用正确的命令格式
+                        cmd = f"""bash -c '
+                    export LD_PRELOAD={tcmalloc_path}
+                    export HEAPPROFILE=/root/pw/taosd_{instance["name"]}
+                    export HEAP_PROFILE_ALLOCATION_INTERVAL=8147483648
+                    export HEAP_PROFILE_INUSE_INTERVAL=536870912
+                    nohup taosd -c {cfg_file} > /dev/null 2>&1 &
+                    '"""
+                        
+                    else:
+                        print(f"警告: tcmalloc 库不存在于 {tcmalloc_path}，使用默认启动 {instance['name']}")
+                        cmd = f'nohup taosd -c {cfg_file} > /dev/null 2>&1 &'
+                else:
+                    # 默认启动方式（不使用tcmalloc）
+                    print(f"使用默认方式启动 {instance['name']} (未启用 --use-tcmalloc 参数)")
+                    cmd = f'nohup taosd -c {cfg_file} > /dev/null 2>&1 &'
+
+                print(f"启动命令: {cmd}")
+                                
+                #cmd = f'nohup taosd -c {cfg_file} > /dev/null 2>&1 &'
+                #cmd = f'bash -c "export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc.so && export HEAPCHECK=strict && export HEAPPROFILE=/root/pw/taosd && export HEAP_PROFILE_ALLOCATION_INTERVAL=1024 && export HEAP_PROFILE_INUSE_INTERVAL=1024 && nohup taosd -c {cfg_file} > /dev/null 2>&1 &"'                    
                 
                 try:
                     process = subprocess.Popen(cmd, shell=True)
@@ -7455,10 +8028,11 @@ EOF
                         'create dnode "localhost:8030"',
                         'create mnode on dnode 2',
                         'create mnode on dnode 3',
-                        'create snode on dnode 3',
-                        
-                        'create snode on dnode 2',
                         'create snode on dnode 1'
+                        # ,
+                        
+                        # 'create snode on dnode 2',
+                        # 'create snode on dnode 1'
                     ]
                 
                     for cmd in cluster_cmds:
@@ -7599,25 +8173,30 @@ EOF
                             "columns": [
                                 {
                                     "type": "INT",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 },
                                 {
                                     "type": "BIGINT",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 },
                                 {
                                     "type": "DOUBLE",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 },
                                 {
                                     "type": "FLOAT",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 }
                             ],
                             "tags": [
                                 {
                                     "type": "INT",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 },
                                 {
                                     "type": "VARCHAR",
@@ -7702,25 +8281,30 @@ EOF
                             "columns": [
                                 {
                                     "type": "INT",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 },
                                 {
                                     "type": "BIGINT",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 },
                                 {
                                     "type": "DOUBLE",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 },
                                 {
                                     "type": "FLOAT",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 }
                             ],
                             "tags": [
                                 {
                                     "type": "INT",
-                                    "count": 1
+                                    "count": 1,
+                                    "max": 10, "min": 1
                                 },
                                 {
                                     "type": "VARCHAR",
@@ -8003,6 +8587,166 @@ EOF
         except Exception as e:
             print(f"获取流目标表失败: {str(e)}")
             return []
+        
+    def _calculate_event_window_count(self, cursor, stream_name, target_first_ts, source_last_ts, source_type='stb'):
+        """计算 EVENT_WINDOW 的真实窗口数量
+        
+        Args:
+            cursor: 数据库游标
+            stream_name: 流名称
+            target_first_ts: 目标表首条记录时间
+            source_last_ts: 源表最新记录时间
+            source_type: 源表类型 ('stb' 或 'tb')
+            
+        Returns:
+            int: 真实的事件窗口数量，计算失败返回None
+        """
+        try:
+            print(f"    开始计算 EVENT_WINDOW 真实窗口数...")
+            print(f"    时间范围: {target_first_ts} -> {source_last_ts}")
+            
+            # 根据流名称和源表类型确定查询表
+            if 'event_tb' in stream_name:
+                # event_tb 模式：使用单个子表
+                query_table = "stream_from.ctb0_0"
+                use_single_table = True
+                print(f"    检测到 event_tb 模式，使用单个子表: {query_table}")
+            else:
+                # event_stb 模式：直接使用超级表
+                # query_table = "stream_from.stb"
+                # print(f"    检测到 event_stb 模式，直接使用超级表: {query_table}")
+                query_table = "stream_from.ctb0_0"
+                use_single_table = False
+                print(f"    检测到 event_stb 模式，但性能不好，不使用超级表，换成子表: {query_table}")
+            
+            # 构建 EVENT_WINDOW 查询SQL
+            event_window_sql = f"""
+            select count(*) from {query_table} 
+            where ts >= '{target_first_ts}' and ts <= '{source_last_ts}' 
+            EVENT_WINDOW START WITH c0 > 5 END WITH c0 < 5
+            """
+            
+            print(f"    执行 EVENT_WINDOW 查询: {event_window_sql}")
+            cursor.execute(event_window_sql)
+            result = cursor.fetchall()
+            
+            if result:
+                single_table_event_count = len(result)
+                
+                if use_single_table:
+                    # event_tb 模式：直接使用单表结果
+                    event_count = single_table_event_count
+                    print(f"    EVENT_WINDOW 查询结果 (event_tb): {event_count} 个状态窗口")
+                else:
+                    # event_stb 模式：单表结果乘以子表数量
+                    event_count = single_table_event_count * self.table_count
+                    print(f"    EVENT_WINDOW 查询结果 (event_stb): 单表{single_table_event_count} × 子表数{self.table_count} = {event_count} 个状态窗口")
+                    print(f"    说明: 因超级表查询性能问题，使用单个子表采样然后乘以子表数量来估算总数")
+                
+                return event_count
+            else:
+                print(f"    EVENT_WINDOW 查询无结果")
+                return 0
+                
+        except Exception as e:
+            print(f"    计算 EVENT_WINDOW 真实窗口数时出错: {str(e)}")
+            print(f"    详细错误: {traceback.format_exc()}")
+            return None
+        
+    def _is_event_window_stream(self, stream_name, sql_type):
+        """检查是否为 EVENT_WINDOW 类型的流
+        
+        Args:
+            stream_name: 流名称
+            sql_type: SQL类型
+            
+        Returns:
+            bool: 是否为 EVENT_WINDOW 流
+        """
+        return ('event_' in stream_name.lower() or 
+                'event_' in sql_type.lower() or
+                'event_window' in stream_name.lower() or
+                'event_window' in sql_type.lower())
+
+    def _calculate_state_window_count(self, cursor, stream_name, target_first_ts, source_last_ts, source_type='stb'):
+        """计算 STATE_WINDOW 的真实窗口数量
+        
+        Args:
+            cursor: 数据库游标
+            stream_name: 流名称
+            target_first_ts: 目标表首条记录时间
+            source_last_ts: 源表最新记录时间
+            source_type: 源表类型 ('stb' 或 'tb')
+            
+        Returns:
+            int: 真实的状态窗口数量，计算失败返回None
+        """
+        try:
+            print(f"    开始计算 STATE_WINDOW 真实窗口数...")
+            print(f"    时间范围: {target_first_ts} -> {source_last_ts}")
+            
+            # 根据流名称和源表类型确定查询表
+            if 'state_tb' in stream_name:
+                # state_tb 模式：使用单个子表
+                query_table = "stream_from.ctb0_0"
+                use_single_table = True
+                print(f"    检测到 state_tb 模式，使用单个子表: {query_table}")
+            else:
+                # state_stb 模式：直接使用超级表
+                # query_table = "stream_from.stb"
+                # print(f"    检测到 state_stb 模式，直接使用超级表: {query_table}")
+                query_table = "stream_from.ctb0_0"
+                use_single_table = False
+                print(f"    检测到 state_stb 模式，但性能不好，不使用超级表，换成子表: {query_table}")
+            
+            # 构建 STATE_WINDOW 查询SQL
+            state_window_sql = f"""
+            select count(*) from {query_table} 
+            where ts >= '{target_first_ts}' and ts <= '{source_last_ts}' 
+            STATE_WINDOW(c0)
+            """
+            
+            print(f"    执行 STATE_WINDOW 查询: {state_window_sql}")
+            cursor.execute(state_window_sql)
+            result = cursor.fetchall()
+            
+            if result:
+                single_table_state_count = len(result)
+            
+                if use_single_table:
+                    # state_tb 模式：直接使用单表结果
+                    state_count = single_table_state_count
+                    print(f"    STATE_WINDOW 查询结果 (state_tb): {state_count} 个状态窗口")
+                else:
+                    # state_stb 模式：单表结果乘以子表数量
+                    state_count = single_table_state_count * self.table_count
+                    print(f"    STATE_WINDOW 查询结果 (state_stb): 单表{single_table_state_count} × 子表数{self.table_count} = {state_count} 个状态窗口")
+                    print(f"    说明: 因超级表查询性能问题，使用单个子表采样然后乘以子表数量来估算总数")
+                
+                return state_count
+            else:
+                print(f"    STATE_WINDOW 查询无结果")
+                return 0
+                
+        except Exception as e:
+            print(f"    计算 STATE_WINDOW 真实窗口数时出错: {str(e)}")
+            print(f"    详细错误: {traceback.format_exc()}")
+            return None
+
+    def _is_state_window_stream(self, stream_name, sql_type):
+        """检查是否为 STATE_WINDOW 类型的流
+        
+        Args:
+            stream_name: 流名称
+            sql_type: SQL类型
+            
+        Returns:
+            bool: 是否为 STATE_WINDOW 流
+        """
+        return ('state_' in stream_name.lower() or 
+                'state_' in sql_type.lower() or
+                'state_window' in stream_name.lower() or
+                'state_window' in sql_type.lower())
 
     def check_stream_computation_delay(self):
         """检查流计算延迟
@@ -8012,6 +8756,14 @@ EOF
         """
         try:
             conn, cursor = self.get_connection()
+            
+            window_interval_display = "N/A"
+            window_interval_method = "未初始化"
+            window_completion_ratio = None
+            window_completion_percentage = None
+            expected_windows = None
+            actual_windows = None
+        
             
             # 检查数据库是否存在
             try:
@@ -8093,7 +8845,8 @@ EOF
                 'check_time': time.strftime('%Y-%m-%d %H:%M:%S'),
                 'source_last_ts': source_last_ts,
                 'source_ts_ms': source_ts_ms,
-                'streams': []
+                'streams': [],
+                'dynamic_threshold_info': {}  # 新增：存储动态阈值信息
             }
             
             # 检查每个流的延迟
@@ -8102,7 +8855,13 @@ EOF
                     target_table = table_info['target_table']
                     stream_name = table_info['stream_name']
                     
-                    #print(f"检查流 {stream_name} 的目标表 {target_table}")
+                    
+                    window_interval_display = "N/A"
+                    window_interval_method = "未初始化"
+                    window_completion_ratio = None
+                    window_completion_percentage = None
+                    expected_windows = None
+                    actual_windows = None
                     
                     # ✅ 新增：获取流状态信息
                     stream_status_info = streams_status_info.get(stream_name, {})
@@ -8124,15 +8883,54 @@ EOF
                             'error': f"目标表不存在: {str(e)}",
                             'status': 'ERROR',
                             'stream_status': stream_status,
-                            'stream_create_time': stream_create_time
+                            'stream_create_time': stream_create_time,
+                            'window_completion_ratio': None,
+                            'window_completion_percentage': None,
+                            'dynamic_threshold_ms': None,
+                            'window_interval_display': window_interval_display,
+                            'window_interval_method': window_interval_method 
                         }
                         delay_results['streams'].append(stream_result)
                         continue
                     
+                    # ✅ 新增：动态计算该流的窗口间隔作为延迟判断基准
+                    dynamic_threshold_ms = self.max_delay_threshold
+                    
+                    # 尝试动态计算窗口间隔
+                    try:
+                        window_interval_ms = self._get_dynamic_window_interval(cursor, target_table)
+                        if window_interval_ms and window_interval_ms > 0:
+                            dynamic_threshold_ms = window_interval_ms
+                            window_interval_display = f"{window_interval_ms}ms"
+                            window_interval_method = "通用动态计算"
+                        else:
+                            window_interval_display = "50000ms"
+                            window_interval_method = "默认值"
+                    except Exception as e:
+                        print(f"计算动态阈值失败，使用默认值: {str(e)}")
+                        dynamic_threshold_ms = self.max_delay_threshold
+                        window_interval_display = "50000ms"
+                        window_interval_method = "计算失败，使用默认值"
+                    
+                    # 存储动态阈值信息
+                    delay_results['dynamic_threshold_info'][stream_name] = {
+                        'threshold_ms': dynamic_threshold_ms,
+                        'threshold_seconds': dynamic_threshold_ms / 1000.0,
+                        'calculation_method': '基于目标表时间间隔动态计算'
+                    }
+                    
+                    print(f"  流 {stream_name} 动态阈值: {dynamic_threshold_ms}ms ({dynamic_threshold_ms/1000:.1f}秒)")
+                                    
                     # 查询目标表最新时间戳
                     cursor.execute(f"select last(ts) from {target_table}")
                     target_result = cursor.fetchall()
                     #print(f"目标表 {target_table} 查询结果: {target_result}")
+                    
+                    # ✅ 新增：计算窗口生成比例
+                    window_completion_ratio = None
+                    window_completion_percentage = None
+                    expected_windows = None  
+                    actual_windows = None 
                     
                     if target_result and target_result[0][0]:
                         target_last_ts = target_result[0][0]
@@ -8141,16 +8939,485 @@ EOF
                         # 计算延迟(毫秒)
                         delay_ms = source_ts_ms - target_ts_ms
                         
+                        
+                        # ✅ 计算窗口生成比例
+                        try:
+                            # 查询目标表的最早时间戳
+                            print(f"执行查询: select first(ts), last(ts), count(*) from {target_table}")
+                            cursor.execute(f"select first(ts), last(ts), count(*) from {target_table}")
+                            target_stats_result = cursor.fetchall()
+                            
+                            if target_stats_result and target_stats_result[0][0]:
+                                target_first_ts = target_stats_result[0][0]
+                                target_last_ts_verify = target_stats_result[0][1]  
+                                target_record_count = target_stats_result[0][2]
+                                 
+                                print(f"目标表统计:")
+                                print(f"  首条记录时间: {target_first_ts}")
+                                print(f"  末条记录时间: {target_last_ts_verify}")
+                                print(f"  总记录数: {target_record_count}")
+                                
+                                # ✅ 新增：检查目标数据库的超级表结构
+                                print(f"检查目标数据库的表结构...")
+                                cursor.execute("show stream_to.stables")
+                                stables_result = cursor.fetchall()
+                                stable_count = len(stables_result)
+                                
+                                print(f"目标数据库超级表数量: {stable_count}")
+                                
+                                # ✅ 根据表结构确定实际窗口数的计算方式
+                                if stable_count > 0:
+                                    print(f"检测到分组流模式 (partition by tbname)")
+                                    expected_child_table_count = self.table_count 
+                                    
+                                    # 查询子表数量来确定分组数
+                                    cursor.execute("select count(*) from information_schema.ins_tables where db_name='stream_to'")
+                                    actual_child_table_result = cursor.fetchall() 
+                                    actual_child_table_count = actual_child_table_result[0][0] if actual_child_table_result and len(actual_child_table_result) > 0 else 0
+    
+                                    print(f"配置子表数量: {expected_child_table_count} (--table-count参数)")
+                                    print(f"实际子表数量: {actual_child_table_count} (数据库中实际生成)")
+                                    
+                                    if expected_child_table_count > 0:
+                                        # 使用向上取整的逻辑，确保有数据就至少算1个窗口
+                                        import math
+                                        actual_windows = math.ceil(target_record_count / expected_child_table_count)
+                                        
+                                        # 确保最小值为1（如果有任何数据的话）
+                                        if target_record_count > 0 and actual_windows == 0:
+                                            actual_windows = 1
+                                            
+                                        print(f"分组流计算: 总记录数({target_record_count}) ÷ 配置子表数({expected_child_table_count}) = {target_record_count / expected_child_table_count:.2f}")
+                                        print(f"向上取整结果: {actual_windows} (每个子表平均 {target_record_count / expected_child_table_count:.2f} 个窗口)")
+                                        
+                                        # 提供更详细的解释
+                                        if actual_windows == 1 and target_record_count < expected_child_table_count:
+                                            print(f"说明: 流计算刚开始，大部分子表尚未生成数据，按1个窗口计算（向上取整保证有数据就算窗口）")
+                                        elif actual_windows > 1:
+                                            print(f"说明: 流计算进展良好，平均每个子表已生成约 {actual_windows} 个窗口（向上取整保证有数据就算窗口）")
+                                            
+                                    else:
+                                        print(f"警告: 配置的table_count为0，使用实际子表数量估算")
+                                        cursor.execute("select count(*) from information_schema.ins_tables where db_name='stream_to'")
+                                        fallback_table_result = cursor.fetchall()
+                                        fallback_table_count = fallback_table_result[0][0] if fallback_table_result and len(fallback_table_result) > 0 else 1
+                                        
+                                        import math
+                                        actual_windows = math.ceil(target_record_count / fallback_table_count)
+                                        if target_record_count > 0 and actual_windows == 0:
+                                            actual_windows = 1
+                                            
+                                        print(f"后备计算: 总记录数({target_record_count}) ÷ 实际子表数({fallback_table_count}) = {actual_windows}")
+                                else:
+                                    # 没有超级表，说明是非分组流，直接使用总记录数
+                                    actual_windows = target_record_count
+                                    print(f"检测到非分组流模式，直接使用总记录数: {actual_windows}")
+                            
+                            else:
+                                print(f"目标表 {target_table} 统计查询失败，跳过窗口计算")
+                                target_first_ts = None
+                                target_record_count = 0
+                            
+                            # 查询源表的统计信息
+                            print(f"执行查询: select first(ts), last(ts), count(*) from stream_from.stb")
+                            cursor.execute("select first(ts), last(ts), count(*) from stream_from.stb")
+                            source_stats_result = cursor.fetchall()   
+                            
+                            if source_stats_result and source_stats_result[0][0]:
+                                source_first_ts = source_stats_result[0][0]
+                                source_last_ts_verify = source_stats_result[0][1]
+                                source_record_count = source_stats_result[0][2]
+                                
+                                print(f"源表统计:")
+                                print(f"  首条记录时间: {source_first_ts}")
+                                print(f"  末条记录时间: {source_last_ts_verify}")
+                                print(f"  总记录数: {source_record_count}")
+                            else:
+                                print(f"源表统计查询失败，跳过窗口计算")
+                                source_first_ts = None
+                                source_record_count = 0
+                            
+                            if (target_first_ts and source_first_ts and 
+                                target_record_count > 0 and source_record_count > 0):
+                                
+                                # 基于时间跨度比例
+                                #source_duration_ms = int((source_last_ts_verify - source_first_ts).total_seconds() * 1000)
+                                source_duration_ms = int((source_last_ts_verify - target_first_ts).total_seconds() * 1000)
+                                target_duration_ms = int((target_last_ts_verify - target_first_ts).total_seconds() * 1000)
+                                
+                                print(f"时间跨度对比:")
+                                print(f"  源表时间跨度【源表的last(Ts)-目标表的first(Ts)】: {source_duration_ms}ms ({source_duration_ms/1000:.1f}秒)")
+                                print(f"  目标表时间跨度【目标表的last(Ts)-目标表的first(Ts)】: {target_duration_ms}ms ({target_duration_ms/1000:.1f}秒)")
+                                
+                                if source_duration_ms > 0:
+                                    duration_ratio = (target_duration_ms / source_duration_ms) * 100
+                                    print(f"时间跨度比例: {target_duration_ms}/{source_duration_ms} = {duration_ratio:.2f}%")
+                                else:
+                                    duration_ratio = 0
+                                    print(f"源表时间跨度为0，无法计算时间比例")
+                                
+                                # ✅ 基于窗口生成理论计算
+                                # 假设15秒一个窗口，计算理论应该生成多少个窗口
+                                # window_interval_ms = 15 * 1000  # 15秒窗口
+                                window_interval_ms = self._get_dynamic_window_interval(cursor, target_table)
+                                print(f"窗口间隔检测结果: {window_interval_ms}ms ({window_interval_ms/1000:.1f}秒)")
+                            
+                                
+                                if source_duration_ms > 0:
+                                                                    
+                                    # 检查是否为按 tag 分组的流计算
+                                    is_tag_partition = False
+                                    tag_group_count = None
+                                    
+                                    # 判断是否为按 tag 分组（通过流名称或SQL类型判断）
+                                    if ('partition_by_tag' in stream_name or 
+                                        'partition_by_tag' in self.sql_type or
+                                        (hasattr(self, 'tbname_or_trows_or_sourcetable') and 
+                                        'tag' in getattr(self, 'tbname_or_trows_or_sourcetable', ''))):
+                                        
+                                        is_tag_partition = True
+                                        print(f"  检测到按 tag 分组的流计算，计算实际分组数...")
+                                        
+                                        # 获取实际的 tag 分组数量
+                                        try:
+                                            cursor.execute("select distinct t0 from stream_from.stb")
+                                            tag_results = cursor.fetchall()
+                                            tag_group_count = len(tag_results) if tag_results else 1
+                                            print(f"  实际 tag 分组数: {tag_group_count} (通过 select distinct t0 from stream_from.stb 获取)")
+                                            
+                                            # 显示前几个 tag 值作为参考
+                                            if tag_results and len(tag_results) > 0:
+                                                sample_tags = [str(row[0]) for row in tag_results[:5]]
+                                                if len(tag_results) > 5:
+                                                    sample_tags.append(f"...还有{len(tag_results)-5}个")
+                                                print(f"  tag 值示例: {', '.join(sample_tags)}")
+                                                
+                                        except Exception as e:
+                                            print(f"  获取 tag 分组数失败: {str(e)}，使用默认值")
+                                            tag_group_count = self.table_count  # 回退到配置的子表数
+                                            is_tag_partition = False
+                                    
+                                    
+                                    # 根据分组类型计算理论窗口数
+                                    if is_tag_partition and tag_group_count:
+                                        # 按 tag 分组：使用实际 tag 分组数
+                                        effective_group_count = tag_group_count
+                                        expected_windows = max(1, int(source_duration_ms / window_interval_ms))
+                                        print(f"  理论窗口数: {expected_windows} (基于源表时间跨度{source_duration_ms}ms)")
+                                        print(f"  分组方式: 按 tag 分组，实际分组数 {effective_group_count}")
+                                                                                
+                                        # 按 tag 分组时，实际窗口数应该基于 tag 分组数计算
+                                        if stable_count > 0:
+                                            print(f"检测到分组流模式 (partition by tag)")
+                                            
+                                            # 使用实际 tag 分组数来计算每组平均窗口数
+                                            actual_windows = math.ceil(target_record_count / tag_group_count)
+                                            
+                                            # 确保最小值为1（如果有任何数据的话）
+                                            if target_record_count > 0 and actual_windows == 0:
+                                                actual_windows = 1
+                                                
+                                            print(f"按 tag 分组计算: 总记录数({target_record_count}) ÷ 实际tag分组数({tag_group_count}) = {target_record_count / tag_group_count:.2f}")
+                                            print(f"向上取整结果: {actual_windows} (每个tag分组平均 {target_record_count / tag_group_count:.2f} 个窗口)")
+                                            
+                                            # 提供更详细的解释
+                                            if actual_windows == 1 and target_record_count < tag_group_count:
+                                                print(f"说明: 流计算刚开始，大部分tag分组尚未生成数据，按1个窗口计算")
+                                            elif actual_windows > 1:
+                                                print(f"说明: 流计算进展良好，平均每个tag分组已生成约 {actual_windows} 个窗口")
+                                        else:
+                                            # 没有超级表，说明是非分组流，直接使用总记录数
+                                            actual_windows = target_record_count
+                                            print(f"检测到非分组流模式，直接使用总记录数: {actual_windows}")
+            
+                                    else:
+                                        # 按子表名分组或无分组：使用配置的子表数
+                                        effective_group_count = self.table_count
+                                        expected_windows = max(1, int(source_duration_ms / window_interval_ms))
+                                        print(f"  理论窗口数: {expected_windows} (基于源表时间跨度{source_duration_ms}ms)")
+                                        print(f"  分组方式: 按子表名分组或无分组，配置子表数 {effective_group_count}")
+                                        
+                                        
+                                        # ✅ 特殊处理：EVENT_WINDOW 窗口的真实窗口数计算
+                                        if self._is_event_window_stream(stream_name, self.sql_type):
+                                            print(f"  检测到 EVENT_WINDOW 流，使用真实窗口计算方法...")
+                                            
+                                            try:
+                                                # 获取目标表的首条记录时间和源表的最新时间
+                                                if target_first_ts and source_last_ts_verify:
+                                                    # 基于【源表的last(Ts)-目标表的first(Ts)】÷ 理论窗口数
+                                                    source_duration_ms = int((source_last_ts_verify - target_first_ts).total_seconds() * 1000)
+                                                    
+                                                    print(f"    EVENT_WINDOW 动态间隔计算:")
+                                                    print(f"      时间跨度【源表last(Ts) - 目标表first(Ts)】: {source_duration_ms}ms ({source_duration_ms/1000:.1f}秒)")
+                                                    
+                                                    # 通过实际的事件窗口查询获取真实窗口数
+                                                    event_window_count = self._calculate_event_window_count(
+                                                        cursor, stream_name, target_first_ts, source_last_ts_verify
+                                                    )
+                                                    
+                                                    if event_window_count is not None:
+                                                        # 计算动态间隔：时间跨度 ÷ 真实窗口数
+                                                        dynamic_interval_ms = source_duration_ms / event_window_count
+                                                        
+                                                        print(f"      真实事件窗口数: {event_window_count}")
+                                                        print(f"      动态计算间隔: {source_duration_ms}ms ÷ {event_window_count} = {dynamic_interval_ms:.2f}ms ({dynamic_interval_ms/1000:.1f}秒)")
+                                                        window_interval_display = f"{dynamic_interval_ms:.0f}ms"
+                                                        window_interval_method = "EVENT_WINDOW动态计算"
+                                                        # ✅ 同时更新动态阈值为新计算出的间隔
+                                                        dynamic_threshold_ms = int(dynamic_interval_ms)
+                                                        print(f"✅ EVENT_WINDOW 设置完成: window_interval_display = {window_interval_display}")
+                                                        
+                                                        if 'event_stb_partition_by_tbname' in stream_name:
+                                                            # event_stb_partition_by_tbname: 每个子表的理论窗口数
+                                                            expected_windows_per_table = math.ceil(event_window_count / self.table_count)
+                                                            expected_windows = expected_windows_per_table
+                                                            print(f"EVENT_WINDOW 理论计算 (stb + partition_by_tbname): 总事件窗口数({event_window_count}) ÷ 子表数({self.table_count}) = {expected_windows} 个/子表")
+                                                        elif 'event_stb_partition_by_tag' in stream_name:
+                                                            # event_stb_partition_by_tag: 每个tag分组的理论窗口数
+                                                            if tag_group_count:
+                                                                expected_windows_per_tag = math.ceil(event_window_count / tag_group_count)
+                                                                expected_windows = expected_windows_per_tag
+                                                                print(f"EVENT_WINDOW 理论计算 (stb + partition_by_tag): 总事件窗口数({event_window_count}) ÷ tag分组数({tag_group_count}) = {expected_windows} 个/tag分组")
+                                                            else:
+                                                                expected_windows = event_window_count
+                                                                print(f"EVENT_WINDOW 理论计算 (stb + partition_by_tag，tag分组数未知): 直接使用总事件窗口数 = {expected_windows}")
+                                                        elif 'event_stb' in stream_name:
+                                                            # event_stb: 不分组，直接使用总数
+                                                            expected_windows = event_window_count
+                                                            print(f"EVENT_WINDOW 理论计算 (stb 不分组): 直接使用总事件窗口数 = {expected_windows}")
+                                                        else:
+                                                            # event_tb: 单表模式，直接使用计算结果
+                                                            expected_windows = event_window_count
+                                                            print(f"EVENT_WINDOW 理论计算 (tb): 直接使用事件窗口数 = {expected_windows}")
+                    
+                                                        
+                                                        print(f"EVENT_WINDOW 特殊处理完成:")
+                                                        print(f"  理论窗口数 (expected_windows): {expected_windows}")
+                                                        print(f"  实际生成记录数 (actual_windows): {actual_windows}")
+                                                        print(f"  说明: EVENT_WINDOW 基于数据条件触发，理论窗口数通过事件条件SQL计算")
+                                                    
+                                                        
+                                                    else:
+                                                        print(f"  EVENT_WINDOW 真实窗口计算失败，回退到默认逻辑")
+                                                        window_interval_display = "计算出错"
+                                                        window_interval_method = "默认逻辑"
+                                                else:
+                                                    print(f"  EVENT_WINDOW 缺少必要时间信息，回退到默认逻辑")
+                                                    window_interval_display = "计算出错"
+                                                    window_interval_method = "默认逻辑"
+                                                    
+                                            except Exception as e:
+                                                print(f"  EVENT_WINDOW 真实窗口计算出错: {str(e)}，回退到默认逻辑")
+                                                window_interval_display = "计算出错"
+                                                window_interval_method = "默认逻辑"
+                                                
+                                        # ✅ 新增：特殊处理 STATE_WINDOW 窗口的真实窗口数计算
+                                        elif self._is_state_window_stream(stream_name, self.sql_type):
+                                            print(f"  检测到 STATE_WINDOW 流，使用真实窗口计算方法...")
+                                            
+                                            try:
+                                                # 获取目标表的首条记录时间和源表的最新时间
+                                                if target_first_ts and source_last_ts_verify:
+                                                    # 基于【源表的last(Ts)-目标表的first(Ts)】÷ 理论窗口数
+                                                    source_duration_ms = int((source_last_ts_verify - target_first_ts).total_seconds() * 1000)
+                                                    
+                                                    print(f"    STATE_WINDOW 动态间隔计算:")
+                                                    print(f"      时间跨度【源表last(Ts) - 目标表first(Ts)】: {source_duration_ms}ms ({source_duration_ms/1000:.1f}秒)")
+                                                    
+                                                    # 通过实际的状态窗口查询获取真实窗口数
+                                                    state_window_count = self._calculate_state_window_count(
+                                                        cursor, stream_name, target_first_ts, source_last_ts_verify
+                                                    )
+                                                    
+                                                    if state_window_count is not None:
+                                                        # 计算动态间隔：时间跨度 ÷ 真实窗口数
+                                                        dynamic_interval_ms = source_duration_ms / state_window_count
+                                                        
+                                                        print(f"      真实状态窗口数: {state_window_count}")
+                                                        print(f"      动态计算间隔: {source_duration_ms}ms ÷ {state_window_count} = {dynamic_interval_ms:.2f}ms ({dynamic_interval_ms/1000:.1f}秒)")
+                                                        window_interval_display = f"{dynamic_interval_ms:.0f}ms"
+                                                        window_interval_method = "STATE_WINDOW动态计算"
+                                                        # ✅ 同时更新动态阈值为新计算出的间隔
+                                                        dynamic_threshold_ms = int(dynamic_interval_ms)
+                                                        print(f"✅ STATE_WINDOW 设置完成: window_interval_display = {window_interval_display}")
+                                                        
+                                                        if 'state_stb_partition_by_tbname' in stream_name:
+                                                            # state_stb_partition_by_tbname: 每个子表的理论窗口数
+                                                            expected_windows_per_table = math.ceil(state_window_count / self.table_count)
+                                                            expected_windows = expected_windows_per_table
+                                                            print(f"STATE_WINDOW 理论计算 (stb + partition_by_tbname): 总状态窗口数({state_window_count}) ÷ 子表数({self.table_count}) = {expected_windows} 个/子表")
+                                                        elif 'state_stb_partition_by_tag' in stream_name:
+                                                            # state_stb_partition_by_tag: 每个tag分组的理论窗口数
+                                                            if tag_group_count:
+                                                                expected_windows_per_tag = math.ceil(state_window_count / tag_group_count)
+                                                                expected_windows = expected_windows_per_tag
+                                                                print(f"STATE_WINDOW 理论计算 (stb + partition_by_tag): 总状态窗口数({state_window_count}) ÷ tag分组数({tag_group_count}) = {expected_windows} 个/tag分组")
+                                                            else:
+                                                                expected_windows = state_window_count
+                                                                print(f"STATE_WINDOW 理论计算 (stb + partition_by_tag，tag分组数未知): 直接使用总状态窗口数 = {expected_windows}")
+                                                        elif 'state_stb' in stream_name:
+                                                            # state_stb: 不分组，直接使用总数
+                                                            expected_windows = state_window_count
+                                                            print(f"STATE_WINDOW 理论计算 (stb 不分组): 直接使用总状态窗口数 = {expected_windows}")
+                                                        else:
+                                                            # state_tb: 单表模式，直接使用计算结果
+                                                            expected_windows = state_window_count
+                                                            print(f"STATE_WINDOW 理论计算 (tb): 直接使用状态窗口数 = {expected_windows}")
+
+                                                        
+                                                        print(f"STATE_WINDOW 特殊处理完成:")
+                                                        print(f"  理论窗口数 (expected_windows): {expected_windows}")
+                                                        print(f"  实际生成记录数 (actual_windows): {actual_windows}")
+                                                        print(f"  说明: STATE_WINDOW 基于状态变化触发，理论窗口数通过状态变化SQL计算")
+                                                    
+                                                        
+                                                    else:
+                                                        print(f"  STATE_WINDOW 真实窗口计算失败，回退到默认逻辑")
+                                                        window_interval_display = "计算出错"
+                                                        window_interval_method = "默认逻辑"
+                                                else:
+                                                    print(f"  STATE_WINDOW 缺少必要时间信息，回退到默认逻辑")
+                                                    window_interval_display = "计算出错"
+                                                    window_interval_method = "默认逻辑"
+                                                    
+                                            except Exception as e:
+                                                print(f"  STATE_WINDOW 真实窗口计算出错: {str(e)}，回退到默认逻辑")
+                                                window_interval_display = "计算出错"
+                                                window_interval_method = "默认逻辑"
+                                                
+                                        else:
+                                            # 非EVENT_WINDOW和STATE_WINDOW流，标记需要使用通用逻辑
+                                            try:
+                                                window_interval_ms = self._get_dynamic_window_interval(cursor, target_table)
+                                                window_interval_display = f"{window_interval_ms}ms"
+                                                window_interval_method = "通用动态计算"
+                                            except Exception as e:
+                                                window_interval_display = "50000ms"
+                                                window_interval_method = "默认值"
+                                                
+                                        # 如果不是 EVENT_WINDOW 或者 EVENT_WINDOW 计算失败，继续使用原有逻辑
+                                        if  (not self._is_event_window_stream(stream_name, self.sql_type) and 
+                                            not self._is_state_window_stream(stream_name, self.sql_type)) or expected_windows is None:
+                                            # 按子表名分组时，继续使用原有逻辑
+                                            if stable_count > 0:
+                                                print(f"检测到分组流模式 (partition by tbname)")
+                                                expected_child_table_count = self.table_count 
+                                                
+                                                # 查询子表数量来确定分组数
+                                                cursor.execute("select count(*) from information_schema.ins_tables where db_name='stream_to'")
+                                                actual_child_table_result = cursor.fetchall() 
+                                                actual_child_table_count = actual_child_table_result[0][0] if actual_child_table_result and len(actual_child_table_result) > 0 else 0
+
+                                                print(f"配置子表数量: {expected_child_table_count} (--table-count参数)")
+                                                print(f"实际子表数量: {actual_child_table_count} (数据库中实际生成)")
+                                                
+                                                if expected_child_table_count > 0:
+                                                    # 使用向上取整的逻辑，确保有数据就至少算1个窗口
+                                                    actual_windows = math.ceil(target_record_count / expected_child_table_count)
+                                                    
+                                                    # 确保最小值为1（如果有任何数据的话）
+                                                    if target_record_count > 0 and actual_windows == 0:
+                                                        actual_windows = 1
+                                                        
+                                                    print(f"分组流计算: 总记录数({target_record_count}) ÷ 配置子表数({expected_child_table_count}) = {target_record_count / expected_child_table_count:.2f}")
+                                                    print(f"向上取整结果: {actual_windows} (每个子表平均 {target_record_count / expected_child_table_count:.2f} 个窗口)")
+                                                    
+                                                    # 提供更详细的解释
+                                                    if actual_windows == 1 and target_record_count < expected_child_table_count:
+                                                        print(f"说明: 流计算刚开始，大部分子表尚未生成数据，按1个窗口计算（向上取整保证有数据就算窗口）")
+                                                    elif actual_windows > 1:
+                                                        print(f"说明: 流计算进展良好，平均每个子表已生成约 {actual_windows} 个窗口（向上取整保证有数据就算窗口）")
+                                                        
+                                                else:
+                                                    print(f"警告: 配置的table_count为0，使用实际子表数量估算")
+                                                    cursor.execute("select count(*) from information_schema.ins_tables where db_name='stream_to'")
+                                                    fallback_table_result = cursor.fetchall()
+                                                    fallback_table_count = fallback_table_result[0][0] if fallback_table_result and len(fallback_table_result) > 0 else 1
+                                                    actual_windows = math.ceil(target_record_count / fallback_table_count)
+                                                    if target_record_count > 0 and actual_windows == 0:
+                                                        actual_windows = 1
+                                                        
+                                                    print(f"后备计算: 总记录数({target_record_count}) ÷ 实际子表数({fallback_table_count}) = {actual_windows}")
+                                            else:
+                                                # 没有超级表，说明是非分组流，直接使用总记录数
+                                                actual_windows = target_record_count
+                                                print(f"检测到非分组流模式，直接使用总记录数: {actual_windows}")
+        
+                                    exact_windows = source_duration_ms / window_interval_ms
+                                    print(f"  详细计算: {source_duration_ms}ms ÷ {window_interval_ms}ms = {exact_windows:.2f} → 取整数部分 = {expected_windows}")
+                                    
+                                    # 如果有未完整的时间段，提示说明
+                                    remaining_time = source_duration_ms % window_interval_ms
+                                    if remaining_time > 0:
+                                        print(f"  未完整间隔: {remaining_time}ms ({remaining_time/1000:.1f}秒)，不计入理论窗口数")
+                                        
+                                    # 补充说明不同分组方式对窗口计算的影响
+                                    if is_tag_partition:
+                                        print(f"  说明: tag 分组模式下，每个 tag 值对应一个分组，总窗口数 = {expected_windows} × {effective_group_count} = {expected_windows * effective_group_count}")
+                                    else:
+                                        print(f"  说明: 子表分组模式下，每个子表对应一个分组，总窗口数 = {expected_windows} × {effective_group_count} = {expected_windows * effective_group_count}")
+        
+                                else:
+                                    # 特殊情况：时间跨度为0但有数据，主要是计算太慢，每个子表的数据都没有生成完，认为至少有1个窗口
+                                    print(f"  ⚠️  目标表时间跨度为0，但有{target_record_count}条记录，认为至少有1个窗口")
+                                    expected_windows = 1    
+                                    
+                                if expected_windows > 0:
+                                    window_completion_percentage = min(100.0, (actual_windows / expected_windows) * 100)
+                                else:
+                                    window_completion_percentage = 0.0
+                                
+                                window_completion_ratio = f"{actual_windows}/{expected_windows}"
+                                
+                                print(f"窗口生成计算:")
+                                print(f"  理论窗口数: {expected_windows} (基于{target_duration_ms}ms时间跨度)")
+                                if stable_count > 0:
+                                    print(f"  实际平均每表记录数: {actual_windows}")
+                                    print(f"  窗口生成比例: {actual_windows}/{expected_windows} = {window_completion_percentage:.1f}%")
+                                else:
+                                    print(f"  实际生成记录数: {actual_windows}")
+                                    print(f"  窗口生成比例: {actual_windows}/{expected_windows} = {window_completion_percentage:.1f}%")
+                                
+                            else:
+                                print(f"⚠️  缺少必要数据，无法计算窗口生成比例")
+                                print(f"    target_first_ts: {target_first_ts}")
+                                print(f"    source_first_ts: {source_first_ts}")
+                                print(f"    target_record_count: {target_record_count}")
+                                print(f"    source_record_count: {source_record_count}")
+                                expected_windows = None
+                                actual_windows = None
+                                window_completion_percentage = None
+                            
+                            print(f"=== 窗口生成比例计算完成 ===\n")
+                            
+                            print(f"调试: 最终窗口生成比例 = {window_completion_percentage}")
+                            print(f"调试: expected_windows = {expected_windows}")
+                            print(f"调试: actual_windows = {actual_windows}")
+                            
+                        except Exception as e:
+                            print(f"计算流 {stream_name} 窗口生成比例时出错: {str(e)}")
+                            print(f"详细错误信息: {traceback.format_exc()}")
+                            window_completion_percentage = None
+                                    
+                            
                         stream_result = {
                             'stream_name': stream_name,
                             'target_table': target_table,
                             'target_last_ts': target_last_ts,
                             'delay_ms': delay_ms,
                             'delay_seconds': delay_ms / 1000.0,
-                            'is_lagging': delay_ms > self.max_delay_threshold,
+                            'is_lagging': delay_ms > dynamic_threshold_ms,
                             'status': 'LAGGING' if delay_ms > self.max_delay_threshold else 'OK',
                             'stream_status': stream_status,
-                            'stream_create_time': stream_create_time
+                            'stream_create_time': stream_create_time,
+                            'window_completion_ratio': window_completion_ratio,
+                            'window_completion_percentage': window_completion_percentage,
+                            'expected_windows': expected_windows, 
+                            'actual_windows': actual_windows,
+                            'dynamic_threshold_ms': dynamic_threshold_ms,
+                            'window_interval_display': window_interval_display, 
+                            'window_interval_method': window_interval_method   
                         }
                         
                         print(f"流 {stream_name} 延迟: {delay_ms}ms ({delay_ms/1000.0:.2f}秒)")
@@ -8166,7 +9433,14 @@ EOF
                             'is_lagging': True,
                             'status': 'NO_DATA',
                             'stream_status': stream_status,
-                            'stream_create_time': stream_create_time
+                            'stream_create_time': stream_create_time,
+                            'window_completion_ratio': None,
+                            'window_completion_percentage': None,
+                            'expected_windows': None,  
+                            'actual_windows': None,
+                            'dynamic_threshold_ms': dynamic_threshold_ms,
+                            'window_interval_display': window_interval_display,  
+                            'window_interval_method': window_interval_method
                         }
                         
                         print(f"流 {stream_name} (状态: {stream_status}) 目标表无数据")
@@ -8187,7 +9461,14 @@ EOF
                         'error': str(e),
                         'status': 'ERROR',
                         'stream_status': stream_status,
-                        'stream_create_time': stream_create_time
+                        'stream_create_time': stream_create_time,
+                        'window_completion_ratio': None,
+                        'window_completion_percentage': None,
+                        'expected_windows': None,  
+                        'actual_windows': None,
+                        'dynamic_threshold_ms': None,
+                        'window_interval_display': "N/A",
+                        'window_interval_method': "异常情况" 
                     }
                     delay_results['streams'].append(stream_result)
             
@@ -8199,6 +9480,116 @@ EOF
         except Exception as e:
             print(f"检查流计算延迟时出错: {str(e)}")
             return None
+
+    def _get_dynamic_window_interval(self, cursor, target_table):
+        """动态获取窗口间隔
+        
+        Args:
+            cursor: 数据库游标
+            target_table: 目标表名
+            
+        Returns:
+            int: 窗口间隔(毫秒)，如果无法获取则返回默认值50000ms
+        """
+        try:
+            # ✅ 新增：对于 EVENT_WINDOW 和 STATE_WINDOW 类型，跳过通用计算
+            # 检查当前流类型，如果是 EVENT_WINDOW 或 STATE_WINDOW，直接返回默认值
+            if hasattr(self, 'sql_type') and self.sql_type:
+                if ('event_' in self.sql_type.lower() or 
+                    'state_' in self.sql_type.lower() or
+                    'event_window' in self.sql_type.lower() or
+                    'state_window' in self.sql_type.lower()):
+                    print(f"检测到 EVENT_WINDOW 或 STATE_WINDOW 类型流，跳过通用窗口间隔计算")
+                    return 50000  # 返回默认值，实际间隔将由专门的计算逻辑处理
+            
+            # ✅ 对于流名称也进行检查（作为备用判断）
+            if target_table:
+                table_name = target_table.split('.')[-1] if '.' in target_table else target_table
+                if ('event_' in table_name.lower() or 
+                    'state_' in table_name.lower()):
+                    print(f"从目标表名检测到 EVENT_WINDOW 或 STATE_WINDOW 类型，跳过通用窗口间隔计算")
+                    return 50000  # 返回默认值
+            
+            print(f"尝试动态获取窗口间隔: {target_table}")
+            
+            # 首先检查表是否存在
+            try:
+                cursor.execute(f"describe {target_table}")
+            except Exception as e:
+                print(f"  目标表不存在或无法访问: {str(e)}")
+                return 50000  # 返回默认50秒
+            
+            # 首先检查是否为分组流（有超级表结构）
+            cursor.execute("show stream_to.stables")
+            stables_result = cursor.fetchall()
+            
+            if len(stables_result) > 0:
+                # 分组流：从第一个子表获取时间间隔
+                cursor.execute("select table_name from information_schema.ins_tables where db_name='stream_to' limit 1")
+                child_table_result = cursor.fetchall()
+                
+                if child_table_result:
+                    child_table = child_table_result[0][0]
+                    sample_table = f"stream_to.`{child_table}`" 
+                    print(f"  检测到分组流，使用子表样本: {sample_table}")
+                else:
+                    print(f"  分组流但未找到子表，使用默认间隔")
+                    return 50000  # 默认50秒
+            else:
+                # 非分组流：直接使用目标表
+                # ✅ 检查目标表名是否需要特殊处理
+                if '.' in target_table:
+                    db_name, table_name = target_table.split('.', 1)
+                    sample_table = f"{db_name}.`{table_name}`"  # 只对表名部分加反引号
+                else:
+                    sample_table = f"`{target_table}`"  # 整个表名加反引号
+                print(f"  检测到非分组流，使用目标表: {sample_table}")
+            
+            # 查询前几条记录的时间戳
+            cursor.execute(f"select ts from {sample_table} order by ts limit 10")
+            ts_result = cursor.fetchall()
+            
+            if not ts_result or len(ts_result) < 2:
+                print(f"  数据不足（只有{len(ts_result) if ts_result else 0}条记录），使用默认间隔")
+                return 50000  # 默认50秒
+            
+            # 计算相邻记录的时间间隔
+            intervals = []
+            for i in range(1, min(len(ts_result), 9)):  # 最多计算9个间隔
+                prev_ts = ts_result[i-1][0]
+                curr_ts = ts_result[i][0]
+                
+                if prev_ts and curr_ts:
+                    interval_ms = int((curr_ts - prev_ts).total_seconds() * 1000)
+                    intervals.append(interval_ms)
+                    print(f"    第{i}个间隔: {prev_ts} -> {curr_ts} = {interval_ms}ms")
+            
+            if not intervals:
+                print(f"  无法计算时间间隔，使用默认间隔")
+                return 50000  # 默认50秒
+            
+            # 简化逻辑：只要有间隔数据，就使用平均值
+            if intervals:
+                avg_interval = sum(intervals) / len(intervals)
+                window_interval = int(avg_interval)
+                
+                print(f"  动态间隔计算完成: {window_interval}ms ({window_interval/1000:.1f}秒)")
+                print(f"  基于 {len(intervals)} 个样本的平均值")
+                
+                # 新增：记录到延迟日志文件中（如果延迟监控已启用）
+                if hasattr(self, 'delay_log_file') and hasattr(self, 'check_stream_delay') and self.check_stream_delay:
+                    try:
+                        with open(self.delay_log_file, 'a') as f:
+                            f.write(f"窗口间隔检测结果: {window_interval}ms ({window_interval/1000:.1f}秒)\n")
+                    except:
+                        pass  # 静默处理日志写入错误
+                
+                return window_interval
+                
+        except Exception as e:
+            print(f"  动态获取窗口间隔失败: {str(e)}，使用默认间隔")
+            return 50000  # 默认50秒
+
 
     def log_stream_delay_results(self, delay_results):
         """记录流延迟检查结果到日志文件"""
@@ -8222,8 +9613,18 @@ EOF
                 f.write(f"检查时间: {delay_results['check_time']}\n")
                 f.write(f"源表最新时间: {delay_results['source_last_ts']}\n")
                 f.write(f"源表时间戳(ms): {delay_results['source_ts_ms']}\n")
-                f.write(f"延迟阈值: {format_delay_time(self.max_delay_threshold)}\n")
+                f.write(f"延迟阈值模式: 动态计算 (基于各流的窗口间隔)\n")
                 f.write(f"检查频率: {self.delay_check_interval}秒\n")
+                f.write(f"-" * 80 + "\n")
+                
+                # ✅ 新增：显示动态阈值信息汇总
+                dynamic_threshold_info = delay_results.get('dynamic_threshold_info', {})
+                if dynamic_threshold_info:
+                    f.write(f"\n动态阈值信息汇总:\n")
+                    for stream_name, threshold_info in dynamic_threshold_info.items():
+                        threshold_ms = threshold_info['threshold_ms']
+                        f.write(f"  {stream_name}: {format_delay_time(threshold_ms)}\n")
+                
                 f.write(f"-" * 80 + "\n")
                 
                 # 写入每个流的延迟信息
@@ -8232,42 +9633,79 @@ EOF
                     f.write(f"目标表: {stream['target_table']}\n")
                     f.write(f"状态: {stream['status']}\n")
                     f.write(f"流状态: {stream.get('stream_status', '未知')}\n")
-                    f.write(f"流创建时间: {stream.get('stream_create_time', '未知')}\n")                
+                    f.write(f"流创建时间: {stream.get('stream_create_time', '未知')}\n")  
+                    
+                    # ✅ 新增：写入该流的动态阈值
+                    dynamic_threshold_ms = stream.get('dynamic_threshold_ms', self.max_delay_threshold)
+                    if dynamic_threshold_ms:
+                        f.write(f"动态延迟阈值: {format_delay_time(dynamic_threshold_ms)}\n")
+                    else:
+                        f.write(f"动态延迟阈值: 无法计算\n")
+                    
+                    # ✅ 新增：写入窗口生成比例信息
+                    window_completion_percentage = stream.get('window_completion_percentage')
+                    expected_windows = stream.get('expected_windows')
+                    actual_windows = stream.get('actual_windows')
+
+                    if window_completion_percentage is not None:
+                        f.write(f"窗口生成比例: {window_completion_percentage:.2f}%\n")
+                        # ✅ 添加详细的窗口数据记录
+                        if expected_windows is not None and actual_windows is not None:
+                            f.write(f"理论窗口数: {expected_windows}\n")
+                            f.write(f"实际生成记录数: {actual_windows}\n")
+                            f.write(f"窗口生成比例: {actual_windows}/{expected_windows} = {window_completion_percentage:.1f}%\n")
+                        else:
+                            f.write(f"窗口详细数据: 计算过程中未能获取\n")
+                    else:
+                        f.write(f"窗口生成比例: N/A\n")              
                     
                     if stream['status'] == 'OK' or stream['status'] == 'LAGGING':
                         f.write(f"目标表最新时间: {stream['target_last_ts']}\n")
                         delay_ms = stream['delay_ms']
                         f.write(f"延迟: {format_delay_time(delay_ms)}\n")
                         
-                        # 计算延迟倍数并添加中文延迟等级判断和记录
-                        delay_multiplier = delay_ms / base_threshold_ms
+                        # ✅ 使用动态阈值计算延迟倍数和等级
+                        if dynamic_threshold_ms and dynamic_threshold_ms > 0:
+                            delay_multiplier = delay_ms / dynamic_threshold_ms
+                            
+                            # 基于动态阈值的延迟等级判断
+                            excellent_threshold = dynamic_threshold_ms * 0.1
+                            good_threshold = dynamic_threshold_ms * 0.5
+                            normal_threshold = dynamic_threshold_ms * 1.0
+                            mild_delay_threshold = dynamic_threshold_ms * 6.0
+                            obvious_delay_threshold = dynamic_threshold_ms * 30.0
+                            
+                            if delay_ms < excellent_threshold:
+                                delay_level = "优秀"
+                                delay_desc = f"(< 0.1倍窗口间隔, {delay_multiplier:.2f}倍)"
+                            elif delay_ms < good_threshold:
+                                delay_level = "良好"
+                                delay_desc = f"(0.1-0.5倍窗口间隔, {delay_multiplier:.2f}倍)"
+                            elif delay_ms < normal_threshold:
+                                delay_level = "正常"
+                                delay_desc = f"(0.5-1倍窗口间隔, {delay_multiplier:.2f}倍)"
+                            elif delay_ms < mild_delay_threshold:
+                                delay_level = "轻微延迟"
+                                delay_desc = f"(1-6倍窗口间隔, {delay_multiplier:.2f}倍)"
+                            elif delay_ms < obvious_delay_threshold:
+                                delay_level = "明显延迟"
+                                delay_desc = f"(6-30倍窗口间隔, {delay_multiplier:.2f}倍)"
+                            else:
+                                delay_level = "严重延迟"
+                                delay_desc = f"(> 30倍窗口间隔, {delay_multiplier:.2f}倍)"
+                        else:
+                            # 如果无法获取动态阈值，使用固定阈值作为后备
+                            delay_multiplier = delay_ms / self.max_delay_threshold
+                            delay_level = "无法判断"
+                            delay_desc = f"(动态阈值计算失败, 基于固定阈值{delay_multiplier:.2f}倍)"
                         
-                        # 添加中文延迟等级判断和记录
-                        if delay_ms < excellent_threshold:  # 优秀
-                            delay_level = "优秀"
-                            delay_desc = f"(< 0.1倍间隔, {delay_multiplier:.2f}倍)"
-                        elif delay_ms < good_threshold:  # 良好
-                            delay_level = "良好"
-                            delay_desc = f"(0.1-0.5倍间隔, {delay_multiplier:.2f}倍)"
-                        elif delay_ms < normal_threshold:  # 正常
-                            delay_level = "正常"
-                            delay_desc = f"(0.5-1倍间隔, {delay_multiplier:.2f}倍)"
-                        elif delay_ms < mild_delay_threshold:  # 轻微延迟
-                            delay_level = "轻微延迟"
-                            delay_desc = f"(1-6倍间隔, {delay_multiplier:.2f}倍)"
-                        elif delay_ms < obvious_delay_threshold:  # 明显延迟
-                            delay_level = "明显延迟"
-                            delay_desc = f"(6-30倍间隔, {delay_multiplier:.2f}倍)"
-                        else:  # 严重延迟
-                            delay_level = "严重延迟"
-                            delay_desc = f"(> 30倍间隔, {delay_multiplier:.2f}倍)"
-                        
-                        # 写入中文延迟等级
+                        # 写入延迟等级
                         f.write(f"延迟等级: {delay_level}\n")
                         f.write(f"延迟倍数: {delay_desc}\n")
                         
-                        if stream['is_lagging']:
-                            f.write(f"警告: 延迟超过配置阈值 {format_delay_time(self.max_delay_threshold)}!\n")
+                        # 动态延迟判断
+                        if dynamic_threshold_ms and delay_ms > dynamic_threshold_ms:
+                            f.write(f"警告: 延迟超过动态阈值 {format_delay_time(dynamic_threshold_ms)}!\n")
                             
                     elif stream['status'] == 'NO_DATA':
                         f.write(f"警告: 目标表无数据\n")
@@ -8316,13 +9754,22 @@ EOF
         print(f"\n=== 流计算延迟检查 ({delay_results['check_time']}) ===")
         print(f"源表最新时间: {delay_results['source_last_ts']}")
         print(f"配置信息: 子表数量({self.table_count}) | 每轮插入记录数({self.real_time_batch_rows}) | vgroups({self.vgroups}) | 数据乱序({self.disorder_ratio})")
-        print(f"延迟判断基准: 最大延迟阈值 {format_delay_time(self.max_delay_threshold)} | 检查频率 {self.delay_check_interval}s | 部署模式({self.deployment_mode}) | SQL类型({self.sql_type})")
+        
+        # ✅ 显示动态阈值信息
+        dynamic_threshold_info = delay_results.get('dynamic_threshold_info', {})
+        if dynamic_threshold_info:
+            print(f"延迟判断基准: 动态计算 (基于各流窗口间隔) | 检查频率 {self.delay_check_interval}s | 部署模式({self.deployment_mode}) | SQL类型({self.sql_type})")
+            print(f"动态阈值详情:")
+            for stream_name, threshold_info in dynamic_threshold_info.items():
+                threshold_ms = threshold_info['threshold_ms']
+                print(f"  {stream_name}: {format_delay_time(threshold_ms)}")
+        else:
+            print(f"延迟判断基准: 固定阈值 {format_delay_time(self.max_delay_threshold)} (动态计算失败) | 检查频率 {self.delay_check_interval}s")
             
         ok_count = 0
         lagging_count = 0
         no_data_count = 0
         error_count = 0
-        # ✅ 新增：流状态统计
         stream_status_stats = {}
         
         # 按延迟级别分类统计
@@ -8339,56 +9786,80 @@ EOF
             
             stream_status = stream.get('stream_status', '未知')
             stream_status_stats[stream_status] = stream_status_stats.get(stream_status, 0) + 1
-        
+            # ✅ 获取该流的动态阈值
+            dynamic_threshold_ms = stream.get('dynamic_threshold_ms', self.max_delay_threshold)
+            
             
             if status == 'OK':
                 ok_count += 1
                 target_time = stream['target_last_ts']
                 delay_ms = stream['delay_ms']
-                # 根据延迟时间选择图标和描述
-                if delay_ms < excellent_threshold:  #优秀
-                    excellent_count += 1
-                    status_icon = "🟢" if Colors.supports_color() else "✓"
-                    delay_desc = f"优秀(<{format_delay_time(excellent_threshold)})"
-                    color = c.GREEN
-                elif delay_ms < good_threshold:  # 良好
-                    good_count += 1
-                    status_icon = "🟢" if Colors.supports_color() else "✓"
-                    delay_desc = f"良好(<{format_delay_time(good_threshold)})"
-                    color = c.GREEN
-                else:  # delay_ms < normal_threshold (在阈值内) - 正常
+                # ✅ 使用动态阈值计算延迟级别
+                if dynamic_threshold_ms and dynamic_threshold_ms > 0:
+                    excellent_threshold = dynamic_threshold_ms * 0.1
+                    good_threshold = dynamic_threshold_ms * 0.5
+                    normal_threshold = dynamic_threshold_ms * 1.0
+                    
+                    if delay_ms < excellent_threshold:
+                        excellent_count += 1
+                        status_icon = "🟢" if Colors.supports_color() else "✓"
+                        delay_desc = f"优秀(<{format_delay_time(excellent_threshold)})"
+                        color = c.GREEN
+                    elif delay_ms < good_threshold:
+                        good_count += 1
+                        status_icon = "🟢" if Colors.supports_color() else "✓"
+                        delay_desc = f"良好(<{format_delay_time(good_threshold)})"
+                        color = c.GREEN
+                    else:  # delay_ms < normal_threshold
+                        normal_count += 1
+                        status_icon = "🟡" if Colors.supports_color() else "✓"
+                        delay_desc = f"正常(<{format_delay_time(normal_threshold)})"
+                        color = c.YELLOW
+                else:
+                    # 后备方案：使用固定阈值
                     normal_count += 1
                     status_icon = "🟡" if Colors.supports_color() else "✓"
-                    delay_desc = f"正常(<{format_delay_time(normal_threshold)})"
+                    delay_desc = f"正常(动态阈值失败)"
                     color = c.YELLOW
                     
                 print(f"{color}{status_icon} {stream_name}(流状态: {stream_status}): 延迟 {format_delay_time(delay_ms)} - {delay_desc}{c.END}")
-                print(f"  {c.BLUE}目标表最新时间: {target_time}{c.END}")
+                print(f"  {c.BLUE}目标表最新时间: {target_time} | 动态阈值: {format_delay_time(dynamic_threshold_ms)}{c.END}")
+            
             
             elif status == 'LAGGING':
                 lagging_count += 1
                 target_time = stream['target_last_ts']
                 delay_ms = stream['delay_ms']
             
-                # 根据延迟程度选择颜色和图标
-                if delay_ms < mild_delay_threshold:  # 轻微延迟
-                    mild_delay_count += 1
-                    status_icon = "🟡" if Colors.supports_color() else "⚠"
-                    color = c.YELLOW
-                    delay_desc = f"轻微延迟(<{format_delay_time(mild_delay_threshold)})"
-                elif delay_ms < obvious_delay_threshold:  # 明显延迟
-                    obvious_delay_count += 1
-                    status_icon = "🟠" if Colors.supports_color() else "⚠"
-                    color = c.YELLOW
-                    delay_desc = f"明显延迟(<{format_delay_time(obvious_delay_threshold)})"
-                else:  # 严重延迟
+                # ✅ 使用动态阈值计算延迟级别
+                if dynamic_threshold_ms and dynamic_threshold_ms > 0:
+                    mild_delay_threshold = dynamic_threshold_ms * 6.0
+                    obvious_delay_threshold = dynamic_threshold_ms * 30.0
+                    
+                    if delay_ms < mild_delay_threshold:
+                        mild_delay_count += 1
+                        status_icon = "🟡" if Colors.supports_color() else "⚠"
+                        color = c.YELLOW
+                        delay_desc = f"轻微延迟(<{format_delay_time(mild_delay_threshold)})"
+                    elif delay_ms < obvious_delay_threshold:
+                        obvious_delay_count += 1
+                        status_icon = "🟠" if Colors.supports_color() else "⚠"
+                        color = c.YELLOW
+                        delay_desc = f"明显延迟(<{format_delay_time(obvious_delay_threshold)})"
+                    else:
+                        severe_delay_count += 1
+                        status_icon = "🔴" if Colors.supports_color() else "⚠"
+                        color = c.RED
+                        delay_desc = f"严重延迟(>{format_delay_time(obvious_delay_threshold)})"
+                else:
                     severe_delay_count += 1
                     status_icon = "🔴" if Colors.supports_color() else "⚠"
                     color = c.RED
-                    delay_desc = f"严重延迟(>{format_delay_time(obvious_delay_threshold)})"
+                    delay_desc = f"延迟(动态阈值失败)"
                     
                 print(f"{color}{c.BOLD}{status_icon} {stream_name}(流状态: {stream_status}): 延迟 {format_delay_time(delay_ms)} - {delay_desc}!{c.END}")
-                print(f"  {c.BLUE}目标表最新时间: {target_time}{c.END}")
+                print(f"  {c.BLUE}目标表最新时间: {target_time} | 动态阈值: {format_delay_time(dynamic_threshold_ms)}{c.END}")
+                
                 
             elif status == 'NO_DATA':
                 no_data_count += 1
@@ -8512,14 +9983,24 @@ EOF
                 print(f"  💥 目标表不存在: {error_count} ({error_percent}) ")
                 print(f"    可能原因: 流创建失败、目标数据库问题")
            
-        # 显示阈值参考信息
-        print(f"\n{c.CYAN}延迟等级参考 (基于检查间隔 {format_delay_time(self.max_delay_threshold)}):{c.END}")
-        print(f"  🟢 优秀: < {format_delay_time(excellent_threshold)} (0.1倍间隔)")
-        print(f"  🟢 良好: {format_delay_time(excellent_threshold)} - {format_delay_time(good_threshold)} (0.1-0.5倍间隔)")
-        print(f"  🟡 正常: {format_delay_time(good_threshold)} - {format_delay_time(normal_threshold)} (0.5-1倍间隔)")
-        print(f"  🟡 轻微延迟: {format_delay_time(normal_threshold)} - {format_delay_time(mild_delay_threshold)} (1-6倍间隔)")
-        print(f"  🟠 明显延迟: {format_delay_time(mild_delay_threshold)} - {format_delay_time(obvious_delay_threshold)} (6-30倍间隔)")
-        print(f"  🔴 严重延迟: > {format_delay_time(obvious_delay_threshold)} (>30倍间隔)")
+        # ✅ 更新延迟等级参考信息，显示动态阈值范围
+        print(f"\n{c.CYAN}延迟等级参考 (基于各流动态窗口间隔):{c.END}")
+        if dynamic_threshold_info:
+            threshold_values = [info['threshold_ms'] for info in dynamic_threshold_info.values()]
+            min_threshold = min(threshold_values)
+            max_threshold = max(threshold_values)
+            avg_threshold = sum(threshold_values) / len(threshold_values)
+            
+            print(f"  动态阈值范围: {format_delay_time(min_threshold)} - {format_delay_time(max_threshold)} (平均: {format_delay_time(avg_threshold)})")
+            print(f"  🟢 优秀: < 0.1倍窗口间隔")
+            print(f"  🟢 良好: 0.1-0.5倍窗口间隔")
+            print(f"  🟡 正常: 0.5-1倍窗口间隔")
+            print(f"  🟡 轻微延迟: 1-6倍窗口间隔")
+            print(f"  🟠 明显延迟: 6-30倍窗口间隔")
+            print(f"  🔴 严重延迟: >30倍窗口间隔")
+        else:
+            print(f"  ⚠️  动态阈值计算失败，使用固定阈值: {format_delay_time(self.max_delay_threshold)}")
+        
         print(f"  📊 目标表无数据: 流计算尚未生成结果或者流状态异常")
         print(f"  💥 目标表不存在: 流创建失败或者流状态异常")
         print(f"\n{c.CYAN}监控频率: 每 {self.delay_check_interval}秒 检查一次延迟状态{c.END}")
@@ -8639,6 +10120,8 @@ EOF
             # 提取按时间顺序的延迟记录
             delay_records = []
             
+            import re
+            
             # 解析每次检查的延迟等级
             # 匹配模式：检查时间 + 延迟等级
             check_pattern = r'第\s+(\d+)\s+次检查.*?检查时间:\s*([^n]+)'
@@ -8693,8 +10176,86 @@ EOF
             
         except Exception as e:
             print(f"分析延迟清理统计时出错: {str(e)}")
+            import traceback
+            print(f"详细错误: {traceback.format_exc()}")
             return None
 
+    def _calculate_cleanup_delay_stats(self, delay_records):
+        """计算清理后延迟统计
+        
+        从延迟记录中提取按时间顺序的延迟等级，
+        找到最后连续的良好状态区间，生成清理后的统计
+        
+        Args:
+            delay_records: 延迟记录列表
+            
+        Returns:
+            dict: 清理后的统计结果
+        """
+        try:
+            # 实现清理逻辑：找到最后连续的良好状态区间
+            good_levels = {'优秀', '良好', '正常'}
+            
+            # 找到最后一个良好状态的开始位置
+            cleanup_start_index = 0
+            last_good_sequence_start = 0
+            
+            # 从后往前扫描，找到最后一个连续良好状态的开始
+            for i in range(len(delay_records) - 1, -1, -1):
+                if delay_records[i]['main_level'] in good_levels:
+                    # 找到一个良好状态，继续往前找连续的良好状态
+                    good_sequence_start = i
+                    for j in range(i - 1, -1, -1):
+                        if delay_records[j]['main_level'] in good_levels:
+                            good_sequence_start = j
+                        else:
+                            break
+                    
+                    # 如果这个连续序列长度足够（至少3个），使用它
+                    if i - good_sequence_start + 1 >= 3:
+                        cleanup_start_index = good_sequence_start
+                        break
+            
+            # 如果没找到足够长的良好序列，使用后一半数据
+            if cleanup_start_index == 0:
+                cleanup_start_index = len(delay_records) // 2
+            
+            # 取清理后的记录
+            cleanup_records = delay_records[cleanup_start_index:]
+            
+            # 统计清理后的延迟等级
+            level_counts = {
+                '优秀': 0, '良好': 0, '正常': 0,
+                '轻微延迟': 0, '明显延迟': 0, '严重延迟': 0,
+                '目标表无数据': 0, '目标表不存在': 0
+            }
+            
+            for record in cleanup_records:
+                main_level = record['main_level']
+                if main_level in level_counts:
+                    level_counts[main_level] += 1
+                else:
+                    level_counts['未知'] = level_counts.get('未知', 0) + 1
+            
+            return {
+                'total_checks': len(delay_records),
+                'included_checks': len(cleanup_records),
+                'excluded_checks': len(delay_records) - len(cleanup_records),
+                'cleanup_start_index': cleanup_start_index,
+                'level_counts': level_counts
+            }
+            
+        except Exception as e:
+            print(f"计算清理后统计时出错: {str(e)}")
+            return {
+                'total_checks': len(delay_records),
+                'included_checks': len(delay_records),
+                'excluded_checks': 0,
+                'cleanup_start_index': 0,
+                'level_counts': {'未知': len(delay_records)}
+            }
+            
+        
     def _determine_main_delay_level(self, level_counts):
         """确定一次检查的主要延迟等级
         
@@ -9840,7 +11401,31 @@ EOF
             
         except Exception as e:
             print(f"流计算测试失败: {str(e)}")      
-            raise       
+            raise    
+        finally:
+            if not self.keep_taosd_alive:
+                print("测试完成，正在清理 taosd 进程...")
+                # 原有的清理逻辑
+                try:
+                    # 强制停止所有taosd进程
+                    print("  → 停止所有taosd进程")
+                    subprocess.run('pkill -9 taosd', shell=True)
+                    time.sleep(2)
+                except Exception as cleanup_e:
+                    print(f"  ⚠️  清理过程出错: {str(cleanup_e)}")
+            else:
+                print("✅ 测试完成，保留 taosd 进程继续运行")
+                # print("🔗 可以继续使用以下连接信息访问数据库:")
+                # print(f"   主机: {self.host}")
+                # print(f"   端口: {self.instances[0]['port']}")
+                # print(f"   用户: {self.user}")
+                # print(f"   密码: {self.passwd}")
+                # print(f"   配置文件: {self.conf}")
+                # print("📂 数据目录:")
+                for instance in self.instances:
+                    print(f"   {instance['name']}: {instance['data_dir']}")
+                print("📝 要手动停止 taosd，请执行: pkill taosd")
+                print("💡 建议: 可以使用 taos 命令行工具连接数据库进行分析")   
 
     def print_final_delay_summary_enhanced(self, stream_creation_delay):
         """增强的最终延迟测试摘要，包含阶段划分信息"""
@@ -10748,7 +12333,7 @@ def main():
         session_stb, session_stb_partition_by_tbname, session_stb_partition_by_tag, session_tb
     计数窗口模板(COUNT_WINDOW(1000)):
         count_stb, count_stb_partition_by_tbname, count_stb_partition_by_tag, count_tb
-    事件窗口模板(EVENT_WINDOW(START WITH c0 > -10000000 END WITH c0 < 10000000)):
+    事件窗口模板(EVENT_WINDOW(START WITH c0 > 5 END WITH c0 < 5)):
         event_stb, event_stb_partition_by_tbname, event_stb_partition_by_tag, event_tb
     状态窗口模板(STATE_WINDOW(c0)):
         state_stb, state_stb_partition_by_tbname, state_stb_partition_by_tag, state_tb
@@ -10937,7 +12522,7 @@ def main():
     all: 运行所有168个测试场景 (默认)
     skip-known-failures: 跳过已知会失败的66个场景，只运行102个成功场景
     only-known-failures: 只运行已知会失败的66个场景，用于调试失败原因
-    skip-known-case: 跳过已知失败的66个场景 + 已知性能不好的场景，专注于优质场景
+    skip-known-case: 跳过已知失败的66个场景 + 已知没有实际意义的场景，专注于优质场景
   
 说明: 基于历史测试数据统计，某些参数组合由于TDengine限制会固定失败
       某些组合虽然能成功但性能表现不佳，需要后期优化
@@ -10976,9 +12561,16 @@ def main():
                             help='部署模式:默认single\n'
                                 '    single:  单节点模式，dnode+mnode+snode 都在一个节点\n'
                                 '    cluster: 三节点集群模式，3个dnode，3个mnode，源数据库vgroups都在dnode1，目标数据库vgroups都在dnode2，snode独立在dnode3')
+    system_group.add_argument('--perf-node', type=str, default='dnode1',
+                            choices=['dnode1', 'dnode2', 'dnode3'],
+                            help='集群模式下性能展示节点:默认dnode1')
     system_group.add_argument('--debug-flag', type=int, default=131,
                             help='TDengine调试级别, 默认131\n'
                                 '    常用值: 131(默认), 135, 143')
+    system_group.add_argument('--use-tcmalloc',  action='store_true', default=False,
+                            help='使用tcmalloc启动taosd进程 (默认: False, 可能影响性能但提供内存分析功能)')
+    system_group.add_argument('--keep-taosd-alive', action='store_true', default=True,
+                              help='测试完成后是否保持taosd进程运行, 默认True')
     system_group.add_argument('--monitor-warm-up-time', type=int, default=0,
                             help='性能监控预热时间(秒), 默认0秒\n'
                              '    在此期间收集数据但不打印到控制台，等待系统稳定\n'
@@ -11028,7 +12620,8 @@ def main():
     print(f"流类型: {args.sql_type}")
     print(f"流数量: {args.stream_num}")
     print(f"集群目录: {args.stream_perf_test_dir}")
-    print(f"性能数据采集间隔: {args.monitor_interval}秒")
+    print(f"性能暂时节点: {args.stream_perf_test_dir}")
+    print(f"性能数据采集间隔: {args.perf_node}秒")
     print(f"部署模式: {args.deployment_mode}")
     print(f"调试标志: {args.debug_flag}")
     print(f"日志行数: {args.num_of_log_lines}")
@@ -11085,7 +12678,10 @@ def main():
             delay_check_interval=args.delay_check_interval,
             auto_combine=args.auto_combine,
             monitor_warm_up_time=args.monitor_warm_up_time,
-            delay_trends_analysis  =args.delay_trends_analysis 
+            delay_trends_analysis  =args.delay_trends_analysis,
+            keep_taosd_alive=args.keep_taosd_alive,
+            use_tcmalloc=args.use_tcmalloc,
+            perf_node=args.perf_node
         )
         
         # 处理批量测试
@@ -11112,7 +12708,10 @@ def main():
                 'monitor_warm_up_time': args.monitor_warm_up_time,
                 'tbname_or_trows_or_sourcetable': args.tbname_or_trows_or_sourcetable,
                 'agg_or_select': args.agg_or_select,
-                'delay_trends_analysis': args.delay_trends_analysis  
+                'delay_trends_analysis': args.delay_trends_analysis,
+                'keep_taosd_alive': args.keep_taosd_alive,
+                'use_tcmalloc': args.use_tcmalloc,
+                'perf_node':args.perf_node  
             }
         
             print(f"批量测试基础配置:")
@@ -11166,7 +12765,8 @@ def main():
                 base_args, 
                 args.batch_sql_types,
                 filter_mode=args.batch_filter_mode,
-                single_template_mode=args.batch_single_template_mode
+                single_template_mode=args.batch_single_template_mode,
+                perf_node=args.perf_node
             )
             
             # 执行批量测试
