@@ -31,6 +31,9 @@
 
 extern taos_counter_t *tsInsertCounter;
 
+extern int32_t vnodeProcessScanVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+extern int32_t vnodeQueryScanProgress(SVnode *pVnode, SRpcMsg *pMsg);
+
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp, SRpcMsg *pOriginRpc);
@@ -63,6 +66,8 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
+
+extern int32_t vnodeProcessKillScanReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 extern int32_t vnodeListSsMigrateFileSets(SVnode *pVnode, SRpcMsg *pMsg);
 static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -578,19 +583,20 @@ _exit:
   return code;
 }
 
-
-int32_t vnodePreProcessSsMigrateFileSetReq(SVnode* pVnode, SRpcMsg* pMsg) {
-  int32_t          code = TSDB_CODE_SUCCESS, lino = 0;
+int32_t vnodePreProcessSsMigrateFileSetReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t              code = TSDB_CODE_SUCCESS, lino = 0;
   SSsMigrateFileSetReq req = {0};
 
-  code = tDeserializeSSsMigrateFileSetReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req);
+  code = tDeserializeSSsMigrateFileSetReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                          pMsg->contLen - sizeof(SMsgHead), &req);
   if (code < 0) {
     terrno = code;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   req.nodeId = vnodeNodeId(pVnode);
-  TAOS_UNUSED(tSerializeSSsMigrateFileSetReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead), &req));
+  TAOS_UNUSED(tSerializeSSsMigrateFileSetReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                             pMsg->contLen - sizeof(SMsgHead), &req));
 
 _exit:
   return code;
@@ -930,6 +936,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_COMPACT:
       vnodeProcessCompactVnodeReq(pVnode, ver, pReq, len, pRsp);
       goto _exit;
+    case TDMT_VND_SCAN:
+      vnodeProcessScanVnodeReq(pVnode, ver, pReq, len, pRsp);
+      goto _exit;
     case TDMT_SYNC_CONFIG_CHANGE:
       vnodeProcessConfigChangeReq(pVnode, ver, pReq, len, pRsp);
       break;
@@ -938,6 +947,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       vnodeProcessKillCompactReq(pVnode, ver, pReq, len, pRsp);
       break;
 #endif
+    case TDMT_VND_KILL_SCAN:
+      vnodeProcessKillScanReq(pVnode, ver, pReq, len, pRsp);
+      break;
     /* ARB */
     case TDMT_VND_ARB_CHECK_SYNC:
       vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
@@ -1088,6 +1100,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetVSubtablesMeta(pVnode, pMsg);
     case TDMT_VND_VSTB_REF_DBS:
       return vnodeGetVStbRefDbs(pVnode, pMsg);
+    case TDMT_VND_QUERY_SCAN_PROGRESS:
+      return vnodeQueryScanProgress(pVnode, pMsg);
 #ifdef TD_ENTERPRISE
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
@@ -1160,7 +1174,7 @@ _exit:
 extern int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq);
 
 static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t          code = 0;
+  int32_t code = 0;
 
   SSsMigrateFileSetReq req = {0};
   SSsMigrateFileSetRsp rsp = {0};
@@ -1174,7 +1188,8 @@ static int32_t vnodeProcessSsMigrateFileSetReq(SVnode *pVnode, int64_t ver, void
     goto _exit;
   }
 
-  vInfo("vgId:%d, ssmigrate:%d, fid:%d, process ssmigrate fileset request, time:%" PRId64, pVnode->config.vgId, req.ssMigrateId, req.fid, req.startTimeSec);
+  vInfo("vgId:%d, ssmigrate:%d, fid:%d, process ssmigrate fileset request, time:%" PRId64, pVnode->config.vgId,
+        req.ssMigrateId, req.fid, req.startTimeSec);
   rsp.ssMigrateId = req.ssMigrateId;
   rsp.vgId = TD_VID(pVnode);
   rsp.nodeId = req.nodeId;
@@ -1205,7 +1220,7 @@ _exit:
 extern int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SSsMigrateProgress *pReq);
 
 static int32_t vnodeProcessFollowerSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t          code = 0;
+  int32_t            code = 0;
   SSsMigrateProgress req = {0};
 
   // decode
@@ -2130,8 +2145,7 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, int64_t uid, STableMetaR
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   if (pEntry->type != TSDB_NORMAL_TABLE) {
-    vError("vgId:%d, table uid:%" PRId64 " exists, but is not normal table, line:%d", TD_VID(pVnode),
-           uid, __LINE__);
+    vError("vgId:%d, table uid:%" PRId64 " exists, but is not normal table, line:%d", TD_VID(pVnode), uid, __LINE__);
     code = TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -2281,8 +2295,8 @@ static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
   return code;
 }
 
-static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSubmitRsp2 *pResponse, SSubmitTbData *pTbData,
-                                     int32_t numTbData) {
+static void addExistTableInfoIntoRes(SVnode *pVnode, SSubmitReq2 *pRequest, SSubmitRsp2 *pResponse,
+                                     SSubmitTbData *pTbData, int32_t numTbData) {
   int32_t code = 0;
   int32_t lino = 0;
   if ((pTbData->flags & SUBMIT_REQ_SCHEMA_RES) == 0) {

@@ -82,6 +82,10 @@ const char *sdbTableName(ESdbType type) {
       return "config";
     case SDB_MOUNT:
       return "mount";
+    case SDB_SCAN:
+      return "scan";
+    case SDB_SCAN_DETAIL:
+      return "scan_detail";
     default:
       return "undefine";
   }
