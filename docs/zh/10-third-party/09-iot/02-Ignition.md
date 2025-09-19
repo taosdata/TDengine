@@ -16,7 +16,7 @@ Ignition 通过其 SQL Bridge 模块支持多种 SQL 数据库，您可以通过
 
 <center>TDengine–Ignition 集成架构</center>
 
-## 前提条件
+## 前置条件
 
 - 安装 TDengine TSDB，请参考 [快速开始](https://docs.taosdata.com/get-started/)。
 - 安装 Ignition，请参考 [官方文档](https://www.docs.inductiveautomation.com/)。
