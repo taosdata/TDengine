@@ -6865,7 +6865,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
         char   *oldVal = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pStateData : NULL;
         char   *newVal = colDataGetData(pStateCol, i);
         int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-        int64_t startTs = pGroup->pendingNullStart;
+        int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[i];
         if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
           if (memcmp(pStateData, newVal, bytes) == 0) {
             TRINGBUF_HEAD(&pGroup->winBuf)->wrownum++;
