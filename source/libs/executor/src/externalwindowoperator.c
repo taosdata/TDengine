@@ -697,7 +697,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   QUERY_CHECK_NULL(pResBlock, code, lino, _error, terrno);
   initBasicInfo(&pExtW->binfo, pResBlock);
 
-  pExtW->pWins = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, sizeof(STimeWindow));
+  pExtW->pWins = taosArrayInit(4096, sizeof(STimeWindow));
   if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _error);
 
   pExtW->pWinRowIdx = taosArrayInit(4096, sizeof(int64_t));
@@ -2186,7 +2186,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     QUERY_CHECK_NULL(pExtW->pFreeBlocks, code, lino, _error, terrno);  
   }
 
-  pExtW->pWins = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, sizeof(SExtWinTimeWindow));
+  pExtW->pWins = taosArrayInit(4096, sizeof(SExtWinTimeWindow));
   if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _error);
   
   //initResultRowInfo(&pExtW->binfo.resultRowInfo);
