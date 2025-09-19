@@ -99,6 +99,24 @@ end:
   return code;
 }
 
+static bool needRefreshTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int8_t tableType, int64_t suid, int64_t uid, bool isCalc){
+  if (sStreamReaderInfo->isVtableStream) {
+    if(tSimpleHashGet(isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &uid, sizeof(uid)) == NULL) {
+      return true;
+    }
+  } else {
+    if (tableType != TD_CHILD_TABLE) {
+      return false;
+    }
+    if (sStreamReaderInfo->tableType == TD_SUPER_TABLE && 
+        suid == sStreamReaderInfo->suid && 
+        qStreamGetGroupId(sStreamReaderInfo->tableList, uid) == -1) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool uidInTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t suid, int64_t uid, uint64_t* id, bool isCalc){
   if (sStreamReaderInfo->isVtableStream) {
     if(tSimpleHashGet(isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &uid, sizeof(uid)) == NULL) {
@@ -328,7 +346,7 @@ static int32_t scanDropTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SST
     STREAM_CHECK_RET_GOTO(buildDropTableBlock(rsp->dropBlock, id, ver));
     ((SSDataBlock*)rsp->dropBlock)->info.rows++;
     rsp->totalRows++;
-    ST_TASK_ILOG("stream reader scan drop :uid %" PRId64 ", id %" PRIu64, pDropTbReq->uid, id);
+    ST_TASK_ILOG("stream reader scan drop uid %" PRId64 ", id %" PRIu64, pDropTbReq->uid, id);
   }
 
 end:
@@ -357,10 +375,7 @@ static int32_t scanCreateTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, v
   SVCreateTbReq* pCreateReq = NULL;
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
-    uint64_t id = 0;
-    if (!(pCreateReq->type == TSDB_CHILD_TABLE && 
-          pCreateReq->ctb.suid == sStreamReaderInfo->suid &&
-          !uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false))) {
+    if (!needRefreshTableList(sStreamReaderInfo, pCreateReq->type, pCreateReq->ctb.suid, pCreateReq->uid, false)) {
       ST_TASK_ILOG("stream reader scan create table jump, %s", pCreateReq->name);
       continue;
     }
@@ -382,10 +397,7 @@ static int32_t processAutoCreateTableNew(SStreamTriggerReaderInfo* sStreamReader
   int32_t  code = 0;
   int32_t  lino = 0;
   void*    pTask = sStreamReaderInfo->pTask;
-  uint64_t id = 0;
-  if (!(pCreateReq->type == TSDB_CHILD_TABLE && 
-        pCreateReq->ctb.suid == sStreamReaderInfo->suid &&
-        !uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false))) {
+  if (!needRefreshTableList(sStreamReaderInfo, pCreateReq->type, pCreateReq->ctb.suid, pCreateReq->uid, false)) {
     ST_TASK_DLOG("stream reader scan autu create table jump, %s", pCreateReq->name);
     goto end;
   }
@@ -1025,7 +1037,10 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       STREAM_CHECK_NULL_GOTO(pColData, terrno);
-      if (pColData->info.colId == -1) continue;
+      if (pColData->info.colId == -1) {
+        pColData->hasNull = true;
+        continue;
+      }
       if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         STREAM_CHECK_RET_GOTO(setColData(blockStart, rowStart, rowEnd, &colData, pColData));
         continue;
@@ -1108,7 +1123,10 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
       for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
-        if (pColData->info.colId == -1) continue;
+        if (pColData->info.colId == -1) {
+          pColData->hasNull = true;
+          continue;
+        }
         int16_t colId = 0;
         if (sStreamReaderInfo->isVtableStream){
           void* px = tSimpleHashGet(rsp->isCalc ? sStreamReaderInfo->uidHashCalc : sStreamReaderInfo->uidHashTrigger, &submitTbData.uid, sizeof(submitTbData.uid));
