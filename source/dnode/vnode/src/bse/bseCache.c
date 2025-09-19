@@ -87,6 +87,7 @@ int32_t lruCacheGet(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void **pE
   if (ppItem == NULL || *ppItem == NULL) {
     TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _error);
   }
+
   SCacheItem *pItem = (SCacheItem *)*ppItem;
 
   pItem->pNode = tdListPopNode(pCache->lruList, pItem->pNode);
@@ -107,7 +108,7 @@ _error:
 int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pElem) {
   int32_t code = 0;
   int32_t lino = 0;
-
+  SCacheItem *pItem = NULL;
   (void)taosThreadMutexLock(&pCache->mutex);
 
   SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
@@ -132,7 +133,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
     }
   }
 
-  SCacheItem *pItem = taosMemCalloc(1, sizeof(SCacheItem));
+  pItem = taosMemCalloc(1, sizeof(SCacheItem));
   if (pItem == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -153,11 +154,17 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   }
   bseCacheRefItem(pItem);
 
+  pItem = NULL;
+
 _error:
   if (code != 0) {
     bseError("failed to put cache lru at line %d since %s", lino, tstrerror(code));
   } else {
     pCache->size++;
+  }
+
+  if (pItem != NULL) {
+    bseFreeCacheItem(pItem);
   }
   (void)taosThreadMutexUnlock(&pCache->mutex);
   return code;
@@ -384,6 +391,7 @@ int32_t blockCachePut(SBlockCache *pCache, SSeqRange *key, void *pBlock) {
 
   code = cacheLRUPut(pCache->pCache, key, sizeof(SSeqRange), pBlock);
   TSDB_CHECK_CODE(code, lino, _error);
+
 _error:
   if (code != 0) {
     bseError("failed to put block cache at line %d since %s", lino, tstrerror(code));
@@ -397,6 +405,7 @@ int32_t blockCacheRemove(SBlockCache *pCache, SSeqRange *key) {
 
   code = lruCacheRemove(pCache->pCache, key, sizeof(SSeqRange));
   TSDB_CHECK_CODE(code, lino, _error);
+
 _error:
   if (code != 0) {
     bseError("failed to remove block cache at line %d since %s", lino, tstrerror(code));
@@ -427,7 +436,7 @@ int32_t blockCacheResize(SBlockCache *p, int32_t newCap) {
   return code;
 }
 
-void freeCacheItem(SCacheItem *pItem) {
+void bseFreeCacheItem(SCacheItem *pItem) {
   if (pItem == NULL) return;
   if (pItem->pNode != NULL) {
     freeItemInListNode(pItem->pNode, pItem->freeFunc);
@@ -445,6 +454,6 @@ void bseCacheUnrefItem(SCacheItem *pItem) {
   if (pItem == NULL) return;
   T_REF_DEC(pItem);
   if (T_REF_VAL_GET(pItem) == 0) {
-    freeCacheItem(pItem);
+    bseFreeCacheItem(pItem);
   }
 }

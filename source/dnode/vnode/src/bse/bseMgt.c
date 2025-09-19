@@ -1004,9 +1004,11 @@ int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList, int8_t lock) {
   }
 
   *pFileList = p;
+
 _error:
   if (code != 0) {
     bseError("vgId:%d failed to get alive file list since %s", BSE_VGID(pBse), tstrerror(code));
+    taosArrayDestroy(p);
   }
   if (lock) {
     (void)taosThreadMutexUnlock(&pBse->mutex);

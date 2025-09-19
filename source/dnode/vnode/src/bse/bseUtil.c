@@ -51,18 +51,22 @@ static SCompressFuncSet bseCompressFuncSet[] = {
 int32_t plainCompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
   int32_t size = *dstSize;
   if (size < srcSize) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
+
   memcpy(dst, src, srcSize);
+  *dstSize = srcSize;
   return srcSize;
 }
 
 int32_t plainDecompress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
   int32_t size = *dstSize;
   if (size < srcSize) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   memcpy(dst, src, srcSize);
+
+  *dstSize = srcSize;
   return 0;
 }
 int32_t lz4Compress(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
@@ -129,35 +133,35 @@ void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf) {
 }
 
 void bseBuildCurrentFullName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT", pBse->path, TD_DIRSEP);
+  TAOS_UNUSED(snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT", pBse->path, TD_DIRSEP));
 }
 
 void bseBuildTempCurrentFullName(SBse *pBse, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT-temp", pBse->path, TD_DIRSEP);
+  TAOS_UNUSED(snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT-temp", pBse->path, TD_DIRSEP));
 }
 
 void bseBuildFullMetaName(SBse *pBse, char *name, char *path) {
-  snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX);
+  TAOS_UNUSED(snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX));
 }
 void bseBuildFullTempMetaName(SBse *pBse, char *name, char *path) {
-  snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s-temp", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX);
+  TAOS_UNUSED(snprintf(path, BSE_FILE_FULL_LEN, "%s%s%s.%s-temp", pBse->path, TD_DIRSEP, name, BSE_META_SUFFIX));
 }
 
 void bseBuildMetaName(int64_t ts, char *name) {
   // refactor later
-  snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_META_SUFFIX);
+  TAOS_UNUSED(snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_META_SUFFIX));
 }
 void bseBuildTempMetaName(int64_t ts, char *name) {
   // refactor later
-  snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s-temp", ts, BSE_META_SUFFIX);
+  TAOS_UNUSED(snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s-temp", ts, BSE_META_SUFFIX));
 }
 
 void bseBuildFullName(SBse *pBse, char *name, char *fullname) {
-  snprintf(fullname, BSE_FILE_FULL_LEN, "%s%s%s", pBse->path, TD_DIRSEP, name);
+  TAOS_UNUSED(snprintf(fullname, BSE_FILE_FULL_LEN, "%s%s%s", pBse->path, TD_DIRSEP, name));
 }
 
 void bseBuildDataName(int64_t ts, char *name) {
-  snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_DATA_SUFFIX);
+  TAOS_UNUSED(snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_DATA_SUFFIX));
 }
 
 int32_t bseGetTableIdBySeq(SBse *pBse, int64_t seq, int64_t *timestamp) {

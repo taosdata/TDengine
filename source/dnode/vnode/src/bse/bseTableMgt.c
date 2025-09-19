@@ -22,7 +22,6 @@
 
 static int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t timestamp);
 static int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **pValue, int32_t *len);
-// static int32_t tableReaderMgtClear(STableReaderMgt *pReader);
 static void    tableReaderMgtDestroy(STableReaderMgt *pReader);
 
 static int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t timestamp);
@@ -398,19 +397,6 @@ _error:
   }
   return code;
 }
-
-// int32_t tableReaderMgtClear(STableReaderMgt *pReader) {
-//   int32_t code = 0;
-
-//   (void)taosThreadRwlockWrlock(&pReader->mutex);
-
-//   (void)(tableCacheClear(pReader->pTableCache));
-
-//   (void)(blockCacheClear(pReader->pBlockCache));
-//   (void)taosThreadRwlockUnlock(&pReader->mutex);
-
-//   return code;
-// }
 
 void tableReaderMgtDestroy(STableReaderMgt *pReader) {
   tableCacheClose(pReader->pTableCache);

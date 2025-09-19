@@ -304,13 +304,13 @@ void bseSnapReaderClose(SBseSnapReader **p) {
 int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {
   int32_t code = 0;
   int32_t line = 0;
+  SArray *pAliveFile = NULL;
 
   SBseIter *pIter = taosMemoryCalloc(1, sizeof(SBseIter));
   if (pIter == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  SArray *pAliveFile = NULL;
   code = bseGetAliveFileList(pBse, &pAliveFile, 1);
   TSDB_CHECK_CODE(code, line, _error);
 

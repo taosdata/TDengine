@@ -689,7 +689,10 @@ int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
   char    buf[kEncodeLen] = {0};
 
   SBtableMetaReader *pReader = p->pMetaReader;
+
   code = footerEncode(&pReader->footer, buf);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   int32_t len = sizeof(buf);
 
   int64_t n = taosLSeekFile(pReader->pFile, -kEncodeLen, SEEK_END);
@@ -855,11 +858,12 @@ void tableReaderClose(STableReader *p) {
 
 int32_t blockCreate(int32_t cap, SBlock **p) {
   int32_t code = 0;
-  SBlock *t = taosMemCalloc(1, cap);
-  if (t == NULL) {
+  SBlock *blk = taosMemCalloc(1, cap);
+  if (blk == NULL) {
     return terrno;
   }
-  *p = t;
+
+  *p = blk;
   return code;
 }
 
@@ -2441,6 +2445,7 @@ int32_t bseMemTablGetMetaBlock(STableMemTable *p, SArray **pMetaBlock) {
   if (pBlock == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   taosRLockLatch(&p->latch);
   inLock = 1;
 

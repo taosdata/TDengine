@@ -40,7 +40,7 @@ typedef struct {
   void   *pCache;
 } STableCache;
 
-void freeCacheItem(SCacheItem *pItem);
+void bseFreeCacheItem(SCacheItem *pItem);
 
 void bseCacheRefItem(SCacheItem *pItem);
 void bseCacheUnrefItem(SCacheItem *pItem);
