@@ -4455,7 +4455,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           int64_t *pGids = (int64_t *)pGidCol->pData;
           for (int32_t i = 0; i < nrows; i++) {
             int64_t gid = pGids[i];
-            void *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+            void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
             if (pGroup == NULL) {
               pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
               QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
@@ -7215,10 +7215,15 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
         SSTriggerNotifyWindow newWin = {0};
         newWin.range.skey = pTsData[i];
         newWin.range.ekey = INT64_MAX;
-        pLastWin = taosArrayPush(pContext->pWindows, &newWin);
-        QUERY_CHECK_NULL(pLastWin, code, lino, _end, terrno);
         if (pFirstWin == NULL) {
+          pLastWin = taosArrayPush(pContext->pWindows, &newWin);
+          QUERY_CHECK_NULL(pLastWin, code, lino, _end, terrno);
           pFirstWin = pLastWin;
+        } else {
+          int32_t idx = TARRAY_ELEM_IDX(pContext->pWindows, pFirstWin);
+          pLastWin = taosArrayPush(pContext->pWindows, &newWin);
+          QUERY_CHECK_NULL(pLastWin, code, lino, _end, terrno);
+          pFirstWin = TARRAY_GET_ELEM(pContext->pWindows, idx);
         }
       }
       for (SSTriggerNotifyWindow *pWin = pFirstWin; pWin <= pLastWin; pWin++) {
