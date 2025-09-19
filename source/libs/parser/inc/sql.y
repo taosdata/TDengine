@@ -1397,6 +1397,7 @@ expression(A) ::= literal(B).                                                   
 expression(A) ::= pseudo_column(B).                                               { A = B; (void)setRawExprNodeIsPseudoColumn(pCxt, A, true); }
 expression(A) ::= column_reference(B).                                            { A = B; }
 expression(A) ::= function_expression(B).                                         { A = B; }
+expression(A) ::= if_expression(B).                                               { A = B; }
 expression(A) ::= case_when_expression(B).                                        { A = B; }
 expression(A) ::= NK_LP(B) expression(C) NK_RP(D).                                { A = createRawExprNodeExt(pCxt, &B, &D, releaseRawExprNode(pCxt, C)); }
 expression(A) ::= NK_PLUS(B) expr_or_subquery(C).                                 {
@@ -1585,6 +1586,20 @@ other_para_list(A) ::= other_para_list(B) NK_COMMA star_func_para(C).           
 star_func_para(A) ::= expr_or_subquery(B).                                        { A = releaseRawExprNode(pCxt, B); }
 star_func_para(A) ::= table_name(B) NK_DOT NK_STAR(C).                            { A = createColumnNode(pCxt, &B, &C); }
 
+if_expression(A) ::=
+  IF(B) NK_LP common_expression(C) NK_COMMA common_expression(D) NK_COMMA common_expression(E) NK_RP(F).    { A = createRawExprNodeExt(pCxt, &B, &F, createIfNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), releaseRawExprNode(pCxt, E))); }
+if_expression(A) ::=
+  IFNULL(B) NK_LP common_expression(C) NK_COMMA common_expression(D) NK_RP(E).    { A = createRawExprNodeExt(pCxt, &B, &E, createNvlNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D))); }
+if_expression(A) ::=
+  NVL(B) NK_LP common_expression(C) NK_COMMA common_expression(D) NK_RP(E).       { A = createRawExprNodeExt(pCxt, &B, &E, createNvlNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D))); }
+if_expression(A) ::=
+  NVL2(B) NK_LP common_expression(C) NK_COMMA common_expression(D) NK_COMMA common_expression(E) NK_RP(F).  { A = createRawExprNodeExt(pCxt, &B, &F, createNvl2Node(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), releaseRawExprNode(pCxt, E))); }
+if_expression(A) ::=
+  //NULLIF(B) NK_LP common_expression(C) NK_COMMA common_expression(D) NK_RP(E).    { A = createRawExprNodeExt(pCxt, &B, &E, createNullIfNode(pCxt, C, D)); }
+  NULLIF(B) NK_LP common_expression(C) NK_COMMA common_expression(D) NK_RP(E).    { A = createRawExprNodeExt(pCxt, &B, &E, createNullIfNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D))); }
+if_expression(A) ::=
+  COALESCE(B) NK_LP expression_list(C) NK_RP(E).                                  { A = createRawExprNodeExt(pCxt, &B, &E, createCoalesceNode(pCxt, C)); }
+
 case_when_expression(A) ::=
   CASE(E) when_then_list(C) case_when_else_opt(D) END(F).                         { A = createRawExprNodeExt(pCxt, &E, &F, createCaseWhenNode(pCxt, NULL, C, D)); }
 case_when_expression(A) ::=
@@ -1626,6 +1641,12 @@ predicate(A) ::= expr_or_subquery(B) IS NULL(C).                                
 predicate(A) ::= expr_or_subquery(B) IS NOT NULL(C).                              {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &C, createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, releaseRawExprNode(pCxt, B), NULL));
+                                                                                  }
+predicate(A) ::= ISNULL(B) NK_LP expr_or_subquery(C) NK_RP(D).                    {
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &D, createOperatorNode(pCxt, OP_TYPE_IS_NULL, releaseRawExprNode(pCxt, C), NULL));
+                                                                                  }
+predicate(A) ::= ISNOTNULL(B) NK_LP expr_or_subquery(C) NK_RP(D).                 {
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &D, createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, releaseRawExprNode(pCxt, C), NULL));
                                                                                   }
 predicate(A) ::= expr_or_subquery(B) in_op(C) in_predicate_value(D).              {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
