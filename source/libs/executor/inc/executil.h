@@ -49,7 +49,7 @@ struct SGroupResInfo {
   bool    freeItem;
 };
 
-typedef struct SResultRow {
+struct SResultRow {
   int32_t                    version;
   int32_t                    pageId;  // pageId & rowId is the position of current result in disk-based output buffer
   int32_t                    offset : 29;  // row index in buffer page
@@ -59,7 +59,7 @@ typedef struct SResultRow {
   uint32_t                   numOfRows;    // number of rows of current time window
   STimeWindow                win;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
-} SResultRow;
+};
 
 typedef struct SResultRowPosition {
   int32_t pageId;

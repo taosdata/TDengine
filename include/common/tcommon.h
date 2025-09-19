@@ -367,6 +367,7 @@ typedef struct SResSchame {
 typedef struct SAggSupporter  SAggSupporter;
 typedef struct SExprSupp      SExprSupp;
 typedef struct SGroupResInfo  SGroupResInfo;
+typedef struct SResultRow     SResultRow;
 typedef struct SResultRowInfo SResultRowInfo;
 typedef struct SExecTaskInfo  SExecTaskInfo;
 typedef struct SRollupCtx {
@@ -375,6 +376,7 @@ typedef struct SRollupCtx {
   void*           pBuf;
   SExprSupp*      exprSup;
   SAggSupporter*  aggSup;
+  SResultRow*     resultRow;
   SResultRowInfo* resultRowInfo;
   SGroupResInfo*  pGroupResInfo;
   SExecTaskInfo*  pTaskInfo;

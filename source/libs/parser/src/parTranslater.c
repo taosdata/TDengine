@@ -16461,7 +16461,9 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
       pFunc = (SFunctionNode*)pNode;
       pReq->funcColIds[idx] = ((SColumnNode*)pFunc->pParameterList->pHead->pNode)->colId;
       pReq->funcIds[idx] = pFunc->funcId;
+      ++idx;
     }
+    pReq->nFuncs = nFuncs;
   }
 
 _return:

@@ -237,6 +237,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   if (pResultRow == NULL || pTaskInfo->code != 0) {
     TAOS_CHECK_EXIT(pTaskInfo->code);
   }
+  pCtx->resultRow = pResultRow;
   int32_t rowSize = pAggSup->resultRowSize;
   if (pResultRow->pageId == -1) {
     TAOS_CHECK_EXIT(addNewResultRowBuf(pResultRow, pAggSup->pResultBuf, rowSize));
@@ -358,10 +359,14 @@ void tdRollupCtxCleanup(SRollupCtx *pCtx, bool deep) {
   }
 }
 
-void tdRollupCtxReset(SRollupCtx *pCtx) {
+int32_t tdRollupCtxReset(SRollupCtx *pCtx) {
+  int32_t code = 0, lino = 0;
   pCtx->winTotalRows = 0;
   pCtx->pGroupResInfo->index = 0;
   pCtx->pGroupResInfo->delIndex = 0;
   clearResultRowInitFlag(pCtx->exprSup->pCtx, pCtx->exprSup->numOfExprs);
-  // resetResultRow(pCtx->aggSup->pResultBuf)
+  TAOS_CHECK_EXIT(setResultRowInitCtx(pCtx->resultRow, pCtx->exprSup->pCtx, pCtx->exprSup->numOfExprs,
+                                      pCtx->exprSup->rowEntryInfoOffset));
+_exit:
+  return code;
 }
