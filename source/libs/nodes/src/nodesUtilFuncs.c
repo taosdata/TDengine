@@ -3331,13 +3331,6 @@ int32_t nodesMakeDurationValueNodeFromString(char* literal, SValueNode** ppValNo
     pValNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
     pValNode->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
-    char* p = taosMemoryMalloc(lenStr + 1 + VARSTR_HEADER_SIZE);
-    if (p == NULL) {
-      return terrno;
-    }
-    varDataSetLen(p, lenStr);
-    memcpy(varDataVal(p), literal, lenStr + 1);
-    pValNode->datum.p = p;
     pValNode->literal = tstrdup(literal);
     pValNode->flag |= VALUE_FLAG_IS_DURATION;
     pValNode->translate = false;
