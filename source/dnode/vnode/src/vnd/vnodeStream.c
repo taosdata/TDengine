@@ -358,8 +358,9 @@ static int32_t scanCreateTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, v
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
     uint64_t id = 0;
-    if (pCreateReq->type == TSDB_NORMAL_TABLE || 
-        uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false)) {
+    if (!(pCreateReq->type == TSDB_CHILD_TABLE && 
+          pCreateReq->ctb.suid == sStreamReaderInfo->suid &&
+          !uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false))) {
       ST_TASK_ILOG("stream reader scan create table jump, %s", pCreateReq->name);
       continue;
     }
@@ -382,8 +383,9 @@ static int32_t processAutoCreateTableNew(SStreamTriggerReaderInfo* sStreamReader
   int32_t  lino = 0;
   void*    pTask = sStreamReaderInfo->pTask;
   uint64_t id = 0;
-  if (pCreateReq->type == TSDB_NORMAL_TABLE || 
-      uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false)) {
+  if (!(pCreateReq->type == TSDB_CHILD_TABLE && 
+        pCreateReq->ctb.suid == sStreamReaderInfo->suid &&
+        !uidInTableList(sStreamReaderInfo, pCreateReq->ctb.suid, pCreateReq->uid, &id, false))) {
     ST_TASK_DLOG("stream reader scan autu create table jump, %s", pCreateReq->name);
     goto end;
   }
