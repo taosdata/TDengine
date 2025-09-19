@@ -2520,7 +2520,7 @@ taos> SELECT IFNULL(1,0);
 
 ### NVL
 
-与 [IFNULL](#fnull)  函数的行为相同
+与 [IFNULL](#ifnull)  函数的行为相同
 
 ### NULLIF
 
