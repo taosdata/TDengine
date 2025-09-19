@@ -2713,6 +2713,7 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
   SVDropTbReq*             pDropReq = NULL;
   int32_t                  msgLen = 0;
   tsem_t*                  pSem = NULL;
+  SDropTbDataMsg*          pMsg = NULL;
 
   SInsertTableInfo** ppTbInfo = NULL;
   int32_t            vgId = 0;
@@ -2747,7 +2748,6 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
   }
   QUERY_CHECK_CODE(code, lino, _end);
 
-  SDropTbDataMsg* pMsg = NULL;
   code = dropTableReqToMsg(vgId, &req, (void**)&pMsg, &msgLen);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -2764,6 +2764,7 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
 
   code = sendDropTbRequest(&ctx, pMsg, msgLen, pMsgCb->clientRpc, &vgInfo.epSet);
   QUERY_CHECK_CODE(code, lino, _end);
+  pMsg = NULL;  // now owned by sendDropTbRequest
 
   tsem_wait(&ctx.ready);
   code = ctx.code;

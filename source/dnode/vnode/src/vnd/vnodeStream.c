@@ -772,38 +772,41 @@ end:
   return code;
 }
 
-static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, SStorageAPI* api, 
+static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool isCalc, SStorageAPI* api, 
   uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, uint32_t numOfRows, uint32_t numOfBlocks) {
   int32_t     code = 0;
   int32_t     lino = 0;
   SMetaReader mr = {0};
   SArray* tagCache = NULL;
 
-  if (info->numOfExpr == 0) {
+  SHashObj* metaCache = isCalc ? info->pTableMetaCacheCalc : info->pTableMetaCacheTrigger;
+  SExprInfo*   pExprInfo = isCalc ? info->pExprInfoCalcTag : info->pExprInfoTriggerTag; 
+  int32_t      numOfExpr = isCalc ? info->numOfExprCalcTag : info->numOfExprCalcTag;
+  if (numOfExpr == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  void* uidData = taosHashGet(info->pTableMetaCache, &uid, LONG_BYTES);
+  void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
   if (uidData == NULL) {
     api->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &api->metaFn);
     code = api->metaReaderFn.getEntryGetUidCache(&mr, uid);
     api->metaReaderFn.readerReleaseLock(&mr);
     STREAM_CHECK_RET_GOTO(code);
 
-    tagCache = taosArrayInit(info->numOfExpr, POINTER_BYTES);
+    tagCache = taosArrayInit(numOfExpr, POINTER_BYTES);
     STREAM_CHECK_NULL_GOTO(tagCache, terrno);
-    if(taosHashPut(info->pTableMetaCache, &uid, LONG_BYTES, &tagCache, POINTER_BYTES) != 0) {
+    if(taosHashPut(metaCache, &uid, LONG_BYTES, &tagCache, POINTER_BYTES) != 0) {
       taosArrayDestroyP(tagCache, taosMemFree);
       code = terrno;
       goto end;
     }
   } else {
     tagCache = *(SArray**)uidData;
-    STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != info->numOfExpr, TSDB_CODE_INVALID_PARA);
+    STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != numOfExpr, TSDB_CODE_INVALID_PARA);
   }
   
-  for (int32_t j = 0; j < info->numOfExpr; ++j) {
-    const SExprInfo* pExpr1 = &info->pExprInfo[j];
+  for (int32_t j = 0; j < numOfExpr; ++j) {
+    const SExprInfo* pExpr1 = &pExprInfo[j];
     int32_t          dstSlotId = pExpr1->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
@@ -1152,7 +1155,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     if (!sStreamReaderInfo->isVtableStream) {
       SStorageAPI  api = {0};
       initStorageAPI(&api);
-      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, &api, submitTbData.uid, pBlock, blockStart, numOfRows, 1));
+      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, rsp->isCalc, &api, submitTbData.uid, pBlock, blockStart, numOfRows, 1));
     }
     
     SColumnInfoData* pColData = taosArrayGetLast(pBlock->pDataBlock);
@@ -2239,7 +2242,7 @@ static int32_t vnodeProcessStreamTsdbTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     SSDataBlock* pBlock = NULL;
     STREAM_CHECK_RET_GOTO(getTableData(pTaskInner, &pBlock));
     if (pBlock != NULL && pBlock->info.rows > 0) {
-      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, &api, pBlock->info.id.uid, pBlock,
+      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, false, &api, pBlock->info.id.uid, pBlock,
           0, pBlock->info.rows, 1));
     }
     
@@ -2310,7 +2313,7 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
     STREAM_CHECK_RET_GOTO(getTableData(pTaskInner, &pBlock));
     if (pBlock != NULL && pBlock->info.rows > 0) {
       STREAM_CHECK_RET_GOTO(
-        processTag(pVnode, sStreamReaderInfo, &pTaskInner->api, pBlock->info.id.uid, pBlock, 0, pBlock->info.rows, 1));
+        processTag(pVnode, sStreamReaderInfo, false, &pTaskInner->api, pBlock->info.id.uid, pBlock, 0, pBlock->info.rows, 1));
     }
     STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, pTaskInner->pFilterInfo, NULL));
     STREAM_CHECK_RET_GOTO(blockDataMerge(pTaskInner->pResBlockDst, pBlock));
@@ -2976,6 +2979,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
                sStreamReaderCalcInfo->pTaskInfo, nodeType(sStreamReaderCalcInfo->calcAst->pNode));
 
   if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
+  // if (req.reset) {
     qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
     int64_t uid = 0;
     if (req.dynTbname) {

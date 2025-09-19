@@ -67,6 +67,10 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define MST_MAX_RETRY_DURATION (MST_ISOLATION_DURATION * 20)
 
 #define MST_PASS_ISOLATION(_ts, _n) (((_ts) + (_n) * MST_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs)
+#define MST_PASS_SHORT_ISOLATION(_ts, _n) (((_ts) + (_n) * MST_SHORT_ISOLATION_DURATION) <= mStreamMgmt.hCtx.currentTs)
+
+#define MST_STM_STATIC_PASS_SHORT_ISOLATION(_s) (MST_PASS_SHORT_ISOLATION((_s)->updateTime, 1))
+
 #define MST_STM_STATIC_PASS_ISOLATION(_s) (MST_PASS_ISOLATION((_s)->updateTime, 1))
 #define MST_STM_PROC_PASS_ISOLATION(_d) (MST_PASS_ISOLATION((_d)->lastActionTs, 1))
 #define MST_STM_PASS_ISOLATION(_s, _d) (MST_STM_STATIC_PASS_ISOLATION(_s) && MST_STM_PROC_PASS_ISOLATION(_d))

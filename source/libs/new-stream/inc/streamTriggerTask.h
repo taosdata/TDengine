@@ -177,13 +177,13 @@ typedef struct SSTriggerRealtimeContext {
   // these fields are shared by all groups and do not need to reset for each group
   STimeWindow           periodWindow;  // for period trigger
   SSTriggerCalcRequest *pCalcReq;
-  SColumnInfoData      *pStateCol;       // for state window trigger with expr
-  SColumnInfoData      *pEventStartCol;  // for event window trigger
-  SColumnInfoData      *pEventEndCol;    // for event window trigger
-  SObjPool              metaPool;        // SObjPool<SSTriggerMetaData>
-  SObjPool              tableUidPool;    // SObjPool<{uid, vgId}>
-  SObjPool              windowPool;      // SObjPool<SSTriggerWindow>
-  SObjPool              calcParamPool;   // SObjPool<SSTriggerCalcParam>
+  SColumnInfoData       stateCol;       // for state window trigger with expr
+  SColumnInfoData       eventStartCol;  // for event window trigger
+  SColumnInfoData       eventEndCol;    // for event window trigger
+  SObjPool              metaPool;       // SObjPool<SSTriggerMetaData>
+  SObjPool              tableUidPool;   // SObjPool<{uid, vgId}>
+  SObjPool              windowPool;     // SObjPool<SSTriggerWindow>
+  SObjPool              calcParamPool;  // SObjPool<SSTriggerCalcParam>
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
