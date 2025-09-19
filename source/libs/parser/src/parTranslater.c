@@ -1085,6 +1085,10 @@ static bool isSetOperator(SNode* pCurrStmt) {
   return NULL != pCurrStmt && QUERY_NODE_SET_OPERATOR == nodeType(pCurrStmt);
 }
 
+static bool isCreateTSMAStmt(SNode* pCurrStmt) {
+  return NULL != pCurrStmt && QUERY_NODE_CREATE_TSMA_STMT == nodeType(pCurrStmt);
+}
+
 static SNodeList* getProjectListFromCurrStmt(SNode* pCurrStmt) {
   if (isSelectStmt(pCurrStmt)) {
     return ((SSelectStmt*)pCurrStmt)->pProjectionList;
@@ -1105,7 +1109,9 @@ static uint8_t getPrecisionFromCurrStmt(SNode* pCurrStmt, uint8_t defaultVal) {
   if (isDeleteStmt(pCurrStmt)) {
     return ((SDeleteStmt*)pCurrStmt)->precision;
   }
-  if (pCurrStmt && nodeType(pCurrStmt) == QUERY_NODE_CREATE_TSMA_STMT) return ((SCreateTSMAStmt*)pCurrStmt)->precision;
+  if (isCreateTSMAStmt(pCurrStmt)) {
+    return ((SCreateTSMAStmt*)pCurrStmt)->precision;
+  }
   return defaultVal;
 }
 
@@ -11572,6 +11578,7 @@ static int32_t addWdurationToSampleProjects(SNodeList* pProjectionList) {
   return nodesListAppend(pProjectionList, (SNode*)pFunc);
 }
 
+
 static int32_t addTWstartToSampleProjects(SNodeList* pProjectionList) {
   SFunctionNode* pFunc = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
@@ -15764,46 +15771,73 @@ static void deduplicateTsmaFuncs(SNodeList* pFuncs) {
   }
 }
 
-static int32_t createTsmaReqBuildStreamSubTableName(SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq, const SNode* pTbname,
-                                                    SNode** pSubTable) {
+static int32_t buildCreateTsmaReqBuildStreamSubTableName(SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq, int32_t numOfTags,
+                                                     const SSchema* pTags, SNode** pSubTable) {
   int32_t        code = 0;
+  int32_t        lino = 0;
   SFunctionNode* pMd5Func = NULL;
   SFunctionNode* pConcatFunc = NULL;
   SValueNode*    pTsmaName = NULL;
   SValueNode*    pDash = NULL;
-  SNode*         pNew = NULL;
+  SNode*         pTbname = NULL;
 
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pMd5Func));
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pConcatFunc));
-  snprintf(pMd5Func->functionName, TSDB_FUNC_NAME_LEN, "%s", "md5");
-  snprintf(pConcatFunc->functionName, TSDB_FUNC_NAME_LEN, "%s", "concat");
+  if (pStmt->pOptions->recursiveTsma) {
+    if (pTags && numOfTags > 0) {
+      code = createColumnNodeWithName(pTags[numOfTags - 1].name, &pTbname);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  } else {
+    code = createTbnameFunction((SFunctionNode**)&pTbname);
+    QUERY_CHECK_CODE(code, lino, _return);
+    snprintf(((SFunctionNode*)pTbname)->node.userAlias, TSDB_COL_NAME_LEN, "tbname");
+  }
 
-  PAR_ERR_JRET(nodesMakeValueNodeFromString(pReq->name, &pTsmaName));
-  PAR_ERR_JRET(nodesMakeValueNodeFromString("_", &pDash));
-  PAR_ERR_JRET(nodesCloneNode(pTbname, &pNew));
+  code = nodesMakeValueNodeFromString(pReq->name, &pTsmaName);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = nodesMakeValueNodeFromString("_", &pDash);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   // not recursive tsma, md5(concat('1.test.tsma1_', tbname))
   // recursive tsma, md5(concat('1.test.tsma1_', `tbname`)), `tbname` is the last tag
 
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pConcatFunc);
+  QUERY_CHECK_CODE(code, lino, _return);
+  snprintf(pConcatFunc->functionName, TSDB_FUNC_NAME_LEN, "%s", "concat");
 
-  PAR_ERR_JRET(nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pTsmaName));
-  PAR_ERR_JRET(nodesListStrictAppend(pConcatFunc->pParameterList, (SNode*)pDash));
-  PAR_ERR_JRET(nodesListStrictAppend(pConcatFunc->pParameterList, pNew));
+  code = nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pTsmaName);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pDash);
+  QUERY_CHECK_CODE(code, lino, _return1);
+  code = nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pTbname);
+  QUERY_CHECK_CODE(code, lino, _return2);
 
-  PAR_ERR_JRET(nodesListMakeAppend(&pMd5Func->pParameterList, (SNode*)pConcatFunc));
+
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pMd5Func);
+  QUERY_CHECK_CODE(code, lino, _return3);
+  snprintf(pMd5Func->functionName, TSDB_FUNC_NAME_LEN, "%s", "md5");
+  code = nodesListMakeAppend(&pMd5Func->pParameterList, (SNode*)pConcatFunc);
+  QUERY_CHECK_CODE(code, lino, _return4);
 
   *pSubTable = (SNode*)pMd5Func;
-
   return code;
+
 _return:
-  nodesDestroyNode((SNode*)pMd5Func);
-  nodesDestroyNode((SNode*)pConcatFunc);
   nodesDestroyNode((SNode*)pTsmaName);
+_return1:
+  nodesDestroyNode((SNode*)pDash);
+_return2:
+  nodesDestroyNode((SNode*)pTbname);
+_return3:
+  nodesDestroyNode((SNode*)pConcatFunc);
+_return4:
+  nodesDestroyNode((SNode*)pMd5Func);
+  parserError("%s error, code:%s, line:%d",  __FUNCTION__ , tstrerror(code), lino);
   return code;
 }
 
-static int32_t buildProjectsForTSMAQuery(SNodeList* pFunc, int32_t* pProjectionTotalLen) {
+static int32_t buildProjectsForTSMAQuery(SNodeList* pFunc) {
   int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    pProjectionTotalLen = 0;
   SNodeList* pProjectionList = pFunc;
 
   PAR_ERR_RET(addTWstartToSampleProjects(pProjectionList));
@@ -15813,13 +15847,17 @@ static int32_t buildProjectsForTSMAQuery(SNodeList* pFunc, int32_t* pProjectionT
   SNode* pProject = NULL;
   FOREACH(pProject, pProjectionList) {
     snprintf(((SExprNode*)pProject)->aliasName, TSDB_COL_NAME_LEN, "#%p", pProject);
-    if (pProjectionTotalLen) *pProjectionTotalLen += ((SExprNode*)pProject)->resType.bytes;
+    pProjectionTotalLen += ((SExprNode*)pProject)->resType.bytes;
+  }
+
+  if (pProjectionTotalLen > TSDB_MAX_BYTES_PER_ROW) {
+    PAR_ERR_RET(TSDB_CODE_PAR_INVALID_ROW_LENGTH);
   }
 
   return code;
 }
 
-static int32_t buildIntervalForCreateStream(SNode *pInt, SNode** pOutput) {
+static int32_t buildTriggerWindowForCreateStream(SNode *pInt, SNode** pOutput) {
   SIntervalWindowNode* pInterval = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
@@ -15837,237 +15875,368 @@ _return:
   return code;
 }
 
-static int32_t buildCreateTSMAReqBuildCreateStreamReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq, const char* tbName,
-                            int32_t numOfTags, const SSchema* pTags) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  SSelectStmt*       pSelect = NULL;
-  SSelectStmt*       pStreamQuery = NULL;
-  SNode*             pFromTable = NULL;
-  SNodeList*         pFuncList = NULL;
-  int32_t            pProjectionTotalLen = 0;
-  SCreateStreamStmt* pCreateStream = NULL;
-  SNode*             pSubTable = NULL;
-  SNode*             pCond = NULL;
-  SRealTableNode*    pTriggerTable = NULL;
-  SMDropStreamReq    dropcsreq = {0};
-  SCMCreateStreamReq csreq = {0};
+static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, int32_t numOfTags, SNode** pCondition) {
+
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SNode*         pCond = NULL;
+
+  SNode*         tsStartCond = NULL;
+  SNode*         tsEndCond = NULL;
+  SNode*         tbnameCond = NULL;
+  SFunctionNode* twstartFunc = NULL;
+  SFunctionNode* twendFunc = NULL;
+  SFunctionNode* tbnameFunc = NULL;
+  SFunctionNode* phTbFunc = NULL;
+  SFunctionNode* phColFunc = NULL;
+  SNode*         pColId = NULL;
+
+  bool           freeColId = false;
+  bool           freePartCond = true;
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&twstartFunc));
+  tstrncpy(twstartFunc->functionName, "_twstart", TSDB_FUNC_NAME_LEN);
+  tstrncpy(twstartFunc->node.userAlias, "_twstart", TSDB_FUNC_NAME_LEN);
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&twendFunc));
+  tstrncpy(twendFunc->functionName, "_twend", TSDB_FUNC_NAME_LEN);
+  tstrncpy(twendFunc->node.userAlias, "_twend", TSDB_FUNC_NAME_LEN);
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&tbnameFunc));
+  tstrncpy(tbnameFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
+  tstrncpy(tbnameFunc->node.userAlias, "tbname", TSDB_FUNC_NAME_LEN);
+  tstrncpy(tbnameFunc->node.aliasName, "tbname", TSDB_FUNC_NAME_LEN);
+
+  if (pStmt->pOptions->recursiveTsma) {
+    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&phColFunc));
+    tstrncpy(phColFunc->functionName, "_placeholder_column", TSDB_FUNC_NAME_LEN);
+
+    PAR_ERR_JRET(nodesMakeValueNodeFromInt32(numOfTags, &pColId));
+    ((SValueNode*)pColId)->notReserved = true;
+    freeColId = true;
+
+    PAR_ERR_JRET(nodesListMakeAppend(&phColFunc->pParameterList, pColId));
+    freeColId = false;
+    snprintf(phColFunc->node.userAlias, sizeof(phColFunc->node.userAlias), "%%%%%s", ((SValueNode*)pColId)->literal);
+
+    // where tbname == %%n
+    PAR_ERR_JRET(createOperatorNode(OP_TYPE_EQUAL, "tbname", (SNode*)phColFunc, &tbnameCond));
+  } else {
+    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&phTbFunc));
+    tstrncpy(phTbFunc->functionName, "_placeholder_tbname", TSDB_FUNC_NAME_LEN);
+    tstrncpy(phTbFunc->node.userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+
+    // where tbname == %%tbname
+    PAR_ERR_JRET(createOperatorNodeByNode(OP_TYPE_EQUAL, (SNode*)phTbFunc, (SNode*)tbnameFunc, &tbnameCond));
+  }
+
+  // ts >= _twstart
+  PAR_ERR_JRET(createTsOperatorNode(OP_TYPE_GREATER_EQUAL, (SNode*)twstartFunc, &tsStartCond));
+  // ts < _twend
+  PAR_ERR_JRET(createTsOperatorNode(OP_TYPE_LOWER_THAN, (SNode*)twendFunc, &tsEndCond));
+
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pCond));
+  ((SLogicConditionNode*)pCond)->condType = LOGIC_COND_TYPE_AND;
+  // ts >= _twstart && ts < _twend && tbname == %%tbname for TSMA
+  // ts >= _twstart && ts < _twend && tbname == %%n for recursive TSMA
+  PAR_ERR_JRET(nodesListMakeAppend(&((SLogicConditionNode*)pCond)->pParameterList, tsStartCond));
+  PAR_ERR_JRET(nodesListMakeAppend(&((SLogicConditionNode*)pCond)->pParameterList, tsEndCond));
+  PAR_ERR_JRET(nodesListMakeAppend(&((SLogicConditionNode*)pCond)->pParameterList, tbnameCond));
+  freePartCond = false;
+
+  *pCondition = pCond;
+  return code;
+_return:
+  parserError("buildCreateTSMAReqBuildStreamQueryCondition failed, code:%d", code);
+
+  if (freeColId) {
+    nodesDestroyNode(pColId);
+  }
+  if (freePartCond) {
+    nodesDestroyNode(tsStartCond);
+    nodesDestroyNode(tsEndCond);
+    nodesDestroyNode(tbnameCond);
+  } else {
+    nodesDestroyNode(pCond);
+  }
+  nodesDestroyNode((SNode*)twstartFunc);
+  nodesDestroyNode((SNode*)twendFunc);
+  nodesDestroyNode((SNode*)tbnameFunc);
+  nodesDestroyNode((SNode*)phTbFunc);
+  nodesDestroyNode((SNode*)phColFunc);
+
+  return code;
+}
+
+static int32_t buildTriggerOptionForCreateStream(SStreamTriggerOptions** ppOptions) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SStreamTriggerOptions* pOptions = NULL;
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TRIGGER_OPTIONS, (SNode**)&pOptions));
+  pOptions->fillHistoryFirst = true;
+  pOptions->deleteOutputTable = true;
+  pOptions->deleteRecalc = true;
+  PAR_ERR_JRET(nodesMakeDurationValueNodeFromString("3s", (SValueNode**)&pOptions->pMaxDelay));
+
+  *ppOptions = pOptions;
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pOptions);
+  parserError("%s failed, code:%d", __FUNCTION__ , code);
+  return code;
+}
+
+static int32_t buildTriggerPartitionForCreateStream(SNodeList** ppTriggerPartition, SCreateTSMAStmt* pStmt, int32_t numOfTags, const SSchema* pTags) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SNodeList*             pTriggerPartition = NULL;
+  SNode*                 pTagCol = NULL;
+  SNode*                 tbnameFunc = NULL;
+
+  // append partition by tags
+  for (int32_t idx = 0; idx < numOfTags; ++idx) {
+    PAR_ERR_JRET(createColumnNodeWithName(pTags[idx].name, &pTagCol));
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pTagCol));
+    pTagCol = NULL;
+  }
+
+  if (!pStmt->pOptions->recursiveTsma) {
+    PAR_ERR_JRET(createTbnameFunction((SFunctionNode**)&tbnameFunc));
+    snprintf(((SFunctionNode*)tbnameFunc)->node.userAlias, TSDB_COL_NAME_LEN, "tbname");
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, (SNode*)tbnameFunc));
+    tbnameFunc = NULL;
+  }
+
+  *ppTriggerPartition = pTriggerPartition;
+  return code;
+_return:
+  parserError("%s failed code:%d", __FUNCTION__ , code);
+  nodesDestroyNode(tbnameFunc);
+  nodesDestroyNode(pTagCol);
+  nodesDestroyList(pTriggerPartition);
+  return code;
+}
+
+static int32_t buildCreateTSMAReqBuildStreamTriggerAndTag(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq, const char* tbName,
+                                                    int32_t numOfTags, const SSchema* pTags, SStreamTriggerNode** ppTrigger) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SStreamTriggerNode*    pTrigger = NULL;
+  SRealTableNode*        pTriggerTable = NULL;
+  SIntervalWindowNode*   pInterval = NULL;
+  SStreamTriggerOptions* pOptions = NULL;
+  SNodeList*             pTriggerPartition = NULL;
 
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pTriggerTable));
   tstrncpy(pTriggerTable->table.dbName, pStmt->dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pTriggerTable->table.tableName, tbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pTriggerTable->table.tableAlias, tbName, TSDB_TABLE_NAME_LEN);
 
-  PAR_ERR_JRET(nodesCloneNode((SNode*)pTriggerTable, (SNode**)&pFromTable));
+  PAR_ERR_JRET(buildTriggerWindowForCreateStream(pStmt->pOptions->pInterval, (SNode**)&pInterval));
+  PAR_ERR_JRET(buildTriggerOptionForCreateStream(&pOptions));
+  PAR_ERR_JRET(buildTriggerPartitionForCreateStream(&pTriggerPartition, pStmt, numOfTags, pTags));
+  
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TRIGGER, (SNode**)&pTrigger));
+  pTrigger->pPartitionList = pTriggerPartition;
+  pTrigger->pTriggerWindow = (SNode*)pInterval;
+  pTrigger->pTrigerTable = (SNode*)pTriggerTable;
+  pTrigger->pOptions = (SNode*)pOptions;
+
+  *ppTrigger = pTrigger;
+  return code;
+  
+_return:
+  parserError("%s failed, code:%d", __FUNCTION__ , code);
+  if (pTrigger) {
+    nodesDestroyNode((SNode*)pTrigger);
+  } else {
+    nodesDestroyNode((SNode*)pTriggerTable);
+    nodesDestroyNode((SNode*)pInterval);
+    nodesDestroyNode((SNode*)pOptions);
+    nodesDestroyList(pTriggerPartition);
+  }
+  return code;
+}
+
+static int32_t buildCreateTSMAReqBuildStreamQuery(STranslateContext* pCxt, SStreamTriggerNode* pTrigger,
+                                                  SCreateTSMAStmt* pStmt, int32_t numOfTags, const SSchema* pTags,
+                                                  SSelectStmt **ppStreamQuery) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SNode*             pFromTable = NULL;
+  SNodeList*         pFuncList = NULL;
+  SSelectStmt*       pStreamQuery = NULL;
+
+  PAR_ERR_JRET(nodesCloneNode((SNode*)pTrigger->pTrigerTable, (SNode**)&pFromTable));
 
   PAR_ERR_JRET(nodesCloneList(pStmt->pOptions->pFuncs, &pFuncList));
   if (!pStmt->pOptions->recursiveTsma) {
     PAR_ERR_JRET(fmCreateStateFuncs(pFuncList));
   }
 
-  PAR_ERR_JRET(buildProjectsForTSMAQuery(pFuncList, &pProjectionTotalLen));
-  if (pProjectionTotalLen > TSDB_MAX_BYTES_PER_ROW) {
-    PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_ROW_LENGTH);
-  }
-
-  SNode* tsStartCond = NULL;
-  SNode* tsEndCond = NULL;
-  SNode* tbnameCond = NULL;
-
-  SFunctionNode* twstartFunc = NULL;
-  SFunctionNode* twendFunc = NULL;
-  SFunctionNode* tbFunc = NULL;
-  SFunctionNode* phTbFunc = NULL;
-  SFunctionNode* phColFunc = NULL;
-
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&twstartFunc));
-  tstrncpy(twstartFunc->functionName, "_twstart", TSDB_FUNC_NAME_LEN);
-  tstrncpy(twstartFunc->node.userAlias, "_twstart", TSDB_FUNC_NAME_LEN);
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&twendFunc));
-  tstrncpy(twendFunc->functionName, "_twend", TSDB_FUNC_NAME_LEN);
-  tstrncpy(twendFunc->node.userAlias, "_twend", TSDB_FUNC_NAME_LEN);
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&tbFunc));
-  tstrncpy(tbFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
-  tstrncpy(tbFunc->node.userAlias, "tbname", TSDB_FUNC_NAME_LEN);
-  tstrncpy(tbFunc->node.aliasName, "tbname", TSDB_FUNC_NAME_LEN);
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&phTbFunc));
-  tstrncpy(phTbFunc->functionName, "_placeholder_tbname", TSDB_FUNC_NAME_LEN);
-  tstrncpy(phTbFunc->node.userAlias, "%%tbname", TSDB_COL_NAME_LEN);
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&phColFunc));
-  tstrncpy(phColFunc->functionName, "_placeholder_column", TSDB_FUNC_NAME_LEN);
-  SNode *pColId = NULL;
-  PAR_ERR_JRET(nodesMakeValueNodeFromInt32(numOfTags, &pColId));
-  ((SValueNode*)pColId)->notReserved = true;
-  PAR_ERR_JRET(nodesListMakeAppend(&phColFunc->pParameterList, pColId));
-  snprintf(phColFunc->node.userAlias, sizeof(phColFunc->node.userAlias), "%%%%%s", ((SValueNode*)pColId)->literal);
-
-  if (pStmt->pOptions->recursiveTsma) {
-    PAR_ERR_JRET(createOperatorNode(OP_TYPE_EQUAL, "tbname", (SNode*)phColFunc, &tbnameCond));
-  } else {
-    PAR_ERR_JRET(createOperatorNodeByNode(OP_TYPE_EQUAL, (SNode*)phTbFunc, (SNode*)tbFunc, &tbnameCond));
-  }
-
-  PAR_ERR_JRET(createTsOperatorNode(OP_TYPE_GREATER_EQUAL, (SNode*)twstartFunc, &tsStartCond));
-  PAR_ERR_JRET(createTsOperatorNode(OP_TYPE_LOWER_THAN, (SNode*)twendFunc, &tsEndCond));
-
-  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pCond));
-  ((SLogicConditionNode*)pCond)->condType = LOGIC_COND_TYPE_AND;
-  PAR_ERR_JRET(nodesListMakeAppend(&((SLogicConditionNode*)pCond)->pParameterList, tsStartCond));
-  PAR_ERR_JRET(nodesListMakeAppend(&((SLogicConditionNode*)pCond)->pParameterList, tsEndCond));
-  PAR_ERR_JRET(nodesListMakeAppend(&((SLogicConditionNode*)pCond)->pParameterList, tbnameCond));
+  PAR_ERR_JRET(buildProjectsForTSMAQuery(pFuncList));
 
   PAR_ERR_JRET(createSelectStmtImpl(false, pFuncList, (SNode*)pFromTable, NULL, (SNode**)&pStreamQuery));
+  PAR_ERR_JRET(buildCreateTSMAReqBuildStreamQueryCondition(pCxt, pStmt, numOfTags, &pStreamQuery->pWhere));
 
-  pStreamQuery->pWhere = (SNode*)pCond;
+  *ppStreamQuery = pStreamQuery;
+  return code;
 
-  PAR_ERR_JRET(nodesCloneNode((SNode*)pStreamQuery, (SNode**)&pSelect));
-
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, (SNode**)&pCreateStream));
-
-  tstrncpy(pCreateStream->streamName, pStmt->tsmaName, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pCreateStream->streamDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pCreateStream->targetDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
-  snprintf(pCreateStream->targetTabName, TSDB_TABLE_NAME_LEN, "%s" TSMA_RES_STB_POSTFIX, pStmt->tsmaName);
-
-  SNode *pTbname = NULL;
-  if (pStmt->pOptions->recursiveTsma) {
-    if (pTags && numOfTags > 0) {
-      PAR_ERR_JRET(createColumnNodeWithName(pTags[numOfTags - 1].name, &pTbname));
-    }
+_return:
+  parserError("%s failed, code:%d", __FUNCTION__ , code);
+  if (pStreamQuery) {
+    nodesDestroyNode((SNode*)pStreamQuery);
   } else {
-    PAR_ERR_JRET(createTbnameFunction((SFunctionNode**)&pTbname));
-    snprintf(((SFunctionNode*)pTbname)->node.userAlias, TSDB_COL_NAME_LEN, "tbname");
+    nodesDestroyList(pFuncList);
+    nodesDestroyNode(pFromTable);
   }
+  return code;
+}
 
-  PAR_ERR_JRET(createTsmaReqBuildStreamSubTableName(pStmt, pReq, pTbname, (SNode**)&pSubTable));
-
-
-  SStreamTriggerNode* pTrigger = NULL;
-
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TRIGGER, (SNode**)&pTrigger));
-  SIntervalWindowNode* pInterval = NULL;
-  PAR_ERR_JRET(buildIntervalForCreateStream(pStmt->pOptions->pInterval, (SNode**)&pInterval));
-
-  SStreamTriggerOptions* pOptions = NULL;
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TRIGGER_OPTIONS, (SNode**)&pOptions));
-
-  pOptions->fillHistoryFirst = true;
-  pOptions->deleteOutputTable = true;
-  pOptions->deleteRecalc = true;
-  PAR_ERR_JRET(nodesMakeDurationValueNodeFromString("3s", (SValueNode**)&pOptions->pMaxDelay));
-
-  pTrigger->pTriggerWindow = (SNode*)pInterval;
-  pTrigger->pTrigerTable = (SNode*)pTriggerTable;
-  pTrigger->pOptions = (SNode*)pOptions;
-
-  SNodeList*  pTriggerPartition = NULL;
-  SNodeList*  pTagList = NULL;
-
-  SNode*             pTagCol = NULL;
+static int32_t buildCreateTSMAReqBuildStreamOutTags(SStreamTriggerNode* pTrigger, SCreateTSMAStmt* pStmt,
+                                                    int32_t numOfTags, const SSchema* pTags, SNodeList** ppTagList) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SNodeList*         pTagList = NULL;
   SStreamTagDefNode* pTagDef = NULL;
-  SNode*             tbnameFunc = NULL;
-  // append partition by tags
+  SNode*             pNode = NULL;
+  int32_t            idx = 0;
 
-  for (int32_t idx = 0; idx < numOfTags; ++idx) {
-    pTagCol = NULL;
-    pTagDef = NULL;
+  FOREACH(pNode, pTrigger->pPartitionList) {
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef));
-    pTagDef->dataType.type = pTags[idx].type;
-    pTagDef->dataType.bytes = pTags[idx].bytes;
-    tstrncpy(pTagDef->tagName, pTags[idx].name, TSDB_COL_NAME_LEN);
-    PAR_ERR_JRET(createColumnNodeWithName(pTags[idx].name, &pTagCol));
-    PAR_ERR_JRET(nodesCloneNode(pTagCol, (SNode**)&pTagDef->pTagExpr));
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pTagCol));
-    if (idx == numOfTags - 1 && pStmt->pOptions->recursiveTsma) {
+    PAR_ERR_JRET(nodesCloneNode(pNode, (SNode**)&pTagDef->pTagExpr));
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTagList, (SNode*)pTagDef));
+    if (!pStmt->pOptions->recursiveTsma && idx == numOfTags) {
       tstrncpy(pTagDef->tagName, "tbname", TSDB_COL_NAME_LEN);
+      pTagDef->dataType.type = TSDB_DATA_TYPE_VARCHAR;
+      pTagDef->dataType.bytes = TSDB_TABLE_FNAME_LEN - 1;
+      break;
+    } else if (pStmt->pOptions->recursiveTsma && idx == numOfTags - 1){
+      tstrncpy(pTagDef->tagName, "tbname", TSDB_COL_NAME_LEN);
+      pTagDef->dataType.type = TSDB_DATA_TYPE_VARCHAR;
       pTagDef->dataType.bytes = pTags[idx].bytes - 2;
+      break;
+    } else {
+      pTagDef->dataType.type = pTags[idx].type;
+      pTagDef->dataType.bytes = pTags[idx].bytes;
+      tstrncpy(pTagDef->tagName, pTags[idx].name, TSDB_COL_NAME_LEN);
     }
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTagList, (SNode*)pTagDef));
-  }
-
-  if (pStmt->pOptions->recursiveTsma) {
-
-  } else {
+    idx++;
     pTagDef = NULL;
-    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef));
-    tstrncpy(pTagDef->tagName, "tbname", TSDB_COL_NAME_LEN);
-    PAR_ERR_JRET(createTbnameFunction((SFunctionNode**)&tbnameFunc));
-    snprintf(((SFunctionNode*)tbnameFunc)->node.userAlias, TSDB_COL_NAME_LEN, "tbname");
-    PAR_ERR_JRET(nodesCloneNode(tbnameFunc, (SNode**)&pTagDef->pTagExpr));
-    pTagDef->dataType.type = TSDB_DATA_TYPE_VARCHAR;
-    pTagDef->dataType.bytes = TSDB_TABLE_FNAME_LEN - 1;
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, (SNode*)tbnameFunc));
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTagList, (SNode*)pTagDef));
   }
 
-  pCxt->streamInfo.triggerTbl = (SNode*)pTriggerTable;
-  pCxt->streamInfo.calcClause = true;
-  pCxt->streamInfo.triggerPartitionList = pTriggerPartition;
-  PAR_ERR_JRET(translateQuery(pCxt, (SNode*)pSelect));
-  pCxt->streamInfo.triggerPartitionList = NULL;
-  pCxt->streamInfo.calcClause = false;
-  pCxt->streamInfo.triggerTbl = NULL;
+  *ppTagList = pTagList;
+  return code;
 
-  PAR_ERR_JRET(nodesNodeToString((SNode*)pSelect, false, &pReq->ast, &pReq->astLen));
-  PAR_ERR_JRET(nodesListToString(pSelect->pProjectionList, false, &pReq->expr, &pReq->exprLen));
+_return:
+  parserError("%s failed, code:%d", __FUNCTION__ , code);
+  nodesDestroyNode((SNode*)pTagDef);
+  nodesDestroyList(pTagList);
+  return code;
+}
 
-
-  pTrigger->pPartitionList = pTriggerPartition;
-
-  pCreateStream->pTags = pTagList;
-  pCreateStream->pSubtable = pSubTable;
-  pCreateStream->pTrigger = (SNode*)pTrigger;
-  pCreateStream->pQuery = (SNode*)pStreamQuery;
+static int32_t buildCreateTSMAReqBuildCreateDropStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pCreateStream, SMCreateSmaReq* pReq) {
+  SCMCreateStreamReq createreq = {0};
+  SMDropStreamReq    dropreq = {0};
+  int32_t            code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(checkCreateStream(pCxt, pCreateStream));
 
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
-
   pCxt->currLevel = ++(pCxt->levelNo);
 
-  PAR_ERR_JRET(buildCreateStreamReq(pCxt, pCreateStream, &csreq));
+  PAR_ERR_JRET(buildCreateStreamReq(pCxt, pCreateStream, &createreq));
 
   pCxt->currClause = currClause;
   pCxt->pCurrStmt = pCurrStmt;
   pCxt->currLevel = currLevel;
 
-  csreq.tsmaId = pReq->uid;
-  pReq->streamReqLen = tSerializeSCMCreateStreamReq(NULL, 0, &csreq);
+  createreq.tsmaId = pReq->uid;
+  pReq->streamReqLen = tSerializeSCMCreateStreamReq(NULL, 0, &createreq);
   pReq->createStreamReq = taosMemoryCalloc(1, pReq->streamReqLen);
   if (!pReq->createStreamReq) {
     PAR_ERR_JRET(terrno);
   }
   if (pReq->streamReqLen != tSerializeSCMCreateStreamReq(pReq->createStreamReq,
                                                          pReq->streamReqLen,
-                                                         &csreq)) {
+                                                         &createreq)) {
     PAR_ERR_JRET(TSDB_CODE_INVALID_MSG);
   }
 
+  dropreq.name = taosStrdup(createreq.name);
+  dropreq.igNotExists = false;
 
-  dropcsreq.name = taosStrdup(csreq.name);
-  dropcsreq.igNotExists = false;
-
-  pReq->dropStreamReqLen = tSerializeSMDropStreamReq(NULL, 0, &dropcsreq);
+  pReq->dropStreamReqLen = tSerializeSMDropStreamReq(NULL, 0, &dropreq);
   pReq->dropStreamReq = taosMemoryCalloc(1, pReq->dropStreamReqLen);
   if (!pReq->dropStreamReq) {
     PAR_ERR_JRET(terrno);
   }
   if (pReq->dropStreamReqLen != tSerializeSMDropStreamReq(pReq->dropStreamReq,
                                                           pReq->dropStreamReqLen,
-                                                          &dropcsreq)) {
+                                                          &dropreq)) {
     PAR_ERR_JRET(TSDB_CODE_INVALID_MSG);
   }
 
+_return:
+  if (code) {
+    parserError("%s failed, code:%d", __FUNCTION__ , code);
+  }
+  tFreeSCMCreateStreamReq(&createreq);
+  tFreeMDropStreamReq(&dropreq);
+
+  return code;
+}
+
+static int32_t buildCreateTSMAReqBuildStreamReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq, const char* tbName,
+                            int32_t numOfTags, const SSchema* pTags) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SSelectStmt*       pSelect = NULL;
+  SSelectStmt*       pStreamQuery = NULL;
+  SCreateStreamStmt* pCreateStream = NULL;
+  SNode*             pSubTable = NULL;
+  SStreamTriggerNode* pTrigger = NULL;
+  SNodeList*          pTagList = NULL;
+
+  PAR_ERR_JRET(buildCreateTSMAReqBuildStreamTriggerAndTag(pCxt, pStmt, pReq, tbName, numOfTags, pTags, &pTrigger));
+  PAR_ERR_JRET(buildCreateTsmaReqBuildStreamSubTableName(pStmt, pReq, numOfTags, pTags, (SNode**)&pSubTable));
+  PAR_ERR_JRET(buildCreateTSMAReqBuildStreamQuery(pCxt, pTrigger, pStmt, numOfTags, pTags, &pStreamQuery));
+  PAR_ERR_JRET(buildCreateTSMAReqBuildStreamOutTags(pTrigger, pStmt, numOfTags, pTags, &pTagList));
+
+  PAR_ERR_JRET(nodesCloneNode((SNode*)pStreamQuery, (SNode**)&pSelect));
+  pCxt->streamInfo.triggerTbl = pTrigger->pTrigerTable;
+  pCxt->streamInfo.calcClause = true;
+  pCxt->streamInfo.triggerPartitionList = pTrigger->pPartitionList;
+  PAR_ERR_JRET(translateQuery(pCxt, (SNode*)pSelect));
+  pCxt->streamInfo.triggerPartitionList = NULL;
+  pCxt->streamInfo.calcClause = false;
+  pCxt->streamInfo.triggerTbl = NULL;
+  PAR_ERR_JRET(nodesNodeToString((SNode*)pSelect, false, &pReq->ast, &pReq->astLen));
+  PAR_ERR_JRET(nodesListToString(pSelect->pProjectionList, false, &pReq->expr, &pReq->exprLen));
+
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT, (SNode**)&pCreateStream));
+  tstrncpy(pCreateStream->streamName, pStmt->tsmaName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCreateStream->streamDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pCreateStream->targetDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
+  snprintf(pCreateStream->targetTabName, TSDB_TABLE_NAME_LEN, "%s" TSMA_RES_STB_POSTFIX, pStmt->tsmaName);
+
+  pCreateStream->pTags = pTagList;
+  pCreateStream->pSubtable = pSubTable;
+  pCreateStream->pTrigger = (SNode*)pTrigger;
+  pCreateStream->pQuery = (SNode*)pStreamQuery;
+
+  PAR_ERR_JRET(buildCreateTSMAReqBuildCreateDropStreamReq(pCxt, pCreateStream, pReq));
 
 _return:
   if (code) {
-    parserError("buildCreateTSMAReqBuildCreateStreamReq failed, code:%d", code);
+    parserError("buildCreateTSMAReqBuildStreamReq failed, code:%d", code);
   }
   nodesDestroyNode((SNode*)pSelect);
-  nodesDestroyNode((SNode*)pCreateStream);
-  tFreeSCMCreateStreamReq(&csreq);
-  tFreeMDropStreamReq(&dropcsreq);
+  if (pCreateStream) {
+    nodesDestroyNode((SNode*)pCreateStream);
+  } else {
+    nodesDestroyNode((SNode*)pSubTable);
+    nodesDestroyNode((SNode*)pTrigger);
+    nodesDestroyNode((SNode*)pStreamQuery);
+    nodesDestroyList(pTagList);
+  }
   return code;
 }
 
@@ -16099,7 +16268,6 @@ static int32_t buildCreateTSMAReqRewriteFuncs(STranslateContext* pCxt, SCreateTS
       PAR_ERR_JRET(createColumnBySchema(pSchema, &pCol));
       (void)nodesListErase(pFunc->pParameterList, pFunc->pParameterList->pHead);
       PAR_ERR_JRET(nodesListPushFront(pFunc->pParameterList, (SNode*)pCol));
-
 
       snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s", pSchema->name);
       // for first or last, the second param will be pk ts col, here we should remove it
@@ -16157,8 +16325,12 @@ _return:
 #define TSMA_MIN_INTERVAL_MS 1000 * 60                              // 1m
 #define TSMA_MAX_INTERVAL_MS (60UL * 60UL * 1000UL * 24UL * 365UL)  // 1y
 
-static int32_t buildCreateTSMAReqSetInterval(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SDbCfgInfo* pDbInfo, SMCreateSmaReq* pReq) {
-  int32_t code = TSDB_CODE_SUCCESS;
+static int32_t buildCreateTSMAReqSetInterval(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SDbCfgInfo   pDbInfo = {0};
+
+  PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
+  pStmt->precision = pDbInfo.precision;
 
   PAR_ERR_JRET(translateExpr(pCxt, &pStmt->pOptions->pInterval));
 
@@ -16166,7 +16338,7 @@ static int32_t buildCreateTSMAReqSetInterval(STranslateContext* pCxt, SCreateTSM
   pReq->intervalUnit = ((SValueNode*)pStmt->pOptions->pInterval)->unit;
 
   if (!IS_CALENDAR_TIME_DURATION(pReq->intervalUnit)) {
-    int64_t factor = TSDB_TICK_PER_SECOND(pDbInfo->precision) / TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MILLI);
+    int64_t factor = TSDB_TICK_PER_SECOND(pDbInfo.precision) / TSDB_TICK_PER_SECOND(TSDB_TIME_PRECISION_MILLI);
     if (pReq->interval > TSMA_MAX_INTERVAL_MS * factor || pReq->interval < TSMA_MIN_INTERVAL_MS * factor) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSMA_INVALID_INTERVAL,
                                            "Invalid tsma interval, 1m ~ 1y is allowed"));
@@ -16215,32 +16387,38 @@ _return:
   nodesDestroyNode(pNode);
   return code;
 }
-static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq,
-                                  SName* useTbName) {
-  SName      name = {0};
-  SDbCfgInfo pDbInfo = {0};
-  STableMeta* pTableMeta = NULL;
-  int32_t    code = TSDB_CODE_SUCCESS;
+
+static int32_t buildCreateTSMAReqBuildNameAndUid(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SName* useTbName, SMCreateSmaReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SName   name = {0};
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tsmaName, &name);
   PAR_ERR_JRET(tNameExtractFullName(&name, pReq->name));
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, useTbName);
   PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->stb));
-
   PAR_ERR_JRET(getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen));
-  PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
 
-  pStmt->precision = pDbInfo.precision;
   pReq->igExists = pStmt->ignoreExists;
   PAR_ERR_JRET(taosGetSystemUUIDU64(&pReq->uid));
-  PAR_ERR_JRET(buildCreateTSMAReqSetInterval(pCxt, pStmt, &pDbInfo, pReq));
 
+  return code;
+_return:
+  parserError("QID:0x%" PRIx64 ", %s error, code:%s", pCxt->pParseCxt->requestId, __FUNCTION__ , tstrerror(code));
+  return code;
+}
 
-
+static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMCreateSmaReq* pReq, SName* useTbName) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SName           name = {0};
+  STableMeta*     pTableMeta = NULL;
   STableTSMAInfo* pRecursiveTsma = NULL;
   int32_t         numOfCols = 0, numOfTags = 0;
   SSchema *       pCols = NULL, *pTags = NULL;
+
+  PAR_ERR_JRET(buildCreateTSMAReqBuildNameAndUid(pCxt, pStmt, useTbName, pReq));
+
+  PAR_ERR_JRET(buildCreateTSMAReqSetInterval(pCxt, pStmt, pReq));
 
   if (pStmt->pOptions->recursiveTsma) {
     // useTbName is base tsma name
@@ -16249,7 +16427,7 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
     PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->baseTsmaName));
     SValueNode* pInterval = (SValueNode*)pStmt->pOptions->pInterval;
     if (!checkRecursiveTsmaInterval(pRecursiveTsma->interval, pRecursiveTsma->unit, pInterval->datum.i,
-                                    pInterval->unit, pDbInfo.precision, true)) {
+                                    pInterval->unit, pStmt->precision, true)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSMA_INVALID_RECURSIVE_INTERVAL, "Invalid recursive tsma interval"));
     }
 
@@ -16281,11 +16459,11 @@ static int32_t buildCreateTSMAReq(STranslateContext* pCxt, SCreateTSMAStmt* pStm
 
   PAR_ERR_JRET(buildCreateTSMAReqRewriteFuncs(pCxt, pStmt, numOfCols, numOfTags, pCols));
 
-  PAR_ERR_JRET(buildCreateTSMAReqBuildCreateStreamReq(pCxt, pStmt, pReq, pStmt->pOptions->recursiveTsma ? pRecursiveTsma->targetTb : pStmt->tableName, numOfTags, pTags));
+  PAR_ERR_JRET(buildCreateTSMAReqBuildStreamReq(pCxt, pStmt, pReq, pStmt->pOptions->recursiveTsma ? pRecursiveTsma->targetTb : pStmt->tableName, numOfTags, pTags));
 
 _return:
   if (code) {
-    parserError("buildCreateTSMAReq failed");
+    parserError("buildCreateTSMAReq failed, code:%d", code);
   }
   taosMemoryFree(pTableMeta);
   return code;
