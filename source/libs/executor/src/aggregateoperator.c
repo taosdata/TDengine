@@ -309,7 +309,7 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     while (1) {
       doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (!hasRemainResults(&pAggInfo->groupResInfo)) {
@@ -862,6 +862,8 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   cleanupGroupResInfo(&pAgg->groupResInfo);
   resetBasicOperatorState(&pAgg->binfo);
   
+  pAgg->pNewGroupBlock = NULL;
+
   int32_t code = resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys,
     keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
 

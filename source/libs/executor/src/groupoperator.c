@@ -441,7 +441,7 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
   while (1) {
     doBuildResultDatablockByHash(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
 
-    code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (!hasRemainResultByHash(pOperator)) {

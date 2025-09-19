@@ -8,6 +8,7 @@
 #include "stream.h"
 #include "streamMsg.h"
 #include "tdatablock.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,11 +37,24 @@ typedef struct SStreamTriggerReaderInfo {
   SSDataBlock* triggerResBlock;
   SSDataBlock* calcResBlock;
   SSDataBlock* tsBlock;
-  SExprInfo*   pExprInfo;
-  int32_t      numOfExpr;
-  SArray*      uidList;       // for virtual table stream, uid list
-  SArray*      uidListIndex;
-  SHashObj*    uidHash;
+  SExprInfo*   pExprInfoTriggerTag;
+  int32_t      numOfExprTriggerTag;
+  SExprInfo*   pExprInfoCalcTag;
+  int32_t      numOfExprCalcTag;
+  SSHashObj*   uidHashTrigger;  // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*   uidHashCalc;     // < uid -> SHashObj < slotId -> colId > >
+  bool         isVtableStream;  // whether is virtual table stream
+  void*        tableList;
+  void*        historyTableList;
+  SFilterInfo* pFilterInfo;
+  SHashObj*    pTableMetaCacheTrigger;
+  SHashObj*    pTableMetaCacheCalc;
+  SSHashObj*   indexHash;  // index hash for wal data
+  SSDataBlock* calcBlock;
+  SSDataBlock* resultBlock;
+  SSDataBlock* metaBlock;
+  bool         groupByTbname;
+  void*        pVnode;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {
@@ -52,6 +66,7 @@ typedef struct SStreamTriggerReaderCalcInfo {
   char*       calcScanPlan;
   qTaskInfo_t pTaskInfo;
   SStreamRuntimeInfo rtInfo;
+  SStreamRuntimeFuncInfo tmpRtFuncInfo;
 } SStreamTriggerReaderCalcInfo;
 
 typedef enum { STREAM_SCAN_GROUP_ONE_BY_ONE, STREAM_SCAN_ALL } EScanMode;
@@ -68,14 +83,10 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   int64_t     ver;
   uint64_t    gid;
   int8_t      tableType;
-  bool        groupSort;
   EScanMode   scanMode;
-  SNode*      pTagCond;
-  SNode*      pTagIndexCond;
-  SNode*      pConditions;
-  SNodeList*  partitionCols;
   bool        initReader;  // whether to init the reader
-  SArray*     uidList;
+  SSHashObj*  mapInfo;    // SArray<SetTableMapInfo>
+  SStreamTriggerReaderInfo* sStreamReaderInfo;
 } SStreamTriggerReaderTaskInnerOptions;
 
 typedef struct SStreamReaderTaskInner {
@@ -99,7 +110,7 @@ int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
 int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);
 int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask,
-                         SSDataBlock* pResBlock, SHashObj* groupIdMap, SStorageAPI*  api);
+                         SSDataBlock* pResBlock, SStorageAPI*  api);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
 void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);

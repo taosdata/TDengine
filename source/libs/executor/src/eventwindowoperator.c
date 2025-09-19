@@ -245,7 +245,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     code = eventWindowAggImpl(pOperator, pInfo, pBlock);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = doFilter(pRes, pSup->pFilterInfo, NULL);
+    code = doFilter(pRes, pSup->pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pRes->info.rows >= pOperator->resultInfo.threshold ||

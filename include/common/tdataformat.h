@@ -256,7 +256,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
                                     char *data);
 // for encode/decode
 int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
-int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, bool jump);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 

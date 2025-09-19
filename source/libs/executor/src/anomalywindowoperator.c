@@ -715,7 +715,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     }
   }
 
-  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+  code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
 _OVER:

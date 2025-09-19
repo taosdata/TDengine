@@ -1550,7 +1550,8 @@ static int32_t msgToTargetNode(STlvDecoder* pDecoder, void* pObj) {
 }
 
 enum { TIME_RANGE_CODE_START = 1,
-       TIME_RANGE_CODE_END };
+       TIME_RANGE_CODE_END,
+       TIME_RANGE_CODE_NEED_CALC };
 
 static int32_t timeRangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const STimeRangeNode* pNode = (const STimeRangeNode*)pObj;
@@ -1558,6 +1559,9 @@ static int32_t timeRangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   int32_t code = tlvEncodeObj(pEncoder, TIME_RANGE_CODE_START, nodeToMsg, pNode->pStart);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, TIME_RANGE_CODE_END, nodeToMsg, pNode->pEnd);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, TIME_RANGE_CODE_NEED_CALC, pNode->needCalc);
   }
 
   return code;
@@ -1575,6 +1579,9 @@ static int32_t msgToTimeRangeNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case TIME_RANGE_CODE_END:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEnd);
+        break;
+      case TIME_RANGE_CODE_NEED_CALC:
+        code = tlvDecodeBool(pTlv, &pNode->needCalc);
         break;
       default:
         break;
@@ -3702,7 +3709,12 @@ static int32_t msgToPhysiSessionWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_EXT_CODE_WINDOW = 1, PHY_EXT_CODE_SKEY, PHY_EXT_CODE_EKEY };
+enum { PHY_EXT_CODE_WINDOW = 1,
+       PHY_EXT_CODE_SKEY,
+       PHY_EXT_CODE_EKEY,
+       PHY_EXT_CODE_TIME_RANGE_EXPR,
+       PHY_EXT_CODE_IS_SINGLE_TABLE,
+       PHY_EXT_CODE_INPUT_HAS_ORDER};
 
 static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3712,6 +3724,15 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI64(pEncoder, PHY_EXT_CODE_EKEY, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_TIME_RANGE_EXPR, nodeToMsg, pNode->pTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_IS_SINGLE_TABLE, pNode->isSingleTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_INPUT_HAS_ORDER, pNode->inputHasOrder);
   }
 
   return code;
@@ -3732,6 +3753,15 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_EKEY:
         code = tlvDecodeI64(pTlv, &pNode->timeRange.ekey);
+        break;
+      case PHY_EXT_CODE_TIME_RANGE_EXPR:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeRange);
+        break;
+      case PHY_EXT_CODE_IS_SINGLE_TABLE:
+        code = tlvDecodeBool(pTlv, &pNode->isSingleTable);
+        break;
+      case PHY_EXT_CODE_INPUT_HAS_ORDER:
+        code = tlvDecodeBool(pTlv, &pNode->inputHasOrder);
         break;
       default:
         break;

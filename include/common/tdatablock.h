@@ -204,8 +204,10 @@ int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex
 int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pVarData, int32_t varDataLen,
                          bool isNull);
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx, const char* pData);
-int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows,
+int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, uint32_t numOfRows, uint32_t capacity,
                          bool trimValue);
+int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
+                            int32_t itemLen, int32_t numOfRows, bool trimValue);                         
 void    colDataSetNItemsNull(SColumnInfoData* pColumnInfoData, uint32_t currentRow, uint32_t numOfRows);
 int32_t colDataCopyNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows,
                           bool isNull);
@@ -270,6 +272,7 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
 int32_t createDataBlock(SSDataBlock** pResBlock);
 void    blockDataDestroy(SSDataBlock* pBlock);
 void    blockDataFreeRes(SSDataBlock* pBlock);
+void    blockDataFreeCols(SSDataBlock* pBlock);
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pColArray, SSDataBlock** pResBlock);
 int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pDataBlock, const SSDataBlock* pOrgBlock,

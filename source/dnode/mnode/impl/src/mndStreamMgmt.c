@@ -28,6 +28,7 @@
 #include "mndVgroup.h"
 #include "mndSnode.h"
 #include "mndMnode.h"
+#include "cmdnodes.h"
 
 void msmDestroyActionQ() {
   SStmQNode* pQNode = NULL;
@@ -754,6 +755,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
     SStreamReaderDeployFromTrigger* pTrigger = &pMsg->msg.trigger;
     pTrigger->triggerTblName = pInfo->pCreate->triggerTblName;
     pTrigger->triggerTblUid = pInfo->pCreate->triggerTblUid;
+    pTrigger->triggerTblSuid = pInfo->pCreate->triggerTblSuid;
     pTrigger->triggerTblType = pInfo->pCreate->triggerTblType;
     pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
     pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
@@ -848,7 +850,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
 
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
-  pMsg->notifyErrorHandle = pStream->pCreate->notifyErrorHandle;
+  pMsg->addOptions = pStream->pCreate->addOptions;
   pMsg->notifyHistory = pStream->pCreate->notifyHistory;
 
   pMsg->maxDelay = pStream->pCreate->maxDelay;
@@ -922,7 +924,10 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->calcNotifyOnly = pStream->pCreate->calcNotifyOnly;
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
-  pMsg->notifyErrorHandle = pStream->pCreate->notifyErrorHandle;
+  pMsg->addOptions = pStream->pCreate->addOptions;
+  if(pStream->pCreate->trigger.sliding.overlap) {
+    pMsg->addOptions |= CALC_SLIDING_OVERLAP;
+  }
   pMsg->outCols = pInfo->pCreate->outCols;
   pMsg->outTags = pInfo->pCreate->outTags;
   pMsg->outStbUid = pStream->pCreate->outStbUid;
@@ -1934,7 +1939,7 @@ int32_t msmSetStreamRunnerExecReplica(int64_t streamId, SStmStatus* pInfo) {
   //STREAMTODO 
   
   pInfo->runnerDeploys = MND_STREAM_RUNNER_DEPLOY_NUM;
-  pInfo->runnerReplica = 3;
+  pInfo->runnerReplica = MND_STREAM_RUNNER_REPLICA_NUM;
 
 _exit:
 
@@ -4002,7 +4007,7 @@ int32_t msmWatchHandleHbMsg(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmWatchHandleStatusUpdate(pCtx));
   }
 
-  if ((pCtx->currTs - MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN)) > MST_ISOLATION_DURATION) {
+  if ((pCtx->currTs - MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN)) > MST_SHORT_ISOLATION_DURATION) {
     TAOS_CHECK_EXIT(msmWatchHandleEnding(pCtx, false));
   }
 
@@ -4646,7 +4651,7 @@ static bool msmCheckLoopStreamSdb(SMnode *pMnode, void *pObj, void *p1, void *p2
     return true;
   }
 
-  if (NULL == pStatus && !MST_STM_STATIC_PASS_ISOLATION(pStream)) {
+  if (NULL == pStatus && !MST_STM_STATIC_PASS_SHORT_ISOLATION(pStream)) {
     mstsDebug("stream not pass static isolation time, updateTime:%" PRId64 ", currentTs %" PRId64 ", ignore check it", 
         pStream->updateTime, mStreamMgmt.hCtx.currentTs);
     return true;
@@ -4822,6 +4827,7 @@ void msmHandleVgroupLost(SMnode *pMnode, int32_t vgId, SStmVgroupStatus* pVg) {
 
 void msmCheckVgroupStatus(SMnode *pMnode) {
   void* pIter = NULL;
+  int32_t code = 0;
   
   while (true) {
     pIter = taosHashIterate(mStreamMgmt.vgroupMap, pIter);
@@ -4837,6 +4843,17 @@ void msmCheckVgroupStatus(SMnode *pMnode) {
     SStmVgroupStatus* pVg = (SStmVgroupStatus*)pIter;
 
     if (MST_PASS_ISOLATION(pVg->lastUpTs, 1)) {
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+      if (NULL == pVgroup) {
+        mstDebug("vgroup %d no longer exits, will remove all %d tasks in it", vgId, (int32_t)taosHashGetSize(pVg->streamTasks));
+        code = taosHashRemove(mStreamMgmt.vgroupMap, &vgId, sizeof(vgId));
+        if (code) {
+          mstWarn("remove vgroup %d from vgroupMap failed since %s", vgId, tstrerror(code));
+        }
+        continue;
+      }
+      mndReleaseVgroup(pMnode, pVgroup);
+      
       mstWarn("vgroup %d lost, lastUpTs:%" PRId64 ", streamNum:%d", vgId, pVg->lastUpTs, (int32_t)taosHashGetSize(pVg->streamTasks));
       
       msmHandleVgroupLost(pMnode, vgId, pVg);

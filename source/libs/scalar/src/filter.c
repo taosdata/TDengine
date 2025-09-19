@@ -5665,6 +5665,8 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
     if (fmIsPseudoColumnFunc(pFunc->funcId)) {
       if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
         pCxt->hasTagCol = true;
+      } else if (fmIsPlaceHolderFunc(pFunc->funcId)) {
+        // treat placeholder as const value
       } else {
         pCxt->hasOtherCol = true;
       }
