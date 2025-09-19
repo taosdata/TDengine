@@ -1675,12 +1675,7 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
           }
 
           // Add to result array
-          if (taosArrayPush(pLastArray, &lastCol) == NULL) {
-            tsdbLRUCacheRelease(pCache, h, false);
-            taosArrayDestroy(newRemainCols);
-            (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-            TAOS_CHECK_GOTO(terrno, &lino, _exit);
-          }
+          taosArraySet(pLastArray, idxKey->idx, &lastCol);
         }
 
         // Update remainCols with only invalid columns
@@ -1755,7 +1750,6 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
                     lastCol.colVal = colVal;
                     code = tsdbCacheReallocSLastCol(&lastCol, NULL);
                     if (code != 0) {
-                      taosMemoryFree(pTSchema);
                       taosArrayDestroy(newRemainCols);
                       (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
                       TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -1768,19 +1762,13 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
                 }
 
                 // Add to result array
-                if (taosArrayPush(pLastArray, &lastCol) == NULL) {
-                  taosMemoryFree(pTSchema);
-                  taosArrayDestroy(newRemainCols);
-                  (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-                  TAOS_CHECK_GOTO(terrno, &lino, _exit);
-                }
+                taosArraySet(pLastArray, idxKey->idx, &lastCol);
               }
 
               // Update remainCols with only invalid columns
               taosArrayDestroy(remainCols);
               remainCols = newRemainCols;
             }
-            taosMemoryFree(pTSchema);
           }
 
           // Free the deserialized row
