@@ -378,33 +378,42 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
 
     int32_t blockId = (int32_t)tsortGetBlockId(pTupleHandle);
     int32_t colNum = pInfo->virtualScanInfo.scanAllCols ? 1 : tsortGetColNum(pTupleHandle);
+    int32_t rowIdx = (int32_t)tsortGetRowIdx(pTupleHandle);
+    SColumnInfoData** pCols = (SColumnInfoData**)taosMemMalloc(sizeof(SColumnInfoData*) * colNum);
+    bool* colHasData = (bool*)taosMemMalloc(sizeof(bool) * colNum);
     for (int32_t i = 0; i < colNum; i++) {
-      char* pData = NULL;
-      tsortGetValue(pTupleHandle, i, (void**)&pData);
-      if (pData != NULL) {
-        if (i == 0) {
-          if (lastTs != *(int64_t*)pData) {
-            if (rowNums >= capacity - 1) {
-              pInfo->pSavedTuple = pTupleHandle;
-              goto _return;
-            }
-            rowNums++;
-            if (pInfo->virtualScanInfo.tsSlotId != -1) {
-              VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums, pData, false));
-            }
-            lastTs = *(int64_t*)pData;
-          }
-          continue;
-        }
-        int32_t slotKey = blockId << 16 | i;
-        void*   slotId = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
-        if (slotId == NULL) {
-          qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
-          VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
-        }
-        VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
-      }
+      tsortGetColumnInfo(pTupleHandle, i, &pCols[i]);
+      colHasData[i] = (pCols[i]->pData != NULL);
     }
+    for (int32_t i = 0; i < colNum; i++) {
+      if (!colHasData[i]) {
+        continue;
+      }
+      char* pData = colDataGetData(pCols[i], rowIdx);
+      if (i == 0) {
+        if (lastTs != *(int64_t*)pData) {
+          if (rowNums >= capacity - 1) {
+            pInfo->pSavedTuple = pTupleHandle;
+            goto _return;
+          }
+          rowNums++;
+          if (pInfo->virtualScanInfo.tsSlotId != -1) {
+            VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums, pData, false));
+          }
+          lastTs = *(int64_t*)pData;
+        }
+        continue;
+      }
+      int32_t slotKey = blockId << 16 | i;
+      void*   slotId = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
+      if (slotId == NULL) {
+        qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
+        VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+      }
+      VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
+    }
+    taosMemFree(pCols);
+    taosMemFree(colHasData);
   }
 _return:
   p->info.rows = rowNums + 1;
