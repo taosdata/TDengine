@@ -545,9 +545,14 @@ static void metaCloneSchemaFree(SSchemaWrapper *pSchema) {
   }
 }
 
-static void metaCloneRsmaParamFree(SRSmaParam *pParam) {
+/**
+ * @param type 0x01 free name
+ */
+void metaFreeRsmaParam(SRSmaParam *pParam, int8_t type) {
   if (pParam) {
-    taosMemoryFreeClear(pParam->name);
+    if ((type & 0x01)) {
+      taosMemoryFreeClear(pParam->name);
+    }
     taosMemoryFreeClear(pParam->funcColIds);
     taosMemoryFreeClear(pParam->funcIds);
   }
@@ -569,7 +574,7 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
     metaCloneSchemaFree(&(*ppEntry)->stbEntry.schemaRow);
     metaCloneSchemaFree(&(*ppEntry)->stbEntry.schemaTag);
     if (TABLE_IS_ROLLUP((*ppEntry)->flags)) {
-      metaCloneRsmaParamFree(&(*ppEntry)->stbEntry.rsmaParam);
+      metaFreeRsmaParam(&(*ppEntry)->stbEntry.rsmaParam, 1);
     }
   } else if (TSDB_CHILD_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_CHILD_TABLE == (*ppEntry)->type) {
     taosMemoryFreeClear((*ppEntry)->ctbEntry.comment);

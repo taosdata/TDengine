@@ -45,6 +45,9 @@ void metaReaderClear(SMetaReader *pReader) {
   }
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
+  if (pReader->me.type == TSDB_SUPER_TABLE) {
+    metaFreeRsmaParam(&pReader->me.stbEntry.rsmaParam, 0);
+  }
   pReader->pBuf = NULL;
 }
 
@@ -410,6 +413,9 @@ _query:
   tDecoderInit(&dc, pData, nData);
   code = metaDecodeEntry(&dc, &me);
   if (code) {
+    if (me.type == TSDB_SUPER_TABLE) {
+      metaFreeRsmaParam(&me.stbEntry.rsmaParam, 0);
+    }
     tDecoderClear(&dc);
     goto _err;
   }
@@ -419,10 +425,12 @@ _query:
       if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
       if ((type == 0x01) && TABLE_IS_ROLLUP(me.flags)) {
         if ((code = metaGetRsmaSchema(&me, &pSchema->pRsma)) != 0) {
+          metaFreeRsmaParam(&me.stbEntry.rsmaParam, 0);
           tDecoderClear(&dc);
           goto _err;
         }
       }
+      metaFreeRsmaParam(&me.stbEntry.rsmaParam, 0);
       tDecoderClear(&dc);
       goto _exit;
     }
