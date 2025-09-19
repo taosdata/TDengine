@@ -378,6 +378,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pState->pTrueForLimit, order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pState->pExtend, order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {

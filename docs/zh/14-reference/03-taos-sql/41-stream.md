@@ -28,7 +28,7 @@ trigger_type: {
     PERIOD(period_time[, offset_time])
   | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
@@ -142,12 +142,13 @@ SESSION(ts_col, session_val)
 ##### 状态窗口触发
 
 ```sql
-STATE_WINDOW(col) [TRUE_FOR(duration_time)] 
+STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)] 
 ```
 
 状态窗口触发是指对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 
 - col：状态列的列名。
+- extend: 可选，窗口开始结束时的扩展策略：extend值为0时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；extend值为1时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；extend值为2值窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
 - duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
 
 使用说明：
