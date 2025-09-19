@@ -1406,11 +1406,13 @@ _end:
   return 0;
 }
 
-int32_t stNewTimestampSorterInit(SSTriggerNewTimestampSorter *pSorter, struct SStreamTriggerTask *pTask) {
+int32_t stNewTimestampSorterInit(SSTriggerNewTimestampSorter *pSorter, struct SStreamTriggerTask *pTask,
+                                 int32_t verColBias) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   pSorter->pTask = pTask;
+  pSorter->verColBias = verColBias;
 
   pSorter->pSliceBuf = taosArrayInit(0, sizeof(SNewTimestampSorterSlice));
   QUERY_CHECK_NULL(pSorter->pSliceBuf, code, lino, _end, terrno);
@@ -1482,13 +1484,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   int64_t         *pTsData = (int64_t *)pTsCol->pData;
   SColumnInfoData *pVerCol = taosArrayGetLast(pDataBlock->pDataBlock);
   QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
-  if (!pTask->isVirtualTable) {
-    if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-      pVerCol -= 2;
-    } else if (pTask->triggerType == STREAM_TRIGGER_STATE && pTask->stateSlotId == -1) {
-      pVerCol -= 1;
-    }
-  }
+  pVerCol -= pSorter->verColBias;
   int64_t *pVerData = (int64_t *)pVerCol->pData;
 
   int32_t            i = pSlice->startIdx;
@@ -1849,7 +1845,7 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
     if (pReaderInfo->pReader == NULL) {
       pReaderInfo->pReader = taosMemoryCalloc(1, sizeof(SSTriggerNewTimestampSorter));
       QUERY_CHECK_NULL(pReaderInfo->pReader, code, lino, _end, terrno);
-      code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask);
+      code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask, 0);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     SObjList *pMeta = tSimpleHashGet(pMetas, &pColRef->otbVgId, sizeof(int32_t));

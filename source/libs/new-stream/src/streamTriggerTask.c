@@ -2625,7 +2625,13 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   } else {
     pContext->pSorter = taosMemoryCalloc(1, sizeof(SSTriggerNewTimestampSorter));
     QUERY_CHECK_NULL(pContext->pSorter, code, lino, _end, terrno);
-    code = stNewTimestampSorterInit(pContext->pSorter, pTask);
+    int32_t verColBias = 0;
+    if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+      verColBias = 2;
+    } else if (pTask->triggerType == STREAM_TRIGGER_STATE && pTask->stateSlotId == -1) {
+      verColBias = 1;
+    }
+    code = stNewTimestampSorterInit(pContext->pSorter, pTask, verColBias);
     QUERY_CHECK_CODE(code, lino, _end);
   }
   pContext->pWindows = taosArrayInit(0, sizeof(SSTriggerNotifyWindow));
@@ -2648,7 +2654,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     } else {
       pContext->pCalcSorter = taosMemoryCalloc(1, sizeof(SSTriggerNewTimestampSorter));
       QUERY_CHECK_NULL(pContext->pCalcSorter, code, lino, _end, terrno);
-      code = stNewTimestampSorterInit(pContext->pCalcSorter, pTask);
+      code = stNewTimestampSorterInit(pContext->pCalcSorter, pTask, 0);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }

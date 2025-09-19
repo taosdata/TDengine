@@ -351,6 +351,7 @@ typedef struct SSTriggerDataSlice {
 
 typedef struct SSTriggerNewTimestampSorter {
   struct SStreamTriggerTask *pTask;
+  int32_t                    verColBias;
 
   bool         inUse;
   SSDataBlock *pDataBlock;
@@ -366,9 +367,11 @@ typedef struct SSTriggerNewTimestampSorter {
  *
  * @param pSorter The SSTriggerNewTimestampSorter instance to be initialized
  * @param pTask The SStreamTriggerTask instance that contains the task information
+ * @param verColBias The bias to the version column index in the data block
  * @return int32_t Status code indicating success or error
  */
-int32_t stNewTimestampSorterInit(SSTriggerNewTimestampSorter *pSorter, struct SStreamTriggerTask *pTask);
+int32_t stNewTimestampSorterInit(SSTriggerNewTimestampSorter *pSorter, struct SStreamTriggerTask *pTask,
+                                 int32_t verColBias);
 
 /**
  * @brief Destroys a timestamp sorter, releasing all allocated resources.
