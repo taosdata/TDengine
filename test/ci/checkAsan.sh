@@ -58,9 +58,16 @@ fi
 indirect_leak=$(grep -c "Indirect leak" "${LOG_DIR}"/*.asan)
 python_error=$(grep -c -w "stack" "${LOG_DIR}"/*.info)
 
-# use " in " "#"  and "TDinternal" to match python taos error log 
+# Use "#" "0x" and "TDinternal" to match python taos error log
 # TD-37832: taosws.abi3.so is a memory leak referenced by the third-party library of taosws, which can be ignored for the time being. If it is resolved, the ignore condition can be removed. @qevolg 2025-09-19
-python_taos_error=$(cat "${LOG_DIR}"/*.info |grep "0x" |grep "#" | grep -v venv | grep -v taosws.abi3.so | grep -E -c "TDinternal|taos")
+python_taos_error=$(
+  cat "${LOG_DIR}"/*.info |
+  grep "0x" |
+  grep "#" |
+  grep -v "venv" |
+  grep -v "taosws.abi3.so" |
+  grep -E -c "TDinternal|taos"
+)
 
 # ignore
 
