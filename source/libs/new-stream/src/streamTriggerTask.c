@@ -3284,6 +3284,15 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
       if (pContext->needPseudoCols) {
         // todo(kjq): pull pseudo cols for virtual tables
       }
+      pContext->pCurParam++;
+      taosObjListClear(&pContext->pCalcTableUids);
+      int64_t     *ar = NULL;
+      SObjListIter iter = {0};
+      taosObjListInitIter(&pContext->pAllCalcTableUids, &iter, TOBJLIST_ITER_FORWARD);
+      while ((ar = taosObjListIterNext(&iter)) != NULL) {
+        code = taosObjListAppend(&pContext->pCalcTableUids, ar);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
   }
 
@@ -4445,7 +4454,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           int64_t *pGids = (int64_t *)pGidCol->pData;
           for (int32_t i = 0; i < nrows; i++) {
             int64_t gid = pGids[i];
-            void *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+            void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
             if (pGroup == NULL) {
               pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
               QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
@@ -6985,6 +6994,7 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         break;
       }
       stNewTimestampSorterReset(pContext->pCalcSorter);
+      taosObjListPopHead(&pContext->pCalcTableUids);
     }
   } else if (pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ && pTask->isVirtualTable) {
     // todo(kjq): retrieve calc data for virtual table
