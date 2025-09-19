@@ -1556,8 +1556,13 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
       SLastCol lastCol;
       lastCol.rowKey = pLastRow->rowKey.key;
       lastCol.rowKey.ts = colStatus->lastTs;
-
       lastCol.cacheStatus = colStatus->status;
+
+      if (colStatus->lastTs != TSKEY_MIN) {
+        lastCol.rowKey.ts = colStatus->lastTs;
+      } else {
+        lastCol.rowKey.ts = pLastRow->rowKey.key.ts;
+      }
 
       if (pCol && colIndex >= 0) {
         // Extract column value from row
@@ -1653,7 +1658,12 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
           SLastCol lastCol;
           lastCol.rowKey = pLastRow->rowKey.key;
           lastCol.rowKey.ts = colStatus->lastTs;
-          lastCol.cacheStatus = colStatus->status;
+
+          if (colStatus->lastTs != TSKEY_MIN) {
+            lastCol.rowKey.ts = colStatus->lastTs;
+          } else {
+            lastCol.rowKey.ts = pLastRow->rowKey.key.ts;
+          }
 
           if (pCol && colIndex >= 0) {
             SColVal colVal;
@@ -1740,8 +1750,13 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
                 // Column is valid in RocksDB, extract it
                 SLastCol lastCol;
                 lastCol.rowKey = pRocksRow->rowKey.key;
-                lastCol.rowKey.ts = colStatus->lastTs;
                 lastCol.cacheStatus = colStatus->status;
+
+                if (colStatus->lastTs != TSKEY_MIN) {
+                  lastCol.rowKey.ts = colStatus->lastTs;
+                } else {
+                  lastCol.rowKey.ts = pRocksRow->rowKey.key.ts;
+                }
 
                 if (pCol && colIndex >= 0) {
                   SColVal colVal;
