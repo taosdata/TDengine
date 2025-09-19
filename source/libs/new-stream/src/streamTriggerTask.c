@@ -4456,7 +4456,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           int64_t *pGids = (int64_t *)pGidCol->pData;
           for (int32_t i = 0; i < nrows; i++) {
             int64_t gid = pGids[i];
-            void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+            void *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
             if (pGroup == NULL) {
               pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
               QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
