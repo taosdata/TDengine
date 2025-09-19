@@ -1511,8 +1511,17 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     }
     slice.endIdx = i;
     if (slice.startIdx < slice.endIdx) {
-      void *px = taosArrayPush(pSorter->pSliceBuf, &slice);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      SNewTimestampSorterSlice *pLastSlice = NULL;
+      if (TARRAY_SIZE(pSorter->pSliceBuf) > 0) {
+        pLastSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, TARRAY_SIZE(pSorter->pSliceBuf) - 1);
+      }
+      if (pLastSlice != NULL && pLastSlice->endIdx + 1 == slice.startIdx) {
+        // merge with the last slice
+        pLastSlice->endIdx = slice.endIdx;
+      } else {
+        void *px = taosArrayPush(pSorter->pSliceBuf, &slice);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
     }
   }
 

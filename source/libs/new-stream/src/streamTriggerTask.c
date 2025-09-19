@@ -4350,7 +4350,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           blockDataEmpty(pContext->pDropBlock);
           pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
         }
-        blockDataEmpty(pProgress->pTrigBlock);
         taosArrayClear(pContext->pTempSlices);
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -4548,10 +4547,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           QUERY_CHECK_CODE(code, lino, _end);
           code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pEndCond, pEndCol);
           QUERY_CHECK_CODE(code, lino, _end);
-          code = colInfoDataEnsureCapacity(pStartCol, pProgress->pTrigBlock->info.capacity, true);
-          QUERY_CHECK_CODE(code, lino, _end);
-          code = colInfoDataEnsureCapacity(pEndCol, pProgress->pTrigBlock->info.capacity, true);
-          QUERY_CHECK_CODE(code, lino, _end);
         } else if (pTask->triggerType == STREAM_TRIGGER_STATE && pTask->stateSlotId == -1) {
           SColumnInfoData *pStateCol = NULL;
           if (firstDataBlock) {
@@ -4562,12 +4557,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           pStateCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
           QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
           code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pStateExpr, pStateCol);
-          QUERY_CHECK_CODE(code, lino, _end);
-          if (firstDataBlock) {
-            void *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, pStateCol);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-          }
-          code = colInfoDataEnsureCapacity(pStateCol, pProgress->pTrigBlock->info.capacity, true);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
