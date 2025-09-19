@@ -148,7 +148,7 @@ The window clause allows you to partition the queried data set by windows and ag
 ![Windowing logic](../assets/data-querying-01-window.png)
 
 - Time Window: Data is divided based on time intervals, supporting sliding and tumbling time windows, suitable for data aggregation over fixed time periods.
-- State Window: Windows are divided based on changes in device states values, with data of the same states value grouped into one window, which closes when the state value changes.
+- State Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
 - Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
 - Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
 - Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
@@ -158,7 +158,7 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend])
+  | STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
