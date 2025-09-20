@@ -822,14 +822,16 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->db));
+        const char *db = strstr(pObj->db, ".");
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", db ? db + 1 : pObj->db));
         varDataSetLen(pBuf, strlen(qBuf));
         COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->tbname));
+        const char *tb = strrchr(pObj->tbname, '.');
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", tb ? tb + 1 : pObj->tbname));
         varDataSetLen(pBuf, strlen(qBuf));
         COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
       }

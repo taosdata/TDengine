@@ -5159,34 +5159,6 @@ _err:
   return NULL;
 }
 
-SNode* createShowRsmasStmt(SAstCreateContext* pCxt, SNode* dbName) {
-  CHECK_PARSER_STATUS(pCxt);
-
-  SShowStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_RSMAS_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-
-  pStmt->pDbName = dbName;
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode(dbName);
-  return NULL;
-}
-
-SNode* createShowRsmaTasksStmt(SAstCreateContext* pCxt, SNode* dbName) {
-  CHECK_PARSER_STATUS(pCxt);
-
-  SShowStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_RSMA_TASKS_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-
-  pStmt->pDbName = dbName;
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode(dbName);
-  return NULL;
-}
-
 SNode* createRecalcRsmaStmt(SAstCreateContext* pCxt, STokenPair* pLevel, SNodeList* pScope, SNode* pWhere) {
   SRecalcRsmaStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);

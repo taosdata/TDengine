@@ -1393,14 +1393,12 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCreateTSMAStmt(pCxt, (SCreateTSMAStmt*)pStmt);
     case QUERY_NODE_DROP_TSMA_STMT:
       return collectMetaKeyFromDropTSMAStmt(pCxt, (SDropTSMAStmt*)pStmt);
-      break;
     case QUERY_NODE_SHOW_TSMAS_STMT:
       return collectMetaKeyFromShowTSMASStmt(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_CREATE_RSMA_STMT:
       return collectMetaKeyFromCreateRsmaStmt(pCxt, (SCreateRsmaStmt*)pStmt);
     case QUERY_NODE_DROP_RSMA_STMT:
       return collectMetaKeyFromDropRsmaStmt(pCxt, (SDropRsmaStmt*)pStmt);
-      break;
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return collectMetaKeyFromShowRsmasStmt(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_RSMA_TASKS_STMT:

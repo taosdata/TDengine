@@ -413,8 +413,6 @@ SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransac
 
 SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNode* pRealTable,
                             SNodeList* pFuncs, SNodeList* pIntervals);
-SNode* createShowRsmasStmt(SAstCreateContext* pCxt, SNode* dbName);
-SNode* createShowRsmaTasksStmt(SAstCreateContext* pCxt, SNode* dbName);
 SNode* createDropRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createStartRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNotExists, SNode* pRsma,
