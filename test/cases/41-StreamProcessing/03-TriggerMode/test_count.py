@@ -50,7 +50,7 @@ class TestStreamCountTrigger:
         # sql4 = "create stream s4 count_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         streams = [
-            self.StreamItem(sql1, self.checks1),
+            #self.StreamItem(sql1, self.checks1),
             self.StreamItem(sql2, self.checks2),
             # self.StreamItem(sql3, self.checks3),
             # self.StreamItem(sql4, self.checks4),

@@ -23,22 +23,27 @@ def do_write_data_fn(conf, info: WriteDataInfo):
     passwd = "taosdata"
     tz = "Asia/Shanghai"
 
-    conn = taos.connect(
-        host=host, user=user, password=passwd, config=conf, timezone=tz
-    )
+    tdLog.info(f"host: {host}, user: {user}, passwd: {passwd}, conf: {conf}, tz: {tz}")
+    # conn = taos.connect(
+    #     host=host, user=user, password=passwd, config=conf, timezone=tz
+    # )
 
-    cursor = conn.cursor()
-    cursor.execute('use db')
+    tdLog.info("connect to taosd successfully")
+    # cursor = conn.cursor()
+    tdLog.info("use db")
+    tdSql.execute('use db')
 
+    tdLog.info(f"start to insert {info.num_of_rows} rows for {info.num_of_tables} source_tables")
     for j in range(info.num_of_tables):
         for i in range(info.num_of_rows):
             ts = start_ts + i
-            cursor.execute(f"insert into db.c{j} values ('{ts}', {i}, '1', {i})")
+            tdLog.info(f"insert into db.c{j} values ('{ts}', {i}, '1', {i})")
+            tdSql.execute(f"insert into db.c{j} values ('{ts}', {i}, '1', {i})")
 
     tdLog.info(f"insert {info.num_of_rows} rows for {info.num_of_tables} source_tables completed")
 
     info.insert_complete = True
-    cursor.close()
+    # cursor.close()
 
 
 def _do_build_results():

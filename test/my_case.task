@@ -1,0 +1,115 @@
+## 01-Snode
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_mgmt_basic.py -N 8
+# BUG # pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_mgmt_replica3.py -N 6 --replica 3
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_mgmt_replicas.py -N 8
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_params_alter_value.py
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_params_check_default.py
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_params_check_maxvalue.py
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_params_check_minvalue.py
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_privileges_recalc.py
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_privileges_stream.py
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_privileges_systable.py
+# pytest --clean cases/41-StreamProcessing/01-Snode/test_snode_privileges_twodb.py
+
+## 02-Stream
+# pytest --clean cases/41-StreamProcessing/02-Stream/stream_nosnode.py
+# pytest --clean cases/41-StreamProcessing/02-Stream/stream_checkname.py
+# pytest --clean cases/41-StreamProcessing/02-Stream/stream_schema.py
+# pytest --clean cases/41-StreamProcessing/02-Stream/stream_long_name.py
+# pytest --clean cases/41-StreamProcessing/02-Stream/stream_samename.py
+# pytest --clean cases/41-StreamProcessing/02-Stream/stream_td37724.py
+
+## 03-TriggerMode
+# BUG # pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_state.py
+# BUG # pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_count.py
+# pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_event.py
+# pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_fill_history.py
+# pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_window_close_state_window.py
+
+# pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_sliding.py
+#%%trows# pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_state_new.py
+# pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_event_new.py
+# pytest --clean cases/41-StreamProcessing/03-TriggerMode/test_period_1.py
+
+## 04-Options
+#%%trows# pytest --clean cases/41-StreamProcessing/04-Options/test_options.py
+#vtable## pytest --clean cases/41-StreamProcessing/04-Options/test_options_vtbl.py
+# pytest --clean cases/41-StreamProcessing/04-Options/test_options_abnormal.py
+# pytest --clean cases/41-StreamProcessing/04-Options/test_options_abnormal_vtbl.py
+#%%recalc# pytest --clean cases/41-StreamProcessing/04-Options/test_meta.py
+#vtable## pytest --clean cases/41-StreamProcessing/04-Options/test_meta_vtbl.py
+#%%recalc# pytest --clean cases/41-StreamProcessing/04-Options/test_disorderUpdateDelete.py
+#%%recalc# pytest --clean cases/41-StreamProcessing/04-Options/test_disorderUpdateDelete_vtbl.py
+#%%trows# pytest --clean cases/41-StreamProcessing/04-Options/test_options_us.py
+#%%trows# pytest --clean cases/41-StreamProcessing/04-Options/test_options_ns.py
+
+## 06-ResultSaved
+# pytest --clean cases/41-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py 
+
+## 07-SubQuery
+#%%trows# pytest --clean cases/41-StreamProcessing/07-SubQuery/test_subquery_basic.py
+#vtable## pytest --clean cases/41-StreamProcessing/07-SubQuery/test_subquery_count_1.py
+#vtable## pytest --clean cases/41-StreamProcessing/07-SubQuery/test_subquery_count_2.py
+#vtable## pytest --clean cases/41-StreamProcessing/07-SubQuery/test_subquery_event.py
+#vtable## pytest --clean cases/41-StreamProcessing/07-SubQuery/test_subquery_sliding.py
+#vtable## pytest --clean cases/41-StreamProcessing/07-SubQuery/test_subquery_session.py
+#vtable## pytest --clean cases/41-StreamProcessing/07-SubQuery/test_subquery_state.py
+# pytest --clean cases/41-StreamProcessing/07-SubQuery/test_subquery_usage_restrict.py
+
+## 08-Recalc
+#triggerBug# pytest --clean cases/41-StreamProcessing/08-Recalc/test_recalc_expired_time.py
+# pytest --clean cases/41-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
+#triggerBug# pytest --clean cases/41-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
+# pytest --clean cases/41-StreamProcessing/08-Recalc/test_recalc_watermark.py
+# pytest --clean cases/41-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+
+## 20-UseCase
+#triggerBug# pytest --clean cases/41-StreamProcessing/20-UseCase/test_idmp_meters.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_idmp_vehicle.py
+# pytest --clean cases/41-StreamProcessing/20-UseCase/test_idmp_meters_td36808.py
+#vtable## pytest --clean cases/41-StreamProcessing/20-UseCase/test_idmp_tobacco.py
+#vtable## pytest --clean cases/41-StreamProcessing/20-UseCase/test_idmp_pv.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_nevados.py 
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_case4.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_case4_bug1.py
+# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_case5.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case1_bug1.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case1_twostream.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case4.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case6.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case17.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case18.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
+# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
+#%%trows# pytest --clean cases/41-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
+
+
+## 23-Compatibility 
+#test install skip# pytest --clean cases/41-StreamProcessing/23-Compatibility/stream_compatibility.py
+
+## 30-OldPyCases
+#trigger recalc# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
+#%%trows# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+#%%trows# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
+#%%trows# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
+#%%trows# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
+#%%trows# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
+# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
+#%%trows# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py -N 4
+#%%trows# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
+# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
+# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_drop.py
+# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_empty_identifier.py
+#%%trows# pytest --clean cases/41-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
+
+## 31-OldCases
+#%%trows# pytest --clean cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
+#%%trows# pytest --clean cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
+#%%trows# pytest --clean cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
+#maxdelay# pytest --clean cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
+#%%trows# pytest --clean cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
+#%%trows# pytest --clean cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py 
+#maxdelay# pytest --clean cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
+#%%trows# pytest --clean cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py

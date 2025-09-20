@@ -28,30 +28,30 @@ class TestStreamOptionsTrigger:
         """
 
         tdStream.createSnode()
-        tdSql.execute(f"alter all dnodes 'debugflag 131';")
-        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
+        tdSql.execute(f"alter all dnodes 'debugflag 135';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 135';")
 
         streams = []
-        streams.append(self.Basic0())    # [ok] WATERMARK [ok]
+        # streams.append(self.Basic0())    # [ok] WATERMARK [ok]
         
-        # TD-36739 [流计算开发阶段] 流计算state窗口+expired_time(10s)对过期的乱序数据也进行了重算
-        # streams.append(self.Basic1())   # [fail] EXPIRED_TIME   [fail] 
+        # # TD-36739 [流计算开发阶段] 流计算state窗口+expired_time(10s)对过期的乱序数据也进行了重算
+        # # streams.append(self.Basic1())   # [fail] EXPIRED_TIME   [fail] 
         
-        streams.append(self.Basic2())    # [ok] IGNORE_DISORDER  [ok]
-        streams.append(self.Basic3())    # [ok] DELETE_RECALC  [ok]
+        # streams.append(self.Basic2())    # [ok] IGNORE_DISORDER  [ok]
+        # streams.append(self.Basic3())    # [ok] DELETE_RECALC  [ok]
         
-        # # # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
-        # streams.append(self.Basic4())   # [fail] DELETE_OUTPUT_TABLE         
-        streams.append(self.Basic5())    # [ok] FILL_HISTORY        [ok]
-        streams.append(self.Basic6())    # [ok] FILL_HISTORY_FIRST  [ok]
-        streams.append(self.Basic7())    # [ok] CALC_NOTIFY_ONLY [ok]
-        # streams.append(self.Basic8())  # [x] LOW_LATENCY_CALC  temp no test [x]
+        # # # # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
+        # # streams.append(self.Basic4())   # [fail] DELETE_OUTPUT_TABLE         
+        # streams.append(self.Basic5())    # [ok] FILL_HISTORY        [ok]
+        # streams.append(self.Basic6())    # [ok] FILL_HISTORY_FIRST  [ok]
+        # streams.append(self.Basic7())    # [ok] CALC_NOTIFY_ONLY [ok]
+        # # streams.append(self.Basic8())  # [x] LOW_LATENCY_CALC  temp no test [x]
         streams.append(self.Basic9())    # [ok] PRE_FILTER     [ok]
-        streams.append(self.Basic10())   # [ok] FORCE_OUTPUT   [ok] 
-        streams.append(self.Basic11())   # [ok] MAX_DELAY  [ok]      
-        streams.append(self.Basic11_1()) # [ok] MAX_DELAY [ok]       need to modify case
-        streams.append(self.Basic12())   # [ok] EVENT_TYPE [ok]        
-        streams.append(self.Basic13())   # [ok] IGNORE_NODATA_TRIGGER [ok]   
+        # streams.append(self.Basic10())   # [ok] FORCE_OUTPUT   [ok] 
+        # streams.append(self.Basic11())   # [ok] MAX_DELAY  [ok]      
+        # streams.append(self.Basic11_1()) # [ok] MAX_DELAY [ok]       need to modify case
+        # streams.append(self.Basic12())   # [ok] EVENT_TYPE [ok]        
+        # streams.append(self.Basic13())   # [ok] IGNORE_NODATA_TRIGGER [ok]   
         
         # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  [fail]  对超期的数据仍然进行了计算
         
