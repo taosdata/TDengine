@@ -2583,8 +2583,6 @@ _exit:
   return code;
 }
 
-
-
 int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** dbVgInfo) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       line = 0;
@@ -2744,16 +2742,6 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
     int64_t key[2] = {pReq->streamId, pReq->gid};
     TAOS_UNUSED(taosHashRemove(gStreamGrpTableHash, key, sizeof(key)));
   } else {
-    // code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
-    // stDebug("stRunnerOutputBlock tbname: %s", pExec->tbname);
-    // if (*createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
-
-    // getDbVgInfoForExec(pInserter->pParam->readHandle->pMsgCb->clientRpc, pInsertParam->dbFName,
-    // pInserterInfo->tbName,
-    //                    pVgInfo);
-
-    // inserterGetVgInfo();
-    // releaseStreamInsertTableInfo(ppTbInfo);
     code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
   }
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2763,8 +2751,6 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
 
   SVgroupInfo vgInfo = {0};
   code = getDbVgInfoForExec(pMsgCb->clientRpc, pOutput->outDbFName, pDropReq->name, &vgInfo);
-  QUERY_CHECK_CODE(code, lino, _end);
-
   QUERY_CHECK_CODE(code, lino, _end);
 
   SDropTbCtx ctx = {.req = pReq};
@@ -2778,12 +2764,12 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
 
   tsem_wait(&ctx.ready);
   code = ctx.code;
-  stDebug("doDropStreamTable,  code:%d req:%p, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq,
+  stDebug("doDropStreamTable,  code:0x%" PRIx32 " req:%p, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq,
           pReq->streamId, pReq->gid, pDropReq ? pDropReq->name : "unknown");
 
 _end:
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("doDropStreamTable, code:%d, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq->streamId,
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND) {
+    stError("doDropStreamTable, code:0x%" PRIx32 ", streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq->streamId,
             pReq->gid, pDropReq ? pDropReq->name : "unknown");
     if (pMsg) {
       taosMemoryFreeClear(pMsg);
@@ -2792,6 +2778,64 @@ _end:
   if (pSem) tsem_destroy(pSem);
   if (pDropReq && pDropReq->name) taosMemoryFreeClear(pDropReq->name);
   if (ppTbInfo) releaseStreamInsertTableInfo(ppTbInfo);
+  taosArrayDestroy(req.pArray);
+
+  return code;
+}
+
+int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropRequest* pReq, char* tbName) {
+  SStreamRunnerTaskOutput* pOutput = pTaskOutput;
+  int32_t                  code = 0;
+  int32_t                  lino = 0;
+  SVDropTbBatchReq         req = {.nReqs = 1};
+  SVDropTbReq*             pDropReq = NULL;
+  int32_t                  msgLen = 0;
+  tsem_t*                  pSem = NULL;
+  SDropTbDataMsg*          pMsg = NULL;
+
+  TAOS_UNUSED(taosThreadOnce(&g_dbVgInfoMgrInit, dbVgInfoMgrInitOnce));
+
+  req.pArray = taosArrayInit_s(sizeof(SVDropTbReq), 1);
+  if (!req.pArray) return terrno;
+
+  pDropReq = taosArrayGet(req.pArray, 0);
+
+  pDropReq->name = tbName;
+  pDropReq->igNotExists = true;
+
+  int64_t key[2] = {pReq->streamId, pReq->gid};
+  TAOS_UNUSED(taosHashRemove(gStreamGrpTableHash, key, sizeof(key)));
+
+  SVgroupInfo vgInfo = {0};
+  code = getDbVgInfoForExec(pMsgCb->clientRpc, pOutput->outDbFName, pDropReq->name, &vgInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = dropTableReqToMsg(vgInfo.vgId, &req, (void**)&pMsg, &msgLen);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SDropTbCtx ctx = {.req = pReq};
+  code = tsem_init(&ctx.ready, 0, 0);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pSem = &ctx.ready;
+
+  code = sendDropTbRequest(&ctx, pMsg, msgLen, pMsgCb->clientRpc, &vgInfo.epSet);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pMsg = NULL;  // now owned by sendDropTbRequest
+
+  tsem_wait(&ctx.ready);
+  code = ctx.code;
+  stDebug("doDropStreamTableByTbName,  code:%d req:%p, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq,
+          pReq->streamId, pReq->gid, pDropReq ? pDropReq->name : "unknown");
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("doDropStreamTableByTbName, code:%d, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq->streamId,
+            pReq->gid, pDropReq ? pDropReq->name : "unknown");
+    if (pMsg) {
+      taosMemoryFreeClear(pMsg);
+    }
+  }
+  if (pSem) tsem_destroy(pSem);
   taosArrayDestroy(req.pArray);
 
   return code;

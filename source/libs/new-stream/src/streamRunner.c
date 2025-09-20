@@ -1019,9 +1019,17 @@ _exit:
 }
 
 int32_t stRunnerTaskDropTable(SStreamRunnerTask* pTask, SSTriggerDropRequest* pReq) {
-  // char    tbname[TSDB_TABLE_NAME_LEN];
-  // int32_t code = streamCalcOutputTbName(pTask->pSubTableExpr, tbname, &pExec->runtimeInfo.funcInfo);
-  return dropStreamTable(&pTask->msgCb, (void*)&pTask->output, pReq);
+
+  int32_t  code = dropStreamTable(&pTask->msgCb, (void*)&pTask->output, pReq);
+  if(code == TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND) {
+      char    tbname[TSDB_TABLE_NAME_LEN];
+      SStreamRuntimeFuncInfo pStreamRuntimeInfo = {.pStreamPartColVals = pReq->groupColVals};
+      code = streamCalcOutputTbName(pTask->pSubTableExpr, tbname, &pStreamRuntimeInfo);
+      if(code == TSDB_CODE_SUCCESS) {
+          code = dropStreamTableByTbName(&pTask->msgCb, pTask->output.outDbFName, pReq, tbname);
+      }
+  }
+  return code;
 }
 
 int32_t stReaderAppendMgmtReq(SStreamRunnerTask* pTask, SArray** ppRes, int32_t execId, int64_t uid, SArray* pReq) {
