@@ -175,8 +175,7 @@ typedef enum {
   SDB_SCAN = 33,
   SDB_SCAN_DETAIL = 34,
   SDB_RSMA = 35,
-  SDB_MAX = 36,
-  SDB_MAX = 37
+  SDB_MAX = 36
 } ESdbType;
 
 typedef struct SSdbRaw {

@@ -943,7 +943,7 @@ int32_t metaGetColCmpr(SMeta *pMeta, tb_uid_t uid, SHashObj **ppColCmprObj) {
 
   tDecoderInit(&dc, pData, nData);
   rc = metaDecodeEntry(&dc, &e);
-  if (e.type == TSDB_SUPER_TABLE) {
+  if (e.type == TSDB_SUPER_TABLE && TABLE_IS_ROLLUP(e.flags)) {
     metaFreeRsmaParam(&e.stbEntry.rsmaParam, 0);
   }
   if (rc < 0) {

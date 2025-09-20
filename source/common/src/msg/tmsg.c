@@ -1545,6 +1545,7 @@ int32_t tDeserializeSVDropRsmaReq(void *buf, int32_t bufLen, SVDropRsmaReq *pReq
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
 
 void tFreeSMDropSmaReq(SMDropSmaReq *pReq) {
   taosMemoryFreeClear(pReq->dropStreamReq);
