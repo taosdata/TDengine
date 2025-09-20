@@ -57,4 +57,4 @@ accelerate==0.34.2
 # chronos-forecasting==1.5.0
 # jax==0.5.3
 # timesfm
-# uni2ts==1.2.0
+# uni2ts==1.2.0 
