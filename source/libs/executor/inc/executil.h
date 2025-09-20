@@ -246,5 +246,6 @@ int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbN
 void    rmDbVgInfoFromCache(const char* dbFName);
 
 int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
+int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 #endif  // TDENGINE_EXECUTIL_H

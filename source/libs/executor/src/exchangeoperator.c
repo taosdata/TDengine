@@ -189,9 +189,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
     }
 
     code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
+    TAOS_CHECK_EXIT(code);
 
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
     if (pRsp->completed == 1) {

@@ -301,6 +301,7 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
+int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 #ifdef __cplusplus
 }

@@ -2075,3 +2075,7 @@ _exit:
 int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq) {
   return doDropStreamTable(pMsgCb, pOutput, pReq);
 }
+
+int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName) {
+  return doDropStreamTableByTbName(pMsgCb, pOutput, pReq, tbName);
+}
