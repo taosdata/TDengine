@@ -243,6 +243,9 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_DROP_WHITE_LIST 0x8
 #define TSDB_ALTER_USER_CREATEDB        0x9
 
+#define TSDB_ALTER_RSMA_ENABLE          0x1
+#define TSDB_ALTER_RSMA_FUNCTION        0x2
+
 #define TSDB_KILL_MSG_LEN 30
 
 #define TSDB_TABLE_NUM_UNIT 100000
@@ -4530,7 +4533,7 @@ int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 void tFreeSMDropSmaReq(SMDropSmaReq *pReq);
 
 typedef struct {
-  char       name[TSDB_TABLE_FNAME_LEN];
+  char       name[TSDB_TABLE_NAME_LEN];
   char       dbFName[TSDB_DB_FNAME_LEN];
   char       tbName[TSDB_TABLE_FNAME_LEN];
   int8_t     tbType;  // ETableType: 1 stable, 3 normal table

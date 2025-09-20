@@ -5090,30 +5090,6 @@ _err:
   return NULL;
 }
 
-SNode* createStartRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNotExists, SNode* pRsma,
-                           SNodeList* pVgroups) {
-  CHECK_PARSER_STATUS(pCxt);
-  SStartRsmaStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->ignoreNotExists = ignoreNotExists;
-  SRealTableNode* pTableNode = (SRealTableNode*)pRsma;
-
-  memcpy(pStmt->rsmaName, pTableNode->table.tableName, TSDB_TABLE_NAME_LEN);
-  memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
-  nodesDestroyNode(pRsma);
-
-  pStmt->pVgroups = pVgroups;
-  return (SNode*)pStmt;
-_err:
-  return NULL;
-}
-
-SNode* createStopRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNotExists, SNode* pRsma,
-                          SNodeList* pVgroups) {
-  return createStartRsmaStmt(pCxt, type, ignoreNotExists, pRsma, pVgroups);
-}
-
 SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, SNodeList* pFuncs, bool add) {
   CHECK_PARSER_STATUS(pCxt);
   SAlterRsmaStmt* pStmt = NULL;
@@ -5133,7 +5109,7 @@ _err:
   return NULL;
 }
 
-SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds) {
+SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds, STokenPair* pLevel) {
   CHECK_PARSER_STATUS(pCxt);
   SKillRsmaTasksStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_KILL_RSMA_TASKS_STMT, (SNode**)&pStmt);

@@ -16709,9 +16709,7 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot create rsma on system table: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
   }
-
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
-  PAR_ERR_JRET(tNameExtractFullName(&name, pReq->name));
+  (void)snprintf(pReq->name, TSDB_TABLE_NAME_LEN, "%s", pStmt->rsmaName);
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, useTbName);
   PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->tbName));
@@ -16814,9 +16812,7 @@ _return:
 }
 
 static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
+#ifdef TD_ENTERPRISE
   int32_t code = TSDB_CODE_SUCCESS;
   pCxt->pCurrStmt = (SNode*)pStmt;
 
@@ -16829,12 +16825,13 @@ static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pSt
 _return:
   tFreeSMCreateRsmaReq(&pReq);
   return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
+#ifdef TD_ENTERPRISE
   int32_t      code = TSDB_CODE_SUCCESS;
   SMDropSmaReq dropReq = {0};
   SName        name = {0};
@@ -16847,6 +16844,9 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
   return code;
 _return:
   return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
   static int32_t translateQuery(STranslateContext * pCxt, SNode * pNode) {

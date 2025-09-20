@@ -415,12 +415,8 @@ SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
                             SNodeList* pFuncs, SNodeList* pIntervals);
 SNode* createDropRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
-SNode* createStartRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNotExists, SNode* pRsma,
-                           SNodeList* pVgroups);
-SNode* createStopRsmaStmt(SAstCreateContext* pCxt, ENodeType type, bool ignoreNotExists, SNode* pRsma,
-                          SNodeList* pVgroups);
 SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, SNodeList* pFuncs, bool add);
-SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds);
+SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds, STokenPair* pLevel);
 SNode* createRecalcRsmaStmt(SAstCreateContext* pCxt, STokenPair* pLevel, SNodeList* pScope, SNode* pWhere);
 
 SNode*     createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,

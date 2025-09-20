@@ -696,9 +696,11 @@ static int32_t mndCheckCreateRsmaReq(SMCreateRsmaReq *pCreate) {
   if (pCreate->interval[0] <= 0) goto _exit;
   if (pCreate->interval[1] < 0) goto _exit;
 
-  SName rsmaName = {0};
-  if ((code = tNameFromString(&rsmaName, pCreate->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
-  if (*(char *)tNameGetTableName(&rsmaName) == 0) goto _exit;
+  SName fname = {0};
+  if ((code = tNameFromString(&fname, pCreate->dbFName, T_NAME_ACCT | T_NAME_DB)) < 0) goto _exit;
+  if (*(char *)tNameGetTableName(&fname) == 0) goto _exit;
+  if ((code = tNameFromString(&fname, pCreate->tbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
+  if (*(char *)tNameGetTableName(&fname) == 0) goto _exit;
   code = 0;
 _exit:
   TAOS_RETURN(code);
