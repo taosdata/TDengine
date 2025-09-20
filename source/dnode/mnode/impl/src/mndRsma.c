@@ -87,8 +87,8 @@ static int32_t tSerializeSRsmaObj(void *buf, int32_t bufLen, const SRsmaObj *pOb
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->name));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->tbname));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->db));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->tbName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbFName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->createUser));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createdTime));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->updateTime));
@@ -97,6 +97,7 @@ static int32_t tSerializeSRsmaObj(void *buf, int32_t bufLen, const SRsmaObj *pOb
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->dbUid));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->interval[0]));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->interval[1]));
+  TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pObj->reserved));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->tbType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->intervalUnit));
   TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->nFuncs));
@@ -126,8 +127,8 @@ static int32_t tDeserializeSRsmaObj(void *buf, int32_t bufLen, SRsmaObj *pObj) {
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->name));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->tbname));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->db));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->tbName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbFName));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->createUser));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->createdTime));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->updateTime));
@@ -136,6 +137,7 @@ static int32_t tDeserializeSRsmaObj(void *buf, int32_t bufLen, SRsmaObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->dbUid));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->interval[0]));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->interval[1]));
+  TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pObj->reserved));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->tbType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->intervalUnit));
   TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pObj->nFuncs));
@@ -377,10 +379,10 @@ static int32_t mndSetCreateRsmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbOb
   void   *pIter = NULL;
 
   SName name = {0};
-  if ((code = tNameFromString(&name, pCreate->tbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
+  if ((code = tNameFromString(&name, pCreate->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
     return code;
   }
-  tstrncpy(pCreate->tbName, (char *)tNameGetTableName(&name), sizeof(pCreate->name));
+  tstrncpy(pCreate->tbFName, (char *)tNameGetTableName(&name), sizeof(pCreate->tbFName)); // convert tbFName to tbName
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
     if (!mndVgroupInDb(pVgroup, pDb->uid)) {
@@ -464,11 +466,7 @@ static void *mndBuildVDropRsmaReq(SMnode *pMnode, SVgObj *pVgroup, SRsmaObj *pOb
   SMsgHead     *pHead = NULL;
   SVDropRsmaReq req = {0};
 
-  SName name = {0};
-  if ((terrno = tNameFromString(&name, pObj->tbname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
-    return NULL;
-  }
-  (void)snprintf(req.tbName, sizeof(req.tbName), "%s", (char *)tNameGetTableName(&name));
+  (void)snprintf(req.tbName, sizeof(req.tbName), "%s",  pObj->tbName);
   (void)snprintf(req.name, sizeof(req.name), "%s", pObj->name);
   req.tbType = pObj->tbType;
   req.uid = pObj->uid;
@@ -628,16 +626,18 @@ static int32_t mndRetrieveRsmaTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
 static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbObj *pDb, SStbObj *pStb,
                              SMCreateRsmaReq *pCreate) {
-  int32_t    code = 0, lino = 0;
-  SRsmaObj   obj = {0};
-  int32_t    nDbs = 0, nVgs = 0, nStbs = 0;
-  SDbObj    *pDbs = NULL;
-  SStbObj   *pStbs = NULL;
-  STrans    *pTrans = NULL;
+  int32_t  code = 0, lino = 0;
+  SRsmaObj obj = {0};
+  int32_t  nDbs = 0, nVgs = 0, nStbs = 0;
+  SDbObj  *pDbs = NULL;
+  SStbObj *pStbs = NULL;
+  STrans  *pTrans = NULL;
 
   (void)snprintf(obj.name, TSDB_TABLE_FNAME_LEN, "%s", pCreate->name);
-  (void)snprintf(obj.db, TSDB_DB_FNAME_LEN, "%s", pDb->name);
-  (void)snprintf(obj.tbname, TSDB_TABLE_FNAME_LEN, "%s", pCreate->tbName);
+  (void)snprintf(obj.dbFName, TSDB_DB_FNAME_LEN, "%s", pDb->name);
+
+  const char *tbName = strrchr(pCreate->tbFName, '.');
+  (void)snprintf(obj.tbName, TSDB_TABLE_NAME_LEN, "%s", tbName ? tbName + 1 : pCreate->tbFName);
   (void)snprintf(obj.createUser, TSDB_USER_LEN, "%s", pUser->user);
   obj.createdTime = taosGetTimestampMs();
   obj.updateTime = obj.createdTime;
@@ -649,6 +649,7 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
   obj.version = 1;
   obj.tbType = pCreate->tbType;  // ETableType: 1 stable. Only super table supported currently.
   obj.intervalUnit = pCreate->intervalUnit;
+  obj.enable = 1;                // enable by default
   obj.nFuncs = pCreate->nFuncs;
   if (obj.nFuncs > 0) {
     TSDB_CHECK_NULL((obj.funcColIds = taosMemoryCalloc(obj.nFuncs, sizeof(col_id_t))), code, lino, _exit, terrno);
@@ -661,9 +662,9 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "create-rsma")),
                   code, lino, _exit, terrno);
-  mInfo("trans:%d, used to create rsma %s on tb %s", pTrans->id, obj.name, obj.tbname);
+  mInfo("trans:%d, used to create rsma %s on tb %s.%s", pTrans->id, obj.name, obj.dbFName, obj.tbName);
 
-  mndTransSetDbName(pTrans, obj.db, obj.name);
+  mndTransSetDbName(pTrans, obj.dbFName, obj.name);
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
@@ -690,16 +691,14 @@ _exit:
 static int32_t mndCheckCreateRsmaReq(SMCreateRsmaReq *pCreate) {
   int32_t code = TSDB_CODE_MND_INVALID_RSMA_OPTION;
   if (pCreate->name[0] == 0) goto _exit;
-  if (pCreate->tbName[0] == 0) goto _exit;
+  if (pCreate->tbFName[0] == 0) goto _exit;
   if (pCreate->igExists < 0 || pCreate->igExists > 1) goto _exit;
   if (pCreate->intervalUnit < 0) goto _exit;
   if (pCreate->interval[0] <= 0) goto _exit;
   if (pCreate->interval[1] < 0) goto _exit;
 
   SName fname = {0};
-  if ((code = tNameFromString(&fname, pCreate->dbFName, T_NAME_ACCT | T_NAME_DB)) < 0) goto _exit;
-  if (*(char *)tNameGetTableName(&fname) == 0) goto _exit;
-  if ((code = tNameFromString(&fname, pCreate->tbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
+  if ((code = tNameFromString(&fname, pCreate->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
   if (*(char *)tNameGetTableName(&fname) == 0) goto _exit;
   code = 0;
 _exit:
@@ -714,8 +713,8 @@ static int32_t mndCheckRsmaConflicts(SMnode *pMnode, SDbObj *pDbObj, SMCreateRsm
     if (pObj->tbUid == pCreate->tbUid && pObj->dbUid == pDbObj->uid) {
       sdbCancelFetch(pSdb, (pIter));
       sdbRelease(pSdb, pObj);
-      mError("rsma:%s, conflict with existing rsma %s on same table %s:%" PRIi64, pCreate->name, pObj->name,
-             pObj->tbname, pObj->tbUid);
+      mError("rsma:%s, conflict with existing rsma %s on same table %s.%s:%" PRIi64, pCreate->name, pObj->name,
+             pObj->dbFName, pObj->tbName, pObj->tbUid);
       return TSDB_CODE_QRY_DUPLICATED_OPERATION;
     }
     sdbRelease(pSdb, pObj);
@@ -755,7 +754,7 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  TAOS_CHECK_EXIT(tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+  TAOS_CHECK_EXIT(tNameFromString(&name, createReq.tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
   char db[TSDB_TABLE_FNAME_LEN] = {0};
   (void)tNameGetFullDbName(&name, db);
 
@@ -767,7 +766,7 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
 
-  pStb = mndAcquireStb(pMnode, createReq.tbName);
+  pStb = mndAcquireStb(pMnode, createReq.tbFName);
   if (pStb == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STB_NOT_EXIST);
   }
@@ -779,7 +778,7 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createRsma", createReq.name, createReq.tbName, "", 0);
+  auditRecord(pReq, pMnode->clusterId, "createRsma", createReq.name, createReq.tbFName, "", 0);
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("rsma:%s, failed at line %d to create since %s", createReq.name, lino, tstrerror(code));
@@ -824,16 +823,15 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-        const char *db = strstr(pObj->db, ".");
-        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", db ? db + 1 : pObj->db));
+        const char *db = strchr(pObj->dbFName, '.');
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", db ? db + 1 : pObj->dbFName));
         varDataSetLen(pBuf, strlen(qBuf));
         COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-        const char *tb = strrchr(pObj->tbname, '.');
-        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", tb ? tb + 1 : pObj->tbname));
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->tbName));
         varDataSetLen(pBuf, strlen(qBuf));
         COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
       }
@@ -854,7 +852,11 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        TAOS_UNUSED(snprintf(pBuf, bufLen, "%" PRIi64, pObj->createdTime));
+        uint8_t enable = pObj->enable;
+        COL_DATA_SET_VAL_GOTO((const char *)&enable, false, pObj, pIter, _exit);
+      }
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         COL_DATA_SET_VAL_GOTO((const char *)&pObj->createdTime, false, pObj, pIter, _exit);
       }
 
@@ -872,7 +874,7 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->tbname));
+        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->tbName));
         varDataSetLen(pBuf, strlen(qBuf));
         COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
       }
@@ -995,7 +997,6 @@ int32_t dumpRsmaInfoFromSmaObj(const SRsmaObj *pSma, const SStbObj *pDestStb, ST
 #endif
   TAOS_RETURN(code);
 }
-
 
 int32_t mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t   code = 0;

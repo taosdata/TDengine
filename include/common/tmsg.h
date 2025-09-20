@@ -4533,9 +4533,11 @@ int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 void tFreeSMDropSmaReq(SMDropSmaReq *pReq);
 
 typedef struct {
-  char       name[TSDB_TABLE_NAME_LEN];
-  char       dbFName[TSDB_DB_FNAME_LEN];
-  char       tbName[TSDB_TABLE_FNAME_LEN];
+  char name[TSDB_TABLE_NAME_LEN];
+  union {
+    char tbFName[TSDB_TABLE_FNAME_LEN];  // used by mnode
+    char tbName[TSDB_TABLE_NAME_LEN];    // used by vnode
+  };
   int8_t     tbType;  // ETableType: 1 stable, 3 normal table
   int8_t     igExists;
   int8_t     intervalUnit;
@@ -4568,8 +4570,8 @@ int32_t tSerializeSMDropRsmaReq(void* buf, int32_t bufLen, SMDropRsmaReq* pReq);
 int32_t tDeserializeSMDropRsmaReq(void* buf, int32_t bufLen, SMDropRsmaReq* pReq);
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
-  char    tbName[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_TABLE_NAME_LEN];
+  char    tbName[TSDB_TABLE_NAME_LEN];
   int64_t uid;
   int64_t tbUid;
   int8_t  tbType;

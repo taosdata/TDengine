@@ -16712,7 +16712,7 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   (void)snprintf(pReq->name, TSDB_TABLE_NAME_LEN, "%s", pStmt->rsmaName);
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, useTbName);
-  PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->tbName));
+  PAR_ERR_JRET(tNameExtractFullName(useTbName, pReq->tbFName));
   pReq->tbType = TSDB_SUPER_TABLE;
 
   pReq->igExists = pStmt->ignoreExists;

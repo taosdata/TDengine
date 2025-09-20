@@ -1372,8 +1372,7 @@ int32_t tSerializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *pR
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbFName));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbName));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbFName));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->tbUid));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->uid));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->tbType));
@@ -1411,8 +1410,7 @@ int32_t tDeserializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dbFName));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbName));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbFName));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->tbUid));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->uid));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->tbType));

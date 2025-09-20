@@ -616,20 +616,27 @@ typedef struct {
 } SSmaObj;
 
 typedef struct {
-  char       name[TSDB_TABLE_FNAME_LEN];
-  char       tbname[TSDB_TABLE_FNAME_LEN];
-  char       db[TSDB_DB_FNAME_LEN];
-  char       createUser[TSDB_USER_LEN];
-  int64_t    createdTime;
-  int64_t    updateTime;
-  int64_t    uid;
-  int64_t    tbUid;
-  int64_t    dbUid;
-  int64_t    interval[2];
-  int32_t    version;
-  int8_t     tbType;
-  int8_t     intervalUnit;
-  int16_t    nFuncs;
+  char    name[TSDB_TABLE_NAME_LEN];
+  char    tbName[TSDB_TABLE_NAME_LEN];
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  char    createUser[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t tbUid;
+  int64_t dbUid;
+  int64_t interval[2];
+  union {
+    uint64_t reserved;
+    struct {
+      uint8_t enable : 1;
+      uint8_t padding : 7;
+    };
+  };
+  int32_t version;
+  int8_t  tbType;
+  int8_t  intervalUnit;
+  int16_t nFuncs;
   col_id_t*  funcColIds;
   func_id_t* funcIds;
   SRWLatch   lock;
