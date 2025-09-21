@@ -112,7 +112,7 @@ int32_t taosObjListInit(SObjList *pList, SObjPool *pPool) {
 }
 
 void taosObjListClear(SObjList *pList) {
-  if (pList == NULL || pList->pPool == NULL || pList->headIdx == TOBJPOOL_INVALID_IDX) {
+  if (pList == NULL || pList->headIdx == TOBJPOOL_INVALID_IDX) {
     return;
   }
 
