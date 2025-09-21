@@ -19,6 +19,8 @@
 
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
 extern void    tsdbCloseCompMonitor(STsdb *tsdb);
+extern int32_t tsdbOpenRetentionMonitor(STsdb *tsdb);
+extern void    tsdbCloseRetentionMonitor(STsdb *tsdb);
 extern int32_t tsdbOpenSsMigrateMonitor(STsdb *tsdb);
 extern void    tsdbCloseSsMigrateMonitor(STsdb *tsdb);
 
@@ -93,6 +95,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_GOTO(tsdbOpenCompMonitor(pTsdb), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbOpenRetentionMonitor(pTsdb), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbOpenSsMigrateMonitor(pTsdb), &lino, _exit);
 #endif
 
@@ -131,6 +134,7 @@ void tsdbClose(STsdb **pTsdb) {
     tsdbCloseCache(*pTsdb);
 #ifdef TD_ENTERPRISE
     tsdbCloseCompMonitor(*pTsdb);
+    tsdbCloseRetentionMonitor(*pTsdb);
 #endif
     tsdbCloseSsMigrateMonitor(*pTsdb);
     tsdbScanMonitorClose(*pTsdb);

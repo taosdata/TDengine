@@ -114,6 +114,8 @@ if(TD_VNODE_PLUGINS)
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/metaCompact.c
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompactMonitor.c
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
+        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbRollup.c
+        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbRetentionMonitor.c
     )
 endif()
 

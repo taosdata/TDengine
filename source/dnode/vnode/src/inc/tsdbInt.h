@@ -16,6 +16,12 @@
 #ifndef _TD_VNODE_TSDB_INT_H_
 #define _TD_VNODE_TSDB_INT_H_
 
+#include "../tsdb/tsdbDataFileRW.h"
+#include "../tsdb/tsdbFS2.h"
+#include "../tsdb/tsdbFSetRW.h"
+#include "../tsdb/tsdbIter.h"
+#include "../tsdb/tsdbSttFileRW.h"
+
 typedef struct {
   STsdb  *tsdb;
   int32_t szPage;
@@ -41,6 +47,52 @@ typedef struct {
   int32_t fid;
   bool    ssMigrate;
 } SRtnArg;
+
+typedef struct {
+  STsdb  *tsdb;
+  int32_t szPage;
+  int32_t minRow;
+  int32_t maxRow;
+  int8_t  cmprAlg;
+  int8_t  compactType;
+  int64_t cid;
+  int64_t compactVersion;
+
+  STFileSet   *fset;
+  TFileOpArray fopArr[1];
+
+  struct {
+    int32_t expLevel;
+    // reader
+    SDataFileReader    *dataReader;
+    TSttFileReaderArray sttReaderArr[1];
+
+    // iter & merger
+    TTsdbIterArray dataIterArr[1];
+    SIterMerger   *dataIterMerger;
+    TTsdbIterArray tombIterArr[1];
+    SIterMerger   *tombIterMerger;
+
+    // writer
+    SFSetWriter *writer;
+
+    TABLEID tbid[1];
+    SHashObj *pKeepHashObj;  // SHashObj<suid, keep>
+
+    // skyline
+    SArray  *aSkyLine;
+    int32_t  iSkyLine;
+    TSDBKEY *pDKey;
+    TSDBKEY  dKey;
+  } ctx[1];
+} SCompactor2;
+
+typedef struct {
+  STsdb       *tsdb;
+  int32_t      fid;
+  ECompactType type;
+  SVATaskID    taskid;
+} SCompactArg;
 
 int32_t tsdbDoRollup(SRTNer *rtner);
 int32_t tsdbDoSsMigrate(SRTNer *rtner);

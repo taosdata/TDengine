@@ -813,7 +813,7 @@ static void mndRetrieveRsmaFuncList(SMnode *pMnode, SRsmaObj *pObj, char *buf, i
   SSchema *pColumns = pStb->pColumns;
 
   int32_t  len = 0, j = 0;
-  char     colFunc[TSDB_COL_NAME_LEN + TSDB_FUNC_NAME_LEN + 3] = {0};
+  char     colFunc[TSDB_COL_NAME_LEN + TSDB_FUNC_NAME_LEN + 2] = {0};
   for (int32_t i = 0; i < pObj->nFuncs; ++i) {
     col_id_t colId = pObj->funcColIds[i];
     for (; j < pStb->numOfColumns;) {
