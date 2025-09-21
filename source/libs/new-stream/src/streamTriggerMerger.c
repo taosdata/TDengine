@@ -1465,7 +1465,7 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
 }
 
 int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
-                                    SObjList *pMetas, SSTriggerDataSlice *pSlice) {
+                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
@@ -1498,11 +1498,13 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     if (i < pSlice->endIdx && pVerData[i] > pMeta->ver) {
       continue;
     }
-    while (i < pSlice->endIdx && pTsData[i] < pMeta->skey) {
+    int64_t skey = TMAX(pMeta->skey, pReadRange->skey);
+    while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] < skey) {
       i++;
     }
     SNewTimestampSorterSlice slice = {.startIdx = i};
-    while (i < pSlice->endIdx && pTsData[i] <= pMeta->ekey) {
+    int64_t                  ekey = TMIN(pMeta->ekey, pReadRange->ekey);
+    while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] <= ekey) {
       i++;
     }
     slice.endIdx = i;
@@ -1802,7 +1804,8 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
 }
 
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
-                                 SObjList *pTableUids, SArray *pTableColRefs, SSHashObj *pMetas, SSHashObj *pSlices) {
+                                 STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
+                                 SSHashObj *pMetas, SSHashObj *pSlices) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pMerger->pTask;
@@ -1850,7 +1853,7 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
     }
     SObjList *pMeta = tSimpleHashGet(pMetas, &pColRef->otbVgId, sizeof(int32_t));
     QUERY_CHECK_NULL(pMeta, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    code = stNewTimestampSorterSetData(pReaderInfo->pReader, pColRef->otbUid, tsSlotId, pMeta, pSlice);
+    code = stNewTimestampSorterSetData(pReaderInfo->pReader, pColRef->otbUid, tsSlotId, pReadRange, pMeta, pSlice);
     QUERY_CHECK_CODE(code, lino, _end);
     pReaderInfo->pColRef = pColRef;
     code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);

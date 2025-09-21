@@ -393,12 +393,13 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @param pSorter The SSTriggerNewTimestampSorter instance to set the data
  * @param tbUid The UID of the table to be sorted
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
+ * @param pReadRange The time range for sorting, containing start and end timestamps
  * @param pMetas The metadatas of current table
  * @param pSlice The data slice containing the data block and the range of rows to be considered
  * @return int32_t Status code indicating success or error
  */
 int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
-                                    SObjList *pMetas, SSTriggerDataSlice *pSlice);
+                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice);
 
 /**
  * @brief Get next data block from the sorter.
@@ -463,6 +464,7 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @param pMerger The SSTriggerNewVtableMerger instance responsible for merging
  * @param vtbUid The UID of the virtual table
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
+ * @param pReadRange The time range for sorting, containing start and end timestamps
  * @param pTableUids List of original table UIDs involved in the merge
  * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
  * @param pMetas The metadatas of all original tables
@@ -470,7 +472,8 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @return int32_t
  */
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
-                                 SObjList *pTableUids, SArray *pTableColRefs, SSHashObj *pMetas, SSHashObj *pSlices);
+                                 STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
+                                 SSHashObj *pMetas, SSHashObj *pSlices);
 
 /**
  * @brief Gets next data block from the vtable merger.

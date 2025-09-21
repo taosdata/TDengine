@@ -324,6 +324,14 @@ typedef struct SStreamTriggerTask {
   bool    hasTriggerFilter;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
+  // trigger options: old version, to be removed
+  int32_t histTrigTsIndex;
+  int32_t histCalcTsIndex;
+  int64_t histStateSlotId;
+  SNode  *histTriggerFilter;
+  SNode  *histStateExpr;
+  SNode  *histStartCond;
+  SNode  *histEndCond;
   // notify options
   ESTriggerEventType calcEventType;
   ESTriggerEventType notifyEventType;
