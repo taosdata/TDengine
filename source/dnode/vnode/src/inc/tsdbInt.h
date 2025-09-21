@@ -94,6 +94,22 @@ typedef struct {
   SVATaskID    taskid;
 } SCompactArg;
 
+typedef struct {
+  int32_t   fid;
+  SVATaskID taskId;
+  int64_t   fileSize;
+} SRetentionState;
+
+struct SRetentionMonitor {
+  int64_t startTimeSec;  // start time of seconds
+  TARRAY2(SRetentionState) stateArr;
+  int64_t totalSize;
+  int64_t finishedSize;
+  int64_t lastUpdateFinishedSizeTime;
+  int32_t totalTasks;
+  int8_t  killed;
+};
+
 int32_t tsdbDoRollup(SRTNer *rtner);
 int32_t tsdbDoSsMigrate(SRTNer *rtner);
 void    tsdbRetentionCancel(void *arg);

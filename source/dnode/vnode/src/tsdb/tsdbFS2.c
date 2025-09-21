@@ -786,6 +786,7 @@ _exit:
 
 static void tsdbFSSetBlockCommit(STFileSet *fset, bool block);
 extern void tsdbStopAllCompTask(STsdb *tsdb);
+extern void tsdbStopAllRetentionTask(STsdb *tsdb);
 
 int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
@@ -830,6 +831,7 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
 
 #ifdef TD_ENTERPRISE
   tsdbStopAllCompTask(pTsdb);
+  tsdbStopAllRetentionTask(pTsdb);
 #endif
   return 0;
 }
