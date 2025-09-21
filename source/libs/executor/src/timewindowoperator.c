@@ -68,12 +68,12 @@ void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, int32_t rowIndex, uint64_t
   pRowSup->win.ekey = ts;
   pRowSup->prevTs = ts;
   pRowSup->groupId = groupId;
+  pRowSup->numOfRows += 1;
   if (hasContinuousNullRows(pRowSup)) {
     // rows having null state col are wrapped by rows of same state
-    pRowSup->numOfRows += rowIndex - pRowSup->startNullRowIndex;
-    resetStartNullRowIndex(pRowSup);
+    pRowSup->numOfRows += pRowSup->numNullRows;
+    resetNumNullRows(pRowSup);
   }
-  pRowSup->numOfRows += 1;
 }
 
 void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex, uint64_t groupId) {
@@ -982,14 +982,14 @@ void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsLis
     pRowSup->win.skey = hasPrevWin ? tsList[rowIndex] : tsList[0];
     pRowSup->startRowIndex = hasPrevWin ? rowIndex : 0;
     pRowSup->numOfRows = !hasPrevWin && hasContinuousNullRows(pRowSup) ?
-      rowIndex - pRowSup->startNullRowIndex : 0;
+      pRowSup->numNullRows : 0;
   } else {
     pRowSup->win.skey = hasPrevWin ? pRowSup->win.ekey + 1 : tsList[0];
     pRowSup->startRowIndex = hasContinuousNullRows(pRowSup) ?
-      pRowSup->startNullRowIndex : rowIndex;
+      rowIndex - pRowSup->numNullRows : rowIndex;
     pRowSup->numOfRows = rowIndex - pRowSup->startRowIndex;
   }
-  resetStartNullRowIndex(pRowSup);
+  resetNumNullRows(pRowSup);
 }
 
 // close a state window and record its end info
@@ -1001,15 +1001,13 @@ void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
       pRowSup->win.ekey = tsList[rowIndex] - 1;
       // continuous rows having null state col should be included in this window
       pRowSup->numOfRows += hasContinuousNullRows(pRowSup) ?
-        (rowIndex - pRowSup->startNullRowIndex) : 0;
-      resetStartNullRowIndex(pRowSup);
+        pRowSup->numNullRows : 0;
+      resetNumNullRows(pRowSup);
   }
 }
 
 void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, int32_t nullRowIndex) {
-  if (!hasContinuousNullRows(pRowSup)) {
-    pRowSup->startNullRowIndex = nullRowIndex;
-  }
+  pRowSup->numNullRows += 1;
 }
 
 static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock) {
@@ -1038,7 +1036,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   SWindowRowsSup* pRowSup = &pInfo->winSup;
   pRowSup->numOfRows = 0;
   pRowSup->startRowIndex = 0;
-  resetStartNullRowIndex(pRowSup);
+  resetNumNullRows(pRowSup);
 
   struct SColumnDataAgg* pAgg = NULL;
   EStateWinExtendOption extendOption = pInfo->extendOption;
@@ -1119,8 +1117,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   pRowSup->win.ekey = tsList[pBlock->info.rows - 1];
   if (hasContinuousNullRows(pRowSup)) {
     // and all left rows should be included in the last window
-    pRowSup->numOfRows += pBlock->info.rows - pRowSup->startNullRowIndex;
-    resetStartNullRowIndex(pRowSup);
+    pRowSup->numOfRows += pRowSup->numNullRows;
+    resetNumNullRows(pRowSup);
   }
 
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
