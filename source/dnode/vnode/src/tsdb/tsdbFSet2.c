@@ -725,6 +725,20 @@ void tsdbTFileSetRemove(STFileSet *fset) {
   TARRAY2_DESTROY(fset->lvlArr, tsdbSttLvlRemove);
 }
 
+int64_t tsdbTFileSetGetDataSize(const STFileSet *fset) {
+  int64_t size = 0;
+  if (fset->farr[TSDB_FTYPE_DATA]) {
+    size += fset->farr[TSDB_FTYPE_DATA]->f->size;
+  }
+
+  SSttLvl *lvl;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    STFileObj *fobj;
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) { size += fobj->f->size; }
+  }
+  return size;
+}
+
 SSttLvl *tsdbTFileSetGetSttLvl(STFileSet *fset, int32_t level) {
   SSttLvl   sttLvl = {.level = level};
   SSttLvl  *lvl = &sttLvl;

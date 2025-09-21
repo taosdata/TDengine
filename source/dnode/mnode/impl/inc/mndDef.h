@@ -1034,6 +1034,8 @@ typedef struct {
   SArray* scanDetail;
 } SScanObj;
 
+typedef struct SCompactObj       SRetentionObj;
+typedef struct SCompactDetailObj SRetentionDetailObj;
 typedef struct {
   int32_t nodeId;    // dnode id of the leader vnode
   int32_t vgId;

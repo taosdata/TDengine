@@ -44,6 +44,7 @@ int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **f
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 void    tsdbTFileSetClear(STFileSet **fset);
 void    tsdbTFileSetRemove(STFileSet *fset);
+int64_t tsdbTFileSetGetDataSize(const STFileSet *fset);
 
 int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_t ever, STFileSet **fset,
                                     TFileOpArray *fopArr);
