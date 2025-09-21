@@ -204,6 +204,12 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
+typedef enum {
+  TSDB_COMPACT_NORMAL = 0,
+  TSDB_COMPACT_SSMIGRATE = 1,
+  TSDB_COMPACT_ROLLUP = 2,
+} ECompactType;
+
 #define TSDB_ALTER_TABLE_ADD_TAG                         1
 #define TSDB_ALTER_TABLE_DROP_TAG                        2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME                 3
@@ -2553,6 +2559,7 @@ typedef struct {
   STimeWindow tw;
   int32_t     compactId;
   int8_t      metaOnly;
+  int8_t      compactType;  // ECompactType
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);

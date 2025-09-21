@@ -790,12 +790,61 @@ _exit:
   TAOS_RETURN(code);
 }
 
+static void mndRetrieveRsmaFuncList(SMnode *pMnode, SRsmaObj *pObj, char *buf, int32_t bufLen) {
+  SSdb    *pSdb = pMnode->pSdb;
+  int32_t  numOfRows = 0;
+  SStbObj *pStb = NULL;
+  char    *qBuf = POINTER_SHIFT(buf, VARSTR_HEADER_SIZE);
+  int32_t  qBufLen = bufLen - VARSTR_HEADER_SIZE;
+
+  qBuf[0] = 0;
+  varDataSetLen(buf, 0);  // initialize to empty string
+
+  if (pObj->nFuncs <= 0) return;
+
+  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pObj->dbFName, pObj->tbName);
+  pStb = mndAcquireStb(pMnode, tbFName);
+  if (pStb == NULL) {
+    mWarn("rsma:%s, failed to acquire table %s for function list", pObj->name, tbFName);
+    return;
+  }
+
+  SSchema *pColumns = pStb->pColumns;
+
+  int32_t  len = 0, j = 0;
+  char     colFunc[TSDB_COL_NAME_LEN + TSDB_FUNC_NAME_LEN + 3] = {0};
+  for (int32_t i = 0; i < pObj->nFuncs; ++i) {
+    col_id_t colId = pObj->funcColIds[i];
+    for (; j < pStb->numOfColumns;) {
+      if (pColumns[j].colId == colId) {
+        int32_t colFuncLen =
+            tsnprintf(colFunc, sizeof(colFunc), "%s(%s),", fmGetFuncName(pObj->funcIds[i]), pColumns[j].name);
+        if ((qBufLen - len) > colFuncLen) {
+          len += tsnprintf(qBuf + len, colFuncLen + 1, "%s", colFunc);
+        } else {
+          goto _exit;
+        }
+        break;
+      } else if (pColumns[j].colId > colId) {
+        break;
+      } else {
+        ++j;
+      }
+    }
+  }
+_exit:
+  qBuf[len > 0 ? len - 1 : 0] = 0;  // remove the last ','
+  varDataSetLen(buf, len > 0 ? len - 1 : 0);
+  mndReleaseStb(pMnode, pStb);
+}
+
 static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = 0, lino = 0;
   int32_t          numOfRows = 0;
   int32_t          cols = 0;
-  char             tmp[512];
+  char             tmp[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE];
   int32_t          tmpLen = 0;
   int32_t          bufLen = 0;
   char            *pBuf = NULL;
@@ -873,9 +922,7 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
-        TAOS_UNUSED(snprintf(qBuf, bufLen, "%s", pObj->tbName));
-        varDataSetLen(pBuf, strlen(qBuf));
+        mndRetrieveRsmaFuncList(pMnode, pObj, pBuf, bufLen);
         COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
       }
 
