@@ -3254,32 +3254,28 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
     QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
     if (pContext->calcRange.ekey == INT64_MIN) {
-      if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
-        pContext->calcRange.skey = INT64_MIN;
-        pContext->calcRange.ekey = INT64_MAX;
-      } else {
-        SSTriggerCalcParam *pFirstParam = TARRAY_DATA(pCalcReq->params);
-        SSTriggerCalcParam *pLastParam = pFirstParam + TARRAY_SIZE(pCalcReq->params) - 1;
-        pContext->calcRange.skey = pFirstParam->wstart;
-        pContext->calcRange.ekey = pLastParam->wend;
-        STimeWindow metaRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
-        int32_t     iter1 = 0;
-        SObjList   *pMetas = tSimpleHashIterate(pGroup->pWalMetas, NULL, &iter1);
-        while (pMetas != NULL) {
-          SSTriggerMetaData *pMeta = NULL;
-          SObjListIter       iter2 = {0};
-          taosObjListInitIter(pMetas, &iter2, TOBJLIST_ITER_FORWARD);
-          while ((pMeta = taosObjListIterNext(&iter2)) != NULL) {
-            metaRange.skey = TMIN(metaRange.skey, pMeta->skey);
-            metaRange.ekey = TMAX(metaRange.ekey, pMeta->ekey);
-          }
-          pMetas = tSimpleHashIterate(pGroup->pWalMetas, pMetas, &iter1);
+      SSTriggerCalcParam *pFirstParam = TARRAY_DATA(pCalcReq->params);
+      SSTriggerCalcParam *pLastParam = pFirstParam + TARRAY_SIZE(pCalcReq->params) - 1;
+      pContext->calcRange.skey = pFirstParam->wstart;
+      pContext->calcRange.ekey = pLastParam->wend;
+      STimeWindow metaRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
+      int32_t     iter1 = 0;
+      SObjList   *pMetas = tSimpleHashIterate(pGroup->pWalMetas, NULL, &iter1);
+      while (pMetas != NULL) {
+        SSTriggerMetaData *pMeta = NULL;
+        SObjListIter       iter2 = {0};
+        taosObjListInitIter(pMetas, &iter2, TOBJLIST_ITER_FORWARD);
+        while ((pMeta = taosObjListIterNext(&iter2)) != NULL) {
+          metaRange.skey = TMIN(metaRange.skey, pMeta->skey);
+          metaRange.ekey = TMAX(metaRange.ekey, pMeta->ekey);
         }
-        pContext->calcRange.skey = TMAX(pContext->calcRange.skey, metaRange.skey);
-        pContext->calcRange.ekey = TMIN(pContext->calcRange.ekey, metaRange.ekey);
-        QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
-                              TSDB_CODE_INVALID_PARA);
+        pMetas = tSimpleHashIterate(pGroup->pWalMetas, pMetas, &iter1);
       }
+      pContext->calcRange.skey = TMAX(pContext->calcRange.skey, metaRange.skey);
+      pContext->calcRange.ekey = TMIN(pContext->calcRange.ekey, metaRange.ekey);
+      QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
+                            TSDB_CODE_INVALID_PARA);
+
       // fill calc range
       tSimpleHashClear(pContext->pRanges);
       if (pTask->isVirtualTable) {
@@ -3363,7 +3359,15 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   // amend ekey of interval window trigger and sliding trigger
   for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); i++) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
-    if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+    if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+      pParam->prevLocalTime = pContext->periodWindow.skey - 1;
+      pParam->triggerTime = pContext->periodWindow.ekey;
+      if (pTask->placeHolderBitmap & PLACE_HOLDER_NEXT_LOCAL) {
+        STimeWindow nextWin = pContext->periodWindow;
+        stTriggerTaskNextTimeWindow(pTask, &nextWin);
+        pParam->nextLocalTime = nextWin.ekey;
+      }
+    } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
       if (pTask->interval.interval > 0) {
         pParam->wend++;
         pParam->wduration++;
@@ -7063,16 +7067,9 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         SObjList *pMetas = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
         QUERY_CHECK_NULL(pMetas, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         QUERY_CHECK_NULL(pContext->pCurParam, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        STimeWindow range = {0};
-        if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
-          range.skey = INT64_MIN;
-          range.ekey = INT64_MAX;
-        } else {
-          range.skey = pContext->pCurParam->wstart;
-          range.ekey = pContext->pCurParam->wend;
-          if (TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
-            range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
-          }
+        STimeWindow range = {.skey = pContext->pCurParam->wstart, .ekey = pContext->pCurParam->wend};
+        if (TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
+          range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
         }
         code = stNewTimestampSorterSetData(pContext->pCalcSorter, tbUid, pTask->calcTsIndex, &range, pMetas, pSlice);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -7153,7 +7150,8 @@ static int32_t stRealtimeGroupDoPeriodCheck(SSTriggerRealtimeGroup *pGroup) {
   }
 
   SSTriggerNotifyWindow newWin = {0};
-  newWin.range = pContext->periodWindow;
+  newWin.range.skey = INT64_MIN;
+  newWin.range.ekey = INT64_MAX;
   newWin.wrownum = endIdx - startIdx;
   void *px = taosArrayPush(pContext->pWindows, &newWin);
   QUERY_CHECK_NULL(px, code, lino, _end, terrno);
@@ -7714,13 +7712,8 @@ static int32_t stRealtimeGroupFillParam(SSTriggerRealtimeGroup *pGroup, SSTrigge
 
   switch (pTask->triggerType) {
     case STREAM_TRIGGER_PERIOD: {
-      pParam->prevLocalTime = pWin->range.skey - 1;
-      pParam->triggerTime = pWin->range.ekey;
-      if (pTask->placeHolderBitmap & PLACE_HOLDER_NEXT_LOCAL) {
-        STimeWindow nextWin = pWin->range;
-        stTriggerTaskNextTimeWindow(pTask, &nextWin);
-        pParam->nextLocalTime = nextWin.ekey;
-      }
+      pParam->wstart = pWin->range.skey;
+      pParam->wend = pWin->range.ekey;
       if (pParam->notifyType != STRIGGER_EVENT_WINDOW_NONE) {
         pParam->notifyType = STRIGGER_EVENT_ON_TIME;
       }

@@ -887,8 +887,15 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
 
   QUERY_CHECK_CONDITION(pTask->task.type == STREAM_TRIGGER_TASK, code, lino, _end, TSDB_CODE_STREAM_TASK_NOT_EXIST);
 
-  if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
-    end = end - 1;
+  if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_PERIOD) {
+    start = INT64_MIN;
+    end = INT64_MAX;
+  } else if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
+    if (((SStreamTriggerTask*)pTask)->interval.interval > 0) {
+      end--;
+    } else {
+      start++;
+    }
   }
   SHashObj* pCalcDataCacheIters = NULL;
   void*     pCalcDataCache = NULL;
