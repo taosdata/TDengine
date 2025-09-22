@@ -1479,7 +1479,8 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   }
   int32_t nPseudoCols = TARRAY_SIZE(pVirColIds) - nDataCols;
   if (nPseudoCols > 0) {
-    taosSort((char *)TARRAY_DATA(pVirColIds) + nDataCols * sizeof(col_id_t), nPseudoCols, sizeof(col_id_t), compareUint16Val);
+    taosSort((char *)TARRAY_DATA(pVirColIds) + nDataCols * sizeof(col_id_t), nPseudoCols, sizeof(col_id_t),
+             compareUint16Val);
     col_id_t *pColIds = pVirColIds->pData;
     int32_t   j = nDataCols;
     for (int32_t i = nDataCols + 1; i < TARRAY_SIZE(pVirColIds); i++) {
@@ -3310,6 +3311,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
 
     if (pContext->pCurParam == NULL) {
       pContext->pCurParam = TARRAY_DATA(pCalcReq->params);
+      pContext->curParamRows = 0;
       taosObjListClear(&pContext->pCalcTableUids);
       int64_t     *ar = NULL;
       SObjListIter iter = {0};
@@ -3331,6 +3333,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
           break;
         }
         TARRAY_SIZE(pDataBlock->pDataBlock)--;
+        pContext->curParamRows += (endIdx - startIdx);
         code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
                                   pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
         TARRAY_SIZE(pDataBlock->pDataBlock)++;
@@ -3342,7 +3345,10 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         pContext->needPseudoCols = false;
         goto _end;
       }
+      ST_TASK_DLOG("write data cache of groupId:%" PRId64 " wstart:%" PRId64 " wend:%" PRId64 " nrows:%" PRId64,
+                   pGroup->gid, pContext->pCurParam->wstart, pContext->pCurParam->wend, pContext->curParamRows);
       pContext->pCurParam++;
+      pContext->curParamRows = 0;
       taosObjListClear(&pContext->pCalcTableUids);
       int64_t     *ar = NULL;
       SObjListIter iter = {0};
@@ -3357,7 +3363,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   // amend ekey of interval window trigger and sliding trigger
   for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); i++) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
-    if (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval > 0) {
+    if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
       if (pTask->interval.interval > 0) {
         pParam->wend++;
         pParam->wduration++;
@@ -4679,6 +4685,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
+      ST_TASK_DLOG("receive %" PRId64 " rows calc data of %d tablese from vnode %d", pProgress->pCalcBlock->info.rows,
+                   nTables, pProgress->pTaskAddr->nodeId);
       if (pTask->isVirtualTable) {
         SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
         QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -5663,9 +5671,13 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
   // amend ekey of interval window trigger and sliding trigger
   for (int32_t i = 0; i < TARRAY_SIZE(pCalcReq->params); i++) {
     SSTriggerCalcParam *pParam = taosArrayGet(pCalcReq->params, i);
-    if (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval > 0) {
-      pParam->wend++;
-      pParam->wduration++;
+    if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+      if (pTask->interval.interval > 0) {
+        pParam->wend++;
+        pParam->wduration++;
+      } else {
+        pParam->prevTs--;
+      }
     }
     ST_TASK_DLOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
                  ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
@@ -6850,6 +6862,7 @@ static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup) {
   }
   pContext->calcRange = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
   pContext->pCurParam = NULL;
+  pContext->curParamRows = 0;
   taosObjListClear(&pContext->pAllCalcTableUids);
   taosObjListClear(&pContext->pCalcTableUids);
   if (pContext->pCalcSorter != NULL) {
@@ -8336,14 +8349,9 @@ static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t t
         newWindow.range = pGroup->nextWindow;
         stTriggerTaskNextTimeWindow(pTask, &pGroup->nextWindow);
         if (needCalc || needNotify) {
-          STimeWindow prevWindow = newWindow.range;
-          stTriggerTaskPrevTimeWindow(pTask, &prevWindow);
           param.wstart = newWindow.range.skey;
           param.wend = newWindow.range.ekey;
           param.wduration = param.wend - param.wstart;
-          param.prevTs = prevWindow.skey;
-          param.currentTs = newWindow.range.skey;
-          param.nextTs = pGroup->nextWindow.skey;
         }
         break;
       }
@@ -8464,15 +8472,10 @@ static int32_t stHistoryGroupCloseWindow(SSTriggerHistoryGroup *pGroup, char **p
       if (pTask->interval.interval == 0) {
         // sliding trigger
         QUERY_CHECK_CONDITION(needCalc || needNotify, code, lino, _end, TSDB_CODE_INVALID_PARA);
-        param.prevTs = pCurWindow->range.skey - 1;
+        param.prevTs = pCurWindow->range.skey;
         param.currentTs = pCurWindow->range.ekey;
         param.nextTs = pGroup->nextWindow.ekey;
-      } else {
-        STimeWindow prevWindow = pCurWindow->range;
-        stTriggerTaskPrevTimeWindow(pTask, &prevWindow);
-        param.prevTs = prevWindow.ekey + 1;
-        param.currentTs = pCurWindow->range.ekey + 1;
-        param.nextTs = pGroup->nextWindow.ekey + 1;
+        break;
       }
       // fill the param the same way as other window trigger
     }
@@ -8661,14 +8664,10 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
                                   .wend = pWin->range.ekey,
                                   .wduration = pWin->range.ekey - pWin->range.skey,
                                   .wrownum = pWin->wrownum};
-      if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-        STimeWindow prevWindow = pWin->range;
-        stTriggerTaskPrevTimeWindow(pTask, &prevWindow);
+      if (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0) {
         STimeWindow nextWindow = pWin->range;
         stTriggerTaskNextTimeWindow(pTask, &nextWindow);
-        param.prevTs = prevWindow.skey;
-        param.currentTs = pWin->range.skey;
-        param.nextTs = nextWindow.skey;
+        param.nextTs = nextWindow.ekey;
       }
       bool ignore = pTask->ignoreNoDataTrigger && (param.wrownum == 0);
       if (calcOpen && !ignore) {
@@ -8697,19 +8696,9 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
                                   .wrownum = pWin->wrownum};
       if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
         if (pTask->interval.interval == 0) {
-          param.prevTs = pWin->range.skey - 1;
-          param.currentTs = pWin->range.ekey;
           STimeWindow nextWindow = pWin->range;
           stTriggerTaskNextTimeWindow(pTask, &nextWindow);
           param.nextTs = nextWindow.ekey;
-        } else {
-          STimeWindow prevWindow = pWin->range;
-          stTriggerTaskPrevTimeWindow(pTask, &prevWindow);
-          STimeWindow nextWindow = pWin->range;
-          stTriggerTaskNextTimeWindow(pTask, &nextWindow);
-          param.prevTs = prevWindow.ekey + 1;
-          param.currentTs = pWin->range.ekey + 1;
-          param.nextTs = nextWindow.ekey + 1;
         }
       }
       bool ignore = pTask->ignoreNoDataTrigger && (param.wrownum == 0);
