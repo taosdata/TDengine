@@ -156,6 +156,8 @@ jobs:
         continue-on-error: false
         run: |
           export TD_CONFIG=Release
+          export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+          export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
           ./build.sh gen
           ./build.sh bld --target build_externals 
 
@@ -174,6 +176,8 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           export TD_CONFIG=Release
+          export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+          export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           ./build.sh bld 
           ./build.sh install
