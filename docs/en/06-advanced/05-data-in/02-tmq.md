@@ -3,17 +3,6 @@ title: TDengine Subscription
 slug: /advanced-features/data-connectors/tdengine-3
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep1 from '../../assets/tdengine-3-01.png';
-import imgStep2 from '../../assets/tdengine-3-02.png';
-import imgStep3 from '../../assets/tdengine-3-03.png';
-import imgStep4 from '../../assets/tdengine-3-04.png';
-import imgStep5 from '../../assets/tdengine-3-05.png';
-import imgStep6 from '../../assets/tdengine-3-06.png';
-import imgStep7 from '../../assets/tdengine-3-07.png';
-import imgStep8 from '../../assets/tdengine-3-08.png';
-import imgStep9 from '../../assets/tdengine-3-09.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -28,25 +17,19 @@ Create the required Topic in the source cluster, which can subscribe to the enti
 
 Open the Explorer interface of the source cluster, click the "Data Subscription" menu on the left, then click "Add New Topic".
 
-<figure>
-<Image img={imgStep1} alt=""/>
-</figure>
+![](../../assets/tdengine-3-01.png)
 
 ### Step Two: Add a New Topic
 
 Enter the topic name, select the database to subscribe to.
 
-<figure>
-<Image img={imgStep2} alt=""/>
-</figure>
+![](../../assets/tdengine-3-02.png)
 
 ### Step Three: Copy the Topic's DSN
 
 Click the "Create" button, return to the topic list and copy the **DSN** of the topic for later use.
 
-<figure>
-<Image img={imgStep3} alt=""/>
-</figure>
+![](../../assets/tdengine-3-03.png)
 
 ## Create Subscription Task
 
@@ -55,9 +38,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 1. Click the "Data Writing" menu on the left
 2. Click "Add Data Source"
 
-<figure>
-<Image img={imgStep4} alt=""/>
-</figure>
+![](../../assets/tdengine-3-04.png)
 
 ### Step Two: Enter Data Source Information
 
@@ -67,9 +48,8 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 4. Paste the DSN copied in the preparation step into the **Topic DSN** field. For example: tmq+ws://root:taosdata@localhost:6041/topic
 5. After completing the above steps, click the "Connectivity Check" button to test connectivity with the source
 
-<figure>
-<Image img={imgStep5} alt=""/>
-</figure>
+![](../../assets/tdengine-3-05.png)
+
 
 ### Step Three: Fill in Subscription Settings and Submit Task
 
@@ -83,29 +63,21 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 8. Compression. Enable WebSocket compression support to reduce network bandwidth usage.
 9. Click the "Submit" button to submit the task
 
-<figure>
-<Image img={imgStep6} alt=""/>
-</figure>
+![](../../assets/tdengine-3-06.png)
 
 ## Monitor Task Execution
 
 After submitting the task, return to the data source page to view the task status. The task will first be added to the execution queue and will start running shortly.
 
-<figure>
-<Image img={imgStep7} alt=""/>
-</figure>
+![](../../assets/tdengine-3-07.png)
 
 Click the "View" button to monitor the dynamic statistical information of the task.
 
-<figure>
-<Image img={imgStep8} alt=""/>
-</figure>
+![](../../assets/tdengine-3-08.png)
 
 You can also click the left collapse button to expand the task's activity information. If the task runs abnormally, detailed explanations can be seen here.
 
-<figure>
-<Image img={imgStep9} alt=""/>
-</figure>
+![](../../assets/tdengine-3-09.png)
 
 ## Advanced Usage
 

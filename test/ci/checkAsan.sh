@@ -17,7 +17,7 @@ if [[ "$TD_OS" == "Alpine" ]]; then
 fi
 unset LD_PRELOAD
 SCRIPT_DIR=$(dirname $0)
-cd $SCRIPT_DIR/../
+cd "$SCRIPT_DIR"/../ || exit 1
 SCRIPT_DIR=$(pwd)
 
 IN_TDINTERNAL="community"
@@ -37,26 +37,37 @@ else
 fi
 LOG_DIR=$TAOS_DIR/asan
 
-error_num=$(cat ${LOG_DIR}/*.asan | grep "ERROR" | wc -l)
+# Consider using 'grep -c' instead of 'grep|wc -l'
+error_num=$(grep -c "ERROR" "${LOG_DIR}"/*.asan)
 
 archOs=$(arch)
 if [[ $archOs =~ "aarch64" ]]; then
   echo "arm64 check mem leak"
-  memory_leak=$(cat ${LOG_DIR}/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte" | wc -l)
-  memory_count=$(cat ${LOG_DIR}/*.asan | grep "Direct leak of 32 byte" | wc -l)
+  memory_leak=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte" | wc -l)
+  memory_count=$(grep -c "Direct leak of 32 byte" "${LOG_DIR}"/*.asan)
 
-  if [ $memory_count -eq $error_num ] && [ $memory_leak -eq 0 ]; then
+  if [ "$memory_count" -eq "$error_num" ] && [ "$memory_leak" -eq 0 ]; then
     echo "reset error_num to 0, ignore: __cxa_thread_atexit_impl leak"
     error_num=0
   fi
 else
   echo "os check mem leak"
-  memory_leak=$(cat ${LOG_DIR}/*.asan | grep "Direct leak" | wc -l)
+  memory_leak=$(grep -c "Direct leak" "${LOG_DIR}"/*.asan)
 fi
 
-indirect_leak=$(cat ${LOG_DIR}/*.asan | grep "Indirect leak" | wc -l)
-python_error=$(cat ${LOG_DIR}/*.info | grep -w "stack" | wc -l)
-python_taos_error=$(cat ${LOG_DIR}/*.info  |grep "#" | grep -v venv | grep -w "TDinternal"| wc -l)
+indirect_leak=$(grep -c "Indirect leak" "${LOG_DIR}"/*.asan)
+python_error=$(grep -c -w "stack" "${LOG_DIR}"/*.info)
+
+# Use "#" "0x" and "TDinternal" to match python taos error log
+# TD-37832: taosws.abi3.so is a memory leak referenced by the third-party library of taosws, which can be ignored for the time being. If it is resolved, the ignore condition can be removed. @qevolg 2025-09-19
+python_taos_error=$(
+  cat "${LOG_DIR}"/*.info |
+  grep "0x" |
+  grep "#" |
+  grep -v "venv" |
+  grep -v "taosws.abi3.so" |
+  grep -E -c "TDinternal|taos"
+)
 
 # ignore
 
