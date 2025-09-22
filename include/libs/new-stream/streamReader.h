@@ -105,7 +105,7 @@ typedef struct SStreamReaderTaskInner {
 } SStreamReaderTaskInner;
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
-                                      STimeWindow twindows, uint64_t suid, int64_t ver);
+                                      STimeWindow twindows, uint64_t suid, int64_t ver, int32_t** pSlotList);
 int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
 int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
 void    releaseStreamTask(void* p);

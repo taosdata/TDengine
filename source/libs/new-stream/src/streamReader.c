@@ -79,7 +79,7 @@ end:
 }
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
-                                      STimeWindow twindows, uint64_t suid, int64_t ver) {
+                                      STimeWindow twindows, uint64_t suid, int64_t ver, int32_t** pSlotList) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -87,11 +87,12 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
 
   pCond->order = order;
   pCond->numOfCols = isSchema ? taosArrayGetSize((SArray*)schemas) : LIST_LENGTH((SNodeList*)schemas);
+  pCond->pSlotList = pSlotList != NULL ? *pSlotList : taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
+  STREAM_CHECK_NULL_GOTO(pCond->pSlotList, terrno);
 
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
   STREAM_CHECK_NULL_GOTO(pCond->colList, terrno);
-  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
-  STREAM_CHECK_NULL_GOTO(pCond->pSlotList, terrno);
+  
 
   pCond->twindows = twindows;
   pCond->suid = suid;
@@ -111,7 +112,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
       pCond->colList[i].colId = pSchema->colId;
       pCond->colList[i].pk = pSchema->flags & COL_IS_KEY;
 
-      pCond->pSlotList[i] = i;
+      if (pSlotList == NULL ) pCond->pSlotList[i] = i;
     } else {
       STargetNode* pNode = (STargetNode*)nodesListGetNode((SNodeList*)schemas, i);
       STREAM_CHECK_NULL_GOTO(pNode, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
@@ -124,7 +125,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
       pCond->colList[i].colId = pColNode->colId;
       pCond->colList[i].pk = pColNode->isPk;
 
-      pCond->pSlotList[i] = pNode->slotId;
+      if (pSlotList == NULL )  pCond->pSlotList[i] = pNode->slotId;
     }
   }
 
@@ -136,6 +137,7 @@ end:
     pCond->colList = NULL;
     pCond->pSlotList = NULL;
   }
+  *pSlotList = NULL;
   return code;
 }
 
@@ -197,7 +199,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
 
     cleanupQueryTableDataCond(&pTask->cond);
     STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTask->cond, options->order, pTask->options.schemas, options->isSchema,
-                                                        options->twindows, options->suid, options->ver));
+                                                        options->twindows, options->suid, options->ver, NULL));
     STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderOpen(pVnode, &pTask->cond, pList, pNum, pTask->pResBlock,
                                                            (void**)&pTask->pReader, pTask->idStr, NULL));
   }

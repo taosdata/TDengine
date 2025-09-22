@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include "nodes.h"
 #include "osMemPool.h"
+#include "osMemory.h"
 #include "scalar.h"
 #include "streamReader.h"
 #include "tarray.h"
@@ -57,6 +58,19 @@ typedef struct WalMetaResult {
 static int64_t getSessionKey(int64_t session, int64_t type) { return (session | (type << 32)); }
 
 static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, SArray** schemas);
+
+int32_t sortCid(const void *lp, const void *rp) {
+  int16_t* c1 = (int16_t*)lp;
+  int16_t* c2 = (int16_t*)rp;
+
+  if (c1 < c2) {
+    return -1;
+  } else if (c1 > c2) {
+    return 1;
+  }
+
+  return 0;
+}
 
 static int32_t addColData(SSDataBlock* pResBlock, int32_t index, void* data) {
   SColumnInfoData* pSrc = taosArrayGet(pResBlock->pDataBlock, index);
@@ -232,7 +246,7 @@ static int32_t resetTsdbReader(SStreamReaderTaskInner* pTask) {
 
   cleanupQueryTableDataCond(&pTask->cond);
   STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTask->cond, pTask->options.order, pTask->options.schemas, true,
-                                                      pTask->options.twindows, pTask->options.suid, pTask->options.ver));
+                                                      pTask->options.twindows, pTask->options.suid, pTask->options.ver, NULL));
   STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderResetStatus(pTask->pReader, &pTask->cond));
 
 end:
@@ -398,10 +412,10 @@ static int32_t processAutoCreateTableNew(SStreamTriggerReaderInfo* sStreamReader
   int32_t  lino = 0;
   void*    pTask = sStreamReaderInfo->pTask;
   if (!needRefreshTableList(sStreamReaderInfo, pCreateReq->type, pCreateReq->ctb.suid, pCreateReq->uid, false)) {
-    ST_TASK_DLOG("stream reader scan autu create table jump, %s", pCreateReq->name);
+    ST_TASK_DLOG("stream reader scan auto create table jump, %s", pCreateReq->name);
     goto end;
   }
-  ST_TASK_ILOG("stream reader scan autu create table %s", pCreateReq->name);
+  ST_TASK_ILOG("stream reader scan auto create table %s", pCreateReq->name);
 
   STREAM_CHECK_RET_GOTO(reloadTableList(sStreamReaderInfo));
 end:
@@ -2434,7 +2448,9 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
   int32_t lino = 0;
   void*   buf = NULL;
   size_t  size = 0;
-
+  int32_t* slotIdList = NULL;
+  SArray* sortedCid = NULL;
+  
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
@@ -2445,8 +2461,27 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
   if (req->base.type == STRIGGER_PULL_TSDB_DATA) {
     SStreamTriggerReaderTaskInnerOptions options = {0};
 
+    // sort cid and build slotIdList
+    slotIdList = taosMemoryMalloc(taosArrayGetSize(req->tsdbDataReq.cids) * sizeof(int16_t));
+    STREAM_CHECK_NULL_GOTO(slotIdList, terrno);
+    sortedCid = taosArrayDup(req->tsdbDataReq.cids, NULL);
+    STREAM_CHECK_NULL_GOTO(sortedCid, terrno);
+    taosArraySort(sortedCid, sortCid);
+    for (int32_t i = 0; i < taosArrayGetSize(req->tsdbDataReq.cids); i++) {
+      int16_t* cid = taosArrayGet(req->tsdbDataReq.cids, i);
+      STREAM_CHECK_NULL_GOTO(cid, terrno);
+      for (int32_t j = 0; j < taosArrayGetSize(sortedCid); j++) {
+        int16_t* cidSorted = taosArrayGet(sortedCid, j);
+        STREAM_CHECK_NULL_GOTO(cidSorted, terrno);
+        if (*cid == *cidSorted) {
+          slotIdList[j] = i;
+          break;
+        }
+      }
+    }
+
     STREAM_CHECK_RET_GOTO(createOptionsForTsdbData(pVnode, &options, sStreamReaderInfo, req->tsdbDataReq.uid,
-                                                   req->tsdbDataReq.cids, req->tsdbDataReq.order, req->tsdbDataReq.skey,
+                                                   sortedCid, req->tsdbDataReq.order, req->tsdbDataReq.skey,
                                                    req->tsdbDataReq.ekey, req->tsdbDataReq.ver));
     reSetUid(&options, req->tsdbDataReq.suid, req->tsdbDataReq.uid);
 
@@ -2459,7 +2494,7 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
     cleanupQueryTableDataCond(&pTaskInner->cond);
     STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTaskInner->cond, pTaskInner->options.order, pTaskInner->options.schemas,
                                                         pTaskInner->options.isSchema, pTaskInner->options.twindows,
-                                                        pTaskInner->options.suid, pTaskInner->options.ver));
+                                                        pTaskInner->options.suid, pTaskInner->options.ver, &slotIdList));
     STREAM_CHECK_RET_GOTO(pTaskInner->api.tsdReader.tsdReaderOpen(pVnode, &pTaskInner->cond, &keyInfo, 1, pTaskInner->pResBlock,
                                                              (void**)&pTaskInner->pReader, pTaskInner->idStr, NULL));
     STREAM_CHECK_RET_GOTO(createOneDataBlock(pTaskInner->pResBlock, false, &pTaskInner->pResBlockDst));
@@ -2496,7 +2531,8 @@ end:
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
-
+  taosMemFree(slotIdList);
+  taosArrayDestroy(sortedCid);
   return code;
 }
 
