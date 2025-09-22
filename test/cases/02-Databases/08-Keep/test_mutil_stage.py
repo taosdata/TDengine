@@ -249,22 +249,19 @@ class TestMutilStage:
                 f"insert into {dbname}.{NTB_PRE}1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
 
     def test_mutil_stage(self):
-        """summary: xxx
+        """Database Mutil Stage Config
 
-        description: xxx
+        1. Create database with mutil stage keep option
+        2. Create super table, normal table and child table
+        3. Insert data into child table and normal table
+        4. Check error create database with wrong config
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Labels: common,ci
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_mutil_stage.py
 
         """
         self.rows = 10

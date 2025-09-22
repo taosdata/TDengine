@@ -92,6 +92,7 @@
 ## 08-Keep
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_keep_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_mlevel_basic.py -N 3 -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/08-Keep/test_mutil_stage.py
 
 # 03-Tables
 ## 01-NormalTables
@@ -1583,7 +1584,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_comment.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_mutil_stage.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_table_param_ttl.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
@@ -1613,8 +1613,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_rowlength64k_4.py -Q 4
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_precisionUS.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_precisionNS.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4219.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_ts_4272.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4295.py
