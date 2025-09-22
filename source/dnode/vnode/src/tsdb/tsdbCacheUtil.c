@@ -230,6 +230,7 @@ _err:
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
   size_t  cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
+  SVnode *pVnode = pTsdb->pVnode;
 
   SLRUCache *pCache = taosLRUCacheInit(cfgCapacity, 0, .5);
   if (pCache == NULL) {
@@ -248,7 +249,18 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
   taosLRUCacheSetStrictCapacity(pCache, false);
 
   (void)taosThreadMutexInit(&pTsdb->lruMutex, NULL);
+  // Check and perform cache upgrade if needed
+  if (tsdbNeedCacheUpgrade(pVnode)) {
+    vInfo("vgId:%d, start to upgrade cache from column format to row format", TD_VID(pVnode));
 
+    if (tsdbUpgradeCache(pVnode) < 0) {
+      vError("vgId:%d, failed to upgrade cache since %s", TD_VID(pVnode), tstrerror(terrno));
+      // Note: Continue with startup even if cache upgrade fails
+      // The system can still function with the old cache format
+    } else {
+      vInfo("vgId:%d, cache upgrade completed successfully", TD_VID(pVnode));
+    }
+  }
 _err:
   if (code) {
     tsdbError("tsdb/cache: vgId:%d, open failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino, tstrerror(code));

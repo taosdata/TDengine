@@ -28,6 +28,10 @@ extern "C" {
 #endif
 #define ROCKS_BATCH_SIZE (4096)
 
+// Cache format constants
+#define TSDB_CACHE_FORMAT_COL 0  // Column-based cache (legacy)
+#define TSDB_CACHE_FORMAT_ROW 1  // Row-based cache (new)
+
 // Row-based cache control macro
 // Set to 1 for row-based cache, 0 for column-based cache
 #define TSDB_CACHE_ROW_BASED 1
@@ -139,6 +143,13 @@ int32_t tsdbCacheLoadFromRaw(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SAr
 int32_t tsdbCacheGetBatchFromMem(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArray, SCacheRowsReader* pr,
                                  SArray* keyArray);
 int32_t tsdbCachePutToRocksdb(STsdb* pTsdb, SLastKey* pLastKey, SLastCol* pLastCol);
+int32_t tsdbCacheDeserialize(char const* value, size_t size, SLastCol** ppLastCol);
+
+// tsdb cache upgrade
+bool    tsdbNeedCacheUpgrade(SVnode* pVnode);
+int32_t tsdbUpgradeCache(SVnode* pVnode);
+int32_t tsdbSetCacheFormat(SVnode* pVnode, int8_t cacheFormat);
+
 #ifdef __cplusplus
 }
 #endif
