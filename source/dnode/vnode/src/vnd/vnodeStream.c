@@ -1037,7 +1037,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       STREAM_CHECK_NULL_GOTO(pColData, terrno);
-      if (pColData->info.colId == -1) {
+      if (pColData->info.colId <= -1) {
         pColData->hasNull = true;
         continue;
       }
@@ -1123,7 +1123,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
       for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {  // reader todo test null
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
-        if (pColData->info.colId == -1) {
+        if (pColData->info.colId <= -1) {
           pColData->hasNull = true;
           continue;
         }
@@ -1645,7 +1645,7 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
 
     STREAM_CHECK_RET_GOTO(scanSubmitData(pVnode, sStreamReaderInfo, pBody, bodyLen, ranges, rsp, wCont->version));
   }
-
+  // printDataBlock(rsp->dataBlock, __func__, "processWalVerDataNew");
   STREAM_CHECK_RET_GOTO(filterData(rsp, sStreamReaderInfo));
   rsp->totalRows = ((SSDataBlock*)rsp->dataBlock)->info.rows;
 
@@ -2559,7 +2559,7 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(sStreamReaderInfo->metaBlock, STREAM_RETURN_ROWS_NUM));
   }
   resultRsp.metaBlock = sStreamReaderInfo->metaBlock;
-  resultRsp.dataBlock = sStreamReaderInfo->resultBlock;
+  resultRsp.dataBlock = sStreamReaderInfo->triggerBlock;
   resultRsp.ver = req->walMetaDataNewReq.lastVer;
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, &resultRsp));
 
@@ -2568,7 +2568,7 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   buf = rpcMallocCont(size);
   tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
   printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta");
-  printDataBlock(sStreamReaderInfo->resultBlock, __func__, "data");
+  printDataBlock(sStreamReaderInfo->triggerBlock, __func__, "data");
   printIndexHash(sStreamReaderInfo->indexHash, pTask);
 
 end:
@@ -2603,7 +2603,7 @@ static int32_t vnodeProcessStreamWalDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, request paras size:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(req->walDataNewReq.versions));
 
-  resultRsp.dataBlock = sStreamReaderInfo->resultBlock;
+  resultRsp.dataBlock = sStreamReaderInfo->triggerBlock;
   STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, &resultRsp));
   ST_TASK_DLOG("vgId:%d %s get result last ver:%"PRId64" rows:%d", TD_VID(pVnode), __func__, resultRsp.ver, resultRsp.totalRows);
 
@@ -2612,7 +2612,7 @@ static int32_t vnodeProcessStreamWalDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, sStreamReaderInfo->indexHash);
   buf = rpcMallocCont(size);
   tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
-  printDataBlock(sStreamReaderInfo->resultBlock, __func__, "data");
+  printDataBlock(sStreamReaderInfo->triggerBlock, __func__, "data");
   printIndexHash(sStreamReaderInfo->indexHash, pTask);
 
 end:
@@ -2642,20 +2642,28 @@ static int32_t vnodeProcessStreamWalCalcDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   void*        buf = NULL;
   size_t       size = 0;
   SSTriggerWalNewRsp resultRsp = {0};
-
+  SSDataBlock* pBlock1 = NULL;
+  SSDataBlock* pBlock2 = NULL;
+  
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, request paras size:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(req->walDataNewReq.versions));
 
-  resultRsp.dataBlock = sStreamReaderInfo->calcBlock;
+  resultRsp.dataBlock = sStreamReaderInfo->triggerBlock;
   resultRsp.isCalc = true;
   STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req->walDataNewReq.versions, req->walDataNewReq.ranges, &resultRsp));
   STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
 
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerBlock, true, &pBlock1));
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcBlock, false, &pBlock2));
+
+  blockDataTransform(pBlock2, pBlock1);
+  resultRsp.dataBlock = pBlock2;
+
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, sStreamReaderInfo->indexHash);
   buf = rpcMallocCont(size);
   tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
-  printDataBlock(sStreamReaderInfo->resultBlock, __func__, "data");
+  printDataBlock(resultRsp.dataBlock, __func__, "data");
   printIndexHash(sStreamReaderInfo->indexHash, pTask);
 
 end:
@@ -2672,6 +2680,8 @@ end:
     code = 0;
   }
 
+  blockDataDestroy(pBlock1);
+  blockDataDestroy(pBlock2);
   blockDataDestroy(resultRsp.deleteBlock);
   blockDataDestroy(resultRsp.dropBlock);
   STREAM_PRINT_LOG_END_WITHID(code, lino);

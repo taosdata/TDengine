@@ -1,4 +1,5 @@
 #include "streamReader.h"
+#include <stdint.h>
 #include "osMemPool.h"
 #include "streamInt.h"
 #include "executor.h"
@@ -247,8 +248,8 @@ static void releaseStreamReaderInfo(void* p) {
   qStreamDestroyTableList(pInfo->historyTableList);
   filterFreeInfo(pInfo->pFilterInfo);
   pInfo->pFilterInfo = NULL;
-  blockDataDestroy(pInfo->resultBlock);
-  pInfo->resultBlock = NULL;
+  blockDataDestroy(pInfo->triggerBlock);
+  pInfo->triggerBlock = NULL;
   blockDataDestroy(pInfo->calcBlock);
   pInfo->calcBlock = NULL;
   blockDataDestroy(pInfo->metaBlock);
@@ -418,7 +419,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->calcResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(pScanCols, sStreamReaderInfo->calcResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcBlock));
-    SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // ver
+    SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, INT16_MIN); // ver
     STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->calcBlock, &idata));
 
     sStreamReaderInfo->pTableMetaCacheCalc = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
@@ -441,9 +442,9 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->pTableMetaCacheTrigger, terrno);
   taosHashSetFreeFp(sStreamReaderInfo->pTableMetaCacheTrigger, freeTagCache);
 
-  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->resultBlock));
-  SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, -1); // ver
-  STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->resultBlock, &idata));
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->triggerBlock));
+  SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, INT16_MIN); // ver
+  STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerBlock, &idata));
   sStreamReaderInfo->indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->indexHash, terrno);
 
