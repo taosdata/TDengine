@@ -58,7 +58,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -N, --without-property     Dump database without its properties.
   -s, --schemaonly           Only dump tables' schema.
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
-                             and lzma.
+                             and lzma(Windows is not currently supported).
   -S, --start-time=START_TIME   Start time to dump. Either epoch or
                              ISO8601/RFC3339 format is acceptable. ISO8601
                              format example: 2017-10-01T00:00:00.000+0800 or

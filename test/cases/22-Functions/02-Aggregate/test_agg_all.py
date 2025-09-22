@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, inspect, tdCom
+import os
 
 class TestAggFunction:
     updatecfgDict = {
@@ -23,7 +24,7 @@ class TestAggFunction:
 
     def setup_class(cls):
         tdLog.info(f"insert data.")
-        datafile = etool.curFile(__file__, "../resource/data/d1001.data")
+        datafile = etool.getFilePath(os.path.dirname(__file__), "resource", "data", "d1001.data")
 
         tdSql.execute("create database ts_4893;")
         tdSql.execute("use ts_4893;")
@@ -32,7 +33,7 @@ class TestAggFunction:
             "`id` INT, `name` VARCHAR(64), `nch1` NCHAR(50), `nch2` NCHAR(50), `var1` VARCHAR(50), "
             "`var2` VARCHAR(50)) TAGS (`groupid` TINYINT, `location` VARCHAR(16));")
         tdSql.execute("CREATE table d0 using meters tags(1, 'beijing')")
-        tdSql.execute("insert into d0 file '%s'" % datafile)
+        tdSql.execute('insert into d0 file "%s"' % datafile)
         tdSql.execute("CREATE TABLE `n1` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, co NCHAR(10))")
         tdSql.execute("insert into n1 values(now, 1, null, '23')")
         tdSql.execute("insert into n1 values(now+1a, null, 3, '23')")
@@ -41,8 +42,8 @@ class TestAggFunction:
     def run_normal_query_new(self, testCase):
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
-        self.sqlFile = etool.curFile(__file__, f"../resource/in/{testCase}.in")
-        self.ansFile = etool.curFile(__file__, f"../resource/ans/{testCase}.csv")
+        self.sqlFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resource", "in", f"{testCase}.in")
+        self.ansFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resource", "ans", f"{testCase}.csv")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 

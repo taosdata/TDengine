@@ -10,7 +10,6 @@ from datetime import timedelta
 from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.common import tdCom
 from new_test_framework.utils.sql import TDSql
-# from tmqCommon import *
 
 class TestFillWithGroup:
 

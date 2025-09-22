@@ -140,3 +140,17 @@ INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
 ```sql
 delete from meters where ts < '2021-10-01 10:40:00.100' ;
 ```
+
+## 查看压缩率
+
+通过查询系统表 `INS_DISK_USAGE`，可以查看数据库的压缩率和磁盘空间，参见 [文档](../../reference/taos-sql/database/#查看数据库的磁盘空间占用)。
+
+```sql
+select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
+```
+
+通过如下命令，可以查看表的表的压缩率及具体分布情况，参见 [文档](../../reference/taos-sql/show/#show-table-distributed)。
+
+```sql
+show table distributed table_name;
+```

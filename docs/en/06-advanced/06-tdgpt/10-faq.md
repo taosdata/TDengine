@@ -6,17 +6,18 @@ sidebar_label: Frequently Asked questions
 ### 1. During the installation process, uWSGI fails to compile
 
 The TDgpt installation process compiles uWSGI on your local machine. In certain Python distributions, such as Anaconda, conflicts may occur during compilation. In this case, you can choose not to install uWSGI.
+
 However, this means that you must manually run the `python3.10 /usr/local/taos/taosanode/lib/taosanalytics/app.py` command when starting the taosanode service. Use a virtual Python environment when running this command to ensure that dependencies can be loaded.
 
 ### 2. Anodes fail to be created because the service cannot be accessed
 
 ```bash
-taos> create anode '127.0.0.1:6090';
+taos> create anode '127.0.0.1:6035';
 
 DB error: Analysis service can't access[0x80000441] (0.117446s)
 ```
 
-First, use curl to check whether the anode is providing services: The output of `curl '127.0.0.1:6090'` should be as follows:
+First, use curl to check whether the anode is providing services: The output of `curl '127.0.0.1:6035'` should be as follows:
 
 ```bash
 TDengine© Time Series Data Analytics Platform (ver 1.0.x)
@@ -25,7 +26,7 @@ TDengine© Time Series Data Analytics Platform (ver 1.0.x)
 The following output indicates that the anode is not providing services:
 
 ```bash
-curl: (7) Failed to connect to 127.0.0.1 port 6090: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 6035: Connection refused
 ```
 
 If the anode has not started or is not running, check the uWSGI log logs in the `/var/log/taos/taosanode/taosanode.log` file to find and resolve any errors.
