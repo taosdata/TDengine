@@ -207,10 +207,15 @@ typedef enum _mgmt_table {
 } EShowType;
 
 typedef enum {
-  TSDB_COMPACT_NORMAL = 0,
+  TSDB_COMPACT_NORMAL = 0,  // default
   TSDB_COMPACT_SSMIGRATE = 1,
   TSDB_COMPACT_ROLLUP = 2,
 } ECompactType;
+
+typedef enum {
+  TSDB_TRIGGER_MANUAL = 0,  // default
+  TSDB_TRIGGER_AUTO = 1,
+} ETriggerType;
 
 #define TSDB_ALTER_TABLE_ADD_TAG                         1
 #define TSDB_ALTER_TABLE_DROP_TAG                        2
@@ -1814,21 +1819,6 @@ int32_t tSerializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
 int32_t tDeserializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
 
 typedef struct {
-  char    db[TSDB_DB_FNAME_LEN];
-  int32_t maxSpeed;
-} STrimDbReq;
-
-int32_t tSerializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
-int32_t tDeserializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
-
-typedef struct {
-  int32_t timestamp;
-} SVTrimDbReq;
-
-int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
-int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
-
-typedef struct {
   char db[TSDB_DB_FNAME_LEN];
 } SSsMigrateDbReq;
 
@@ -2116,6 +2106,8 @@ typedef struct {
 int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
+
+typedef struct SCompactDbReq SRetentionDbReq;
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -2561,7 +2553,14 @@ typedef struct {
   STimeWindow tw;
   int32_t     compactId;
   int8_t      metaOnly;
-  int8_t      compactType;  // ECompactType
+  union {
+    uint16_t flags;
+    struct {
+      uint16_t compactType : 3;  // ECompactType
+      uint16_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
+      uint16_t reserved : 12;
+    };
+  };
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
@@ -2575,6 +2574,19 @@ typedef struct {
 
 int32_t tSerializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
 int32_t tDeserializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
+
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
+  int32_t maxSpeed;
+} STrimDbReq;
+
+int32_t tSerializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
+int32_t tDeserializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
+
+typedef SCompactVnodeReq SVTrimDbReq;  // reuse SCompactVnodeReq, add task monitor since 3.3.8.0
+
+int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
+int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
   int32_t vgVersion;

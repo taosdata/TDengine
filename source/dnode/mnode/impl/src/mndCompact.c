@@ -32,7 +32,7 @@ static int32_t mndProcessCompactTimer(SRpcMsg *pReq);
 int32_t mndInitCompact(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COMPACT, mndRetrieveCompact);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_COMPACT, mndProcessKillCompactReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_COMPACT_PROGRESS_RSP, mndProcessQueryRetentionRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_COMPACT_PROGRESS_RSP, mndProcessQueryCompactRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_TIMER, mndProcessCompactTimer);
   mndSetMsgHandle(pMnode, TDMT_VND_KILL_COMPACT_RSP, mndTransProcessRsp);
 
@@ -569,7 +569,7 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t c
   return TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST;
 }
 
-int32_t mndProcessQueryRetentionRsp(SRpcMsg *pReq) {
+int32_t mndProcessQueryCompactRsp(SRpcMsg *pReq) {
   int32_t                  code = 0;
   SQueryCompactProgressRsp req = {0};
   if (pReq->code != 0) {

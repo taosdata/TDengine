@@ -1113,9 +1113,15 @@ static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
   SSdb       *pSdb = pMnode->pSdb;
   SVgObj     *pVgroup = NULL;
   void       *pIter = NULL;
-  SVTrimDbReq trimReq = {.timestamp = taosGetTimestampSec()};
-  int32_t     reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
-  int32_t     contLen = reqLen + sizeof(SMsgHead);
+  SVTrimDbReq trimReq = {0};
+  trimReq.compactStartTime = taosGetTimestampMs();
+  trimReq.tw.skey = INT64_MIN;
+  trimReq.tw.ekey = trimReq.compactStartTime;
+  trimReq.compactId = 0;  // TODO: use the real value
+  trimReq.metaOnly = 0;
+  trimReq.triggerType = TSDB_TRIGGER_AUTO;
+  int32_t reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
+  int32_t contLen = reqLen + sizeof(SMsgHead);
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -1135,6 +1141,8 @@ static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
+    trimReq.dbUid = pVgroup->dbUid;
+    (void)snprintf(trimReq.db, sizeof(trimReq.db), "%s", pVgroup->dbName);
     if ((code = tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), reqLen, &trimReq)) < 0) {
       mError("vgId:%d, failed to serialize trim db request since %s", pVgroup->vgId, tstrerror(code));
     }
@@ -1145,7 +1153,7 @@ static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
     if (code != 0) {
       mError("vgId:%d, timer failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mInfo("vgId:%d, timer send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
+      mInfo("vgId:%d, timer send vnode-trim request to vnode, time:%" PRIi64 " ms", pVgroup->vgId, trimReq.tw.ekey);
     }
     sdbRelease(pSdb, pVgroup);
   }

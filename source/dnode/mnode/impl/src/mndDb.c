@@ -2196,7 +2196,12 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
   SVgObj     *pVgroup = NULL;
   void       *pIter = NULL;
   int32_t     code = 0;
-  SVTrimDbReq trimReq = {.timestamp = taosGetTimestampSec()};
+  SVTrimDbReq trimReq = {.dbUid = pDb->uid, .compactStartTime = taosGetTimestampMs()};
+  trimReq.tw.skey = INT64_MIN;
+  trimReq.tw.ekey = trimReq.compactStartTime;
+  trimReq.compactId = 0; // TODO: use the real value
+  trimReq.metaOnly = 0;
+  trimReq.triggerType = TSDB_TRIGGER_MANUAL;
   int32_t     reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
   int32_t     contLen = reqLen + sizeof(SMsgHead);
 
@@ -2229,7 +2234,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     if (code != 0) {
       mError("vgId:%d, failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mInfo("vgId:%d, send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
+      mInfo("vgId:%d, send vnode-trim request to vnode, time:%" PRId64 " ms", pVgroup->vgId, trimReq.tw.ekey);
     }
     sdbRelease(pSdb, pVgroup);
   }

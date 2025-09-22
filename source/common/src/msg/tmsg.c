@@ -6476,40 +6476,11 @@ _exit:
 }
 
 int32_t tSerializeSVTrimDbReq(void *buf, int32_t bufLen, SVTrimDbReq *pReq) {
-  SEncoder encoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  int32_t  tlen;
-  tEncoderInit(&encoder, buf, bufLen);
-
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->timestamp));
-  tEndEncode(&encoder);
-
-_exit:
-  if (code) {
-    tlen = code;
-  } else {
-    tlen = encoder.pos;
-  }
-  tEncoderClear(&encoder);
-  return tlen;
+  return tSerializeSCompactVnodeReq(buf, bufLen, (SCompactVnodeReq*)pReq);
 }
 
 int32_t tDeserializeSVTrimDbReq(void *buf, int32_t bufLen, SVTrimDbReq *pReq) {
-  SDecoder decoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  tDecoderInit(&decoder, buf, bufLen);
-
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->timestamp));
-
-  tEndDecode(&decoder);
-
-_exit:
-  tDecoderClear(&decoder);
-  return code;
+  return tDeserializeSCompactVnodeReq(buf, bufLen, (SCompactVnodeReq*)pReq);
 }
 
 int32_t tSerializeSSsMigrateDbReq(void *buf, int32_t bufLen, SSsMigrateDbReq *pReq) {
@@ -8835,7 +8806,7 @@ int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->compactId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->metaOnly));
 
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactType));
+  TAOS_CHECK_EXIT(tEncodeU16v(&encoder, pReq->flags));
 
   tEndEncode(&encoder);
 
@@ -8880,9 +8851,10 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   }
 
   if(!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->compactType));
+    TAOS_CHECK_EXIT(tDecodeU16v(&decoder, &pReq->flags));
   } else {
     pReq->compactType = TSDB_COMPACT_NORMAL;
+    pReq->triggerType = TSDB_TRIGGER_MANUAL;
   }
 
   tEndDecode(&decoder);

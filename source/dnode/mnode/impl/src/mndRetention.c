@@ -15,6 +15,7 @@
 #include "audit.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
+#include "mndDef.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
@@ -50,7 +51,7 @@ int32_t mndInitRetention(SMnode *pMnode) {
 
 void mndCleanupRetention(SMnode *pMnode) { mDebug("mnd retention cleanup"); }
 
-void tFreeCompactObj(SRetentionObj *pCompact) {}
+void tFreeRetentionObj(SRetentionObj *pObj) {}
 
 int32_t tSerializeSRetentionObj(void *buf, int32_t bufLen, const SRetentionObj *pObj) {
   return tSerializeSCompactObj(buf, bufLen, (const SCompactObj *)pObj);
@@ -60,40 +61,39 @@ int32_t tDeserializeSRetentionObj(void *buf, int32_t bufLen, SRetentionObj *pObj
   return tDeserializeSCompactObj(buf, bufLen, (SCompactObj *)pObj);
 }
 
-
-SRetentionObj *mndAcquireCompact(SMnode *pMnode, int64_t compactId) {
-  SSdb        *pSdb = pMnode->pSdb;
-  SRetentionObj *pCompact = sdbAcquire(pSdb, SDB_COMPACT, &compactId);
-  if (pCompact == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
-    terrno = TSDB_CODE_SUCCESS;
+SRetentionObj *mndAcquireRetention(SMnode *pMnode, int32_t id) {
+  SSdb          *pSdb = pMnode->pSdb;
+  SRetentionObj *pObj = sdbAcquire(pSdb, SDB_RETENTION, &id);
+  if (pObj == NULL && (terrno != TSDB_CODE_SDB_OBJ_NOT_THERE && terrno != TSDB_CODE_SDB_OBJ_CREATING &&
+                       terrno != TSDB_CODE_SDB_OBJ_DROPPING)) {
+    terrno = TSDB_CODE_APP_ERROR;
+    mError("retention:%" PRId64 ", failed to acquire retention since %s", id, terrstr());
   }
-  return pCompact;
+  return pObj;
 }
 
-void mndReleaseCompact(SMnode *pMnode, SRetentionObj *pCompact) {
+void mndReleaseRetention(SMnode *pMnode, SRetentionObj *pObj) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbRelease(pSdb, pCompact);
-  pCompact = NULL;
+  sdbRelease(pSdb, pObj);
 }
 
-int32_t mndCompactGetDbName(SMnode *pMnode, int32_t compactId, char *dbname, int32_t len) {
-  int32_t      code = 0;
-  SRetentionObj *pCompact = mndAcquireCompact(pMnode, compactId);
-  if (pCompact == NULL) {
+int32_t mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t len) {
+  int32_t        code = 0;
+  SRetentionObj *pObj = mndAcquireRetention(pMnode, id);
+  if (pObj == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
 
-  tstrncpy(dbname, pCompact->dbname, len);
-  mndReleaseCompact(pMnode, pCompact);
+  tstrncpy(dbname, pObj->dbname, len);
+  mndReleaseRetention(pMnode, pObj);
   TAOS_RETURN(code);
 }
 
-// compact db
-int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SRetentionObj *pCompact, SDbObj *pDb, SCompactDbRsp *rsp) {
+int32_t mndAddRetentionToTran(SMnode *pMnode, STrans *pTrans, SRetentionObj *pObj, SDbObj *pDb, SCompactDbRsp *rsp) {
   int32_t code = 0;
-  pCompact->compactId = tGenIdPI32();
+  pObj->compactId = tGenIdPI32();
 
   tstrncpy(pCompact->dbname, pDb->name, sizeof(pCompact->dbname));
 

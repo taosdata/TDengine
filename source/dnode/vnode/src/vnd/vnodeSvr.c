@@ -1166,9 +1166,9 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     goto _exit;
   }
 
-  vInfo("vgId:%d, process trim vnode request, time:%d", pVnode->config.vgId, trimReq.timestamp);
+  vInfo("vgId:%d, process trim vnode request, time:%" PRIi64 " s", pVnode->config.vgId, trimReq.tw.ekey / 1000);
 
-  code = vnodeAsyncRetention(pVnode, trimReq.timestamp);
+  code = vnodeAsyncRetention(pVnode, trimReq.tw.ekey / 1000);
 
 _exit:
   return code;
