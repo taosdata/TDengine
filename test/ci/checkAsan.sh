@@ -62,6 +62,7 @@ indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
 python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 
 # Use "#" "0x" and "TDinternal" to match python taos error log
+# #1 0x7f480ff14839  (/usr/local/lib/python3.9/site-packages/taosws/taosws.abi3.so+0x269839)
 # TD-37832: taosws.abi3.so is a memory leak referenced by the third-party library of taosws, which can be ignored for the time being. If it is resolved, the ignore condition can be removed. @qevolg 2025-09-19
 # grep -E "TDinternal|TDengine|/taosws/" for check all taos lib and repo related code,example: 
 #/home/TDinternal/community/source/libs/scalar/src/sclfunc.c
@@ -70,10 +71,8 @@ python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 # shellcheck disable=SC2126
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
-  grep "0x" |
-  grep "#" |
+  grep -E  "#[0-9]+ 0x[0-9a-f]+ .*?(TDinternal|TDengine|/taosws/)"
   grep -E -v "venv|taosws.abi3.so" |
-  grep -E "TDinternal|TDengine|/taosws/"|
   wc -l
 )
 
