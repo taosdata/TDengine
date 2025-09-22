@@ -1061,10 +1061,10 @@ int32_t insResetBlob(SSubmitReq2* p) {
     for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
       SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
       SBlobSet**     ppBlob = taosArrayGet(p->aSubmitBlobData, i);
-      SBlobSet*      pBlob = *ppBlob;
+      SBlobSet*      pBlob = ppBlob ? *ppBlob : NULL;
       int32_t        nrow = taosArrayGetSize(pSubmitTbData->aRowP);
       int32_t        nblob = 0;
-      if (nrow > 0) {
+      if (nrow > 0 && pBlob) {
         nblob = taosArrayGetSize(pBlob->pSeqTable);
       }
       uTrace("blob %p row size %d, pData size %d", pBlob, nblob, nrow);
