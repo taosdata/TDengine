@@ -39,6 +39,7 @@
 
 #define IS_TRIGGER_GROUP_NONE_WINDOW(pGroup) (TRINGBUF_CAPACITY(&(pGroup)->winBuf) == 0)
 #define IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) (TRINGBUF_SIZE(&(pGroup)->winBuf) > 0)
+#define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   (1L << 62)
 #define container_of(ptr, type, member)      ((type *)((char *)(ptr) - offsetof(type, member)))
 
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid,
@@ -7358,6 +7359,7 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
         }
       }
       for (SSTriggerNotifyWindow *pWin = pFirstWin; pWin <= pLastWin; pWin++) {
+        pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         pWin->wrownum++;
       }
       if (pFirstWin->wrownum == pTask->windowCount) {
@@ -7483,6 +7485,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
           }
           memcpy(pStateData, newVal, bytes);
         }
+        pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         pGroup->numPendingNull = 0;
         pGroup->pendingNullStart = pTsData[i] + 1;
       }
@@ -7567,6 +7570,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           pWin = NULL;
         }
       }
+      pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
     }
   }
 
@@ -8030,6 +8034,7 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
       if (pWin->prevProcTime + pTask->maxDelayNs <= now &&
           TARRAY_SIZE(pContext->pCalcReq->params) < STREAM_CALC_REQ_MAX_WIN_NUM) {
         SSTriggerNotifyWindow win = {.range = pWin->range, .wrownum = pWin->wrownum};
+        win.range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         SSTriggerCalcParam    param = {.triggerTime = now};
         code = stRealtimeGroupFillParam(pGroup, &param, &win);
         QUERY_CHECK_CODE(code, lino, _end);
