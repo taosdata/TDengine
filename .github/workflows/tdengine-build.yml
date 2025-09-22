@@ -150,12 +150,14 @@ jobs:
         with:
           path: ${{ github.workspace }}/.externals
           key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-debug-build-ext-v3 # this is tailing cache-version-tick
-
+          
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
         name: Build externals on Linux and macOS
         continue-on-error: false
         run: |
           export TD_CONFIG=Release
+          export RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+          export RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
           ./build.sh gen
           ./build.sh bld --target build_externals 
 
