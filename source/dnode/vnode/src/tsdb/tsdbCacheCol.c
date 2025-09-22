@@ -74,7 +74,7 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
   }
 }
 
-static int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCol) {
+int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCol) {
   if (!value) {
     return TSDB_CODE_INVALID_PARA;
   }
