@@ -993,8 +993,14 @@ int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
 void    tFreeSViewObj(SViewObj* pObj);
 
 typedef struct {
-  int32_t compactDetailId;
-  int32_t compactId;
+  union {
+    int32_t compactDetailId;
+    int32_t detailId;
+  };
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   int32_t vgId;
   int32_t dnodeId;
   int32_t numberFileset;
@@ -1021,7 +1027,10 @@ typedef struct {
 } SScanDetailObj;
 
 typedef struct {
-  int32_t compactId;
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime;
   SArray* compactDetail;
@@ -1034,8 +1043,8 @@ typedef struct {
   SArray* scanDetail;
 } SScanObj;
 
-typedef struct SCompactObj       SRetentionObj;
-typedef struct SCompactDetailObj SRetentionDetailObj;
+typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention
+typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for retention
 typedef struct {
   int32_t nodeId;    // dnode id of the leader vnode
   int32_t vgId;

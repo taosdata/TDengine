@@ -2090,15 +2090,21 @@ int32_t tDeserializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq
 void    tFreeSCompactDbReq(SCompactDbReq* pReq);
 
 typedef struct {
-  int32_t compactId;
-  int8_t  bAccepted;
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
+  int8_t bAccepted;
 } SCompactDbRsp;
 
 int32_t tSerializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
 int32_t tDeserializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp);
 
 typedef struct {
-  int32_t compactId;
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   int32_t sqlLen;
   char*   sql;
 } SKillCompactReq;
@@ -2107,7 +2113,9 @@ int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pR
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
 
-typedef struct SCompactDbReq SRetentionDbReq;
+typedef SCompactDbReq   SRetentionDbReq;    // reuse structs
+typedef SCompactDbRsp   SRetentionDbRsp;    // reuse structs
+typedef SKillCompactReq SKillRetentionReq;  // reuse structs
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -2503,7 +2511,10 @@ int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* 
 int32_t tFreeSCreateVnodeReq(SCreateVnodeReq* pReq);
 
 typedef struct {
-  int32_t compactId;
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   int32_t vgId;
   int32_t dnodeId;
 } SQueryCompactProgressReq;
@@ -2512,7 +2523,10 @@ int32_t tSerializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryComp
 int32_t tDeserializeSQueryCompactProgressReq(void* buf, int32_t bufLen, SQueryCompactProgressReq* pReq);
 
 typedef struct {
-  int32_t compactId;
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   int32_t vgId;
   int32_t dnodeId;
   int32_t numberFileset;
@@ -2567,13 +2581,18 @@ int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* 
 int32_t tDeserializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
 
 typedef struct {
-  int32_t compactId;
+  union {
+    int32_t compactId;
+    int32_t taskId;
+  };
   int32_t vgId;
   int32_t dnodeId;
 } SVKillCompactReq;
 
 int32_t tSerializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
 int32_t tDeserializeSVKillCompactReq(void* buf, int32_t bufLen, SVKillCompactReq* pReq);
+
+typedef SVKillCompactReq SVKillRetentionReq;
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];

@@ -372,6 +372,7 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   int32_t ret = 0;
   if ((ret = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
     terrno = ret;
+    taosMemoryFreeClear(pReq);
     return NULL;
   }
   *pContLen = contLen;

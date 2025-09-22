@@ -25,30 +25,23 @@ extern "C" {
 int32_t mndInitRetention(SMnode *pMnode);
 void    mndCleanupRetention(SMnode *pMnode);
 
-void    tFreeRetentionObj(SRetentionObj *pRetention);
-int32_t tSerializeSRetentionObj(void *buf, int32_t bufLen, const SRetentionObj *pObj);
-int32_t tDeserializeSRetentionObj(void *buf, int32_t bufLen, SRetentionObj *pObj);
-
-SSdbRaw* mndRetentionActionEncode(SRetentionObj *pRetention);
-SSdbRow* mndRetentionActionDecode(SSdbRaw *pRaw);
-
-int32_t mndRetentionActionInsert(SSdb *pSdb, SRetentionObj *pRetention);
-int32_t mndRetentionActionDelete(SSdb *pSdb, SRetentionObj *pRetention);
-int32_t mndRetentionActionUpdate(SSdb *pSdb, SRetentionObj *pOldRetention, SRetentionObj *pNewRetention);
-
-int32_t mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj* pRetention, SDbObj *pDb, SRetentionDbRsp *rsp);
-
-int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
-
-int32_t mndProcessKillRetentionReq(SRpcMsg *pReq);
-
-int32_t mndProcessQueryRetentionRsp(SRpcMsg *pReq);
-
+void           tFreeRetentionObj(SRetentionObj *pRetention);
+int32_t        tSerializeSRetentionObj(void *buf, int32_t bufLen, const SRetentionObj *pObj);
+int32_t        tDeserializeSRetentionObj(void *buf, int32_t bufLen, SRetentionObj *pObj);
+SSdbRaw       *mndRetentionActionEncode(SRetentionObj *pRetention);
+SSdbRow       *mndRetentionActionDecode(SSdbRaw *pRaw);
+int32_t        mndRetentionActionInsert(SSdb *pSdb, SRetentionObj *pRetention);
+int32_t        mndRetentionActionDelete(SSdb *pSdb, SRetentionObj *pRetention);
+int32_t        mndRetentionActionUpdate(SSdb *pSdb, SRetentionObj *pOldRetention, SRetentionObj *pNewRetention);
+int32_t        mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pRetention, SDbObj *pDb,
+                                      SRetentionDbRsp *rsp);
+int32_t        mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+int32_t        mndProcessKillRetentionReq(SRpcMsg *pReq);
+int32_t        mndProcessQueryRetentionRsp(SRpcMsg *pReq);
 SRetentionObj *mndAcquireRetention(SMnode *pMnode, int64_t id);
-void mndReleaseRetention(SMnode *pMnode, SRetentionObj *pRetention);
-
-int32_t mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t len);
-void mndRetentionSendProgressReq(SMnode *pMnode, SRetentionObj *pRetention);
+void           mndReleaseRetention(SMnode *pMnode, SRetentionObj *pRetention);
+int32_t        mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t len);
+void           mndRetentionSendProgressReq(SMnode *pMnode, SRetentionObj *pRetention);
 
 #ifdef __cplusplus
 }

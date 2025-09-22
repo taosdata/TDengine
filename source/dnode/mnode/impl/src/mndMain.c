@@ -34,6 +34,8 @@
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
 #include "mndProfile.h"
+#include "mndRetention.h"
+#include "mndRetentionDetail.h"
 #include "mndRsma.h"
 #include "mndQnode.h"
 #include "mndQuery.h"
@@ -686,8 +688,10 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan", mndInitScan, mndCleanupScan));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention", mndInitRetention, mndCleanupRetention));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact-detail", mndInitCompactDetail, mndCleanupCompactDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan-detail", mndInitScanDetail, mndCleanupScanDetail));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention-detail", mndInitRetentionDetail, mndCleanupRetentionDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ssmigrate", mndInitSsMigrate, mndCleanupSsMigrate));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile));
