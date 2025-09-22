@@ -1178,9 +1178,6 @@ int32_t mndProcessScanDbReq(SRpcMsg *pReq) {
   code = mndScanDb(pMnode, pReq, pDb, scanReq.timeRange, scanReq.vgroupIds);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName name = {0};
-  (void)tNameFromString(&name, scanReq.db, T_NAME_ACCT | T_NAME_DB);
-
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process scan db req since %s", scanReq.db, terrstr());
