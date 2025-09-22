@@ -71,7 +71,7 @@ python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 # shellcheck disable=SC2126
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
-  grep -E  "#[0-9]+ 0x[0-9a-f]+ .*?(TDinternal|TDengine|/taosws/)"
+  grep -E  "#[0-9]+ 0x[0-9a-f]+ .*?(TDinternal|TDengine|/taosws/)" |
   grep -E -v "venv|taosws.abi3.so" |
   wc -l
 )
