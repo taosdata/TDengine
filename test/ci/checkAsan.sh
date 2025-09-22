@@ -72,8 +72,7 @@ python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
   grep "0x" |
   grep "#" |
-  grep -v "venv" |
-  grep -v "taosws.abi3.so" |
+  grep -E -v "venv|taosws.abi3.so" |
   grep -E "TDinternal|TDengine|/taosws/"|
   wc -l
 )
@@ -106,7 +105,12 @@ python_taos_error=$(
 #/home/TDinternal/community/utils/TSZ/sz/src/sz_float.c:407:59: runtime error: 5.76041e+19 is outside the range of representable values of type 'long unsigned int'
 #/home/TDinternal/community/source/libs/scalar/src/sclfunc.c:808:11: runtime error: -3.40401e+18 is outside the range of representable values of type 'int'
 # shellcheck disable=SC2126
-runtime_error=$(cat "${LOG_DIR}"/*.asan | grep "runtime error" | grep -v "trees.c:873" | grep -v "sclfunc.c.*outside the range of representable values of type" | grep -v "signed integer overflow" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cc" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cpp" | grep -v "sclvector.c" | grep -v "sclfunc.c:808"| grep -v "sz_double.c:388" | grep -v "sz_float.c:407:59"| wc -l)
+runtime_error=$(
+  cat "${LOG_DIR}"/*.asan | 
+  grep "runtime error" | 
+  grep -E -v "trees.c:873|sclfunc.c.*outside the range of representable values of type|signed integer overflow|strerror.c|asan_malloc_linux.cc|strerror.c|asan_malloc_linux.cpp|sclvector.c|sclfunc.c:808|sz_double.c:388|sz_float.c:407:59" | 
+  wc -l
+)
 
 echo -e "\033[44;32;1m"asan error_num: $error_num"\033[0m"
 echo -e "\033[44;32;1m"asan memory_leak: $memory_leak"\033[0m"
