@@ -125,7 +125,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
       pCond->colList[i].colId = pColNode->colId;
       pCond->colList[i].pk = pColNode->isPk;
 
-      if (pSlotList == NULL )  pCond->pSlotList[i] = pNode->slotId;
+      if (pSlotList == NULL)  pCond->pSlotList[i] = pNode->slotId;
     }
   }
 
@@ -137,7 +137,7 @@ end:
     pCond->colList = NULL;
     pCond->pSlotList = NULL;
   }
-  *pSlotList = NULL;
+  if (pSlotList != NULL) *pSlotList = NULL;
   return code;
 }
 
