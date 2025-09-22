@@ -239,7 +239,7 @@ static int32_t reallocVarDataVal(SValue *pValue) {
   if (IS_VAR_DATA_TYPE(pValue->type)) {
     uint8_t *pVal = pValue->pData;
     uint32_t nData = pValue->nData;
-    if (nData > 0) {
+    if (nData > 0 && pVal != NULL) {
       uint8_t *p = taosMemoryMalloc(nData);
       if (!p) {
         TAOS_RETURN(terrno);
