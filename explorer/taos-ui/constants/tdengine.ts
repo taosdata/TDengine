@@ -908,7 +908,7 @@ export const DBParameters = [
     name: 'duration',
     type: 'number',
     alter: false,
-    defaultValue: '50d'
+    defaultValue: '10d'
   },
   {
     name: 'wal_fsync_period',
@@ -981,7 +981,7 @@ export const DBParameters = [
     name: 'vgroups',
     type: 'number',
     alter: false,
-    defaultValue: 1
+    defaultValue: 4
   },
   {
     name: 'single_stable',

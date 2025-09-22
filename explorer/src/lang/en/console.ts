@@ -55,7 +55,7 @@ export default {
     descPlaceholder: "Description of the SQL,no more than {0} characters.",
     characterLen: "Only {0} characters are allowed",
     addToPersonal: "Add to personal favorite"
-  }, 
+  },
   sql: {
     analysis: "Analysis",
     slow: "Slow",
@@ -179,7 +179,7 @@ export default {
     </ul>
     `,
     vgroupsTip:
-      "The number of vgroups of the database to be created, normally more vgroups means more processing capability but it is also limited by your system resources, the default value is 2.",
+      "The number of vgroups of the database to be created, normally more vgroups means more processing capability but it is also limited by your system resources, the default value is 4.",
     singleStableTip: `whether the database can contain more than one supertable.
     <ul>
     <li>0 - The database can contain multiple supertables.</li>

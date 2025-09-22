@@ -155,7 +155,7 @@ export default {
     </ul>
     `,
     vgroupsTip:
-      "vgroup 的数量，一般来说更多的 vgroup 意味着更多的处理能力，前提是系统中有足够的资源，默认值是2。",
+      "vgroup 的数量，一般来说更多的 vgroup 意味着更多的处理能力，前提是系统中有足够的资源，默认值是4。",
     singleStableTip: `数据库中是否只允许创建单个超级表。
     <ul>
     <li> 0 - 可以创建多个超级表。</li>
