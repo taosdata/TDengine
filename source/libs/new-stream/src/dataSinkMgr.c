@@ -360,8 +360,10 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SSlidingGrpMgr* pSlidingGrpMgr = NULL;
-  stDebug("[put data cache] slding, STREAMID:%" PRIx64 " groupId: %" PRId64 " block rows: %" PRId64 " startIndex: %d endIndex: %d",
-          pStreamTaskMgr->streamId, groupId, pBlock->info.rows, startIndex, endIndex);
+  int32_t         cols = pBlock->pDataBlock ? pBlock->pDataBlock->size : 0;
+  stDebug("[put data cache] slding, STREAMID:%" PRIx64 " groupId: %" PRId64 " block rows: %" PRId64
+          " cols:%d startIndex: %d endIndex: %d",
+          pStreamTaskMgr->streamId, groupId, pBlock->info.rows, cols, startIndex, endIndex);
   code = getOrCreateSSlidingGrpMgr(pStreamTaskMgr, groupId, &pSlidingGrpMgr);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: 0x%0x", code);
@@ -405,9 +407,10 @@ int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, 
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SAlignGrpMgr* pAlignGrpMgr = NULL;
+  int32_t       cols = pBlock->pDataBlock ? pBlock->pDataBlock->size : 0;
   stDebug("[put data cache] align, STREAMID:%" PRIx64 " groupId: %" PRId64 " wstart: %" PRId64 " wend: %" PRId64
-          " block rows: %" PRId64 " startIndex: %d endIndex: %d",
-          pStreamTaskMgr->streamId, groupId, wstart, wend, pBlock->info.rows, startIndex, endIndex);
+          " block rows: %" PRId64 " cols:%d startIndex: %d endIndex: %d",
+          pStreamTaskMgr->streamId, groupId, wstart, wend, pBlock->info.rows, cols, startIndex, endIndex);
   code = getOrCreateAlignGrpMgr(pStreamTaskMgr, groupId, &pAlignGrpMgr);
   if (code != 0) {
     stError("failed to get or create group data sink manager, err: 0x%0x", code);

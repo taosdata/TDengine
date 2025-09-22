@@ -724,6 +724,31 @@ _error:
   return code;
 }
 
+static int32_t resetExternalWindowExprSupp(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo,
+                                           SExternalWindowPhysiNode* pPhynode) {
+  int32_t    code = 0, lino = 0, num = 0;
+  SExprInfo* pExprInfo = NULL;
+  cleanupExprSuppWithoutFilter(&pExtW->scalarSupp);
+
+  SNodeList* pNodeList = NULL;
+  if (pPhynode->window.pProjs) {
+    pNodeList = pPhynode->window.pProjs;
+  } else {
+    pNodeList = pPhynode->window.pExprs;
+  }
+
+  code = createExprInfo(pNodeList, NULL, &pExprInfo, &num);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = initExprSupp(&pExtW->scalarSupp, pExprInfo, num, &pTaskInfo->storageAPI.functionStore);
+  QUERY_CHECK_CODE(code, lino, _error);
+  return code;
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTaskInfo->code = code;
+  }
+  return code;
+}
 
 static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   int32_t code = 0, lino = 0;
@@ -747,9 +772,8 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
                        sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
                        &pTaskInfo->storageAPI.functionStore);
   }
-*/  
-  TAOS_CHECK_EXIT(resetExprSupp(&pExtW->scalarSupp, pTaskInfo, pPhynode->window.pProjs, NULL,
-                       &pTaskInfo->storageAPI.functionStore));
+*/
+  TAOS_CHECK_EXIT(resetExternalWindowExprSupp(pExtW, pTaskInfo, pPhynode));
   colDataDestroy(&pExtW->twAggSup.timeWindowData);
   TAOS_CHECK_EXIT(initExecTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pTaskInfo->window));
 
