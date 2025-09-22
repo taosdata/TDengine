@@ -16,7 +16,7 @@ if [[ "$TD_OS" == "Alpine" ]]; then
   exit 0
 fi
 unset LD_PRELOAD
-SCRIPT_DIR=$(dirname $0)
+SCRIPT_DIR=$(dirname "$0")
 cd "$SCRIPT_DIR"/../ || exit 1
 SCRIPT_DIR=$(pwd)
 
@@ -37,14 +37,16 @@ else
 fi
 LOG_DIR=$TAOS_DIR/asan
 
-# Consider using 'grep -c' instead of 'grep|wc -l'
-error_num=$(grep -c "ERROR" "${LOG_DIR}"/*.asan)
+# 无法使用 grep -c 代替 grep  |wc -l , 因为 grep -c 会统计每个文件的数量，无法统计总数
+# shellcheck disable=SC2126
+error_num=$(cat "${LOG_DIR}"/*.asan | grep "ERROR" | wc -l)
 
 archOs=$(arch)
+# shellcheck disable=SC2126
 if [[ $archOs =~ "aarch64" ]]; then
   echo "arm64 check mem leak"
   memory_leak=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte" | wc -l)
-  memory_count=$(grep -c "Direct leak of 32 byte" "${LOG_DIR}"/*.asan)
+  memory_count=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak of 32 byte" | wc -l)
 
   if [ "$memory_count" -eq "$error_num" ] && [ "$memory_leak" -eq 0 ]; then
     echo "reset error_num to 0, ignore: __cxa_thread_atexit_impl leak"
@@ -52,21 +54,24 @@ if [[ $archOs =~ "aarch64" ]]; then
   fi
 else
   echo "os check mem leak"
-  memory_leak=$(grep -c "Direct leak" "${LOG_DIR}"/*.asan)
+  memory_leak=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak" | wc -l)
 fi
-
-indirect_leak=$(grep -c "Indirect leak" "${LOG_DIR}"/*.asan)
-python_error=$(grep -c -w "stack" "${LOG_DIR}"/*.info)
+# shellcheck disable=SC2126
+indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
+# shellcheck disable=SC2126
+python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 
 # Use "#" "0x" and "TDinternal" to match python taos error log
 # TD-37832: taosws.abi3.so is a memory leak referenced by the third-party library of taosws, which can be ignored for the time being. If it is resolved, the ignore condition can be removed. @qevolg 2025-09-19
+# shellcheck disable=SC2126
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
   grep "0x" |
   grep "#" |
   grep -v "venv" |
   grep -v "taosws.abi3.so" |
-  grep -E -c "TDinternal|taos"
+  grep -E "TDinternal|taos" | 
+  wc -l
 )
 
 # ignore
@@ -96,7 +101,8 @@ python_taos_error=$(
 #/home/TDinternal/community/utils/TSZ/sz/src/sz_double.c:388:59: runtime error: 2.64021e+25 is outside the range of representable values of type 'long unsigned int'
 #/home/TDinternal/community/utils/TSZ/sz/src/sz_float.c:407:59: runtime error: 5.76041e+19 is outside the range of representable values of type 'long unsigned int'
 #/home/TDinternal/community/source/libs/scalar/src/sclfunc.c:808:11: runtime error: -3.40401e+18 is outside the range of representable values of type 'int'
-runtime_error=$(cat ${LOG_DIR}/*.asan | grep "runtime error" | grep -v "trees.c:873" | grep -v "sclfunc.c.*outside the range of representable values of type" | grep -v "signed integer overflow" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cc" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cpp" | grep -v "sclvector.c" | grep -v "sclfunc.c:808"| grep -v "sz_double.c:388" | grep -v "sz_float.c:407:59"| wc -l)
+# shellcheck disable=SC2126
+runtime_error=$(cat "${LOG_DIR}"/*.asan | grep "runtime error" | grep -v "trees.c:873" | grep -v "sclfunc.c.*outside the range of representable values of type" | grep -v "signed integer overflow" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cc" | grep -v "strerror.c" | grep -v "asan_malloc_linux.cpp" | grep -v "sclvector.c" | grep -v "sclfunc.c:808"| grep -v "sz_double.c:388" | grep -v "sz_float.c:407:59"| wc -l)
 
 echo -e "\033[44;32;1m"asan error_num: $error_num"\033[0m"
 echo -e "\033[44;32;1m"asan memory_leak: $memory_leak"\033[0m"
@@ -112,9 +118,9 @@ if [ $errors -eq 0 ]; then
   exit 0
 else
   echo -e "\033[44;31;1m"asan total errors: $errors"\033[0m"
-  if [ $python_error -ne 0 ] || [ $python_taos_error -ne 0 ] ; then
-    cat ${LOG_DIR}/*.info |grep "#" | grep -w "TDinternal"
+  if [ "$python_error" -ne 0 ] || [ "$python_taos_error" -ne 0 ] ; then
+    cat "${LOG_DIR}"/*.info |grep "#" | grep -w "TDinternal"
   fi
-  cat ${LOG_DIR}/*.asan |grep "#" | grep -w "TDinternal"
+  cat "${LOG_DIR}"/*.asan |grep "#" | grep -w "TDinternal"
   exit 1
 fi
