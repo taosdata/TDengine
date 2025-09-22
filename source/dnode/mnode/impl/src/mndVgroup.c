@@ -3010,7 +3010,8 @@ static int32_t mndAddAlterVgroupElectionBaselineActionToTrans(SMnode *pMnode, SV
     TAOS_CHECK_RETURN(
         mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup, pVgroup->vnodeGid[i].dnodeId, 5000));
     }
-  } 
+  }
+  return code; 
 }
 
 int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans, int32_t index) {
