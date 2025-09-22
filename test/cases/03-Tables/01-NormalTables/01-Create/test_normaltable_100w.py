@@ -65,23 +65,20 @@ class TestTb100wDataOrder:
 
 
     def test_tb_100w_data_order(self):
-        """summary: xxx
+        """Create 100w Normal Tables
 
-        description: xxx
+        1. Create 100w normal tables
+        2. Query table order by col
+        3. flush database
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_tb_100w_data_order.py
         """
         self.query_ntb_order_by_col(batch_num=1000, rows_count=1000000)
 

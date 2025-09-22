@@ -100,6 +100,7 @@
 # 03-Tables
 ## 01-NormalTables
 ### 01-Create
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_100w.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_column_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_synatx.py
@@ -202,6 +203,7 @@
 
 ## 01-SQL
 ## 02-STMT
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/02-STMT/test_stmt_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/02-STMT/test_write_stmt_error.py
 ## 03-SML
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/03-SML/test_write_sml_influxdb_line.py
@@ -1600,9 +1602,6 @@
 
 
 ### 1-insert
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_multi_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4219.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_ts_4272.py
@@ -1612,7 +1611,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29793.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29157.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_tb_100w_data_order.py
 
 ### 3-enterprise
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_dnode.py -N 5 -M 3 -I False
