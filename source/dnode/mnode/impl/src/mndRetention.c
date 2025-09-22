@@ -302,7 +302,7 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
         TAOS_RETURN(code);
       }
 
-      if ((code = mndAddKillCompactAction(pMnode, pTrans, pVgroup, pObj->id, pDetail->dnodeId)) != 0) {
+      if ((code = mndAddKillRetentionAction(pMnode, pTrans, pVgroup, pObj->id, pDetail->dnodeId)) != 0) {
         mError("trans:%d, failed to append redo action since %s", pTrans->id, terrstr());
         sdbCancelFetch(pMnode->pSdb, pIter);
         sdbRelease(pMnode->pSdb, pDetail);
@@ -337,56 +337,56 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
 }
 
 int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
-  int32_t         code = 0;
-  int32_t         lino = 0;
-  SKillCompactReq killCompactReq = {0};
+  int32_t           code = 0;
+  int32_t           lino = 0;
+  SKillRetentionReq req = {0};
 
-  if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &killCompactReq)) != 0) {
+  if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &req)) != 0) {
     TAOS_RETURN(code);
   }
 
-  mInfo("start to kill retention:%" PRId32, killCompactReq.id);
+  mInfo("start to kill retention:%" PRId32, req.id);
 
   SMnode        *pMnode = pReq->info.node;
-  SRetentionObj *pObj = mndAcquireCompact(pMnode, killCompactReq.id);
+  SRetentionObj *pObj = mndAcquireCompact(pMnode, req.id);
   if (pObj == NULL) {
     code = TSDB_CODE_MND_INVALID_COMPACT_ID;
-    tFreeSKillCompactReq(&killCompactReq);
+    tFreeSKillCompactReq(&req);
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(mndKillCompact(pMnode, pReq, pObj), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndKillRetention(pMnode, pReq, pObj), &lino, _OVER);
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char    obj[TSDB_INT32_ID_LEN] = {0};
   int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pObj->id);
   if ((uint32_t)nBytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "killCompact", pObj->dbname, obj, killCompactReq.sql, killCompactReq.sqlLen);
+    auditRecord(pReq, pMnode->clusterId, "killRetention", pObj->dbname, obj, req.sql, req.sqlLen);
   } else {
     mError("retention:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to kill compact %" PRId32 " since %s", killCompactReq.id, terrstr());
+    mError("failed to kill compact %" PRId32 " since %s", req.id, terrstr());
   }
 
-  tFreeSKillCompactReq(&killCompactReq);
-  mndReleaseCompact(pMnode, pObj);
+  tFreeSKillCompactReq(&req);
+  mndReleaseRetention(pMnode, pObj);
 
   TAOS_RETURN(code);
 }
 
 // update progress
-static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t id, SQueryCompactProgressRsp *rsp) {
+static int32_t mndUpdateRetentionProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t id, SQueryRetentionProgressRsp *rsp) {
   int32_t code = 0;
 
   void *pIter = NULL;
   while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    SRetentionDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION_DETAIL, pIter, (void **)&pDetail);
     if (pIter == NULL) break;
 
     if (pDetail->id == id && pDetail->vgId == rsp->vgId && pDetail->dnodeId == rsp->dnodeId) {
@@ -409,14 +409,14 @@ static int32_t mndUpdateCompactProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t i
 
 int32_t mndProcessQueryRetentionRsp(SRpcMsg *pReq) {
   int32_t                  code = 0;
-  SQueryCompactProgressRsp req = {0};
+  SQueryRetentionProgressRsp req = {0};
   if (pReq->code != 0) {
-    mError("received wrong compact response, req code is %s", tstrerror(pReq->code));
+    mError("received wrong retention response, req code is %s", tstrerror(pReq->code));
     TAOS_RETURN(pReq->code);
   }
   code = tDeserializeSQueryCompactProgressRsp(pReq->pCont, pReq->contLen, &req);
   if (code != 0) {
-    mError("failed to deserialize vnode-query-compact-progress-rsp, ret:%d, pCont:%p, len:%d", code, pReq->pCont,
+    mError("failed to deserialize vnode-query-retention-progress-rsp, ret:%d, pCont:%p, len:%d", code, pReq->pCont,
            pReq->contLen);
     TAOS_RETURN(code);
   }
@@ -426,7 +426,7 @@ int32_t mndProcessQueryRetentionRsp(SRpcMsg *pReq) {
 
   SMnode *pMnode = pReq->info.node;
 
-  code = mndUpdateCompactProgress(pMnode, pReq, req.id, &req);
+  code = mndUpdateRetentionProgress(pMnode, pReq, req.id, &req);
   if (code != 0) {
     mError("retention:%d, failed to update progress, vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", req.id,
            req.vgId, req.dnodeId, req.numberFileset, req.finished);
@@ -437,12 +437,12 @@ int32_t mndProcessQueryRetentionRsp(SRpcMsg *pReq) {
 }
 
 // timer
-void mndCompactSendProgressReq(SMnode *pMnode, SRetentionObj *pObj) {
+void mndRetentionSendProgressReq(SMnode *pMnode, SRetentionObj *pObj) {
   void *pIter = NULL;
 
   while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    SRetentionDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION_DETAIL, pIter, (void **)&pDetail);
     if (pIter == NULL) break;
 
     if (pDetail->id == pObj->id) {
@@ -456,7 +456,7 @@ void mndCompactSendProgressReq(SMnode *pMnode, SRetentionObj *pObj) {
       }
       mndReleaseDnode(pMnode, pDnode);
 
-      SQueryCompactProgressReq req;
+      SQueryRetentionProgressReq req;
       req.id = pDetail->id;
       req.vgId = pDetail->vgId;
       req.dnodeId = pDetail->dnodeId;
@@ -483,13 +483,13 @@ void mndCompactSendProgressReq(SMnode *pMnode, SRetentionObj *pObj) {
         continue;
       }
 
-      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_COMPACT_PROGRESS, .contLen = contLen};
+      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_RETENTION_PROGRESS, .contLen = contLen};
 
       rpcMsg.pCont = pHead;
 
       char    detail[1024] = {0};
       int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
-                              TMSG_INFO(TDMT_VND_QUERY_COMPACT_PROGRESS), epSet.numOfEps, epSet.inUse);
+                              TMSG_INFO(TDMT_VND_QUERY_RETENTION_PROGRESS), epSet.numOfEps, epSet.inUse);
       for (int32_t i = 0; i < epSet.numOfEps; ++i) {
         len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
       }
@@ -506,13 +506,13 @@ void mndCompactSendProgressReq(SMnode *pMnode, SRetentionObj *pObj) {
   }
 }
 
-static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
+static int32_t mndSaveRetentionProgress(SMnode *pMnode, int32_t id) {
   int32_t code = 0;
   bool    needSave = false;
   void   *pIter = NULL;
   while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    SRetentionDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION_DETAIL, pIter, (void **)&pDetail);
     if (pIter == NULL) break;
 
     if (pDetail->id == id) {
@@ -531,7 +531,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
   }
 
   char dbname[TSDB_TABLE_FNAME_LEN] = {0};
-  TAOS_CHECK_RETURN(mndCompactGetDbName(pMnode, id, dbname, TSDB_TABLE_FNAME_LEN));
+  TAOS_CHECK_RETURN(mndRetentionGetDbName(pMnode, id, dbname, TSDB_TABLE_FNAME_LEN));
 
   if (!mndDbIsExist(pMnode, dbname)) {
     needSave = true;
@@ -543,21 +543,21 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
     TAOS_RETURN(code);
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, NULL, "update-compact-progress");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, NULL, "update-retention-progress");
   if (pTrans == NULL) {
     mError("trans:%" PRId32 ", failed to create since %s", pTrans->id, terrstr());
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  mInfo("retention:%d, trans:%d, used to update compact progress.", id, pTrans->id);
+  mInfo("retention:%d, trans:%d, used to update retention progress.", id, pTrans->id);
 
   mndTransSetDbName(pTrans, dbname, NULL);
 
   pIter = NULL;
   while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    SRetentionDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION_DETAIL, pIter, (void **)&pDetail);
     if (pIter == NULL) break;
 
     if (pDetail->id == id) {
@@ -600,8 +600,8 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
   bool allFinished = true;
   pIter = NULL;
   while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    SRetentionDetailObj *pDetail = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION_DETAIL, pIter, (void **)&pDetail);
     if (pIter == NULL) break;
 
     if (pDetail->id == id) {
@@ -634,8 +634,8 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
     mInfo("retention:%d, all finished", id);
     pIter = NULL;
     while (1) {
-      SCompactDetailObj *pDetail = NULL;
-      pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+      SRetentionDetailObj *pDetail = NULL;
+      pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION_DETAIL, pIter, (void **)&pDetail);
       if (pIter == NULL) break;
 
       if (pDetail->id == id) {
@@ -647,7 +647,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
           TAOS_RETURN(code);
         }
         if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-          mError("retention:%d, trans:%d, failed to append commit log since %s", pDetail->id, pTrans->id, terrstr());
+          mError("retention:%d, trans:%d, failed to append commit log since %s", pDetail->id, pTrans->id, tstrerror(code));
           sdbCancelFetch(pMnode->pSdb, pIter);
           sdbRelease(pMnode->pSdb, pDetail);
           mndTransDrop(pTrans);
@@ -665,7 +665,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
       sdbRelease(pMnode->pSdb, pDetail);
     }
 
-    SRetentionObj *pObj = mndAcquireCompact(pMnode, id);
+    SRetentionObj *pObj = mndAcquireRetention(pMnode, id);
     if (pObj == NULL) {
       mndTransDrop(pTrans);
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -673,7 +673,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
       TAOS_RETURN(code);
     }
     SSdbRaw *pCommitRaw = mndCompactActionEncode(pObj);
-    mndReleaseCompact(pMnode, pObj);
+    mndReleaseRetention(pMnode, pObj);
     if (pCommitRaw == NULL) {
       mndTransDrop(pTrans);
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -681,12 +681,12 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
       TAOS_RETURN(code);
     }
     if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-      mError("retention:%d, trans:%d, failed to append commit log since %s", id, pTrans->id, terrstr());
+      mError("retention:%d, trans:%d, failed to append commit log since %s", id, pTrans->id, tstrerror(code));
       mndTransDrop(pTrans);
       TAOS_RETURN(code);
     }
     if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) {
-      mError("retention:%d, trans:%d, failed to append commit log since %s", id, pTrans->id, terrstr());
+      mError("retention:%d, trans:%d, failed to append commit log since %s", id, pTrans->id, tstrerror(code));
       mndTransDrop(pTrans);
       TAOS_RETURN(code);
     }
@@ -694,7 +694,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
   }
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
-    mError("retention:%d, trans:%d, failed to prepare since %s", id, pTrans->id, terrstr());
+    mError("retention:%d, trans:%d, failed to prepare since %s", id, pTrans->id, tstrerror(code));
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
@@ -703,34 +703,34 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t id) {
   return 0;
 }
 
-static void mndCompactPullup(SMnode *pMnode) {
+static void mndRetentionPullup(SMnode *pMnode) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
-  SArray *pArray = taosArrayInit(sdbGetSize(pSdb, SDB_COMPACT), sizeof(int32_t));
+  SArray *pArray = taosArrayInit(sdbGetSize(pSdb, SDB_RETENTION), sizeof(int32_t));
   if (pArray == NULL) return;
 
   void *pIter = NULL;
   while (1) {
     SRetentionObj *pObj = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT, pIter, (void **)&pObj);
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION, pIter, (void **)&pObj);
     if (pIter == NULL) break;
     if (taosArrayPush(pArray, &pObj->id) == NULL) {
-      mError("failed to push compact id:%d into array, but continue pull up", pObj->id);
+      mError("failed to push retention id:%d into array, but continue pull up", pObj->id);
     }
     sdbRelease(pSdb, pObj);
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-    mInfo("begin to pull up");
-    int32_t       *pCompactId = taosArrayGet(pArray, i);
-    SRetentionObj *pObj = mndAcquireCompact(pMnode, *pCompactId);
+    int32_t       *pId = taosArrayGet(pArray, i);
+    mInfo("begin to pull up retention:%d", *pId);
+    SRetentionObj *pObj = mndAcquireCompact(pMnode, *pId);
     if (pObj != NULL) {
       mInfo("retention:%d, begin to pull up", pObj->id);
-      mndCompactSendProgressReq(pMnode, pObj);
-      if ((code = mndSaveCompactProgress(pMnode, pObj->id)) != 0) {
-        mError("retention:%d, failed to save compact progress since %s", pObj->id, tstrerror(code));
+      mndRetentionSendProgressReq(pMnode, pObj);
+      if ((code = mndSaveRetentionProgress(pMnode, pObj->id)) != 0) {
+        mError("retention:%d, failed to save retention progress since %s", pObj->id, tstrerror(code));
       }
-      mndReleaseCompact(pMnode, pObj);
+      mndReleaseRetention(pMnode, pObj);
     }
   }
   taosArrayDestroy(pArray);
@@ -739,7 +739,7 @@ static void mndCompactPullup(SMnode *pMnode) {
 static int32_t mndProcessRetentionTimer(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
   mTrace("start to process compact timer");
-  mndCompactPullup(pReq->info.node);
+  mndRetentionPullup(pReq->info.node);
 #endif
   return 0;
 }

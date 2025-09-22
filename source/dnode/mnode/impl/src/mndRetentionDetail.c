@@ -17,7 +17,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 
-#define MND_COMPACT_VER_NUMBER 1
+#define MND_RETENTION_DETAIL_VER_NUMBER 1
 
 int32_t mndInitCompactDetail(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COMPACT_DETAIL, mndRetrieveCompactDetail);

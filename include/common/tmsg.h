@@ -2538,6 +2538,9 @@ typedef struct {
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 
+typedef SQueryCompactProgressReq SQueryRetentionProgressReq;
+typedef SQueryCompactProgressRsp SQueryRetentionProgressRsp;
+
 typedef struct {
   int32_t vgId;
   int32_t dnodeId;

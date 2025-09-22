@@ -69,6 +69,9 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
 
+extern int32_t vnodeProcessKillRetetnionReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+extern int32_t vnodeQueryRetentionProgress(SVnode *pVnode, SRpcMsg *pMsg);
+
 extern int32_t vnodeProcessKillScanReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 extern int32_t vnodeListSsMigrateFileSets(SVnode *pVnode, SRpcMsg *pMsg);
@@ -1115,6 +1118,9 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 #ifdef TD_ENTERPRISE
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
+
+    case TDMT_VND_QUERY_RETENTION_PROGRESS:
+      return vnodeQueryRetentionProgress(pVnode, pMsg);
 
     case TDMT_VND_LIST_SSMIGRATE_FILESETS:
       return vnodeListSsMigrateFileSets(pVnode, pMsg);

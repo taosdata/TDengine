@@ -166,6 +166,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_RSMAS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_RSMA_TASKS, len) == 0) {
     type = TSDB_MGMT_TABLE_RSMA_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTIONS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RETENTION;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTION_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RETENTION_DETAIL;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
