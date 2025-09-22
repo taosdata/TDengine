@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+import os
 
 class TestIntervalDiffTz:
     clientCfgDict = { "timezone": "UTC" }
@@ -32,8 +33,8 @@ class TestIntervalDiffTz:
     def query_run(self):
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
-        self.sqlFile = etool.curFile(__file__, f"in/interval.in")
-        self.ansFile = etool.curFile(__file__, f"ans/interval_diff_tz.csv")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "interval.in")
+        self.ansFile =os.path.join(os.path.dirname(__file__), "ans", "interval_diff_tz.csv")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "interval_diff_tz")
 

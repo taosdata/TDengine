@@ -714,20 +714,23 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
           code = terrno;
           goto end;
         }
-        if (!taosMbsToUcs4(bindData.buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
-          if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
+        if (colLen != 0) {
+          if (!taosMbsToUcs4(bindData.buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
+            if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
+              taosMemoryFree(p);
+              code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
+              goto end;
+            }
+            char buf[512] = {0};
+            snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
             taosMemoryFree(p);
-            code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
+            code = buildSyntaxErrMsg(&pBuf, buf, bindData.buffer);
             goto end;
           }
-          char buf[512] = {0};
-          snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
-          taosMemoryFree(p);
-          code = buildSyntaxErrMsg(&pBuf, buf, bindData.buffer);
-          goto end;
         }
         val.pData = p;
         val.nData = output;
+
       } else {
         memcpy(&val.i64, bindData.buffer, colLen);
       }
@@ -806,6 +809,11 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
   char* dst_buf = dst->buffer;
   for (int32_t i = 0; i < src->num; ++i) {
     if (src->is_null && src->is_null[i]) {
+      continue;
+    }
+
+    if (src->length[i] == 0) {
+      dst->length[i] = 0;
       continue;
     }
 
@@ -993,6 +1001,11 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
   char* dst_buf = dst->buffer;
   for (int32_t i = 0; i < src->num; ++i) {
     if (src->is_null && src->is_null[i]) {
+      continue;
+    }
+
+    if (src->length[i] == 0) {
+      dst->length[i] = 0;
       continue;
     }
 
@@ -1493,11 +1506,6 @@ int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E*
       return terrno;
     }
 
-    SSchema* schema = &pSchema[pDataBlock->boundColsInfo.pColIndex[0]];
-    if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
-      (*fields)[0].precision = pDataBlock->pMeta->tableInfo.precision;
-    }
-
     int32_t actualIdx = 0;
     for (int32_t i = 0; i < numOfBound; ++i) {
       SSchema* schema;
@@ -1510,6 +1518,9 @@ int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E*
       tstrncpy((*fields)[i].name, schema->name, 65);
       (*fields)[i].type = schema->type;
       (*fields)[i].bytes = calcTypeBytesFromSchemaBytes(schema->type, schema->bytes, true);
+      if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
+        (*fields)[i].precision = pDataBlock->pMeta->tableInfo.precision;
+      }
     }
   }
 

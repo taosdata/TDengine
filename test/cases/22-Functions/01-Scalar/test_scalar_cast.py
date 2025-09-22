@@ -689,20 +689,19 @@ class TestCast:
         tdSql.checkRows(3)
 
     def test_cast_without_from(self):
-        """Scalar: cast
+        """Scalar: Cast
 
-        1. from int to other,
-        2. from bigint to other
-        3. from smallint to other
-        4. from tinyint to other
-        5. from float to other
-        6. from str to other
-        7. from bool to other
-        8. from timestamp to other
-        9. from compute to other
-        10. withou from clause
-        11. convert a floating-point number to a binary and then performing a comparison
-
+        1. From int to other,
+        2. From bigint to other
+        3. From smallint to other
+        4. From tinyint to other
+        5. From float to other
+        6. From str to other
+        7. From bool to other
+        8. From timestamp to other
+        9. From compute to other
+        10. Int the from clause
+        11. Convert a floating-point number to a binary and then performing a comparison
 
         Catalog:
             - Function:Sclar

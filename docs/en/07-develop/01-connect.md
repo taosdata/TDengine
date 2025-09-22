@@ -5,8 +5,6 @@ slug: /developer-guide/connecting-to-tdengine
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Image from '@theme/IdealImage';
-import imgConnect from '../assets/connecting-to-tdengine-01.png';
 import ConnJava from "../assets/resources/_connect_java.mdx";
 import ConnGo from "../assets/resources/_connect_go.mdx";
 import ConnRust from "../assets/resources/_connect_rust.mdx";
@@ -31,10 +29,7 @@ TDengine provides three methods for establishing connections:
 2. Connection to taosd through the REST API provided by the taosAdapter component, referred to as "REST connection" in the text below.
 3. Connection to taosd through the WebSocket API provided by the taosAdapter component, referred to as "WebSocket connection" in the text below.
 
-<figure>
-<Image img={imgConnect} alt="Connecting to TDengine"/>
-<figcaption>Figure 1. Connecting to TDengine</figcaption>
-</figure>
+![Connecting to TDengine](../assets/connecting-to-tdengine-01.png)
 
 Regardless of the method used to establish the connection, the connectors provide the same or similar API to operate the database and can execute SQL statements. The initialization of the connection slightly differs, but users will not feel any difference in usage.
 For various connection methods and language connector support, please refer to: [Connector Features](../../tdengine-reference/client-libraries/)
@@ -145,7 +140,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.4
+    pip3 install taospy==2.8.5
     ```
 
     - Install from GitHub
@@ -517,6 +512,11 @@ Below are code examples for establishing WebSocket connections in various langua
 {{#include docs/examples/python/connect_websocket_examples.py:connect}}
 ```
 
+SQLAlchemy supports configuring multiple server addresses through the `hosts` parameter to achieve load balancing and failover. Multiple addresses are separated by English commas, in the format: `hosts=<host1>:<port1>,<host2>:<port2>,...`
+
+```python
+{{#include docs/examples/python/connect_websocket_sqlalchemy_examples.py:connect_sqlalchemy}}
+```
 </TabItem>
 
 <TabItem label="Go" value="go">

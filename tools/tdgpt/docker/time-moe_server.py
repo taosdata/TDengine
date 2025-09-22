@@ -1,3 +1,4 @@
+# not used from 3.3.7.7
 log_file = "log.time-moe_server"
 import logging
 
@@ -132,7 +133,7 @@ def ds_predict():
 def main():
     app.run(
         host='0.0.0.0',
-        port=6072,
+        port=6037,
         threaded=True,  # 支持多线程处理并发请求
         debug=False     # 生产环境建议设为False
     )

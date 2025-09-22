@@ -4477,9 +4477,8 @@ int32_t elapsedFunctionMerge(SqlFunctionCtx* pCtx) {
 
 int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  double        result = (double)pInfo->max - (double)pInfo->min;
-  result = (result >= 0) ? result : -result;
-  pInfo->result = result / pInfo->timeUnit;
+  double        result = (double)(pInfo->max - pInfo->min);
+  pInfo->result = fabs(result) / pInfo->timeUnit;
   return functionFinalize(pCtx, pBlock);
 }
 
