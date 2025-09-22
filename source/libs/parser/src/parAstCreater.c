@@ -3640,10 +3640,22 @@ SNode* createShowCompactDetailsStmt(SAstCreateContext* pCxt, SNode* pCompactId) 
   SShowCompactDetailsStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_COMPACT_DETAILS_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  pStmt->pCompactId = pCompactId;
+  pStmt->pId = pCompactId;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pCompactId);
+  return NULL;
+}
+
+SNode* createShowRetentionDetailsStmt(SAstCreateContext* pCxt, SNode* pId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowRetentionDetailsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_RETENTION_DETAILS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pId = pId;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pId);
   return NULL;
 }
 
@@ -5109,18 +5121,6 @@ _err:
   return NULL;
 }
 
-SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds, STokenPair* pLevel) {
-  CHECK_PARSER_STATUS(pCxt);
-  SKillRsmaTasksStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_KILL_RSMA_TASKS_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-
-  pStmt->pTaskIds = pTaskIds;
-  return (SNode*)pStmt;
-_err:
-  return NULL;
-}
-
 SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SShowCreateRsmaStmt* pStmt = NULL;
@@ -5135,36 +5135,43 @@ _err:
   return NULL;
 }
 
-SNode* createRecalcRsmaStmt(SAstCreateContext* pCxt, STokenPair* pLevel, SNodeList* pScope, SNode* pWhere) {
-  SRecalcRsmaStmt* pStmt = NULL;
+SNode* createRollupStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
-  if (pLevel->first.type == TK_NK_NIL) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "db or rsma name is required");
-    goto _err;
-  }
-  if (pLevel->second.type == TK_NK_NIL) {
-    CHECK_NAME(checkRsmaName(pCxt, &pLevel->first));
-  } else {
-    CHECK_NAME(checkDbName(pCxt, &pLevel->first, false));
-    CHECK_NAME(checkRsmaName(pCxt, &pLevel->second));
-  }
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_RECALC_RSMA_STMT, (SNode**)&pStmt);
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
+  SRollupDatabaseStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ROLLUP_DATABASE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-
-  pStmt->pScope = pScope;
-  pStmt->pWhere = pWhere;
-  if (pLevel->second.type == TK_NK_NIL) {
-    tstrncpy(pStmt->dbName, pCxt->pQueryCxt->db, TSDB_DB_NAME_LEN);
-    COPY_STRING_FORM_ID_TOKEN(pStmt->rsmaName, &pLevel->first);
-  } else {
-    COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, &pLevel->first);
-    COPY_STRING_FORM_ID_TOKEN(pStmt->rsmaName, &pLevel->second);
-  }
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  pStmt->pStart = pStart;
+  pStmt->pEnd = pEnd;
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode((SNode*)pStmt);
-  nodesDestroyList(pScope);
-  nodesDestroyNode(pWhere);
+  nodesDestroyNode(pStart);
+  nodesDestroyNode(pEnd);
+  return NULL;
+}
+
+SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
+                                SNode* pEnd) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pDbName) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
+    pCxt->errCode = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  SCompactVgroupsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COMPACT_VGROUPS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pDbName = pDbName;
+  pStmt->vgidList = vgidList;
+  pStmt->pStart = pStart;
+  pStmt->pEnd = pEnd;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pDbName);
+  nodesDestroyList(vgidList);
+  nodesDestroyNode(pStart);
+  nodesDestroyNode(pEnd);
   return NULL;
 }
 

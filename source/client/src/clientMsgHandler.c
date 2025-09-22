@@ -1012,6 +1012,39 @@ static int32_t processScanDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SRetentionDbRsp    rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    code = tDeserializeSCompactDbRsp(pMsg->pData, pMsg->len, (SCompactDbRsp*)&rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildRetriveTableRspForCompactDb(&rsp, &pRes);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
+
+    if (code != 0) {
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
     case TDMT_MND_CONNECT:
@@ -1030,6 +1063,8 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processShowVariablesRsp;
     case TDMT_MND_COMPACT_DB:
       return processCompactDbRsp;
+    case TDMT_MND_TRIM_DB:
+      return processTrimDbRsp;
     case TDMT_MND_SCAN_DB:
       return processScanDbRsp;
     default:

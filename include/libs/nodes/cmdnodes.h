@@ -188,6 +188,8 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
 } SCompactDatabaseStmt;
 
+typedef SCompactDatabaseStmt SRollupDatabaseStmt;
+
 typedef struct SScanDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -557,8 +559,10 @@ typedef struct SShowScansStmt {
 
 typedef struct SShowCompactDetailsStmt {
   ENodeType type;
-  SNode*    pCompactId;
+  SNode*    pId;
 } SShowCompactDetailsStmt;
+
+typedef SShowCompactDetailsStmt SShowRetentionDetailsStmt;
 
 typedef struct SShowScanDetailsStmt {
   ENodeType type;
@@ -859,16 +863,6 @@ typedef struct SDropRsmaStmt {
   char      rsmaName[TSDB_TABLE_NAME_LEN];
 } SDropRsmaStmt;
 
-typedef struct SStartRsmaStmt {
-  ENodeType  type;
-  char       dbName[TSDB_DB_NAME_LEN];
-  char       rsmaName[TSDB_TABLE_NAME_LEN];
-  bool       ignoreNotExists;
-  SNodeList* pVgroups;
-} SStartRsmaStmt;
-
-typedef SStartRsmaStmt SStopRsmaStmt;
-
 typedef struct SAlterRsmaStmt {
   ENodeType  type;
   char       dbName[TSDB_DB_NAME_LEN];
@@ -877,21 +871,6 @@ typedef struct SAlterRsmaStmt {
   int8_t     alterType;
   SNodeList* pFuncs;
 } SAlterRsmaStmt;
-
-typedef struct SKillRsmaTasksStmt {
-  ENodeType  type;
-  SNodeList* pTaskIds;
-} SKillRsmaTasksStmt;
-
-typedef struct SRecalcRsmaStmt {
-  ENodeType  type;
-  bool       ignoreExists;
-  uint8_t    precision;
-  char       rsmaName[TSDB_TABLE_NAME_LEN];
-  char       dbName[TSDB_DB_NAME_LEN];
-  SNodeList* pScope;
-  SNode*     pWhere;
-} SRecalcRsmaStmt;
 
 #ifdef __cplusplus
 }

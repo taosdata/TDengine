@@ -417,7 +417,10 @@ SNode* createDropRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* 
 SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, SNodeList* pFuncs, bool add);
 SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds, STokenPair* pLevel);
-SNode* createRecalcRsmaStmt(SAstCreateContext* pCxt, STokenPair* pLevel, SNodeList* pScope, SNode* pWhere);
+SNode* createRollupStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd);
+SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
+                                SNode* pEnd);
+SNode* createShowRetentionDetailsStmt(SAstCreateContext* pCxt, SNode* pId);
 
 SNode*     createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                                 SNode* pRealTable, SNode* pInterval);

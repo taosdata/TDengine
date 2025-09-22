@@ -72,7 +72,6 @@ extern "C" {
 #define TSDB_INS_TABLE_SCANS               "ins_scans"
 #define TSDB_INS_TABLE_SCAN_DETAILS        "ins_scan_details"
 #define TSDB_INS_TABLE_RSMAS               "ins_rsmas"
-#define TSDB_INS_TABLE_RSMA_TASKS          "ins_rsma_tasks"
 #define TSDB_INS_TABLE_RETENTIONS          "ins_retentions"
 #define TSDB_INS_TABLE_RETENTION_DETAILS   "ins_retention_details"
 

@@ -200,7 +200,6 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_SCAN,
   TSDB_MGMT_TABLE_SCAN_DETAIL,
   TSDB_MGMT_TABLE_RSMAS,
-  TSDB_MGMT_TABLE_RSMA_TASKS,
   TSDB_MGMT_TABLE_RETENTION,
   TSDB_MGMT_TABLE_RETENTION_DETAIL,
   TSDB_MGMT_TABLE_MAX,
@@ -453,10 +452,9 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_RSMA_STMT,
   QUERY_NODE_ALTER_RSMA_STMT,
   QUERY_NODE_SHOW_CREATE_RSMA_STMT,
-  QUERY_NODE_START_RSMA_STMT,
-  QUERY_NODE_STOP_RSMA_STMT,
-  QUERY_NODE_KILL_RSMA_TASKS_STMT,
-  QUERY_NODE_RECALC_RSMA_STMT,
+  QUERY_NODE_ROLLUP_DATABASE_STMT,
+  QUERY_NODE_ROLLUP_VGROUPS_STMT,
+  QUERY_NODE_KILL_RETENTION_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -510,7 +508,8 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_SCANS_STMT,
   QUERY_NODE_SHOW_SCAN_DETAILS_STMT,
   QUERY_NODE_SHOW_RSMAS_STMT,
-  QUERY_NODE_SHOW_RSMA_TASKS_STMT,
+  QUERY_NODE_SHOW_RETENTIONS_STMT,
+  QUERY_NODE_SHOW_RETENTION_DETAILS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -2082,6 +2081,7 @@ typedef struct {
   int32_t     sqlLen;
   char*       sql;
   SArray*     vgroupIds;
+  int32_t     compactId;
   int8_t      metaOnly;
 } SCompactDbReq;
 
@@ -2113,7 +2113,27 @@ int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pR
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
 
-typedef SCompactDbReq   SRetentionDbReq;    // reuse structs
+typedef struct {
+  char        db[TSDB_DB_FNAME_LEN];
+  STimeWindow timeRange;
+  int32_t     sqlLen;
+  char*       sql;
+  SArray*     vgroupIds;
+  int32_t     id;
+  union {
+    uint16_t flags;
+    struct {
+      uint16_t compactType : 3;  // ECompactType
+      uint16_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
+      uint16_t reserved : 12;
+    };
+  };
+} SRetentionDbReq;
+
+int32_t tSerializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
+int32_t tDeserializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
+void    tFreeSRetentionDbReq(SRetentionDbReq* pReq);
+
 typedef SCompactDbRsp   SRetentionDbRsp;    // reuse structs
 typedef SKillCompactReq SKillRetentionReq;  // reuse structs
 

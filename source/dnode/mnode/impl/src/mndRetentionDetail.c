@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "mndCompactDetail.h"
+#include "mndRetentionDetail.h"
 #include "mndDb.h"
 #include "mndShow.h"
 #include "mndTrans.h"
@@ -23,7 +24,7 @@ int32_t mndInitRetentionDetail(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION_DETAIL, mndRetrieveRetentionDetail);
 
   SSdbTable table = {
-      .sdbType = SDB_COMPACT_DETAIL,
+      .sdbType = SDB_RETENTION_DETAIL,
       .keyType = SDB_KEY_INT64,
       .encodeFp = (SdbEncodeFp)mndCompactDetailActionEncode,
       .decodeFp = (SdbDecodeFp)mndCompactDetailActionDecode,

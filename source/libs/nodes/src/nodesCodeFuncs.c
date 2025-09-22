@@ -217,10 +217,14 @@ const char* nodesNodeName(ENodeType type) {
       return "DescribeStmt";
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return "CompactDatabaseStmt";
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
+      return "RollupDatabaseStmt";
     case QUERY_NODE_SCAN_DATABASE_STMT:
       return "ScanDatabaseStmt";
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return "CompactVgroupsStmt";
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+      return "RollupVgroupsStmt";
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       return "ScanVgroupsStmt";
     case QUERY_NODE_CREATE_STREAM_STMT:
@@ -361,8 +365,10 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowSSMigratesStmt";
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return "ShowRsmasStmt";
-    case QUERY_NODE_SHOW_RSMA_TASKS_STMT:
-      return "ShowRsmaTasksStmt";
+    case QUERY_NODE_SHOW_RETENTIONS_STMT:
+      return "ShowRetentionsStmt";
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
+      return "ShowRetentionDetailsStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -8623,6 +8629,16 @@ static int32_t jsonToCompactDatabaseStmt(const SJson* pJson, void* pObj) {
   return tjsonGetStringValue(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
 }
 
+static int32_t rollupDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SRollupDatabaseStmt* pNode = (const SRollupDatabaseStmt*)pObj;
+  return tjsonAddStringToObject(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
+}
+
+static int32_t jsonToRollupDatabaseStmt(const SJson* pJson, void* pObj) {
+  SRollupDatabaseStmt* pNode = (SRollupDatabaseStmt*)pObj;
+  return tjsonGetStringValue(pJson, jkCompactDatabaseStmtDbName, pNode->dbName);
+}
+
 static int32_t scanDatabaseStmtToJson(const void* pObj, SJson* pJson) {
   const SScanDatabaseStmt* pNode = (const SScanDatabaseStmt*)pObj;
   return tjsonAddStringToObject(pJson, jkScanDatabaseStmtDbName, pNode->dbName);
@@ -9603,6 +9619,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return describeStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return compactDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
+      return rollupDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_SCAN_DATABASE_STMT:
       return scanDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
@@ -9714,7 +9732,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showMountsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return showRsmasStmtToJson(pObj, pJson);
-    case QUERY_NODE_SHOW_RSMA_TASKS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT:
+      return showRsmasStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return showRsmasStmtToJson(pObj, pJson);
     case QUERY_NODE_DELETE_STMT:
       return deleteStmtToJson(pObj, pJson);
@@ -10014,6 +10034,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDescribeStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return jsonToCompactDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
+      return jsonToRollupDatabaseStmt(pJson, pObj);
     case QUERY_NODE_SCAN_DATABASE_STMT:
       return jsonToScanDatabaseStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
@@ -10121,7 +10143,9 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowMountsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return jsonToShowRsmasStmt(pJson, pObj);
-    case QUERY_NODE_SHOW_RSMA_TASKS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT:
+      return jsonToShowRsmasStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return jsonToShowRsmasStmt(pJson, pObj);
     case QUERY_NODE_DELETE_STMT:
       return jsonToDeleteStmt(pJson, pObj);

@@ -440,9 +440,15 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { .showType = QUERY_NODE_SHOW_RSMA_TASKS_STMT,
+  { .showType = QUERY_NODE_SHOW_RETENTIONS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_RSMA_TASKS,
+    .pTableName = TSDB_INS_TABLE_RETENTIONS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_RETENTION_DETAILS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_RETENTION_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   }
@@ -13182,6 +13188,21 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
   return code;
 }
 
+static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SRetentionDbReq req = {.compactType = TSDB_COMPACT_ROLLUP, .triggerType = TSDB_TRIGGER_MANUAL};
+  SName   name;
+  code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+  (void)tNameGetFullDbName(&name, req.db);
+  code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &req.timeRange);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSRetentionDbReq, &req);
+  }
+  tFreeSRetentionDbReq(&req);
+  return code;
+}
+
 static int32_t translateScanDb(STranslateContext* pCxt, SScanDatabaseStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SName   name;
@@ -13319,6 +13340,12 @@ static int32_t translateKillCompact(STranslateContext* pCxt, SKillStmt* pStmt) {
   SKillCompactReq killReq = {0};
   killReq.compactId = pStmt->targetId;
   return buildCmdMsg(pCxt, TDMT_MND_KILL_COMPACT, (FSerializeFunc)tSerializeSKillCompactReq, &killReq);
+}
+
+static int32_t translateKillRetention(STranslateContext* pCxt, SKillStmt* pStmt) {
+  SKillRetentionReq killReq = {0};
+  killReq.id = pStmt->targetId;
+  return buildCmdMsg(pCxt, TDMT_MND_KILL_RETENTION, (FSerializeFunc)tSerializeSKillCompactReq, &killReq);
 }
 
 static int32_t translateKillScan(STranslateContext* pCxt, SKillStmt* pStmt) {
@@ -16975,6 +17002,9 @@ _return:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = translateCompactDb(pCxt, (SCompactDatabaseStmt*)pNode);
       break;
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
+      code = translateRollupDb(pCxt, (SRollupDatabaseStmt*)pNode);
+      break;
     case QUERY_NODE_SCAN_DATABASE_STMT:
       code = translateScanDb(pCxt, (SScanDatabaseStmt*)pNode);
       break;
@@ -16992,6 +17022,9 @@ _return:
       break;
     case QUERY_NODE_KILL_COMPACT_STMT:
       code = translateKillCompact(pCxt, (SKillStmt*)pNode);
+      break;
+    case QUERY_NODE_KILL_RETENTION_STMT:
+      code = translateKillRetention(pCxt, (SKillStmt*)pNode);
       break;
     case QUERY_NODE_KILL_SCAN_STMT:
       code = translateKillScan(pCxt, (SKillStmt*)pNode);
@@ -17096,19 +17129,7 @@ _return:
     case QUERY_NODE_DROP_RSMA_STMT:
       code = translateDropRsma(pCxt, (SDropRsmaStmt*)pNode);
       break;
-    case QUERY_NODE_START_RSMA_STMT:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
-      break;
-    case QUERY_NODE_STOP_RSMA_STMT:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
-      break;
     case QUERY_NODE_ALTER_RSMA_STMT:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
-      break;
-    case QUERY_NODE_KILL_RSMA_TASKS_STMT:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
-      break;
-    case QUERY_NODE_RECALC_RSMA_STMT:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
     default:
@@ -17414,6 +17435,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractShowVariablesResultSchema(numOfCols, pSchema);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
@@ -20862,8 +20885,26 @@ static int32_t rewriteShowCompactDetailsStmt(STranslateContext* pCxt, SQuery* pQ
   SSelectStmt*             pStmt = NULL;
   int32_t                  code = createSelectStmtForShow(QUERY_NODE_SHOW_COMPACT_DETAILS_STMT, &pStmt);
   if (TSDB_CODE_SUCCESS == code) {
-    if (NULL != pShow->pCompactId) {
-      code = createOperatorNode(OP_TYPE_EQUAL, "compact_id", pShow->pCompactId, &pStmt->pWhere);
+    if (NULL != pShow->pId) {
+      code = createOperatorNode(OP_TYPE_EQUAL, "compact_id", pShow->pId, &pStmt->pWhere);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
+static int32_t rewriteShowRetentionDetailsStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowRetentionDetailsStmt* pShow = (SShowRetentionDetailsStmt*)(pQuery->pRoot);
+  SSelectStmt*               pStmt = NULL;
+  int32_t                    code = createSelectStmtForShow(QUERY_NODE_SHOW_RETENTION_DETAILS_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pShow->pId) {
+      code = createOperatorNode(OP_TYPE_EQUAL, "retention_id", pShow->pId, &pStmt->pWhere);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -21449,7 +21490,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:
-    case QUERY_NODE_SHOW_RSMA_TASKS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_STREAMS_STMT:
@@ -21522,6 +21563,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = rewriteShowCompactDetailsStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
+      code = rewriteShowScanDetailsStmt(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
       code = rewriteShowScanDetailsStmt(pCxt, pQuery);
@@ -21655,8 +21699,10 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT:
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;

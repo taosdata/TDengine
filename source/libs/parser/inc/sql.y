@@ -739,33 +739,21 @@ cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
   INTERVAL NK_LP signed_duration_list(F) NK_RP.                                   { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, F); }
 cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
 cmd ::= SHOW CREATE RSMA full_table_name(A).                                      { pCxt->pRootNode = createShowCreateRsmaStmt(pCxt, QUERY_NODE_SHOW_CREATE_RSMA_STMT, A); }
-cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) MODIFY FUNCTION func_list(D).  { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, D, true); }
-cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) DROP FUNCTION func_list(D).    { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, D, false); }
+cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) FUNCTION func_list(D).         { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, D, true); }
 cmd ::= SHOW db_name_cond_opt(B) RSMAS.                                           { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_RSMAS_STMT, B, NULL, OP_TYPE_LIKE); }
-cmd ::= SHOW db_name_cond_opt(B) RSMA_TASKS.                                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_RSMA_TASKS_STMT, B, NULL, OP_TYPE_EQUAL); }
-cmd ::= KILL RSMA_TASKS IN NK_LP integer_list(B) NK_RP.                           { pCxt->pRootNode = createKillRsmaTasksStmt(pCxt, B, NULL); }
-cmd ::= KILL RSMA_TASKS ON action_level(C).                                       { pCxt->pRootNode = createKillRsmaTasksStmt(pCxt, NULL, &C); }
-cmd ::= RECALCULATE RSMA ON action_level(C) action_scope(D) where_clause_opt(E).  { pCxt->pRootNode = createRecalcRsmaStmt(pCxt, &C, D, E); }
+cmd ::= SHOW db_name_cond_opt(B) RETENTIONS.                                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_RETENTIONS_STMT, B, NULL, OP_TYPE_LIKE); }
+cmd ::= SHOW RETENTION NK_INTEGER(A).                                             { pCxt->pRootNode = createShowRetentionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
+cmd ::= ROLLUP DATABASE db_name(A) start_opt(B) end_opt(C).                       { pCxt->pRootNode = createRollupStmt(pCxt, &A, B, C); }
+cmd ::= ROLLUP db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D). { pCxt->pRootNode = createRollupVgroupsStmt(pCxt, A, B, C, D); }
 
 full_rsma_name(A) ::= rsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }
 full_rsma_name(A) ::= db_name(B) NK_DOT rsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
-
-%type action_level                                                                { STokenPair }
-%destructor action_level                                                          { }
-action_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                 { A.first = B; A.second = C; }
-action_level(A) ::= db_name(B) NK_DOT rsma_name(C).                               { A.first = B; A.second = C; }
-action_level(A) ::= rsma_name(B).                                                 { A.first = B; A.second = nil_token; }
 
 %type rsma_func_list                                                              { SNodeList* }
 %destructor rsma_func_list                                                        { }
 rsma_func_list(A) ::= .                                                           { A = NULL; }
 rsma_func_list(A) ::= FUNCTION NK_LP NK_RP.                                       { A = NULL; }
 rsma_func_list(A) ::= FUNCTION NK_LP func_list(B) NK_RP.                          { A = B; }
-
-%type action_scope                                                               { SNodeList* }
-%destructor action_scope                                                         { }
-action_scope(A) ::= .                                                            { A = NULL; }
-action_scope(A) ::= VGROUPS IN NK_LP integer_list(B) NK_RP.                      { A = B; }
 /************************************************ tsma ********************************************************/
 cmd ::= CREATE TSMA not_exists_opt(B) tsma_name(C)
   ON full_table_name(E) tsma_func_list(D)
@@ -1075,6 +1063,7 @@ cmd ::= KILL CONNECTION NK_INTEGER(A).                                          
 cmd ::= KILL QUERY NK_STRING(A).                                                  { pCxt->pRootNode = createKillQueryStmt(pCxt, &A); }
 cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
 cmd ::= KILL COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_COMPACT_STMT, &A); }
+cmd ::= KILL RETENTION NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_RETENTION_STMT, &A); }
 cmd ::= KILL SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SCAN_STMT, &A); }
 cmd ::= KILL SSMIGRATE NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SSMIGRATE_STMT, &A); }
 

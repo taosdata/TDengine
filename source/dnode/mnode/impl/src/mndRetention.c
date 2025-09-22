@@ -31,7 +31,7 @@
 
 static int32_t mndProcessRetentionTimer(SRpcMsg *pReq);
 
-int32_t mndInitRetention(SMnode *pMnode) {
+int32_t mndInitRetention(SMnode *pMnode) { 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndRetrieveRetention);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_RETENTION, mndProcessKillRetentionReq);
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY_RETENTION_PROGRESS_RSP, mndProcessQueryRetentionRsp);

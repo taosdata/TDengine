@@ -570,12 +570,20 @@ static const SSysDbTableSchema rsmaSchema[] = {
   {.name = "func_list", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
-static const SSysDbTableSchema rsmaTaskSchema[] = {
-    {.name = "rsma_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "rsma_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
-    {.name = "task_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+static const SSysDbTableSchema retentionsSchema[] = {
+    {.name = "retention_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "trigger_mode", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "type", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
+static const SSysDbTableSchema retentionDetailsSchema[] = {
+    {.name = "retention_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "number_fileset", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "finished", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "last_update", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "progress(%)", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
@@ -631,7 +639,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_SCANS, userScansSchema, tListLen(userScansSchema), false},
     {TSDB_INS_TABLE_SCAN_DETAILS, userScanDetailSchema, tListLen(userScanDetailSchema), false},
     {TSDB_INS_TABLE_RSMAS, rsmaSchema, tListLen(rsmaSchema), false},
-    {TSDB_INS_TABLE_RSMA_TASKS, rsmaTaskSchema, tListLen(rsmaTaskSchema), false},
+    {TSDB_INS_TABLE_RETENTIONS, retentionsSchema, tListLen(retentionsSchema), false},
+    {TSDB_INS_TABLE_RETENTION_DETAILS, retentionDetailsSchema, tListLen(retentionDetailsSchema), false},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {
