@@ -226,7 +226,7 @@ export default {
     specialParameters: "Special Parameters",
     modifyColumn: "Modify column width",
     renameColumn: "Change column name",
-    backslashTip: 'If you need a case-sensitive name, add ` before and after the name, such as `testDB`.',
+    backslashTip: 'The database name is case-sensitive, for example, testDB and testdb are two different database names.',
   },
   explorer: {
     databases: "Databases",

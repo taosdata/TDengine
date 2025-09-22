@@ -229,7 +229,7 @@ export default {
     specialParameters: "特殊参数",
     modifyColumn: "修改列宽",
     renameColumn: "修改列名",
-    backslashTip: '如果要创建区分大小写的数据库名称，请在名称前后添加 `。例如，`testDB`。',
+    backslashTip: '数据库名称是大小写敏感的，比如，testDB 和 testdb 是两个不同的数据库名称',
   },
   explorer: {
     databases: "数据库",

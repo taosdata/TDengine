@@ -2,7 +2,7 @@ export default {
   edit: '编辑数据库',
   create: '创建数据库',
   nameExisted: '数据库名称“{0}”已存在',
-  backslashTip: '如果要创建区分大小写的数据库名称，请在名称前后添加 `。例如，`testDB`。',
+  backslashTip: '数据库名称是大小写敏感的，比如，testDB 和 testdb 是两个不同的数据库名称',
   replica: '副本数',
   bufferTip: '一个 VNODE 写入内存池大小，单位为 MB，默认为 32，最小为 3，最大为 16384。',
   cacheModelTip: `表示是否在内存中缓存子表的最近数据。默认为 none。<ul><li>none：表示不缓存。</li><li>last_row：表示缓存子表最近一行数据。这将显著改善 LAST_ROW 函数的性能表现。</li><li>last_value：表示缓存子表每一列的最近的非 NULL 值。这将显著改善无特殊影响（WHERE、ORDER BY、GROUP BY、INTERVAL）下的 LAST 函数的性能表现。</li><li>both：表示同时打开缓存最近行和列功能。</li></ul>`,

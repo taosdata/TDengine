@@ -3,7 +3,7 @@ export default {
   create: 'Create Database',
   nameExisted: 'Database name "{0}" already exists',
   backslashTip:
-    'If you want to create a database with a case-sensitive name, please add ` before and after the name. For example, `testDB`.',
+    'The database name is case-sensitive, for example, testDB and testdb are two different database names.',
   replica: 'Replica',
   bufferTip:
     'specifies the size (in MB) of the write buffer for each vnode. Enter a value between 3 and 16384. The default value is 32.',

@@ -3,7 +3,7 @@
     <h3 v-if="showTitle" class="form-title">{{ formTitle }}</h3>
     <el-form ref="formIns" class="mt-20px" label-position="left" label-width="230px" :rules="rules" :model="formData">
       <div class="form-wrapper">
-        <el-alert class="mb-20px!" type="warning" :title="t('db.backslashTip')"></el-alert>
+        <el-alert v-if="showCaseSensitiveTip" class="mb-20px!" type="warning" :title="t('db.backslashTip')"></el-alert>
         <el-form-item :label="t('common.name')" prop="name">
           <el-input v-model="formData.name" :disabled="isEdit" :maxlength="32" style="max-width: 620px" />
         </el-form-item>
@@ -652,6 +652,13 @@ const props = withDefaults(defineProps<CreateDbProps>(), {
 const dbParameters: Recordable = getDbParamsByTdVersion(props.version);
 const dbParamsterList = Object.keys(dbParameters);
 const formData = ref({ ...(props.formData ?? dbParameters) });
+const showCaseSensitiveTip = computed(() => {
+  const name: string = formData.value.name;
+  if (name && /[A-Z]/.test(name)) {
+    return true;
+  }
+  return false;
+});
 const requesting = ref(false);
 const activeNames = ref([]);
 const version_gte_3320 = computed(() => compareVersion(props.version, '>=3.3.2.0'));
