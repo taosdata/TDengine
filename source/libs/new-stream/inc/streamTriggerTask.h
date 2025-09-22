@@ -171,6 +171,7 @@ typedef struct SSTriggerRealtimeContext {
   STimeWindow                  calcRange;
   SSTriggerCalcParam          *pCurParam;
   int64_t                      curParamRows;
+  int64_t                      lastSentWinEnd;
   SObjList                     pAllCalcTableUids;  // SObjList<{uid, vgId}>
   SObjList                     pCalcTableUids;     // SObjList<{uid, vgId}>
   SSTriggerNewTimestampSorter *pCalcSorter;

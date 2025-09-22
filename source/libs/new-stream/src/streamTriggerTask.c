@@ -54,7 +54,7 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
 // Clear all temporary states and variables in the group after checking.
 static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup);
 // Clear metadatas that have been checked
-static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_t prevWindowEnd);
+static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup);
 // Retrieve pending calc params from the group
 static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup);
 
@@ -3860,7 +3860,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
 
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
-    int64_t                 prevWindowEnd = INT64_MIN;
     switch (pContext->status) {
       case STRIGGER_CONTEXT_FETCH_META: {
         pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
@@ -3899,9 +3898,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         if (pContext->pCalcReq == NULL) {
           // do nothing
         } else if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
-          if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
-            prevWindowEnd = ((SSTriggerCalcParam *)taosArrayGetLast(pContext->pCalcReq->params))->wend;
-          }
           code = stRealtimeContextSendCalcReq(pContext);
           QUERY_CHECK_CODE(code, lino, _end);
           if (pContext->pCalcReq != NULL) {
@@ -3922,7 +3918,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
     }
     if (!pContext->needCheckAgain) {
-      stRealtimeGroupClearMetadatas(pGroup, prevWindowEnd);
+      stRealtimeGroupClearMetadatas(pGroup);
       TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
     }
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
@@ -3936,7 +3932,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   }
   while (pContext->pMinGroup != NULL) {
     SSTriggerRealtimeGroup *pGroup = pContext->pMinGroup;
-    int64_t                 prevWindowEnd = INT64_MIN;
     switch (pContext->status) {
       case STRIGGER_CONTEXT_FETCH_META: {
         pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
@@ -3961,17 +3956,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         if (pContext->pCalcReq == NULL) {
           // do nothing
         } else if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
-          if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
-            SSTriggerCalcParam *pParam = taosArrayGetLast(pContext->pCalcReq->params);
-            int64_t             gap = (pTask->triggerType == STREAM_TRIGGER_SESSION) ? pTask->gap : 0;
-            while (pParam >= (SSTriggerCalcParam *)TARRAY_DATA(pContext->pCalcReq->params)) {
-              if (pParam->wend + gap <= pGroup->newThreshold) {
-                prevWindowEnd = pParam->wend;
-                break;
-              }
-              pParam--;
-            }
-          }
           code = stRealtimeContextSendCalcReq(pContext);
           QUERY_CHECK_CODE(code, lino, _end);
           if (pContext->pCalcReq != NULL) {
@@ -3992,7 +3976,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
     }
     if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
-      stRealtimeGroupClearMetadatas(pGroup, prevWindowEnd);
+      stRealtimeGroupClearMetadatas(pGroup);
     }
     heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
     if (pGroup->nextExecTime > 0) {
@@ -6867,6 +6851,7 @@ static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup) {
   pContext->calcRange = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
   pContext->pCurParam = NULL;
   pContext->curParamRows = 0;
+  pContext->lastSentWinEnd = INT64_MIN;
   taosObjListClear(&pContext->pAllCalcTableUids);
   taosObjListClear(&pContext->pCalcTableUids);
   if (pContext->pCalcSorter != NULL) {
@@ -6877,7 +6862,7 @@ static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup) {
   }
 }
 
-static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_t lastSentWinEnd) {
+static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
   int64_t                   threshold = 0;
@@ -6887,10 +6872,10 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_
   if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
     if (pGroup->pPendingCalcParams.neles > 0) {
       SSTriggerCalcParam *pParam = taosObjListGetHead(&pGroup->pPendingCalcParams);
-      threshold = TMAX(pParam->wstart - 1, lastSentWinEnd);
+      threshold = TMAX(pParam->wstart - 1, pContext->lastSentWinEnd);
     } else if (pGroup->windows.neles > 0) {
       SSTriggerWindow *pWin = taosObjListGetHead(&pGroup->windows);
-      threshold = TMAX(pWin->range.skey - 1, lastSentWinEnd);
+      threshold = TMAX(pWin->range.skey - 1, pContext->lastSentWinEnd);
     } else {
       threshold = pGroup->newThreshold;
     }
@@ -7998,6 +7983,9 @@ static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup) {
   code = stRealtimeGroupGenCalcParams(pGroup, nInitWins);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  SSTriggerCalcParam *pLastParam = taosArrayGetLast(pContext->pCalcReq->params);
+  pContext->lastSentWinEnd = pLastParam ? pLastParam->wend : INT64_MIN;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -8027,6 +8015,9 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
     }
     taosObjListClear(&pGroup->pPendingCalcParams);
   }
+
+  SSTriggerCalcParam *pLastParam = taosArrayGetLast(pContext->pCalcReq->params);
+  pContext->lastSentWinEnd = pLastParam ? pLastParam->wend : INT64_MIN;
 
   if (pTask->maxDelayNs > 0 && pGroup->windows.neles > 0) {
     SSTriggerWindow *pWin = NULL;
