@@ -69,6 +69,4 @@ fi
     
 if [ -x ${install_main_dir}/bin/create_snode.sh ]; then
   ${csudo} ${install_main_dir}/bin/create_snode.sh
-else
-  echo "create_snode.sh not found or not executable"
 fi

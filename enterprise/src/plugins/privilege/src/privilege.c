@@ -137,9 +137,10 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
     if (pUser->createdb) goto _OVER;
   }
 
-  if (operType == MND_OPER_ALTER_DB || operType == MND_OPER_DROP_DB || operType == MND_OPER_COMPACT_DB ||
-      operType == MND_OPER_TRIM_DB) {
+  if (operType == MND_OPER_ALTER_DB || operType == MND_OPER_COMPACT_DB || operType == MND_OPER_TRIM_DB) {
     if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
+  } else if (operType == MND_OPER_DROP_DB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;  // TS-7279
   }
 
   if (operType == MND_OPER_USE_DB || operType == MND_OPER_READ_OR_WRITE_DB) {
