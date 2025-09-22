@@ -360,23 +360,22 @@ class TestStmtError:
             raise err
 
     def test_stmt_error(self):
-        """summary: xxx
-        
-        description: xxx
+        """Write STMT Error
 
-        Since: xxx
+        1. Write data with STMT
+        2. Query data with STMT
+        3. Write to virtual table with STMT expect error
+        4. Write to super table with null timestamp expect error
+        5. Write to super table with normal value expect error
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_stmt_error.py
         """
         self.check_stmt_insert(self.get_connect())
 

@@ -91,23 +91,24 @@ class TestRsma:
         
 
     def test_rsma(self):
-        """summary: xxx
+        """RSMA Create/Alter/Drop Basic Operations (Obsolete)
 
-        description: xxx
+        1. Create database with rsma
+        2. Create stable with rsma
+        3. Create child tables
+        4. Insert data
+        5. Query data
+        6. Alter database rsma
+        7. Alter stable rsma
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci,skip
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_rsma.py
         """
         binPath = self.getPath()
 
