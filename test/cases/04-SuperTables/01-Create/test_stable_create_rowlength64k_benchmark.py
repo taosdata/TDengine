@@ -47,23 +47,23 @@ class TestRowlength64kBenchmark:
         return buildPath
 
     def test_rowlength64k_benchmark(self):
-        """summary: xxx
+        """Test Table Max Columns With Benchmark
 
-        description: xxx
+        1. taosBenchmark create table with column 1023
+        2. taosBenchmark create table with column 4095
+        3. taosBenchmark create table with column 1021
+        4. taosBenchmark create table with column 4093
+        5. taosBenchmark run with rowlength64k.json
+        6. verify result is ok
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_rowlength64k_benchmark.py
         """
         tdSql.prepare()
         
