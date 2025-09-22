@@ -877,7 +877,7 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 FIND_IN_SET(expr1, expr2[, expr3])
 ```
 
-**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，返回 expr1 在该列表中的序号，如存在多个，则返回第一个的序号, 不存在则返回0。 expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`，。
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，返回 expr1 在该列表中的序号，如存在多个，则返回第一个的序号, 不存在则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
 
 **返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
 
@@ -909,7 +909,7 @@ LENGTH(expr)
 LIKE_IN_SET(expr1, expr2[, expr3])
 ```
 
-**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 使用 `LIKE` 运算符的语义与列表中的字符串进行匹配，返回第一个匹配项的序号，无匹配项则返回0。 expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`，。
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 使用 `LIKE` 运算符的语义与列表中的字符串进行匹配，返回第一个匹配项的序号，无匹配项则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
 
 **返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
 
@@ -1006,7 +1006,7 @@ taos> select position('d' in 'cba');
 REGEXP_IN_SET(expr1, expr2[, expr3])
 ```
 
-**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 作为正则表达式匹配列表中的字符串，返回第一个匹配项的序号，无匹配项则返回0。 expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`，。
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 作为正则表达式匹配列表中的字符串，返回第一个匹配项的序号，无匹配项则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
 
 **返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
 
@@ -2284,6 +2284,7 @@ PERCENTILE(expr, p [, p1] ... )
 
 **使用说明**：
 
+- PERCENTILE 函数不支持虚拟表。
 - *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
 - 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
   比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。

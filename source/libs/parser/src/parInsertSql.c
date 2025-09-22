@@ -2922,6 +2922,9 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
   } else {
     // On error, also clean up saved CSV parser
     destroySavedCsvParser(pStmt);
+    if (code == TSDB_CODE_TSC_SQL_SYNTAX_ERROR) {
+      return code;
+    }
     return buildInvalidOperationMsg(&pCxt->msg, tstrerror(code));
   }
 
