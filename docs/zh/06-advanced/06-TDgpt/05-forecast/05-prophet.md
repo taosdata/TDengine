@@ -63,5 +63,5 @@ FROM air;
 
 ### 参考文献
 
-* [Prophet 官方文档](https://facebook.github.io/prophet/)
-* Prophet 论文：Forecasting at Scale (2017)
+1. [Prophet 官方文档](https://facebook.github.io/prophet/)
+2. Prophet 论文：Forecasting at Scale (2017)
