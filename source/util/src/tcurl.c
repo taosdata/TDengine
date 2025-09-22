@@ -170,7 +170,7 @@ int32_t tcurlResetConnection(SCURL* pConn) {
     code = tcurlConnect(&pTmp->pConn, pTmp->url);
     if (code != TSDB_CODE_SUCCESS) {
       uError("[curl]failed to reconnect to %s", pTmp->url);
-      (void)taosHashRemove(tNotificationConnHash, (void*)pConn->url, strlen(pConn->url));
+      int32_t ret = taosHashRemove(tNotificationConnHash, (void*)pConn->url, strlen(pConn->url));
     }
   }
 
