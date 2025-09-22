@@ -1283,6 +1283,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       code = physiTableScanCopy((const STableScanPhysiNode*)pNode, (STableScanPhysiNode*)pDst);
       break;

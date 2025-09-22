@@ -679,7 +679,7 @@ static void printOutputProjBlock(SStreamRunnerTask* pTask, const SSDataBlock* pB
       for (int i = 0; i < pWinIdxArr->size; ++i) {
         int64_t idx = *(int64_t*)taosArrayGet(pWinIdxArr, i);
         snprintf(tempBuffer, sizeof(tempBuffer), "%"PRId64, idx);
-        strncat(tsString, tempBuffer, tsBufferMax - tsLen - 1);
+        char* p = strncat(tsString, tempBuffer, tsBufferMax - tsLen - 1);
         tsLen += strlen(tempBuffer);
         if (tsLen >= tsBufferMax - 12) {
           ST_TASK_DLOG("output projection block win idx:%s ...", tsString);

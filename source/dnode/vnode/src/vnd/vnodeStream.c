@@ -1923,9 +1923,9 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     }
   }
 
-  if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
-    handle->winRange.ekey--;
-  }
+//  if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
+  handle->winRange.ekey--;
+//  }
 
   stDebug("%s withExternalWindow is %d, skey:%" PRId64 ", ekey:%" PRId64 ", validRange:%d", 
       __func__, req->pStRtFuncInfo->withExternalWindow, handle->winRange.skey, handle->winRange.ekey, handle->winRangeValid);
@@ -2175,7 +2175,7 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, &api));
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTaskInner, sizeof(pTaskInner)));
     
-    createBlockForTsdbMeta(&pTaskInner->pResBlockDst, sStreamReaderInfo->isVtableStream);
+    STREAM_CHECK_RET_GOTO(createBlockForTsdbMeta(&pTaskInner->pResBlockDst, sStreamReaderInfo->isVtableStream));
   } else {
     void** tmp = taosHashGet(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES);
     STREAM_CHECK_NULL_GOTO(tmp, TSDB_CODE_STREAM_NO_CONTEXT);
@@ -2521,7 +2521,7 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, NULL);
   buf = rpcMallocCont(size);
-  tSerializeSStreamWalDataResponse(buf, size, &resultRsp, NULL);
+  size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp, NULL);
   printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta");
 
 end:
@@ -2566,7 +2566,7 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, sStreamReaderInfo->indexHash);
   buf = rpcMallocCont(size);
-  tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
+  size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
   printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta");
   printDataBlock(sStreamReaderInfo->triggerBlock, __func__, "data");
   printIndexHash(sStreamReaderInfo->indexHash, pTask);
@@ -2611,7 +2611,7 @@ static int32_t vnodeProcessStreamWalDataNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, sStreamReaderInfo->indexHash);
   buf = rpcMallocCont(size);
-  tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
+  size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
   printDataBlock(sStreamReaderInfo->triggerBlock, __func__, "data");
   printIndexHash(sStreamReaderInfo->indexHash, pTask);
 
@@ -2662,7 +2662,7 @@ static int32_t vnodeProcessStreamWalCalcDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
 
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp, sStreamReaderInfo->indexHash);
   buf = rpcMallocCont(size);
-  tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
+  size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
   printDataBlock(resultRsp.dataBlock, __func__, "data");
   printIndexHash(sStreamReaderInfo->indexHash, pTask);
 

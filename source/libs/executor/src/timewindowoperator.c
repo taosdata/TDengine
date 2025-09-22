@@ -1416,7 +1416,7 @@ static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIn
   if (pIntervalInfo->pPrevValues != NULL) {
     taosArrayDestroyEx(pIntervalInfo->pPrevValues, freeItem);
     pIntervalInfo->pPrevValues = NULL;
-    initWindowInterpPrevVal(pIntervalInfo);
+    code = initWindowInterpPrevVal(pIntervalInfo);
   }
 
   cleanupGroupResInfo(&pIntervalInfo->groupResInfo);

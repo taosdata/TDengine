@@ -67,8 +67,10 @@ _exit:
 
   tDestroySTriggerCalcRequest(&req);
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
-  rpcSendResponse(&rsp);
-
+  if (rpcSendResponse(&rsp) != 0) {
+    sndError("failed to send response, msg:%p", &rsp);
+  }
+  
   streamReleaseTask(taskAddr);
 
   if(code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
@@ -131,7 +133,10 @@ end:
     } 
   }
   
-  rpcSendResponse(&rsp);
+  if (rpcSendResponse(&rsp) != 0) {
+    sndError("failed to send write checkpoint response, msg:%p", &rsp);
+  }
+
   return 0;
 }
 

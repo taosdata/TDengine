@@ -949,7 +949,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
         tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
         goto _end;
       }
-      taosHashPut(pHash, &vgIdForTbName, sizeof(int32_t), &pReq, POINTER_BYTES);
+      code = taosHashPut(pHash, &vgIdForTbName, sizeof(int32_t), &pReq, POINTER_BYTES);
     } else {
       pReq = *ppReq;
     }
@@ -1371,7 +1371,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         goto _end;
       }
 
-      inserterBuildCreateTbReq(tbData.pCreateTbReq, tableName, pTag, *suid, pInserter->pNode->tableName, TagNames,
+      code = inserterBuildCreateTbReq(tbData.pCreateTbReq, tableName, pTag, *suid, pInserter->pNode->tableName, TagNames,
                                pInserter->pTagSchema->nCols, TSDB_DEFAULT_TABLE_TTL);
     }
 
@@ -2266,7 +2266,7 @@ static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInp
   if (pInserter->pParam->streamInserterParam->tbType != TSDB_NORMAL_TABLE) {
     pInserter->pParam->streamInserterParam->sver = pTbInfo->version;
   }
-  releaseStreamInsertTableInfo(ppTbInfo);
+  code = releaseStreamInsertTableInfo(ppTbInfo);
   return code;
 }
 
@@ -2691,7 +2691,7 @@ int32_t dropTbCallback(void* param, SDataBuf* pMsg, int32_t code) {
     stError("dropTbCallback, code:%d, stream:%" PRId64 " gid:%" PRId64, code, pCtx->req->streamId, pCtx->req->gid);
   }
   pCtx->code = code;
-  tsem_post(&pCtx->ready);
+  code = tsem_post(&pCtx->ready);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2762,7 +2762,7 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDropReques
   QUERY_CHECK_CODE(code, lino, _end);
   pMsg = NULL;  // now owned by sendDropTbRequest
 
-  tsem_wait(&ctx.ready);
+  code = tsem_wait(&ctx.ready);
   code = ctx.code;
   stDebug("doDropStreamTable,  code:0x%" PRIx32 " req:%p, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq,
           pReq->streamId, pReq->gid, pDropReq ? pDropReq->name : "unknown");
@@ -2822,7 +2822,7 @@ int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pTaskOutput, SSTriggerDr
   QUERY_CHECK_CODE(code, lino, _end);
   pMsg = NULL;  // now owned by sendDropTbRequest
 
-  tsem_wait(&ctx.ready);
+  code = tsem_wait(&ctx.ready);
   code = ctx.code;
   stDebug("doDropStreamTableByTbName,  code:%d req:%p, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s", code, pReq,
           pReq->streamId, pReq->gid, pDropReq ? pDropReq->name : "unknown");

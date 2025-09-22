@@ -517,7 +517,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
     char value[10] = {0};
-    sscanf(cfgReq.value, "%d", &tsSyncTimeout);
+    code = sscanf(cfgReq.value, "%d", &tsSyncTimeout);
 
     if (tsSyncTimeout > 0) {
       SConfigItem *pItemTmp = NULL;
