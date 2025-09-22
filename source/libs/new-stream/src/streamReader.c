@@ -183,7 +183,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
         pNum = 1;
         pList = &pListTmp;
       } else if (options->scanMode == STREAM_SCAN_GROUP_ONE_BY_ONE) {
-        if (options->gid != 0) {
+        if (options->gid != 0 && options->sStreamReaderInfo->tableType == TSDB_SUPER_TABLE) {
           int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
           STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_STREAM_NO_DATA);
           pTask->currentGroupIndex = index;
