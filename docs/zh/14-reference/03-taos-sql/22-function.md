@@ -2191,7 +2191,7 @@ taos> select stddev_pop(id) from test_stddev;
 
 #### STD
 
-与 [STDDEV](#stddev)  函数的行为相同
+与 [STDDEV](#stddev)  函数的行为相同，从 v3.3.8.0 版本开始支持。
 
 #### STDDEV_POP
 
