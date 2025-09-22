@@ -4105,6 +4105,209 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+
+  pProgress->lastScanVer = pContext->pMetaBlock->info.version;
+  int32_t vgId = pProgress->pTaskAddr->nodeId;
+
+  // add wal meta in groups
+  int32_t nrows = blockDataGetNumOfRows(pContext->pMetaBlock);
+  if (nrows > 0) {
+    int32_t          iCol = 0;
+    SColumnInfoData *pGidCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
+    int64_t         *pGids = (int64_t *)pGidCol->pData;
+    SColumnInfoData *pSkeyCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pSkeyCol, code, lino, _end, terrno);
+    int64_t         *pSkeys = (int64_t *)pSkeyCol->pData;
+    SColumnInfoData *pEkeyCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pEkeyCol, code, lino, _end, terrno);
+    int64_t         *pEkeys = (int64_t *)pEkeyCol->pData;
+    SColumnInfoData *pVerCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
+    int64_t *pVers = (int64_t *)pVerCol->pData;
+    if (pTask->isVirtualTable) {
+      for (int32_t i = 0; i < nrows; i++) {
+        int64_t                 otbUid = pGids[i];
+        SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &otbUid, sizeof(int64_t));
+        QUERY_CHECK_NULL(pOrigTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
+          int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
+          SSTriggerVirtTableInfo *pVirtTableInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
+          QUERY_CHECK_NULL(pVirtTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          int64_t                 gid = pVirtTableInfo->tbGid;
+          void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+          SSTriggerRealtimeGroup *pGroup = NULL;
+          if (px == NULL) {
+            pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+            QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+            code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+            if (code != TSDB_CODE_SUCCESS) {
+              taosMemoryFreeClear(pGroup);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+            code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+            QUERY_CHECK_CODE(code, lino, _end);
+          } else {
+            pGroup = *(SSTriggerRealtimeGroup **)px;
+          }
+          SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
+          code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (pGroup->oldThreshold < pGroup->newThreshold && TD_DLIST_NODE_NEXT(pGroup) == NULL &&
+              TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+            TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          }
+        }
+      }
+    } else {
+      for (int32_t i = 0; i < nrows; i++) {
+        int64_t                 gid = pGids[i];
+        void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+        SSTriggerRealtimeGroup *pGroup = NULL;
+        if (px == NULL) {
+          pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+          QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+          code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+          if (code != TSDB_CODE_SUCCESS) {
+            taosMemoryFreeClear(pGroup);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          pGroup = *(SSTriggerRealtimeGroup **)px;
+        }
+        SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
+        code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pGroup->oldThreshold < pGroup->newThreshold && TD_DLIST_NODE_NEXT(pGroup) == NULL &&
+            TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+          TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+        }
+      }
+    }
+  }
+
+  // process delete data
+  nrows = blockDataGetNumOfRows(pContext->pDeleteBlock);
+  if (nrows > 0) {
+    int32_t          iCol = 0;
+    SColumnInfoData *pGidCol = taosArrayGet(pContext->pDeleteBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
+    int64_t         *pGids = (int64_t *)pGidCol->pData;
+    SColumnInfoData *pSkeyCol = taosArrayGet(pContext->pDeleteBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pSkeyCol, code, lino, _end, terrno);
+    int64_t         *pSkeys = (int64_t *)pSkeyCol->pData;
+    SColumnInfoData *pEkeyCol = taosArrayGet(pContext->pDeleteBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pEkeyCol, code, lino, _end, terrno);
+    int64_t         *pEkeys = (int64_t *)pEkeyCol->pData;
+    SColumnInfoData *pVerCol = taosArrayGet(pContext->pDeleteBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
+    int64_t *pVers = (int64_t *)pVerCol->pData;
+    if (pTask->isVirtualTable) {
+      for (int32_t i = 0; i < nrows; i++) {
+        int64_t                 otbUid = pGids[i];
+        SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &otbUid, sizeof(int64_t));
+        QUERY_CHECK_NULL(pOrigTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
+          int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
+          SSTriggerVirtTableInfo *pVirtTableInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
+          QUERY_CHECK_NULL(pVirtTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          int64_t                 gid = pVirtTableInfo->tbGid;
+          void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+          SSTriggerRealtimeGroup *pGroup = NULL;
+          if (px == NULL) {
+            pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+            QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+            code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+            if (code != TSDB_CODE_SUCCESS) {
+              taosMemoryFreeClear(pGroup);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
+            code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+            QUERY_CHECK_CODE(code, lino, _end);
+          } else {
+            pGroup = *(SSTriggerRealtimeGroup **)px;
+          }
+          STimeWindow range = {.skey = pSkeys[i], .ekey = pEkeys[i]};
+          if (pGroup->windows.neles > 0) {
+            SSTriggerWindow *pWin = taosObjListGetHead(&pGroup->windows);
+            if (pWin->range.skey <= range.ekey) {
+              pGroup->recalcNextWindow = true;
+            }
+          }
+          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    } else {
+      for (int32_t i = 0; i < nrows; i++) {
+        int64_t                 gid = pGids[i];
+        void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+        SSTriggerRealtimeGroup *pGroup = NULL;
+        if (px == NULL) {
+          pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+          QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+          code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+          if (code != TSDB_CODE_SUCCESS) {
+            taosMemoryFreeClear(pGroup);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          pGroup = *(SSTriggerRealtimeGroup **)px;
+        }
+        STimeWindow range = {.skey = pSkeys[i], .ekey = pEkeys[i]};
+        if (pGroup->windows.neles > 0) {
+          SSTriggerWindow *pWin = taosObjListGetHead(&pGroup->windows);
+          if (pWin->range.skey <= range.ekey) {
+            pGroup->recalcNextWindow = true;
+          }
+        }
+        code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    }
+  }
+
+  // process new dropped tables
+  nrows = blockDataGetNumOfRows(pContext->pDropBlock);
+  if (nrows > 0) {
+    SColumnInfoData *pGidCol = taosArrayGet(pContext->pDropBlock->pDataBlock, 0);
+    QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
+    int64_t *pGids = (int64_t *)pGidCol->pData;
+    for (int32_t i = 0; i < nrows; i++) {
+      int64_t gid = pGids[i];
+      void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+      if (pGroup == NULL) {
+        pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+        QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+        code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFreeClear(pGroup);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      void *px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -4232,112 +4435,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         pContext->pMetaBlock->info.version = rsp.ver;
       }
 
-      pProgress->lastScanVer = pContext->pMetaBlock->info.version;
-      // add wal meta in groups
-      int32_t nrows = blockDataGetNumOfRows(pContext->pMetaBlock);
-      int32_t vgId = pProgress->pTaskAddr->nodeId;
-      if (nrows > 0) {
-        int32_t          iCol = 0;
-        SColumnInfoData *pGidCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
-        QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
-        int64_t         *pGids = (int64_t *)pGidCol->pData;
-        SColumnInfoData *pSkeyCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
-        QUERY_CHECK_NULL(pSkeyCol, code, lino, _end, terrno);
-        int64_t         *pSkeys = (int64_t *)pSkeyCol->pData;
-        SColumnInfoData *pEkeyCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
-        QUERY_CHECK_NULL(pEkeyCol, code, lino, _end, terrno);
-        int64_t         *pEkeys = (int64_t *)pEkeyCol->pData;
-        SColumnInfoData *pVerCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
-        QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
-        int64_t *pVers = (int64_t *)pVerCol->pData;
-        if (pTask->isVirtualTable) {
-          for (int32_t i = 0; i < nrows; i++) {
-            int64_t                 otbUid = pGids[i];
-            SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &otbUid, sizeof(int64_t));
-            QUERY_CHECK_NULL(pOrigTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-            for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
-              int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
-              SSTriggerVirtTableInfo *pVirtTableInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
-              QUERY_CHECK_NULL(pVirtTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-              int64_t                 gid = pVirtTableInfo->tbGid;
-              void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
-              SSTriggerRealtimeGroup *pGroup = NULL;
-              if (px == NULL) {
-                pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-                QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-                code = tSimpleHashPut(pContext->pGroups, &pGids[i], sizeof(int64_t), &pGroup, POINTER_BYTES);
-                if (code != TSDB_CODE_SUCCESS) {
-                  taosMemoryFreeClear(pGroup);
-                  QUERY_CHECK_CODE(code, lino, _end);
-                }
-                code = stRealtimeGroupInit(pGroup, pContext, pGids[i], vgId);
-                QUERY_CHECK_CODE(code, lino, _end);
-              } else {
-                pGroup = *(SSTriggerRealtimeGroup **)px;
-              }
-              SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
-              code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
-              QUERY_CHECK_CODE(code, lino, _end);
-              if (pGroup->oldThreshold < pGroup->newThreshold && TD_DLIST_NODE_NEXT(pGroup) == NULL &&
-                  TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
-                TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
-              }
-            }
-          }
-        } else {
-          for (int32_t i = 0; i < nrows; i++) {
-            void                   *px = tSimpleHashGet(pContext->pGroups, &pGids[i], sizeof(int64_t));
-            SSTriggerRealtimeGroup *pGroup = NULL;
-            if (px == NULL) {
-              pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-              QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-              code = tSimpleHashPut(pContext->pGroups, &pGids[i], sizeof(int64_t), &pGroup, POINTER_BYTES);
-              if (code != TSDB_CODE_SUCCESS) {
-                taosMemoryFreeClear(pGroup);
-                QUERY_CHECK_CODE(code, lino, _end);
-              }
-              code = stRealtimeGroupInit(pGroup, pContext, pGids[i], vgId);
-              QUERY_CHECK_CODE(code, lino, _end);
-            } else {
-              pGroup = *(SSTriggerRealtimeGroup **)px;
-            }
-            SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
-            code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
-            QUERY_CHECK_CODE(code, lino, _end);
-            if (pGroup->oldThreshold < pGroup->newThreshold && TD_DLIST_NODE_NEXT(pGroup) == NULL &&
-                TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
-              TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
-            }
-          }
-        }
-      }
+      code = stRealtimeContextProcWalMeta(pContext, pProgress);
+      QUERY_CHECK_CODE(code, lino, _end);
 
-      if (nrows >= STREAM_RETURN_ROWS_NUM) {
+      if (blockDataGetNumOfRows(pContext->pMetaBlock) >= STREAM_RETURN_ROWS_NUM) {
         pContext->continueToFetch = true;
-      }
-
-      nrows = blockDataGetNumOfRows(pContext->pDropBlock);
-      if (nrows > 0) {
-        SColumnInfoData *pGidCol = taosArrayGet(pContext->pDropBlock->pDataBlock, 0);
-        QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
-        int64_t *pGids = (int64_t *)pGidCol->pData;
-        for (int32_t i = 0; i < nrows; i++) {
-          int64_t gid = pGids[i];
-          void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
-          if (pGroup == NULL) {
-            pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-            QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-            code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
-            if (code != TSDB_CODE_SUCCESS) {
-              taosMemoryFreeClear(pGroup);
-              QUERY_CHECK_CODE(code, lino, _end);
-            }
-            code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          void *px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
-          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-        }
       }
 
       if (--pContext->curReaderIdx > 0) {
@@ -4453,111 +4555,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
-        pProgress->lastScanVer = pContext->pMetaBlock->info.version;
-        // add wal meta in groups
-        int32_t nrows = blockDataGetNumOfRows(pContext->pMetaBlock);
-        int32_t vgId = pProgress->pTaskAddr->nodeId;
-        if (nrows > 0) {
-          int32_t          iCol = 0;
-          SColumnInfoData *pGidCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
-          QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
-          int64_t         *pGids = (int64_t *)pGidCol->pData;
-          SColumnInfoData *pSkeyCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
-          QUERY_CHECK_NULL(pSkeyCol, code, lino, _end, terrno);
-          int64_t         *pSkeys = (int64_t *)pSkeyCol->pData;
-          SColumnInfoData *pEkeyCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
-          QUERY_CHECK_NULL(pEkeyCol, code, lino, _end, terrno);
-          int64_t         *pEkeys = (int64_t *)pEkeyCol->pData;
-          SColumnInfoData *pVerCol = taosArrayGet(pContext->pMetaBlock->pDataBlock, iCol++);
-          QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
-          int64_t *pVers = (int64_t *)pVerCol->pData;
-          if (pTask->isVirtualTable) {
-            for (int32_t i = 0; i < nrows; i++) {
-              int64_t                 otbUid = pGids[i];
-              SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &otbUid, sizeof(int64_t));
-              QUERY_CHECK_NULL(pOrigTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-              for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
-                int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
-                SSTriggerVirtTableInfo *pVirtTableInfo =
-                    tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
-                QUERY_CHECK_NULL(pVirtTableInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-                int64_t                 gid = pVirtTableInfo->tbGid;
-                void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
-                SSTriggerRealtimeGroup *pGroup = NULL;
-                if (px == NULL) {
-                  pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-                  QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-                  code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
-                  if (code != TSDB_CODE_SUCCESS) {
-                    taosMemoryFreeClear(pGroup);
-                    QUERY_CHECK_CODE(code, lino, _end);
-                  }
-                  code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
-                  QUERY_CHECK_CODE(code, lino, _end);
-                } else {
-                  pGroup = *(SSTriggerRealtimeGroup **)px;
-                }
-                SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
-                code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
-                QUERY_CHECK_CODE(code, lino, _end);
-                if (pGroup->oldThreshold < pGroup->newThreshold && TD_DLIST_NODE_NEXT(pGroup) == NULL &&
-                    TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
-                  TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
-                }
-              }
-            }
-          } else {
-            for (int32_t i = 0; i < nrows; i++) {
-              int64_t                 gid = pGids[i];
-              void                   *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
-              SSTriggerRealtimeGroup *pGroup = NULL;
-              if (px == NULL) {
-                pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-                QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-                code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
-                if (code != TSDB_CODE_SUCCESS) {
-                  taosMemoryFreeClear(pGroup);
-                  QUERY_CHECK_CODE(code, lino, _end);
-                }
-                code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
-                QUERY_CHECK_CODE(code, lino, _end);
-              } else {
-                pGroup = *(SSTriggerRealtimeGroup **)px;
-              }
-              SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
-              code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
-              QUERY_CHECK_CODE(code, lino, _end);
-              if (pGroup->oldThreshold < pGroup->newThreshold && TD_DLIST_NODE_NEXT(pGroup) == NULL &&
-                  TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
-                TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
-              }
-            }
-          }
-        }
-        nrows = blockDataGetNumOfRows(pContext->pDropBlock);
-        if (nrows > 0) {
-          SColumnInfoData *pGidCol = taosArrayGet(pContext->pDropBlock->pDataBlock, 0);
-          QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
-          int64_t *pGids = (int64_t *)pGidCol->pData;
-          for (int32_t i = 0; i < nrows; i++) {
-            int64_t gid = pGids[i];
-            void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
-            if (pGroup == NULL) {
-              pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-              QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-              code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
-              if (code != TSDB_CODE_SUCCESS) {
-                taosMemoryFreeClear(pGroup);
-                QUERY_CHECK_CODE(code, lino, _end);
-              }
-              code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
-              QUERY_CHECK_CODE(code, lino, _end);
-            }
-
-            void *px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-          }
-        }
+        code = stRealtimeContextProcWalMeta(pContext, pProgress);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
