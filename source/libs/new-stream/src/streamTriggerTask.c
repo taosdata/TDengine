@@ -6847,7 +6847,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
-      if (isVarType) {
+      if (isVarType && pStateVal->pData == NULL) {
         pStateVal->nData = pStateCol->info.bytes;
         pStateVal->pData = taosMemoryCalloc(pStateVal->nData, 1);
         QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);
