@@ -260,7 +260,8 @@ const state = reactive({
     ts_field_name: '',
     rollup: '',
     columns: [] as any[],
-    tags: [] as any[]
+    tags: [] as any[],
+    version: instance.version
   },
   rules: {
     name: [
