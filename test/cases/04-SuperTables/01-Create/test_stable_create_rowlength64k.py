@@ -1257,23 +1257,23 @@ class TestRowlength64k:
 
         self.ins_query()
 
-    def test_rowlength64k(self):
-        """summary: xxx
+    def test_stable_create_rowlength64k(self):
+        """Create Table With Max columns
 
-        description: xxx
+        1. Create stable with max columns to test limit
+        2. Create stable with max tags to test limit
+        3. Alter stable to test column and tag limit
+        4. Insert data to test max columns and tags
+        5. Query data to test max columns and tags
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_rowlength64k.py
 
         """
         tdSql.prepare()

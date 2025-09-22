@@ -17,10 +17,8 @@ import time
 
 class TestRow64kinsertbycsv:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
-    
-    def init(self, conn, logSql, replicaVar):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+
+    def insertFromCsvOfLength65500(self):  
 
         self.testcasePath = os.path.split(__file__)[0]
         self.testcasePath = self.testcasePath.replace('\\', '//')
@@ -29,9 +27,7 @@ class TestRow64kinsertbycsv:
         
         now = time.time()
         self.ts = int(round(now * 1000))
-        self.num = 100
-
-    def insertFromCsvOfLength65500(self):  
+        self.num = 100        
         
         tdLog.info('test insert from csv of length 65500')
         os.system(f"taosBenchmark -f {self.testcasePath}//tableColumn4096.json")
@@ -44,22 +40,19 @@ class TestRow64kinsertbycsv:
 
 
     def test_row64kInsertByCsv(self):
-        """summary: xxx
+        """Import Max Length Row Data From Csv File (Obsolete)
 
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        1. Create table and import data from csv file
+        2. Check the imported data
+        3. The length of one column is 65500
+        4. The length of one row is 65536
+        5. The number of columns is 4096
+        6. The number of rows is 100
+        
+        Labels: common,ci,skip
 
         History:
-        - xxx
-        - xxx
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_precisionNS.py        
 
         """
         tdSql.prepare()
