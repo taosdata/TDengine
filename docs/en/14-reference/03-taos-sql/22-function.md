@@ -2129,6 +2129,7 @@ PERCENTILE(expr, p [, p1] ... )
 
 **Usage Instructions**:
 
+- The PERCENTILE function is not applicable to virtual table.
 - *P* values range from 0≤*P*≤100, where P=0 is equivalent to MIN and P=100 is equivalent to MAX;
 - When calculating multiple percentiles for the same column, it is recommended to use one PERCENTILE function with multiple parameters to significantly reduce the response time of the query.
   For example, using the query SELECT percentile(col, 90, 95, 99) FROM table performs better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
