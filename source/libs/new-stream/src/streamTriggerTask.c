@@ -1789,6 +1789,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pTask->triggerType = STREAM_TRIGGER_STATE;
       const SStateWinTrigger *pState = &pMsg->trigger.stateWin;
       pTask->stateSlotId = pState->slotId;
+      pTask->stateExtend = pState->extend;
       pTask->stateTrueFor = pState->trueForDuration;
       code = nodesStringToNode(pState->expr, &pTask->pStateExpr);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -7416,7 +7417,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
-      if (isVarType) {
+      if (isVarType && pStateVal->pData == NULL) {
         pStateVal->nData = pStateCol->info.bytes;
         pStateVal->pData = taosMemoryCalloc(pStateVal->nData, 1);
         QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);

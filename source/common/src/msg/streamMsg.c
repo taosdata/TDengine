@@ -1030,6 +1030,7 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     case WINDOW_TYPE_STATE: {
       // state trigger
       TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.slotId));
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->trigger.stateWin.extend));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.stateWin.trueForDuration));
       int32_t stateWindowExprLen =
           pMsg->trigger.stateWin.expr == NULL ? 0 : (int32_t)strlen((char*)pMsg->trigger.stateWin.expr) + 1;
@@ -1578,6 +1579,7 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
     case WINDOW_TYPE_STATE:
       // state trigger
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.slotId));
+      TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->trigger.stateWin.extend));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.stateWin.trueForDuration));
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->trigger.stateWin.expr, NULL));
       break;
@@ -2498,6 +2500,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
       // state trigger
       int32_t stateExprLen = pReq->trigger.stateWin.expr == NULL ? 0 : (int32_t)strlen((char*)pReq->trigger.stateWin.expr) + 1;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->trigger.stateWin.expr, stateExprLen));
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->trigger.stateWin.extend));
       break;
     }
     case WINDOW_TYPE_INTERVAL: {
@@ -2664,6 +2667,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       case WINDOW_TYPE_STATE: {
         // state trigger
         TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->trigger.stateWin.slotId));
+        pReq->trigger.stateWin.extend = 0;
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.stateWin.trueForDuration));
         break;
       }
@@ -2794,10 +2798,15 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       if (!tDecodeIsEnd(pDecoder)) {
         TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.stateWin.expr, NULL));
       }
+      if (!tDecodeIsEnd(pDecoder)) {
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->trigger.stateWin.extend));
+      }
       break;
     }
     case WINDOW_TYPE_INTERVAL: {
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.sliding.overlap));
+      if (!tDecodeIsEnd(pDecoder)) {
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->trigger.sliding.overlap));
+      }
       break;
     }
     default:

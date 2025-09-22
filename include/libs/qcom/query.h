@@ -276,6 +276,7 @@ typedef struct STableColsData {
 
 typedef struct STableVgUid {
   uint64_t uid;
+  uint64_t suid;
   int32_t  vgid;
 } STableVgUid;
 

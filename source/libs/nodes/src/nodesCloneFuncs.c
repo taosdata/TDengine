@@ -724,6 +724,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_LIST_FIELD(pProjs);
   COPY_SCALAR_FIELD(isSingleTable);
   COPY_SCALAR_FIELD(inputHasOrder);
+  COPY_SCALAR_FIELD(extendOption);
   return TSDB_CODE_SUCCESS;
 }
 
