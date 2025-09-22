@@ -490,6 +490,7 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 | 0x80002690 | Create child table using virtual super table                                                           | 创建非虚拟子表 USING 了虚拟超级表                        | 检查并修正 SQL 语句          |
 | 0x80002696 | Invalid sliding offset                                                                                 | sliding 窗口偏移量非法                             | 检查并修正 SQL 语句                    |
 | 0x80002697 | Invalid interval offset                                                                                | interval 窗口偏移量非法                            | 检查并修正 SQL 语句     |
+| 0x80002698 | Invalid extend value | extend 参数非法                            | 检查并修正 SQL 语句     |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                     | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                     | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                 | 保留现场和日志，github 上报 issue      |

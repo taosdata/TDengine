@@ -1557,7 +1557,7 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pTrueForLimit) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExtend, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
@@ -1566,11 +1566,13 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pTrue
   CHECK_MAKE_NODE(state->pCol);
   state->pExpr = pExpr;
   state->pTrueForLimit = pTrueForLimit;
+  state->pExtend = pExtend;
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
   nodesDestroyNode(pExpr);
   nodesDestroyNode(pTrueForLimit);
+  nodesDestroyNode(pExtend);
   return NULL;
 }
 
