@@ -121,23 +121,21 @@ class TestTableComment:
         tdSql.execute('drop database db')
 
     def test_table_comment(self):
-        """summary: xxx
+        """Table Comment Case
 
-        description: xxx
+        1. Create normal table, stable and child table with/without comment
+        2. Alter table comment
+        3. Verify comment info in information_schema.ins_tables and information_schema.ins_stables
+        4. Verify error when comment length > 1024
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_table_comment.py
         """
         self.comment_check_case(self.table_type_list,self.comment_flag_list)
         
