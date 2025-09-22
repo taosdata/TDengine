@@ -525,6 +525,7 @@ struct SRowBuildScanInfo {
 
   int8_t hasBlob;
   int8_t scanType;
+  int8_t isCacheRow;
 };
 
 int8_t schemaHasBlob(const STSchema *pSchema);

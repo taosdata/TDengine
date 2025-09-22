@@ -370,6 +370,7 @@ int32_t tsdbRowCacheCreateTable(STsdb *pTsdb, int64_t uid, STSchema *pTSchema) {
     // Build SRow from the column values
     SRow             *pRow = NULL;
     SRowBuildScanInfo scanInfo = {0};
+    scanInfo.isCacheRow = 1;
     code = tRowBuild(colVals, pTSchema, &pRow, &scanInfo);
 
     taosArrayDestroy(colVals);

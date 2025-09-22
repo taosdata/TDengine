@@ -90,13 +90,13 @@ static int32_t tGetPrimaryKeyIndex(uint8_t *p, SPrimaryKeyIndex *index) {
 }
 
 static FORCE_INLINE int32_t tRowBuildScanAddNone(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
-  if ((pTColumn->flags & COL_IS_KEY)) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE;
+  if ((pTColumn->flags & COL_IS_KEY) && !sinfo->isCacheRow) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE;
   sinfo->numOfNone++;
   return 0;
 }
 
 static FORCE_INLINE int32_t tRowBuildScanAddNull(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
-  if ((pTColumn->flags & COL_IS_KEY)) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+  if ((pTColumn->flags & COL_IS_KEY) && !sinfo->isCacheRow) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
   sinfo->numOfNull++;
   sinfo->kvMaxOffset = sinfo->kvPayloadSize;
   sinfo->kvPayloadSize += tPutI16v(NULL, -pTColumn->colId);
@@ -156,7 +156,10 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
 
-  *sinfo = (SRowBuildScanInfo){.tupleFixedSize = schema->flen, .hasBlob = sinfo->hasBlob, .scanType = sinfo->scanType};
+  *sinfo = (SRowBuildScanInfo){.tupleFixedSize = schema->flen,
+                               .hasBlob = sinfo->hasBlob,
+                               .scanType = sinfo->scanType,
+                               .isCacheRow = sinfo->isCacheRow};
 
   // loop scan
   for (int32_t i = 1; i < schema->numOfCols; i++) {
