@@ -57,23 +57,22 @@ class TestSttBlocksCheck:
         tdSql.checkData(0, 0, 200)
 
     def test_stt_blocks_check(self):
-        """summary: xxx
+        """STT Blocks Check
 
-        description: xxx
+        1. Create database with default STT trigger
+        2. Insert data and flush to generate smaller blocks
+        3. Query insert data
+        4. show table distributed to check blocks
+        5. verify result is ok
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_stt_blocks_check.py
         """
         self.stt_block_check()
         
