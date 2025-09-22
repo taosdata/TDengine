@@ -34,6 +34,10 @@ jobs:
           - macos-14
           - macos-15
           - windows-2022
+    env:
+      TD_CONFIG: Release
+      RUSTUP_DIST_SERVER: https://rsproxy.cn
+      RUSTUP_UPDATE_ROOT: https://rsproxy.cn/rustup
 
     steps:
       - name: Get CPU Cores
@@ -155,7 +159,6 @@ jobs:
         name: Build externals on Linux and macOS
         continue-on-error: false
         run: |
-          export TD_CONFIG=Release
           ./build.sh gen
           ./build.sh bld --target build_externals 
 
@@ -173,7 +176,6 @@ jobs:
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          export TD_CONFIG=Release
           ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
           ./build.sh bld 
           ./build.sh install
