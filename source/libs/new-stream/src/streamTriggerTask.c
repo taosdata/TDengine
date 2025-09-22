@@ -7570,7 +7570,9 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           pWin = NULL;
         }
       }
-      pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+      if (pWin != NULL) {
+        pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+      }
     }
   }
 
@@ -8035,7 +8037,7 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
           TARRAY_SIZE(pContext->pCalcReq->params) < STREAM_CALC_REQ_MAX_WIN_NUM) {
         SSTriggerNotifyWindow win = {.range = pWin->range, .wrownum = pWin->wrownum};
         win.range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
-        SSTriggerCalcParam    param = {.triggerTime = now};
+        SSTriggerCalcParam param = {.triggerTime = now};
         code = stRealtimeGroupFillParam(pGroup, &param, &win);
         QUERY_CHECK_CODE(code, lino, _end);
         void *px = taosArrayPush(pContext->pCalcReq->params, &param);
