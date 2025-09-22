@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 import math
-from asyncore import loop
+# from asyncore import loop
 from collections import defaultdict
 import subprocess
 import threading
