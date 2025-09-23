@@ -514,7 +514,7 @@ class TestTimeRangeWise:
                 tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
 
     def test_time_range_wise(self):
-        """Database SMA and Retentions Test
+        """Database SMA and Retentions Test (Obsolete)
 
         this case is obsolete, reserved for reference only
 

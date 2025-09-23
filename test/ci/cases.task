@@ -190,6 +190,7 @@
 # 10-DataIngestion
 ,,n,.,pytest cases/10-DataIngestion/test_write.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_basic.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_bug.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_column_value.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_datatypes.py
@@ -1603,13 +1604,6 @@
 
 ### 1-insert
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4219.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_ts_4272.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4295.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td27388.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_ts4479.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29793.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_test_td29157.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data.py
 
 ### 3-enterprise
