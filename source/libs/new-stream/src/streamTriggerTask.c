@@ -3338,11 +3338,11 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
                                     pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
           QUERY_CHECK_CODE(code, lino, _end);
-        } else {        
+        } else {
           TARRAY_SIZE(pDataBlock->pDataBlock)--;
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
                                     pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
-          QUERY_CHECK_CODE(code, lino, _end);   
+          QUERY_CHECK_CODE(code, lino, _end);
           TARRAY_SIZE(pDataBlock->pDataBlock)++;
         }
         pContext->curParamRows += (endIdx - startIdx);
@@ -4150,7 +4150,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
               taosMemoryFreeClear(pGroup);
               QUERY_CHECK_CODE(code, lino, _end);
             }
-            code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+            code = stRealtimeGroupInit(pGroup, pContext, gid, pVirtTableInfo->vgId);
             QUERY_CHECK_CODE(code, lino, _end);
           } else {
             pGroup = *(SSTriggerRealtimeGroup **)px;
@@ -4230,7 +4230,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
               taosMemoryFreeClear(pGroup);
               QUERY_CHECK_CODE(code, lino, _end);
             }
-            code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+            code = stRealtimeGroupInit(pGroup, pContext, gid, pVirtTableInfo->vgId);
             QUERY_CHECK_CODE(code, lino, _end);
           } else {
             pGroup = *(SSTriggerRealtimeGroup **)px;
@@ -6944,7 +6944,9 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
   SStreamTriggerTask       *pTask = pContext->pTask;
   SObjList                 *pMetas = NULL;
 
-  pGroup->vgId = vgId;
+  if (!pTask->isVirtualTable) {
+    pGroup->vgId = vgId;
+  }
   pMetas = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
   if (pMetas == NULL) {
     SObjList newMetas = {0};
