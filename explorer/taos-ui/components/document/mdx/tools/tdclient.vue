@@ -52,8 +52,7 @@
 <script lang="ts" setup>
 import { t } from 'locales';
 import { dsn, dsnKey } from '../utils';
-import { compareVersion } from 'utils/tdengine';
-import { DownloadUrl, instance, OfficialUrl } from 'config';
+import { installUrlLinux, installUrlMac, installUrlMacArm, installUrlWindows } from 'config';
 
 interface Props {
   url?: string;
@@ -69,25 +68,9 @@ const props = withDefaults(defineProps<Props>(), {
   configid: 'config',
   step1desc: 'tools.cli.step1desc'
 });
-const isLessThen3_1_1_11 = computed(() => compareVersion(instance.version, '<3.1.1.11'));
-const isLessThen3_3_2_1 = computed(() => compareVersion(instance.version, '<3.3.2.1'));
-const isLessThen3_3_7_0 = computed(() => compareVersion(instance.version, '<3.3.7.0'));
-const commonDownloadUrl = computed(() =>
-  isLessThen3_3_7_0.value
-    ? `${OfficialUrl.value}/assets-download/3.0/TDengine${isLessThen3_1_1_11.value ? '' : '-enterprise'}-client-${instance.version}-Linux-x64.tar.gz`
-    : DownloadUrl.value +
-      `/tdengine-tsdb-enterprise/${instance.version}/tdengine-tsdb-enterprise-client-${instance.version}-`
-);
-const installUrlLinux = computed(
-  () => commonDownloadUrl.value + `${isLessThen3_3_7_0.value ? 'L' : 'l'}inux-x64.tar.gz`
-);
-const macDownloadPrefix = computed(() => {
-  const prefix = commonDownloadUrl.value + (isLessThen3_3_7_0.value ? 'macOS-' : 'macos-');
-  return isLessThen3_3_2_1.value ? prefix.replace('-enterprise', '') : prefix;
+
+onMounted(() => {
+  console.log('dsn in tdclient.vue', dsn.value);
+  console.log('installUrlWindows in tdclient.vue', installUrlWindows.value);
 });
-const installUrlMac = computed(() => macDownloadPrefix.value + `x64.pkg`);
-const installUrlMacArm = computed(() => macDownloadPrefix.value + `arm64.pkg`);
-const installUrlWindows = computed(
-  () => commonDownloadUrl.value + `${isLessThen3_3_7_0.value ? 'W' : 'w'}indows-x64.exe`
-);
 </script>

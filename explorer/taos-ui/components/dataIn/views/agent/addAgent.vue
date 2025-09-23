@@ -89,7 +89,7 @@ import 'github-markdown-css/github-markdown-light.css';
 import { t } from 'locales';
 import { trim } from 'lodash-es';
 import { getDataInProps } from '../../model/useDataIn';
-import { OfficialUrl, isEn, TdDocsUrl, instance } from 'config';
+import { isEn, TdDocsUrl, AgentDownloadUrlForLinux, AgentDownloadUrlForWindows } from 'config';
 const dataInProps = getDataInProps();
 
 interface Props {
@@ -137,10 +137,9 @@ const checkBtnType = computed(() => {
   return checkIng.value ? 'primary' : '';
 });
 const downloadUrl = computed(() => {
-  const assetsUrl = OfficialUrl.value + '/assets-download/3.0/taosx-agent-' + instance.version + '-';
   return {
-    linuxDL: assetsUrl + 'linux-x64.tar.gz',
-    windowDL: assetsUrl + 'windows-x64-installer.exe'
+    linuxDL: AgentDownloadUrlForLinux.value,
+    windowDL: AgentDownloadUrlForWindows.value
   };
 });
 const agentList = computed(() => {

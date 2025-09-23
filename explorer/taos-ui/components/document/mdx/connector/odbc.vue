@@ -19,7 +19,7 @@
         <span class="odbc-span">
           {{ t('connector.odbc.step12desc1')
           }}<a
-            :href="`${OfficialUrl}/assets-download/3.0/TDengine-enterprise-client-${instance.version}-Windows-x64.exe`"
+            :href="installUrlWindows"
             >{{ t('connector.odbc.step12desc2') }}</a
           >{{ t('connector.odbc.step12desc3') }}
         </span>
@@ -75,7 +75,7 @@
 <script lang="ts" setup>
 import { t } from 'locales';
 import { dsn } from '../utils';
-import { OfficialUrl, instance, isEn, docs } from 'config';
+import { isEn, docs, installUrlWindows } from 'config';
 
 const runtimeURLPart = computed(() => (isEn.value ? '/en-us' : ''));
 </script>

@@ -38,6 +38,7 @@ export function compHeadAndData(head: string[][], data: string[][]): Recordable[
  * @returns {*}
  */
 export function compareVersion(currentVersion: string, targetVersion: string): boolean {
+  console.log('compareVersion', currentVersion, targetVersion);
   if (!currentVersion || !targetVersion) return false;
   const v1Arr = currentVersion.split('.');
   const compareOperator = targetVersion.match(/^[><=]+/)?.[0] || '>';

@@ -23,6 +23,7 @@ token="&lt;token&gt;"</code></pre>
 <script>
 import 'github-markdown-css/github-markdown-light.css';
 import { OfficialSite } from '@/const';
+import { AgentDownloadUrlForLinux, AgentDownloadUrlForWindows } from 'taos-ui/config';
 export default {
   components: {},
   props: {},
@@ -31,10 +32,9 @@ export default {
   },
   computed: {
     downloadUrl() {
-      const assetsUrl = OfficialSite.value + `/assets-download/3.0/taosx-agent-${localStorage.getItem('td_version')}-`;
       return {
-        linuxDL: assetsUrl + 'linux-x64.tar.gz',
-        windowDL: assetsUrl + 'windows-x64-installer.exe'
+        linuxDL: AgentDownloadUrlForLinux.value,
+        windowDL: AgentDownloadUrlForWindows.value
       };
     },
     taoxAddress() {

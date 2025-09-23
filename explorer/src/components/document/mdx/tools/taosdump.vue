@@ -1,35 +1,30 @@
 <template>
   <div>
-    <h2 id="overview">{{ $t("docs.dataout.dump.step1") }}</h2>
-    <p>{{ $t("docs.dataout.dump.step1desc") }}</p>
-    <p>{{ $t("docs.dataout.dump.step1desc1") }}</p>
-    <p>{{ $t("docs.dataout.dump.step1desc2") }}</p>
-    <p>{{ $t("docs.dataout.dump.step1desc3") }}</p>
+    <h2 id="overview">{{ $t('docs.dataout.dump.step1') }}</h2>
+    <p>{{ $t('docs.dataout.dump.step1desc') }}</p>
+    <p>{{ $t('docs.dataout.dump.step1desc1') }}</p>
+    <p>{{ $t('docs.dataout.dump.step1desc2') }}</p>
+    <p>{{ $t('docs.dataout.dump.step1desc3') }}</p>
     <p>
-      {{ $t("docs.dataout.dump.step1desc4")
-      }}<a href="https://avro.apache.org/">Apache AVRO</a
-      >{{ $t("docs.dataout.dump.step1desc5") }}
+      {{ $t('docs.dataout.dump.step1desc4') }}<a href="https://avro.apache.org/">Apache AVRO</a
+      >{{ $t('docs.dataout.dump.step1desc5') }}
     </p>
-    <h2 id="installation">{{ $t("docs.dataout.dump.step2") }}</h2>
+    <h2 id="installation">{{ $t('docs.dataout.dump.step2') }}</h2>
     <p>
-      {{ $t("docs.dataout.dump.step2desc")
-      }}&nbsp;
-      <a :href="installUrlLinux">Linux</a
-      >{{ $t("docs.tool.cli.step1desc3")
-      }}<a :href="installUrlWindows">Windows</a
-      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installUrlMac">MacOS-x64</a
-      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installUrlMacArm">MacOS-arm64</a
-      >&nbsp;{{ $t("docs.tool.cli.step1desc4") }}
+      {{ $t('docs.dataout.dump.step2desc') }}&nbsp; <a :href="installUrlLinux">Linux</a
+      >{{ $t('docs.tool.cli.step1desc3') }}<a :href="installUrlWindows">Windows</a>{{ $t('docs.tool.cli.step1desc3') }}
+      <a :href="installUrlMac">MacOS-x64</a>{{ $t('docs.tool.cli.step1desc3') }}
+      <a :href="installUrlMacArm">MacOS-arm64</a>&nbsp;{{ $t('docs.tool.cli.step1desc4') }}
     </p>
-    <p>{{ $t("docs.dataout.dump.step2desc2") }}</p>
+    <p>{{ $t('docs.dataout.dump.step2desc2') }}</p>
     <pre v-highlight><code>{{ linuxcode }}
 </code></pre>
-    <p>{{ $t("docs.dataout.dump.step2desc3") }}</p>
+    <p>{{ $t('docs.dataout.dump.step2desc3') }}</p>
     <p>
       <el-icon color="gold" :size="20">
-        <Opportunity/>
+        <Opportunity />
       </el-icon>
-      <span class="docker-tip">{{ $t("dockerTip", [`${url.split('//')[1]}`] )}}</span>
+      <span class="docker-tip">{{ $t('dockerTip', [`${url.split('//')[1]}`]) }}</span>
     </p>
     <pre
       v-highlight="
@@ -37,27 +32,26 @@
 `
       "
     ><code class="language-bash"></code></pre>
-    <h2 id="common-usage-scenarios">{{ $t("docs.dataout.dump.step3") }}</h2>
-    <h3 id="taosdump-backup-data">{{ $t("docs.dataout.dump.step31") }}</h3>
+    <h2 id="common-usage-scenarios">{{ $t('docs.dataout.dump.step3') }}</h2>
+    <h3 id="taosdump-backup-data">{{ $t('docs.dataout.dump.step31') }}</h3>
     <ol>
-      <li>{{ $t("docs.dataout.dump.step31desc") }}</li>
-      <li>{{ $t("docs.dataout.dump.step31desc1") }}</li>
-      <li>{{ $t("docs.dataout.dump.step31desc2") }}</li>
-      <li>{{ $t("docs.dataout.dump.step31desc3") }}</li>
+      <li>{{ $t('docs.dataout.dump.step31desc') }}</li>
+      <li>{{ $t('docs.dataout.dump.step31desc1') }}</li>
+      <li>{{ $t('docs.dataout.dump.step31desc2') }}</li>
+      <li>{{ $t('docs.dataout.dump.step31desc3') }}</li>
       <li>
-        {{ $t("docs.dataout.dump.step31desc4")
-        }}&nbsp;&nbsp;<a :href="`${$t('urlPart')}/taos-sql/escape/`">{{
-          $t("docs.dataout.dump.step31desc5")
+        {{ $t('docs.dataout.dump.step31desc4') }}&nbsp;&nbsp;<a :href="`${$t('urlPart')}/taos-sql/escape/`">{{
+          $t('docs.dataout.dump.step31desc5')
         }}</a>
-        {{ $t("docs.dataout.dump.step31desc6") }}
+        {{ $t('docs.dataout.dump.step31desc6') }}
       </li>
     </ol>
-    <h3 id="taosdump-recover-data">{{ $t("docs.dataout.dump.step32") }}</h3>
-    <p>{{ $t("docs.dataout.dump.step32desc") }}</p>
+    <h3 id="taosdump-recover-data">{{ $t('docs.dataout.dump.step32') }}</h3>
+    <p>{{ $t('docs.dataout.dump.step32desc') }}</p>
     <h2 id="detailed-command-line-parameter-list">
-      {{ $t("docs.dataout.dump.step4") }}
+      {{ $t('docs.dataout.dump.step4') }}
     </h2>
-    <p>{{ $t("docs.dataout.dump.step4desc") }}</p>
+    <p>{{ $t('docs.dataout.dump.step4desc') }}</p>
     <pre v-highlight><code>Usage: taosdump [OPTION...] dbname [tbname ...]
   or:  taosdump [OPTION...] --databases db1,db2,...
   or:  taosdump [OPTION...] --all-databases
@@ -125,13 +119,12 @@ Report bugs to &lt;support@taosdata.com&gt;.
 </template>
 
 <script setup lang="ts">
-import { DocsProps } from '../utils'
-const { $IS_COMMUNITY } = inject("globalCustomProperties") as GlobalCustomProperties;
+import { DocsProps } from '../utils';
+const { $IS_COMMUNITY } = inject('globalCustomProperties') as GlobalCustomProperties;
 
-const props = defineProps<DocsProps>()
-   
-const linuxcode = ref(`tar -xzf TDengine${$IS_COMMUNITY ? '' : '-enterprise'}-client-${props.version}-Linux-x64.tar.gz
-cd TDengine${$IS_COMMUNITY ? '' : '-enterprise'}-client-${props.version}
-sudo ./install_client.sh`)
+const props = defineProps<DocsProps>();
 
+const linuxcode = ref(`tar -xzf tdengine${$IS_COMMUNITY ? '' : '-enterprise'}-client-${props.version}-linux-x64.tar.gz
+cd tdengine${$IS_COMMUNITY ? '' : '-enterprise'}-client-${props.version}
+sudo ./install_client.sh`);
 </script>

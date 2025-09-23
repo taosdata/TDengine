@@ -17,10 +17,7 @@
         >{{ $t('connector.odbc.step11desc3') }}
       </li>
       <li class="odbc-span">
-        {{ $t('connector.odbc.step12desc1')
-        }}<a
-          :href="`${OfficialUrl}/assets-download/3.0/TDengine-enterprise-client-${instance.version}-Windows-x64.exe`"
-          >{{ $t('connector.odbc.step12desc2') }}</a
+        {{ $t('connector.odbc.step12desc1') }}<a :href="installUrlWindows">{{ $t('connector.odbc.step12desc2') }}</a
         >{{ $t('connector.odbc.step12desc3') }}
       </li>
     </ol>
@@ -94,7 +91,7 @@
 </template>
 
 <script lang="ts" setup>
-import { instance, isEn, OfficialUrl } from 'config';
+import { isEn, installUrlWindows } from 'config';
 import { dsn } from '../utils';
 
 const biURLPart = isEn.value ? '/zh-cn' : '';
