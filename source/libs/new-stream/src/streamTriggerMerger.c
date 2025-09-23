@@ -2061,7 +2061,7 @@ _retrieve:
     goto _end;
   }
 
-  printDataBlock(pMerger->pDataBlock, __func__, "stream_vtable_data");
+  printDataBlock(pMerger->pDataBlock, __func__, "stream_vtable_data", pTask->task.streamId);
 
   if (ppDataBlock != NULL) {
     *ppDataBlock = pMerger->pDataBlock;

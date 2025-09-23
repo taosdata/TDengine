@@ -437,7 +437,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    printDataBlock(p, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
 
   *pResBlock = (p->info.rows > 0)? p:NULL;
