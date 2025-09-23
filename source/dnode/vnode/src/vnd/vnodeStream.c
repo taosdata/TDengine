@@ -2474,7 +2474,7 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
     SStreamTriggerReaderTaskInnerOptions options = {0};
 
     // sort cid and build slotIdList
-    slotIdList = taosMemoryMalloc(taosArrayGetSize(req->tsdbDataReq.cids) * sizeof(int16_t));
+    slotIdList = taosMemoryMalloc(taosArrayGetSize(req->tsdbDataReq.cids) * sizeof(int32_t));
     STREAM_CHECK_NULL_GOTO(slotIdList, terrno);
     sortedCid = taosArrayDup(req->tsdbDataReq.cids, NULL);
     STREAM_CHECK_NULL_GOTO(sortedCid, terrno);
