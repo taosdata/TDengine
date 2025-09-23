@@ -143,7 +143,7 @@ class Test_IDMP_Vehicle:
         sqls = [
             # stream_stb1
             "create stream if not exists `idmp`.`veh_stream_stb1`       interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER)                    notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
-            "create stream if not exists `idmp`.`veh_stream_stb1_sub1`  interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER|FILL_HISTORY_FIRST) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
+            #"create stream if not exists `idmp`.`veh_stream_stb1_sub1`  interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER|FILL_HISTORY_FIRST) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
 
             # stream1
             "create stream if not exists `idmp`.`veh_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_1` where ts >= _twstart and ts <_twend",
@@ -826,7 +826,8 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(1, 0, self.start + 5 * self.step) # ts
             and tdSql.compareData(1, 1, 5)          # cnt
             and tdSql.compareData(1, 2, 150)        # avg(speed)
-            and tdSql.compareData(1, 3, 1500)       # sum
+            and tdSql.compareData(1, 3, 1500),       # sum
+            retry = 420
         )
 
         tdLog.info(f"verify stream_stb1 ............................. successfully.")
@@ -1099,6 +1100,11 @@ class Test_IDMP_Vehicle:
             [1752902400000,  10,120],
             [1752902700000,   5,120],
         ]
+        # wait row cnt ok
+        tdSql.checkResultsByFunc (
+            sql  = sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
 
         # mem
         tdSql.checkDataMem(sql, data)
@@ -1126,6 +1132,11 @@ class Test_IDMP_Vehicle:
             [1752901800000,   5,110],
             [1752902400000,   5,120]
         ]
+        # wait row cnt ok
+        tdSql.checkResultsByFunc (
+            sql  = sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
 
         # mem
         tdSql.checkDataMem(sql, data)

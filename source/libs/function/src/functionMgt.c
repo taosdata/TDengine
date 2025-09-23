@@ -249,6 +249,14 @@ bool fmIsForecastFunc(int32_t funcId) {
 
 bool fmIsForecastPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORECAST_PC_FUNC); }
 
+bool fmIsImputationFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+
+  return FUNCTION_TYPE_IMPUTATION == funcMgtBuiltins[funcId].type;
+}
+
 bool fmIsLastRowFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -268,7 +276,6 @@ bool fmIsNotNullOutputFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_LAST == funcMgtBuiltins[funcId].type ||
-         FUNCTION_TYPE_CACHE_LAST == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_LAST_PARTIAL == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||

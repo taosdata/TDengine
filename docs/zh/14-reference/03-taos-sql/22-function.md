@@ -1867,7 +1867,6 @@ LAST_ROW(expr)
 
 - 如果要返回各个列的最后一条记录（时间戳最大），可以使用 LAST_ROW(\*) 查询超级表，且 multiResultFunctionStarReturnTags 设置为 0 (默认值) 时，LAST_ROW(\*) 只返回超级表的普通列；设置为 1 时，返回超级表的普通列和标签列。
 - 在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。
-- 不能与 INTERVAL 一起使用。
 - 与 LAST 函数一样，对于存在复合主键的表的查询，若最大时间戳的数据有多条，则只有对应的复合主键最大的数据被返回。
 
 #### MAX
@@ -2196,6 +2195,7 @@ PERCENTILE(expr, p [, p1] ... )
 
 **使用说明**：
 
+- PERCENTILE 函数不支持虚拟表。
 - *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
 - 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
   比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。

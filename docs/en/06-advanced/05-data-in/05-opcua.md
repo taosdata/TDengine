@@ -3,17 +3,6 @@ title: OPC UA
 slug: /advanced-features/data-connectors/opc-ua
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep1 from '../../assets/opc-ua-01.png';
-import imgStep2 from '../../assets/opc-ua-02.png';
-import imgStep3 from '../../assets/opc-ua-03.png';
-import imgStep4 from '../../assets/opc-ua-04.png';
-import imgStep5 from '../../assets/opc-ua-05.png';
-import imgStep6 from '../../assets/opc-ua-06.png';
-import imgStep7 from '../../assets/opc-ua-07.png';
-import imgStep8 from '../../assets/opc-ua-08.png';
-import imgStep9 from '../../assets/opc-ua-09.png';
-
 import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
@@ -34,9 +23,7 @@ TDengine can efficiently read data from OPC-UA servers and write it to TDengine,
 
 On the data writing page, click the **+ Add Data Source** button to enter the add data source page.
 
-<figure>
-<Image img={imgStep1} alt=""/>
-</figure>
+![](../../assets/opc-ua-01.png)
 
 ### 2. Configure Basic Information
 
@@ -48,9 +35,7 @@ Select **OPC-UA** from the **Type** dropdown list.
 
 Select a target database from the **Target Database** dropdown list, or click the **+ Create Database** button on the right.
 
-<figure>
-<Image img={imgStep2} alt=""/>
-</figure>
+![](../../assets/opc-ua-02.png)
 
 ### 3. Configure Connection Information
 
@@ -69,9 +54,7 @@ If you choose Sign or SignAndEncrypt as the security mode, you must select a val
 1. Aes128Sha256RsaOaep: Uses AES-128 algorithm for encrypting and decrypting communication data, encrypts digital signatures using the SHA-256 algorithm, and uses RSA algorithm and OAEP mode for encrypting and decrypting symmetric communication keys.
 1. Aes256Sha256RsaPss: Uses AES-256 algorithm for encrypting and decrypting communication data, encrypts digital signatures using the SHA-256 algorithm, and uses RSA algorithm and PSS mode for encrypting and decrypting symmetric communication keys.
 
-<figure>
-<Image img={imgStep3} alt=""/>
-</figure>
+![](../../assets/opc-ua-03.png)
 
 ### 4. Choose Authentication Method
 
@@ -81,9 +64,7 @@ As shown below, switch tabs to choose different authentication methods, with the
 1. Username
 1. Certificate Access: Can be the same as the security communication certificate, or a different certificate.
 
-<figure>
-<Image img={imgStep4} alt=""/>
-</figure>
+![](../../assets/opc-ua-04.png)
 
 After configuring the connection properties and authentication method, click the **Connectivity Check** button to check if the data source is available. If using a security communication certificate or authentication certificate, the certificate must be trusted by the OPC UA server, otherwise, it will still fail.
 
@@ -181,17 +162,13 @@ Configure **Supertable Name**, **Table Name** to specify the supertable and subt
 
 Configure **Primary Key Column**, choose `origin_ts` to use the original timestamp of the OPC data point as the primary key in TDengine; choose `request_ts` to use the data's request timestamp as the primary key in TDengine; choose `received_ts` to use the data's reception timestamp as the primary key in TDengine. Configure **Primary Key Alias** to specify the name of the TDengine timestamp column.
 
-<figure>
-<Image img={imgStep5} alt=""/>
-</figure>
+![](../../assets/opc-ua-05.png)
 
 ### 6. Collection Configuration
 
 In the collection configuration, configure the current task's collection mode, collection interval, collection timeout, etc.
 
-<figure>
-<Image img={imgStep6} alt=""/>
-</figure>
+![](../../assets/opc-ua-06.png)
 
 As shown in the image above:
 
@@ -211,9 +188,7 @@ When using **Selecting Data Points** in the **Data Point Set**, the collection c
 
 ### 7. Advanced Options
 
-<figure>
-<Image img={imgStep7} alt=""/>
-</figure>
+![](../../assets/opc-ua-07.png)
 
 As shown in the image above, configure advanced options for more detailed optimization of performance, logs, etc.
 
@@ -244,14 +219,10 @@ Click the **Submit** button to complete the creation of the OPC UA to TDengine d
 
 During the task execution, click **Edit**, then click the **Add Data Points** button to append data points to the CSV file.
 
-<figure>
-<Image img={imgStep8} alt=""/>
-</figure>
+![](../../assets/opc-ua-08.png)
 
 In the pop-up form, fill in the information for the data points.
 
-<figure>
-<Image img={imgStep9} alt=""/>
-</figure>
+![](../../assets/opc-ua-09.png)
 
 Click the **Confirm** button to complete the addition of the data points.

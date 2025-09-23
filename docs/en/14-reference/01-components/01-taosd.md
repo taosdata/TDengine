@@ -21,10 +21,20 @@ The command line parameters for taosd are as follows:
 
 ## Configuration Parameters
 
-:::note
-After modifying configuration file parameters, you need to restart the *taosd* service or client application for the changes to take effect.
+Configuration parameters are divided into two categories:
 
-:::
+|Parameter Type      |  Description                     |  Scope    | Modification Method              | View Parameter Command            |
+|:------------|:-------------------------|:-----------|:---------------------|:---------------------|
+| Global Configuration Parameters  | Parameters shared by all nodes in the cluster     |  Entire Cluster   | 1. Modify via SQL.   | show variables; |
+| Local Configuration Parameters  | Parameters configured individually for each cluster node  |  Single Node    | 1. Modify via SQL; 2. Modify via taos.cfg configuration file. | show dnode `<dnode_id>` variables;|
+
+Additional Notes:
+
+1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
+2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
+3. To modify local configuration parameters via taos.cfg configuration file, set the `forceReadConfig` parameter to 1 and restart for changes to take effect.
+4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../sql-manual/manage-nodes/).
+5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](../../components/configuration-scope/).
 
 ### Connection Related
 
@@ -46,6 +56,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
+
 ### Monitoring Related
 
 | Parameter Name     | Supported Version | Dynamic Modification               | Description                                                  |
@@ -208,13 +219,24 @@ The effective value of charset is UTF-8.
 | enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter           |
 | syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13 |
 | syncApplyQueueSize         |                   | supported, effective immediately   | Size of apply queue for sync log, range 32-2048, default is 512  |
+| statusIntervalMs           |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| statusSRTimeoutMs          |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| statusTimeoutMs            |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | syncElectInterval          |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
 | syncHeartbeatInterval      |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
+| syncVnodeElectIntervalMs   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| syncVnodeHeartbeatIntervalMs|                  | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| syncMnodeElectIntervalMs   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| syncMnodeHeartbeatIntervalMs|                  | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | syncHeartbeatTimeout       |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
 | syncSnapReplMaxWaitN       |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | arbHeartBeatIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | arbCheckSyncIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | arbSetAssignedTimeoutSec   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| arbHeartBeatIntervalMs     |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| arbCheckSyncIntervalMs     |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| arbSetAssignedTimeoutMs    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
+| syncTimeout                |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module     |
 | mndSdbWriteDelta           |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module               |
 | mndLogRetention            |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module               |
 | skipGrant                  |                   | Not supported                      | Internal parameter, for authorization checks                 |
@@ -232,7 +254,7 @@ The effective value of charset is UTF-8.
 | udfdLdLibPath              |                   | Supported, effective after restart | Internal parameter, indicates the library path for loading UDF |
 | enableStrongPassword       | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 |enableIpv6                  | 3.3.7.0           |not Supported                       |force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported|
-|statusInterval              | 3.3.0.0           |Supported, effective after restart                     | Controls the interval time for dnode to send status reports to mnode |
+|statusInterval              | 3.3.0.0           | Supported, effective immediately   | Controls the interval time for dnode to send status reports to mnode |
 
 ### Stream Computing Parameters
 
@@ -319,25 +341,6 @@ The effective value of charset is UTF-8.
 | maxRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
-
-**Additional Notes**
-
-1. All configuration parameters will be persisted to local storage. After restarting the database service, the persisted configuration parameter list will be used by default. For local configuration parameters, if you want to continue using the local configuration parameters in the config file, you need to set forceReadConfig to 1.
-2. Only local configuration parameters are controlled by forceReadConfig, while global configuration parameters must be modified through alter all dnodes and are not controlled by forceReadConfig. 
-3. Effective in versions 3.2.0.0 ~ 3.3.0.0 (not inclusive), enabling this parameter will prevent rollback to the version before the upgrade
-4. TSZ compression algorithm is completed through data prediction technology, thus it is more suitable for data with regular changes
-5. TSZ compression time will be longer, if your server CPU is mostly idle and storage space is small, it is suitable to choose this
-6. Example: Enable lossy compression for both float and double types
-
-```shell
-lossyColumns     float|double
-```
-
-1. Configuration requires service restart to take effect, if you see the following content in the taosd log after restarting, it indicates that the configuration has taken effect:
-
-```sql
-   02/22 10:49:27.607990 00002933 UTL  lossyColumns     float|double
-```
 
 ## taosd Monitoring Metrics
 

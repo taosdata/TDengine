@@ -390,7 +390,11 @@ static int32_t mndSendArbHeartBeatReq(SDnodeObj *pDnode, char *arbToken, int64_t
   if (code != 0) {
     mError("arbgroup:0, dnodeId:%d, failed to send arb-hb request to dnode since 0x%x", pDnode->id, code);
   } else {
-    mTrace("arbgroup:0, dnodeId:%d, send arb-hb request to dnode", pDnode->id);
+    if (tsSyncLogHeartbeat) {
+      mInfo("arbgroup:0, dnodeId:%d, send arb-hb request to dnode", pDnode->id);
+    } else {
+      mTrace("arbgroup:0, dnodeId:%d, send arb-hb request to dnode", pDnode->id);
+    }
   }
   return code;
 }
@@ -540,7 +544,7 @@ static int32_t mndSendArbCheckSyncReq(SMnode *pMnode, int32_t vgId, char *arbTok
 
 static bool mndCheckArbMemberHbTimeout(SArbGroup *pArbGroup, int32_t index, int64_t nowMs) {
   SArbGroupMember *pArbMember = &pArbGroup->members[index];
-  return pArbMember->state.lastHbMs < (nowMs - tsArbSetAssignedTimeoutSec * 1000);
+  return pArbMember->state.lastHbMs < (nowMs - tsArbSetAssignedTimeoutMs);
 }
 
 static void *mndBuildArbSetAssignedLeaderReq(int32_t *pContLen, int32_t vgId, char *arbToken, int64_t arbTerm,
@@ -747,7 +751,7 @@ static int32_t mndArbProcessTimer(SRpcMsg *pReq) {
 
   int64_t roleTimeMs = mndGetRoleTimeMs(pMnode);
   int64_t nowMs = taosGetTimestampMs();
-  if (nowMs - roleTimeMs < tsArbHeartBeatIntervalSec * 1000 * 2) {
+  if (nowMs - roleTimeMs < tsArbHeartBeatIntervalMs * 2) {
     mInfo("arbgroup:0, arb skip to check sync since mnd had just switch over, roleTime:%" PRId64 " now:%" PRId64,
           roleTimeMs, nowMs);
     return 0;
@@ -901,7 +905,7 @@ static int32_t mndArbPutBatchUpdateIntoWQ(SMnode *pMnode, SArray *newGroupArray)
     mndInitArbUpdateGroup(pNewGroup, &newGroup);
 
     if (taosArrayPush(pArray, &newGroup) == NULL) goto _OVER;
-    mInfo("arbgroup:%d, put into arb update hash", pNewGroup->vgId);
+    mInfo("arbgroup:%d, put into arb update hash in array", pNewGroup->vgId);
     if ((ret = taosHashPut(arbUpdateHash, &pNewGroup->vgId, sizeof(pNewGroup->vgId), NULL, 0)) != 0) {
       mError("arbgroup:%d, failed to put into arb update hash since %s", pNewGroup->vgId, tstrerror(ret));
       goto _OVER;
