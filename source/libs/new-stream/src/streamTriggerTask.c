@@ -6502,11 +6502,13 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
         while (px != NULL) {
           SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
-          bool                   added = false;
-          code = stHistoryGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds, &added);
-          QUERY_CHECK_CODE(code, lino, _end);
-          if (added) {
-            TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          if (pContext->gid == pGroup->gid || pContext->gid == 0) {
+            bool added = false;
+            code = stHistoryGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds, &added);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (added) {
+              TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+            }
           }
           px = tSimpleHashIterate(pContext->pGroups, px, &iter);
         }
