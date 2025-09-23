@@ -13190,7 +13190,7 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
 
 static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SRetentionDbReq req = {.compactType = TSDB_COMPACT_ROLLUP, .triggerType = TSDB_TRIGGER_MANUAL};
+  SRetentionDbReq req = {.optrType = TSDB_OPTR_ROLLUP, .triggerType = TSDB_TRIGGER_MANUAL};
   SName   name;
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;

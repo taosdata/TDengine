@@ -32,8 +32,7 @@ SSdbRow *mndRetentionActionDecode(SSdbRaw *pRaw);
 int32_t  mndRetentionActionInsert(SSdb *pSdb, SRetentionObj *pRetention);
 int32_t  mndRetentionActionDelete(SSdb *pSdb, SRetentionObj *pRetention);
 int32_t  mndRetentionActionUpdate(SSdb *pSdb, SRetentionObj *pOldRetention, SRetentionObj *pNewRetention);
-int32_t  mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pRetention, SDbObj *pDb,
-                                SRetentionDbRsp *rsp);
+int32_t mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pRetention, SDbObj *pDb, STrimDbRsp *rsp);
 int32_t  mndProcessKillRetentionReq(SRpcMsg *pReq);
 int32_t  mndProcessQueryRetentionRsp(SRpcMsg *pReq);
 

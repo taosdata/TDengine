@@ -1017,7 +1017,7 @@ int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
   } else {
-    SRetentionDbRsp    rsp = {0};
+    STrimDbRsp         rsp = {0};
     SRetrieveTableRsp* pRes = NULL;
     code = tDeserializeSCompactDbRsp(pMsg->pData, pMsg->len, (SCompactDbRsp*)&rsp);
     if (TSDB_CODE_SUCCESS == code) {

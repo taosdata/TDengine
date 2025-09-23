@@ -54,7 +54,7 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
-  int8_t  compactType;
+  int8_t  optrType;
   int64_t cid;
   int64_t compactVersion;
 
@@ -88,10 +88,10 @@ typedef struct {
 } SCompactor2;
 
 typedef struct {
-  STsdb       *tsdb;
-  int32_t      fid;
-  ECompactType type;
-  SVATaskID    taskid;
+  STsdb    *tsdb;
+  int32_t   fid;
+  EOptrType type;
+  SVATaskID taskid;
 } SCompactArg;
 
 typedef struct {

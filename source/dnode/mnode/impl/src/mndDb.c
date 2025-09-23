@@ -14,18 +14,21 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndDb.h"
 #include "audit.h"
 #include "command.h"
 #include "mndArbGroup.h"
 #include "mndCluster.h"
+#include "mndCompact.h"
 #include "mndConfig.h"
-#include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
-#include "mndRsma.h"
 #include "mndPrivilege.h"
+#include "mndRsma.h"
+#include "mndScan.h"
 #include "mndShow.h"
 #include "mndSma.h"
+#include "mndSsMigrate.h"
 #include "mndStb.h"
 #include "mndStream.h"
 #include "mndSubscribe.h"
@@ -37,8 +40,6 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
-#include "mndSsMigrate.h"
-#include "mndScan.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 14
@@ -2191,54 +2192,101 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
   TAOS_RETURN(code);
 }
 
-static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
+static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
+                                       STrimDbRsp *pRsp) {
+  int32_t code = 0, lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  // reuse compact struct
+  SRetentionObj obj;
+  TAOS_CHECK_EXIT(mndAddCompactToTran(pMnode, pTrans, (SCompactObj *)&obj, pDb, (SCompactDbRsp *)pRsp));
+
+  int32_t j = 0;
+  int32_t numOfVgroups = taosArrayGetSize(vgroupIds);
+  if (numOfVgroups > 0) {
+    for (int32_t i = 0; i < numOfVgroups; i++) {
+      int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+
+      if (pVgroup == NULL) {
+        mError("db:%s, vgroup:%" PRId64 " not exist", pDb->name, vgId);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_VGROUP_NOT_EXIST);
+      } else if (pVgroup->dbUid != pDb->uid) {
+        mError("db:%s, vgroup:%" PRId64 " not belong to db:%s", pDb->name, vgId, pDb->name);
+        sdbRelease(pSdb, pVgroup);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_VGROUP_NOT_EXIST);
+      }
+    }
+
+    for (int32_t i = 0; i < numOfVgroups; i++) {
+      int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+
+      if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly)) != 0) {
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(code);
+      }
+
+      for (int32_t i = 0; i < pVgroup->replica; i++) {
+        SVnodeGid *gid = &pVgroup->vnodeGid[i];
+        if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, j)) != 0) {
+          sdbRelease(pSdb, pVgroup);
+          TAOS_RETURN(code);
+        }
+        j++;
+      }
+      sdbRelease(pSdb, pVgroup);
+    }
+  } else {
+    while (1) {
+      SVgObj *pVgroup = NULL;
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+      if (pIter == NULL) break;
+
+      if (pVgroup->dbUid == pDb->uid) {
+        if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly)) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pVgroup);
+          TAOS_RETURN(code);
+        }
+
+        for (int32_t i = 0; i < pVgroup->replica; i++) {
+          SVnodeGid *gid = &pVgroup->vnodeGid[i];
+          if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, j)) != 0) {
+            sdbCancelFetch(pSdb, pIter);
+            sdbRelease(pSdb, pVgroup);
+            TAOS_RETURN(code);
+          }
+          j++;
+        }
+      }
+
+      sdbRelease(pSdb, pVgroup);
+    }
+  }
+_exit:
+  TAOS_RETURN(code);
+}
+
+static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SArray *vgroupIds) {
   SSdb       *pSdb = pMnode->pSdb;
   SVgObj     *pVgroup = NULL;
   void       *pIter = NULL;
-  int32_t     code = 0;
-  SVTrimDbReq trimReq = {.dbUid = pDb->uid, .compactStartTime = taosGetTimestampMs()};
+  int32_t     code = 0, lino = 0;
+  STrimDbRsp  rsp = {0};
+  SVTrimDbReq trimReq = {.dbUid = pDb->uid, .startTime = taosGetTimestampMs()};
   trimReq.tw.skey = INT64_MIN;
   trimReq.tw.ekey = trimReq.compactStartTime;
-  trimReq.compactId = 0; // TODO: use the real value
-  trimReq.metaOnly = 0;
+  trimReq.id = 0;  // TODO: use the real value
   trimReq.triggerType = TSDB_TRIGGER_MANUAL;
-  int32_t     reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
-  int32_t     contLen = reqLen + sizeof(SMsgHead);
+  int32_t reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
+  int32_t contLen = reqLen + sizeof(SMsgHead);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "trim-db");
+  if (pTrans == NULL) goto _exit;
 
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    if (pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    SMsgHead *pHead = rpcMallocCont(contLen);
-    if (pHead == NULL) {
-      sdbCancelFetch(pSdb, pVgroup);
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-    pHead->contLen = htonl(contLen);
-    pHead->vgId = htonl(pVgroup->vgId);
-    int32_t ret = 0;
-    if ((ret = tSerializeSVTrimDbReq((char *)pHead + sizeof(SMsgHead), contLen, &trimReq)) < 0) {
-      sdbRelease(pSdb, pVgroup);
-      return ret;
-    }
-
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_TRIM, .pCont = pHead, .contLen = contLen};
-    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-    if (code != 0) {
-      mError("vgId:%d, failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
-    } else {
-      mInfo("vgId:%d, send vnode-trim request to vnode, time:%" PRId64 " ms", pVgroup->vgId, trimReq.tw.ekey);
-    }
-    sdbRelease(pSdb, pVgroup);
-  }
-
+  mndSetTrimDbRedoActions(pMnode, pTrans, pDb);
+_exit:
   return 0;
 }
 
@@ -2250,7 +2298,8 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSTrimDbReq(pReq->pCont, pReq->contLen, &trimReq), NULL, _OVER);
 
-  mInfo("db:%s, start to trim", trimReq.db);
+  mInfo("db:%s, start to trim, optr:%u, tw:%" PRId64 "-%" PRId64, trimReq.db, trimReq.optrType, trimReq.tw.skey,
+        trimReq.tw.ekey);
 
   pDb = mndAcquireDb(pMnode, trimReq.db);
   if (pDb == NULL) {
@@ -2266,7 +2315,15 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndTrimDb(pMnode, pDb);
+  code = mndTrimDb(pMnode, pReq, pDb, trimReq.vgroupIds);
+
+  SName name = {0};
+  (void)tNameFromString(&name, trimReq.db, T_NAME_ACCT | T_NAME_DB);
+
+  char optrType[16] = {0};
+  (void)snprintf(optrType, sizeof(optrType), "%u", trimReq.optrType);
+
+  auditRecord(pReq, pMnode->clusterId, "trimDB", name.dbname, optrType, trimReq.sql, trimReq.sqlLen);
 
 _OVER:
   if (code != 0) {
@@ -2274,6 +2331,7 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
+  tFreeSTrimDbReq(&trimReq);
   TAOS_RETURN(code);
 }
 

@@ -20,9 +20,7 @@
 #include "vnd.h"
 #include "tsdbInt.h"
 
-
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ECompactType ctype);
-
+extern int32_t tsdbAsyncCompact(STsdb* tsdb, const STimeWindow* tw, EOptrType type);
 
 // migrate monitor related functions
 typedef struct SSsMigrateMonitor {
@@ -589,8 +587,8 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     int32_t     lcn = flocal->f->lcn;
     STimeWindow win = {0};
     tsdbFidKeyRange(pLocalFset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
-    ECompactType ctype = VND_IS_RSMA((rtner->tsdb->pVnode)) ? TSDB_COMPACT_ROLLUP : TSDB_COMPACT_SSMIGRATE;
-    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, ctype);
+    EOptrType type = VND_IS_RSMA((rtner->tsdb->pVnode)) ? TSDB_OPTR_ROLLUP : TSDB_OPTR_SSMIGRATE;
+    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, type);
     tsdbInfo("vgId:%d, fid:%d, migration cancelled, fileset need compact, lcn: %d", vid, pLocalFset->fid, lcn);
     if (*pCode) {
       setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);

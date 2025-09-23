@@ -20,7 +20,7 @@
 #include "vnd.h"
 #include "tsdbInt.h"
 
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ECompactType ctype);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, EOptrType type);
 
 static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
   STFileOp op = {
