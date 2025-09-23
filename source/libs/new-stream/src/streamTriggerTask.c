@@ -7987,8 +7987,12 @@ static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup) {
   code = stRealtimeGroupGenCalcParams(pGroup, nInitWins);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  SSTriggerCalcParam *pLastParam = taosArrayGetLast(pContext->pCalcReq->params);
-  pContext->lastSentWinEnd = pLastParam ? pLastParam->wend : INT64_MIN;
+  if (pContext->pCalcReq) {
+    SSTriggerCalcParam *pLastParam = taosArrayGetLast(pContext->pCalcReq->params);
+    pContext->lastSentWinEnd = pLastParam ? pLastParam->wend : INT64_MIN;
+  } else {
+    pContext->lastSentWinEnd = INT64_MIN;
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
