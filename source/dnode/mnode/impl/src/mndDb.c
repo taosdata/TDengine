@@ -26,6 +26,7 @@
 #include "mndIndex.h"
 #include "mndPrivilege.h"
 #include "mndRetention.h"
+#include "mndRetentionDetail.h"
 #include "mndRsma.h"
 #include "mndScan.h"
 #include "mndShow.h"
@@ -2232,7 +2233,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
 
       for (int32_t i = 0; i < pVgroup->replica; i++) {
         SVnodeGid *gid = &pVgroup->vnodeGid[i];
-        if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &obj, pVgroup, gid, j)) != 0) {
+        if ((code = mndAddRetentionDetailToTrans(pMnode, pTrans, &obj, pVgroup, gid, j)) != 0) {
           sdbRelease(pSdb, pVgroup);
           TAOS_RETURN(code);
         }
@@ -2255,7 +2256,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
 
         for (int32_t i = 0; i < pVgroup->replica; i++) {
           SVnodeGid *gid = &pVgroup->vnodeGid[i];
-          if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &obj, pVgroup, gid, j)) != 0) {
+          if ((code = mndAddRetentionDetailToTrans(pMnode, pTrans, &obj, pVgroup, gid, j)) != 0) {
             sdbCancelFetch(pSdb, pIter);
             sdbRelease(pSdb, pVgroup);
             TAOS_RETURN(code);

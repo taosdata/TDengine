@@ -31,8 +31,8 @@ int32_t  mndRetentionDetailActionInsert(SSdb *pSdb, SRetentionDetailObj *pRetent
 int32_t  mndRetentionDetailActionDelete(SSdb *pSdb, SRetentionDetailObj *pRetention);
 int32_t  mndRetentionDetailActionUpdate(SSdb *pSdb, SRetentionDetailObj *pOldRetention,
                                         SRetentionDetailObj *pNewRetention);
-int32_t  mndAddRetentionDetailToTran(SMnode *pMnode, STrans *pTrans, SRetentionObj *pRetention, SVgObj *pVgroup,
-                                     SVnodeGid *pVgid, int32_t index);
+int32_t  mndAddRetentionDetailToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pRetention, SVgObj *pVgroup,
+                                      SVnodeGid *pVgid, int32_t index);
 int32_t  mndRetrieveRetentionDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
 #ifdef __cplusplus
