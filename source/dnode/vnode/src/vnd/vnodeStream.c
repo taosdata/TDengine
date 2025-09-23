@@ -2121,7 +2121,7 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, &api));
 
-  lastTsRsp.ver = pVnode->state.applied;
+  lastTsRsp.ver = pVnode->state.applied + 1;
 
   STREAM_CHECK_RET_GOTO(processTs(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
   ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
