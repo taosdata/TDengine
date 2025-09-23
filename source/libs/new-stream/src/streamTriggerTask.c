@@ -3281,6 +3281,8 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
       pContext->calcRange.ekey = TMIN(pContext->calcRange.ekey, metaRange.ekey);
       QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
                             TSDB_CODE_INVALID_PARA);
+      ST_TASK_DLOG("calc range is [%" PRId64 ", %" PRId64 "] for groupId:%" PRId64, pContext->calcRange.skey,
+                   pContext->calcRange.ekey, pGroup->gid);
 
       // fill calc range
       tSimpleHashClear(pContext->pRanges);
@@ -6801,7 +6803,7 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
 
   pGroup->pContext = pContext;
   pGroup->gid = gid;
-  pGroup->recalcNextWindow = pTask->fillHistory;
+  pGroup->recalcNextWindow = pTask->fillHistory && !pTask->ignoreDisorder;
   pGroup->vgId = vgId;
 
   pGroup->pWalMetas = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
