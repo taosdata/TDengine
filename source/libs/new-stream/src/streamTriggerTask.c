@@ -5401,7 +5401,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       SSTriggerTsdbMetaRequest *pReq = &pProgress->pullReq.tsdbMetaReq;
       pReq->startTime = pContext->stepRange.skey;
       pReq->endTime = pContext->stepRange.ekey;
-      pReq->gid = pContext->gid;
+      pReq->gid = pTask->isVirtualTable ? 0 : pContext->gid;
       pReq->order = 1;
       pReq->ver = pProgress->version;
       break;
