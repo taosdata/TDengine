@@ -4674,7 +4674,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
-      ST_TASK_DLOG("receive %" PRId64 " rows calc data of %d tablese from vnode %d", pProgress->pCalcBlock->info.rows,
+      ST_TASK_DLOG("receive %" PRId64 " rows calc data of %d tables from vnode %d", pProgress->pCalcBlock->info.rows,
                    nTables, pProgress->pTaskAddr->nodeId);
       if (pTask->isVirtualTable) {
         SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
@@ -4685,7 +4685,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           int64_t            otbUid = ar[1];
           int32_t            startIdx = ar[2] >> 32;
           int32_t            endIdx = ar[2];
-          SSTriggerDataSlice slice = {.pDataBlock = pProgress->pTrigBlock, .startIdx = startIdx, .endIdx = endIdx};
+          SSTriggerDataSlice slice = {.pDataBlock = pProgress->pCalcBlock, .startIdx = startIdx, .endIdx = endIdx};
           code = tSimpleHashPut(pContext->pSlices, &otbUid, sizeof(int64_t), &slice, sizeof(SSTriggerDataSlice));
           QUERY_CHECK_CODE(code, lino, _end);
           SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &otbUid, sizeof(int64_t));
