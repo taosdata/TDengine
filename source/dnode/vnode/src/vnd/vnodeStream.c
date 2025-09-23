@@ -20,6 +20,7 @@
 #include "osMemory.h"
 #include "scalar.h"
 #include "streamReader.h"
+#include "taosdef.h"
 #include "tarray.h"
 #include "tcommon.h"
 #include "tdatablock.h"
@@ -318,7 +319,7 @@ static int32_t scanDeleteDataNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   req.uidList = taosArrayInit(0, sizeof(tb_uid_t));
   tDecoderInit(&decoder, data, len);
   STREAM_CHECK_RET_GOTO(tDecodeDeleteRes(&decoder, &req));
-  STREAM_CHECK_CONDITION_GOTO(req.suid != sStreamReaderInfo->suid, TDB_CODE_SUCCESS);
+  STREAM_CHECK_CONDITION_GOTO((sStreamReaderInfo->tableType == TSDB_SUPER_TABLE && req.suid != sStreamReaderInfo->suid), TDB_CODE_SUCCESS);
   
   for (int32_t i = 0; i < taosArrayGetSize(req.uidList); i++) {
     uint64_t* uid = taosArrayGet(req.uidList, i);
