@@ -2585,7 +2585,9 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   pContext->sessionId = STREAM_TRIGGER_REALTIME_SESSIONID;
 
   bool needTrigData = true;
-  if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) || (pTask->triggerType == STREAM_TRIGGER_SLIDING)) {
+  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+    needTrigData = false;
+  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
     needTrigData = (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
   }
   if (!needTrigData) {
@@ -2986,7 +2988,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         if (*(bool *)TARRAY_GET_ELEM(pTask->pTrigIsPseudoCol, i)) {
           continue;
         }
-        void            *px = taosArrayPush(pReq->cids, &pCol->info.colId);
+        void *px = taosArrayPush(pReq->cids, &pCol->info.colId);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
       for (int32_t i = 0; i < nCalcCols; i++) {
@@ -4457,6 +4459,20 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
         pContext->continueToFetch = false;
         goto _end;
+      }
+
+      if (pTask->triggerType == STREAM_TRIGGER_PERIOD && !pTask->ignoreNoDataTrigger) {
+        int32_t iter = 0;
+        void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+        while (px != NULL) {
+          SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+          if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+            pGroup->oldThreshold = INT64_MIN;
+            pGroup->newThreshold = INT64_MAX;
+            TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          }
+          px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+        }
       }
 
       if (pContext->walMode == STRIGGER_WAL_META_ONLY) {
