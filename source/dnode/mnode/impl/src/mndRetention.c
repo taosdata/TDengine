@@ -29,7 +29,7 @@
 
 #define MND_RETENTION_VER_NUMBER 1
 
-static int32_t mndProcessTrimTimer(SRpcMsg *pReq);
+static int32_t mndProcessQueryTrimTimer(SRpcMsg *pReq);
 static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
 
@@ -46,7 +46,7 @@ int32_t mndInitRetention(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndCancelRetrieveRetention);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRIM, mndProcessKillTrimReq);
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY_TRIM_PROGRESS_RSP, mndProcessQueryTrimRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB_TIMER, mndProcessTrimTimer);
+  mndSetMsgHandle(pMnode, TDMT_MND_QUERY_TRIM_TIMER, mndProcessQueryTrimTimer);
   mndSetMsgHandle(pMnode, TDMT_VND_KILL_TRIM_RSP, mndTransProcessRsp);
 
   SSdbTable table = {
@@ -884,7 +884,7 @@ static void mndRetentionPullup(SMnode *pMnode) {
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     int32_t *pId = taosArrayGet(pArray, i);
     mInfo("begin to pull up retention:%d", *pId);
-    SRetentionObj *pObj = mndAcquireCompact(pMnode, *pId);
+    SRetentionObj *pObj = mndAcquireRetention(pMnode, *pId);
     if (pObj != NULL) {
       mInfo("retention:%d, begin to pull up", pObj->id);
       mndRetentionSendProgressReq(pMnode, pObj);
@@ -897,9 +897,9 @@ static void mndRetentionPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
-static int32_t mndProcessTrimTimer(SRpcMsg *pReq) {
+static int32_t mndProcessQueryTrimTimer(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
-  mTrace("start to process trim timer");
+  mTrace("start to process query trim timer");
   mndRetentionPullup(pReq->info.node);
 #endif
   return 0;
