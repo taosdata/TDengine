@@ -4576,6 +4576,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
+      ST_TASK_DLOG("receive %" PRId64 " rows trig data of %d tables from vnode %d", pProgress->pTrigBlock->info.rows,
+                   nTables, pProgress->pTaskAddr->nodeId);
       if (pTask->isVirtualTable) {
         for (int32_t i = 0; i < nTables; i++) {
           int64_t           *ar = TARRAY_GET_ELEM(pContext->pTempSlices, i);
@@ -6967,12 +6969,7 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
   }
 
   // check disorder data
-  if (pTask->ignoreDisorder) {
-    SSTriggerMetaData *pLastMeta = taosObjListGetTail(pMetas);
-    if (pLastMeta != NULL) {
-      pMeta->skey = TMAX(pMeta->skey, pLastMeta->ekey - pTask->watermark + 1);
-    }
-  } else {
+  if (!pTask->ignoreDisorder) {
     if (pMeta->skey <= pGroup->oldThreshold) {
       STimeWindow range = {.skey = pMeta->skey, .ekey = pMeta->ekey};
       if (pTask->expiredTime > 0) {
