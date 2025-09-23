@@ -200,6 +200,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_out_of_order_data.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_stb.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update_multi_rows.py
 
 
 ## 01-SQL
@@ -1602,9 +1603,7 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
 
 
-### 1-insert
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data_muti_rows.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_update_data.py
+### 1-insert (empty)
 
 ### 3-enterprise
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_dnode.py -N 5 -M 3 -I False
