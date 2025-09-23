@@ -40,12 +40,13 @@ typedef struct {
 
 
 typedef struct {
-  STsdb  *tsdb;
-  int64_t now;
-  TSKEY   lastCommit;
-  int32_t nodeId; // node id of leader vnode in ss migration
-  int32_t fid;
-  bool    ssMigrate;
+  STsdb    *tsdb;
+  int64_t   now;
+  TSKEY     lastCommit;
+  int32_t   nodeId;  // node id of leader vnode in ss migration
+  int32_t   fid;
+  bool      ssMigrate;
+  SVATaskID taskid;
 } SRtnArg;
 
 typedef struct {

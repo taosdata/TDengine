@@ -23,7 +23,7 @@ extern int32_t tsdbUpdateSsMigrateProgress(STsdb* tsdb, SSsMigrateProgress* pPro
 extern void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId);
 
 
-int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
+int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now, SRpcMsg *pRsp) {
   // async retention
   return tsdbAsyncRetention(pVnode->pTsdb, now);
 }

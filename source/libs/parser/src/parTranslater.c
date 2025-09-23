@@ -10844,7 +10844,7 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
 static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt* pStmt) {
   STrimDbReq req = {.maxSpeed = pStmt->maxSpeed,
                     .tw.skey = INT64_MIN,
-                    .tw.ekey = INT64_MAX,
+                    .tw.ekey = taosGetTimestampMs(),
                     .optrType = TSDB_OPTR_NORMAL,
                     .triggerType = TSDB_TRIGGER_MANUAL};
   SName      name = {0};

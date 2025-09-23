@@ -22,6 +22,11 @@
 
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, EOptrType type);
 
+// tsdbRetentionMonitor.c
+extern int32_t tsdbAddRetentionMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t fileSize);
+extern void    tsdbRemoveRetentionMonitorTask(STsdb *tsdb, SVATaskID *taskId);
+extern int32_t tsdbRetentionMonitorGetKilled(STsdb *tsdb);
+
 static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
   STFileOp op = {
       .optype = TSDB_FOP_REMOVE,
@@ -333,6 +338,12 @@ int32_t tsdbRetention(void *arg) {
           .nodeId = rtnArg->nodeId,
   };
 
+  int64_t nLoops = 0;
+  while(1) {
+    printf("vgId:%d, retention task start, fid:%d, lastCommit:%" PRId64 ", sleep:%"PRId64"\n", TD_VID(pVnode), rtnArg->fid, rtnArg->lastCommit, nLoops++);
+    taosSsleep(1);
+  }
+
   // begin task
   (void)taosThreadMutexLock(&pTsdb->mutex);
 
@@ -380,6 +391,7 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&rtner.fset);
   TARRAY2_DESTROY(&rtner.fopArr, NULL);
+  (void)tsdbRemoveRetentionMonitorTask(pTsdb, &rtnArg->taskid);
   taosMemoryFree(arg);
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
@@ -416,9 +428,12 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
     if (code) {
       taosMemoryFree(arg);
       TSDB_CHECK_CODE(code, lino, _exit);
+    } else {
+      arg->taskid = fset->retentionTask;
+      int64_t fileSize = tsdbTFileSetGetDataSize(fset);
+      TAOS_UNUSED(tsdbAddRetentionMonitorTask(tsdb, fset->fid, &arg->taskid, fileSize));
     }
   }
-
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));

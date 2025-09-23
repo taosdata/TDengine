@@ -196,6 +196,8 @@ SWords shellCommands[] = {
     {"show query <anyword> ;", 0, 0, NULL},
     {"show qnodes;", 0, 0, NULL},
     {"show bnodes;", 0, 0, NULL},
+    {"show retentions;", 0, 0, NULL},
+    {"show scans;", 0, 0, NULL},
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
@@ -612,6 +614,7 @@ void showHelp() {
     show query <query_id> ;\n\
     show qnodes;\n\
     show bnodes;\n\
+    show scans;\n\
     show snodes;\n\
     show stables;\n\
     show stables like \n\
@@ -658,6 +661,7 @@ void showHelp() {
     show compact \n\
     show ssmigrates;\n\
     show arbgroups;\n\
+    show retentions;\n\
     show mounts;\n\
     show views;\n\
     show create view <all_table>;");

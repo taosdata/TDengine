@@ -41,7 +41,7 @@ static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
  * @return
  */
 
-int32_t mndInitRetention(SMnode *pMnode) { 
+int32_t mndInitRetention(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndRetrieveRetention);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndCancelRetrieveRetention);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRIM, mndProcessKillTrimReq);
@@ -52,11 +52,11 @@ int32_t mndInitRetention(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_RETENTION,
       .keyType = SDB_KEY_INT32,
-      .encodeFp = (SdbEncodeFp)mndCompactActionEncode,  // reuse compact encode/decode
-      .decodeFp = (SdbDecodeFp)mndCompactActionDecode,
-      .insertFp = (SdbInsertFp)mndCompactActionInsert,  // reuse compact insert/update/delete
-      .updateFp = (SdbUpdateFp)mndCompactActionUpdate,
-      .deleteFp = (SdbDeleteFp)mndCompactActionDelete,
+      .encodeFp = (SdbEncodeFp)mndRetentionActionEncode,
+      .decodeFp = (SdbDecodeFp)mndRetentionActionDecode,
+      .insertFp = (SdbInsertFp)mndRetentionActionInsert,
+      .updateFp = (SdbUpdateFp)mndRetentionActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndRetentionActionDelete,
   };
 
   return sdbSetTable(pMnode->pSdb, table);
@@ -72,6 +72,130 @@ int32_t tSerializeSRetentionObj(void *buf, int32_t bufLen, const SRetentionObj *
 
 int32_t tDeserializeSRetentionObj(void *buf, int32_t bufLen, SRetentionObj *pObj) {
   return tDeserializeSCompactObj(buf, bufLen, (SCompactObj *)pObj);
+}
+
+SSdbRaw *mndRetentionActionEncode(SRetentionObj *pObj) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  terrno = TSDB_CODE_SUCCESS;
+
+  void    *buf = NULL;
+  SSdbRaw *pRaw = NULL;
+
+  int32_t tlen = tSerializeSCompactObj(NULL, 0, pObj);
+  if (tlen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t size = sizeof(int32_t) + tlen;
+  pRaw = sdbAllocRaw(SDB_RETENTION, MND_RETENTION_VER_NUMBER, size);
+  if (pRaw == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  tlen = tSerializeSCompactObj(buf, tlen, pObj);
+  if (tlen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pRaw, dataPos, tlen, OVER);
+  SDB_SET_BINARY(pRaw, dataPos, buf, tlen, OVER);
+  SDB_SET_DATALEN(pRaw, dataPos, OVER);
+
+OVER:
+  taosMemoryFreeClear(buf);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("retention:%" PRId32 ", failed to encode to raw:%p since %s", pObj->id, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("retention:%" PRId32 ", encode to raw:%p, row:%p", pObj->id, pRaw, pObj);
+  return pRaw;
+}
+
+SSdbRow *mndRetentionActionDecode(SSdbRaw *pRaw) {
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  SSdbRow       *pRow = NULL;
+  SRetentionObj *pObj = NULL;
+  void          *buf = NULL;
+  terrno = TSDB_CODE_SUCCESS;
+
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
+    goto OVER;
+  }
+
+  if (sver != MND_RETENTION_VER_NUMBER) {
+    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("retention read invalid ver, data ver: %d, curr ver: %d", sver, MND_RETENTION_VER_NUMBER);
+    goto OVER;
+  }
+
+  pRow = sdbAllocRow(sizeof(SRetentionObj));
+  if (pRow == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  pObj = sdbGetRowObj(pRow);
+  if (pObj == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+
+  int32_t tlen;
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, dataPos, &tlen, OVER);
+  buf = taosMemoryMalloc(tlen + 1);
+  if (buf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto OVER;
+  }
+  SDB_GET_BINARY(pRaw, dataPos, buf, tlen, OVER);
+
+  if ((terrno = tDeserializeSCompactObj(buf, tlen, pObj)) < 0) {
+    goto OVER;
+  }
+
+OVER:
+  taosMemoryFreeClear(buf);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("retention:%" PRId32 ", failed to decode from raw:%p since %s", pObj->id, pRaw, terrstr());
+    taosMemoryFreeClear(pRow);
+    return NULL;
+  }
+
+  mTrace("retention:%" PRId32 ", decode from raw:%p, row:%p", pObj->id, pRaw, pObj);
+  return pRow;
+}
+
+int32_t mndRetentionActionInsert(SSdb *pSdb, SRetentionObj *pObj) {
+  mTrace("retention:%" PRId32 ", perform insert action", pObj->id);
+  return 0;
+}
+
+int32_t mndRetentionActionDelete(SSdb *pSdb, SRetentionObj *pObj) {
+  mTrace("retention:%" PRId32 ", perform delete action", pObj->id);
+  tFreeCompactObj(pObj);
+  return 0;
+}
+
+int32_t mndRetentionActionUpdate(SSdb *pSdb, SRetentionObj *pOldObj, SRetentionObj *pNewObj) {
+  mTrace("retention:%" PRId32 ", perform update action, old row:%p new row:%p", pOldObj->id, pOldObj, pNewObj);
+
+  return 0;
 }
 
 SRetentionObj *mndAcquireRetention(SMnode *pMnode, int32_t id) {
@@ -351,8 +475,8 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
 }
 
 int32_t mndProcessKillTrimReq(SRpcMsg *pReq) {
-  int32_t           code = 0;
-  int32_t           lino = 0;
+  int32_t      code = 0;
+  int32_t      lino = 0;
   SKillTrimReq req = {0};
 
   if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &req)) != 0) {
@@ -422,7 +546,7 @@ static int32_t mndUpdateRetentionProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t
 }
 
 int32_t mndProcessQueryTrimRsp(SRpcMsg *pReq) {
-  int32_t                  code = 0;
+  int32_t                    code = 0;
   SQueryRetentionProgressRsp req = {0};
   if (pReq->code != 0) {
     mError("received wrong retention response, req code is %s", tstrerror(pReq->code));
@@ -661,7 +785,8 @@ static int32_t mndSaveRetentionProgress(SMnode *pMnode, int32_t id) {
           TAOS_RETURN(code);
         }
         if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-          mError("retention:%d, trans:%d, failed to append commit log since %s", pDetail->id, pTrans->id, tstrerror(code));
+          mError("retention:%d, trans:%d, failed to append commit log since %s", pDetail->id, pTrans->id,
+                 tstrerror(code));
           sdbCancelFetch(pMnode->pSdb, pIter);
           sdbRelease(pMnode->pSdb, pDetail);
           mndTransDrop(pTrans);
@@ -735,7 +860,7 @@ static void mndRetentionPullup(SMnode *pMnode) {
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-    int32_t       *pId = taosArrayGet(pArray, i);
+    int32_t *pId = taosArrayGet(pArray, i);
     mInfo("begin to pull up retention:%d", *pId);
     SRetentionObj *pObj = mndAcquireCompact(pMnode, *pId);
     if (pObj != NULL) {

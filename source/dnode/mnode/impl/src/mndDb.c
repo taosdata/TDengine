@@ -2199,7 +2199,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
-  SRetentionObj obj = {0};  // reuse compact struct
+  SRetentionObj obj = {0};  // reuse SCompactObj struct
   TAOS_CHECK_EXIT(mndAddCompactToTran(pMnode, pTrans, (SCompactObj *)&obj, pDb, (SCompactDbRsp *)pRsp));
 
   int32_t j = 0;
@@ -2271,27 +2271,25 @@ _exit:
 
 static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds, EOptrType type,
                          ETriggerType triggerType) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-  int32_t code = 0, lino = 0;
-  STrimDbRsp  rsp = {0};
-  // SVTrimDbReq trimReq = {.dbUid = pDb->uid, .startTime = taosGetTimestampMs()};
-  // trimReq.tw.skey = INT64_MIN;
-  // trimReq.tw.ekey = trimReq.compactStartTime;
-  // trimReq.id = 0;  // TODO: use the real value
-  // trimReq.triggerType = TSDB_TRIGGER_MANUAL;
-  // int32_t reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
-  // int32_t contLen = reqLen + sizeof(SMsgHead);
-  int64_t startTs = taosGetTimestampMs();
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "trim-db");
+  SSdb      *pSdb = pMnode->pSdb;
+  SVgObj    *pVgroup = NULL;
+  void      *pIter = NULL;
+  int32_t    code = 0, lino = 0;
+  STrimDbRsp rsp = {0};
+  int64_t    startTs = taosGetTimestampMs();
+  STrans    *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "trim-db");
   if (pTrans == NULL) goto _exit;
   mInfo("trans:%d, used to trim db:%s", pTrans->id, pDb->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
   TAOS_CHECK_EXIT(mndTrancCheckConflict(pMnode, pTrans));
   TAOS_CHECK_EXIT(mndSetTrimDbRedoActions(pMnode, pTrans, pDb, startTs, tw, vgroupIds, type, triggerType, &rsp));
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
-  return 0;
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed at line %d to trim db since %s", pDb->name, lino, tstrerror(code));
+  }
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
