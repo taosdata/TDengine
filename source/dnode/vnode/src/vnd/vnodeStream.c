@@ -156,7 +156,8 @@ static bool uidInTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t 
         if (*id == -1) return false;
       }
     } else {
-      *id= uid;
+      *id = qStreamGetGroupId(sStreamReaderInfo->tableList, uid);
+      if(*id == -1) *id = uid;
       return uid == sStreamReaderInfo->uid;
     }
   }
@@ -2628,6 +2629,8 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   size = tSerializeSStreamWalDataResponse(buf, size, &resultRsp, sStreamReaderInfo->indexHash);
   printDataBlock(sStreamReaderInfo->metaBlock, __func__, "meta", ((SStreamTask*)pTask)->streamId);
   printDataBlock(sStreamReaderInfo->triggerBlock, __func__, "data", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.dropBlock, __func__, "drop", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(resultRsp.deleteBlock, __func__, "delete", ((SStreamTask*)pTask)->streamId);
   printIndexHash(sStreamReaderInfo->indexHash, pTask);
 
 end:
