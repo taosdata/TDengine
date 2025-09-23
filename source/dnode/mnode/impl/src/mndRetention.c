@@ -43,7 +43,7 @@ static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
 
 int32_t mndInitRetention(SMnode *pMnode) { 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndRetrieveRetention);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndCancelRetrieveRetention);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndCancelRetrieveRetention);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRIM, mndProcessKillTrimReq);
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY_TRIM_PROGRESS_RSP, mndProcessQueryTrimRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB_TIMER, mndProcessTrimTimer);

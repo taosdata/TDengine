@@ -10842,7 +10842,11 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
 }
 
 static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt* pStmt) {
-  STrimDbReq req = {.maxSpeed = pStmt->maxSpeed};
+  STrimDbReq req = {.maxSpeed = pStmt->maxSpeed,
+                    .tw.skey = INT64_MIN,
+                    .tw.ekey = INT64_MAX,
+                    .optrType = TSDB_OPTR_NORMAL,
+                    .triggerType = TSDB_TRIGGER_MANUAL};
   SName      name = {0};
   int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;

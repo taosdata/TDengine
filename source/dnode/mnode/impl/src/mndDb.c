@@ -2199,8 +2199,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
-  // reuse compact struct
-  SRetentionObj obj;
+  SRetentionObj obj = {0};  // reuse compact struct
   TAOS_CHECK_EXIT(mndAddCompactToTran(pMnode, pTrans, (SCompactObj *)&obj, pDb, (SCompactDbRsp *)pRsp));
 
   int32_t j = 0;
