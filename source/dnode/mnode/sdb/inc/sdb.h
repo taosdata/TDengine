@@ -31,10 +31,10 @@ extern "C" {
 // clang-format off
 #define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
 #define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
-#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
-#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
-#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
-#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN  ", DEBUG_WARN,  255, __VA_ARGS__); }}
+#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND INFO  ", DEBUG_INFO,  255, __VA_ARGS__); }}
+#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND DEBUG ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
+#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND TRACE ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
@@ -144,6 +144,7 @@ typedef enum {
   SDB_MNODE = 2,
   SDB_QNODE = 3,
   SDB_SNODE = 4,
+  SDB_BNODE = 5,
   SDB_DNODE = 6,
   SDB_USER = 7,
   SDB_AUTH = 8,
@@ -168,7 +169,12 @@ typedef enum {
   SDB_ARBGROUP = 27,
   SDB_ANODE = 28,
   SDB_CFG = 29,
-  SDB_MAX = 30
+  SDB_MOUNT = 30,
+  SDB_MOUNT_LOG = 31,
+  SDB_SSMIGRATE = 32,
+  SDB_SCAN = 33,
+  SDB_SCAN_DETAIL = 34,
+  SDB_MAX = 35
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -458,6 +464,7 @@ const char *sdbTableName(ESdbType type);
 const char *sdbStatusName(ESdbStatus status);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
+bool        sdbCheckExists(SSdb *pSdb, ESdbType type, const void *pKey);
 
 void sdbWriteLock(SSdb *pSdb, int32_t type);
 void sdbReadLock(SSdb *pSdb, int32_t type);

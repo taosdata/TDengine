@@ -126,24 +126,34 @@ python3 mockdatasource.py
 python3 fast_write_example.py
 
 # 20
-pip3 install kafka-python
+pip3 install kafka-python==2.1.2
 python3 kafka_example_consumer.py
 
 # 21
-pip3 install taos-ws-py==0.3.5
+pip3 install taos-ws-py==0.6.1
 python3 conn_websocket_pandas.py
 
 # 22
 python3 connect_websocket_examples.py
 
 # 23
-python3 create_db_ws.py
+python3 connect_websocket_sqlalchemy_examples.py
 
 # 24
-python3 create_db_native.py
+pip3 install DBUtils==3.1.1
+python3 dbutils_demo.py
 
 # 25
+python3 create_db_ws.py
+
+# 26
+python3 create_db_native.py
+
+# 27
 python3 create_db_rest.py
+
+pip3 install SQLAlchemy==2.0.43
+python3 sqlalchemy_demo.py
 
 python3 insert_native.py
 
@@ -180,6 +190,18 @@ python3 stmt_native.py
 
 python3 stmt_ws.py
 
+taos -s "drop database power"
+check_transactions || exit 1
+reset_cache || exit 1
+echo "stmt2_native.py"
+python3 stmt2_native.py
+
+taos -s "drop database power"
+check_transactions || exit 1
+reset_cache || exit 1
+echo "stmt2_ws.py"
+python3 stmt2_ws.py
+
 taos -s "drop topic if exists topic_meters"
 check_transactions || exit 1
 reset_cache || exit 1
@@ -196,4 +218,4 @@ check_transactions || exit 1
 reset_cache || exit 1
 python3 tmq_websocket_example.py
 
-python3 stmt2_native.py
+

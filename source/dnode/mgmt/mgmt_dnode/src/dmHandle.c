@@ -21,10 +21,13 @@
 #include "tanalytics.h"
 #include "tchecksum.h"
 #include "tutil.h"
+#include "stream.h"
 
 extern SConfig *tsCfg;
 
 SMonVloadInfo tsVinfo = {0};
+SMnodeLoad    tsMLoad = {0};
+SDnodeData    tsDnodeData = {0};
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   int32_t code = 0;
@@ -37,7 +40,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     auditSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
-      dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
+      dInfo("failed to set local info, dnodeId:%d clusterId:0x%" PRIx64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
             tstrerror(code));
     }
     (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
@@ -46,10 +49,10 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
 
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   int32_t code = 0;
-  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->ipWhiteVer, ver);
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
-      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->ipWhiteVer, ver);
       if (rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL) != 0) {
         dError("failed to disable ip white list on dnode");
       }
@@ -74,7 +77,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
-                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
+                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE_DUAL,
                     .info.ahandle = 0,
                     .info.notFreeAhandle = 1,
                     .info.refId = 0,
@@ -90,21 +93,21 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   }
 }
 
-static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
+static void dmMayShouldUpdateAnalyticsFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   int32_t code = 0;
-  int64_t oldVer = taosAnalGetVersion();
+  int64_t oldVer = taosAnalyGetVersion();
   if (oldVer == newVer) return;
   dDebug("analysis on dnode ver:%" PRId64 ", status ver:%" PRId64, oldVer, newVer);
 
-  SRetrieveAnalAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
-  int32_t              contLen = tSerializeRetrieveAnalAlgoReq(NULL, 0, &req);
+  SRetrieveAnalyticsAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
+  int32_t              contLen = tSerializeRetrieveAnalyticAlgoReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
     return;
   }
 
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveAnalAlgoReq(pHead, contLen, &req);
+  contLen = tSerializeRetrieveAnalyticAlgoReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
@@ -157,7 +160,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
-      dmMayShouldUpdateAnalFunc(pMgmt, statusRsp.analVer);
+      dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -167,25 +170,32 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SStatusReq req = {0};
+  req.timestamp = taosGetTimestampMs();
+  pMgmt->statusSeq++;
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt lock", pMgmt->statusSeq);
-  (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  dTrace("send status req to mnode, begin to mgnt statusInfolock, statusSeq:%d", pMgmt->statusSeq);
+  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to lock status info lock");
+    return;
+  }
+
+  dTrace("send status req to mnode, begin to get dnode info, statusSeq:%d", pMgmt->statusSeq);
   req.sver = tsVersion;
-  req.dnodeVer = pMgmt->pData->dnodeVer;
-  req.dnodeId = pMgmt->pData->dnodeId;
-  req.clusterId = pMgmt->pData->clusterId;
+  req.dnodeVer = tsDnodeData.dnodeVer;
+  req.dnodeId = tsDnodeData.dnodeId;
+  req.clusterId = tsDnodeData.clusterId;
   if (req.clusterId == 0) req.dnodeId = 0;
-  req.rebootTime = pMgmt->pData->rebootTime;
-  req.updateTime = pMgmt->pData->updateTime;
+  req.rebootTime = tsDnodeData.rebootTime;
+  req.updateTime = tsDnodeData.updateTime;
   req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = tsNumOfSupportVnodes;
   req.numOfDiskCfg = tsDiskCfgNum;
   req.memTotal = tsTotalMemoryKB * 1024;
-  req.memAvail = req.memTotal - tsQueueMemoryAllowed - 16 * 1024 * 1024;
+  req.memAvail = req.memTotal - tsQueueMemoryAllowed - tsApplyMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
-  tstrncpy(req.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
+  tstrncpy(req.machineId, tsDnodeData.machineId, TSDB_MACHINE_ID_LEN + 1);
 
-  req.clusterCfg.statusInterval = tsStatusInterval;
+  req.clusterCfg.statusIntervalMs = tsStatusIntervalMs;
   req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
@@ -205,32 +215,26 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
-  (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
-  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
-    dError("failed to lock status info lock");
-    return;
-  }
+  dTrace("send status req to mnode, begin to get vnode loads, statusSeq:%d", pMgmt->statusSeq);
+
   req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
+
+  dTrace("send status req to mnode, begin to get mnode loads, statusSeq:%d", pMgmt->statusSeq);
+  req.mload = tsMLoad;
+
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to unlock status info lock");
     return;
   }
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
-  SMonMloadInfo minfo = {0};
-  (*pMgmt->getMnodeLoadsFp)(&minfo);
-  req.mload = minfo.load;
-
-  dDebug("send status req to mnode, statusSeq:%d, begin to get qnode loads", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get qnode loads, statusSeq:%d", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
 
-  pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
-  req.analVer = taosAnalGetVersion();
+  req.analVer = taosAnalyGetVersion();
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
@@ -257,17 +261,16 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
                     .info.handle = 0};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
+  dDebug("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
 
   SEpSet epSet = {0};
   int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
-  code =
-      rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
+  dTrace("send status req to mnode, begin to send rpc msg, statusSeq:%d", pMgmt->statusSeq);
+  code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
   if (code != 0) {
-    dError("failed to send status req since %s", tstrerror(code));
+    dError("failed to SendRecv status req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
     return;
   }
 
@@ -275,7 +278,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[512];
     dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
-    dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
+    dInfo("Rotate mnode ep set since failed to SendRecv status req %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code),
+          tbuf, epSet.inUse);
   } else {
     if (epUpdated == 1) {
       dmSetMnodeEpSet(pMgmt->pData, &epSet);
@@ -304,23 +308,6 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     bool needUpdate = false;
     if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
-      // Try to use cfg file in current dnode.
-      if (configRsp.forceReadConfig) {
-        if (configRsp.isConifgVerified) {
-          uInfo("force read config and check config verified");
-          code = taosPersistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
-          if (code != TSDB_CODE_SUCCESS) {
-            dError("failed to persist global config since %s", tstrerror(code));
-            goto _exit;
-          }
-          needUpdate = true;
-        } else {
-          // log the difference configurations
-          printConfigNotMatch(configRsp.array);
-          needStop = true;
-          goto _exit;
-        }
-      }
       // Try to use cfg from mnode sdb.
       if (!configRsp.isVersionVerified) {
         uInfo("config version not verified, update config");
@@ -400,10 +387,9 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
   dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
-  code =
-      rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
+  code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
   if (code != 0) {
-    dError("failed to send status req since %s", tstrerror(code));
+    dError("failed to SendRecv config req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
     return;
   }
   if (rpcRsp.code != 0) {
@@ -414,14 +400,37 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
 }
 
 void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
-  SMonVloadInfo vinfo = {0};
+  dDebug("begin to get dnode info");
+  SDnodeData dnodeData = {0};
+  (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  dnodeData.dnodeVer = pMgmt->pData->dnodeVer;
+  dnodeData.dnodeId = pMgmt->pData->dnodeId;
+  dnodeData.clusterId = pMgmt->pData->clusterId;
+  dnodeData.rebootTime = pMgmt->pData->rebootTime;
+  dnodeData.updateTime = pMgmt->pData->updateTime;
+  tstrncpy(dnodeData.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
+  (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
+
   dDebug("begin to get vnode loads");
-  (*pMgmt->getVnodeLoadsFp)(&vinfo);
+  SMonVloadInfo vinfo = {0};
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);  // dmGetVnodeLoads
+
+  dDebug("begin to get mnode loads");
+  SMonMloadInfo minfo = {0};
+  (*pMgmt->getMnodeLoadsFp)(&minfo);  // dmGetMnodeLoads
+
   dDebug("begin to lock status info");
   if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to lock status info lock");
     return;
   }
+  tsDnodeData.dnodeVer = dnodeData.dnodeVer;
+  tsDnodeData.dnodeId = dnodeData.dnodeId;
+  tsDnodeData.clusterId = dnodeData.clusterId;
+  tsDnodeData.rebootTime = dnodeData.rebootTime;
+  tsDnodeData.updateTime = dnodeData.updateTime;
+  tstrncpy(tsDnodeData.machineId, dnodeData.machineId, TSDB_MACHINE_ID_LEN + 1);
+
   if (tsVinfo.pVloads == NULL) {
     tsVinfo.pVloads = vinfo.pVloads;
     vinfo.pVloads = NULL;
@@ -429,6 +438,9 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
     taosArrayDestroy(vinfo.pVloads);
     vinfo.pVloads = NULL;
   }
+
+  tsMLoad = minfo.load;
+
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to unlock status info lock");
     return;
@@ -502,8 +514,97 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (pItem == NULL) {
     return TSDB_CODE_CFG_NOT_FOUND;
   }
+
+  if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
+    char value[10] = {0};
+    sscanf(cfgReq.value, "%d", &tsSyncTimeout);
+
+    if (tsSyncTimeout > 0) {
+      SConfigItem *pItemTmp = NULL;
+      char tmp[10] = {0};
+
+      sprintf(tmp, "%d", tsSyncTimeout);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      sprintf(tmp, "%d", tsSyncTimeout / 4);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbCheckSyncIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout/4)/2);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncMnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusSRTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      sprintf(tmp, "%d", (tsSyncTimeout - tsSyncTimeout/4)/8);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncMnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      dInfo("change syncTimeout, GetAndSetItem, option:%s, value:%s, tsSyncTimeout:%d", cfgReq.config, cfgReq.value,
+            tsSyncTimeout);
+    }
+  }
+
   if (!isConifgItemLazyMode(pItem)) {
     TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
+
+    if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbSetAssignedTimeoutMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbHeartBeatIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbCheckSyncIntervalMs", true));
+
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncVnodeElectIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncMnodeElectIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncVnodeHeartbeatIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncMnodeHeartbeatIntervalMs", true));
+      
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusTimeoutMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusSRTimeoutMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusIntervalMs", true));
+
+      dInfo("change syncTimeout, DynamicOptions, option:%s, value:%s, tsSyncTimeout:%d", cfgReq.config, cfgReq.value,
+            tsSyncTimeout);
+    }
   }
 
   if (pItem->category == CFG_CATEGORY_GLOBAL) {
@@ -517,6 +618,23 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       dError("failed to persist local config since %s", tstrerror(code));
     }
   }
+
+  if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
+    dInfo(
+        "finished change syncTimeout, option:%s, value:%s", cfgReq.config, cfgReq.value);
+
+    (*pMgmt->setMnodeSyncTimeoutFp)();
+    (*pMgmt->setVnodeSyncTimeoutFp)();
+  }
+
+  if (taosStrncasecmp(cfgReq.config, "syncVnodeElectIntervalMs", 128) == 0 || taosStrncasecmp(cfgReq.config, "syncVnodeHeartbeatIntervalMs", 128) == 0) {
+    (*pMgmt->setVnodeSyncTimeoutFp)();
+  }
+
+  if (taosStrncasecmp(cfgReq.config, "syncMnodeElectIntervalMs", 128) == 0 || taosStrncasecmp(cfgReq.config, "syncMnodeHeartbeatIntervalMs", 128) == 0) {
+    (*pMgmt->setMnodeSyncTimeoutFp)();
+  }
+
   if (cfgReq.version > 0) {
     tsdmConfigVersion = cfgReq.version;
   }
@@ -660,7 +778,7 @@ _exit:
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  int32_t code = dumpConfToDataBlock(pBlock, 1);
+  int32_t code = dumpConfToDataBlock(pBlock, 1, NULL);
   if (code != 0) {
     return code;
   }
@@ -749,6 +867,34 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SMStreamHbRspMsg rsp = {0};
+  int32_t          code = 0;
+  SDecoder         decoder;
+  char*            msg = POINTER_SHIFT(pMsg->pCont, sizeof(SStreamMsgGrpHeader));
+  int32_t          len = pMsg->contLen - sizeof(SStreamMsgGrpHeader);
+  int64_t          currTs = taosGetTimestampMs();
+
+  if (pMsg->code) {
+    return streamHbHandleRspErr(pMsg->code, currTs);
+  }
+
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  code = tDecodeStreamHbRsp(&decoder, &rsp);
+  if (code < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    tDeepFreeSMStreamHbRspMsg(&rsp);
+    tDecoderClear(&decoder);
+    dError("fail to decode stream hb rsp msg, error:%s", tstrerror(code));
+    return streamHbHandleRspErr(code, currTs);
+  }
+
+  tDecoderClear(&decoder);
+
+  return streamHbProcessRspMsg(&rsp);
+}
+
+
 SArray *dmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(16, sizeof(SMgmtHandle));
@@ -762,12 +908,16 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_QNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_QNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

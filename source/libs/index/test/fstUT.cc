@@ -215,22 +215,22 @@ TEST_F(FstEnv, writeNormal) {
   for (int i = 0; i < 10; i++) {
     str[0] = '1' + i;
     str.resize(2);
-    assert(fst->Put(str, i) == true);
+    TD_ALWAYS_ASSERT(fst->Put(str, i) == true);
   }
   // order failed
-  assert(fst->Put("11", 1) == false);
+  TD_ALWAYS_ASSERT(fst->Put("11", 1) == false);
 
   fst->DestroyWriter();
 
   fst->CreateReader();
   uint64_t val;
-  assert(fst->Get("1", &val) == false);
-  assert(fst->Get("11", &val) == true);
-  assert(val == 0);
+  TD_ALWAYS_ASSERT(fst->Get("1", &val) == false);
+  TD_ALWAYS_ASSERT(fst->Get("11", &val) == true);
+  TD_ALWAYS_ASSERT(val == 0);
 
   std::vector<uint64_t> rlt;
   FAutoCtx*             ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
-  assert(fst->Search(ctx, rlt) == true);
+  TD_ALWAYS_ASSERT(fst->Search(ctx, rlt) == true);
 }
 TEST_F(FstEnv, WriteMillonrRecord) {}
 TEST_F(FstEnv, writeAbNormal) {
@@ -245,7 +245,7 @@ TEST_F(FstEnv, writeAbNormal) {
 
   fst->CreateReader();
   uint64_t val;
-  assert(fst->Get("1", &val) == false);
-  assert(fst->Get("voltage&\b&ab", &val) == true);
-  assert(val == 1);
+  TD_ALWAYS_ASSERT(fst->Get("1", &val) == false);
+  TD_ALWAYS_ASSERT(fst->Get("voltage&\b&ab", &val) == true);
+  TD_ALWAYS_ASSERT(val == 1);
 }

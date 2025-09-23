@@ -22,20 +22,18 @@
 #include "tmsg.h"
 #include "tqueue.h"
 #include "trpc.h"
-#include "tstream.h"
 
 #include "snode.h"
+#include "tworker.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct SSnode {
-  SStreamMeta* pMeta;
   SMsgCb       msgCb;
 };
 
-void initStreamStateAPI(SStorageAPI* pAPI);
 
 #ifdef __cplusplus
 }

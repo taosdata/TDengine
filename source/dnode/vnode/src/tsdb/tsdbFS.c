@@ -122,7 +122,7 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
   }
 
   if (taosFsyncFile(pFD) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ERRNO), lino, _exit);
   }
 
 _exit:
@@ -272,16 +272,16 @@ void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
 
   // CURRENT
   if (current) {
-    vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, current, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryPath(pVnode, false, current, TSDB_FILENAME_LEN);
     offset = strlen(current);
-    snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%sCURRENT", TD_DIRSEP);
+    snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sCURRENT", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
   }
 
   // CURRENT.t
   if (current_t) {
-    vnodeGetPrimaryDir(pTsdb->path, pVnode->diskPrimary, pVnode->pTfs, current_t, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryPath(pVnode, false, current_t, TSDB_FILENAME_LEN);
     offset = strlen(current_t);
-    snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%sCURRENT.t", TD_DIRSEP);
+    snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sCURRENT.t", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
   }
 }
 
@@ -744,7 +744,7 @@ static int32_t tsdbFSRollback(STsdb *pTsdb) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(ERRNO));
   }
   return code;
 }

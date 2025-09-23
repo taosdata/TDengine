@@ -98,6 +98,7 @@ SWords shellCommands[] = {
     {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
     {"create mnode on dnode <dnode_id>;", 0, 0, NULL},
     {"create qnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"create bnode on dnode <dnode_id>;", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
     {"create tsma <anyword> on <all_table> function", 0, 0, NULL},
@@ -111,7 +112,10 @@ SWords shellCommands[] = {
 #ifdef TD_ENTERPRISE    
     {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
+    {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
 #endif
+    {"scan database <db_name>", 0, 0, NULL},
+    {"desc <all_table>;", 0, 0, NULL},
     {"describe <all_table>;", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>;", 0, 0, NULL},
@@ -120,6 +124,7 @@ SWords shellCommands[] = {
     {"drop dnode <dnode_id>;", 0, 0, NULL},
     {"drop mnode on dnode <dnode_id>;", 0, 0, NULL},
     {"drop qnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"drop bnode on dnode <dnode_id>;", 0, 0, NULL},
     {"drop user <user_name>;", 0, 0, NULL},
     // 40
     {"drop function <udf_name>;", 0, 0, NULL},
@@ -138,6 +143,7 @@ SWords shellCommands[] = {
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
     {"merge vgroup <vgroup_id> <vgroup_id>;", 0, 0, NULL},
+    {"drop mount <mount_name>;", 0, 0, NULL},
 #endif
     {"pause stream <stream_name>;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
@@ -172,6 +178,7 @@ SWords shellCommands[] = {
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
+    {"show ssmigrates;", 0, 0, NULL},
 
 #endif
     {"show connections;", 0, 0, NULL},
@@ -188,6 +195,7 @@ SWords shellCommands[] = {
     // 80
     {"show query <anyword> ;", 0, 0, NULL},
     {"show qnodes;", 0, 0, NULL},
+    {"show bnodes;", 0, 0, NULL},
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
@@ -216,7 +224,8 @@ SWords shellCommands[] = {
     {"show views;", 0, 0, NULL},
     {"show arbgroups;", 0, 0, NULL},
     {"split vgroup <vgroup_id>;", 0, 0, NULL},
-    {"s3migrate database <db_name>;", 0, 0, NULL},
+    {"ssmigrate database <db_name>;", 0, 0, NULL},
+    {"show mounts;", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
@@ -309,9 +318,9 @@ char* db_options[] = {"keep ",
                       "wal_level ",
                       "vgroups ",
                       "single_stable ",
-                      "s3_chunksize ",
-                      "s3_keeplocal ",
-                      "s3_compact ",
+                      "ss_chunksize ",
+                      "ss_keeplocal ",
+                      "ss_compact ",
                       "wal_retention_period ",
                       "wal_roll_period ",
                       "wal_retention_size ",
@@ -324,7 +333,7 @@ char* db_options[] = {"keep ",
 
 char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "stt_trigger ",
                             "wal_retention_period ", "wal_retention_size ", "cachesize ", 
-			                      "s3_keeplocal ", "s3_compact ",
+			                      "ss_keeplocal ", "ss_compact ",
                             "wal_fsync_period ", "buffer ", "pages " ,"wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
@@ -346,6 +355,7 @@ char* key_systable[] = {
     "ins_databases",     "ins_functions",  "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
     "ins_users",         "ins_grants",     "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
     "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
+    "ins_bnodes",
     "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
 
 char* udf_language[] = {"\'Python\'", "\'C\'"};
@@ -353,7 +363,7 @@ char* udf_language[] = {"\'Python\'", "\'C\'"};
 char* field_options[] = {
     "encode ", "compress ", "level ", 
     "\'lz4\' ", "\'zlib\' ", "\'zstd\' ", "\'xz\' ", "\'tsz\' ", "\'disabled\' ", // compress
-    "\'simple8b\' ", "\'delta-i\' ", "\'delta-d\' ", "\'bit-packing\' ",
+    "\'simple8b\' ", "\'delta-i\' ", "\'delta-d\' ", "\'bit-packing\' ", "\'bss\' ",
     "\'high\' ", "\'medium\' ", "\'low\' ",
     "comment ",
     "primary key "
@@ -453,7 +463,7 @@ SMatch*    lastMatch = NULL;  // save last match result
 int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
-void printfIntroduction(bool community) {
+void printfIntroduction(EVersionType type) {
   printf("  *********************************  Tab Completion  *************************************\n");
   char secondLine[160] = "\0";
   sprintf(secondLine, "  *   The %s CLI supports tab completion for a variety of items, ", shell.info.cusName);
@@ -473,11 +483,11 @@ void printfIntroduction(bool community) {
   printf("  *    [ Ctrl + L ]   ......  clear the entire screen                                    *\n");
   printf("  *    [ Ctrl + K ]   ......  clear the screen after the cursor                          *\n");
   printf("  *    [ Ctrl + U ]   ......  clear the screen before the cursor                         *\n");
-  if(community) {
-  printf("  * ------------------------------------------------------------------------------------ *\n");
-  printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
-  printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
-  printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                 *\n");
+  if (type == TSDB_VERSION_OSS) {
+    printf("  * ------------------------------------------------------------------------------------ *\n");
+    printf("  *   You are using TDengine OSS. To experience advanced features, like backup/restore,  *\n");
+    printf("  *   privilege control and more, or receive 7x24 technical support, try TDengine        *\n");
+    printf("  *   Enterprise or TDengine Cloud. Learn more at https://tdengine.com                   *\n");
   }
   printf("  ****************************************************************************************\n\n");
 }
@@ -522,6 +532,7 @@ void showHelp() {
     create index <index_name> on <stb_name> (tag_column_name);\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
+    create bnode on dnode <dnode_id> ;\n\
     create stream <stream_name> into <stb_name> as select ...\n\
     create topic <topic_name> as select ...\n\
     create function <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
@@ -535,6 +546,7 @@ void showHelp() {
     drop dnode <dnode_id>;\n\
     drop mnode on dnode <dnode_id> ;\n\
     drop qnode on dnode <dnode_id> ;\n\
+    drop bnode on dnode <dnode_id> ;\n\
     drop user <user_name> ;\n\
     drop function <udf_name>;\n\
     drop consumer group ... \n\
@@ -599,6 +611,7 @@ void showHelp() {
     show queries;\n\
     show query <query_id> ;\n\
     show qnodes;\n\
+    show bnodes;\n\
     show snodes;\n\
     show stables;\n\
     show stables like \n\
@@ -636,12 +649,16 @@ void showHelp() {
     balance vgroup leader on <vgroup_id> \n\
     compact database <db_name>; \n\
     create view <view_name> as select ...\n\
+    create mount <mount_name> on dnode <dnode_id> from <path>;\n\
+    drop mount <mount_name>;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
-    s3migrate database <db_name>;\n\
+    ssmigrate database <db_name>;\n\
     show compacts;\n\
     show compact \n\
+    show ssmigrates;\n\
     show arbgroups;\n\
+    show mounts;\n\
     show views;\n\
     show create view <all_table>;");
 #endif
@@ -786,7 +803,7 @@ void GenerateVarType(int type, char** p, int count) {
 //
 
 // init shell auto function , shell start call once
-bool shellAutoInit() {
+void shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
   for (int32_t i = 0; i < count; i++) {
@@ -815,8 +832,6 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
   GenerateVarType(WT_VAR_GLOBALKEYS, global_keys, sizeof(global_keys) / sizeof(char*));
   GenerateVarType(WT_VAR_FIELD_OPTIONS, field_options, sizeof(field_options) / sizeof(char*));
-
-  return true;
 }
 
 // set conn

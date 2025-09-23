@@ -24,6 +24,7 @@ import platform
 import socket
 import threading
 import importlib
+import ast
 print(f"Python version: {sys.version}")
 print(f"Version info: {sys.version_info}")
 
@@ -58,19 +59,33 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
-# 
+def get_local_classes_in_order(file_path):
+    with open(file_path, "r", encoding="utf-8") as file:
+        tree = ast.parse(file.read(), filename=file_path)
+    
+    classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    return classes
+
+
+def dynamicLoadModule(fileName):
+    moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+    return importlib.import_module(moduleName, package='..')
+
+#
 # run case on previous cluster
 #
 def runOnPreviousCluster(host, config, fileName):
     print("enter run on previeous")
-    
+
     # load case module
     sep = "/"
     if platform.system().lower() == 'windows':
         sep = os.sep
-    moduleName = fileName.replace(".py", "").replace(sep, ".")
-    uModule = importlib.import_module(moduleName)
-    case = uModule.TDTestCase()
+
+    uModule = dynamicLoadModule(fileName)
+    class_names = get_local_classes_in_order(fileName)
+    case_class = getattr(uModule, class_names[-1])
+    case = case_class()    
 
     # create conn
     conn = taos.connect(host, config)
@@ -113,8 +128,9 @@ if __name__ == "__main__":
     asan = False
     independentMnode = False
     previousCluster = False
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWD:n:i:aP', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode','previous'])
+    crashGen = False
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWD:n:i:aP:G', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode','previous',"crashGen"])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -141,6 +157,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-i independentMnode Mnode')
             tdLog.printNoPrefix('-a address sanitizer mode')
             tdLog.printNoPrefix('-P run case with [P]revious cluster, do not create new cluster to run case.')
+            tdLog.printNoPrefix('-G crashGen mode')
 
             sys.exit(0)
 
@@ -208,7 +225,7 @@ if __name__ == "__main__":
 
         if key in ['-R', '--restful']:
             restful = True
-        
+
         if key in ['-W', '--websocket']:
             websocket = True
 
@@ -227,6 +244,10 @@ if __name__ == "__main__":
 
         if key in ['-P', '--previous']:
             previousCluster = True
+
+        if key in ['-G', '--crashGen']:
+            crashGen = True
+
 
     #
     # do exeCmd command
@@ -344,10 +365,11 @@ if __name__ == "__main__":
         updateCfgDictStr = ''
         # adapter_cfg_dict_str = ''
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
+                ucase = case_class()
                 if ((json.dumps(updateCfgDict) == '{}') and hasattr(ucase, 'updatecfgDict')):
                     updateCfgDict = ucase.updatecfgDict
                     updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
@@ -405,7 +427,7 @@ if __name__ == "__main__":
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
-                            
+
             if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
@@ -450,7 +472,7 @@ if __name__ == "__main__":
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
-                            
+
         if ucase is not None and hasattr(ucase, 'noConn') and ucase.noConn == True:
             conn = None
         else:
@@ -516,10 +538,11 @@ if __name__ == "__main__":
         except:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
+                ucase = case_class()                
                 if (json.dumps(updateCfgDict) == '{}'):
                     updateCfgDict = ucase.updatecfgDict
                 if (json.dumps(adapter_cfg_dict) == '{}'):
@@ -640,7 +663,7 @@ if __name__ == "__main__":
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
-                            
+
 
         # run case
         if testCluster:
@@ -692,6 +715,7 @@ if __name__ == "__main__":
         # tdDnodes.StopAllSigint()
         tdLog.info("Address sanitizer mode finished")
     else:
-        tdDnodes.stopAll()
+        if not crashGen:
+            tdDnodes.stopAll()
         tdLog.info("stop all td process finished")
     sys.exit(0)

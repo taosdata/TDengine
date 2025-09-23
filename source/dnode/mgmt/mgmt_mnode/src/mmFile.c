@@ -212,7 +212,7 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   }
 
   if (taosCloseFile(&pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
   TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);

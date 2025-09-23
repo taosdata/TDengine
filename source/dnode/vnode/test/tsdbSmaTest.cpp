@@ -193,7 +193,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   taosRemoveDir(smaTestDir);
 
   pMeta = metaOpen(smaTestDir, pMetaCfg, NULL);
-  assert(pMeta != NULL);
+  TD_ALWAYS_ASSERT(pMeta != NULL);
   // save index 1
   EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 
@@ -211,7 +211,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   // get value by indexName
   STSma *qSmaCfg = NULL;
   qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid1, true);
-  assert(qSmaCfg != NULL);
+  TD_ALWAYS_ASSERT(qSmaCfg != NULL);
   printf("name1 = %s\n", qSmaCfg->indexName);
   printf("timezone1 = %" PRIi8 "\n", qSmaCfg->timezoneInt);
   printf("expr1 = %s\n", qSmaCfg->expr != NULL ? qSmaCfg->expr : "");
@@ -222,7 +222,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   taosMemoryFreeClear(qSmaCfg);
 
   qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid2, true);
-  assert(qSmaCfg != NULL);
+  TD_ALWAYS_ASSERT(qSmaCfg != NULL);
   printf("name2 = %s\n", qSmaCfg->indexName);
   printf("timezone2 = %" PRIi8 "\n", qSmaCfg->timezoneInt);
   printf("expr2 = %s\n", qSmaCfg->expr != NULL ? qSmaCfg->expr : "");
@@ -235,7 +235,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   // get index name by table uid
 #if 0
   SMSmaCursor *pSmaCur = metaOpenSmaCursor(pMeta, tbUid);
-  assert(pSmaCur != NULL);
+  TD_ALWAYS_ASSERT(pSmaCur != NULL);
   uint32_t indexCnt = 0;
   while (1) {
     const char *indexName = (const char *)metaSmaCursorNext(pSmaCur);
@@ -250,7 +250,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 #endif
   // get wrapper by table uid
   STSmaWrapper *pSW = metaGetSmaInfoByTable(pMeta, tbUid);
-  assert(pSW != NULL);
+  TD_ALWAYS_ASSERT(pSW != NULL);
   EXPECT_EQ(pSW->number, nCntTSma);
   EXPECT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
   EXPECT_EQ(pSW->tSma->timezoneInt, timezone);
@@ -270,7 +270,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
 
   // get all sma table uids
   SArray *pUids = metaGetSmaTbUids(pMeta, false);
-  assert(pUids != NULL);
+  TD_ALWAYS_ASSERT(pUids != NULL);
   for (uint32_t i = 0; i < taosArrayGetSize(pUids); ++i) {
     printf("metaGetSmaTbUids: uid[%" PRIu32 "] = %" PRIi64 "\n", i, *(tb_uid_t *)taosArrayGet(pUids, i));
     // printf("metaGetSmaTbUids: index[%" PRIu32 "] = %s", i, (char *)taosArrayGet(pUids, i));
@@ -332,7 +332,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   taosRemoveDir(smaTestDir);
 
   pMeta = metaOpen(smaTestDir, pMetaCfg, NULL);
-  assert(pMeta != NULL);
+  TD_ALWAYS_ASSERT(pMeta != NULL);
   // save index 1
   EXPECT_EQ(metaSaveSmaToDB(pMeta, pSmaCfg), 0);
 

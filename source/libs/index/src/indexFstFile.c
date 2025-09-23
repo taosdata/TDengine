@@ -230,7 +230,7 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
 #endif
     }
     if (ctx->file.pFile == NULL) {
-      indexError("failed to open file, error %d", errno);
+      indexError("failed to open file, error %d", ERRNO);
       goto END;
     }
   } else if (ctx->type == TMEMORY) {
@@ -307,7 +307,7 @@ int32_t idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   IFileCtx* ctx = write->wrt;
   int       nWrite = ctx->write(ctx, buf, len);
   if (nWrite != len) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     return code;
   }
   write->count += len;

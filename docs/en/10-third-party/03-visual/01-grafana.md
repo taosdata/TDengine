@@ -5,18 +5,6 @@ slug: /third-party-tools/visualization/grafana
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/grafana-01.png';
-import imgStep02 from '../../assets/grafana-02.png';
-import imgStep03 from '../../assets/grafana-03.png';
-import imgStep04 from '../../assets/grafana-04.png';
-import imgStep05 from '../../assets/grafana-05.png';
-import imgStep06 from '../../assets/grafana-06.png';
-import imgStep07 from '../../assets/grafana-07.png';
-import imgStep08 from '../../assets/grafana-08.png';
-import imgStep09 from '../../assets/grafana-09.png';
-import imgStep10 from '../../assets/grafana-10.png';
-import imgStep11 from '../../assets/grafana-11.png';
 
 ## Overview
 
@@ -39,19 +27,6 @@ Record the following information:
 ## Install Grafana Plugin and Configure Data Source
 
 <Tabs defaultValue="script">
-<TabItem value="gui" label="Graphical Interface Installation">
-
-Using the latest version of Grafana (8.5+), you can [browse and manage plugins](https://grafana.com/docs/grafana/next/administration/plugin-management/#plugin-catalog) in Grafana (for version 7.x, please use **Installation Script** or **Manual Installation** methods). In the Grafana management interface, directly search for `TDengine` on the **Configurations > Plugins** page and follow the prompts to install.
-
-After installation, follow the instructions to **Create a TDengine data source** by adding the data source with the following TDengine configurations:
-
-- Host: IP address and port number providing REST service in the TDengine cluster, default `http://localhost:6041`
-- User: TDengine username.
-- Password: TDengine user password.
-
-Click `Save & Test` to test, if successful, it will prompt: `TDengine Data source is working`.  
-
-</TabItem>
 <TabItem value="script" label="Installation Script">
 
 For users using Grafana version 7.x or configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can use the installation script on the Grafana server to automatically install the plugin and add the data source Provisioning configuration file.
@@ -69,36 +44,52 @@ After installation, you need to restart the Grafana service for it to take effec
 Save the script and execute `./install.sh --help` to view detailed help documentation.
 
 </TabItem>
-<TabItem value="manual" label="Manual Installation">
+<TabItem value="command" label="Command Line Tool">
 
-Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin [installation](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation).
+Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin. After installation, Grafana needs to be restarted.
+
+On Linux or macOS, run the following command in your terminal:
 
 ```shell
-grafana-cli plugins install tdengine-datasource
+grafana-cli --pluginUrl \
+      https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
+      plugins install tdengine-datasource
 # with sudo
-sudo -u grafana grafana-cli plugins install tdengine-datasource
+sudo -u grafana grafana-cli --pluginUrl \
+      https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
+      plugins install tdengine-datasource
 ```
 
-Alternatively, download the .zip file from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
+On Windows, first ensure that the plugin installation directory exists (by default, it is located in the data/plugins subdirectory of your Grafana installation directory). Then, run the following command in the bin directory of the Grafana installation path using an administrator account:
 
 ```shell
-GF_VERSION=3.5.1
-# from GitHub
-wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
-# from Grafana
-wget -O tdengine-datasource-$GF_VERSION.zip https://grafana.com/api/plugins/tdengine-datasource/versions/$GF_VERSION/download
+./grafana-cli.exe --pluginUrl https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip plugins install tdengine-datasource
+```
+
+Afterward, users can directly access the Grafana server at `http://localhost:3000` (username/password: admin/admin), and add a data source through `Configuration -> Data Sources`,
+
+Click `Add data source` to enter the new data source page, type TDengine in the search box, then click `select` to choose and you will enter the data source configuration page, modify the configuration according to the default prompts:
+
+- Host: IP address and port number providing REST service in the TDengine cluster, default `http://localhost:6041`
+- User: TDengine username.
+- Password: TDengine user password.
+
+Click `Save & Test` to test, if successful, it will prompt: `TDengine Data source is working`
+
+</TabItem>
+
+<TabItem value="manual" label="Manual Installation">
+
+Download [tdengine-datasource.zip](https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
+
+```shell
+wget https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip
 ```
 
 For CentOS 7.2 operating system, unzip the plugin package into the /var/lib/grafana/plugins directory and restart Grafana.
 
 ```shell
-sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
-```
-
-If Grafana is running in a Docker environment, you can use the following environment variable to set up automatic installation of the TDengine data source plugin:
-
-```shell
-GF_INSTALL_PLUGINS=tdengine-datasource
+sudo unzip tdengine-datasource.zip -d /var/lib/grafana/plugins/
 ```
 
 Afterward, users can directly access the Grafana server at `http://localhost:3000` (username/password: admin/admin), and add a data source through `Configuration -> Data Sources`,
@@ -120,7 +111,7 @@ Refer to [Grafana containerized installation instructions](https://grafana.com/d
 docker run -d \
   -p 3000:3000 \
   --name=grafana \
-  -e "GF_INSTALL_PLUGINS=tdengine-datasource" \
+  -e "GF_INSTALL_PLUGINS=https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource" \
   grafana/grafana
 ```
 
@@ -137,9 +128,8 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
       url: "$TDENGINE_API"
       isDefault: true
       secureJsonData:
-        url: "$TDENGINE_URL"
+        url: "$TDENGINE_API"
         basicAuth: "$TDENGINE_BASIC_AUTH"
-        token: "$TDENGINE_CLOUD_TOKEN"
       version: 1
       editable: true
     ```
@@ -151,24 +141,32 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
 
     services:
       tdengine:
-        image: tdengine/tdengine:3.3.0.0
+        image: tdengine/tdengine:latest
+        container_name: tdengine
+        hostname: tdengine
         environment:
           TAOS_FQDN: tdengine
+          MONITOR_FQDN: tdengine
+          EXPLORER_CLUSTER: http://tdengine:6041
+          TAOS_KEEPER_TDENGINE_HOST: tdengine
         volumes:
           - tdengine-data:/var/lib/taos/
+        ports:
+          - 6060:6060
       grafana:
-        image: grafana/grafana:9.3.6
+        image: grafana/grafana:latest
         volumes:
-          - ./tdengine.yml/:/etc/grafana/provisioning/tdengine.yml
+          - ./tdengine.yml:/etc/grafana/provisioning/datasources/tdengine.yml
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
-          GF_INSTALL_PLUGINS: "tdengine-datasource"
-          TDENGINE_URL: "http://tdengine:6041"
+          GF_INSTALL_PLUGINS: "https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource"
+          TDENGINE_API: "http://tdengine:6041"
           #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
-          TDENGINE_BASIC_AUTH: "cm9vdDp0YmFzZTEyNQ=="
+          TDENGINE_BASIC_AUTH: "cm9vdDp0YW9zZGF0YQ=="
         ports:
           - 3000:3000
+
     volumes:
       grafana-data:
       tdengine-data:
@@ -230,13 +228,13 @@ Custom variables can reference other custom variables, for example, one variable
 
 ##### Adding a Query Type Variable
 
-In the Dashboard configuration, select 【Variables】, then click 【New variable】:
+In the Dashboard configuration, select **Variables**, then click **New variable**:
 
 1. In the "Name" field, enter your variable name, here we set the variable name as `selected_groups`.
-2. In the 【Select variable type】dropdown menu, select "Query" (query).
+2. In the **Select variable type** dropdown menu, select "Query" (query).
 Depending on the selected variable type, configure the corresponding options. For example, if you choose "Query", you need to specify the data source and the query statement to obtain the variable values. Here, we take smart meters as an example, set the query type, select the data source, and configure the SQL as `select distinct(groupid) from power.meters where groupid < 3 and ts > $from and ts < $to;`
-3. After clicking 【Run Query】at the bottom, you can see the variable values generated based on your configuration in the "Preview of values" section.
-4. Other configurations are not detailed here; after completing the configuration, click the 【Apply】button at the bottom of the page, then click 【Save dashboard】in the upper right corner to save.
+3. After clicking **Run Query** at the bottom, you can see the variable values generated based on your configuration in the "Preview of values" section.
+4. Other configurations are not detailed here; after completing the configuration, click the **Apply** button at the bottom of the page, then click **Save dashboard** in the upper right corner to save.
 
 After completing the above steps, we have successfully added a new custom variable `$selected_groups` in the Dashboard. We can later reference this variable in the Dashboard's queries through `$selected_groups`.
 
@@ -247,9 +245,9 @@ We can also add another custom variable to reference this `selected_groups` vari
 We can customize the time window interval to better fit business needs.
 
 1. In the "Name" field, enter the variable name as `interval`.
-2. In the 【Select variable type】dropdown menu, select "Interval" (interval).
-3. In the 【Interval options】enter `1s,2s,5s,10s,15s,30s,1m`.
-4. Other configurations are not detailed here; after completing the configuration, click the 【Apply】button at the bottom of the page, then click 【Save dashboard】in the upper right corner to save.
+2. In the **Select variable type** dropdown menu, select "Interval" (interval).
+3. In the **Interval options** enter `1s,2s,5s,10s,15s,30s,1m`.
+4. Other configurations are not detailed here; after completing the configuration, click the **Apply** button at the bottom of the page, then click **Save dashboard** in the upper right corner to save.
 
 After completing the above steps, we have successfully added a new custom variable `$interval` in the Dashboard. We can later reference this variable in the Dashboard's queries through `$interval`.
 
@@ -273,11 +271,9 @@ Detailed introduction to the above features can be found at [Distinguished Queri
 ### Creating a Dashboard
 
 With the foundational knowledge from earlier, we can configure a time-series data display Dashboard based on the TDengine data source.  
-Create a Dashboard on the Grafana main interface, click on 【Add Query】 to enter the panel query page:
+Create a Dashboard on the Grafana main interface, click on **Add Query** to enter the panel query page:
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](../../assets/grafana-01.png)
 
 As shown in the image above, select the `TDengine` data source in "Query", and enter the corresponding SQL in the query box below. Continuing with the example of smart meters, to display a beautiful curve, **virtual data is used here**.
 
@@ -285,15 +281,13 @@ As shown in the image above, select the `TDengine` data source in "Query", and e
 
 Suppose we want to query the average current size over a period of time, with the time window divided by `$interval`, and fill with null if data is missing in any time window.
 
-- “INPUT SQL”: Enter the query statement (the result set of this SQL statement should be two columns and multiple rows), here enter: `select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)`, where from, to, and interval are Grafana built-in variables, and selected_groups is a custom variable.
-- “ALIAS BY”: You can set an alias for the current query.
-- “GENERATE SQL”: Clicking this button will automatically replace the corresponding variables and generate the final execution statement.
+- "INPUT SQL": Enter the query statement (the result set of this SQL statement should be two columns and multiple rows), here enter: `select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)`, where from, to, and interval are Grafana built-in variables, and selected_groups is a custom variable.
+- "ALIAS BY": You can set an alias for the current query.
+- "GENERATE SQL": Clicking this button will automatically replace the corresponding variables and generate the final execution statement.
 
 In the custom variables at the top, if the value of `selected_groups` is set to 1, then querying the average value changes of all devices' current in the `meters` supertable with `groupid` 1 is shown in the following image:
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](../../assets/grafana-02.png)
 
 :::note
 
@@ -305,14 +299,12 @@ Since the REST interface is stateless, you cannot use the `use db` statement to 
 
 Suppose we want to query the average current size over a period of time and display it grouped by `groupid`, we can modify the previous SQL to `select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)`
 
-- “Group by column(s)”: Comma-separated `group by` or `partition by` column names in **half-width** commas. If it is a `group by` or `partition by` query statement, set the “Group by” column to display multidimensional data. Here, set the “Group by” column name as `groupid` to display data grouped by `groupid`.
-- “Group By Format”: Legend format for multidimensional data in `Group by` or `Partition by` scenarios. For example, in the above INPUT SQL, set the “Group By Format” to `groupid-{{groupid}}`, and the displayed legend name will be the formatted group name.
+- "Group by column(s)": Comma-separated `group by` or `partition by` column names in **half-width** commas. If it is a `group by` or `partition by` query statement, set the "Group by" column to display multidimensional data. Here, set the "Group by" column name as `groupid` to display data grouped by `groupid`.
+- "Group By Format": Legend format for multidimensional data in `Group by` or `Partition by` scenarios. For example, in the above INPUT SQL, set the "Group By Format" to `groupid-{{groupid}}`, and the displayed legend name will be the formatted group name.
 
 After completing the settings, the display grouped by `groupid` is shown in the following image:
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](../../assets/grafana-03.png)
 
 > For information on how to use Grafana to create corresponding monitoring interfaces and more about using Grafana, please refer to the official [documentation](https://grafana.com/docs/) of Grafana.
 
@@ -325,9 +317,7 @@ After completing the settings, the display grouped by `groupid` is shown in the 
 
 On the data source configuration page, you can import the TDinsight panel for this data source, serving as a monitoring visualization tool for the TDengine cluster. If the TDengine server is version 3.0, please select `TDinsight for 3.x` for import. Note that TDinsight for 3.x requires running and configuring taoskeeper.
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![](../../assets/grafana-04.png)
 
 The Dashboard compatible with TDengine 2.* has been released on Grafana: [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)).
 
@@ -389,23 +379,17 @@ On the Grafana page, go to "Home" -> "Alerting" -> "Contact points" and create a
 "Name": Email Contact Point  
 "Integration": Select the contact type, here choose Email, fill in the email receiving address, and save the contact point after completion  
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![](../../assets/grafana-05.png)
 
 ### Configure Notification Policies
 
 After configuring the contact points, you can see there is a Default Policy
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![](../../assets/grafana-06.png)
 
 Click on the right side "..." -> "Edit", then edit the default notification policy, a configuration window pops up:
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![](../../assets/grafana-07.png)
 
 Then configure the following parameters:
 
@@ -440,9 +424,7 @@ In "Define query and alert condition" configure the alert rule.
 
 After setting, you can see the image displayed below:
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![](../../assets/grafana-08.png)
 
 Grafana's "Expression" (expression) supports various operations and calculations on data, which are divided into:
 
@@ -465,9 +447,7 @@ As shown in the screenshot above, here we set the maximum value to trigger an al
 
 #### Configure Rule Evaluation Strategy
 
-<figure>
-<Image img={imgStep09} alt=""/>
-</figure>
+![](../../assets/grafana-09.png)
 
 Complete the following configurations:  
 
@@ -477,9 +457,7 @@ Complete the following configurations:
 
 #### Configure Labels and Alert Channels
 
-<figure>
-<Image img={imgStep10} alt=""/>
-</figure>
+![](../../assets/grafana-10.png)
 
 Complete the following configurations:  
 
@@ -488,8 +466,6 @@ Complete the following configurations:
 
 #### Configure Notification Text
 
-<figure>
-<Image img={imgStep11} alt=""/>
-</figure>
+![](../../assets/grafana-11.png)
 
 Set "Summary" and "Description", and if an alert is triggered, you will receive a notification.

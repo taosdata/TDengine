@@ -270,7 +270,6 @@ static SPageInfo* registerNewPageInfo(SDiskbasedBuf* pBuf, int32_t pageId) {
 
   SPageInfo* ppi = taosMemoryMalloc(sizeof(SPageInfo));
   if (ppi == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -408,7 +407,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMem
     goto _error;
   }
 
-  //  qDebug("QInfo:0x%"PRIx64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
+  //  qDebug("QInfo:0x%"PRIx64 ", create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
   //  pPBuf->pageSize, pPBuf->inMemPages, pPBuf->path);
 
   *pBuf = pPBuf;
@@ -431,9 +430,6 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
   } else {
     availablePage =
         taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
-    if (availablePage == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-    }
   }
 
   return availablePage;
@@ -652,7 +648,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (needRemoveFile) {
     int32_t ret = taosRemoveFile(pBuf->path);
     if (ret != 0) {  // print the error and discard this error info
-      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(errno));
+      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(ERRNO));
     }
   }
 

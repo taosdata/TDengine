@@ -208,7 +208,7 @@ int32_t mndCompactActionInsert(SSdb *pSdb, SCompactObj *pCompact) {
 }
 
 int32_t mndCompactActionDelete(SSdb *pSdb, SCompactObj *pCompact) {
-  mTrace("compact:%" PRId32 ", perform insert action", pCompact->compactId);
+  mTrace("compact:%" PRId32 ", perform delete action", pCompact->compactId);
   tFreeCompactObj(pCompact);
   return 0;
 }
@@ -927,7 +927,8 @@ static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pD
   return 0;
 }
 
-extern int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds);
+extern int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
+                            bool metaOnly);
 static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   int32_t code = 0;
   SMnode *pMnode = pReq->info.node;
@@ -940,6 +941,11 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
     if (pDb->cfg.compactInterval <= 0) {
       mDebug("db:%p,%s, compact interval is %dm, skip", pDb, pDb->name, pDb->cfg.compactInterval);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    if (pDb->cfg.isMount) {
       sdbRelease(pSdb, pDb);
       continue;
     }
@@ -982,7 +988,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
         .skey = convertTimePrecision(curMs + compactStartTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision),
         .ekey = convertTimePrecision(curMs + compactEndTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision)};
 
-    if ((code = mndCompactDb(pMnode, NULL, pDb, tw, NULL)) == 0) {
+    if ((code = mndCompactDb(pMnode, NULL, pDb, tw, NULL, false)) == 0) {
       mInfo("db:%p,%s, succeed to dispatch compact with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
             "m, end:%" PRIi64 "m, offset:%" PRIi8 "h",
             pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, compactStartTime, compactEndTime,

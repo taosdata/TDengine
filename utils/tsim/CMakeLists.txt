@@ -10,11 +10,10 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 TARGET_LINK_LIBRARIES(
     tsim_static
-    PUBLIC ${TAOS_LIB}
+    PUBLIC ${TAOS_NATIVE_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
-    PUBLIC cjson
 )
 
 LIST(APPEND TSIM_EXE_SRC src/simMain.c)

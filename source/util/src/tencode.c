@@ -102,7 +102,7 @@ void tEndEncode(SEncoder* pCoder) {
   SEncoderNode* pNode;
   int32_t       len;
 
-  if (pCoder->data) {
+  if (pCoder->data && pCoder->eStack) {
     pNode = pCoder->eStack;
     pCoder->eStack = pNode->pNext;
 

@@ -34,6 +34,11 @@ typedef enum {
   DEBUG_FILE = 128
 } ELogLevel;
 
+typedef enum {
+  LOG_MODE_TAOSC = 1,
+  LOG_MODE_TAOSD = 2
+} ELogMode;
+
 typedef void (*LogFp)(int64_t ts, ELogLevel level, const char *content);
 
 extern bool    tsLogEmbedded;
@@ -59,6 +64,7 @@ extern int32_t qDebugFlag;
 extern int32_t stDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t azDebugFlag;
+extern int32_t tssDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
@@ -69,15 +75,20 @@ extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 extern int32_t tdbDebugFlag;
 extern int32_t sndDebugFlag;
+extern int32_t bndDebugFlag;
 extern int32_t simDebugFlag;
+extern int32_t bseDebugFlag;
 
 extern int32_t tqClientDebugFlag;
-int32_t taosInitLogOutput(const char **ppLogName);
-int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
-void    taosCloseLog();
-void    taosResetLog();
-void    taosDumpData(uint8_t *msg, int32_t len);
-void    taosSetNoNewFile();
+int32_t        taosInitLogOutput(const char **ppLogName);
+int32_t        taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
+void           taosCloseLog();
+void           taosResetLog();
+void           taosDumpData(uint8_t *msg, int32_t len);
+void           taosSetNoNewFile();
+
+// Fast uint64_t to string conversion, equivalent to sprintf(buf, "%lu", val) but with 10x better performance.
+char *u64toaFastLut(uint64_t val, char *buf);
 
 void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
@@ -119,19 +130,25 @@ void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, vo
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
 void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
 
+int32_t initCrashLogWriter();
+void    checkAndPrepareCrashInfo();
+bool    reportThreadSetQuit();
+void    writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime);
+
 // clang-format off
-#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", DEBUG_INFO, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
-#define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", DEBUG_TRACE, uDebugFlag, __VA_ARGS__); }}
-#define uDebugL(...){ if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
-#define uInfoL(...) { if (uDebugFlag & DEBUG_INFO)  { taosPrintLongString("UTL ", DEBUG_INFO, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN  ", DEBUG_WARN,  tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL DEBUG ", DEBUG_DEBUG, uDebugFlag,                       __VA_ARGS__); }}
+#define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL TRACE ", DEBUG_TRACE, uDebugFlag,                       __VA_ARGS__); }}
+#define uDebugL(...){ if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL DEBUG ", DEBUG_DEBUG, uDebugFlag,                      __VA_ARGS__); }}
+#define uInfoL(...) { if (uDebugFlag & DEBUG_INFO)  { taosPrintLongString("UTL INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
-#define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }
+#define pPrint(...) { taosPrintLog("APP INFO  ", DEBUG_INFO, 255, __VA_ARGS__); }
 // clang-format on
+
 // #define BUF_PAGE_DEBUG
 #ifdef __cplusplus
 }

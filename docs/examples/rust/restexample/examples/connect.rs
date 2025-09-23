@@ -2,9 +2,9 @@ use taos::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let dsn = "ws://localhost:6041".to_string();
-    
-    match TaosBuilder::from_dsn(&dsn)?.build().await {
+    let dsn = "ws://localhost:6041";
+
+    match TaosBuilder::from_dsn(dsn)?.build().await {
         Ok(_taos) => {
             println!("Connected to {} successfully.", dsn);
             Ok(())

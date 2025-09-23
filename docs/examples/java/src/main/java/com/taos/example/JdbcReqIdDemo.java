@@ -12,32 +12,33 @@ public class JdbcReqIdDemo {
     private static final String user = "root";
     private static final String password = "taosdata";
 
-
     public static void main(String[] args) throws SQLException {
 
         final String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?user=" + user + "&password=" + password;
 
-// get connection
+        // get connection
         Properties properties = new Properties();
         properties.setProperty("charset", "UTF-8");
         properties.setProperty("locale", "en_US.UTF-8");
         properties.setProperty("timezone", "UTC-8");
         System.out.println("get connection starting...");
 
-// ANCHOR: with_reqid
+        // ANCHOR: with_reqid
         long reqId = 3L;
         try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
-             // Create a statement that allows specifying a request ID
-             AbstractStatement aStmt = (AbstractStatement) connection.createStatement()) {
+                // Create a statement that allows specifying a request ID
+                AbstractStatement aStmt = (AbstractStatement) connection.createStatement()) {
 
-            try (ResultSet resultSet = aStmt.executeQuery("SELECT ts, current, location FROM power.meters limit 1", reqId)) {
+            try (ResultSet resultSet = aStmt.executeQuery("SELECT ts, current, location FROM power.meters limit 1",
+                    reqId)) {
                 Timestamp ts;
                 float current;
                 String location;
                 while (resultSet.next()) {
+                    // we recommend using the column index to get the value for better performance
                     ts = resultSet.getTimestamp(1);
                     current = resultSet.getFloat(2);
-                    // we recommend using the column name to get the value
+                    // you can also use the column name to get the value
                     location = resultSet.getString("location");
 
                     // you can check data here
@@ -54,7 +55,7 @@ public class JdbcReqIdDemo {
             ex.printStackTrace();
             throw ex;
         }
-// ANCHOR_END: with_reqid
+        // ANCHOR_END: with_reqid
     }
 
     private static void printResult(ResultSet resultSet) throws SQLException {

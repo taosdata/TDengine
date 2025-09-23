@@ -17,9 +17,9 @@
 #include "tq.h"
 
 int32_t tqBuildFName(char** data, const char* path, char* name) {
-  int32_t   code = 0;
-  int32_t   lino = 0;
-  char*     fname = NULL;
+  int32_t code = 0;
+  int32_t lino = 0;
+  char*   fname = NULL;
   TSDB_CHECK_NULL(data, code, lino, END, TSDB_CODE_INVALID_MSG);
   TSDB_CHECK_NULL(path, code, lino, END, TSDB_CODE_INVALID_MSG);
   TSDB_CHECK_NULL(name, code, lino, END, TSDB_CODE_INVALID_MSG);
@@ -32,10 +32,31 @@ int32_t tqBuildFName(char** data, const char* path, char* name) {
   fname = NULL;
 
 END:
-  if (code != 0){
+  if (code != 0) {
     tqError("%s failed at %d since %s", __func__, lino, tstrerror(code));
   }
   taosMemoryFree(fname);
+  return code;
+}
+
+int32_t tqCommitOffset(void* p) {
+  STQ*    pTq = (STQ*)p;
+  int32_t code = TDB_CODE_SUCCESS;
+  void*   pIter = NULL;
+  int32_t vgId = pTq->pVnode != NULL ? pTq->pVnode->config.vgId : -1;
+  while ((pIter = taosHashIterate(pTq->pOffset, pIter))) {
+    STqOffset* offset = (STqOffset*)pIter;
+    int32_t    ret = tqMetaSaveOffset(pTq, offset);
+    if (ret != TDB_CODE_SUCCESS) {
+      code = ret;
+      tqError("tq commit offset error subkey:%s, vgId:%d", offset->subKey, vgId);
+    } else {
+      if (offset->val.type == TMQ_OFFSET__LOG) {
+        tqInfo("tq commit offset success subkey:%s vgId:%d, offset(type:log) version:%" PRId64, offset->subKey, vgId,
+               offset->val.version);
+      }
+    }
+  }
   return code;
 }
 
@@ -44,8 +65,8 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
   int32_t    lino = 0;
   void*      pMemBuf = NULL;
   TdFilePtr  pFile = NULL;
-  STqOffset *pOffset = NULL;
-  void      *pIter = NULL;
+  STqOffset* pOffset = NULL;
+  void*      pIter = NULL;
 
   TSDB_CHECK_NULL(pTq, code, lino, END, TSDB_CODE_INVALID_MSG);
   TSDB_CHECK_NULL(name, code, lino, END, TSDB_CODE_INVALID_MSG);
@@ -80,19 +101,17 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name) {
     TSDB_CHECK_CODE(code, lino, END);
     pOffset = NULL;
 
-    tqInfo("tq: offset restore from file to tdb, size:%d, hash size:%d subkey:%s", total, taosHashGetSize(pTq->pOffset), offset.subKey);
+    tqInfo("tq: offset restore from file to tdb, size:%d, hash size:%d subkey:%s", total, taosHashGetSize(pTq->pOffset),
+           offset.subKey);
     taosMemoryFree(pMemBuf);
     pMemBuf = NULL;
   }
 
-  while ((pIter = taosHashIterate(pTq->pOffset, pIter))) {
-    STqOffset* offset = (STqOffset*)pIter;
-    code = tqMetaSaveOffset(pTq, offset);
-    TSDB_CHECK_CODE(code, lino, END);
-  }
+  code = tqCommitOffset(pTq);
+  TSDB_CHECK_CODE(code, lino, END);
 
 END:
-  if (code != 0){
+  if (code != 0) {
     tqError("%s failed at %d since %s", __func__, lino, tstrerror(code));
   }
   (void)taosCloseFile(&pFile);

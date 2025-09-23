@@ -69,7 +69,7 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
     return terrno;
   }
 
-  buildTaskId(taskId, queryId, p->id.str);
+  buildTaskId(taskId, queryId, p->id.str, 64);
   p->schemaInfos = taosArrayInit(1, sizeof(SSchemaInfo));
   if (p->id.str == NULL || p->schemaInfos == NULL) {
     doDestroyTask(p);
@@ -105,9 +105,12 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     return code;
   }
 
+  (*pTaskInfo)->pSubplan = pPlan;
+
   if (pHandle) {
     if (pHandle->pStateBackend) {
       (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
+      (*pTaskInfo)->streamInfo.pOtherState = pHandle->pOtherBackend;
     }
   }
 
@@ -115,17 +118,16 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     (*pTaskInfo)->sql = taosStrdup(sql);
     if (NULL == (*pTaskInfo)->sql) {
       code = terrno;
-      nodesDestroyNode((SNode*)pPlan);
       doDestroyTask(*pTaskInfo);
       (*pTaskInfo) = NULL;
       return code;
     }
   }
 
-  (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
+  (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
-                        pPlan->dbFName, &((*pTaskInfo)->pRoot));
+                        pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 
   if (NULL == (*pTaskInfo)->pRoot || code != 0) {
     doDestroyTask(*pTaskInfo);
@@ -172,10 +174,14 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
     return terrno;
   }
 
+  if (mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    schemaInfo.rversion = mr.me.colRef.version;
+  }
+
   if (mr.me.type == TSDB_SUPER_TABLE) {
     schemaInfo.sw = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaRow);
     schemaInfo.tversion = mr.me.stbEntry.schemaTag.version;
-  } else if (mr.me.type == TSDB_CHILD_TABLE) {
+  } else if (mr.me.type == TSDB_CHILD_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     tDecoderClear(&mr.coder);
 
     tb_uid_t suid = mr.me.ctbEntry.suid;
@@ -262,6 +268,8 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
 static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
   tDeleteSchemaWrapper(pStreamInfo->schema);
   tOffsetDestroy(&pStreamInfo->currentOffset);
+  tDeleteSchemaWrapper(pStreamInfo->notifyResultSchema);
+  taosMemoryFree(pStreamInfo->stbFullName);
 }
 
 static void freeBlock(void* pParam) {
@@ -284,21 +292,18 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
 
   taosArrayDestroyEx(pTaskInfo->pResultBlockList, freeBlock);
   taosArrayDestroy(pTaskInfo->stopInfo.pStopInfo);
+  if (!pTaskInfo->paramSet) {
+    freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
+    pTaskInfo->pOpParam = NULL;
+  }
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);
 }
 
-void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst) {
-  char* p = dst;
-
-  int32_t offset = 6;
-  memcpy(p, "TID:0x", offset);
-  offset += tintToHex(taskId, &p[offset]);
-
-  memcpy(&p[offset], " QID:0x", 7);
-  offset += 7;
-  offset += tintToHex(queryId, &p[offset]);
-
-  p[offset] = 0;
+void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len) {
+  int32_t ret = snprintf(dst, len, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
+  if (ret < 0) {
+    qError("TID:0x%"PRIx64" QID:0x%"PRIx64" create task id failed,  ignore and continue", taskId, queryId);
+  }
 }

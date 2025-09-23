@@ -22,12 +22,21 @@
 extern "C" {
 #endif
 
+#define REPLACE_LEADER_ID(_obj, _o, _s) do {      \
+    if ((_obj)->leadersId[0] == (_o)) {           \
+      ((_obj)->leadersId[0] = (_s));              \
+    } else if ((_obj)->leadersId[1] == (_o)) {    \
+      ((_obj)->leadersId[1] = (_s));              \
+    }                                             \
+  } while (0)
+  
 int32_t    mndInitSnode(SMnode *pMnode);
 void       mndCleanupSnode(SMnode *pMnode);
 SSnodeObj *mndAcquireSnode(SMnode *pMnode, int32_t qnodeId);
 void       mndReleaseSnode(SMnode *pMnode, SSnodeObj *pObj);
 SEpSet     mndAcquireEpFromSnode(SMnode *pMnode, const SSnodeObj *pSnode);
 int32_t    mndSetDropSnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SSnodeObj *pObj, bool force);
+int32_t    mndDropSnodeImpl(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj, STrans *pTrans, bool force);
 
 #ifdef __cplusplus
 }

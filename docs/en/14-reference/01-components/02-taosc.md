@@ -4,9 +4,11 @@ sidebar_label: taosc
 slug: /tdengine-reference/components/taosc
 ---
 
-The TDengine client driver provides all the APIs needed for application programming and plays an important role in the distributed computing across the entire cluster. In addition to the API and its specific parameters, the behavior of the client driver can also be globally controlled through a configuration file. This section lists the configuration parameters that can be used by the TDengine client.
+The TDengine client driver provides all the APIs needed for application programming and plays an important role in the distributed computing across the entire cluster. In addition to the API and its specific parameters, the behavior of the client driver can also be globally controlled through a configuration file. This section lists the configuration parameters that can be used by the TDengine client. Some parameters take effect for Native connections, while others apply to WebSocket connections. Please note the distinction when using them.
 
-## Configuration Parameters
+## Native Connection Configuration Parameters
+
+The following configuration parameters only take effect for Native connections.  
 
 ### Connection Related
 
@@ -23,6 +25,7 @@ The TDengine client driver provides all the APIs needed for application programm
 |useAdapter            |          |Supported, effective immediately  |Internal parameter, whether to use taosadapter, affects CSV file import|
 |shareConnLimit        |Added in 3.3.4.0|Not supported                     |Internal parameter, the number of queries a link can share, range 1-256, default value 10|
 |readTimeout           |Added in 3.3.4.0|Not supported                     |Internal parameter, minimum timeout, range 64-604800, in seconds, default value 900|
+| maxRetryWaitTime     | v3.3.4.0                        | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 
 ### Query Related
 
@@ -44,6 +47,8 @@ The TDengine client driver provides all the APIs needed for application programm
 |enableQueryHb                    |         |Supported, effective immediately  |Internal parameter, whether to send query heartbeat messages|
 |minSlidingTime                   |         |Supported, effective immediately  |Internal parameter, minimum allowable value for sliding|
 |minIntervalTime                  |         |Supported, effective immediately  |Internal parameter, minimum allowable value for interval|
+|compareAsStrInGreatest           | v3.3.6.0 |Supported, effective immediately  |When the greatest and least functions have both numeric and string types as parameters, the comparison type conversion rules are as follows: Integer; 1: uniformly converted to string comparison, 0: uniformly converted to numeric type comparison.|
+|showFullCreateTableColumn        | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.
 
 ### Writing Related
 
@@ -79,7 +84,7 @@ The TDengine client driver provides all the APIs needed for application programm
 | minimalLogDirGB  |                   |Supported, effective immediately  | Stops writing logs when the disk space available in the log directory is less than this value, in GB, default value: 1 |
 | numOfLogLines    |                   |Supported, effective immediately  | Maximum number of lines allowed in a single log file, default value: 10,000,000 |
 | asyncLog         |                   |Supported, effective immediately  | Log writing mode, 0: synchronous, 1: asynchronous, default value: 1 |
-| logKeepDays      |                   |Supported, effective immediately  | Maximum retention time for log files, in days, default value: 0, meaning unlimited retention. Log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, the log file will be renamed to taoslogx.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out |
+| logKeepDays      |                   |Supported, effective immediately  | Maximum retention time for log files, in days, default value: 0, meaning unlimited retention. Log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, the log file will be renamed to taoslogx.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out,and log files whose creation time exceeds logKeepDays will be removed; Considering the usage habits of users of TDengine 2.0, starting from TDengine 3.3.6.6, when the value is set to less than 0, except that log files whose creation time exceeds -logKeepDays will be removed, other behaviors are the same as those when the value is greater than 0(For TDengine versions between 3.0.0.0 and 3.3.6.5, it is not recommended to set the value to less than 0) |
 | debugFlag        |                   |Supported, effective immediately  | Log switch for running logs, 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs); default value 131 or 135 (depending on the module) |
 | tmrDebugFlag     |                   |Supported, effective immediately  | Log switch for the timer module, value range as above |
 | uDebugFlag       |                   |Supported, effective immediately  | Log switch for the utility module, value range as above |
@@ -107,12 +112,30 @@ The TDengine client driver provides all the APIs needed for application programm
 | AVX512Enable     | After 3.3.4.3     |Not supported                     | Internal parameter, used for testing AVX512 acceleration |
 | bypassFlag       |After 3.3.4.5      |Supported, effective immediately  | Internal parameter, used for  short-circuit testing|
 
-
 ### SHELL Related
 
 |Parameter Name|Supported Version|Dynamic Modification|Description|
 |----------------------|----------|--------------------|-------------|
 |enableScience    |          |Not supported                     |Whether to enable scientific notation for displaying floating numbers; 0: do not enable, 1: enable; default value: 1|
+
+## WebSocket Connection Configuration Parameters
+
+The following configuration parameters only take effect for WebSocket connections.  
+
+|Parameter Name|Supported Version|Dynamic Modification|Description|
+|----------------------|----------|--------------------|-------------|
+| serverPort | After 3.3.6.0 | Not supported | The port that taosAdapter listens on, default value: 6041 |
+| timezone | After 3.3.6.0 | Not supported | Time zone; defaults to dynamically obtaining the current system time zone setting |
+| logDir | After 3.3.6.0 | Not supported | Log file directory, operational logs will be written to this directory, default value: /var/log/taos |
+| debugFlag | After 3.3.6.0 | Not supported | Log switch for running logs, 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs); default value: 131 |
+| logKeepDays | After 3.3.7.4 | Not supported | Maximum retention period for log files in days. When set to 0, no log files are deleted. When greater than 0, log files exceeding the size limit are renamed to taoslog.ts.gz (where ts is the last modification timestamp) and new log files are created. Log files older than the specified days are deleted; default value: 30 |
+| rotationCount | After 3.3.7.4 | Not supported | Number of log file rotations before deletion, default value: 30 |
+| rotationSize | After 3.3.7.4 | Not supported | Maximum size of a single log file (supports KB/MB/GB units), default value: 1GB |
+| compression | After 3.3.6.0 | Not supported | Enable WebSocket message compression. 0: disabled (default), 1: enabled |
+| adapterList | After 3.3.7.4 | Not supported | List of taosAdapter addresses for load balancing and failover. Multiple addresses are comma-separated, format: `host1:port1,host2:port2,...` |
+| connRetries | After 3.3.7.4 | Not supported | Maximum number of retries upon connection failure, default value: 5 |
+| retryBackoffMs | After 3.3.7.4 | Not supported | Initial wait time in milliseconds after connection failure. This value increases exponentially with consecutive failures until reaching the maximum wait time, default value: 200 |
+| retryBackoffMaxMs | After 3.3.7.4 | Not supported | Maximum wait time in milliseconds when connection fails, default value: 2000 |
 
 ## API
 

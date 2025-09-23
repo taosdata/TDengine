@@ -18,7 +18,11 @@ import datetime
 import random
 import copy
 import json
+import tempfile
+import uuid
 
+import frame.eos
+import frame.etool
 import frame.eutil
 from frame.log import *
 from frame.sql import *
@@ -34,9 +38,16 @@ class TBase:
 
     # init
     def init(self, conn, logSql, replicaVar=1, db="db", stb="stb", checkColName="ic"):
+        
+        # init
+        self.childtable_count = 0
+        self.insert_rows      = 0
+        self.timestamp_step   = 0
+
         # save param
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), True)
+        self.tmpdir = "tmp"
 
         # record server information
         self.dnodeNum = 0
@@ -49,12 +60,12 @@ class TBase:
         self.stb    = stb
 
         # sql 
-        self.sqlSum = f"select sum({checkColName}) from {self.stb}"
-        self.sqlMax = f"select max({checkColName}) from {self.stb}"
-        self.sqlMin = f"select min({checkColName}) from {self.stb}"
-        self.sqlAvg = f"select avg({checkColName}) from {self.stb}"
-        self.sqlFirst = f"select first(ts) from {self.stb}"
-        self.sqlLast  = f"select last(ts) from {self.stb}"
+        self.sqlSum = f"select sum({checkColName}) from {db}.{self.stb}"
+        self.sqlMax = f"select max({checkColName}) from {db}.{self.stb}"
+        self.sqlMin = f"select min({checkColName}) from {db}.{self.stb}"
+        self.sqlAvg = f"select avg({checkColName}) from {db}.{self.stb}"
+        self.sqlFirst = f"select first(ts) from {db}.{self.stb}"
+        self.sqlLast  = f"select last(ts) from {db}.{self.stb}"
 
     # stop
     def stop(self):
@@ -135,15 +146,15 @@ class TBase:
     # basic
     def checkInsertCorrect(self, difCnt = 0):
         # check count
-        sql = f"select count(*) from {self.stb}"
+        sql = f"select count(*) from {self.db}.{self.stb}"
         tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
 
         # check child table count
-        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.stb} group by tbname) where cnt = {self.insert_rows} "
+        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.db}.{self.stb} group by tbname) where cnt = {self.insert_rows} "
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
+        sql = f"select count(*) from (select diff(ts) as dif from {self.db}.{self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
         tdSql.checkAgg(sql, difCnt)
 
     # save agg result
@@ -167,27 +178,27 @@ class TBase:
     # self check 
     def checkConsistency(self, col):
         # top with max
-        sql = f"select max({col}) from {self.stb}"
+        sql = f"select max({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select top({col}, 5) from {self.stb}"
+        sql = f"select top({col}, 5) from {self.db}.{self.stb}"
         tdSql.checkFirstValue(sql, expect)
 
         #bottom with min
-        sql = f"select min({col}) from {self.stb}"
+        sql = f"select min({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select bottom({col}, 5) from {self.stb}"
+        sql = f"select bottom({col}, 5) from {self.db}.{self.stb}"
         tdSql.checkFirstValue(sql, expect)
 
         # order by asc limit 1 with first
-        sql = f"select last({col}) from {self.stb}"
+        sql = f"select last({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.stb} order by _c0 desc limit 1"
+        sql = f"select {col} from {self.db}.{self.stb} order by _c0 desc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
         # order by desc limit 1 with last
-        sql = f"select first({col}) from {self.stb}"
+        sql = f"select first({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.stb} order by _c0 asc limit 1"
+        sql = f"select {col} from {self.db}.{self.stb} order by _c0 asc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
 
@@ -230,6 +241,25 @@ class TBase:
 
         tdLog.info("sql1 same result with sql2.")
 
+    # check same value
+    def checkSame(self, real, expect, show = True):
+        if real == expect:
+            if show:
+                tdLog.info(f"check same succ. real={real} expect={expect}.")
+        else:
+            tdLog.exit(f"check same failed. real={real} expect={expect}.")
+
+    # check except
+    def checkExcept(self, command):
+        try:
+            code = frame.eos.exe(command, show = True)
+            if code == 0:
+                tdLog.exit(f"Failed, not report error cmd:{command}")
+            else:
+                tdLog.info(f"Passed, report error code={code} is expect, cmd:{command}")
+        except:
+            tdLog.info(f"Passed, catch expect report error for command {command}")
+
 #
 #   get db information
 #
@@ -269,7 +299,18 @@ class TBase:
         print(dics)
         return dics
 
+#
+#  run bin file
+#
+    # taos
+    def taos(self, command, show = True, checkRun = False):
+        return frame.etool.runBinFile("taos", command, show, checkRun)
 
+    def taosdump(self, command, show = True, checkRun = True, retFail = True):
+        return frame.etool.runBinFile("taosdump", command, show, checkRun, retFail)
+
+    def benchmark(self, command, show = True, checkRun = True, retFail = True):
+        return frame.etool.runBinFile("taosBenchmark", command, show, checkRun, retFail)
 #
 #   util 
 #
@@ -311,6 +352,29 @@ class TBase:
             tdLog.exit(f"list is empty {tips}")
 
 
+    # check list have str
+    def checkListString(self, rlist, s):
+        if s is None:
+            return 
+        for i in range(len(rlist)):
+            if rlist[i].find(s) != -1:
+                # found
+                tdLog.info(f'found "{s}" on index {i} , line={rlist[i]}')
+                return 
+
+        # not found
+        
+        i = 1
+        for x in rlist:
+            print(f"{i} {x}")
+            i += 1
+        tdLog.exit(f'faild, not found "{s}" on above')
+    
+    # check many string
+    def checkManyString(self, rlist, manys):
+        for s in manys:
+            self.checkListString(rlist, s)
+
 #
 #  str util
 #
@@ -327,7 +391,7 @@ class TBase:
 #  taosBenchmark 
 #
     
-    # run taosBenchmark and check insert Result
+    # insert
     def insertBenchJson(self, jsonFile, options="", checkStep=False):
         # exe insert 
         cmd = f"{options} -f {jsonFile}"        
@@ -394,4 +458,130 @@ class TBase:
             if vgroups != None:
                 tdSql.checkData(0, 0, vgroups)
 
-        return db, stb,child_count, insert_rows
+        return db, stb, child_count, insert_rows
+    
+    # insert & check
+    def benchInsert(self, jsonFile, options = "", results = None):
+        # exe insert 
+        benchmark = frame.etool.benchMarkFile()
+        cmd   = f"{benchmark} {options} -f {jsonFile}"
+        rlist = frame.eos.runRetList(cmd, True, True, True)
+        if results != None:
+            for result in results:
+                self.checkListString(rlist, result)
+        
+        # open json
+        with open(jsonFile, "r") as file:
+            data = json.load(file)
+        
+        # read json
+        dbs = data["databases"]
+        for db in dbs:
+            dbName = db["dbinfo"]["name"]        
+            stbs   = db["super_tables"]
+            for stb in stbs:
+                stbName        = stb["name"]
+                child_count    = stb["childtable_count"]
+                insert_rows    = stb["insert_rows"]
+                timestamp_step = stb["timestamp_step"]
+
+                # check result
+
+                # count
+                sql = f"select count(*) from {dbName}.{stbName}"
+                tdSql.checkAgg(sql, child_count * insert_rows)
+                # diff
+                sql = f"select * from (select diff(ts) as dif from {dbName}.{stbName} partition by tbname) where dif != {timestamp_step};"
+                tdSql.query(sql)
+                tdSql.checkRows(0)
+                # show 
+                tdLog.info(f"insert check passed. db:{dbName} stb:{stbName} child_count:{child_count} insert_rows:{insert_rows}\n")
+
+    # tmq
+    def tmqBenchJson(self, jsonFile, options="", checkStep=False):
+        # exe insert 
+        command = f"{options} -f {jsonFile}"
+        rlist = frame.etool.runBinFile("taosBenchmark", command, checkRun = True)
+
+        #
+        # check insert result
+        #
+        print(rlist)
+
+        return rlist
+
+    # cmd
+    def benchmarkCmd(self, options, childCnt, insertRows, timeStep, results):
+        # set
+        self.childtable_count = childCnt
+        self.insert_rows      = insertRows
+        self.timestamp_step   = timeStep
+
+        # run
+        cmd = f"{options} -t {childCnt} -n {insertRows} -S {timeStep} -y"
+        rlist = self.benchmark(cmd)
+        for result in results:
+            self.checkListString(rlist, result)
+
+        # check correct
+        self.checkInsertCorrect()    
+
+
+    # generate new json file
+    def genNewJson(self, jsonFile, modifyFunc=None):
+        try:
+            with open(jsonFile, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            tdLog.info(f"the specified json file '{jsonFile}' was not found.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error reading the json file: {e}")
+            return None
+        
+        if callable(modifyFunc):
+            modifyFunc(data)
+        
+        tempDir = os.path.join(tempfile.gettempdir(), 'json_templates')
+        try:
+            os.makedirs(tempDir, exist_ok=True)
+        except PermissionError:
+            tdLog.info(f"no sufficient permissions to create directory at '{tempDir}'.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error creating temporary directory: {e}")
+            return None
+        
+        tempPath = os.path.join(tempDir, f"temp_{uuid.uuid4().hex}.json")
+
+        try:
+            with open(tempPath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            tdLog.info(f"error writing to temporary json file: {e}")
+            return None
+
+        tdLog.info(f"create temporary json file successfully, file: {tempPath}")
+        return tempPath
+
+    # delete file
+    def deleteFile(self, filename):
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception as err:
+            raise Exception(err)
+
+    # read file to list
+    def readFileToList(self, filePath):
+        try:
+            with open(filePath, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+            # Strip trailing newline characters
+            return [line.rstrip('\n') for line in lines]
+        except FileNotFoundError:
+            tdLog.info(f"Error: File not found {filePath}")
+            return []
+        except Exception as e:
+            tdLog.info(f"Error reading file: {e}")
+            return []

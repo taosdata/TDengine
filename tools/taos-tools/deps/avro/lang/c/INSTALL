@@ -1,0 +1,69 @@
+Installation instructions
+=========================
+
+The Avro library is written in ANSI C.  It uses CMake [1] as its build
+manager.
+
+[1] https://www.cmake.org/
+
+
+Prerequisites
+-------------
+
+Avro uses CMake [1] as its build manager.  You must have this installed,
+along with a C compiler (such as gcc) to build the library.
+
+Avro depends on the Jansson JSON parser [2], version 2.3 or higher.  On
+many operating systems this library is available through your package
+manager (for example, `apt-get install libjansson-dev` on Ubuntu/Debian,
+and `brew install jansson` on Mac OS).  If not, please download and
+install it from source [2].
+
+To build the documentation you need asciidoc [3] and source-highlight [4]
+installed.  The build scripts will automatically detect whether these
+tools are installed, and will skip the documentation if they're not.
+
+[1] https://www.cmake.org/
+[2] http://www.digip.org/jansson/
+[3] https://www.methods.co.nz/asciidoc
+[4] https://www.gnu.org/software/src-highlite/
+
+
+Building from source
+--------------------
+
+The Avro C library uses CMake as its build manager.  In most cases, you
+should be able to build the source code by running the following:
+
+    $ mkdir build
+    $ cd build
+    $ cmake .. \
+        -DCMAKE_INSTALL_PREFIX=$PREFIX \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    $ make
+    $ make test
+    $ make install
+
+You might have to run the last command using sudo, if you need
+administrative privileges to write to the $PREFIX directory.
+
+The "RelWithDebInfo" build type will build an optimized copy of the
+library, including debugging symbols.  Use the "Release" build type if
+you don't want debugging symbols.  Use the "Debug" build type if you
+want a non-optimized library, with debugging symbols.
+
+On Mac OS X, you can build a universal binary by setting the
+CMAKE_OSX_ARCHITECTURES option when running cmake.  Just add something
+like the following:
+
+        -DCMAKE_OSX_ARCHITECTURES=i386;x86_64
+
+to the cmake command given above.  The set of architectures that you can
+choose from differs depending on which version of OS X you're running;
+common possibilities include "i386", "x86_64", "ppc", and "ppc64".
+
+On Unix, you can request thread-safe versions of the Avro library's
+global functions by defining the THREADSAFE cmake variable.  Just add
+the following to your cmake invokation:
+
+        -DTHREADSAFE=true

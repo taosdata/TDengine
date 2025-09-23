@@ -47,6 +47,9 @@ typedef struct {
   char               algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
   char               algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
   char               anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  int64_t            timeout;
+  int8_t             wncheck;
+
   SAnomalyWindowSupp anomalySup;
   SWindowRowsSup     anomalyWinRowSup;
   SColumn            anomalyCol;
@@ -58,6 +61,77 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator);
 static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 
+static int32_t resetAnomalyWindowOperState(SOperatorInfo* pOper);
+
+
+static int32_t resetAnomalyWindowOperState(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
+  SAnomalyWindowOperatorInfo* pInfo = pOper->info;
+  SAnomalyWindowPhysiNode*    pAnomalyNode = (SAnomalyWindowPhysiNode*)pOper->pPhyNode;
+  SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
+  SExprInfo*  pExprInfo = NULL;
+  size_t      keyBufSize = 0;
+  int32_t     num = 0;
+  const char* id = GET_TASKID(pTaskInfo);
+
+  pOper->status = OP_NOT_OPENED;
+
+  resetBasicOperatorState(&pInfo->binfo);
+
+  cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSup);
+  colDataDestroy(&pInfo->twAggSup.timeWindowData);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->anomalySup.blocks); ++i) {
+    SSDataBlock* pBlock = taosArrayGetP(pInfo->anomalySup.blocks, i);
+    blockDataDestroy(pBlock);
+  }
+
+  taosArrayClear(pInfo->anomalySup.blocks);
+  taosArrayClear(pInfo->anomalySup.windows);
+  taosMemoryFreeClear(pInfo->anomalySup.pResultRow);
+  pInfo->anomalySup.groupId = 0;
+  pInfo->anomalySup.cachedRows = 0;
+  pInfo->anomalySup.curWin.ekey = 0;
+  pInfo->anomalySup.curWin.skey = 0;
+  pInfo->anomalySup.curWinIndex = 0;
+
+  memset(&pInfo->anomalyWinRowSup, 0, sizeof(pInfo->anomalyWinRowSup));
+
+  if (pAnomalyNode->window.pExprs != NULL) {
+    int32_t    numOfScalarExpr = 0;
+    SExprInfo* pScalarExprInfo = NULL;
+    TAOS_CHECK_EXIT(createExprInfo(pAnomalyNode->window.pExprs, NULL, &pScalarExprInfo, &numOfScalarExpr));
+
+    TAOS_CHECK_EXIT(initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore));
+  }
+
+  TAOS_CHECK_EXIT(createExprInfo(pAnomalyNode->window.pFuncs, NULL, &pExprInfo, &num));
+
+  initResultSizeInfo(&pOper->resultInfo, 4096);
+
+  TAOS_CHECK_EXIT(initAggSup(&pOper->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, id, pTaskInfo->streamInfo.pState,
+                    &pTaskInfo->storageAPI.functionStore));
+
+  int32_t itemSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize + pInfo->anomalyKey.bytes;
+  pInfo->anomalySup.pResultRow = taosMemoryCalloc(1, itemSize);
+  TSDB_CHECK_NULL(pInfo->anomalySup.pResultRow, code, lino, _exit, terrno);
+
+  TAOS_CHECK_EXIT(filterInitFromNode((SNode*)pAnomalyNode->window.node.pConditions, &pOper->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo));
+
+  TAOS_CHECK_EXIT(initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window));
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;  
+}
+
+
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                         SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -67,6 +141,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   int32_t     num = 0;
   SExprInfo*  pExprInfo = NULL;
   const char* id = GET_TASKID(pTaskInfo);
+  SHashObj*   pHashMap = NULL;
 
   SAnomalyWindowOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAnomalyWindowOperatorInfo));
   SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -77,17 +152,17 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  if (!taosAnalGetOptStr(pAnomalyNode->anomalyOpt, "algo", pInfo->algoName, sizeof(pInfo->algoName))) {
-    qError("%s failed to get anomaly_window algorithm name from %s", id, pAnomalyNode->anomalyOpt);
-    code = TSDB_CODE_ANA_ALGO_NOT_FOUND;
-    goto _error;
-  }
+  pOperator->pPhyNode = physiNode;
 
-  if (taosAnalGetAlgoUrl(pInfo->algoName, ANAL_ALGO_TYPE_ANOMALY_DETECT, pInfo->algoUrl, sizeof(pInfo->algoUrl)) != 0) {
-    qError("%s failed to get anomaly_window algorithm url from %s", id, pInfo->algoName);
-    code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
-    goto _error;
-  }
+  code = taosAnalyGetOpts(pAnomalyNode->anomalyOpt, &pHashMap);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  code = taosAnalysisParseAlgo(pAnomalyNode->anomalyOpt, pInfo->algoName, pInfo->algoUrl, ANALY_ALGO_TYPE_ANOMALY_DETECT,
+                    tListLen(pInfo->algoUrl), pHashMap, id);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  pInfo->timeout = taosAnalysisParseTimout(pHashMap, id);
+  pInfo->wncheck = taosAnalysisParseWncheck(pHashMap, id);
 
   pOperator->exprSupp.hasWindowOrGroup = true;
   pInfo->tsSlotId = ((SColumnNode*)pAnomalyNode->window.pTspk)->slotId;
@@ -140,7 +215,8 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   pInfo->anomalySup.windows = taosArrayInit(16, sizeof(STimeWindow));
   QUERY_CHECK_NULL(pInfo->anomalySup.windows, code, lino, _error, terrno)
 
-  code = filterInitFromNode((SNode*)pAnomalyNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pAnomalyNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -151,6 +227,8 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, anomalyAggregateNext, NULL, anomalyDestroyOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetAnomalyWindowOperState);
+
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -158,6 +236,8 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   qDebug("%s anomaly_window operator is created, algo:%s url:%s opt:%s", id, pInfo->algoName, pInfo->algoUrl,
          pInfo->anomalyOpt);
+
+  taosHashCleanup(pHashMap);
   return TSDB_CODE_SUCCESS;
 
 _error:
@@ -168,9 +248,10 @@ _error:
     anomalyDestroyOperatorInfo(pInfo);
   }
 
+  taosHashCleanup(pHashMap);
+
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
-
   return code;
 }
 
@@ -184,6 +265,7 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SSDataBlock*                pRes = pInfo->binfo.pRes;
   int64_t                     st = taosGetTimestampUs();
   int32_t                     numOfBlocks = taosArrayGetSize(pSupp->blocks);
+  const char*                 idstr = GET_TASKID(pTaskInfo);
 
   blockDataCleanup(pRes);
 
@@ -228,11 +310,11 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   }
 
   int64_t cost = taosGetTimestampUs() - st;
-  qDebug("all groups finished, cost:%" PRId64 "us", cost);
+  qDebug("%s all groups finished, cost:%" PRId64 "us", idstr, cost);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", idstr, __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -245,8 +327,6 @@ static void anomalyDestroyOperatorInfo(void* param) {
   SAnomalyWindowOperatorInfo* pInfo = (SAnomalyWindowOperatorInfo*)param;
   if (pInfo == NULL) return;
 
-  qDebug("anomaly_window operator is destroyed, algo:%s", pInfo->algoName);
-
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
@@ -256,6 +336,7 @@ static void anomalyDestroyOperatorInfo(void* param) {
     SSDataBlock* pBlock = taosArrayGetP(pInfo->anomalySup.blocks, i);
     blockDataDestroy(pBlock);
   }
+
   taosArrayDestroy(pInfo->anomalySup.blocks);
   taosArrayDestroy(pInfo->anomalySup.windows);
   taosMemoryFreeClear(pInfo->anomalySup.pResultRow);
@@ -265,7 +346,7 @@ static void anomalyDestroyOperatorInfo(void* param) {
 }
 
 static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock* pSrc) {
-  if (pInfo->anomalySup.cachedRows > ANAL_ANOMALY_WINDOW_MAX_ROWS) {
+  if (pInfo->anomalySup.cachedRows > ANALY_ANOMALY_WINDOW_MAX_ROWS) {
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
   }
 
@@ -312,7 +393,7 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, const char* pId)
       qError("%s failed to exec forecast, msg:%s", pId, pMsg);
     }
 
-    return TSDB_CODE_ANA_WN_DATA;
+    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
   } else if (rows == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -364,35 +445,35 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
   SAnomalyWindowSupp*         pSupp = &pInfo->anomalySup;
   SJson*                      pJson = NULL;
-  SAnalyticBuf                analBuf = {.bufType = ANALYTICS_BUF_TYPE_JSON};
+  SAnalyticBuf                analyBuf = {.bufType = ANALYTICS_BUF_TYPE_JSON};
   char                        dataBuf[64] = {0};
   int32_t                     code = 0;
-  int64_t                     ts = 0;
+  int64_t                     ts = taosGetTimestampNs();
   int32_t                     lino = 0;
   const char*                 pId = GET_TASKID(pOperator->pTaskInfo);
 
-  snprintf(analBuf.fileName, sizeof(analBuf.fileName), "%s/tdengine-anomaly-%" PRId64 "-%" PRId64, tsTempDir, ts,
-           pSupp->groupId);
-  code = tsosAnalBufOpen(&analBuf, 2);
+  snprintf(analyBuf.fileName, sizeof(analyBuf.fileName), "%s/tdengine-anomaly-%" PRId64 "-%p-%" PRId64, tsTempDir, ts,
+           pSupp, pSupp->groupId);
+  code = tsosAnalyBufOpen(&analyBuf, 2, pId);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_MICRO) prec = TSDB_TIME_PRECISION_MICRO_STR;
   if (pInfo->anomalyCol.precision == TSDB_TIME_PRECISION_NANO) prec = TSDB_TIME_PRECISION_NANO_STR;
 
-  code = taosAnalBufWriteColMeta(&analBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
+  code = taosAnalyBufWriteColMeta(&analyBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  code = taosAnalBufWriteColMeta(&analBuf, 1, pInfo->anomalyCol.type, "val");
+  code = taosAnalyBufWriteColMeta(&analyBuf, 1, pInfo->anomalyCol.type, "val");
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  code = taosAnalBufWriteDataBegin(&analBuf);
+  code = taosAnalyBufWriteDataBegin(&analyBuf);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
 
   // timestamp
-  code = taosAnalBufWriteColBegin(&analBuf, 0);
+  code = taosAnalyBufWriteColBegin(&analyBuf, 0);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   for (int32_t i = 0; i < numOfBlocks; ++i) {
@@ -401,16 +482,16 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
     if (pTsCol == NULL) break;
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      code = taosAnalBufWriteColData(&analBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, &((TSKEY*)pTsCol->pData)[j]);
+      code = taosAnalyBufWriteColData(&analyBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, &((TSKEY*)pTsCol->pData)[j]);
       QUERY_CHECK_CODE(code, lino, _OVER);
     }
   }
 
-  code = taosAnalBufWriteColEnd(&analBuf, 0);
+  code = taosAnalyBufWriteColEnd(&analyBuf, 0);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   // data
-  code = taosAnalBufWriteColBegin(&analBuf, 1);
+  code = taosAnalyBufWriteColBegin(&analyBuf, 1);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   for (int32_t i = 0; i < numOfBlocks; ++i) {
@@ -420,38 +501,32 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
     if (pValCol == NULL) break;
 
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      code = taosAnalBufWriteColData(&analBuf, 1, pValCol->info.type, colDataGetData(pValCol, j));
+      code = taosAnalyBufWriteColData(&analyBuf, 1, pValCol->info.type, colDataGetData(pValCol, j));
       QUERY_CHECK_CODE(code, lino, _OVER);
     }
   }
-  code = taosAnalBufWriteColEnd(&analBuf, 1);
+  code = taosAnalyBufWriteColEnd(&analyBuf, 1);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  code = taosAnalBufWriteDataEnd(&analBuf);
+  code = taosAnalyBufWriteDataEnd(&analyBuf);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  code = taosAnalBufWriteOptStr(&analBuf, "option", pInfo->anomalyOpt);
+  code = taosAnalyBufWriteOptStr(&analyBuf, "option", pInfo->anomalyOpt);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  code = taosAnalBufWriteOptStr(&analBuf, "algo", pInfo->algoName);
+  code = taosAnalyBufWriteOptStr(&analyBuf, "algo", pInfo->algoName);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  code = taosAnalBufWriteOptStr(&analBuf, "prec", prec);
+  code = taosAnalyBufWriteOptStr(&analyBuf, "prec", prec);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  int64_t wncheck = ANAL_FORECAST_DEFAULT_WNCHECK;
-  bool    hasWncheck = taosAnalGetOptInt(pInfo->anomalyOpt, "wncheck", &wncheck);
-  if (!hasWncheck) {
-    qDebug("anomaly_window wncheck not found from %s, use default:%" PRId64, pInfo->anomalyOpt, wncheck);
-  }
-
-  code = taosAnalBufWriteOptInt(&analBuf, "wncheck", wncheck);
+  code = taosAnalyBufWriteOptInt(&analyBuf, "wncheck", pInfo->wncheck);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  code = taosAnalBufClose(&analBuf);
+  code = taosAnalyBufClose(&analyBuf);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  pJson = taosAnalSendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analBuf);
+  pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analyBuf, pInfo->timeout, pId);
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;
@@ -464,7 +539,7 @@ _OVER:
     qError("%s failed to analysis window since %s, lino:%d", pId, tstrerror(code), lino);
   }
 
-  taosAnalBufDestroy(&analBuf);
+  taosAnalyBufDestroy(&analyBuf);
   if (pJson != NULL) tjsonDelete(pJson);
   return code;
 }
@@ -562,7 +637,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL);
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
       if (code != 0) break;
     }
 
@@ -578,7 +653,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
 
     for (int32_t r = 0; r < pBlock->info.rows; ++r) {
       TSKEY key = tsList[r];
-      bool  keyInWin = (key >= pSupp->curWin.skey && key < pSupp->curWin.ekey);
+      bool  keyInWin = (key >= pSupp->curWin.skey && key <= pSupp->curWin.ekey);
       bool  lastRow = (r == pBlock->info.rows - 1);
 
       if (keyInWin) {
@@ -669,3 +744,4 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 void destroyForecastInfo(void* param) {}
 
 #endif
+

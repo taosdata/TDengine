@@ -119,3 +119,9 @@ func Test_getStatusStr(t *testing.T) {
 		assert.Equal(t, tt.expected, res)
 	}
 }
+
+func Test_withDBName(t *testing.T) {
+	processor := &Processor{db: "db"}
+	res := processor.withDBName("test")
+	assert.Equal(t, res, "`db`.`test`")
+}

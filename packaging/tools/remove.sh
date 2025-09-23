@@ -6,8 +6,8 @@ set -e
 #set -x
 
 verMode=edge
-osType=`uname`
-
+osType=$(uname)
+entMode=full
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
@@ -21,9 +21,9 @@ if [ "$osType" != "Darwin" ]; then
   lib64_link_dir="/usr/lib64"
   inc_link_dir="/usr/include"
 else
-  if [ -d "/usr/local/Cellar/" ];then
+  if [ -d "/usr/local/Cellar/" ]; then
     installDir="/usr/local/Cellar/tdengine/${verNumber}"
-  elif [ -d "/opt/homebrew/Cellar/" ];then
+  elif [ -d "/opt/homebrew/Cellar/" ]; then
     installDir="/opt/homebrew/Cellar/tdengine/${verNumber}"
   else
     installDir="/usr/local/taos"
@@ -44,8 +44,10 @@ dumpName="${PREFIX}dump"
 keeperName="${PREFIX}keeper"
 xName="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
+inspect_name="${PREFIX}inspect"
 tarbitratorName="tarbitratord"
-productName="TDengine"
+mqtt_name="${PREFIX}mqtt"
+productName="TDengine TSDB"
 
 #install main path
 install_main_dir=${installDir}
@@ -55,13 +57,28 @@ cfg_link_dir=${installDir}/cfg
 local_bin_link_dir="/usr/local/bin"
 service_config_dir="/etc/systemd/system"
 config_dir="/etc/${PREFIX}"
+bin_dir="${installDir}/bin"
+cfg_dir="${installDir}/cfg"
+connector_dir="${installDir}/connector"
+driver_dir="${installDir}/driver"
+examples_dir="${installDir}/examples"
+include_dir="${installDir}/include"
+plugins_dir="${installDir}/plugins"
+share_dir="${installDir}/share"
+
+
 
 if [ "${verMode}" == "cluster" ]; then
-  services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
+  if [ "${entMode}" == "full" ]; then
+    services=("${serverName}" ${adapterName} "${keeperName}")
+  else
+    services=("${serverName}" ${adapterName} "${keeperName}" "${explorerName}")
+  fi
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${PREFIX}udf" "${mqtt_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh")
 else
-  services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${PREFIX}udf" "${mqtt_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh")
+  services=("${serverName}" ${adapterName} "${keeperName}" "${explorerName}")
 fi
-tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" udfd set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 
 csudo=""
 if command -v sudo >/dev/null; then
@@ -90,7 +107,7 @@ fi
 
 kill_service_of() {
   _service=$1
-  pid=$(ps -ef | grep $_service | grep -v grep | grep -v $uninstallScript | awk '{print $2}')
+  pid=$(ps aux | grep -w $_service | grep -v grep | grep -v $uninstallScript | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
@@ -140,9 +157,8 @@ clean_service_of() {
     clean_service_on_systemd_of $_service
   elif ((${service_mod} == 1)); then
     clean_service_on_sysvinit_of $_service
-  else
-    kill_service_of $_service
   fi
+  kill_service_of $_service
 }
 
 remove_service_of() {
@@ -150,7 +166,7 @@ remove_service_of() {
   clean_service_of ${_service}
   if [[ -e "${bin_link_dir}/${_service}" || -e "${installDir}/bin/${_service}" || -e "${local_bin_link_dir}/${_service}" ]]; then
     ${csudo}rm -rf ${bin_link_dir}/${_service}
-    ${csudo}rm -rf ${installDir}/bin/${_service} 
+    ${csudo}rm -rf ${installDir}/bin/${_service}
     ${csudo}rm -rf ${local_bin_link_dir}/${_service}
     echo "${_service} is removed successfully!"
   fi
@@ -159,28 +175,36 @@ remove_service_of() {
 remove_tools_of() {
   _tool=$1
   kill_service_of ${_tool}
-  [ -e "${bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${bin_link_dir}/${_tool} || :
+  [ -L "${bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${bin_link_dir}/${_tool} || :
   [ -e "${installDir}/bin/${_tool}" ] && ${csudo}rm -rf ${installDir}/bin/${_tool} || :
-  [ -e "${local_bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${local_bin_link_dir}/${_tool} || :
+  [ -L "${local_bin_link_dir}/${_tool}" ] && ${csudo}rm -rf ${local_bin_link_dir}/${_tool} || :
 }
 
 remove_bin() {
   for _service in "${services[@]}"; do
-    remove_service_of ${_service}
+    if [ -z "$_service" ]; then
+      continue
+    fi
+    remove_service_of "${_service}"
   done
 
-  for _tool in "${tools[@]}"; do    
-    remove_tools_of ${_tool}
+  for _tool in "${tools[@]}"; do
+    if [ -z "$_tool" ]; then
+      continue
+    fi
+    remove_tools_of "${_tool}"
   done
 }
 
 function clean_lib() {
   # Remove link
-  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
-
-  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
+  for dir in "${lib_link_dir}" "${lib64_link_dir}"; do
+    if [ -d "$dir" ]; then
+      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
+        ${csudo}find "$dir" -name "$pattern" -exec ${csudo}rm -f {} \; || :
+      done
+    fi
+  done
   #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
 
@@ -206,57 +230,163 @@ function clean_log() {
 }
 
 function clean_service_on_launchctl() {
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist  || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}adapter.plist || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}keeper.plist  || :
-  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${PREFIX}-explorer.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${serverName}.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${adapterName}.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${keeperName}.plist || :
+  ${csudo}launchctl unload -w /Library/LaunchDaemons/com.taosdata.${explorerName}.plist || :
 
   ${csudo}launchctl remove com.tdengine.taosd || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}adapter || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}keeper || :
-  ${csudo}launchctl remove com.tdengine.${PREFIX}-explorer || :
+  ${csudo}launchctl remove com.tdengine.${adapterName} || :
+  ${csudo}launchctl remove com.tdengine.${keeperName} || :
+  ${csudo}launchctl remove com.tdengine.${explorerName} || :
 
-  ${csudo}rm /Library/LaunchDaemons/com.taosdata.* > /dev/null 2>&1 || :
+  ${csudo}rm /Library/LaunchDaemons/com.taosdata.* >/dev/null 2>&1 || :
+}
+
+function batch_remove_paths_and_clean_dir() {
+  local dir="$1"
+  shift
+  local paths=("$@")
+  for path in "${paths[@]}"; do
+    ${csudo}rm -rf "$path" || :
+  done
+  ${csudo}find "$dir" -type d -empty -delete || :
+  if [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
+    ${csudo}rm -rf "$dir" || :
+  fi
 }
 
 function remove_data_and_config() {
-  data_dir=`grep dataDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
-  if [ X"$data_dir" == X"" ]; then
+  data_dir=$(grep dataDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
+  if [ -z "$data_dir" ]; then
     data_dir="/var/lib/${PREFIX}"
   fi
-  log_dir=`grep logDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
-  if [ X"$log_dir" == X"" ]; then
+
+  log_dir=$(grep logDir /etc/${PREFIX}/${PREFIX}.cfg | grep -v '#' | tail -n 1 | awk {'print $2'})
+  if [ -z "$log_dir" ]; then
     log_dir="/var/log/${PREFIX}"
-  fi  
-  [ -d "${config_dir}" ] && ${csudo}rm -rf ${config_dir}
-  [ -d "${data_dir}" ] && ${csudo}rm -rf ${data_dir}
-  [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}
+  fi
+  
+  
+  if [ -d "${config_dir}" ]; then
+    ${csudo}rm -rf ${config_dir}
+  fi
+
+  if [ -d "${data_dir}" ]; then
+    data_remove_list=(
+      "${data_dir}/dnode"
+      "${data_dir}/mnode"
+      "${data_dir}/vnode"
+      "${data_dir}/.udf"
+      "${data_dir}/.running"*
+      "${data_dir}/.taosudf"*
+      "${data_dir}/${PREFIX}x"*
+      "${data_dir}/explorer"*
+    )
+    batch_remove_paths_and_clean_dir "${data_dir}" "${data_remove_list[@]}"
+  fi
+  
+  if [ -d "${log_dir}" ]; then
+    log_remove_list=(
+      "${log_dir}/taos"*
+      "${log_dir}/udf"*
+      "${log_dir}/jemalloc"
+      "${log_dir}/tcmalloc"
+      "${log_dir}/set_taos_malloc.log"
+      "${log_dir}/.startRecord"
+      "${log_dir}/.startSeq"
+    )
+    batch_remove_paths_and_clean_dir "${log_dir}" "${log_remove_list[@]}"
+  fi
 }
 
-echo 
-echo "Do you want to remove all the data, log and configuration files? [y/n]"
-read answer
-remove_flag=false
-if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
-  confirmMsg="I confirm that I would like to delete all data, log and configuration files"
-  echo "Please enter '${confirmMsg}' to continue"
-  read answer
-  if [ X"$answer" == X"${confirmMsg}" ]; then    
-    remove_flag=true    
-  else    
-    echo "answer doesn't match, skip this step"    
+function usage() {
+  echo -e "\nUsage: $(basename $0) [-e <yes|no>]"
+  echo "-e: silent mode, specify whether to remove all the data, log and configuration files."
+  echo "  yes: remove the data, log, and configuration files."
+  echo "  no:  don't remove the data, log, and configuration files."
+}
+
+function remove_install_dir() {
+  for dir in \
+    "${bin_dir}" \
+    "${cfg_dir}" \
+    "${connector_dir}" \
+    "${driver_dir}" \
+    "${examples_dir}" \
+    "${include_dir}" \
+    "${plugins_dir}" \
+    "${share_dir}"
+  do
+    if [ -d "$dir" ]; then
+      ${csudo}rm -rf "$dir"
+    fi
+  done
+  if [ -f "${install_main_dir}/README.md" ]; then
+    ${csudo}rm -f "${install_main_dir}/README.md"
   fi
+  if [ -f "${install_main_dir}/uninstall_taosx.sh" ]; then
+    ${csudo}rm -f "${install_main_dir}/uninstall_taosx.sh"
+  fi
+  if [ -f "${install_main_dir}/uninstall.sh" ]; then
+    ${csudo}rm -f "${install_main_dir}/uninstall.sh"
+  fi
+  if [ -d "${install_main_dir}" ] && [ -z "$(ls -A "${install_main_dir}")" ]; then
+    ${csudo}rm -rf "${install_main_dir}" || :
+  fi
+}
+
+# main
+interactive_remove="yes"
+remove_flag="false"
+
+while getopts "e:h" opt; do
+  case $opt in
+  e)
+    interactive_remove="no"
+
+    if [ "$OPTARG" == "yes" ]; then
+      remove_flag="true"
+      echo "Remove all the data, log, and configuration files."
+    elif [ "$OPTARG" == "no" ]; then
+      remove_flag="false"
+      echo "Do not remove the data, log, and configuration files."
+    else
+      echo "Invalid option for -e: $OPTARG"
+      usage
+      exit 1
+    fi
+    ;;
+  h | *)
+    usage
+    exit 1
+    ;;
+  esac
+done
+
+if [ "$interactive_remove" == "yes" ]; then
+  echo -e "\nDo you want to remove all the data, log and configuration files? [y/n]"
+  read answer
+  if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+    confirmMsg="I confirm that I would like to delete all data, log and configuration files"
+    echo "Please enter '${confirmMsg}' to continue"
+    read answer
+    if [ X"$answer" == X"${confirmMsg}" ]; then
+      remove_flag="true"
+    else
+      echo "answer doesn't match, skip this step"
+    fi
+  fi
+  echo
 fi
-echo 
 
 if [ -e ${install_main_dir}/uninstall_${PREFIX}x.sh ]; then
-  if [ X$remove_flag == X"true" ]; then  
+  if [ X$remove_flag == X"true" ]; then
     bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all true
   else
     bash ${install_main_dir}/uninstall_${PREFIX}x.sh --clean-all false
   fi
 fi
-
 
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
@@ -278,7 +408,8 @@ if [ X$remove_flag == X"true" ]; then
   remove_data_and_config
 fi
 
-${csudo}rm -rf ${install_main_dir} || :
+remove_install_dir
+
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else
@@ -296,8 +427,7 @@ elif echo $osinfo | grep -qwi "centos"; then
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
 
-
-command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true 
-echo 
+command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true
+echo
 echo "${productName} is removed successfully!"
 echo

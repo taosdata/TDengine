@@ -46,7 +46,6 @@ static SKeyword keywordTable[] = {
     {"AS",                   TK_AS},
     {"ASC",                  TK_ASC},
     {"ASOF",                 TK_ASOF},
-    {"AT_ONCE",              TK_AT_ONCE},
     {"BALANCE",              TK_BALANCE},
     {"BATCH_SCAN",           TK_BATCH_SCAN},
     {"BETWEEN",              TK_BETWEEN},
@@ -62,6 +61,7 @@ static SKeyword keywordTable[] = {
     {"CACHE",                TK_CACHE},
     {"CACHEMODEL",           TK_CACHEMODEL},
     {"CACHESIZE",            TK_CACHESIZE},
+    {"CALC_NOTIFY_ONLY",     TK_CALC_NOTIFY_ONLY},
     {"CASE",                 TK_CASE},
     {"CAST",                 TK_CAST},
     {"CHILD",                TK_CHILD},
@@ -89,8 +89,11 @@ static SKeyword keywordTable[] = {
     {"DATABASE",             TK_DATABASE},
     {"DATABASES",            TK_DATABASES},
     {"DBS",                  TK_DBS},
+    {"DECIMAL",              TK_DECIMAL},
     {"DELETE",               TK_DELETE},
     {"DELETE_MARK",          TK_DELETE_MARK},
+    {"DELETE_OUTPUT_TABLE",  TK_DELETE_OUTPUT_TABLE},
+    {"DELETE_RECALC",        TK_DELETE_RECALC},
     {"DESC",                 TK_DESC},
     {"DESCRIBE",             TK_DESCRIBE},
     {"DISTINCT",             TK_DISTINCT},
@@ -107,19 +110,22 @@ static SKeyword keywordTable[] = {
     {"ENCRYPT_KEY",          TK_ENCRYPT_KEY},
     {"END",                  TK_END},
     {"EXISTS",               TK_EXISTS},
-    {"EXPIRED",              TK_EXPIRED},
+    {"EXPIRED_TIME",         TK_EXPIRED_TIME},
     {"EXPLAIN",              TK_EXPLAIN},
+    {"EVENT_TYPE",           TK_EVENT_TYPE},
     {"EVENT_WINDOW",         TK_EVENT_WINDOW},
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
     {"FILL_HISTORY",         TK_FILL_HISTORY},
+    {"FILL_HISTORY_FIRST",   TK_FILL_HISTORY_FIRST},
     {"FIRST",                TK_FIRST},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
     {"FROM",                 TK_FROM},
     {"FOR",                  TK_FOR},
     {"FORCE",                TK_FORCE},
+    {"FORCE_OUTPUT",         TK_FORCE_OUTPUT},
     {"FULL",                 TK_FULL},
     {"FUNCTION",             TK_FUNCTION},
     {"FUNCTIONS",            TK_FUNCTIONS},
@@ -135,6 +141,8 @@ static SKeyword keywordTable[] = {
     {"HOST",                 TK_HOST},
     {"IF",                   TK_IF},
     {"IGNORE",               TK_IGNORE},
+    {"IGNORE_DISORDER",      TK_IGNORE_DISORDER},
+    {"IGNORE_NODATA_TRIGGER", TK_IGNORE_NODATA_TRIGGER},
     {"IMPORT",               TK_IMPORT},
     {"IN",                   TK_IN},
     {"INDEX",                TK_INDEX},
@@ -163,6 +171,7 @@ static SKeyword keywordTable[] = {
     {"LIMIT",                TK_LIMIT},
     {"LINEAR",               TK_LINEAR},
     {"LOCAL",                TK_LOCAL},
+    {"LOW_LATENCY_CALC",     TK_LOW_LATENCY_CALC},
     {"MATCH",                TK_MATCH},
     {"MAXROWS",              TK_MAXROWS},
     {"MAX_DELAY",            TK_MAX_DELAY},
@@ -176,6 +185,8 @@ static SKeyword keywordTable[] = {
     {"MNODES",               TK_MNODES},
     {"MODIFY",               TK_MODIFY},
     {"MODULES",              TK_MODULES},
+    {"MOUNT",                TK_MOUNT},
+    {"MOUNTS",               TK_MOUNTS},
     {"NORMAL",               TK_NORMAL},
     {"NCHAR",                TK_NCHAR},
     {"NEXT",                 TK_NEXT},
@@ -184,6 +195,7 @@ static SKeyword keywordTable[] = {
     {"NONE",                 TK_NONE},
     {"NOT",                  TK_NOT},
     {"NOW",                  TK_NOW},
+    {"NOTIFY_OPTIONS",       TK_NOTIFY_OPTIONS},
     {"NO_BATCH_SCAN",        TK_NO_BATCH_SCAN},
     {"NULL",                 TK_NULL},
     {"NULL_F",               TK_NULL_F},
@@ -194,6 +206,7 @@ static SKeyword keywordTable[] = {
     {"ORDER",                TK_ORDER},
     {"OUTER",                TK_OUTER},
     {"OUTPUTTYPE",           TK_OUTPUTTYPE},
+    {"OUTPUT_SUBTABLE",      TK_OUTPUT_SUBTABLE},
     {"PAGES",                TK_PAGES},
     {"PAGESIZE",             TK_PAGESIZE},
     {"PARA_TABLES_SORT",     TK_PARA_TABLES_SORT},
@@ -204,6 +217,8 @@ static SKeyword keywordTable[] = {
     {"POSITION",             TK_POSITION},
     {"PPS",                  TK_PPS},
     {"PRIMARY",              TK_PRIMARY},
+    {"PRE_FILTER",           TK_PRE_FILTER},
+    {"COMPOSITE",            TK_COMPOSITE},
     {"PRECISION",            TK_PRECISION},
     {"PREV",                 TK_PREV},
     {"PRIVILEGES",           TK_PRIVILEGES},
@@ -216,15 +231,16 @@ static SKeyword keywordTable[] = {
     {"RAND",                 TK_RAND},
     {"RANGE",                TK_RANGE},
     {"RATIO",                TK_RATIO},
-    {"PAUSE",                TK_PAUSE},
+    {"PERIOD",               TK_PERIOD},
     {"READ",                 TK_READ},
     {"RECURSIVE",            TK_RECURSIVE},
     {"REDISTRIBUTE",         TK_REDISTRIBUTE},
     {"RENAME",               TK_RENAME},
+    {"RECALCULATE",          TK_RECALCULATE},
     {"REPLACE",              TK_REPLACE},
+    {"REPLICAS",             TK_REPLICAS},
     {"REPLICA",              TK_REPLICA},
     {"RESET",                TK_RESET},
-    {"RESUME",               TK_RESUME},
     {"RESTORE",              TK_RESTORE},
     {"RETENTIONS",           TK_RETENTIONS},
     {"REVOKE",               TK_REVOKE},
@@ -256,16 +272,17 @@ static SKeyword keywordTable[] = {
     {"START",                TK_START},
     {"STATE",                TK_STATE},
     {"STATE_WINDOW",         TK_STATE_WINDOW},
+    {"STOP",                 TK_STOP},
     {"STORAGE",              TK_STORAGE},
     {"STREAM",               TK_STREAM},
     {"STREAMS",              TK_STREAMS},
+    {"STREAM_OPTIONS",       TK_STREAM_OPTIONS},
     {"STRICT",               TK_STRICT},
     {"STT_TRIGGER",          TK_STT_TRIGGER},
     {"SUBSCRIBE",            TK_SUBSCRIBE},
     {"SUBSCRIPTIONS",        TK_SUBSCRIPTIONS},
     {"SUBSTR",               TK_SUBSTR},
     {"SUBSTRING",            TK_SUBSTRING},
-    {"SUBTABLE",             TK_SUBTABLE},
     {"SYSINFO",              TK_SYSINFO},
     {"SYSTEM",               TK_SYSTEM},
     {"TABLE",                TK_TABLE},
@@ -286,8 +303,8 @@ static SKeyword keywordTable[] = {
     {"TRAILING",             TK_TRAILING},
     {"TRANSACTION",          TK_TRANSACTION},
     {"TRANSACTIONS",         TK_TRANSACTIONS},
-    {"TRIGGER",              TK_TRIGGER},
     {"TRIM",                 TK_TRIM},
+    {"TROWS",                TK_TROWS},
     {"TSDB_PAGESIZE",        TK_TSDB_PAGESIZE},
     {"TSERIES",              TK_TSERIES},
     {"TSMA",                 TK_TSMA},
@@ -312,8 +329,10 @@ static SKeyword keywordTable[] = {
     {"VGROUPS",              TK_VGROUPS},
     {"VIEW",                 TK_VIEW},
     {"VIEWS",                TK_VIEWS},
+    {"VIRTUAL",              TK_VIRTUAL},
     {"VNODE",                TK_VNODE},
     {"VNODES",               TK_VNODES},
+    {"VTABLE",               TK_VTABLE},
     {"WAL_FSYNC_PERIOD",     TK_WAL_FSYNC_PERIOD},
     {"WAL_LEVEL",            TK_WAL_LEVEL},
     {"WAL_RETENTION_PERIOD", TK_WAL_RETENTION_PERIOD},
@@ -324,6 +343,7 @@ static SKeyword keywordTable[] = {
     {"WHEN",                 TK_WHEN},
     {"WHERE",                TK_WHERE},
     {"WINDOW",               TK_WINDOW},    
+    {"WINDOW_OPEN",          TK_WINDOW_OPEN},
     {"WINDOW_CLOSE",         TK_WINDOW_CLOSE},
     {"WINDOW_OFFSET",        TK_WINDOW_OFFSET},
     {"WITH",                 TK_WITH},
@@ -343,18 +363,44 @@ static SKeyword keywordTable[] = {
     {"_FLOW",                TK_FLOW},
     {"_FHIGH",               TK_FHIGH},
     {"_FROWTS",              TK_FROWTS},
+    {"_TPREV_TS",            TK_TPREV_TS},
+    {"_TCURRENT_TS",         TK_TCURRENT_TS},
+    {"_TNEXT_TS",            TK_TNEXT_TS},
+    {"_TWSTART",             TK_TWSTART},
+    {"_TWEND",               TK_TWEND},
+    {"_TWDURATION",          TK_TWDURATION},
+    {"_TWROWNUM",            TK_TWROWNUM},
+    {"_TPREV_LOCALTIME",     TK_TPREV_LOCALTIME},
+    {"_TNEXT_LOCALTIME",     TK_TNEXT_LOCALTIME},
+    {"_TLOCALTIME",          TK_TLOCALTIME},
+    {"_TGRPID",              TK_TGRPID},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
-    {"S3_CHUNKPAGES",        TK_S3_CHUNKPAGES},
-    {"S3_KEEPLOCAL",         TK_S3_KEEPLOCAL},
-    {"S3_COMPACT",           TK_S3_COMPACT},
-    {"S3MIGRATE",            TK_S3MIGRATE},
+    {"SS_CHUNKPAGES",        TK_SS_CHUNKPAGES},
+    {"SS_KEEPLOCAL",         TK_SS_KEEPLOCAL},
+    {"SS_COMPACT",           TK_SS_COMPACT},
+    {"SSMIGRATE",            TK_SSMIGRATE},
+    {"SSMIGRATES",           TK_SSMIGRATES},
     {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
     {"ARBGROUPS",            TK_ARBGROUPS},
     {"IS_IMPORT",            TK_IS_IMPORT},
-    {"FORCE_WINDOW_CLOSE",   TK_FORCE_WINDOW_CLOSE},
     {"DISK_INFO",            TK_DISK_INFO},
     {"AUTO",                 TK_AUTO},
+    {"MEDIUMBLOB",           TK_MEDIUMBLOB},
+    {"BLOB",                 TK_BLOB},
+    {"COLS",                 TK_COLS},
+    {"NOTIFY",               TK_NOTIFY},
+    {"NOTIFY_HISTORY",       TK_NOTIFY_HISTORY},
+    {"REGEXP",               TK_REGEXP},
+    {"ASSIGN",               TK_ASSIGN},
+    {"TRUE_FOR",             TK_TRUE_FOR},
+    {"META_ONLY",            TK_META_ONLY},
+    {"VTABLES",              TK_VTABLES},
+    {"META_ONLY",            TK_META_ONLY},
+    {"SCAN",                 TK_SCAN},
+    {"SCANS",                TK_SCANS},
+    {"_IMPROWTS",            TK_IMPROWTS},
+    {"_IMPMASK",             TK_IMPMASK}
 };
 // clang-format on
 
@@ -414,7 +460,7 @@ static int32_t tKeywordCode(const char* z, int n) {
  * Return the length of the token that begins at z[0].
  * Store the token type in *type before returning.
  */
-uint32_t tGetToken(const char* z, uint32_t* tokenId) {
+uint32_t tGetToken(const char* z, uint32_t* tokenId, char *dupQuoteChar) {
   uint32_t i;
   switch (*z) {
     case ' ':
@@ -480,7 +526,13 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       return i;
     }
     case '%': {
-      *tokenId = TK_NK_REM;
+      if (z[1] == '%') {
+        *tokenId = TK_NK_PH;
+        return 2;
+      } else {
+        *tokenId = TK_NK_REM;
+        return 1;
+      }
       return 1;
     }
     case '=': {
@@ -561,6 +613,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
 
         if (z[i] == delim) {
           if (z[i + 1] == delim) {
+            if (dupQuoteChar && (*dupQuoteChar != *z)) {
+              *dupQuoteChar = *z;
+            }
             i++;
           } else {
             strEnd = true;
@@ -757,7 +812,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 
     int32_t numOfComma = 0;
     char    t = str[*i];
-    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == ',') {
+    while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == '\b' || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;
@@ -770,7 +825,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
       t = str[++(*i)];
     }
 
-    t0.n = tGetToken(&str[*i], &t0.type);
+    t0.n = tGetToken(&str[*i], &t0.type, NULL);
     break;
 
     // not support user specfied ignored symbol list
@@ -800,7 +855,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 
   // support parse the 'db.tbl' format, notes: There should be no space on either side of the dot!
   if ('.' == str[*i + t0.n]) {
-    len = tGetToken(&str[*i + t0.n + 1], &type);
+    len = tGetToken(&str[*i + t0.n + 1], &type, NULL);
 
     // only id、string and ? are valid
     if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) ||
@@ -813,7 +868,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 
     // check the table name is '?', db.?asf is not valid.
     if (TK_NK_QUESTION == type) {
-      (void)tGetToken(&str[*i + t0.n + 2], &type);
+      (void)tGetToken(&str[*i + t0.n + 2], &type, NULL);
       if (TK_NK_SPACE != type) {
         t0.type = TK_NK_ILLEGAL;
         t0.n = 0;
@@ -826,7 +881,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
   } else {
     // support parse the -/+number format
     if ((isPrevOptr) && (t0.type == TK_NK_MINUS || t0.type == TK_NK_PLUS)) {
-      len = tGetToken(&str[*i + t0.n], &type);
+      len = tGetToken(&str[*i + t0.n], &type, NULL);
       if (type == TK_NK_INTEGER || type == TK_NK_FLOAT || type == TK_NK_BIN || type == TK_NK_HEX) {
         t0.type = type;
         t0.n += len;

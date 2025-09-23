@@ -7,11 +7,8 @@ slug: /tdengine-reference/client-libraries/rust
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-
-import Preparation from "../../assets/resources/_preparation.mdx"
+import Preparation from "../../assets/resources/_preparation.mdx";
 import RequestId from "../../assets/resources/_request_id.mdx";
-
-[![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 
 `taos` is the official Rust language connector for TDengine. Rust developers can use it to develop applications that access the TDengine database.
 
@@ -101,9 +98,9 @@ TaosBuilder creates a connection builder through a DSN connection description st
 The basic structure of the DSN description string is as follows:
 
 ```text
-<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+<driver>[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|------|------------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|driver|   protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
 The meanings of each part are as follows:
@@ -115,9 +112,19 @@ The meanings of each part are as follows:
   - **http/ws**: Create a connection using WebSocket.
   - **https/wss**: Explicitly enable SSL/TLS connection under WebSocket connection mode.
 - **username/password**: Username and password used to create the connection.
-- **host/port**: Specifies the server and port for creating the connection. When the server address and port are not specified (`taos://`), the default for native connections is `localhost:6030`, and for WebSocket connections, it is `localhost:6041`.
+- **addresses**: Specifies the server addresses to create a connection. The following configuration methods are supported:
+  - Native connection: only supports a single address. When the address is not specified, the default is `localhost:6030`.
+    - Example: `taos://localhost:6030` or `taos://` (equivalent to the former).
+  - WebSocket connection: supports multiple addresses, separated by commas. When the address is not specified, the default is `localhost:6041`.
+    - Example: `ws://host1:6041,host2:6041` or `ws://` (equivalent to `ws://localhost:6041`).
 - **database**: Specifies the default database name to connect to, optional parameter.
-- **params**: Other optional parameters.
+- **params**:
+  - `token`: Authentication for the TDengine TSDB cloud service.
+  - `timezone`: Time zone setting, in the format of an IANA time zone name (e.g., `Asia/Shanghai`). The default is the local time zone.
+  - `compression`: Whether to enable data compression. The default is `false`.
+  - `conn_retries`: Maximum number of retries upon connection failure. The default is 5.
+  - `retry_backoff_ms`: Initial wait time (in milliseconds) upon connection failure. The default is 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
+  - `retry_backoff_max_ms`: Maximum wait time (in milliseconds) upon connection failure. The default is 2000.
 
 A complete DSN description string example is as follows: `taos+ws://localhost:6041/test`, indicating using WebSocket (`ws`) mode to connect to the server `localhost` through port `6041`, and specifying the default database as `test`.
 

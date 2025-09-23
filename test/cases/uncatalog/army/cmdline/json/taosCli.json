@@ -1,0 +1,70 @@
+{
+    "filetype":"insert",
+    "cfgdir":"/etc/taos",
+    "host":"127.0.0.1",
+    "port":6030,
+    "user":"root",
+    "password":"taosdata",
+    "thread_count":1,
+    "create_table_thread_count":1,
+    "confirm_parameter_prompt":"no",
+    "prepare_rand":100,
+    "num_of_records_per_req":100,
+    "databases": [
+        {
+            "dbinfo":{
+                "name":"test",
+                "drop":"yes"
+            },
+            "super_tables":[
+                {
+                    "name":"meters",
+                    "child_table_exists":"no",
+                    "childtable_prefix":"d",
+                    "data_source":"rand",
+                    "insert_mode":"taosc",
+                    "childtable_count": 2,
+                    "insert_rows":100,
+                    "timestamp_step":1000,
+                    "start_timestamp":"2022-10-01 00:00:00.000",
+                    "columns":[
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "dc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "ti",  "max": 100, "min": -100 },
+                        { "type": "smallint",    "name": "si",  "max": 100, "min": -50 },
+                        { "type": "int",         "name": "ic",  "max": 1000, "min": -1000 },
+                        { "type": "bigint",      "name": "bi",  "max": 100, "min": -1000 },
+                        { "type": "utinyint",    "name": "uti", "max": 100, "min": 0 },
+                        { "type": "usmallint",   "name": "usi", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "ui",  "max": 1000, "min": 0 },
+                        { "type": "ubigint",     "name": "ubi", "max": 10000, "min": 0 },
+                        { "type": "binary",      "name": "bin", "len": 4},
+                        { "type": "nchar",       "name": "nch", "len": 8},
+                        { "type": "varbinary",   "name": "vab", "len": 8},
+                        { "type": "varchar",     "name": "vac", "len": 8},
+                        { "type": "geometry",    "name": "geo", "len": 32}                        
+                    ],
+                    "tags":[
+                        { "type": "bool",        "name": "tbc"},
+                        { "type": "float",       "name": "tfc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "tdc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "tti",  "max": 100, "min": -100 },
+                        { "type": "smallint",    "name": "tsi",  "max": 100, "min": -50 },
+                        { "type": "int",         "name": "tic",  "max": 1000, "min": -1000 },
+                        { "type": "bigint",      "name": "tbi",  "max": 100, "min": -1000 },
+                        { "type": "utinyint",    "name": "tuti", "max": 100, "min": 0 },
+                        { "type": "usmallint",   "name": "tusi", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "tui",  "max": 1000, "min": 0 },
+                        { "type": "ubigint",     "name": "tubi", "max": 10000, "min": 0 },
+                        { "type": "binary",      "name": "tbin", "len": 4},
+                        { "type": "nchar",       "name": "tnch", "len": 8},
+                        { "type": "varbinary",   "name": "tvab", "len": 8},
+                        { "type": "varchar",     "name": "tvac", "len": 8},
+                        { "type": "geometry",    "name": "tgeo", "len": 32}
+                    ]
+                }
+            ]
+        }
+    ]
+}

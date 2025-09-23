@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+   https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+  -->
+<!DOCTYPE document PUBLIC "-//APACHE//DTD Documentation V2.0//EN"
+   "https://forrest.apache.org/dtd/document-v20.dtd" [
+  <!ENTITY % avro-entities PUBLIC "-//Apache//ENTITIES Avro//EN"
+	   "../../../../build/avro.ent">
+  %avro-entities;
+]>
+<document>
+  <header>
+    <title>Apache Avro&#153; &AvroVersion; SASL Profile</title>
+  </header>
+  <body>
+    <section id="intro">
+      <title>Introduction</title>
+      <p>SASL (<a href="https://www.ietf.org/rfc/rfc2222.txt">RFC 2222</a>)
+      provides a framework for authentication and security of network
+      protocols.  Each protocol that uses SASL is meant to define a
+      SASL <em>profile</em>.  This document provides a SASL profile
+      for connection-based Avro RPC.</p>
+    </section>
+
+    <section id="overview">
+      <title>Overview</title>
+      <p>SASL negotiation proceeds as a series of message interactions
+      over a connection between a client and server using a selected
+      SASL <em>mechanism</em>.  The client starts this negotiation by
+      sending its chosen mechanism name with an initial (possibly
+      empty) message.  Negotiation proceeds with the exchange of
+      messages until either side indicates success or failure.  The
+      content of the messages is mechanism-specific.  If the
+      negotiation succeeds, then the session can proceed over the
+      connection, otherwise it must be abandoned.</p>
+      <p>Some mechanisms continue to process session data after
+      negotiation (e.g., encrypting it), while some specify that
+      further session data is transmitted unmodifed.</p>
+    </section>
+
+    <section id="negotiation">
+      <title>Negotiation</title>
+      <section id="commands">
+	<title>Commands</title>
+	<p>Avro SASL negotiation uses four one-byte commands.</p>
+	<ul>
+	  <li><code>0: START</code>  Used in a client's initial message.</li>
+	  <li><code>1: CONTINUE</code> Used while negotiation is ongoing.</li>
+	  <li><code>2: FAIL</code> Terminates negotiation unsuccessfully.</li>
+	  <li><code>3: COMPLETE</code> Terminates negotiation sucessfully.</li>
+	</ul>
+
+	<p>The format of a START message is:</p>
+	<source>| 0 | 4-byte mechanism name length | mechanism name | 4-byte payload length | payload data |</source>
+
+	<p>The format of a CONTINUE message is:</p>
+	<source>| 1 | 4-byte payload length | payload data |</source>
+
+	<p>The format of a FAIL message is:</p>
+	<source>| 2 | 4-byte message length | UTF-8 message |</source>
+
+	<p>The format of a COMPLETE message is:</p>
+	<source>| 3 | 4-byte payload length | payload data |</source>
+      </section>
+
+      <section id="process">
+	<title>Process</title>
+	<p>Negotiation is initiated by a client sending a START command
+	  containing the client's chosen mechanism name and any
+	  mechanism-specific payload data.</p>
+
+	<p>The server and client then interchange some number
+	  (possibly zero) of CONTINUE messages.  Each message contains
+	  payload data that is processed by the security mechanism to
+	  generate the next message.</p>
+
+	<p>Once either the client or server send a FAIL message then
+	  negotiation has failed.  UTF-8-encoded text is included in
+	  the failure message.  Once either a FAIL message has been
+	  sent or received, or any other error occurs in the
+	  negotiation, further communication on this connection must
+	  cease.</p>
+
+	<p>Once either the client or server send a COMPLETE message
+	  then negotiation has completed successfully.  Session data
+	  may now be transmitted over the connection until it is
+	  closed by either side.</p>
+      </section>
+
+    </section>
+
+    <section id="session">
+      <title>Session Data</title>
+      <p>If no SASL QOP (quality of protection) is negotiated, then
+	all subsequent writes to/reads over this connection are
+	written/read unmodified.  In particular, messages use
+	Avro <a href="spec.html#Message+Framing">framing</a>, and are
+	of the form:</p>
+      <source>| 4-byte frame length | frame data | ... | 4 zero bytes |</source>
+      <p>If a SASL QOP is negotiated, then it must be used by the
+	connection for all subsequent messages. This is done by
+	wrapping each non-empty frame written using the security
+	mechanism and unwrapping each non-empty frame read.  The
+	length written in each non-empty frame is the length of the
+	wrapped data. Complete frames must be passed to the security
+	mechanism for unwrapping.  Unwrapped data is then passed to
+	the application as the content of the frame.</p>
+      <p>If at any point processing fails due to wrapping, unwrapping
+	or framing errors, then all further communication on this
+	connection must cease.</p>
+    </section>
+
+    <section id="anonymous">
+      <title>Anonymous Mechanism</title>
+      <p>The SASL anonymous mechanism
+      (<a href="https://www.ietf.org/rfc/rfc2222.txt">RFC 2245</a>) is
+      quite simple to implement.  In particular, an initial anonymous
+      request may be prefixed by the following static sequence:</p>
+      <source>| 0 | 0009 | ANONYMOUS | 0000 |</source>
+      <p>If a server uses the anonymous mechanism, it should check
+      that the mechanism name in the start message prefixing the first
+      request received is 'ANONYMOUS', then simply prefix its initial
+      response with a COMPLETE message of:</p>
+      <source>| 3 | 0000 |</source>
+      <p>If an anonymous server recieves some other mechanism name,
+      then it may respond with a FAIL message as simple as:</p>
+      <source>| 2 | 0000 |</source>
+      <p>Note that the anonymous mechanism need add no additional
+      round-trip messages between client and server.  The START
+      message can be piggybacked on the initial request and the
+      COMPLETE or FAIL message can be piggybacked on the initial
+      response.</p>
+    </section>
+
+  <p><em>Apache Avro, Avro, Apache, and the Avro and Apache logos are
+   trademarks of The Apache Software Foundation.</em></p>
+
+  </body>
+</document>

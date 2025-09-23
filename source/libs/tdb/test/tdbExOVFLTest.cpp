@@ -40,7 +40,7 @@ static void clearPool(SPoolMem *pPool) {
     taosMemoryFree(pMem);
   } while (1);
 
-  assert(pPool->size == 0);
+  TD_ALWAYS_ASSERT(pPool->size == 0);
 }
 
 static void closePool(SPoolMem *pPool) {
@@ -55,7 +55,7 @@ static void *poolMalloc(void *arg, size_t size) {
 
   pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   pMem->size = sizeof(*pMem) + size;
@@ -336,8 +336,8 @@ tdbBegin(pEnv, &txn);
     int   vLen = -1;
 
     ret = tdbTbGet(pDb, "key1", strlen("key1"), &pVal, &vLen);
-    ASSERT(ret == -1);
-    GTEST_ASSERT_EQ(ret, -1);
+    ASSERT(ret == TSDB_CODE_NOT_FOUND);
+    GTEST_ASSERT_EQ(ret, TSDB_CODE_NOT_FOUND);
 
     GTEST_ASSERT_EQ(vLen, -1);
     GTEST_ASSERT_EQ(pVal, nullptr);

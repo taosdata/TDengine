@@ -7,10 +7,12 @@ set -e
 # set -x
 
 verMode=edge
-pagMode=full
+pkgMode=full
+entMode=full
 
 iplist=""
 serverFqdn=""
+ostype=`uname`
 
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
@@ -19,9 +21,9 @@ script_dir=$(dirname $(readlink -f "$0"))
 PREFIX="taos"
 clientName="${PREFIX}"
 serverName="${PREFIX}d"
-udfdName="udfd"
+udfdName="${PREFIX}udf"
 configFile="${PREFIX}.cfg"
-productName="TDengine"
+productName="TDengine TSDB"
 emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
@@ -37,6 +39,9 @@ demoName="${PREFIX}demo"
 xname="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
 keeperName="${PREFIX}keeper"
+inspect_name="${PREFIX}inspect"
+set_malloc_bin="set_taos_malloc.sh"
+mqtt_name="${PREFIX}mqtt"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -124,6 +129,30 @@ else
   os_type=1
 fi
 
+function log() {
+  local level="$1"; shift
+  local msg="$*"
+  case "$level" in
+    info)    echo -e "$msg" ;;
+    info_color) echo -e "${GREEN_DARK}$msg${NC}" ;;
+    success) echo -e "${GREEN_DARK}$msg${NC}" ;;
+    warn|warning) echo -e "${YELLOW}$msg${NC}" ;;
+    warn_bold) echo -e "${YELLOW}${BOLD}$msg${NC}" ;;
+    error)
+      echo -e "${RED}$msg${NC}" >&2
+      echo -e "${RED}${product_name} has not been installed successfully${NC}" >&2
+      exit 1
+      ;;
+    error_no_exit) echo -e "${RED}$msg${NC}" >&2 ;;
+    debug)
+      if [[ "$DEBUG" == 1 ]]; then
+        echo -e "${GREEN_DARK}$msg ${NC}"
+      fi
+      ;;
+    *) echo -e "$msg" ;;
+  esac
+}
+
 # =============================  get input parameters =================================================
 
 # install.sh -v [server | client]  -e [yes | no] -i [systemd | service | ...]
@@ -156,12 +185,17 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
-  services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+  if [ "${entMode}" == "lite" ]; then
+    services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
+  else
+    services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+  fi
 elif [ "${verMode}" == "edge" ]; then
-  if [ "${pagMode}" == "full" ]; then
+  if [ "${pkgMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -169,6 +203,8 @@ elif [ "${verMode}" == "edge" ]; then
 else
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 fi
+driver_path=${install_main_dir}/driver
+
 
 function install_services() {
   for service in "${services[@]}"; do
@@ -187,7 +223,7 @@ function install_main_path() {
   #create install main dir and all sub dir
   ${csudo}rm -rf ${install_main_dir}/cfg || :
   ${csudo}rm -rf ${install_main_dir}/bin || :
-  ${csudo}rm -rf ${install_main_dir}/driver || :
+  ${csudo}rm -rf ${driver_path}/ || :
   ${csudo}rm -rf ${install_main_dir}/examples || :
   ${csudo}rm -rf ${install_main_dir}/include || :
   ${csudo}rm -rf ${install_main_dir}/share || :
@@ -197,7 +233,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/cfg
   ${csudo}mkdir -p ${install_main_dir}/bin
   #  ${csudo}mkdir -p ${install_main_dir}/connector
-  ${csudo}mkdir -p ${install_main_dir}/driver
+  ${csudo}mkdir -p ${driver_path}/
   ${csudo}mkdir -p ${install_main_dir}/examples
   ${csudo}mkdir -p ${install_main_dir}/include
   ${csudo}mkdir -p ${configDir}
@@ -225,6 +261,7 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
@@ -240,10 +277,18 @@ function install_bin() {
       ${csudo}cp -r ${script_dir}/${xname}/uninstall_${xname}.sh ${install_main_dir}/uninstall_${xname}.sh
     fi
   fi
-  
+
   if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
     ${csudo}cp -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
   fi
+
+  # set taos_malloc.sh as bin script
+  if [ -f ${script_dir}/bin/${set_malloc_bin} ] && [ "${verType}" != "client" ]; then
+    ${csudo}cp -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
+  else
+    echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
+  fi
+
 
   ${csudo}chmod 0555 ${install_main_dir}/bin/*
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}mv ${install_main_dir}/bin/remove.sh ${install_main_dir}/uninstall.sh || :
@@ -268,26 +313,43 @@ function install_lib() {
   # Remove links
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+  ${csudo}rm -f ${lib_link_dir}/libtaosnative.* || :
+  ${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
+  ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
+  ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}              || :
-  ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
+  ${csudo}cp -rf ${script_dir}/driver/* ${driver_path}/ && ${csudo}chmod 777 ${driver_path}/*
 
-  ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
+  #link lib/link_dir
+  ${csudo}ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+  ${csudo}ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
+  ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
-  [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
+  ${csudo}ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
 
+  #link jemalloc.so and tcmalloc.so
+  jemalloc_file="${driver_path}/libjemalloc.so.2"
+  tcmalloc_file="${driver_path}/libtcmalloc.so.4.5.18"
+  [ -f "${jemalloc_file}" ] && ${csudo}ln -sf "${jemalloc_file}" "${driver_path}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
+  [ -f "${tcmalloc_file}" ] && ${csudo}ln -sf "${tcmalloc_file}" "${driver_path}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
+
+
+  #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
+    ${csudo}ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
+    ${csudo}ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
+    ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
 
-    [ -f ${install_main_dir}/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
+    ${csudo}ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
 }
 
 function install_avro() {
-  if [ "$osType" != "Darwin" ]; then
+  if [ "$ostype" != "Darwin" ]; then
     avro_dir=${script_dir}/avro
     if [ -f "${avro_dir}/lib/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
       ${csudo}/usr/bin/install -c -d /usr/local/$1
@@ -519,96 +581,108 @@ function local_fqdn_check() {
 }
 
 function install_taosx_config() {
-  [ ! -z $1 ] && return 0 || : # only install client
+  local only_client=${1:-}
+  [ -n "${only_client}" ] && return 0
 
-  fileName="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${fileName}
-    
+  file_name="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
+  if [ -f ${file_name} ]; then
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${file_name}
+
     if [ -f "${configDir}/${xname}.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${xname}.toml.new
+      ${csudo}cp ${file_name} ${configDir}/${xname}.toml.new
     else
-      ${csudo}cp ${fileName} ${configDir}/${xname}.toml
+      ${csudo}cp ${file_name} ${configDir}/${xname}.toml
     fi
   fi
 }
 
-
 function install_explorer_config() {
-  [ ! -z $1 ] && return 0 || : # only install client
+  local only_client=${1:-}
+  [ -n "${only_client}" ] && return 0
 
-  if [ "$verMode" == "cluster" ]; then
-    fileName="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
+  if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
+    file_name="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
   else
-    fileName="${script_dir}/cfg/explorer.toml"
+    file_name="${script_dir}/cfg/explorer.toml"
   fi
 
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i "s/localhost/${serverFqdn}/g" ${fileName}
-    
+  if [ -f "${file_name}" ]; then
+    ${csudo}sed -i "s/localhost/${serverFqdn}/g" "${file_name}"
     if [ -f "${configDir}/explorer.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/explorer.toml.new
+      ${csudo}cp "${file_name}" "${configDir}/explorer.toml.new"
     else
-      ${csudo}cp ${fileName} ${configDir}/explorer.toml
+      ${csudo}cp "${file_name}" "${configDir}/explorer.toml"
     fi
   fi
 }
 
 function install_adapter_config() {
-  [ ! -z $1 ] && return 0 || : # only install client
+  local only_client=${1:-}
+  [ -n "${only_client}" ] && return 0
 
-  fileName="${script_dir}/cfg/${adapterName}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" ${fileName}
-    
-    if [ -f "${configDir}/${adapterName}.toml" ]; then      
-      ${csudo}cp ${fileName} ${configDir}/${adapterName}.toml.new
+  file_name="${script_dir}/cfg/${adapterName}.toml"
+  if [ -f "${file_name}" ]; then
+    ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" "${file_name}"
+
+    if [ -f "${configDir}/${adapterName}.toml" ]; then
+      ${csudo}cp "${file_name}" "${configDir}/${adapterName}.toml.new"
     else
-      ${csudo}cp ${fileName} ${configDir}/${adapterName}.toml      
+      ${csudo}cp "${file_name}" "${configDir}/${adapterName}.toml"
     fi
   fi
 }
 
 function install_keeper_config() {
-  [ ! -z $1 ] && return 0 || : # only install client
+  local only_client=${1:-}
+  [ -n "${only_client}" ] && return 0
 
-  fileName="${script_dir}/cfg/${keeperName}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${fileName}
+  file_name="${script_dir}/cfg/${keeperName}.toml"
+  if [ -f "${file_name}" ]; then
+    ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" "${file_name}"
 
     if [ -f "${configDir}/${keeperName}.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${keeperName}.toml.new
+      ${csudo}cp "${file_name}" "${configDir}/${keeperName}.toml.new"
     else
-      ${csudo}cp ${fileName} ${configDir}/${keeperName}.toml
+      ${csudo}cp "${file_name}" "${configDir}/${keeperName}.toml"
     fi
   fi
 }
 
 function install_taosd_config() {
-  fileName="${script_dir}/cfg/${configFile}"
-  if [ -f ${fileName} ]; then
+  file_name="${script_dir}/cfg/${configFile}"
+  if [ -f ${file_name} ]; then
     ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
     ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
     ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
     if [ "$verMode" == "cluster" ]; then
-      ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}  
+      ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}
     fi
-    
+
     if [ -f "${configDir}/${configFile}" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${configFile}.new
+      ${csudo}cp ${file_name} ${configDir}/${configFile}.new
     else
-      ${csudo}cp ${fileName} ${configDir}/${configFile}
+      ${csudo}cp ${file_name} ${configDir}/${configFile}
     fi
   fi
 
   ${csudo}ln -sf ${configDir}/${configFile} ${install_main_dir}/cfg
 }
-  
+
+function install_taosinspect_config() {
+  file_name="${script_dir}/cfg/inspect.cfg"
+  if [ -f ${file_name} ]; then
+    if [ -f "${configDir}/inspect.cfg" ]; then
+      ${csudo}cp ${file_name} ${configDir}/inspect.cfg.new
+    else
+      ${csudo}cp ${file_name} ${configDir}/inspect.cfg
+    fi
+  fi
+
+  ${csudo}ln -sf ${configDir}/inspect.cfg ${install_main_dir}/cfg
+}
 
 function install_config() {
-  
-  [ ! -z $1 ] && return 0 || : # only install client
-
+  local only_client=${1:-}
   if ((${update_flag} == 1)); then
     install_taosd_config
     return 0
@@ -655,7 +729,7 @@ function install_config() {
 }
 
 function install_log() {
-  ${csudo}mkdir -p ${logDir} && ${csudo}chmod 777 ${logDir}
+  ${csudo}mkdir -p ${logDir} &&  ${csudo}mkdir -p ${logDir}/tcmalloc &&  ${csudo}mkdir -p ${logDir}/jemalloc && ${csudo}chmod 777 ${logDir}
 
   ${csudo}ln -sf ${logDir} ${install_main_dir}/log
 }
@@ -668,7 +742,7 @@ function install_data() {
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
-    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"    
+    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
     ${csudo}cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
   fi
 }
@@ -752,7 +826,7 @@ function install_service_on_systemd() {
 
   cfg_source_dir=${script_dir}/cfg
   if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
       cfg_source_dir=${script_dir}/${xname}/etc/systemd/system
     else
       cfg_source_dir=${script_dir}/cfg
@@ -762,6 +836,14 @@ function install_service_on_systemd() {
   if [ -f ${cfg_source_dir}/$1.service ]; then
     ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
   fi
+
+  # # set default malloc config for cluster(enterprise) and edge(community)
+  # if [ "$verMode" == "cluster" ] && [ "$ostype" == "Linux" ]; then
+  #   if [ "$1" = "taosd" ] || [ "$1" = "taosadapter" ]; then
+  #     echo "set $1 malloc config"
+  #     ${csudo} ${install_main_dir}/bin/${set_malloc_bin} -m 0 -q
+  #   fi
+  # fi
 
   ${csudo}systemctl enable $1
   ${csudo}systemctl daemon-reload
@@ -859,6 +941,87 @@ rpm_erase() {
   done
 }
 
+function finished_install_info(){
+    local entries=()
+    # header
+    echo
+    log info_color "${productName} has been installed successfully!"
+    echo
+
+    # collect pairs "label|value"
+    entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
+    if [ -f "${configDir}/${adapterName}.toml" ] && [ -f "${installDir}/bin/${adapterName}" ]; then
+      entries+=("To configure ${clientName}Adapter:|edit ${configDir}/${adapterName}.toml")
+    fi
+    entries+=("To configure ${clientName}Keeper:|edit ${configDir}/${keeperName}.toml")
+    entries+=("To configure ${clientName}X:|edit ${configDir}/${xname}.toml")
+    entries+=("To configure ${clientName}Explorer:|edit ${configDir}/explorer.toml")
+
+    # insert a blank line between config and start
+    entries+=("|")
+    
+    if ((${service_mod} == 0)); then
+      entries+=("To start ${PREFIX}d:|${csudo}systemctl start ${serverName}")
+      if [ -f "${service_config_dir}/${clientName}adapter.service" ] && [ -f "${installDir}/bin/${clientName}adapter" ]; then
+        entries+=("To start ${clientName}Adapter:|${csudo}systemctl start ${clientName}adapter")
+      fi
+    elif ((${service_mod} == 1)); then
+      entries+=("To start ${productName} server:|${csudo}service ${serverName} start")
+      if [ -f "${service_config_dir}/${clientName}adapter.service" ] && [ -f "${installDir}/bin/${clientName}adapter" ]; then
+        entries+=("To start ${clientName}Adapter:|${csudo}service ${clientName}adapter start")
+      fi
+    else
+      entries+=("To start ${productName} server:|${serverName}")
+      if [ -f "${installDir}/bin/${clientName}adapter" ]; then
+        entries+=("To start ${clientName}Adapter:|${clientName}adapter")
+      fi
+    fi
+
+    entries+=("To start ${clientName}Keeper:|${csudo}systemctl start ${clientName}keeper")
+
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
+      entries+=("To start ${clientName}X:|${csudo}systemctl start ${clientName}x")
+    fi
+    entries+=("To start ${clientName}Explorer:|${csudo}systemctl start ${clientName}-explorer")
+    entries+=("To start all the components:|${csudo}start-all.sh")
+    entries+=("|")
+    
+    entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
+    entries+=("To access ${productName} GUI:|http://$serverFqdn:6060")
+    entries+=("|")
+
+    if [ "$verMode" == "cluster" ]; then
+      entries+=("To read the user manual:|http://$serverFqdn:6060/docs-en")
+      entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
+    fi
+
+    # compute max label length
+    local max=0
+    local label value len
+    for pair in "${entries[@]}"; do
+      label="${pair%%|*}"
+      len=${#label}
+      if (( len > max )); then max=$len; fi
+    done
+
+    # set fixed max width: at least 40
+    local min_width=40
+    if (( max < min_width )); then
+      max=$min_width
+    else
+      max=$((max))
+    fi
+
+    # print aligned lines
+    for pair in "${entries[@]}"; do
+      label="${pair%%|*}"
+      value="${pair#*|}"
+      log info_color "$(printf "%-${max}s %s" "$label" "$value")"
+    done
+
+    echo
+}
+
 function updateProduct() {
   # Check if version compatible
   if ! is_version_compatible; then
@@ -879,7 +1042,6 @@ function updateProduct() {
   fi
 
   tar -zxf ${tarName}
-  install_jemalloc
 
   echo "Start to update ${productName}..."
   # Stop the service if running
@@ -911,61 +1073,28 @@ function updateProduct() {
     install_bin
     install_services
 
-    if [ "${pagMode}" != "lite" ]; then
+    if [ "${pkgMode}" != "lite" ]; then
       install_adapter_config
       install_taosx_config
       install_explorer_config
+      if [ "${verMode}" == "cluster" ]; then
+        install_taosinspect_config
+      fi
+
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
     fi
-
-    openresty_work=false
-
-    echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
-    [ -f ${configDir}/${adapterName}.toml ] && [ -f ${installDir}/bin/${adapterName} ] &&
-      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"    
-    echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${configDir}/explorer.toml"
-    if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
-      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
-    elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
-      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
-    else
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ./${serverName}${NC}"
-      [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
-    fi
-
-    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"      
-    fi
-    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
-
-    echo
-    echo "${productName} is updated successfully!"
-    echo
-    
-    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
-    fi
+    finished_install_info
   else
     install_bin
 
     echo
-    echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName} client has been installed successfully!${NC}"
   fi
 
   cd $script_dir
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
+  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^\/") || :
 }
 
 function installProduct() {
@@ -987,7 +1116,6 @@ function installProduct() {
   install_log
   install_header
   install_lib
-  install_jemalloc
   #install_avro lib
   #install_avro lib64
   install_config
@@ -1003,73 +1131,39 @@ function installProduct() {
     install_bin
     install_services
 
-    if [ "${pagMode}" != "lite" ]; then      
+    if [ "${pkgMode}" != "lite" ]; then
       install_adapter_config
       install_taosx_config
       install_explorer_config
+
+      if [ "${verMode}" == "cluster" ]; then
+        install_taosinspect_config
+      fi
+
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
     fi
 
-    openresty_work=false
+    finished_install_info
 
-    # Ask if to start the service
-    echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
-    [ -f ${configDir}/${clientName}adapter.toml ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-      echo -e "${GREEN_DARK}To configure ${clientName}Adapter ${NC}\t: edit ${configDir}/${clientName}adapter.toml"
-    echo -e "${GREEN_DARK}To configure ${clientName}-explorer ${NC}\t: edit ${configDir}/explorer.toml"
-    if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName} server    ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
-      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
-    elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
-      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
-    else
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${serverName}${NC}"
-      [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
-    fi
-
-    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
-
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
-    fi
-    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
-
-    echo
-    echo "${productName} is installed successfully!"
-    echo
-    
-    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs-en${NC}"
-    fi
-    echo
   else # Only install client
     install_bin
 
     echo
-    echo -e "\033[44;32;1m${productName} client is installed successfully!${NC}"
+    log info_color "${productName} client has been installed successfully!"
   fi
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
+  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^\/") || :
 }
 
 check_java_env() {
-    if ! command -v java &> /dev/null
-    then
-        echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
-        return
-    fi
+  if ! command -v java &>/dev/null; then
+    echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
+    return
+  fi
 
   java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
   java_version_ok=false

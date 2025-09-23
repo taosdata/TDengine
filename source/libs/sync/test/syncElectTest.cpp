@@ -16,7 +16,7 @@ int32_t     gVgId = 1234;
 
 void init() {
   int code = walInit();
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
 }
 
 void cleanup() { walCleanUp(); }
@@ -32,7 +32,7 @@ SWal* createWal(char* path, int32_t vgId) {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal* pWal = walOpen(path, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
   return pWal;
 }
 
@@ -57,7 +57,7 @@ SSyncNode* createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWa
   }
 
   SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
@@ -87,21 +87,21 @@ int main(int argc, char** argv) {
   int32_t replicaNum = atoi(argv[1]);
   int32_t myIndex = atoi(argv[2]);
 
-  assert(replicaNum >= 1 && replicaNum <= 5);
-  assert(myIndex >= 0 && myIndex < replicaNum);
+  TD_ALWAYS_ASSERT(replicaNum >= 1 && replicaNum <= 5);
+  TD_ALWAYS_ASSERT(myIndex >= 0 && myIndex < replicaNum);
 
   init();
   int32_t ret = syncIOStart((char*)"127.0.0.1", gPorts[myIndex]);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
   ret = syncInit();
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   char walPath[128];
   snprintf(walPath, sizeof(walPath), "%s_wal_replica%d_index%d", gDir, replicaNum, myIndex);
   SWal* pWal = createWal(walPath, gVgId);
 
   SSyncNode* pSyncNode = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
   sNTrace(pSyncNode, "==syncElectTest==");
 
   //---------------------------

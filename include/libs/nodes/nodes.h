@@ -46,6 +46,10 @@ extern "C" {
 // only be use in WHERE_EACH
 #define ERASE_NODE(list) cell = nodesListErase((list), cell)
 
+// only be use in WHERE_EACH
+// iterate from the first element AGAIN
+#define WHERE_FIRST(list) cell = (NULL != (list) ? (list)->pHead : NULL);
+
 #define FORBOTH(node1, list1, node2, list2)                                               \
   for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL),                      \
                   *cell2 = (NULL != (list2) ? (list2)->pHead : NULL);                     \
@@ -170,11 +174,13 @@ int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen);
 int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
 
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
+int32_t nodesNodeToSQLFormat(SNode* pNode, char* buf, int32_t bufSize, int32_t* len, bool longFormat);
 char*   nodesGetNameFromColumnNode(SNode* pNode);
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
 void    nodesSortList(SNodeList** pList, int32_t (*)(SNode* pNode1, SNode* pNode2));
 void    destroyFuncParam(void* pFuncStruct);
 int32_t nodesListDeduplicate(SNodeList** pList);
+
 
 #ifdef __cplusplus
 }

@@ -16,6 +16,21 @@
 #include "meta.h"
 #include "vnd.h"
 
+#ifndef NO_UNALIGNED_ACCESS
+#define TDB_KEY_ALIGN(k1, k2, kType)
+#else
+#define TDB_KEY_ALIGN(k1, k2, kType)   \
+  kType _k1, _k2;                      \
+  if (((uintptr_t)(k1) & 7)) {         \
+    memcpy(&_k1, (k1), sizeof(kType)); \
+    (k1) = &_k1;                       \
+  }                                    \
+  if (((uintptr_t)(k2) & 7)) {         \
+    memcpy(&_k2, (k2), sizeof(kType)); \
+    (k2) = &_k2;                       \
+  }
+#endif
+
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
@@ -133,17 +148,17 @@ static void doScan(SMeta *pMeta) {
   }
 }
 
-static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
+int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
   SMeta  *pMeta = NULL;
   int32_t code = 0;
-  int32_t lino;
+  int32_t lino = 0;
   int32_t offset;
   int32_t pathLen = 0;
   char    path[TSDB_FILENAME_LEN] = {0};
   char    indexFullPath[128] = {0};
 
   // create handle
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
   offset = strlen(path);
   snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 
@@ -241,17 +256,34 @@ static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
 
 _exit:
   if (code) {
-    metaError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    metaError("vgId:%d %s failed at %s:%d since %s, path:%s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code),
+              path);
     metaCleanup(&pMeta);
     *ppMeta = NULL;
   } else {
     metaDebug("vgId:%d %s success", TD_VID(pVnode), __func__);
     *ppMeta = pMeta;
   }
-  return code;
+  TAOS_RETURN(code);
+}
+
+void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
+  vnodeGetPrimaryPath(pVnode, false, fname, TSDB_FILENAME_LEN);
+  int32_t offset = strlen(fname);
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 }
 
 bool generateNewMeta = false;
+
+static void metaResetStatisInfo(SMeta *pMeta) {
+  pMeta->pVnode->config.vndStats.numOfSTables = 0;
+  pMeta->pVnode->config.vndStats.numOfCTables = 0;
+  pMeta->pVnode->config.vndStats.numOfNTables = 0;
+  pMeta->pVnode->config.vndStats.numOfVTables = 0;
+  pMeta->pVnode->config.vndStats.numOfVCTables = 0;
+  pMeta->pVnode->config.vndStats.numOfNTimeSeries = 0;
+  pMeta->pVnode->config.vndStats.numOfTimeSeries = 0;
+}
 
 static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   SMeta  *pNewMeta = NULL;
@@ -260,7 +292,10 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
 
   metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
 
-  // Open a new meta for orgainzation
+  // Reset statistics info
+  metaResetStatisInfo(pMeta);
+
+  // Open a new meta for organization
   int32_t code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);
   if (code) {
     return code;
@@ -271,6 +306,7 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
     return code;
   }
 
+#if 1
   // i == 0, scan super table
   // i == 1, scan normal table and child table
   for (int i = 0; i < 2; i++) {
@@ -348,6 +384,59 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
 
     tdbTbcClose(uidCursor);
   }
+#else
+  TBC *cursor = NULL;
+
+  code = tdbTbcOpen(pMeta->pTbDb, &cursor, NULL);
+  if (code) {
+    metaError("vgId:%d failed to open table.db cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(cursor);
+  if (code) {
+    metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pVnode), tstrerror(code));
+    tdbTbcClose(cursor);
+    return code;
+  }
+
+  while (true) {
+    const void *pKey;
+    int         kLen;
+    const void *pVal;
+    int         vLen;
+
+    if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+      break;
+    }
+
+    STbDbKey  *pKeyEntry = (STbDbKey *)pKey;
+    SDecoder   dc = {0};
+    SMetaEntry me = {0};
+
+    tDecoderInit(&dc, (uint8_t *)pVal, vLen);
+    if (metaDecodeEntry(&dc, &me) < 0) {
+      tDecoderClear(&dc);
+      break;
+    }
+
+    if (metaHandleEntry2(pNewMeta, &me) != 0) {
+      metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), pKeyEntry->uid);
+      tDecoderClear(&dc);
+      break;
+    }
+    tDecoderClear(&dc);
+
+    code = tdbTbcMoveToNext(cursor);
+    if (code) {
+      metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pVnode), tstrerror(code));
+      break;
+    }
+  }
+
+  tdbTbcClose(cursor);
+
+#endif
 
   code = metaCommit(pNewMeta, pNewMeta->txn);
   if (code) {
@@ -366,72 +455,85 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   }
   metaClose(&pNewMeta);
   metaInfo("vgId:%d finish to generate new meta", TD_VID(pVnode));
+
+  // Commit the new metadata
+  char metaDir[TSDB_FILENAME_LEN] = {0};
+  char metaTempDir[TSDB_FILENAME_LEN] = {0};
+  char metaBackupDir[TSDB_FILENAME_LEN] = {0};
+
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
+
+  metaClose(ppMeta);
+  if (taosRenameFile(metaDir, metaBackupDir) != 0) {
+    metaError("vgId:%d failed to rename old meta to backup, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+    return terrno;
+  }
+
+  // rename the new meta to old meta
+  if (taosRenameFile(metaTempDir, metaDir) != 0) {
+    metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
+    return terrno;
+  }
+
+  code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, false);
+  if (code) {
+    metaError("vgId:%d failed to open new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
+  metaInfo("vgId:%d successfully opened new meta", TD_VID(pVnode));
+
   return 0;
 }
 
 int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
-  if (generateNewMeta) {
-    char path[TSDB_FILENAME_LEN] = {0};
-    char oldMetaPath[TSDB_FILENAME_LEN] = {0};
-    char newMetaPath[TSDB_FILENAME_LEN] = {0};
-    char backupMetaPath[TSDB_FILENAME_LEN] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  char    metaDir[TSDB_FILENAME_LEN] = {0};
+  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
+  char    metaTempDir[TSDB_FILENAME_LEN] = {0};
 
-    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
-    snprintf(oldMetaPath, sizeof(oldMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_DIR);
-    snprintf(newMetaPath, sizeof(newMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_TMP_DIR);
-    snprintf(backupMetaPath, sizeof(backupMetaPath) - 1, "%s%s%s", path, TD_DIRSEP, VNODE_META_BACKUP_DIR);
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
 
-    bool oldMetaExist = taosCheckExistFile(oldMetaPath);
-    bool newMetaExist = taosCheckExistFile(newMetaPath);
-    bool backupMetaExist = taosCheckExistFile(backupMetaPath);
+  bool metaExists = taosCheckExistFile(metaDir);
+  bool metaBackupExists = taosCheckExistFile(metaBackupDir);
+  bool metaTempExists = taosCheckExistFile(metaTempDir);
 
-    if ((!backupMetaExist && !oldMetaExist && newMetaExist)     // case 2
-        || (backupMetaExist && !oldMetaExist && !newMetaExist)  // case 4
-        || (backupMetaExist && oldMetaExist && newMetaExist)    // case 8
-    ) {
-      metaError("vgId:%d invalid meta state, please check", TD_VID(pVnode));
-      return TSDB_CODE_FAILED;
-    } else if ((backupMetaExist && oldMetaExist && !newMetaExist)       // case 7
-               || (!backupMetaExist && !oldMetaExist && !newMetaExist)  // case 1
-    ) {
-      return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
-    } else if (backupMetaExist && !oldMetaExist && newMetaExist) {
-      if (taosRenameFile(newMetaPath, oldMetaPath) != 0) {
-        metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
-        return terrno;
-      }
-      return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
-    } else {
-      int32_t code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
-      if (code) {
-        return code;
-      }
-
-      code = metaGenerateNewMeta(ppMeta);
-      if (code) {
-        metaError("vgId:%d failed to generate new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
-      }
-
-      metaClose(ppMeta);
-      if (taosRenameFile(oldMetaPath, backupMetaPath) != 0) {
-        metaError("vgId:%d failed to rename old meta to backup, reason:%s", TD_VID(pVnode), tstrerror(terrno));
-        return terrno;
-      }
-
-      // rename the new meta to old meta
-      if (taosRenameFile(newMetaPath, oldMetaPath) != 0) {
-        metaError("vgId:%d failed to rename new meta to old meta, reason:%s", TD_VID(pVnode), tstrerror(terrno));
-        return terrno;
-      }
-      code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, false);
-      if (code) {
-        metaError("vgId:%d failed to open new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
-        return code;
-      }
+  if ((!metaBackupExists && !metaExists && metaTempExists)     //
+      || (metaBackupExists && !metaExists && !metaTempExists)  //
+      || (metaBackupExists && metaExists && metaTempExists)    //
+  ) {
+    metaError("vgId:%d, invalid meta state, please check!", TD_VID(pVnode));
+    TAOS_RETURN(TSDB_CODE_FAILED);
+  } else if (!metaBackupExists && metaExists && metaTempExists) {
+    taosRemoveDir(metaTempDir);
+  } else if (metaBackupExists && !metaExists && metaTempExists) {
+    code = taosRenameFile(metaTempDir, metaDir);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+      TAOS_RETURN(code);
     }
+    taosRemoveDir(metaBackupDir);
+  } else if (metaBackupExists && metaExists && !metaTempExists) {
+    taosRemoveDir(metaBackupDir);
+  }
 
-  } else {
-    return metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+  // Do open meta
+  code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  if (generateNewMeta) {
+    code = metaGenerateNewMeta(ppMeta);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+      TAOS_RETURN(code);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -532,6 +634,8 @@ static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
   STbDbKey *pTbDbKey1 = (STbDbKey *)pKey1;
   STbDbKey *pTbDbKey2 = (STbDbKey *)pKey2;
 
+  TDB_KEY_ALIGN(pTbDbKey1, pTbDbKey2, STbDbKey);
+
   if (pTbDbKey1->version > pTbDbKey2->version) {
     return 1;
   } else if (pTbDbKey1->version < pTbDbKey2->version) {
@@ -551,6 +655,8 @@ static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLe
   SSkmDbKey *pSkmDbKey1 = (SSkmDbKey *)pKey1;
   SSkmDbKey *pSkmDbKey2 = (SSkmDbKey *)pKey2;
 
+  TDB_KEY_ALIGN(pSkmDbKey1, pSkmDbKey2, SSkmDbKey);
+
   if (pSkmDbKey1->uid > pSkmDbKey2->uid) {
     return 1;
   } else if (pSkmDbKey1->uid < pSkmDbKey2->uid) {
@@ -567,8 +673,8 @@ static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLe
 }
 
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
-  tb_uid_t uid1 = *(tb_uid_t *)pKey1;
-  tb_uid_t uid2 = *(tb_uid_t *)pKey2;
+  tb_uid_t uid1 = taosGetInt64Aligned((int64_t*)pKey1);
+  tb_uid_t uid2 = taosGetInt64Aligned((int64_t*)pKey2);
 
   if (uid1 > uid2) {
     return 1;
@@ -582,6 +688,8 @@ static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   SCtbIdxKey *pCtbIdxKey1 = (SCtbIdxKey *)pKey1;
   SCtbIdxKey *pCtbIdxKey2 = (SCtbIdxKey *)pKey2;
+
+  TDB_KEY_ALIGN(pCtbIdxKey1, pCtbIdxKey2, SCtbIdxKey);
 
   if (pCtbIdxKey1->suid > pCtbIdxKey2->suid) {
     return 1;
@@ -603,6 +711,8 @@ int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
   tb_uid_t    uid1 = 0, uid2 = 0;
   int         c;
+
+  TDB_KEY_ALIGN(pTagIdxKey1, pTagIdxKey2, STagIdxKey);
 
   // compare suid
   if (pTagIdxKey1->suid > pTagIdxKey2->suid) {
@@ -663,6 +773,9 @@ int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
 static int btimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   SBtimeIdxKey *pBtimeIdxKey1 = (SBtimeIdxKey *)pKey1;
   SBtimeIdxKey *pBtimeIdxKey2 = (SBtimeIdxKey *)pKey2;
+
+  TDB_KEY_ALIGN(pBtimeIdxKey1, pBtimeIdxKey2, SBtimeIdxKey);
+
   if (pBtimeIdxKey1->btime > pBtimeIdxKey2->btime) {
     return 1;
   } else if (pBtimeIdxKey1->btime < pBtimeIdxKey2->btime) {
@@ -682,6 +795,8 @@ static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
   SNcolIdxKey *pNcolIdxKey1 = (SNcolIdxKey *)pKey1;
   SNcolIdxKey *pNcolIdxKey2 = (SNcolIdxKey *)pKey2;
 
+  TDB_KEY_ALIGN(pNcolIdxKey1, pNcolIdxKey2, SNcolIdxKey);
+
   if (pNcolIdxKey1->ncol > pNcolIdxKey2->ncol) {
     return 1;
   } else if (pNcolIdxKey1->ncol < pNcolIdxKey2->ncol) {
@@ -700,6 +815,8 @@ static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   SSmaIdxKey *pSmaIdxKey1 = (SSmaIdxKey *)pKey1;
   SSmaIdxKey *pSmaIdxKey2 = (SSmaIdxKey *)pKey2;
+
+  TDB_KEY_ALIGN(pSmaIdxKey1, pSmaIdxKey2, SSmaIdxKey);
 
   if (pSmaIdxKey1->uid > pSmaIdxKey2->uid) {
     return 1;

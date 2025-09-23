@@ -265,14 +265,6 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
   int32_t lino = 0;
   int32_t vid = TD_VID(merger->tsdb->pVnode);
 
-  SDiskID did;
-  int32_t level = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now);
-
-  TAOS_CHECK_GOTO(tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, &did), &lino, _exit);
-
-  code = tfsMkdirRecurAt(merger->tsdb->pVnode->pTfs, merger->tsdb->path, did);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   SFSetWriterConfig config = {
       .tsdb = merger->tsdb,
       .toSttOnly = true,
@@ -283,7 +275,7 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
       .cmprAlg = merger->cmprAlg,
       .fid = merger->ctx->fset->fid,
       .cid = merger->cid,
-      .did = did,
+      .expLevel = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now),
       .level = merger->ctx->level,
   };
 
@@ -484,7 +476,6 @@ static int32_t tsdbMergeGetFSet(SMerger *merger) {
     return code;
   }
 
-  fset->mergeScheduled = false;
   (void)taosThreadMutexUnlock(&merger->tsdb->mutex);
   return 0;
 }
@@ -515,7 +506,8 @@ int32_t tsdbMerge(void *arg) {
 
   // do merge
   tsdbInfo("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
-  code = tsdbDoMerge(merger);
+  METRICS_TIMING_BLOCK(tsdb->pVnode->writeMetrics.merge_time, METRIC_LEVEL_HIGH, { code = tsdbDoMerge(merger); });
+  METRICS_UPDATE(tsdb->pVnode->writeMetrics.merge_count, METRIC_LEVEL_HIGH, 1);
   tsdbInfo("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
   TSDB_CHECK_CODE(code, lino, _exit);
 

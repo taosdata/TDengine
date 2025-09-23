@@ -94,11 +94,12 @@ struct STFileSet {
   TSttLvlArray lvlArr[1];             // level array
   TSKEY        lastCompact;
   TSKEY        lastCommit;
+  TSKEY        lastMigrate;
 
-  bool      mergeScheduled;
   SVATaskID mergeTask;
   SVATaskID compactTask;
   SVATaskID retentionTask;
+  SVATaskID migrateTask;
 
   // block commit variables
   TdThreadCond canCommit;

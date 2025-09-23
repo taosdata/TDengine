@@ -22,6 +22,7 @@
 #define TSDB_COLUMN_ENCODE_RLE      "bit-packing"
 #define TSDB_COLUMN_ENCODE_DELTAD   "delta-d"
 #define TSDB_COLUMN_ENCODE_DISABLED "disabled"
+#define TSDB_COLUMN_ENCODE_BYTE_STREAM_SPLIT "bss"
 
 #define TSDB_COLUMN_COMPRESS_UNKNOWN  "unknown"
 #define TSDB_COLUMN_COMPRESS_LZ4      "lz4"
@@ -41,6 +42,7 @@
 #define TSDB_COLVAL_ENCODE_XOR      2
 #define TSDB_COLVAL_ENCODE_RLE      3
 #define TSDB_COLVAL_ENCODE_DELTAD   4
+#define TSDB_COLVAL_ENCODE_BYTE_STREAM_SPLIT 5
 #define TSDB_COLVAL_ENCODE_DISABLED 0xff
 
 #define TSDB_COLVAL_COMPRESS_NOCHANGE 0
@@ -61,7 +63,7 @@
 #define TSDB_CL_COMPRESS_OPTION_LEN 12
 #define TSDB_CL_OPTION_LEN          9
 
-extern const char* supportedEncode[5];
+extern const char* supportedEncode[];
 extern const char* supportedCompress[6];
 extern const char* supportedLevel[3];
 
@@ -79,7 +81,8 @@ uint8_t     columnLevelVal(const char* level);
 uint8_t     columnEncodeVal(const char* encode);
 uint16_t    columnCompressVal(const char* compress);
 
-bool useCompress(uint8_t tableType);
+bool withExtSchema(uint8_t tableType);
+bool hasRefCol(uint8_t tableType);
 bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]);
 bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OPTION_LEN]);
 bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]);

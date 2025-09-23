@@ -2,6 +2,7 @@ import requests
 from fabric2 import Connection
 from util.log import *
 from util.common import *
+from util.dnodes import tdDnodes
 
 
 class TAdapter:
@@ -13,7 +14,7 @@ class TAdapter:
             "debug"         : True,
             "taosConfigDir" : "",
             "port"          : 6041,
-            "logLevel"      : "error",
+            "logLevel"      : "debug",
             "cors"          : {
                 "allowAllOrigins" : True,
             },
@@ -89,7 +90,9 @@ class TAdapter:
             self.path = os.path.abspath(binPath + "../../")
         else:
             self.path = os.path.realpath(path)
-
+        self.logDir = os.path.join(self.path, "sim", "dnode1", "log")
+        self.taosadapter_cfg_dict["log"]["path"] = self.logDir
+        self.taosadapter_cfg_dict["taosConfigDir"] = os.path.join(tdDnodes.getSimCfgPath(), "taos.cfg")
         if self.remoteIP:
             try:
                 self.config = eval(remoteIP)

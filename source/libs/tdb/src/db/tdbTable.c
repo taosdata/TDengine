@@ -104,7 +104,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   }
 
 #endif
-
+  /*
   if (rollback) {
     ret = tdbPagerRestoreJournals(pPager);
     if (ret < 0) {
@@ -117,6 +117,13 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       tdbOsFree(pTb);
       return ret;
     }
+  }
+  */
+  // Always restore journal files with page flushing
+  ret = tdbPagerRestoreJournals(pPager);
+  if (ret < 0) {
+    tdbOsFree(pTb);
+    return ret;
   }
 
   // pTb->pBt
@@ -216,6 +223,20 @@ int tdbTbGet(TTB *pTb, const void *pKey, int kLen, void **ppVal, int *vLen) {
 
 int tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
   return tdbBtreePGet(pTb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
+}
+
+// tdbTbBtreeToStack, tdbTbPushFreePage, tdbTbPopFreePage are only for free page management,
+// they are using the b-tree as a stack, never call them for other purpose
+int tdbTbBtreeToStack(TTB *pTb) {
+  return tdbBtreeToStack(pTb->pBt);
+}
+
+int tdbTbPushFreePage(TTB *pTb, SPage* pPage, TXN *pTxn) {
+  return tdbBtreePushFreePage(pTb->pBt, pPage, pTxn);
+}
+
+int tdbTbPopFreePage(TTB *pTb, SPgno* pgno, TXN *pTxn) {
+  return tdbBtreePopFreePage(pTb->pBt, pgno, pTxn);
 }
 
 int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {

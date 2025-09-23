@@ -14,7 +14,6 @@ sed -i '$a\%%FINISHED%%' ${case_file}
 #unsupported case:sma 
 sed -i '/tsim\/sync\/vnodesnapshot-rsma-test.sim/d' ${case_file}
 sed -i '/tsim\/sma/d' ${case_file}
-sed -i '/tsim\/tagindex\/sma_and_tag_index.sim/d' ${case_file}
 #unsupported case:to_char
 sed -i '/tsim\/query\/sort-pre-cols.sim/d' ${case_file}
 sed -i '/2-query\/nestedQueryInterval.py/d' ${case_file}

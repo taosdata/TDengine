@@ -16,6 +16,7 @@ target_link_libraries(scalar
     PRIVATE qcom
     PRIVATE parser
     PRIVATE geometry
+    PRIVATE decimal
 )
 
 if(${BUILD_TEST})

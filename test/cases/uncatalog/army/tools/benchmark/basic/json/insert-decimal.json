@@ -1,0 +1,56 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "num_of_records_per_req": 3000,
+    "thread_count": 2,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "yes",
+                "precision": "us",
+                "vgroups": 2
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 2,
+                    "insert_rows": 1000,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "insert_interval": 0,
+                    "timestamp_step": 1000,
+                    "start_timestamp":1700000000000000,
+                    "columns": [
+                        { "type": "double", "name": "cdbl", "max": 10, "min": -10, "scale": 6},
+                        { "type": "decimal", "name": "dec64a", "precision": 10, "scale": 6},
+                        { "type": "decimal", "name": "dec64b", "precision": 10, "scale": 6, "max": 555.456789, "min": 0.0},
+                        { "type": "decimal", "name": "dec64c", "precision": 10, "scale": 6, "max": 555.456789, "min": -888.987654},
+                        { "type": "decimal", "name": "dec64d", "precision": 10, "scale": 6, "max": -555.456789, "min": -888.987654},
+                        { "type": "decimal", "name": "dec64e", "precision": 10, "scale": 6, "dec_max": "555.456789", "dec_min": "0.0"},
+                        { "type": "decimal", "name": "dec64f", "precision": 10, "scale": 6, "dec_max": "555.456789", "dec_min": "-888.987654"},
+                        { "type": "decimal", "name": "dec64g", "precision": 10, "scale": 6, "dec_max": "-555.456789", "dec_min": "-888.987654"},
+                        { "type": "decimal", "name": "dec64h", "precision": 18, "scale": 0},
+                        { "type": "decimal", "name": "dec128a", "precision": 24, "scale": 10},
+                        { "type": "decimal", "name": "dec128b", "precision": 24, "scale": 10, "max": 1234567890.5678912345, "min": 0.0},
+                        { "type": "decimal", "name": "dec128c", "precision": 24, "scale": 10, "max": 1234567890.5678912345, "min": -5678912345.666555444},
+                        { "type": "decimal", "name": "dec128d", "precision": 24, "scale": 10, "max": -1234567890.5678912345, "min": -5678912345.666555444},
+                        { "type": "decimal", "name": "dec128e", "precision": 24, "scale": 10, "dec_max": "1234567890.5678912345", "dec_min": "0.0"},
+                        { "type": "decimal", "name": "dec128f", "precision": 24, "scale": 10, "dec_max": "1234567890.5678912345", "dec_min": "-5678912345.666555444"},
+                        { "type": "decimal", "name": "dec128g", "precision": 24, "scale": 10, "dec_max": "-1234567890.5678912345", "dec_min": "-5678912345.666555444"},
+                        { "type": "decimal", "name": "dec128h", "precision": 38, "scale": 0}
+                    ],
+                    "tags": [
+                        { "type": "double", "name": "tdbl", "max": 10, "min": 0, "scale": 6}
+                    ]
+                }
+            ]
+        }
+    ]
+}

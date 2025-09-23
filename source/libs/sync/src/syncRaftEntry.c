@@ -33,12 +33,13 @@ SSyncRaftEntry* syncEntryBuild(int32_t dataLen) {
   return pEntry;
 }
 
-SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
+SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index, const STraceId *traceId) {
   SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   if (pEntry == NULL) return NULL;
 
   pEntry->msgType = pMsg->msgType;
   pEntry->originalRpcType = pMsg->originalRpcType;
+  pEntry->originRpcTraceId = *traceId;
   pEntry->seqNum = pMsg->seqNum;
   pEntry->isWeak = pMsg->isWeak;
   pEntry->term = term;
@@ -54,6 +55,7 @@ SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Syn
 
   pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pEntry->originalRpcType = pMsg->msgType;
+  pEntry->originRpcTraceId = pMsg->info.traceId;
   pEntry->seqNum = 0;
   pEntry->isWeak = 0;
   pEntry->term = term;

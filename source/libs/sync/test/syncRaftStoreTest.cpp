@@ -34,7 +34,7 @@ int main() {
   initRaftId();
 
   // SRaftStore* pRaftStore = raftStoreOpen("./test_raft_store.json");
-  // assert(pRaftStore != NULL);
+  // TD_ALWAYS_ASSERT(pRaftStore != NULL);
   // raftStoreLog2((char*)"==raftStoreOpen==", pRaftStore);
 
   // raftStoreSetTerm(pRaftStore, 100);

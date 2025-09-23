@@ -44,6 +44,9 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if ((code = dmStartCrashReportThread(pMgmt)) != 0) {
     return code;
   }
+  if ((code = dmStartMetricsThread(pMgmt)) != 0) {
+    return code;
+  }
   return 0;
 }
 
@@ -58,6 +61,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopNotifyThread(pMgmt);
 #endif
   dmStopCrashReportThread(pMgmt);
+  dmStopMetricsThread(pMgmt);
 }
 
 static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
@@ -73,22 +77,27 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
+  pMgmt->processAlterNodeFp = pInput->processAlterNodeFp;
   pMgmt->processAlterNodeTypeFp = pInput->processAlterNodeTypeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
+  pMgmt->sendMetricsReportFp = pInput->sendMetricsReportFp;
   pMgmt->monitorCleanExpiredSamplesFp = pInput->monitorCleanExpiredSamplesFp;
+  pMgmt->metricsCleanExpiredSamplesFp = pInput->metricsCleanExpiredSamplesFp;
   pMgmt->sendAuditRecordsFp = pInput->sendAuditRecordFp;
   pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
   pMgmt->getVnodeLoadsLiteFp = pInput->getVnodeLoadsLiteFp;
   pMgmt->getMnodeLoadsFp = pInput->getMnodeLoadsFp;
   pMgmt->getQnodeLoadsFp = pInput->getQnodeLoadsFp;
+  pMgmt->setMnodeSyncTimeoutFp = pInput->setMnodeSyncTimeoutFp;
+  pMgmt->setVnodeSyncTimeoutFp = pInput->setVnodeSyncTimeoutFp;
 
   if ((code = dmStartWorker(pMgmt)) != 0) {
     return code;
   }
 
   if ((code = udfStartUdfd(pMgmt->pData->dnodeId)) != 0) {
-    dError("failed to start udfd since %s", tstrerror(code));
+    dError("failed to start taosudf since %s", tstrerror(code));
   }
 
   if ((code = taosAnalyticsInit()) != 0) {

@@ -50,11 +50,13 @@ typedef struct {
   int32_t threadNum;
   int64_t timestamp;
   void   *workerCb;
+  bool    exit;
 } SQueueInfo;
 
 typedef enum {
   DEF_QITEM = 0,
   RPC_QITEM = 1,
+  APPLY_QITEM = 2,
 } EQItype;
 
 typedef void (*FItem)(SQueueInfo *pInfo, void *pItem);

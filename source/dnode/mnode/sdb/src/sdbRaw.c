@@ -136,7 +136,7 @@ int32_t sdbSetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t val) {
     TAOS_RETURN(code);
   }
 
-  *(int64_t *)(pRaw->pData + dataPos) = val;
+  taosSetInt64Aligned((int64_t *)(pRaw->pData + dataPos), val);
   return 0;
 }
 
@@ -297,7 +297,7 @@ int32_t sdbGetRawInt64(SSdbRaw *pRaw, int32_t dataPos, int64_t *val) {
     TAOS_RETURN(code);
   }
 
-  *val = *(int64_t *)(pRaw->pData + dataPos);
+  taosSetPInt64Aligned(val, (int64_t *)(pRaw->pData + dataPos));
   return 0;
 }
 

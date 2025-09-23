@@ -39,7 +39,7 @@ TEST(cacheTest, client_cache_test) {
 
   taosSsleep(3);
   char* d = (char*)taosCacheAcquireByKey(tscMetaCache, key3, strlen(key3));
-  assert(d == NULL);
+  TD_ALWAYS_ASSERT(d == NULL);
 
   char key5[] = "test5";
   char data5[] = "data5kkkkk";
@@ -117,7 +117,7 @@ TEST(cacheTest, cache_iter_test) {
   for (int32_t i = 0; i < num; ++i) {
     int32_t len = sprintf(key, "abc_%7d", i);
     void*   k = taosCacheAcquireByKey(pCache, key, len);
-    assert(k != 0);
+    TD_ALWAYS_ASSERT(k != 0);
   }
   endTime = taosGetTimestampUs();
   printf("retrieve %d object cost:%" PRIu64 " us,avg:%f\n", num, endTime - startTime,

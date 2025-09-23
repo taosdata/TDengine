@@ -6,9 +6,13 @@ from datetime import datetime
 from loguru import logger
 import getopt
 
+change_file_list = ""
+scan_dir = ""
+web_server = ""
+branch_name = ""
 
-opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:f:w:', [
-    'branch_name='])
+opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:f:w:d:', [
+    'branch_name=', 'filesName=', 'webServer=', 'dir='])
 for key, value in opts:
     if key in ['-h', '--help']:
         print(
@@ -16,15 +20,17 @@ for key, value in opts:
         print('-b  branch name or PR ID to scan')
         print('-f  change files list')
         print('-w  web server')
-
+        print('-d  directory to scan')  
         sys.exit(0)
-
+    
     if key in ['-b', '--branchName']:
         branch_name = value
     if key in ['-f', '--filesName']:
         change_file_list = value
     if key in ['-w', '--webServer']:
         web_server = value
+    if key in ['-d', '--dir']:
+        scan_dir = value
 
 
 # the base source code file path
@@ -64,7 +70,7 @@ os.makedirs(log_file_path, exist_ok=True)
 
 scan_log_file = f"{log_file_path}/scan_log.txt"
 logger.add(scan_log_file, rotation="10MB", retention="7 days", level="DEBUG")
-#if error happens, open this to debug
+# if error happens, open this to debug
 # print(self_path,work_path,TD_project_path,log_file_path,change_file_list)
 
 # scan result base path
@@ -75,7 +81,7 @@ scan_result_base_path = f"{log_file_path}/clang_scan_result/"
 # compile_commands_path = f"{work_path}/debugNoSan/compile_commands.json"
 compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
 
-#if error happens, open this to debug
+# if error happens, open this to debug
 # print(f"compile_commands_path:{compile_commands_path}")
 
 # # replace the docerk worf path with real work path in compile_commands.json
@@ -116,8 +122,15 @@ class CommandExecutor:
 def scan_files_path(source_file_path):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = ["/root/charles/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
-                           "/test/", "contrib", "debug", "deps", "/root/charles/TDinternal/community/source/libs/parser/src/sql.c", "/root/charles/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
+    scan_skip_file_list = [
+        "/root/charles/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
+        "/test/",
+        "contrib",
+        "debug",
+        "deps",
+        "/root/charles/TDinternal/community/source/libs/parser/src/sql.c",
+        "/root/charles/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
+    ]
     for root, dirs, files in os.walk(source_file_path):
         for file in files:
             if any(item in root for item in scan_dir_list):
@@ -129,35 +142,42 @@ def scan_files_path(source_file_path):
 def input_files(change_files):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = ["tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl", "/test/", "contrib", "debug", "deps", "source/libs/parser/src/sql.c", "source/libs/azure", "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
+    scan_skip_file_list = [
+        "tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
+        "/test/",
+        "contrib",
+        "debug",
+        "deps",
+        "source/libs/parser/src/sql.c",
+        "source/libs/azure",
+        "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
+        "source/libs/decimal/",
+    ]
     with open(change_files, 'r') as file:
         for line in file:
-            file_name = line.strip()
-            if any(dir_name in file_name for dir_name in scan_dir_list):
-                if (file_name.endswith(".c")  or file_name.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
-                    if "enterprise" in file_name:
-                        file_name = os.path.join(TD_project_path, file_name)
-                    else: 
-                        tdc_file_path = os.path.join(TD_project_path, "community/")
-                        file_name = os.path.join(tdc_file_path, file_name)                    
-                    all_file_path.append(file_name)
-                    print(f"all_file_path:{all_file_path}")
+            for file_name in line.strip().split():
+                if any(dir_name in file_name for dir_name in scan_dir_list):
+                    if (file_name.endswith(".c")  or file_name.endswith(".cpp")) and all(dir_name not in file_name for dir_name in scan_skip_file_list):
+                        if "enterprise" in file_name:
+                            file_name = os.path.join(TD_project_path, file_name)
+                        else: 
+                            tdc_file_path = os.path.join(TD_project_path, "community/")
+                            file_name = os.path.join(tdc_file_path, file_name)                    
+                        all_file_path.append(file_name)
+                        logger.info(f"all_file_path:{all_file_path}")
     logger.info("Found %s files" % len(all_file_path))
 file_res_path = ""
 
 def save_scan_res(res_base_path, file_path, out, err):
-    global file_res_path
     file_res_path = os.path.join(res_base_path, file_path.replace(f"{work_path}", "").split(".")[0] + ".txt")
-    # print(f"file_res_path:{file_res_path},res_base_path:{res_base_path},file_path:{file_path}")
     if not os.path.exists(os.path.dirname(file_res_path)):
         os.makedirs(os.path.dirname(file_res_path))
     logger.info("Save scan result to: %s" % file_res_path)
-    
-    # save scan result
     with open(file_res_path, "w") as f:
         f.write(err)
         f.write(out)
     logger.debug(f"file_res_file: {file_res_path}")
+    return file_res_path
 
 def write_csv(file_path, data):
     try:
@@ -170,8 +190,8 @@ def write_csv(file_path, data):
 if __name__ == "__main__":
     command_executor = CommandExecutor()
     # get all the c files path
-    # scan_files_path(TD_project_path)
-    input_files(change_file_list)
+    # scan_files_path("/root/TDinternal/community/source/")
+    # input_files(change_file_list)
     # print(f"all_file_path:{all_file_path}")
     res = []
     web_path = []
@@ -183,31 +203,43 @@ if __name__ == "__main__":
     # if not os.path.exists(scan_result_path):
     #     os.makedirs(scan_result_path)
 
+    # 优先用 -d 指定目录，否则用 -f 文件列表，否则默认目录
+    if scan_dir:
+        scan_files_path(scan_dir)
+    elif change_file_list:
+        input_files(change_file_list)
+    else:
+        print("Please specify -d <directory> or -f <file_list>")
+        sys.exit(1)
+
     for file in all_file_path:
-        cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
+        cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
         logger.debug(f"cmd:{cmd}")
         try:
             stdout, stderr = command_executor.execute(cmd)
-            #if "error" in stderr:
             print(stderr)
             lines = stdout.split("\n")
-            if lines[-2].endswith("matches.") or lines[-2].endswith("match."): 
+            scan_valid = len(lines) >= 2 and (lines[-2].endswith("matches.") or lines[-2].endswith("match."))
+            if scan_valid:
                 match_num = int(lines[-2].split(" ")[0])
                 logger.info("The match lines of file %s: %s" % (file, match_num))
+                this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
                 if match_num > 0:
                     logger.info(f"log_file_path: {log_file_path} ,file:{file}")
-                    save_scan_res(log_file_path, file, stdout, stderr)
-                    index_tests = file_res_path.find("scan_log")
+                    index_tests = this_file_res_path.find("scan_log")
                     if index_tests != -1:
-                        web_path_file = file_res_path[index_tests:]
+                        web_path_file = this_file_res_path[index_tests:]
                         web_path_file = os.path.join(web_server, web_path_file)
                         web_path.append(web_path_file)
-                res.append([file, file_res_path, match_num, 'Pass' if match_num == 0 else 'Fail'])
-                
+                res.append([file, this_file_res_path, match_num, 'Pass' if match_num == 0 else 'Fail'])
             else:
-                logger.warning("The result of scan is invalid for: %s" % file)            
+                logger.warning("The result of scan is invalid for: %s" % file)
+                this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
+                res.append([file, this_file_res_path, 0, 'Invalid'])
         except Exception as e:
             logger.error("Execute command failed: %s" % e)
+            this_file_res_path = ""
+            res.append([file, this_file_res_path, 0, 'Error'])
     # data = ""
     # for item in res:
     #     data += item[0] + "," + str(item[1]) + "\n"
@@ -215,15 +247,31 @@ if __name__ == "__main__":
     write_csv(os.path.join(log_file_path, "scan_res.txt"), res)
     scan_result_log = f"{log_file_path}/scan_res.txt"
     # delete the first element of res
-    res= res[1:]
+    res.pop(0)
     logger.info("The result of scan: \n")
     logger.info("Total scan files: %s" % len(res))
     logger.info("Total match lines: %s" % sum([item[2] for item in res]))
     logger.info(f"scan log file : {scan_result_log}")
     logger.info("Pass files: %s" % len([item for item in res if item[3] == 'Pass']))
     logger.info("Fail files: %s" % len([item for item in res if item[3] == 'Fail']))
-    if len([item for item in res if item[3] == 'Fail']) > 0:
-        logger.error(f"Scan failed,please check the log file:{scan_result_log}")
-        for index, failed_result_file in enumerate(web_path):
-            logger.error(f"failed number: {index}, failed_result_file: {failed_result_file}")
-        exit(1)
+    fail_files = [item for item in res if item[3] == 'Fail']
+
+    logger.error(f"Total failed files: {len(fail_files)}")
+    if web_server:
+        # 打印 web_path
+        for index, fail_item in enumerate(fail_files):
+            file_res_path = fail_item[1]
+            index_tests = file_res_path.find("scan_log")
+            if index_tests != -1:
+                web_path_file = os.path.join(web_server, file_res_path[index_tests:])
+            else:
+                web_path_file = file_res_path
+            logger.error(f"failed number: {index+1}, failed_result_file: {web_path_file}")
+    else:
+        # 打印本地路径
+        for index, fail_item in enumerate(fail_files):
+            logger.error(f"failed number: {index+1}, failed_result_file: {fail_item[1]}")
+
+    if len(fail_files) > 0:
+        logger.error(f"Scan failed, please check the log file: {scan_result_log}")
+        sys.exit(1)

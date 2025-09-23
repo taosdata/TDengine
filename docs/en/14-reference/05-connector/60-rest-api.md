@@ -252,7 +252,7 @@ Description:
 - code: (`int`) 0 represents success.
 - column_meta: (`[][3]any`) Column information, each column is described by three values: column name (string), column type (string), and type length (int).
 - rows: (`int`) Number of data return rows.
-- data: (`[][]any`) Specific data content (time format only supports RFC3339, result set for timezone 0).
+- data: (`[][]any`) Specific data content (time format only supports RFC3339, result set for timezone 0, when specifying tz, the corresponding time zone is returned).
 
 Column types use the following strings:
 
@@ -274,16 +274,19 @@ Column types use the following strings:
 - "JSON"
 - "VARBINARY"
 - "GEOMETRY"
+- "DECIMAL(precision, scale)"
+- "BLOB"
 
-`VARBINARY` and `GEOMETRY` types return data as Hex strings, example:
+For the `DECIMAL` data type, `precision` refers to the maximum number of significant digits supported, and `scale` refers to the maximum number of decimal places. For example, `DECIMAL(8, 4)` represents a range of `[-9999.9999, 9999.9999]`.
+
+`VARBINARY`, `GEOMETRY` and `BLOB` types return data as Hex strings, example:
 
 Prepare data
 
 ```shell
-create database demo
-use demo
-create table t(ts timestamp,c1 varbinary(20),c2 geometry(100))
-insert into t values(now,'\x7f8290','point(100 100)')
+create database demo;
+create table demo.t(ts timestamp,c1 varbinary(20),c2 geometry(100),c3 blob);
+insert into demo.t values(now,'\x7f8290','point(100 100)','\x010203ddff');
 ```
 
 Execute query
@@ -315,13 +318,19 @@ Return result
             "c2",
             "GEOMETRY",
             100
+        ],
+        [
+            "c3",
+            "BLOB",
+            4194304
         ]
     ],
     "data": [
         [
-            "2023-11-01T06:28:15.210Z",
+            "2025-07-22T05:58:41.798Z",
             "7f8290",
-            "010100000000000000000059400000000000005940"
+            "010100000000000000000059400000000000005940",
+            "010203ddff"
         ]
     ],
     "rows": 1
@@ -434,7 +443,6 @@ curl http://<fqnd>:<port>/rest/login/<username>/<password>
 
 Here, `fqdn` is the FQDN or IP address of the TDengine database, `port` is the port number of the TDengine service, `username` is the database username, and `password` is the database password. The return is in JSON format, with the fields meaning as follows:
 
-- status: Flag of the request result.
 - code: Return code.
 - desc: Authorization code.
 

@@ -12,10 +12,12 @@ cpuType=$4
 osType=$5
 verMode=$6
 verType=$7
+product_name=$8
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/debworkroom"
+taosx_dir="$(readlink -f ${script_dir}/../../../../taosx)"
 
 #echo "curr_dir: ${curr_dir}"
 #echo "top_dir: ${top_dir}"
@@ -29,8 +31,12 @@ fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-libfile="libtaos.so.${tdengine_ver}"
+libfile="libtaos.so"
+pkg_libfile="libtaos.so.${tdengine_ver}"
+nativelibfile="libtaosnative.so"
+pkg_nativelibfile="libtaosnative.so.${tdengine_ver}"
 wslibfile="libtaosws.so"
+pkg_wslibfile="libtaosws.so.${tdengine_ver}"
 
 # create install dir
 install_home_path="/usr/local/taos"
@@ -81,11 +87,11 @@ fi
 if [ -f "${compile_dir}/test/cfg/taoskeeper.service" ]; then
     cp ${compile_dir}/test/cfg/taoskeeper.service	${pkg_dir}${install_home_path}/cfg || :
 fi
-if [ -f "${compile_dir}/../../../explorer/target/taos-explorer.service" ]; then
-    cp ${compile_dir}/../../../explorer/target/taos-explorer.service ${pkg_dir}${install_home_path}/cfg || :
+if [ -f "${taosx_dir}/explorer/server/examples/explorer.service" ]; then
+    cp ${taosx_dir}/explorer/server/examples/explorer.service ${pkg_dir}${install_home_path}/cfg/taos-explorer.service || :
 fi
-if [ -f "${compile_dir}/../../../explorer/server/example/explorer.toml" ]; then
-    cp ${compile_dir}/../../../explorer/server/example/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
+if [ -f "${taosx_dir}/explorer/server/examples/explorer.toml" ]; then
+    cp ${taosx_dir}/explorer/server/examples/explorer.toml	${pkg_dir}${install_home_path}/cfg || :
 fi
 
 # cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
@@ -102,9 +108,10 @@ sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${in
 
 
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/udfd                   ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosudf                 ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosBenchmark           ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosmqtt                ${pkg_dir}${install_home_path}/bin
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
@@ -113,17 +120,18 @@ if [ -f "${compile_dir}/build/bin/taoskeeper" ]; then
     cp ${compile_dir}/build/bin/taoskeeper                    ${pkg_dir}${install_home_path}/bin ||:
 fi
 
-if [ -f "${compile_dir}/../../../explorer/target/release/taos-explorer" ]; then
-    cp ${compile_dir}/../../../explorer/target/release/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
+if [ -f "${taosx_dir}/target/release/taos-explorer" ]; then
+    cp ${taosx_dir}/target/release/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
-[ -f ${compile_dir}/build/lib/${wslibfile} ] && cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver ||:
+cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver/${pkg_libfile}     
+cp ${compile_dir}/build/lib/${nativelibfile}        ${pkg_dir}${install_home_path}/driver/${pkg_nativelibfile}
+cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver/${pkg_wslibfile} ||:
 cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/util/tdef.h       ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/../include/util/tdef.h            ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
 [ -f ${compile_dir}/build/include/taosws.h ] && cp ${compile_dir}/build/include/taosws.h            ${pkg_dir}${install_home_path}/include ||:
 cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
@@ -171,23 +179,25 @@ cp -r ${compile_dir}/../packaging/deb/DEBIAN        ${pkg_dir}/
 chmod 755 ${pkg_dir}/DEBIAN/*
 
 # modify version of control
-debver="Version: "$tdengine_ver
-sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
+debver="Version: ${tdengine_ver}"
+package="Package: ${product_name}"
+sed -i "2c$debver" "${pkg_dir}/DEBIAN/control"
+sed -i "1c$package" "${pkg_dir}/DEBIAN/control"
 
 #get taos version, then set deb name
 if [ "$verMode" == "cluster" ]; then
-  debname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
+  debname="${product_name}-oss-${tdengine_ver}-${osType}-${cpuType}"
 elif [ "$verMode" == "edge" ]; then
-  debname="TDengine-server"-${tdengine_ver}-${osType}-${cpuType}
+  debname="${product_name}-oss-${tdengine_ver}-${osType}-${cpuType}"
 else
   echo "unknow verMode, nor cluster or edge"
   exit 1
 fi
 
 if [ "$verType" == "beta" ]; then
-  debname="TDengine-server-"${tdengine_ver}-${verType}-${osType}-${cpuType}".deb"
+  debname="${product_name}-oss-${tdengine_ver}-${verType}-${osType}-${cpuType}.deb"
 elif [ "$verType" == "stable" ]; then
-  debname=${debname}".deb"
+  debname="${debname}.deb"
 else
   echo "unknow verType, nor stabel or beta"
   exit 1

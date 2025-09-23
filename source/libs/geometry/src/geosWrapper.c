@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_GEOS
 #include "geosWrapper.h"
 #include "tutil.h"
 #include "types.h"
@@ -325,11 +326,6 @@ int32_t checkWKB(const unsigned char *wkb, size_t size) {
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
 
-  if (!GEOSisValid_r(geosCtx->handle, geom)) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-    goto _exit;
-  }
-
 _exit:
   if (geom) {
     GEOSGeom_destroy_r(geosCtx->handle, geom);
@@ -484,3 +480,4 @@ void destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedG
     *geom = NULL;
   }
 }
+#endif

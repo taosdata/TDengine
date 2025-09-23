@@ -22,7 +22,6 @@ try:
         "CREATE TABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
     )
 
-    # ANCHOR: stmt
     sql = "INSERT INTO ? USING meters (groupid, location) TAGS(?,?) VALUES (?,?,?,?)"
     stmt = conn.statement()
     stmt.prepare(sql)

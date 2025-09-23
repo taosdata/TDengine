@@ -1,0 +1,7 @@
+
+taos> select v,tablename,senid, sen_name, index_code, jz_location,jz_no,ps_name,ps_code from test1.stb_hbny_sx_mint_jzzt2 order by tablename;
+             v             |           tablename            |             senid              |            sen_name            |           index_code           |          jz_location           |             jz_no              |            ps_name             |            ps_code             |
+====================================================================================================================================================================================================================================================================================================
+                       654 | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             |
+ NULL                      | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             |
+

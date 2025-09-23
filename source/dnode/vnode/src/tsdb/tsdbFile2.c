@@ -14,7 +14,6 @@
  */
 
 #include "tsdbFile2.h"
-#include "tcs.h"
 #include "vnd.h"
 
 // to_json
@@ -70,6 +69,11 @@ static int32_t tfile_to_json(const STFile *file, cJSON *json) {
 
   /* fid */
   if (cJSON_AddNumberToObject(json, "fid", file->fid) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  /* mid - migration id */
+  if (cJSON_AddNumberToObject(json, "mid", file->mid) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -130,6 +134,14 @@ static int32_t tfile_from_json(const cJSON *json, STFile *file) {
     file->fid = item->valuedouble;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  /* mid - migration id */
+  item = cJSON_GetObjectItem(json, "mid");
+  if (cJSON_IsNumber(item)) {
+    file->mid = item->valuedouble;
+  } else {
+    file->mid = 0;
   }
 
   /* cid */
@@ -249,14 +261,14 @@ int32_t tsdbTFileObjRef(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
 
   if (fobj->ref <= 0 || fobj->state != TSDB_FSTATE_LIVE) {
-    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    tsdbError("file %s, fobj:%p ref:%d", fobj->fname, fobj, fobj->ref);
     (void)taosThreadMutexUnlock(&fobj->mutex);
     return TSDB_CODE_FAILED;
   }
 
   nRef = ++fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
-  tsdbTrace("ref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  tsdbTrace("ref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   return 0;
 }
 
@@ -266,85 +278,58 @@ int32_t tsdbTFileObjUnref(STFileObj *fobj) {
   (void)taosThreadMutexUnlock(&fobj->mutex);
 
   if (nRef < 0) {
-    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+    tsdbError("file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
     return TSDB_CODE_FAILED;
   }
 
-  tsdbTrace("unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  tsdbTrace("unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
     if (fobj->state == TSDB_FSTATE_DEAD) {
       tsdbRemoveFile(fobj->fname);
     }
+    (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
 
   return 0;
 }
 
-static void tsdbTFileObjRemoveLC(STFileObj *fobj, bool remove_all) {
+static void tsdbTFileObjRemoveLC(STFileObj *fobj) {
   if (fobj->f->type != TSDB_FTYPE_DATA || fobj->f->lcn < 1) {
     tsdbRemoveFile(fobj->fname);
     return;
   }
 
-  if (!remove_all) {
-    // remove local last chunk file
-    char lc_path[TSDB_FILENAME_LEN];
-    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
+#ifdef USE_SHARED_STORAGE
+  // remove local last chunk file
+  char lc_path[TSDB_FILENAME_LEN];
+  tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
 
-    char *dot = strrchr(lc_path, '.');
-    if (!dot) {
-      tsdbError("unexpected path: %s", lc_path);
-      return;
-    }
-    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
-
-    tsdbRemoveFile(lc_path);
-
-  } else {
-    // delete by data file prefix
-    char lc_path[TSDB_FILENAME_LEN];
-    tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
-
-    char   *object_name = taosDirEntryBaseName(lc_path);
-    int32_t node_id = fobj->nlevel;
-    char    object_name_prefix[TSDB_FILENAME_LEN];
-    snprintf(object_name_prefix, TSDB_FQDN_LEN, "%d/%s", node_id, object_name);
-
-    char *dot = strrchr(object_name_prefix, '.');
-    if (!dot) {
-      tsdbError("unexpected path: %s", object_name_prefix);
-      return;
-    }
-    *(dot + 1) = 0;
-
-    tcsDeleteObjectsByPrefix(object_name_prefix);
-
-    // remove local last chunk file
-    dot = strrchr(lc_path, '.');
-    if (!dot) {
-      tsdbError("unexpected path: %s", lc_path);
-      return;
-    }
-    snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
-
-    tsdbRemoveFile(lc_path);
+  char *dot = strrchr(lc_path, '.');
+  if (!dot) {
+    tsdbError("unexpected path: %s", lc_path);
+    return;
   }
+  snprintf(dot + 1, TSDB_FQDN_LEN - (dot + 1 - lc_path), "%d.data", fobj->f->lcn);
+
+  tsdbRemoveFile(lc_path);
+#endif
 }
 
 int32_t tsdbTFileObjRemove(STFileObj *fobj) {
   (void)taosThreadMutexLock(&fobj->mutex);
   if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
-    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    tsdbError("file %s, fobj:%p ref:%d", fobj->fname, fobj, fobj->ref);
     (void)taosThreadMutexUnlock(&fobj->mutex);
     return TSDB_CODE_FAILED;
   }
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
-  tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
-    tsdbTFileObjRemoveLC(fobj, true);
+    tsdbTFileObjRemoveLC(fobj);
+    (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -355,16 +340,17 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
 
   if (fobj->state != TSDB_FSTATE_LIVE || fobj->ref <= 0) {
     (void)taosThreadMutexUnlock(&fobj->mutex);
-    tsdbError("file %s, fobj:%p ref %d", fobj->fname, fobj, fobj->ref);
+    tsdbError("file %s, fobj:%p ref:%d", fobj->fname, fobj, fobj->ref);
     return TSDB_CODE_FAILED;
   }
 
   fobj->state = TSDB_FSTATE_DEAD;
   int32_t nRef = --fobj->ref;
   (void)taosThreadMutexUnlock(&fobj->mutex);
-  tsdbTrace("remove unref file %s, fobj:%p ref %d", fobj->fname, fobj, nRef);
+  tsdbTrace("remove unref file %s, fobj:%p ref:%d", fobj->fname, fobj, nRef);
   if (nRef == 0) {
-    tsdbTFileObjRemoveLC(fobj, false);
+    tsdbTFileObjRemoveLC(fobj);
+    (void)taosThreadMutexDestroy(&fobj->mutex);
     taosMemoryFree(fobj);
   }
   return 0;
@@ -372,61 +358,141 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
 
 void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
-  STfs   *pTfs = pVnode->pTfs;
+  STfs   *pTfs = TSDB_TFS(pTsdb->pVnode);
 
   if (pTfs) {
-    snprintf(fname,                              //
-             TSDB_FILENAME_LEN,                  //
-             "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
-             tfsGetDiskPath(pTfs, f->did),       //
-             TD_DIRSEP,                          //
-             pTsdb->path,                        //
-             TD_DIRSEP,                          //
-             TD_VID(pVnode),                     //
-             f->fid,                             //
-             f->cid,                             //
-             g_tfile_info[f->type].suffix);
+    if (pVnode->mounted) {
+      // NOTE: the case 'if (f->mid != 0)' is not handled at present, this may be
+      //       needed in the future.
+      snprintf(fname,                                              //
+               TSDB_FILENAME_LEN,                                  //
+               "%s%svnode%svnode%d%s%s%sv%df%dver%" PRId64 ".%s",  //
+               tfsGetDiskPath(pTfs, f->did),                       //
+               TD_DIRSEP,                                          //
+               TD_DIRSEP,                                          //
+               TSDB_VID(pVnode),                                   //
+               TD_DIRSEP,                                          //
+               pTsdb->name,                                        //
+               TD_DIRSEP,                                          //
+               TSDB_VID(pVnode),                                   //
+               f->fid,                                             //
+               f->cid,                                             //
+               g_tfile_info[f->type].suffix);
+    } else {
+      if (f->mid == 0) {
+        snprintf(fname,                              //
+                TSDB_FILENAME_LEN,                  //
+                "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
+                tfsGetDiskPath(pTfs, f->did),       //
+                TD_DIRSEP,                          //
+                pTsdb->path,                        //
+                TD_DIRSEP,                          //
+                TD_VID(pVnode),                     //
+                f->fid,                             //
+                f->cid,                             //
+                g_tfile_info[f->type].suffix);
+      } else {
+        snprintf(fname,                          //
+                TSDB_FILENAME_LEN,                  //
+                "%s%s%s%sv%df%dver%" PRId64 ".m%d.%s",  //
+                tfsGetDiskPath(pTfs, f->did),       //
+                TD_DIRSEP,                          //
+                pTsdb->path,                        //
+                TD_DIRSEP,                          //
+                TD_VID(pVnode),                     //
+                f->fid,                             //
+                f->cid,                             //
+                f->mid,                             //
+                g_tfile_info[f->type].suffix);
+      }
+    }
   } else {
-    snprintf(fname,                          //
-             TSDB_FILENAME_LEN,              //
-             "%s%sv%df%dver%" PRId64 ".%s",  //
-             pTsdb->path,                    //
-             TD_DIRSEP,                      //
-             TD_VID(pVnode),                 //
-             f->fid,                         //
-             f->cid,                         //
-             g_tfile_info[f->type].suffix);
+     if (f->mid == 0) {
+      snprintf(fname,                          //
+              TSDB_FILENAME_LEN,              //
+              "%s%sv%df%dver%" PRId64 ".%s",  //
+              pTsdb->path,                    //
+              TD_DIRSEP,                      //
+              TD_VID(pVnode),                 //
+              f->fid,                         //
+              f->cid,                         //
+              g_tfile_info[f->type].suffix);
+    } else {
+      snprintf(fname,                          //
+              TSDB_FILENAME_LEN,              //
+              "%s%sv%df%dver%" PRId64 ".m%d.%s",  //
+              pTsdb->path,                    //
+              TD_DIRSEP,                      //
+              TD_VID(pVnode),                 //
+              f->fid,                         //
+              f->cid,                         //
+              f->mid,                         //
+              g_tfile_info[f->type].suffix);
+    }
   }
 }
 
 void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
-  STfs   *pTfs = pVnode->pTfs;
+  STfs   *pTfs = TSDB_TFS(pTsdb->pVnode);
 
-  if (pTfs) {
-    snprintf(fname,                                 //
-             TSDB_FILENAME_LEN,                     //
-             "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
-             tfsGetDiskPath(pTfs, f->did),          //
-             TD_DIRSEP,                             //
-             pTsdb->path,                           //
-             TD_DIRSEP,                             //
-             TD_VID(pVnode),                        //
-             f->fid,                                //
-             f->cid,                                //
-             f->lcn,                                //
-             g_tfile_info[f->type].suffix);
+  // NOTE: the case 'if (pVnode->mounted)' is not handled at present, this may be needed
+  //       in the future.
+
+  if (f->mid == 0) {
+    if (pTfs) {
+      snprintf(fname,                                 //
+              TSDB_FILENAME_LEN,                     //
+              "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
+              tfsGetDiskPath(pTfs, f->did),          //
+              TD_DIRSEP,                             //
+              pTsdb->path,                           //
+              TD_DIRSEP,                             //
+              TD_VID(pVnode),                        //
+              f->fid,                                //
+              f->cid,                                //
+              f->lcn,                                //
+              g_tfile_info[f->type].suffix);
+    } else {
+      snprintf(fname,                             //
+              TSDB_FILENAME_LEN,                 //
+              "%s%sv%df%dver%" PRId64 ".%d.%s",  //
+              pTsdb->path,                       //
+              TD_DIRSEP,                         //
+              TD_VID(pVnode),                    //
+              f->fid,                            //
+              f->cid,                            //
+              f->lcn,                            //
+              g_tfile_info[f->type].suffix);
+    }
   } else {
-    snprintf(fname,                             //
-             TSDB_FILENAME_LEN,                 //
-             "%s%sv%df%dver%" PRId64 ".%d.%s",  //
-             pTsdb->path,                       //
-             TD_DIRSEP,                         //
-             TD_VID(pVnode),                    //
-             f->fid,                            //
-             f->cid,                            //
-             f->lcn,                            //
-             g_tfile_info[f->type].suffix);
+    if (pTfs) {
+      snprintf(fname,                                 //
+              TSDB_FILENAME_LEN,                     //
+              "%s%s%s%sv%df%dver%" PRId64 ".m%d.%d.%s",  //
+              tfsGetDiskPath(pTfs, f->did),          //
+              TD_DIRSEP,                             //
+              pTsdb->path,                           //
+              TD_DIRSEP,                             //
+              TD_VID(pVnode),                        //
+              f->fid,                                //
+              f->cid,                                //
+              f->mid,                                //
+              f->lcn,                                //
+              g_tfile_info[f->type].suffix);
+    } else {
+      snprintf(fname,                             //
+              TSDB_FILENAME_LEN,                 //
+              "%s%sv%df%dver%" PRId64 ".m%d.%d.%s",  //
+              pTsdb->path,                       //
+              TD_DIRSEP,                         //
+              TD_VID(pVnode),                    //
+              f->fid,                            //
+              f->cid,                            //
+              f->mid,                            //
+              f->lcn,                            //
+              g_tfile_info[f->type].suffix);
+    }
   }
 }
 
@@ -437,6 +503,7 @@ bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
   if (f1->fid != f2->fid) return false;
   if (f1->cid != f2->cid) return false;
   if (f1->lcn != f2->lcn) return false;
+  if (f1->mid != f2->mid) return false;
   return true;
 }
 
@@ -455,3 +522,5 @@ int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2) {
     return 0;
   }
 }
+
+const char *tsdbFTypeLabel(tsdb_ftype_t ftype) { return g_tfile_info[ftype].suffix; }

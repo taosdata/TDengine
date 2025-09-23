@@ -25,8 +25,6 @@
 #define SHELL_INPUT_MAX_COMMAND_SIZE 10000
 
 
-static int32_t shellCountPrefixOnes(uint8_t c);
-
 static void    shellGetNextCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width);
 
 static void    shellBackspaceChar(SShellCmd *cmd);
@@ -50,15 +48,14 @@ void           shellInsertChar(SShellCmd *cmd, char *c, int size);
 void           shellInsertString(SShellCmd *cmd, char *str, int size);
 
 int32_t shellCountPrefixOnes(uint8_t c) {
-  uint8_t mask = 127;
-  mask = ~mask;
-  int32_t ret = 0;
+  uint8_t mask = 0x80;
+  int32_t count = 0;
   while ((c & mask) != 0) {
-    ret++;
-    c <<= 1;
+    count++;
+    mask >>= 1;
   }
 
-  return ret;
+  return (count == 0) ? 1 : count;
 }
 
 void shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width) {
@@ -70,8 +67,9 @@ void shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *
 
   while (--pos >= 0) {
     *size += 1;
-
-    if (str[pos] > 0 || shellCountPrefixOnes((uint8_t)str[pos]) > 1) break;
+    if ((str[pos] & 0x80) == 0 || shellCountPrefixOnes((uint8_t)str[pos]) > 1) {
+      break;
+    }
   }
 
   taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
@@ -345,6 +343,9 @@ void shellGetScreenSize(int32_t *ws_col, int32_t *ws_row) {
   GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
   if (ws_col != NULL) *ws_col = csbi.srWindow.Right - csbi.srWindow.Left + 1;
   if (ws_row != NULL) *ws_row = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+#elif defined(TD_ASTRA)
+  if (ws_col != NULL) *ws_col = 120;
+  if (ws_row != NULL) *ws_row = 30;
 #else
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
@@ -493,7 +494,7 @@ int32_t shellReadCommand(char *command) {
       return c;
     }
 
-    if (c < 0) {  // For UTF-8
+    if ((c & 0x80) != 0) { // For UTF-8
       int32_t count = shellCountPrefixOnes(c);
       utf8_array[0] = c;
       for (int32_t k = 1; k < count; k++) {
@@ -556,7 +557,11 @@ int32_t shellReadCommand(char *command) {
         case 12:  // Ctrl + L;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
+#ifndef TD_ASTRA
           system("clear");
+#else
+          printf("\033[2J\033[H");
+#endif
 #pragma GCC diagnostic pop
           shellShowOnScreen(&cmd);
           break;

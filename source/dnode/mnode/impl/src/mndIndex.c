@@ -21,7 +21,6 @@
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
-#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndStream.h"
@@ -81,7 +80,7 @@ int32_t mndInitIdx(SMnode *pMnode) {
 
 static int32_t mndFindSuperTableTagId(const SStbObj *pStb, const char *tagName, int8_t *hasIdx) {
   for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
-    if (strcasecmp(pStb->pTags[tag].name, tagName) == 0) {
+    if (taosStrcasecmp(pStb->pTags[tag].name, tagName) == 0) {
       if (IS_IDX_ON(&pStb->pTags[tag])) {
         *hasIdx = 1;
       }
@@ -484,6 +483,11 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if(pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   pStb = mndAcquireStb(pMnode, createReq.stbName);
   if (pStb == NULL) {
     mError("idx:%s, failed to create since stb:%s not exist", createReq.idxName, createReq.stbName);
@@ -664,6 +668,7 @@ static int32_t mndSetUpdateIdxStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
   pNew->pColumns = NULL;
   pNew->pCmpr = NULL;
   pNew->pTags = NULL;
+  pNew->pExtSchemas = NULL;
   pNew->updateTime = taosGetTimestampMs();
   pNew->lock = 0;
 
@@ -733,6 +738,7 @@ _OVER:
     taosMemoryFree(newStb.pTags);
     taosMemoryFree(newStb.pColumns);
     taosMemoryFree(newStb.pCmpr);
+    taosMemoryFreeClear(newStb.pExtSchemas);
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
@@ -847,6 +853,7 @@ _OVER:
   taosMemoryFree(newObj.pTags);
   taosMemoryFree(newObj.pColumns);
   taosMemoryFree(newObj.pCmpr);
+  taosMemoryFreeClear(newObj.pExtSchemas);
 
   mndTransDrop(pTrans);
   mndReleaseStb(pMnode, pStb);
@@ -882,6 +889,11 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+
+  if(pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
     goto _OVER;
   }
 
@@ -936,7 +948,7 @@ int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxOb
     pIter = sdbFetch(pSdb, SDB_IDX, pIter, (void **)&pIdx);
     if (pIter == NULL) break;
 
-    if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
+    if (pIdx->stbUid == pStb->uid && taosStrcasecmp(pIdx->colName, tagName) == 0) {
       memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
       sdbRelease(pSdb, pIdx);
       sdbCancelFetch(pSdb, pIter);

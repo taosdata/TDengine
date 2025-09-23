@@ -21,6 +21,7 @@
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "trpc.h"
+#include "tqueue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -100,7 +101,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
-
+int32_t mndResetTimer(SMnode *pMnode);
 int64_t mndGetRoleTimeMs(SMnode *pMnode);
 
 /**

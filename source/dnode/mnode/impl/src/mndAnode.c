@@ -371,6 +371,11 @@ static int32_t mndProcessCreateAnodeReq(SRpcMsg *pReq) {
   SAnodeObj       *pObj = NULL;
   SMCreateAnodeReq createReq = {0};
 
+  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+    mError("failed to create anode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
+
   TAOS_CHECK_GOTO(tDeserializeSMCreateAnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("anode:%s, start to create", createReq.url);
@@ -459,6 +464,11 @@ static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
   int32_t          code = -1;
   SAnodeObj       *pObj = NULL;
   SMUpdateAnodeReq updateReq = {0};
+
+  if ((code = grantCheckExpire(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+    mError("failed to update anode, grant expired, code:%s", tstrerror(code));
+    goto _OVER;
+  }
 
   TAOS_CHECK_GOTO(tDeserializeSMUpdateAnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_UPDATE_ANODE), NULL, _OVER);
@@ -589,6 +599,12 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   char       status[64];
   int32_t    code = 0;
 
+  code = grantCheckExpire(TSDB_GRANT_TD_GPT);
+  if (code != 0) {
+    mError("TDgpt/anode grant expired");
+    return numOfRows;
+  }
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
@@ -637,6 +653,38 @@ static void mndCancelGetNextAnode(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_ANODE);
 }
 
+// todo handle multiple anode case, remove the duplicate algos
+void mndRetrieveAlgoList(SMnode* pMnode, SArray* pFc, SArray* pAd) {
+  SSdb      *pSdb = pMnode->pSdb;
+  void      *pIter = NULL;
+  SAnodeObj *pObj = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ANODE, pIter, (void **)&pObj);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (pObj->numOfAlgos >= ANALY_ALGO_TYPE_END) {
+      if (pObj->algos[ANALY_ALGO_TYPE_ANOMALY_DETECT] != NULL) {
+        void* p = taosArrayAddAll(pAd, pObj->algos[ANALY_ALGO_TYPE_ANOMALY_DETECT]);
+        if (p == NULL) {
+          mError("failed to add retrieved anomaly-detection algorithms, code:%s", tstrerror(terrno));
+        }
+      }
+
+      if (pObj->algos[ANALY_ALGO_TYPE_FORECAST] != NULL) {
+        void* p = taosArrayAddAll(pFc, pObj->algos[ANALY_ALGO_TYPE_FORECAST]);
+        if (p == NULL) {
+          mError("failed to add retrieved forecast algorithms, code:%s", tstrerror(terrno));
+        }
+      }
+    }
+
+    sdbRelease(pSdb, pObj);
+  }
+}
+
 static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->info.node;
   SSdb      *pSdb = pMnode->pSdb;
@@ -645,6 +693,11 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   SAnodeObj *pObj = NULL;
   char       buf[TSDB_ANALYTIC_ALGO_NAME_LEN + VARSTR_HEADER_SIZE];
   int32_t    code = 0;
+
+  if ((code = grantCheckExpire(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+    mError("failed to retrieve anodes info, grant expired, code:%s", tstrerror(code));
+    return numOfRows;
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
@@ -661,7 +714,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
         if (code != 0) goto _end;
 
-        STR_TO_VARSTR(buf, taosAnalAlgoStr(t));
+        STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
@@ -712,11 +765,11 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
   if (details == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t numOfDetails = tjsonGetArraySize(details);
 
-  pObj->algos = taosMemoryCalloc(ANAL_ALGO_TYPE_END, sizeof(SArray *));
+  pObj->algos = taosMemoryCalloc(ANALY_ALGO_TYPE_END, sizeof(SArray *));
   if (pObj->algos == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  pObj->numOfAlgos = ANAL_ALGO_TYPE_END;
-  for (int32_t i = 0; i < ANAL_ALGO_TYPE_END; ++i) {
+  pObj->numOfAlgos = ANALY_ALGO_TYPE_END;
+  for (int32_t i = 0; i < ANALY_ALGO_TYPE_END; ++i) {
     pObj->algos[i] = taosArrayInit(4, sizeof(SAnodeAlgo));
     if (pObj->algos[i] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -727,8 +780,8 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 
     code = tjsonGetStringValue2(detail, "type", buf, sizeof(buf));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-    EAnalAlgoType type = taosAnalAlgoInt(buf);
-    if (type < 0 || type >= ANAL_ALGO_TYPE_END) return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
+    EAnalAlgoType type = taosAnalyAlgoInt(buf);
+    if (type < 0 || type >= ANALY_ALGO_TYPE_END) return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
 
     SJson *algos = tjsonGetObjectItem(detail, "algo");
     if (algos == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
@@ -757,7 +810,7 @@ static int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
   char anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
   snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", url, "list");
 
-  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL);
+  SJson *pJson = taosAnalySendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL, 0, "");
   if (pJson == NULL) return terrno;
 
   int32_t code = mndDecodeAlgoList(pJson, pObj);
@@ -773,7 +826,7 @@ static int32_t mndGetAnodeStatus(SAnodeObj *pObj, char *status, int32_t statusLe
   char    anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
   snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", pObj->url, "status");
 
-  SJson *pJson = taosAnalSendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL);
+  SJson *pJson = taosAnalySendReqRetJson(anodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL, 0, "");
   if (pJson == NULL) return terrno;
 
   code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
@@ -803,17 +856,17 @@ _OVER:
 }
 
 static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
-  SMnode              *pMnode = pReq->info.node;
-  SSdb                *pSdb = pMnode->pSdb;
-  int32_t              code = -1;
-  SAnodeObj           *pObj = NULL;
+  SMnode *                  pMnode = pReq->info.node;
+  SSdb *                    pSdb = pMnode->pSdb;
+  int32_t                   code = -1;
+  SAnodeObj *               pObj = NULL;
   SAnalyticsUrl             url;
-  int32_t              nameLen;
-  char                 name[TSDB_ANALYTIC_ALGO_KEY_LEN];
-  SRetrieveAnalAlgoReq req = {0};
-  SRetrieveAnalAlgoRsp rsp = {0};
+  int32_t                   nameLen;
+  char                      name[TSDB_ANALYTIC_ALGO_KEY_LEN];
+  SRetrieveAnalyticsAlgoReq req = {0};
+  SRetrieveAnalyticAlgoRsp  rsp = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeRetrieveAnalAlgoReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeRetrieveAnalyticAlgoReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
 
   rsp.ver = sdbGetTableVer(pSdb, SDB_ANODE);
   if (req.analVer != rsp.ver) {
@@ -835,8 +888,8 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
         SArray *algos = pAnode->algos[t];
         url.type = t;
 
-        for (int32_t a = 0; a < taosArrayGetSize(algos); ++a) {
-          SAnodeAlgo *algo = taosArrayGet(algos, a);
+        for (int32_t i = 0; i < taosArrayGetSize(algos); ++i) {
+          SAnodeAlgo *algo = taosArrayGet(algos, i);
           nameLen = 1 + tsnprintf(name, sizeof(name) - 1, "%d:%s", url.type, algo->name);
 
           SAnalyticsUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);
@@ -855,7 +908,7 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
             }
 
             url.urlLen = 1 + tsnprintf(url.url, TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN, "%s/%s", pAnode->url,
-                                      taosAnalAlgoUrlStr(url.type));
+                                      taosAnalyAlgoUrlStr(url.type));
             if (taosHashPut(rsp.hash, name, nameLen, &url, sizeof(SAnalyticsUrl)) != 0) {
               taosMemoryFree(url.url);
               sdbRelease(pSdb, pAnode);
@@ -863,21 +916,21 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
             }
           }
         }
-
-        sdbRelease(pSdb, pAnode);
       }
+
+      sdbRelease(pSdb, pAnode);
     }
   }
 
-  int32_t contLen = tSerializeRetrieveAnalAlgoRsp(NULL, 0, &rsp);
+  int32_t contLen = tSerializeRetrieveAnalyticAlgoRsp(NULL, 0, &rsp);
   void   *pHead = rpcMallocCont(contLen);
-  (void)tSerializeRetrieveAnalAlgoRsp(pHead, contLen, &rsp);
+  (void)tSerializeRetrieveAnalyticAlgoRsp(pHead, contLen, &rsp);
 
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pHead;
 
 _OVER:
-  tFreeRetrieveAnalAlgoRsp(&rsp);
+  tFreeRetrieveAnalyticAlgoRsp(&rsp);
   TAOS_RETURN(code);
 }
 
@@ -900,5 +953,6 @@ int32_t mndInitAnode(SMnode *pMnode) {
 }
 
 void mndCleanupAnode(SMnode *pMnode) {}
+void mndRetrieveAlgoList(SMnode *pMnode, SArray *pFc, SArray *pAd) {}
 
 #endif

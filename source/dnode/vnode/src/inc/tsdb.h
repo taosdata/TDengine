@@ -28,12 +28,12 @@ extern "C" {
 
 // tsdbDebug ================
 // clang-format off
-#define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TSD FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define tsdbError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TSD ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define tsdbWarn(...)  do { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TSD WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TSD ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSD ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
-#define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TSD FATAL ", DEBUG_FATAL, 255,           __VA_ARGS__); }} while(0)
+#define tsdbError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TSD ERROR ", DEBUG_ERROR, 255,           __VA_ARGS__); }} while(0)
+#define tsdbWarn(...)  do { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TSD WARN  ", DEBUG_WARN,  255,           __VA_ARGS__); }} while(0)
+#define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TSD INFO  ", DEBUG_INFO,  255,           __VA_ARGS__); }} while(0)
+#define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSD DEBUG ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD TRACE ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 typedef struct TSDBROW          TSDBROW;
@@ -295,7 +295,8 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap, const char *id);
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
-int32_t tsdbGetTableSchema(SMeta *pMeta, int64_t uid, STSchema **pSchema, int64_t *suid);
+int32_t tsdbGetTableSchema(SMeta *pMeta, int64_t uid, STSchema **pSchema, int64_t *suid,
+                           SSchemaWrapper **pSchemaWrapper);
 
 // tsdbMerge.c ==============================================================================================
 typedef struct {
@@ -334,6 +335,7 @@ struct STsdbFS {
 };
 
 typedef struct {
+#ifdef USE_ROCKSDB
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
   rocksdb_block_based_table_options_t *tableoptions;
@@ -343,6 +345,7 @@ typedef struct {
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
   TdThreadMutex                        writeBatchMutex;
+#endif
   int32_t                              sver;
   tb_uid_t                             suid;
   tb_uid_t                             uid;
@@ -356,10 +359,11 @@ typedef struct {
 } SCacheFlushState;
 
 typedef struct SCompMonitor SCompMonitor;
-
+typedef struct SSsMigrateMonitor SSsMigrateMonitor;
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
+  char                 name[VNODE_TSDB_NAME_LEN];
   STsdbKeepCfg         keepCfg;
   TdThreadMutex        mutex;
   bool                 bgTaskDisabled;
@@ -377,10 +381,12 @@ struct STsdb {
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
   SCompMonitor        *pCompMonitor;
+  SSsMigrateMonitor   *pSsMigrateMonitor;
   struct {
     SVHashTable *ht;
     SArray      *arr;
   } *commitInfo;
+  struct SScanMonitor *pScanMonitor;
 };
 
 struct TSDBKEY {
@@ -440,6 +446,7 @@ struct TSDBROW {
       int32_t     iRow;
     };
   };
+  void *arg;
 };
 
 struct SMemSkipListNode {
@@ -647,6 +654,7 @@ struct SRowMerger {
   STSchema *pTSchema;
   int64_t   version;
   SArray   *pArray;  // SArray<SColVal>
+  void     *arg;
 };
 
 typedef struct {
@@ -659,7 +667,7 @@ typedef struct {
   int64_t     szFile;
   STsdb      *pTsdb;
   const char *objName;
-  uint8_t     s3File;
+  uint8_t     ssFile;
   int32_t     lcn;
   int32_t     fid;
   int64_t     cid;
@@ -952,15 +960,15 @@ void    tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHandle **handle);
 int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 
-int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
-int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
-void    tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
+int32_t tsdbCacheGetBlockSs(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
+int32_t tsdbCacheGetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
+void    tsdbCacheSetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
-int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size);
+int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
@@ -1082,6 +1090,9 @@ void tsdbRemoveFile(const char *path);
       tsdbTrace("failed to close file"); \
     }                                    \
   } while (0)
+
+int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDiskID *diskId);
+int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t level, const char *label, SDiskID *diskId);
 
 #ifdef __cplusplus
 }

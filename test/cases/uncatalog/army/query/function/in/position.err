@@ -1,0 +1,5 @@
+select position('t' in);
+select position(in 'taos');
+select position(1 in 2213);
+select position(1 in '2213');
+select position('1' in 2213);

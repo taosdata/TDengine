@@ -44,11 +44,13 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine);
 int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma, char* avx512);
 int32_t taosGetTotalMemory(int64_t *totalKB);
 int32_t taosGetProcMemory(int64_t *usedKB);
-int32_t taosGetSysMemory(int64_t *usedKB);
+int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferKB);
 int32_t taosGetSysAvailMemory(int64_t *availSize);
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
+int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
 int32_t taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
 void    taosSetDefaultProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
+int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes);
 int32_t taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
 void    taosSetDefaultCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
 
@@ -58,7 +60,7 @@ int32_t taosGetSystemUUIDLen(char *uid, int32_t uidlen);
 char   *taosGetCmdlineByPID(int32_t pid);
 void    taosSetCoreDump(bool enable);
 
-#if !defined(LINUX)
+#if !defined(LINUX) || defined(TD_ASTRA)
 
 #define _UTSNAME_LENGTH         65
 #define _UTSNAME_MACHINE_LENGTH _UTSNAME_LENGTH

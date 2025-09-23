@@ -19,92 +19,38 @@
 extern "C" {
 #endif
 
+#include "cJSON.h"
+#include "cmdnodes.h"
 #include "executorInt.h"
+#include "querytask.h"
 #include "tutil.h"
 
-#define FILL_POS_INVALID 0
-#define FILL_POS_START   1
-#define FILL_POS_MID     2
-#define FILL_POS_END     3
+int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperatorInfo* pOperator);
+int32_t encodeStreamBasicInfo(void** buf, const SSteamOpBasicInfo* pBasicInfo);
+int32_t decodeStreamBasicInfo(void** buf, SSteamOpBasicInfo* pBasicInfo);
 
-#define HAS_NON_ROW_DATA(pRowData)           (pRowData->key == INT64_MIN)
-#define HAS_ROW_DATA(pRowData)               (pRowData && pRowData->key != INT64_MIN)
+int32_t addEventAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                               const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t ri,
+                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addStateAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                               const SStateKeys* pCurState, const SStateKeys* pAnotherState, bool onlyUpdate,
+                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addIntervalAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                                  SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addSessionAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                                 SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addCountAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addAggDeleteNotifyEvent(const SSDataBlock* pDeleteBlock, SStreamNotifyEventSupp* sup,
+                                STaskNotifyEventStat* pNotifyEventStat);
+int32_t buildNotifyEventBlock(const SExecTaskInfo* pTaskInfo, SStreamNotifyEventSupp* sup,
+                              STaskNotifyEventStat* pNotifyEventStat);
 
-#define IS_INVALID_WIN_KEY(ts)               ((ts) == INT64_MIN)
-#define IS_VALID_WIN_KEY(ts)               ((ts) != INT64_MIN)
-#define SET_WIN_KEY_INVALID(ts)              ((ts) = INT64_MIN)
-
-#define IS_NORMAL_INTERVAL_OP(op)                                    \
-  ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL || \
-   (op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL)
-
-#define IS_CONTINUE_INTERVAL_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL)
-
-#define IS_FILL_CONST_VALUE(type) ((type == TSDB_FILL_NULL || type == TSDB_FILL_NULL_F || type == TSDB_FILL_SET_VALUE ||  type == TSDB_FILL_SET_VALUE_F))
-
-typedef struct SSliceRowData {
-  TSKEY key;
-  char  pRowVal[];
-} SSliceRowData;
-
-typedef struct SSlicePoint {
-  SWinKey        key;
-  SSliceRowData* pLeftRow;
-  SSliceRowData* pRightRow;
-  SRowBuffPos*   pResPos;
-} SSlicePoint;
-
-void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
-bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
-void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
-void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
-
-int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption);
-void    removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins);
-int32_t copyIntervalDeleteKey(SSHashObj* pMap, SArray* pWins);
-bool    hasSrcPrimaryKeyCol(SSteamOpBasicInfo* pInfo);
-int32_t getNexWindowPos(SInterval* pInterval, SDataBlockInfo* pBlockInfo, TSKEY* tsCols, int32_t startPos, TSKEY eKey,
-                        STimeWindow* pNextWin);
-int32_t saveWinResult(SWinKey* pKey, SRowBuffPos* pPos, SSHashObj* pUpdatedMap);
-void    doBuildDeleteResultImpl(SStateStore* pAPI, SStreamState* pState, SArray* pWins, int32_t* index,
-                                SSDataBlock* pBlock);
-
-SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
-SResultCellData* getResultCell(SResultRowData* pRaw, int32_t index);
-
-void    destroyStreamFillSupporter(SStreamFillSupporter* pFillSup);
-bool    hasCurWindow(SStreamFillSupporter* pFillSup);
-bool    hasPrevWindow(SStreamFillSupporter* pFillSup);
-bool    hasNextWindow(SStreamFillSupporter* pFillSup);
-void    copyNotFillExpData(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo);
-int32_t setRowCell(SColumnInfoData* pCol, int32_t rowId, const SResultCellData* pCell);
-bool    hasRemainCalc(SStreamFillInfo* pFillInfo);
-void    destroySPoint(void* ptr);
-void    destroyStreamFillInfo(SStreamFillInfo* pFillInfo);
-int32_t checkResult(SStreamFillSupporter* pFillSup, TSKEY ts, uint64_t groupId, bool* pRes);
-void    resetStreamFillSup(SStreamFillSupporter* pFillSup);
-void    setPointBuff(SSlicePoint* pPoint, SStreamFillSupporter* pFillSup);
-
-int32_t saveTimeSliceWinResult(SWinKey* pKey, SSHashObj* pUpdatedMap);
-
-int winPosCmprImpl(const void* pKey1, const void* pKey2);
-
-void             reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
-SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index, int32_t* pCellOffsetInfo);
-int32_t          getDownstreamRes(struct SOperatorInfo* downstream, SSDataBlock** ppRes, SColumnInfo** ppPkCol);
-void             destroyFlusedppPos(void* ppRes);
-void             doBuildStreamIntervalResult(struct SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock,
-                                             SGroupResInfo* pGroupResInfo);
-void             transBlockToSliceResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SSliceRowData* pRowVal,
-                                            int32_t rowSize, void* pPkData, SColumnInfoData* pPkCol, int32_t* pCellOffsetInfo);
-int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* tsCols, int32_t rowId, bool ignoreNull);
-
-int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, SPhysiNode* pPhyNode,
-                                              SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
-                                              struct SOperatorInfo** ppOptInfo);
-int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
-int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
-TSKEY   compareTs(void* pKey);
+int32_t doTableScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
+int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray** ppArrayRes);
+void releaseFlusedPos(void* pRes);
+typedef int32_t (*__compare_fn_t)(void* pKey, void* data, int32_t index);
+int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn);
 
 #ifdef __cplusplus
 }

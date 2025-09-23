@@ -64,7 +64,7 @@ int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t num
 
 static void freeItem(void *pValue) {
   SValue *p = (SValue *)pValue;
-  if (IS_VAR_DATA_TYPE(p->type)) {
+  if (IS_VAR_DATA_TYPE(p->type) || p->type == TSDB_DATA_TYPE_DECIMAL) {
     taosMemoryFree(p->pData);
   }
 }
@@ -359,7 +359,7 @@ static int32_t extractSttBlockInfo(SLDataIter *pIter, const TSttBlkArray *pArray
 }
 
 static int32_t tValueDupPayload(SValue *pVal) {
-  if (IS_VAR_DATA_TYPE(pVal->type)) {
+  if (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) {
     char *p = (char *)pVal->pData;
     char *pBuf = taosMemoryMalloc(pVal->nData);
     if (pBuf == NULL) {
@@ -1120,7 +1120,7 @@ int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
   }
 
   *pHasNext = false;
-  if (pMTree->pIter) {
+  while (pMTree->pIter) {
     SLDataIter *pIter = pMTree->pIter;
     bool        hasVal = false;
     code = tLDataIterNextRow(pIter, pMTree->idStr, &hasVal);
@@ -1140,9 +1140,11 @@ int32_t tMergeTreeNext(SMergeTree *pMTree, bool *pHasNext) {
         (void)tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
         pMTree->pIter = NULL;
       } else if (!c) {
-        return TSDB_CODE_INTERNAL_ERROR;
+        continue;
       }
     }
+
+    break;
   }
 
   if (pMTree->pIter == NULL) {

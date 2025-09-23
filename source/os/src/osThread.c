@@ -20,7 +20,25 @@
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg) {
   OS_PARAM_CHECK(tid);
   OS_PARAM_CHECK(start);
+#ifdef TD_ASTRA
+  int32_t code = 0;
+  if (!attr) {
+    pthread_attr_t threadAttr;
+    pthread_attr_init(&threadAttr);
+    pthread_attr_setstacksize(&threadAttr, STACK_SIZE_DEFAULT);
+    code = pthread_create(tid, &threadAttr, start, arg);
+    pthread_attr_destroy(&threadAttr);
+  } else {
+    int32_t stackSize = 0;
+    pthread_attr_getstacksize(attr, &stackSize);
+    if (stackSize == 0) {
+      pthread_attr_setstacksize(attr, STACK_SIZE_DEFAULT);
+    }
+    code = pthread_create(tid, attr, start, arg);
+  }
+#else
   int32_t code = pthread_create(tid, attr, start, arg);
+#endif
   if (code) {
     taosThreadClear(tid);
     return (terrno = TAOS_SYSTEM_ERROR(code));

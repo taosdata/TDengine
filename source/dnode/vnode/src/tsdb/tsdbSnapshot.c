@@ -544,7 +544,7 @@ struct STsdbSnapWriter {
     bool       fsetWriteBegin;
     int32_t    fid;
     STFileSet* fset;
-    SDiskID    did;
+    int32_t    expLevel;
     bool       hasData;  // if have time series data
     bool       hasTomb;  // if have tomb data
 
@@ -559,6 +559,7 @@ struct STsdbSnapWriter {
     SIterMerger*   tombIterMerger;
 
     // writer
+    bool         toSttOnly;
     SFSetWriter* fsetWriter;
   } ctx[1];
 };
@@ -622,6 +623,7 @@ static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  writer->ctx->toSttOnly = false;
   if (writer->ctx->fset) {
 #if 0
     // open data reader
@@ -656,6 +658,14 @@ static int32_t tsdbSnapWriteFileSetOpenReader(STsdbSnapWriter* writer) {
     // open stt reader array
     SSttLvl* lvl;
     TARRAY2_FOREACH(writer->ctx->fset->lvlArr, lvl) {
+      if (lvl->level != 0) {
+        if (TARRAY2_SIZE(lvl->fobjArr) > 0) {
+          writer->ctx->toSttOnly = true;
+        }
+
+        continue;  // Only merge level 0
+      }
+
       STFileObj* fobj;
       TARRAY2_FOREACH(lvl->fobjArr, fobj) {
         SSttFileReader*      reader;
@@ -782,7 +792,7 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
 
   SFSetWriterConfig config = {
       .tsdb = writer->tsdb,
-      .toSttOnly = false,
+      .toSttOnly = writer->ctx->toSttOnly,
       .compactVersion = writer->compactVersion,
       .minRow = writer->minRow,
       .maxRow = writer->maxRow,
@@ -790,8 +800,8 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
       .cmprAlg = writer->cmprAlg,
       .fid = writer->ctx->fid,
       .cid = writer->commitID,
-      .did = writer->ctx->did,
-      .level = 0,
+      .expLevel = writer->ctx->expLevel,
+      .level = writer->ctx->toSttOnly ? 1 : 0,
   };
   // merge stt files to either data or a new stt file
   if (writer->ctx->fset) {
@@ -827,14 +837,7 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
   STFileSet** fsetPtr = TARRAY2_SEARCH(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
 
-  int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
-  if (tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did)) {
-    code = TSDB_CODE_NO_AVAIL_DISK;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  if (tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did) != 0) {
-    tsdbError("vgId:%d failed to create directory %s", TD_VID(writer->tsdb->pVnode), writer->tsdb->path);
-  }
+  writer->ctx->expLevel = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
 
   writer->ctx->hasData = true;
   writer->ctx->hasTomb = true;

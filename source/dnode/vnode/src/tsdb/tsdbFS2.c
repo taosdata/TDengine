@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbFS2.h"
 #include "cos.h"
+#include "tsdbFS2.h"
 #include "tsdbUpgrade.h"
 #include "vnd.h"
 
@@ -73,9 +73,10 @@ static void destroy_fs(STFileSystem **fs) {
 void current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pTsdb->path, pTsdb->pVnode->diskPrimary, pTsdb->pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_FILENAME_LEN);
   offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, gCurrentFname[ftype]);
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, pTsdb->name, TD_DIRSEP,
+           gCurrentFname[ftype]);
 }
 
 static int32_t save_json(const cJSON *json, const char *fname) {
@@ -238,7 +239,7 @@ static int32_t load_fs(STsdb *pTsdb, const char *fname, TFileSetArray *arr) {
 
 _exit:
   if (code) {
-    tsdbError("%s failed at %sP%d since %s, fname:%s", __func__, __FILE__, lino, tstrerror(code), fname);
+    tsdbError("%s failed at %s:%d since %s, fname:%s", __func__, __FILE__, lino, tstrerror(code), fname);
   }
   if (json) {
     cJSON_Delete(json);
@@ -368,7 +369,7 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
   if (!taosCheckExistFile(fobj->fname)) {
     bool found = false;
 
-    if (tsS3Enabled && fobj->f->lcn > 1) {
+    if (tsSsEnabled && fobj->f->lcn > 1) {
       char fname1[TSDB_FILENAME_LEN];
       tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
       if (!taosCheckExistFile(fname1)) {
@@ -501,6 +502,8 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t corrupt = false;
+
+  if (fs->tsdb->pVnode->mounted) goto _exit;
 
   {  // scan each file
     STFileSet *fset = NULL;
@@ -717,6 +720,8 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT et
         fset->lastCommit = now;
       } else if (etype == TSDB_FEDIT_COMPACT) {
         fset->lastCompact = now;
+      } else if (etype == TSDB_FEDIT_SSMIGRATE) {
+        fset->lastMigrate = now;
       }
     }
   }
@@ -796,12 +801,12 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     if (taosArrayPush(asyncTasks, &fset->mergeTask) == NULL       //
         || taosArrayPush(asyncTasks, &fset->compactTask) == NULL  //
-        || taosArrayPush(asyncTasks, &fset->retentionTask) == NULL) {
+        || taosArrayPush(asyncTasks, &fset->retentionTask) == NULL
+        || taosArrayPush(asyncTasks, &fset->migrateTask) == NULL) {
       taosArrayDestroy(asyncTasks);
       (void)taosThreadMutexUnlock(&pTsdb->mutex);
       return terrno;
     }
-    fset->mergeScheduled = false;
     tsdbFSSetBlockCommit(fset, false);
   }
 
@@ -907,12 +912,21 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
   (void)taosThreadMutexLock(&tsdb->mutex);
   STFileSet *fset;
   tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+  bool blockCommit = false;
   if (fset) {
-    while (fset->blockCommit) {
-      fset->numWaitCommit++;
-      (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
-      fset->numWaitCommit--;
-    }
+    blockCommit = fset->blockCommit;
+  }
+  if (fset) {
+    METRICS_TIMING_BLOCK(tsdb->pVnode->writeMetrics.block_commit_time, METRIC_LEVEL_HIGH, {
+      while (fset->blockCommit) {
+        fset->numWaitCommit++;
+        (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
+        fset->numWaitCommit--;
+      }
+    });
+  }
+  if (blockCommit) {
+    METRICS_UPDATE(tsdb->pVnode->writeMetrics.blocked_commit_count, METRIC_LEVEL_HIGH, 1);
   }
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return;
@@ -945,7 +959,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
       // bool    skipMerge = false;
       int32_t numFile = TARRAY2_SIZE(lvl->fobjArr);
-      if (numFile >= sttTrigger && (!fset->mergeScheduled)) {
+      if (numFile >= sttTrigger && (!vnodeATaskValid(&fset->mergeTask))) {
         SMergeArg *arg = taosMemoryMalloc(sizeof(*arg));
         if (arg == NULL) {
           code = terrno;
@@ -957,7 +971,6 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
         code = vnodeAsync(MERGE_TASK_ASYNC, EVA_PRIORITY_HIGH, tsdbMerge, taosAutoMemoryFree, arg, &fset->mergeTask);
         TSDB_CHECK_CODE(code, lino, _exit);
-        fset->mergeScheduled = true;
       }
 
       if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR) {
@@ -1238,7 +1251,7 @@ void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task, STFileSet *
     }
   }
 
-  tsdbInfo("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  tsdbTrace("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
   return;
 }
 
@@ -1264,7 +1277,7 @@ void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task) {
     (void)taosThreadCondSignal(&cond->cond);
   }
 
-  tsdbInfo("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  tsdbTrace("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
   return;
 }
 
@@ -1299,10 +1312,10 @@ int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader) {
   return TSDB_CODE_SUCCESS;
 }
 
-extern bool tsdbShouldCompact(const STFileSet *pFileSet);
+extern bool tsdbShouldCompact(const STFileSet *pFileSet, int32_t vgId);
 
 #ifndef TD_ENTERPRISE
-bool tsdbShouldCompact(const STFileSet *pFileSet) { return false; }
+bool tsdbShouldCompact(const STFileSet *pFileSet, int32_t vgId) { return false; }
 #endif
 
 static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
@@ -1392,7 +1405,7 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
 
   fieldName = "should_compact";
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
-    *(char *)value = tsdbShouldCompact(pReader->pFileSet);
+    *(char *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1415,4 +1428,62 @@ void tsdbFileSetReaderClose(struct SFileSetReader **ppReader) {
 
   *ppReader = NULL;
   return;
+}
+
+static FORCE_INLINE void getLevelSize(const STFileObj *fObj, int64_t szArr[TFS_MAX_TIERS]) {
+  if (fObj == NULL) return;
+
+  int64_t sz = fObj->f->size;
+  // level == 0, primary storage
+  // level == 1, second storage,
+  // level == 2, third storage
+  int32_t level = fObj->f->did.level;
+  if (level >= 0 && level < TFS_MAX_TIERS) {
+    szArr[level] += sz;
+  }
+}
+
+static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pInfo) {
+  int32_t code = 0;
+  int64_t levelSize[TFS_MAX_TIERS] = {0};
+  int64_t ssSize = 0;
+
+  const STFileSet *fset;
+  const SSttLvl   *stt = NULL;
+  const STFileObj *fObj = NULL;
+
+  SVnodeCfg *pCfg = &tsdb->pVnode->config;
+  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
+
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {
+      getLevelSize(fset->farr[t], levelSize);
+    }
+
+    TARRAY2_FOREACH(fset->lvlArr, stt) {
+      TARRAY2_FOREACH(stt->fobjArr, fObj) { getLevelSize(fObj, levelSize); }
+    }
+
+    fObj = fset->farr[TSDB_FTYPE_DATA];
+    if (fObj) {
+      int32_t lcn = fObj->f->lcn;
+      if (lcn > 1) {
+        ssSize += ((lcn - 1) * chunksize);
+      }
+    }
+  }
+
+  pInfo->l1Size = levelSize[0];
+  pInfo->l2Size = levelSize[1];
+  pInfo->l3Size = levelSize[2];
+  pInfo->ssSize = ssSize;
+  return code;
+}
+int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo) {
+  int32_t code = 0;
+
+  (void)taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbGetFsSizeImpl(tsdb, pInfo);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
+  return code;
 }

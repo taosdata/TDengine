@@ -232,6 +232,7 @@ int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeOb
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_QNODE;
   action.acceptableCode = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
+  action.groupId = -1;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -355,7 +356,7 @@ static int32_t mndSetDropQnodeRedoLogs(STrans *pTrans, SQnodeObj *pObj) {
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(mndTransAppendGroupRedolog(pTrans, pRedoRaw, -1));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
   TAOS_RETURN(code);
 }
@@ -397,6 +398,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_QNODE;
   action.acceptableCode = TSDB_CODE_QNODE_NOT_DEPLOYED;
+  action.groupId = -1;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);

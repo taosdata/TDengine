@@ -215,32 +215,7 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
   tSkipListUnlock(pSkipList);
 }
 
-uint32_t tSkipListRemove(SSkipList *pSkipList, SSkipListKey key) {
-  uint32_t count = 0;
 
-  tSkipListWLock(pSkipList);
-
-  SSkipListNode *pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC, NULL);
-  while (1) {
-    SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
-    if (p == pSkipList->pTail) {
-      break;
-    }
-    if (pSkipList->comparFn(key, SL_GET_NODE_KEY(pSkipList, p)) != 0) {
-      break;
-    }
-
-    tSkipListRemoveNodeImpl(pSkipList, p);
-
-    ++count;
-  }
-
-  tSkipListCorrectLevel(pSkipList);
-
-  tSkipListUnlock(pSkipList);
-
-  return count;
-}
 
 SArray *tSkipListGet(SSkipList *pSkipList, SSkipListKey key) {
   SArray *sa = taosArrayInit(1, POINTER_BYTES);

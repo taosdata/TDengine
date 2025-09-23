@@ -58,7 +58,7 @@ TEST_F(PlanGroupByTest, withOrderBy) {
   // ORDER BY aggfunc
   run("SELECT COUNT(*), SUM(c1) FROM t1 ORDER BY SUM(c1)");
   // ORDER BY alias of aggfunc
-  // run("SELECT COUNT(*), SUM(c1) a FROM t1 ORDER BY a");
+   run("SELECT COUNT(*), SUM(c1) a FROM t1 ORDER BY a");
 }
 
 TEST_F(PlanGroupByTest, multiResFunc) {
@@ -68,6 +68,7 @@ TEST_F(PlanGroupByTest, multiResFunc) {
 
   run("SELECT LAST(*), FIRST(*) FROM t1 GROUP BY c1");
 }
+
 
 TEST_F(PlanGroupByTest, selectFunc) {
   useDb("root", "test");

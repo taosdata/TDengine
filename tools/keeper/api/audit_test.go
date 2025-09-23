@@ -15,10 +15,10 @@ import (
 )
 
 func TestAudit(t *testing.T) {
-	cfg := util.GetCfg()
+	cfg := config.GetCfg()
 	cfg.Audit = config.AuditConfig{
 		Database: config.Database{
-			Name: "keepter_test_audit",
+			Name: "keeper_test_audit",
 		},
 		Enable: true,
 	}
@@ -55,6 +55,12 @@ func TestAudit(t *testing.T) {
 			data:   "{\"timestamp\": \"1699839716442000000\", \"cluster_id\": \"cluster_id\", \"user\": \"user\", \"operation\": \"operation\", \"db\":\"dbnameb\", \"resource\":\"resourcenameb\", \"client_add\": \"localhost:30000\", \"details\": \"create database `meter` buffer 32 cachemodel 'none' duration 50d keep 3650d single_stable 0 wal_retention_period 3600 precision 'ms'\"}",
 			expect: "create database `meter` buffer 32 cachemodel 'none' duration 50d keep 3650d single_stable 0 wal_retention_period 3600 precision 'ms'",
 		},
+		{
+			name:   "4",
+			ts:     1699839716443000000,
+			data:   "{\"timestamp\": \"1699839716443000000\", \"cluster_id\": \"cluster_id\", \"user\": \"user\", \"operation\": \"operation\", \"db\":\"dbnamec\", \"resource\":\"resourcenamec\", \"client_add\": \"2002:09ba:0b4e:0006:be24:11ff:fe9c:03dd\", \"details\": \"detail\"}",
+			expect: "detail",
+		},
 	}
 
 	cases2 := []struct {
@@ -70,11 +76,18 @@ func TestAudit(t *testing.T) {
 			data:   `{"timestamp":1699839716445, "cluster_id": "cluster_id", "user": "user", "operation": "operation", "db":"dbnamea", "resource":"resourcenamea", "client_add": "localhost:30000", "details": "details"}`,
 			expect: "details",
 		},
+		{
+			name:   "2",
+			ts:     1699839716446000000,
+			data:   `{"timestamp":1699839716446, "cluster_id": "cluster_id", "user": "user", "operation": "operation", "db":"dbnamea", "resource":"resourcenamea", "client_add": "2002:09ba:0b4e:0006:be24:11ff:fe9c:03dd", "details": "details"}`,
+			expect: "details",
+		},
 	}
+
 	conn, err := db.NewConnectorWithDb(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.Audit.Database.Name, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", cfg.Audit.Database.Name), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", cfg.Audit.Database.Name), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	for _, c := range cases {
@@ -85,7 +98,7 @@ func TestAudit(t *testing.T) {
 			router.ServeHTTP(w, req)
 			assert.Equal(t, 200, w.Code)
 
-			data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, details from %s.operations where ts=%d", cfg.Audit.Database.Name, c.ts), util.GetQidOwn())
+			data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, details from %s.operations where ts=%d", cfg.Audit.Database.Name, c.ts), util.GetQidOwn(config.Conf.InstanceID))
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(data.Data))
 			assert.Equal(t, c.expect, data.Data[0][1])
@@ -100,7 +113,7 @@ func TestAudit(t *testing.T) {
 			router.ServeHTTP(w, req)
 			assert.Equal(t, 200, w.Code)
 
-			data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, details from %s.operations where ts=%d", cfg.Audit.Database.Name, c.ts), util.GetQidOwn())
+			data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, details from %s.operations where ts=%d", cfg.Audit.Database.Name, c.ts), util.GetQidOwn(config.Conf.InstanceID))
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(data.Data))
 			assert.Equal(t, c.expect, data.Data[0][1])
@@ -115,7 +128,7 @@ func TestAudit(t *testing.T) {
 			router.ServeHTTP(w, req)
 			assert.Equal(t, 200, w.Code)
 
-			data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, details from %s.operations where ts=%d", cfg.Audit.Database.Name, c.ts), util.GetQidOwn())
+			data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, details from %s.operations where ts=%d", cfg.Audit.Database.Name, c.ts), util.GetQidOwn(config.Conf.InstanceID))
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(data.Data))
 			assert.Equal(t, c.expect, data.Data[0][1])
@@ -127,7 +140,7 @@ func TestAudit(t *testing.T) {
 	input := `{"records":[{"timestamp":"1702548856940013848","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45166","db":"test","resource":"","details":"d630302"},{"timestamp":"1702548856939746458","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45230","db":"test","resource":"","details":"d130277"},{"timestamp":"1702548856939586665","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:50288","db":"test","resource":"","details":"d5268"},{"timestamp":"1702548856939528940","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:50222","db":"test","resource":"","details":"d255282"},{"timestamp":"1702548856939336371","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45126","db":"test","resource":"","details":"d755297"},{"timestamp":"1702548856939075131","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45122","db":"test","resource":"","details":"d380325"},{"timestamp":"1702548856938640661","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45152","db":"test","resource":"","details":"d255281"},{"timestamp":"1702548856938505795","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45122","db":"test","resource":"","details":"d130276"},{"timestamp":"1702548856938363319","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45178","db":"test","resource":"","details":"d755296"},{"timestamp":"1702548856938201478","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:45166","db":"test","resource":"","details":"d380324"},{"timestamp":"1702548856937740618","cluster_id":"8468922059162439502","user":"root","operation":"createTable","client_add":"173.50.0.7:50288","db":"test","resource":"","details":"d5266"}]}`
 
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", cfg.Audit.Database.Name), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", cfg.Audit.Database.Name), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	t.Run("testbatch", func(t *testing.T) {
@@ -146,7 +159,7 @@ func TestAudit(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 
-		data, err := conn.Query(context.Background(), "select ts, details from "+cfg.Audit.Database.Name+".operations where cluster_id='8468922059162439502'", util.GetQidOwn())
+		data, err := conn.Query(context.Background(), "select ts, details from "+cfg.Audit.Database.Name+".operations where cluster_id='8468922059162439502'", util.GetQidOwn(config.Conf.InstanceID))
 		assert.NoError(t, err)
 		assert.Equal(t, 11, len(data.Data))
 	})

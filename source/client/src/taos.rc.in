@@ -15,10 +15,10 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "FileDescription", "Native C Driver for TDengine"
+            VALUE "FileDescription", "C Driver for TDengine"
             VALUE "FileVersion", "${TD_VER_NUMBER}"
             VALUE "InternalName", "taos.dll(${TD_VER_CPUTYPE})"
-            VALUE "LegalCopyright", "Copyright (C) 2020 TAOS Data"
+            VALUE "LegalCopyright", "Copyright (C) 2025 TAOS Data"
             VALUE "OriginalFilename", ""
             VALUE "ProductName", "taos.dll(${TD_VER_CPUTYPE})"
             VALUE "ProductVersion", "${TD_VER_NUMBER}"

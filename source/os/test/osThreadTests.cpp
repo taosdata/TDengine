@@ -110,7 +110,7 @@ TEST(osThreadTests, thread) {
   taosMsleep(300);
 
   (void)taosThreadCancel(tid1);
-  
+
   reti = taosThreadCreate(&tid2, NULL, funcPtr501, NULL);
   EXPECT_EQ(reti, 0);
   taosMsleep(1000);
@@ -498,4 +498,42 @@ TEST(osThreadTests, spinlock) {
 TEST(osThreadTests, others) {
   taosThreadTestCancel();
   taosThreadClear(NULL);
+
+  TdThread  tid1 = {0};
+  TdThread  tid2 = {0};
+  TdThread *thread = &tid1;
+  taosResetPthread(NULL);
+  taosResetPthread(thread);
+
+  bool retb = taosComparePthread(tid1, tid2);
+  EXPECT_TRUE(retb);
+
+  int32_t ret32 = taosGetAppName(NULL, NULL);
+  EXPECT_NE(ret32, 0);
+
+  char    name[32] = {0};
+  int32_t pid;
+  ret32 = taosGetPIdByName(name, NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = taosGetPIdByName(NULL, &pid);
+  EXPECT_NE(ret32, 0);
+
+  ret32 = tsem_timewait(NULL, 124);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem_wait(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_init(NULL, 0, 0);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem_post(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem_destroy(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_post(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_destroy(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_wait(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_timewait(NULL, 128);
+  EXPECT_NE(ret32, 0);
 }

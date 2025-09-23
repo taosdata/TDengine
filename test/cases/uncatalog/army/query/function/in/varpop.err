@@ -1,0 +1,8 @@
+select var_pop() from ts_4893.d0;
+select var_pop(ts) from ts_4893.d0;
+select var_pop(name) from ts_4893.d0;
+select var_pop(id, current) from ts_4893.d0;
+select var_pop() from ts_4893.meters;
+select var_pop(ts) from ts_4893.meters;
+select var_pop(name) from ts_4893.meters;
+select var_pop(id, current) from ts_4893.meters;

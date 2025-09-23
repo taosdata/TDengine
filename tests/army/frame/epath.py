@@ -16,6 +16,7 @@
 #
 
 import os
+import platform
 from frame.log import *
 
 # build/bin path
@@ -28,21 +29,30 @@ def binPath():
         return binDir
 
     selfPath = os.path.dirname(os.path.realpath(__file__))
-
-    if ("community/tests" in selfPath):
-        projPath = selfPath[:selfPath.find("community/tests")]
+    if platform.system().lower() == "windows":
+        split = "\\"
+        taosd = "taosd.exe"
     else:
-        projPath = selfPath[:selfPath.find("TDengine/tests")]
+        split = "/"
+        taosd = "taosd"
+
+    pos = selfPath.find(f"community{split}tests")
+    if (pos != -1):
+        projPath = selfPath[:pos]
+    else:
+        projPath = selfPath[:selfPath.find(f"TDengine{split}tests")]
+
+    buildPath = ""
 
     for root, dirs, files in os.walk(projPath):
-        if ("taosd" in files):
+        if (taosd in files):
             rootRealPath = os.path.dirname(os.path.realpath(root))
             if ("packaging" not in rootRealPath):
-                buildPath = root[:len(root)-len("/build/bin")]
+                buildPath = root[:len(root) - len("/build/bin")]
                 break
-    # check        
+    # check
     if (buildPath == ""):
-        tdLog.exit("taosd not found!")
+        tdLog.exit("buildPath is empty, taosd not found!")
     else:
         tdLog.info(f"taosd found in {buildPath}")
     # return

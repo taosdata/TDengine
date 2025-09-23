@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+#ifdef TD_ASTRA
+#include <endian.h>
+#endif
+
 typedef enum { TD_LITTLE_ENDIAN = 0, TD_BIG_ENDIAN } td_endian_t;
 
 static const int32_t endian_test_var = 1;

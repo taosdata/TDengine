@@ -19,7 +19,7 @@
         */
 
 #define _DEFAULT_SOURCE
-#if !defined(_TD_ARM_) && !defined(_TD_MIPS_) && !defined(_TD_LOONGARCH_)
+#if !defined(_TD_ARM_) && !defined(_TD_MIPS_) && !defined(_TD_LOONGARCH_) && !defined(TD_ASTRA)
 #include <nmmintrin.h>
 #endif
 
@@ -856,7 +856,7 @@ static uint32_t shift_crc(uint32_t shift_table[][256], uint32_t crc) {
    version.  Otherwise, use the software version. */
 uint32_t (*crc32c)(uint32_t crci, crc_stream bytes, size_t len) = crc32c_sf;
 
-#if !defined(_TD_ARM_) && !defined(_TD_MIPS_) && !defined(_TD_LOONGARCH_)
+#if !defined(_TD_ARM_) && !defined(_TD_MIPS_) && !defined(_TD_LOONGARCH_) && !defined(TD_ASTRA)
 /* Compute CRC-32C using the Intel hardware instruction. */
 uint32_t crc32c_hw(uint32_t crc, crc_stream buf, size_t len) {
   crc_stream next = buf;
@@ -1011,7 +1011,7 @@ uint32_t crc32c_hw(uint32_t crc, crc_stream buf, size_t len) {
 #endif  // #ifndef _TD_ARM_
 
 void        taosResolveCRC() {
-#if defined _TD_ARM_ || defined _TD_MIPS_ || defined WINDOWS || defined _TD_LOONGARCH_
+#if defined _TD_ARM_ || defined _TD_MIPS_ || defined WINDOWS || defined _TD_LOONGARCH_ || defined TD_ASTRA
   crc32c = crc32c_sf;
 #else
   int32_t sse42;

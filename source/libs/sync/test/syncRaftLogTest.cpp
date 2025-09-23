@@ -27,7 +27,7 @@ void test1() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   int64_t firstVer = walGetFirstVer(pWal);
   int64_t lastVer = walGetLastVer(pWal);
@@ -49,7 +49,7 @@ void test2() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   SWalSyncInfo syncMeta = {
       .isWeek = -1,
@@ -61,7 +61,7 @@ void test2() {
     int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 3);
     if (code != 0) {
       printf("code:%d terror:%d msg:%s i:%d \n", code, terrno, tstrerror(terrno), i);
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
   }
 
@@ -85,7 +85,7 @@ void test3() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   walRestoreFromSnapshot(pWal, 5);
 
@@ -109,7 +109,7 @@ void test4() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   SWalSyncInfo syncMeta = {
       .isWeek = -1,
@@ -123,7 +123,7 @@ void test4() {
     int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 3);
     if (code != 0) {
       printf("code:%d terror:%d msg:%s i:%d \n", code, terrno, tstrerror(terrno), i);
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
   }
 
@@ -147,7 +147,7 @@ void test5() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   walRestoreFromSnapshot(pWal, 5);
   walRestoreFromSnapshot(pWal, 7);

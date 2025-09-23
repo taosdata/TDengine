@@ -48,29 +48,30 @@ typedef struct SStmtTableCache {
 } SStmtTableCache;
 
 typedef struct SStmtQueryResInfo {
-  TAOS_FIELD *fields;
+  TAOS_FIELD_E *fields;
   TAOS_FIELD *userFields;
   uint32_t    numOfCols;
   int32_t     precision;
 } SStmtQueryResInfo;
 
 typedef struct SStmtBindInfo {
-  bool     needParse;
-  bool     inExecCache;
-  uint64_t tbUid;
-  uint64_t tbSuid;
-  int32_t  tbVgId;
-  int32_t  sBindRowNum;
-  int32_t  sBindLastIdx;
-  int8_t   tbType;
-  bool     tagsCached;
-  bool     preCtbname;
-  void    *boundTags;
-  char     tbName[TSDB_TABLE_FNAME_LEN];
-  char     tbFName[TSDB_TABLE_FNAME_LEN];
-  char     stbFName[TSDB_TABLE_FNAME_LEN];
-  SName    sname;
-  char     statbName[TSDB_TABLE_FNAME_LEN];
+  bool       needParse;
+  bool       inExecCache;
+  uint64_t   tbUid;
+  uint64_t   tbSuid;
+  int32_t    tbVgId;
+  int32_t    sBindRowNum;
+  int32_t    sBindLastIdx;
+  int8_t     tbType;
+  bool       tagsCached;
+  uint8_t    tbNameFlag;
+  void      *boundTags;
+  SSHashObj *boundCols;  // SArray<SBoundColInfo>
+  char       tbName[TSDB_TABLE_FNAME_LEN];
+  char       tbFName[TSDB_TABLE_FNAME_LEN];
+  char       stbFName[TSDB_TABLE_FNAME_LEN];
+  SName      sname;
+  char       statbName[TSDB_TABLE_FNAME_LEN];
 } SStmtBindInfo;
 
 typedef struct SStmtAsyncParam {
@@ -101,6 +102,7 @@ typedef struct SStmtSQLInfo {
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
   SBindInfo        *pBindInfo;
+  SSHashObj        *predicateCols;
 
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo;
@@ -123,6 +125,7 @@ typedef struct SStmtStatInfo {
 typedef struct SStmtQNode {
   bool                 restoreTbCols;
   STableColsData       tblData;
+  SVCreateTbReq       *pCreateTbReq;
   struct SStmtQNode*   next;
 } SStmtQNode;
 
@@ -130,7 +133,9 @@ typedef struct SStmtQueue {
   bool        stopQueue;
   SStmtQNode* head;
   SStmtQNode* tail;
-  uint64_t    qRemainNum;
+  int64_t       qRemainNum;
+  TdThreadMutex mutex;
+  TdThreadCond  waitCond;
 } SStmtQueue;
 
 typedef struct STscStmt {
@@ -203,12 +208,12 @@ extern char *gStmtStatusStr[];
     }                                \
   } while (0)
 
-#define STMT_FLOG(param, ...) qFatal("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)
+#define STMT_FLOG(param, ...) qFatal("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_ELOG(param, ...) qError("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_DLOG(param, ...) qDebug("stmt:%p, " param, pStmt, __VA_ARGS__)
 
-#define STMT_ELOG_E(param) qError("stmt:%p " param, pStmt)
-#define STMT_DLOG_E(param) qDebug("stmt:%p " param, pStmt)
+#define STMT_ELOG_E(param) qError("stmt:%p, " param, pStmt)
+#define STMT_DLOG_E(param) qDebug("stmt:%p, " param, pStmt)
 
 TAOS_STMT  *stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions);
 int         stmtClose(TAOS_STMT *stmt);

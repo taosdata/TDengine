@@ -15,7 +15,6 @@
 
 #define _GNU_SOURCE
 #include "shellInt.h"
-#include "tversion.h"
 
 static void shellWorkAsClient() {
   SShellArgs *pArgs = &shell.args;
@@ -30,9 +29,9 @@ static void shellWorkAsClient() {
   rpcInit.numOfThreads = 1;
   rpcInit.sessions = 16;
   rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.idleTime = 3000;
   rpcInit.user = "_dnd";
-  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  rpcInit.timeToGetConn = 500000;
 
   taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   clientRpc = rpcOpen(&rpcInit);
@@ -41,16 +40,15 @@ static void shellWorkAsClient() {
     goto _OVER;
   }
 
+  if (pArgs->port == 0) {
+    pArgs->port = 6030;
+  }
   if (pArgs->host == NULL) {
-    pArgs->host = tsFirst;
+    pArgs->host = "localhost";
   }
   char fqdn[TSDB_FQDN_LEN] = {0};
   tstrncpy(fqdn, pArgs->host, TSDB_FQDN_LEN);
   strtok(fqdn, ":");
-
-  if (pArgs->port == 0) {
-    pArgs->port = tsServerPort;
-  }
 
   printf("network test client is initialized, the server is %s:%u\r\n", fqdn, pArgs->port);
 
@@ -112,18 +110,21 @@ static void shellWorkAsServer() {
   SShellArgs *pArgs = &shell.args;
 
   if (pArgs->port == 0) {
-    pArgs->port = tsServerPort;
+    pArgs->port = 6030;
+  }
+  if (pArgs->host == NULL) {
+    pArgs->host = "127.0.0.1";
   }
 
   SRpcInit rpcInit = {0};
-  memcpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
+  memcpy(rpcInit.localFqdn, pArgs->host, strlen(pArgs->host));
   rpcInit.localPort = pArgs->port;
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = 2;
   rpcInit.cfp = (RpcCfp)shellProcessMsg;
   rpcInit.sessions = 10;
   rpcInit.connType = TAOS_CONN_SERVER;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.idleTime = 3000;
 
   taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
 
@@ -131,13 +132,16 @@ static void shellWorkAsServer() {
   if (serverRpc == NULL) {
     printf("failed to init net test server since %s\r\n", terrstr());
   } else {
-    printf("network test server is initialized, port:%u\r\n", pArgs->port);
+    printf("network test server is initialized, %s:%u\r\n", pArgs->host, pArgs->port);
     taosSetSignal(SIGTERM, shellNettestHandler);
     while (1) taosMsleep(10);
   }
 }
 
 void shellTestNetWork() {
+  (void)osDefaultInit();
+  (void)rpcInit();
+
   if (strcmp(shell.args.netrole, "client") == 0) {
     shellWorkAsClient();
   }

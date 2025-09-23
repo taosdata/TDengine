@@ -1,0 +1,5 @@
+select ascii();
+select ascii(123);
+select ascii(1);
+select ascii(2);
+select ascii(1.5);

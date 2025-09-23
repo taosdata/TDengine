@@ -34,6 +34,9 @@ extern "C" {
 #define GLOBAL_CONFIG_FILE_VERSION 1
 #define LOCAL_CONFIG_FILE_VERSION  1
 
+#define RPC_MEMORY_USAGE_RATIO   0.1
+#define QUEUE_MEMORY_USAGE_RATIO 0.6
+
 typedef enum {
   DND_CA_SM4 = 1,
 } EEncryptAlgor;
@@ -59,13 +62,20 @@ extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t       tsStatusInterval;
+extern int32_t       tsStatusIntervalMs;
+extern int32_t       tsStatusSRTimeoutMs;
+extern int32_t       tsStatusTimeoutMs;
 extern int32_t       tsNumOfSupportVnodes;
+extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];
 extern char          tsEncryptScope[];
 extern EEncryptAlgor tsiEncryptAlgorithm;
 extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
-extern char tsEncryptKey[];
+extern char   tsEncryptKey[];
+extern int8_t tsEnableStrongPassword;
+extern char          tsEncryptPassAlgorithm[];
+extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -95,6 +105,7 @@ extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsShareConnLimit;
 extern int32_t tsReadTimeout;
+extern int8_t  tsEnableIpv6;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
@@ -102,15 +113,20 @@ extern int32_t tsNumOfMnodeQueryThreads;
 extern int32_t tsNumOfMnodeFetchThreads;
 extern int32_t tsNumOfMnodeReadThreads;
 extern int32_t tsNumOfVnodeQueryThreads;
-extern float   tsRatioOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
-extern int32_t tsNumOfSnodeStreamThreads;
-extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
+extern int64_t tsQueueMemoryUsed;
+extern int64_t tsApplyMemoryAllowed;
+extern int64_t tsApplyMemoryUsed;
 extern int32_t tsRetentionSpeedLimitMB;
+extern int32_t tsNumOfMnodeStreamMgmtThreads;
+extern int32_t tsNumOfStreamMgmtThreads;
+extern int32_t tsNumOfVnodeStreamReaderThreads;
+extern int32_t tsNumOfStreamTriggerThreads;
+extern int32_t tsNumOfStreamRunnerThreads;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
@@ -118,14 +134,25 @@ extern int32_t tsNumOfRetentionThreads;
 // sync raft
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
+extern int32_t tsVnodeElectIntervalMs;
+extern int32_t tsVnodeHeartbeatIntervalMs;
+extern int32_t tsMnodeElectIntervalMs;
+extern int32_t tsMnodeHeartbeatIntervalMs;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
+extern int64_t tsSyncApplyQueueSize;
+extern int32_t tsRoutineReportInterval;
+extern bool    tsSyncLogHeartbeat;
+extern int32_t tsSyncTimeout;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
 extern int32_t tsArbCheckSyncIntervalSec;
 extern int32_t tsArbSetAssignedTimeoutSec;
+extern int32_t tsArbHeartBeatIntervalMs;
+extern int32_t tsArbCheckSyncIntervalMs;
+extern int32_t tsArbSetAssignedTimeoutMs;
 
 // vnode
 extern int64_t tsVndCommitMaxIntervalMs;
@@ -142,6 +169,7 @@ extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
+extern bool    tsForceKillTrans;
 
 // dnode
 extern int64_t tsDndStart;
@@ -151,7 +179,7 @@ extern int64_t tsDndUpTime;
 // dnode misc
 extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
-extern int8_t   tsGrant;
+extern uint32_t tsGrant;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -161,6 +189,9 @@ extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 extern bool     tsMonitorLogProtocol;
+extern int32_t  tsEnableMetrics;
+extern int32_t  tsMetricsInterval;
+extern int32_t  tsMetricsLevel;
 extern bool     tsMonitorForceV2;
 
 // audit
@@ -265,33 +296,42 @@ extern int64_t tsmaDataDeleteMark;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
+extern bool    tsWalForceRepair;
 
 // internal
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
+extern int32_t tsScanPullupInterval;
 extern int32_t tsMqRebalanceInterval;
-extern int32_t tsStreamCheckpointInterval;
-extern float   tsSinkDataRate;
-extern int32_t tsStreamNodeCheckInterval;
-extern int32_t tsMaxConcurrentCheckpoint;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
-extern int32_t tsS3MigrateIntervalSec;
-extern bool    tsS3MigrateEnabled;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
-extern int64_t tsStreamBufferSize;
-extern int     tsStreamAggCnt;
+extern int32_t tsStreamBufferSize;
+extern int64_t tsStreamBufferSizeBytes;
 extern bool    tsFilterScalarMode;
-extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
-extern bool    tsStreamCoverage;
-extern int8_t  tsS3EpNum;
+extern int32_t tsStreamNotifyMessageSize;
+extern int32_t tsStreamNotifyFrameSize;
+extern bool    tsCompareAsStrInGreatest;
+extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
+
+// shared storage
+extern int32_t tsSsEnabled;
+extern int32_t tsSsAutoMigrateIntervalSec;
+extern char    tsSsAccessString[];
+extern int32_t tsSsUploadDelaySec;
+extern int32_t tsSsBlockSize;
+extern int32_t tsSsBlockCacheSize;
+extern int32_t tsSsPageCacheSize;
+
+// insert performance
+extern bool tsInsertPerfEnabled;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
@@ -311,7 +351,7 @@ struct SConfig *taosGetCfg();
 int32_t taosSetGlobalDebugFlag(int32_t flag);
 int32_t taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
-int8_t  taosGranted(int8_t type);
+int32_t taosGranted(int8_t type);
 int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope);
 
 int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version);
@@ -320,9 +360,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized);
 int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array);
 int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
 int32_t setAllConfigs(SConfig *pCfg);
-void    printConfigNotMatch(SArray *array);
 
-int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 

@@ -56,7 +56,8 @@ extern "C" {
 #define SYNC_INDEX_INVALID  -1
 #define SYNC_TERM_INVALID   -1
 
-#define SYNC_LEARNER_CATCHUP 10
+#define SYNC_LEARNER_CATCHUP        10
+#define APPLY_QUEUE_ERROR_THRESHOLD 50
 
 typedef enum {
   SYNC_STRATEGY_NO_SNAPSHOT = 0,
@@ -176,7 +177,9 @@ typedef struct SSyncFSM {
   void (*FpRollBackCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, SFsmCbMeta* pMeta);
 
   void (*FpRestoreFinishCb)(const struct SSyncFSM* pFsm, const SyncIndex commitIdx);
+  void (*FpAfterRestoredCb)(const struct SSyncFSM* pFsm, const SyncIndex commitIdx);
   void (*FpReConfigCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, SReConfigCbMeta* pMeta);
+
   void (*FpLeaderTransferCb)(const struct SSyncFSM* pFsm, SRpcMsg* pMsg, SFsmCbMeta* pMeta);
   bool (*FpApplyQueueEmptyCb)(const struct SSyncFSM* pFsm);
   int32_t (*FpApplyQueueItems)(const struct SSyncFSM* pFsm);
@@ -234,6 +237,7 @@ typedef struct SSyncInfo {
   bool          isStandBy;
   ESyncStrategy snapshotStrategy;
   SyncGroupId   vgId;
+  SyncGroupId   mountVgId;
   int32_t       batchSize;
   SSyncCfg      syncCfg;
   char          path[TSDB_FILENAME_LEN];
@@ -263,6 +267,11 @@ typedef struct SSyncState {
   int64_t    startTimeMs;
 } SSyncState;
 
+typedef struct SSyncMetrics {
+  int64_t wal_write_bytes;
+  int64_t wal_write_time;
+} SSyncMetrics;
+
 int32_t   syncInit();
 void      syncCleanUp();
 int64_t   syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
@@ -281,6 +290,7 @@ int32_t   syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
 int32_t   syncEndSnapshot(int64_t rid);
 int32_t   syncLeaderTransfer(int64_t rid);
 int32_t   syncStepDown(int64_t rid, SyncTerm newTerm);
+void      syncResetMetrics(int64_t rid, const SSyncMetrics* pOldMetrics);
 bool      syncIsReadyForRead(int64_t rid);
 bool      syncSnapshotSending(int64_t rid);
 bool      syncSnapshotRecving(int64_t rid);
@@ -291,8 +301,11 @@ int32_t   syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg);
 int32_t syncUpdateArbTerm(int64_t rid, SyncTerm arbTerm);
 
 SSyncState  syncGetState(int64_t rid);
+int32_t     syncResetTimer(int64_t rid, int32_t electInterval, int32_t heartbeatInterval);
+SSyncMetrics syncGetMetrics(int64_t rid);
+void        syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex);
 int32_t     syncGetArbToken(int64_t rid, char* outToken);
-int32_t     syncGetAssignedLogSynced(int64_t rid);
+int32_t     syncCheckSynced(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 const char* syncStr(ESyncState state);
 

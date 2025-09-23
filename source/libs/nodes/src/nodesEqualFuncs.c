@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "functionMgt.h"
 #include "querynodes.h"
 
 #define COMPARE_SCALAR_FIELD(fldname)           \
@@ -26,7 +27,10 @@
   (((a) != NULL && (b) != NULL)                                                                                 \
        ? (varDataLen((a)) == varDataLen((b)) && memcmp(varDataVal((a)), varDataVal((b)), varDataLen((a))) == 0) \
        : (a) == (b))
-
+#define COMPARE_BLOBDATA(a, b)                                                                                       \
+  (((a) != NULL && (b) != NULL)                                                                                      \
+       ? (blobDataLen((a)) == blobDataLen((b)) && memcmp(blobDataVal((a)), blobDataVal((b)), blobDataLen((a))) == 0) \
+       : (a) == (b))
 #define COMPARE_STRING_FIELD(fldname)                          \
   do {                                                         \
     if (!COMPARE_STRING(a->fldname, b->fldname)) return false; \
@@ -35,6 +39,11 @@
 #define COMPARE_VARDATA_FIELD(fldname)                          \
   do {                                                          \
     if (!COMPARE_VARDATA(a->fldname, b->fldname)) return false; \
+  } while (0)
+
+#define COMPARE_BLOBDATA_FIELD(fldname)                          \
+  do {                                                           \
+    if (!COMPARE_BLOBDATA(a->fldname, b->fldname)) return false; \
   } while (0)
 
 #define COMPARE_OBJECT_FIELD(fldname, equalFunc)          \
@@ -111,9 +120,11 @@ static bool valueNodeEqual(const SValueNode* a, const SValueNode* b) {
       COMPARE_VARDATA_FIELD(datum.p);
       break;
     case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
       return false;
+    case TSDB_DATA_TYPE_DECIMAL:
+      return false;
+    case TSDB_DATA_TYPE_BLOB:
+      COMPARE_BLOBDATA_FIELD(datum.p);
     default:
       break;
   }
@@ -137,6 +148,15 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
   COMPARE_STRING_FIELD(functionName);
   COMPARE_NODE_LIST_FIELD(pParameterList);
+  if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
+    if ((a->node.relatedTo != b->node.relatedTo)) return false;
+  } else {
+    // select cols(cols(first(c0), ts),  first(c0) from meters;
+    if ((a->node.bindExprID != b->node.bindExprID)) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -190,6 +210,7 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeEqual((const SGroupingSetNode*)a, (const SGroupingSetNode*)b);
     case QUERY_NODE_REAL_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
     case QUERY_NODE_ORDER_BY_EXPR:

@@ -36,9 +36,10 @@ type Adapter struct {
 	conn      *db.Connector
 	db        string
 	dbOptions map[string]interface{}
+	gm        *GeneralMetric
 }
 
-func NewAdapter(c *config.Config) *Adapter {
+func NewAdapter(c *config.Config, gm *GeneralMetric) *Adapter {
 	return &Adapter{
 		username:  c.TDengine.Username,
 		password:  c.TDengine.Password,
@@ -47,6 +48,7 @@ func NewAdapter(c *config.Config) *Adapter {
 		usessl:    c.TDengine.Usessl,
 		db:        c.Metrics.Database.Name,
 		dbOptions: c.Metrics.Database.Options,
+		gm:        gm,
 	}
 }
 
@@ -102,6 +104,16 @@ func (a *Adapter) handleFunc() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		if len(report.ExtraMetrics) > 0 {
+			err = a.gm.handleBatchMetrics(report.ExtraMetrics, qid)
+
+			if err != nil {
+				adapterLog.Errorf("process records error. msg:%s", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("process records error. %s", err)})
+				return
+			}
+		}
 		c.JSON(http.StatusOK, gin.H{})
 	}
 }
@@ -153,20 +165,20 @@ func (a *Adapter) tableName(endpoint string, reqType adapterReqType) string {
 }
 
 func (a *Adapter) createDatabase() error {
-	qid := util.GetQidOwn()
+	qid := util.GetQidOwn(config.Conf.InstanceID)
 
 	adapterLog := adapterLog.WithFields(
 		logrus.Fields{config.ReqIDKey: qid},
 	)
 
-	conn, err := db.NewConnector(a.username, a.password, a.host, a.port, a.usessl)
+	conn, err := db.NewConnectorWithRetryForever(a.username, a.password, a.host, a.port, a.usessl)
 	if err != nil {
 		return fmt.Errorf("connect to database error, msg:%s", err)
 	}
 	defer func() { _ = conn.Close() }()
 	sql := a.createDBSql()
 	adapterLog.Infof("create database, sql:%s", sql)
-	_, err = conn.Exec(context.Background(), sql, util.GetQidOwn())
+	_, err = conn.ExecWithRetryForever(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		adapterLog.Errorf("create database error, msg:%s", err)
 		return err
@@ -216,14 +228,15 @@ func (a *Adapter) createTable() error {
 	if a.conn == nil {
 		return errNoConnection
 	}
-	_, err := a.conn.Exec(context.Background(), adapterTableSql, util.GetQidOwn())
+	_, err := a.conn.Exec(context.Background(), adapterTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	return err
 }
 
 type AdapterReport struct {
-	Timestamp int64          `json:"ts"`
-	Metric    AdapterMetrics `json:"metrics"`
-	Endpoint  string         `json:"endpoint"`
+	Timestamp    int64             `json:"ts"`
+	Metric       AdapterMetrics    `json:"metrics"`
+	Endpoint     string            `json:"endpoint"`
+	ExtraMetrics []StableArrayInfo `json:"extra_metrics"`
 }
 
 type AdapterMetrics struct {

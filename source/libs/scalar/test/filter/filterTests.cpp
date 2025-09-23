@@ -72,12 +72,23 @@ int32_t flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   vnode->node.resType.type = dataType;
 
   if (IS_VAR_DATA_TYPE(dataType)) {
+    if (IS_STR_DATA_BLOB(dataType)) {
+    vnode->datum.p = (char *)taosMemoryMalloc(blobDataTLen(value));
+    if (NULL == vnode->datum.p) {
+      FLT_ERR_RET(terrno);
+    }
+    blobDataCopy(vnode->datum.p, value);
+    vnode->node.resType.bytes = blobDataLen(value);
+
+    } else {
     vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     if (NULL == vnode->datum.p) {
       FLT_ERR_RET(terrno);
     }
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataLen(value);
+
+    }
   } else {
     vnode->node.resType.bytes = tDataTypes[dataType].bytes;
     assignVal((char *)nodesGetValueFromNode(vnode), (const char *)value, 0, dataType);
@@ -132,7 +143,12 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
     for (int32_t i = 0; i < rowNum; ++i) {
       FLT_ERR_RET(colDataSetVal(pColumn, i, (const char *)value, false));
       if (IS_VAR_DATA_TYPE(dataType)) {
+        if (IS_STR_DATA_BLOB(dataType)) {
+        value = (char *)value + blobDataTLen(value);
+
+        } else {
         value = (char *)value + varDataTLen(value);
+        }
       } else {
         value = (char *)value + dataBytes;
       }
@@ -159,7 +175,11 @@ int32_t flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
     for (int32_t i = 0; i < rowNum; ++i) {
       FLT_ERR_RET(colDataSetVal(pColumn, i, (const char *)value, false));
       if (IS_VAR_DATA_TYPE(dataType)) {
+        if (IS_STR_DATA_BLOB(dataType)) {
+        value = (char *)value + blobDataTLen(value);
+        } else {
         value = (char *)value + varDataTLen(value);
+        }
       } else {
         value = (char *)value + dataBytes;
       }

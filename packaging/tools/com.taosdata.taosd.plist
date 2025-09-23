@@ -27,6 +27,8 @@
         <key>AfterInitialDemand</key>
         <true/>
     </dict>
+    <key>ThrottleInterval</key>
+    <integer>600</integer>
     <key>Program</key>
     <string>/usr/local/bin/taosd</string>
 </dict>

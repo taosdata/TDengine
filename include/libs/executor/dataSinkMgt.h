@@ -16,6 +16,7 @@
 #ifndef _DATA_SINK_MGT_H
 #define _DATA_SINK_MGT_H
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,6 +31,7 @@ extern "C" {
 #define DS_BUF_EMPTY 3
 
 #define DS_FLAG_USE_MEMPOOL (1 << 0)
+#define DS_FLAG_PROCESS_ONE_BLOCK (1 << 1)
 
 
 struct SSDataBlock;
@@ -49,8 +51,16 @@ typedef struct SDeleterParam {
   SArray*  pUidList;
 } SDeleterParam;
 
+typedef enum {
+  AUTO_CREATE_TABLE_UNKNOWN = 0,
+  AUTO_CREATE_TABLE_STABLE,
+  AUTO_CREATE_TABLE_STREAM_STABLE,
+  AUTO_CREATE_TABLE_STREAM_NORMAL,
+} AUTO_CREATE_TABLE_MODE;
+
 typedef struct SInserterParam {
-  SReadHandle* readHandle;
+  SReadHandle*          readHandle;
+  SStreamInserterParam* streamInserterParam;
 } SInserterParam;
 
 typedef struct SDataSinkStat {
@@ -65,8 +75,17 @@ typedef struct SDataSinkMgtCfg {
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager);
 
+typedef struct SStreamDataInserterInfo {
+  bool    isAutoCreateTable;
+  int64_t streamId;
+  int64_t groupId;
+  char*   tbName;
+  SArray* pTagVals;  // SArray<SStreamTagInfo>
+} SStreamDataInserterInfo;
+
 typedef struct SInputData {
   const struct SSDataBlock* pData;
+  SStreamDataInserterInfo*  pStreamDataInserterInfo;
 } SInputData;
 
 typedef struct SOutputData {
@@ -87,7 +106,7 @@ typedef struct SOutputData {
  * @param pHandle output
  * @return error code
  */
-int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
+int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, void* pParam, const char* id, bool processOneBlock);
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat);
 

@@ -15,7 +15,7 @@ Several preparations are needed to write collectd data into TDengine.
 
 - TDengine cluster is deployed and running normally
 - taosAdapter is installed and running normally, for details please refer to [taosAdapter User Manual](../../../tdengine-reference/components/taosadapter)
-- collectd is installed. For installation of collectd, please refer to [official documentation](https://collectd.org/download.shtml)
+- collectd is installed. For installation of collectd, please refer to [official documentation](https://collectd.org/)
 
 ## Configuration Steps
 

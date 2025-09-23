@@ -92,7 +92,9 @@ int32_t tfsGetLevel(STfs *pTfs);
  * @param pDiskId The disk ID after allocation.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId);
+int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, const char *label, SDiskID *pDiskId);
+
+int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskID *pDiskId);
 
 /**
  * @brief Get the primary path.

@@ -690,11 +690,16 @@ int32_t tsdbIterMergerOpen(const TTsdbIterArray *iterArray, SIterMerger **merger
     tRBTreeCreate(merger[0]->iterTree, tsdbIterCmprFn);
   }
   TARRAY2_FOREACH(iterArray, iter) {
-    if (iter->noMoreData) continue;
-    node = tRBTreePut(merger[0]->iterTree, iter->node);
-    if (node == NULL) {
-      taosMemoryFree(merger[0]);
-      return TSDB_CODE_INVALID_PARA;
+    while (!iter->noMoreData) {
+      if (tRBTreePut(merger[0]->iterTree, iter->node) == NULL) {
+        int32_t code = tsdbIterNext(iter);
+        if (code) {
+          tsdbIterMergerClose(merger);
+          return code;
+        }
+        continue;
+      }
+      break;
     }
   }
 
@@ -713,7 +718,7 @@ int32_t tsdbIterMergerNext(SIterMerger *merger) {
   int32_t      c;
   SRBTreeNode *node;
 
-  if (merger->iter) {
+  while (merger->iter) {
     code = tsdbIterNext(merger->iter);
     if (code) return code;
 
@@ -724,8 +729,11 @@ int32_t tsdbIterMergerNext(SIterMerger *merger) {
       if (c > 0) {
         node = tRBTreePut(merger->iterTree, merger->iter->node);
         merger->iter = NULL;
+      } else if (c == 0) {
+        continue;
       }
     }
+    break;
   }
 
   if (merger->iter == NULL && (node = tRBTreeDropMin(merger->iterTree))) {
@@ -748,14 +756,21 @@ int32_t tsdbIterMergerSkipTableData(SIterMerger *merger, const TABLEID *tbid) {
     int32_t code = tsdbIterSkipTableData(merger->iter, tbid);
     if (code) return code;
 
-    if (merger->iter->noMoreData) {
-      merger->iter = NULL;
-    } else if ((node = tRBTreeMin(merger->iterTree))) {
-      c = merger->iterTree->cmprFn(merger->iter->node, node);
-      if (c > 0) {
-        node = tRBTreePut(merger->iterTree, merger->iter->node);
+    while (1) {
+      if (merger->iter->noMoreData) {
         merger->iter = NULL;
+      } else if ((node = tRBTreeMin(merger->iterTree))) {
+        c = merger->iterTree->cmprFn(merger->iter->node, node);
+        if (c > 0) {
+          node = tRBTreePut(merger->iterTree, merger->iter->node);
+          merger->iter = NULL;
+        } else if (c == 0) {
+          code = tsdbIterNext(merger->iter);
+          if (code) return code;
+          continue;
+        }
       }
+      break;
     }
 
     if (!merger->iter && (node = tRBTreeDropMin(merger->iterTree))) {

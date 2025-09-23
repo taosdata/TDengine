@@ -107,6 +107,77 @@ _OVER:
   return code;
 }
 
+int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool* deployed) {
+  int32_t   code = -1;
+  TdFilePtr pFile = NULL;
+  char     *content = NULL;
+  char      file[PATH_MAX] = {0};
+  int32_t   nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
+  if (nBytes <= 0 || nBytes >= PATH_MAX) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    goto _OVER;
+  }
+
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
+    dInfo("file:%s not exist", file);
+    code = 0;
+    goto _OVER;
+  }
+
+  pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    code = terrno;
+    dError("failed to open file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  int64_t size = 0;
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
+    dError("failed to fstat file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  content = taosMemoryMalloc(size + 1);
+  if (content == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if (taosReadFile(pFile, content, size) != size) {
+    code = terrno;
+    dError("failed to read file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  content[size] = '\0';
+
+  *ppJson = tjsonParse(content);
+  if (*ppJson == NULL) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  if (dmDecodeFile(*ppJson, deployed) < 0) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  code = 0;
+  dInfo("succceed to read mnode file %s", file);
+
+_OVER:
+  if (content != NULL) taosMemoryFree(content);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    if (*ppJson != NULL) cJSON_Delete(*ppJson);
+    dError("failed to read dnode file:%s since %s", file, tstrerror(code));
+  }
+  return code;
+}
+
+
 static int32_t dmEncodeFile(SJson *pJson, bool deployed) {
   if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   return 0;
@@ -163,23 +234,86 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
   }
 
   if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
   TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
-  dInfo("succeed to write file:%s, deloyed:%d", realfile, deployed);
+  dInfo("succeed to write file:%s", realfile);
 
 _OVER:
+
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    dError("failed to write file:%s since %s, deloyed:%d", realfile, tstrerror(code), deployed);
+    dError("failed to write file:%s since %s", realfile, tstrerror(code));
   }
   return code;
 }
+
+int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson) {
+  int32_t   code = -1;
+  char     *buffer = NULL;
+  TdFilePtr pFile = NULL;
+  char      file[PATH_MAX] = {0};
+  char      realfile[PATH_MAX] = {0};
+
+  int32_t nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
+  if (nBytes <= 0 || nBytes >= PATH_MAX) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    goto _OVER;
+  }
+
+  nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
+  if (nBytes <= 0 || nBytes >= PATH_MAX) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    goto _OVER;
+  }
+
+  buffer = tjsonToString(pJson);
+  if (buffer == NULL) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  int32_t len = strlen(buffer);
+  if (taosWriteFile(pFile, buffer, len) <= 0) {
+    code = terrno;
+    goto _OVER;
+  }
+  if (taosFsyncFile(pFile) < 0) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if (taosCloseFile(&pFile) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _OVER;
+  }
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
+
+  dInfo("succeed to write file:%s", realfile);
+
+_OVER:
+
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (buffer != NULL) taosMemoryFree(buffer);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    dError("failed to write file:%s since %s", realfile, tstrerror(code));
+  }
+  return code;
+}
+
 
 int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile) {
   int32_t code = 0;
@@ -206,7 +340,7 @@ int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile) {
   } while (retryTimes < 12);
 
   if (ret < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     (void)taosCloseFile(pFile);
     *pFile = NULL;
     return code;
@@ -249,12 +383,12 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 
   if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 
@@ -291,7 +425,7 @@ static int32_t dmWriteEncryptCodeFile(char *file, char *realfile, char *encryptC
   }
 
   if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 
@@ -373,7 +507,7 @@ _OVER:
 }
 
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   int32_t code = -1;
   int32_t lino = 0;
   char   *machineId = NULL;
@@ -499,7 +633,7 @@ _OVER:
 }
 
 int32_t dmGetEncryptKey() {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   int32_t code = -1;
   char    encryptFile[PATH_MAX] = {0};
   char    checkFile[PATH_MAX] = {0};

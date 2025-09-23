@@ -83,7 +83,7 @@ void test6() {
   char          *serialized = (char *)taosMemoryMalloc(bufLen);
   syncPingReplySerialize3(pMsg, serialized, bufLen);
   SyncPingReply *pMsg2 = syncPingReplyDeserialize3(serialized, bufLen);
-  assert(pMsg2 != NULL);
+  TD_ALWAYS_ASSERT(pMsg2 != NULL);
   syncPingReplyLog2((char *)"test6: syncPingReplySerialize3 -> syncPingReplyDeserialize3 ", pMsg2);
 
   taosMemoryFree(serialized);

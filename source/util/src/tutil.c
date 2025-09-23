@@ -133,6 +133,9 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
 
 char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   for (int32_t i = 0; i < len; ++i) {
+    if (0 == haystack[i]) {
+      break;
+    }
     // skip the needle in quote, jump to the end of quoted string
     if (skipquote && (haystack[i] == '\'' || haystack[i] == '"')) {
       char quote = haystack[i++];
@@ -278,7 +281,7 @@ char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   return string;
 }
 
-int64_t strnatoi(char *num, int32_t len) {
+int64_t strnatoi(const char *num, int32_t len) {
   int64_t ret = 0, i, dig, base = 1;
 
   if (len > (int32_t)strlen(num)) {
@@ -329,9 +332,9 @@ char *strbetween(char *string, char *begin, char *end) {
   return result;
 }
 
-int32_t tintToHex(uint64_t val, char hex[]) {
-  const char hexstr[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+static const char hexstr[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
+int32_t tintToHex(uint64_t val, char hex[]) {
   int32_t j = 0, k = 0;
   if (val == 0) {
     hex[j++] = hexstr[0];
@@ -355,13 +358,12 @@ int32_t titoa(uint64_t val, size_t radix, char str[]) {
     return 0;
   }
 
-  const char *s = "0123456789abcdef";
   char        buf[65] = {0};
 
   int32_t  i = 0;
   uint64_t v = val;
   do {
-    buf[i++] = s[v % radix];
+    buf[i++] = hexstr[v % radix];
     v /= radix;
   } while (v > 0);
 
@@ -373,13 +375,12 @@ int32_t titoa(uint64_t val, size_t radix, char str[]) {
   return i;
 }
 
-int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]) {
+int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char str[]) {
   int32_t i;
-  char    hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
   for (i = 0; i < len; i++) {
-    hexstr[i * 2] = hexval[((bytes[i] >> 4u) & 0xF)];
-    hexstr[(i * 2) + 1] = hexval[(bytes[i]) & 0x0F];
+    str[i * 2] = hexstr[((bytes[i] >> 4u) & 0xF)];
+    str[(i * 2) + 1] = hexstr[(bytes[i]) & 0x0F];
   }
 
   return 0;
@@ -490,9 +491,9 @@ size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rs
 int32_t parseCfgReal(const char *str, float *out) {
   float val;
   char  *endPtr;
-  errno = 0;
+  SET_ERRNO(0);
   val = taosStr2Float(str, &endPtr);
-  if (str == endPtr || errno == ERANGE || isnan(val)) {
+  if (str == endPtr || ERRNO == ERANGE || isnan(val)) {
     return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;
@@ -585,4 +586,24 @@ bool taosIsSpecialChar(char c) {
     default:
     return false;
   }
+}
+
+void tTrimMountPrefix(char *fullName) {
+  if (fullName == NULL) {
+    return;
+  }
+  char *dot_pos = fullName;
+  while (*dot_pos && *dot_pos != '.') ++dot_pos;
+  if (!*dot_pos) return;
+
+  char *underscore_pos = dot_pos + 1;
+  while (*underscore_pos && *underscore_pos != '_') ++underscore_pos;
+  if (!*underscore_pos) return;
+
+  char *src = underscore_pos + 1;
+  char *dst = dot_pos + 1;
+
+  while (*src) *dst++ = *src++;
+
+  *dst = '\0';
 }

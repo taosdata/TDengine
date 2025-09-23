@@ -87,7 +87,7 @@ class QueueEnv : public ::testing::Test {
 
 TEST_F(QueueEnv, testPushAndPop) {
   // add more test
-  assert(q->IsEmpty());
+  TD_ALWAYS_ASSERT(q->IsEmpty());
 
   for (int i = 0; i < 100; i++) {
     QueueElem *el = (QueueElem *)taosMemoryMalloc(sizeof(QueueElem));
@@ -97,16 +97,16 @@ TEST_F(QueueEnv, testPushAndPop) {
   int i = 0;
   while (!q->IsEmpty()) {
     QueueElem *el = q->Pop();
-    assert(el->val == i++);
+    TD_ALWAYS_ASSERT(el->val == i++);
     taosMemoryFree(el);
   }
-  assert(q->IsEmpty());
+  TD_ALWAYS_ASSERT(q->IsEmpty());
 }
 TEST_F(QueueEnv, testRm) {
   // add more test
 
   std::vector<QueueElem *> set;
-  assert(q->IsEmpty());
+  TD_ALWAYS_ASSERT(q->IsEmpty());
 
   for (int i = 0; i < 100; i++) {
     QueueElem *el = (QueueElem *)taosMemoryMalloc(sizeof(QueueElem));
@@ -119,11 +119,11 @@ TEST_F(QueueEnv, testRm) {
     q->RmElem(el);
     taosMemoryFree(el);
   }
-  assert(q->IsEmpty());
+  TD_ALWAYS_ASSERT(q->IsEmpty());
 }
 TEST_F(QueueEnv, testIter) {
   // add more test
-  assert(q->IsEmpty());
+  TD_ALWAYS_ASSERT(q->IsEmpty());
   std::vector<int> vals;
   for (int i = 0; i < 100; i++) {
     QueueElem *el = (QueueElem *)taosMemoryMalloc(sizeof(QueueElem));
@@ -133,7 +133,7 @@ TEST_F(QueueEnv, testIter) {
   }
   std::vector<int> result;
   q->ForEach(result);
-  assert(result.size() == vals.size());
+  TD_ALWAYS_ASSERT(result.size() == vals.size());
 }
 
 class TransCtxEnv : public ::testing::Test {

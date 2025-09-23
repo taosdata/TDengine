@@ -1,0 +1,25 @@
+site_name: TDengine Case List
+docs_dir: case_list_docs
+theme:
+  name: "material"
+  
+markdown_extensions:
+- attr_list
+- toc:
+    permalink: true
+    separator: "-"
+    baselevel: 1
+    toc_depth: 4
+plugins:
+- search
+- mkdocstrings:
+    custom_templates: templates
+    handlers:
+      python:
+        options:
+          heading_level: 2
+          show_root_heading: true
+          show_bases: false
+          show_source: false
+          show_object_full_path: false
+          filters: [ "^test_", "^Test" ]

@@ -35,18 +35,25 @@ typedef struct SDnodeMgmt {
   TdThread                     monitorThread;
   TdThread                     auditThread;
   TdThread                     crashReportThread;
+  TdThread                     metricsThread;
   SSingleWorker                mgmtWorker;
   ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeFp           processAlterNodeFp;
   ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
   ProcessDropNodeFp            processDropNodeFp;
   SendMonitorReportFp          sendMonitorReportFp;
+  SendMetricsReportFp          sendMetricsReportFp;
   MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  MetricsCleanExpiredSamplesFp metricsCleanExpiredSamplesFp;
   SendAuditRecordsFp           sendAuditRecordsFp;
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  SetVnodeSyncTimeoutFp        setVnodeSyncTimeoutFp;
   GetMnodeLoadsFp              getMnodeLoadsFp;
+  SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
   int32_t                      statusSeq;
+  SDispatchWorkerPool          streamMgmtWorker;
 } SDnodeMgmt;
 
 // dmHandle.c
@@ -80,8 +87,12 @@ void    dmStopMonitorThread(SDnodeMgmt *pMgmt);
 void    dmStopAuditThread(SDnodeMgmt *pMgmt);
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);
 void    dmStopCrashReportThread(SDnodeMgmt *pMgmt);
+int32_t dmStartMetricsThread(SDnodeMgmt *pMgmt);
+void    dmStopMetricsThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
+int32_t dmPutMsgToStreamMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

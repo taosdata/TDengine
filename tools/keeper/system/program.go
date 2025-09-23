@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"github.com/kardianos/service"
 	"github.com/taosdata/go-utils/web"
 	"github.com/taosdata/taoskeeper/api"
@@ -32,7 +34,7 @@ func Init() *http.Server {
 		return nil
 	}
 
-	router := web.CreateRouter(false, &conf.Cors, false)
+	router := CreateRouter(false, &conf.Cors, false)
 	router.Use(log.GinLog())
 	router.Use(log.GinRecoverLog())
 
@@ -69,18 +71,18 @@ func Init() *http.Server {
 		}
 	}
 
-	adapter := api.NewAdapter(conf)
-	if err := adapter.Init(router); err != nil {
-		panic(err)
-	}
-
 	gen_metric := api.NewGeneralMetric(conf)
 	if err := gen_metric.Init(router); err != nil {
 		panic(err)
 	}
 
+	adapter := api.NewAdapter(conf, gen_metric)
+	if err := adapter.Init(router); err != nil {
+		panic(err)
+	}
+
 	server := &http.Server{
-		Addr:    ":" + strconv.Itoa(conf.Port),
+		Addr:    conf.Host + ":" + strconv.Itoa(conf.Port),
 		Handler: router,
 	}
 
@@ -143,4 +145,11 @@ func (p *program) Stop(s service.Service) error {
 	logger.Println("Flushing Log")
 	log.Close(ctxLog)
 	return nil
+}
+
+func CreateRouter(debug bool, corsConf *web.CorsConfig, enableGzip bool) *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(cors.New(corsConf.GetConfig()))
+	return router
 }

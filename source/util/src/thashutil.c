@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
+#include "tutil.h"
 #include "thash.h"
 #include "types.h"
 #include "xxhash.h"
@@ -106,8 +107,12 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len) {
   const uint8_t *end = data + (len - (len & 7));
 
   while (data != end) {
+#ifndef NO_UNALIGNED_ACCESS
     uint64_t k = *((uint64_t *)data);
-
+#else
+    uint64_t k = 0;
+    memcpy(&k, data, sizeof(uint64_t));
+#endif
     k *= m;
     k ^= k >> r;
     k *= m;
@@ -165,18 +170,19 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
     return 0x7fc00000;
   }
 
-  if (FLT_EQUAL(f, 0.0)) {
+  if (DBL_EQUAL(f, 0.0)) {
     return 0;
   }
   if (fabs(f) < DBL_MAX / BASE - DLT) {
-    int32_t t = (int32_t)(round(BASE * (f + DLT)));
-    return (uint32_t)t;
+    uint64_t bits;
+    memcpy(&bits, &f, sizeof(double));
+    return (uint32_t)(bits ^ (bits >> 32));
   } else {
     return 0x7fc00000;
   }
 }
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
-  uint64_t val = *(uint64_t *)key;
+  uint64_t val = taosGetUInt64Aligned((uint64_t *)key);
 
   uint64_t hash = val >> 16U;
   hash += (val & 0xFFFFU);
@@ -235,6 +241,10 @@ int32_t taosDoubleEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
   return getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1)(a, b);
 }
 
+int32_t taosDecimalEqual(const void* a, const void* b, size_t UNUSED_PARAM(sz)) {
+  return 0;
+}
+
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
   _equal_fn_t fn = NULL;
   switch (type) {
@@ -243,6 +253,10 @@ _equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       fn = taosDoubleEqual;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+    case TSDB_DATA_TYPE_DECIMAL:
+      fn = memcmp;
       break;
     default:
       fn = memcmp;

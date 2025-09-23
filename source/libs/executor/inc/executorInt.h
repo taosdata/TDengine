@@ -38,8 +38,6 @@ extern "C" {
 #include "tlockfree.h"
 #include "tmsg.h"
 #include "tpagedbuf.h"
-// #include "tstream.h"
-// #include "tstreamUpdate.h"
 #include "tlrucache.h"
 #include "tworker.h"
 
@@ -50,10 +48,18 @@ typedef struct STqReader   STqReader;
 
 typedef enum SOperatorParamType { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorParamType;
 
+typedef enum EExtWinMode {
+  EEXT_MODE_SCALAR = 1,
+  EEXT_MODE_AGG,
+  EEXT_MODE_INDEFR_FUNC,
+} EExtWinMode;
+
 #define IS_VALID_SESSION_WIN(winInfo)        ((winInfo).sessionWin.win.skey > 0)
 #define SET_SESSION_WIN_INVALID(winInfo)     ((winInfo).sessionWin.win.skey = INT64_MIN)
 #define IS_INVALID_SESSION_WIN_KEY(winKey)   ((winKey).win.skey <= 0)
 #define SET_SESSION_WIN_KEY_INVALID(pWinKey) ((pWinKey)->win.skey = INT64_MIN)
+
+#define IS_STREAM_MODE(_task) ((_task)->execModel == OPTR_EXEC_MODEL_STREAM)
 
 /**
  * If the number of generated results is greater than this value,
@@ -98,6 +104,7 @@ typedef struct {
   char*           tablename;
   char*           dbname;
   int32_t         tversion;
+  int32_t         rversion;
   SSchemaWrapper* sw;
   SSchemaWrapper* qsw;
 } SSchemaInfo;
@@ -161,10 +168,16 @@ typedef struct SSortMergeJoinOperatorParam {
 } SSortMergeJoinOperatorParam;
 
 typedef struct SExchangeOperatorBasicParam {
-  int32_t vgId;
-  int32_t srcOpType;
-  bool    tableSeq;
-  SArray* uidList;
+  int32_t               vgId;
+  int32_t               srcOpType;
+  bool                  tableSeq;
+  SArray*               uidList;
+  bool                  isVtbRefScan;
+  bool                  isVtbTagScan;
+  bool                  isNewDeployed; // used with newDeployedSrc
+  SOrgTbInfo*           colMap;
+  STimeWindow           window;
+  SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -183,6 +196,7 @@ typedef struct SExchangeSrcIndex {
 } SExchangeSrcIndex;
 
 typedef struct SExchangeInfo {
+  int64_t    seqId;
   SArray*    pSources;
   SSHashObj* pHashSources;
   SArray*    pSourceDataInfo;
@@ -196,6 +210,7 @@ typedef struct SExchangeInfo {
   SSDataBlock* pDummyBlock;      // dummy block, not keep data
   bool         seqLoadData;      // sequential load data or not, false by default
   bool         dynamicOp;
+  bool         dynTbname;         // %%tbname for stream    
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
   uint64_t            self;
@@ -253,6 +268,7 @@ typedef struct STableScanBase {
   STsdbReader*           dataReader;
   SFileBlockLoadRecorder readRecorder;
   SQueryTableDataCond    cond;
+  SQueryTableDataCond    orgCond; // use for virtual super table scan
   SAggOptrPushDownInfo   pdInfo;
   SColMatchInfo          matchInfo;
   SReadHandle            readHandle;
@@ -283,6 +299,9 @@ typedef struct STableScanInfo {
   bool            hasGroupByTag;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
+  SSDataBlock*    pOrgBlock;
+  bool            ignoreTag;
+  bool            virtualStableScan;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -393,6 +412,7 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_DELETE_DATA,
   STREAM_SCAN_FROM_DATAREADER_RETRIEVE,
   STREAM_SCAN_FROM_DATAREADER_RANGE,
+  STREAM_SCAN_FROM_CREATE_TABLERES,
 } EStreamScanMode;
 
 enum {
@@ -416,6 +436,7 @@ typedef struct SStreamAggSupporter {
   struct SUpdateInfo* pUpdateInfo;
   int32_t             windowCount;
   int32_t             windowSliding;
+  SStreamStateCur*    pCur;
 } SStreamAggSupporter;
 
 typedef struct SWindowSupporter {
@@ -449,9 +470,26 @@ typedef struct STimeWindowAggSupp {
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
+typedef struct SStreamNotifyEventSupp {
+  SHashObj*    pWindowEventHashMap;  // Hash map from gorupid+skey+eventType to the list node of window event.
+  SHashObj*    pTableNameHashMap;    // Hash map from groupid to the dest child table name.
+  SSDataBlock* pEventBlock;          // The datablock contains all window events and results.
+  SArray*      pSessionKeys;
+  const char*  windowType;
+} SStreamNotifyEventSupp;
+
 typedef struct SSteamOpBasicInfo {
-  int32_t primaryPkIndex;
-  bool    updateOperatorInfo;
+  int32_t                primaryPkIndex;
+  int16_t                operatorFlag;
+  SStreamNotifyEventSupp notifyEventSup;
+  bool                   recvCkBlock;
+  SSDataBlock*           pCheckpointRes;
+  SSHashObj*             pSeDeleted;
+  void*                  pDelIterator;
+  SSDataBlock*           pDelRes;
+  SArray*                pUpdated;
+  STableTsDataState*     pTsDataState;
+  int32_t                numOfRecv;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
@@ -476,6 +514,9 @@ typedef struct SStreamFillSupporter {
   int32_t        pkColBytes;
   __compar_fn_t  comparePkColFn;
   int32_t*       pOffsetInfo;
+  bool           normalFill;
+  void*          pEmptyRow;
+  SArray*        pResultRange;
 } SStreamFillSupporter;
 
 typedef struct SStreamScanInfo {
@@ -499,6 +540,11 @@ typedef struct SStreamScanInfo {
   int32_t      validBlockIndex;  // Is current data has returned?
   uint64_t     numOfExec;        // execution times
   STqReader*   tqReader;
+
+  SHashObj*       pVtableMergeHandles;  // key: vtable uid, value: SStreamVtableMergeHandle
+  SDiskbasedBuf*  pVtableMergeBuf;      // page buffer used by vtable merge
+  SArray*         pVtableReadyHandles;
+  STableListInfo* pTableListInfo;
 
   uint64_t            groupId;
   bool                igCheckGroupId;
@@ -528,18 +574,28 @@ typedef struct SStreamScanInfo {
   int32_t      blockRecoverTotCnt;
   SSDataBlock* pRecoverRes;
 
-  SSDataBlock*   pCreateTbRes;
-  int8_t         igCheckUpdate;
-  int8_t         igExpired;
-  void*          pState;  // void
-  SStoreTqReader readerFn;
-  SStateStore    stateStore;
-  SSDataBlock*   pCheckpointRes;
-  int8_t         pkColType;
-  int32_t        pkColLen;
-  bool           useGetResultRange;
-  STimeWindow    lastScanRange;
-  SSDataBlock*   pRangeScanRes;   // update SSDataBlock
+  SSDataBlock*      pCreateTbRes;
+  int8_t            igCheckUpdate;
+  int8_t            igExpired;
+  void*             pState;  // void
+  SStoreTqReader    readerFn;
+  SStateStore       stateStore;
+  SSDataBlock*      pCheckpointRes;
+  int8_t            pkColType;
+  int32_t           pkColLen;
+  bool              useGetResultRange;
+  STimeWindow       lastScanRange;
+  SSDataBlock*      pRangeScanRes;  // update SSDataBlock
+  bool              hasPart;
+
+  //nonblock data scan
+  TSKEY                  recalculateInterval;
+  __compar_fn_t          comparePkColFn;
+  SScanRange             curRange;
+  struct SOperatorInfo*  pRecTableScanOp;
+  bool                   scanAllTables;
+  SSHashObj*             pRecRangeMap;
+  SArray*                pRecRangeRes;
 } SStreamScanInfo;
 
 typedef struct {
@@ -608,53 +664,6 @@ typedef struct SOpCheckPointInfo {
   SHashObj* children;  // key:child id
 } SOpCheckPointInfo;
 
-typedef struct SStreamIntervalOperatorInfo {
-  SOptrBasicInfo      binfo;  // basic info
-  SSteamOpBasicInfo   basic;
-  SAggSupporter       aggSup;          // aggregate supporter
-  SExprSupp           scalarSupp;      // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;    // multiple results build supporter
-  SInterval           interval;        // interval info
-  int32_t             primaryTsIndex;  // primary time stamp slot id from result of downstream operator.
-  STimeWindowAggSupp  twAggSup;
-  bool                invertible;
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pDelWins;  // SWinRes
-  int32_t             delIndex;
-  SSDataBlock*        pDelRes;
-  SPhysiNode*         pPhyNode;  // create new child
-  SHashObj*           pPullDataMap;
-  SArray*             pPullWins;  // SPullWindowInfo
-  int32_t             pullIndex;
-  SSDataBlock*        pPullDataRes;
-  SArray*             pChildren;
-  int32_t             numOfChild;
-  SStreamState*       pState;  // void
-  SWinKey             delKey;
-  uint64_t            numOfDatapack;
-  SArray*             pUpdated;
-  SSHashObj*          pUpdatedMap;
-  int64_t             dataVersion;
-  SStateStore         stateStore;
-  bool                recvGetAll;
-  SHashObj*           pFinalPullDataMap;
-  SOpCheckPointInfo   checkPointInfo;
-  bool                reCkBlock;
-  SSDataBlock*        pCheckpointRes;
-  struct SUpdateInfo* pUpdateInfo;
-  bool                recvRetrive;
-  SSDataBlock*        pMidRetriveRes;
-  bool                recvPullover;
-  SSDataBlock*        pMidPulloverRes;
-  bool                clearState;
-  SArray*             pMidPullDatas;
-  int32_t             midDelIndex;
-  SSHashObj*          pDeletedMap;
-  bool                destHasPrimaryKey;
-  struct SOperatorInfo* pOperator;
-} SStreamIntervalOperatorInfo;
-
 typedef struct SDataGroupInfo {
   uint64_t groupId;
   int64_t  numOfRows;
@@ -671,226 +680,59 @@ typedef struct SWindowRowsSup {
   uint64_t    groupId;
 } SWindowRowsSup;
 
-typedef struct SResultWindowInfo {
-  SRowBuffPos* pStatePos;
-  SSessionKey  sessionWin;
-  bool         isOutput;
-} SResultWindowInfo;
+typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 
-typedef struct SStreamSessionAggOperatorInfo {
-  SOptrBasicInfo      binfo;
-  SSteamOpBasicInfo   basic;
-  SStreamAggSupporter streamAggSup;
-  SExprSupp           scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;
-  int32_t             primaryTsIndex;  // primary timestamp slot id
-  int32_t             endTsIndex;      // window end timestamp slot id
-  int32_t             order;           // current SSDataBlock scan order
-  STimeWindowAggSupp  twAggSup;
-  SSDataBlock*        pWinBlock;   // window result
-  SSDataBlock*        pDelRes;     // delete result
-  SSDataBlock*        pUpdateRes;  // update window
-  bool                returnUpdate;
-  SSHashObj*          pStDeleted;
-  void*               pDelIterator;
-  SArray*             pChildren;  // cache for children's result; final stream operator
-  SPhysiNode*         pPhyNode;   // create new child
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pUpdated;
-  SSHashObj*          pStUpdated;
-  int64_t             dataVersion;
-  SArray*             historyWins;
-  bool                isHistoryOp;
-  bool                reCkBlock;
-  SSDataBlock*        pCheckpointRes;
-  bool                clearState;
-  bool                recvGetAll;
-  bool                destHasPrimaryKey;
-  SSHashObj*          pPkDeleted;
-  struct SOperatorInfo* pOperator;
-} SStreamSessionAggOperatorInfo;
-
-typedef struct SStreamStateAggOperatorInfo {
-  SOptrBasicInfo      binfo;
-  SSteamOpBasicInfo   basic;
-  SStreamAggSupporter streamAggSup;
-  SExprSupp           scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;
-  int32_t             primaryTsIndex;  // primary timestamp slot id
-  STimeWindowAggSupp  twAggSup;
-  SColumn             stateCol;
-  SSDataBlock*        pDelRes;
-  SSHashObj*          pSeDeleted;
-  void*               pDelIterator;
-  SArray*             pChildren;  // cache for children's result;
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pUpdated;
-  SSHashObj*          pSeUpdated;
-  int64_t             dataVersion;
-  bool                isHistoryOp;
-  SArray*             historyWins;
-  bool                reCkBlock;
-  SSDataBlock*        pCheckpointRes;
-  bool                recvGetAll;
-  SSHashObj*          pPkDeleted;
-  bool                destHasPrimaryKey;
-  struct SOperatorInfo* pOperator;
-} SStreamStateAggOperatorInfo;
-
-typedef struct SStreamEventAggOperatorInfo {
-  SOptrBasicInfo      binfo;
-  SSteamOpBasicInfo   basic;
-  SStreamAggSupporter streamAggSup;
-  SExprSupp           scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;
-  int32_t             primaryTsIndex;  // primary timestamp slot id
-  STimeWindowAggSupp  twAggSup;
-  SSDataBlock*        pDelRes;
-  SSHashObj*          pSeDeleted;
-  void*               pDelIterator;
-  SArray*             pChildren;  // cache for children's result;
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pUpdated;
-  SSHashObj*          pSeUpdated;
-  SSHashObj*          pAllUpdated;
-  int64_t             dataVersion;
-  bool                isHistoryOp;
-  SArray*             historyWins;
-  bool                reCkBlock;
-  bool                recvGetAll;
-  SSDataBlock*        pCheckpointRes;
-  SFilterInfo*        pStartCondInfo;
-  SFilterInfo*        pEndCondInfo;
-  SSHashObj*          pPkDeleted;
-  bool                destHasPrimaryKey;
-  struct SOperatorInfo* pOperator;
-} SStreamEventAggOperatorInfo;
-
-typedef struct SStreamCountAggOperatorInfo {
-  SOptrBasicInfo      binfo;
-  SSteamOpBasicInfo   basic;
-  SStreamAggSupporter streamAggSup;
-  SExprSupp           scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;
-  int32_t             primaryTsIndex;  // primary timestamp slot id
-  STimeWindowAggSupp  twAggSup;
-  SSDataBlock*        pDelRes;
-  SSHashObj*          pStDeleted;
-  void*               pDelIterator;
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pUpdated;
-  SSHashObj*          pStUpdated;
-  int64_t             dataVersion;
-  SArray*             historyWins;
-  bool                reCkBlock;
-  bool                recvGetAll;
-  SSDataBlock*        pCheckpointRes;
-  SSHashObj*          pPkDeleted;
-  bool                destHasPrimaryKey;
-  struct SOperatorInfo* pOperator;
-} SStreamCountAggOperatorInfo;
-
-typedef struct SStreamPartitionOperatorInfo {
+typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo        binfo;
-  SSteamOpBasicInfo     basic;
-  SPartitionBySupporter partitionSup;
-  SExprSupp             scalarSup;
-  SExprSupp             tbnameCalSup;
-  SExprSupp             tagCalSup;
-  SHashObj*             pPartitions;
-  void*                 parIte;
-  void*                 pTbNameIte;
-  SSDataBlock*          pInputDataBlock;
-  int32_t               tsColIndex;
-  SSDataBlock*          pDelRes;
-  SSDataBlock*          pCreateTbRes;
-} SStreamPartitionOperatorInfo;
-
-typedef struct SStreamFillOperatorInfo {
-  SSteamOpBasicInfo     basic;
-  SStreamFillSupporter* pFillSup;
-  SSDataBlock*          pRes;
-  SSDataBlock*          pSrcBlock;
-  int32_t               srcRowIndex;
-  SSDataBlock*          pSrcDelBlock;
-  int32_t               srcDelRowIndex;
-  SSDataBlock*          pDelRes;
-  SColMatchInfo         matchInfo;
-  int32_t               primaryTsCol;
-  int32_t               primarySrcSlotId;
-  SStreamFillInfo*      pFillInfo;
-  SArray*               pCloseTs;
-  SArray*               pUpdated;
+  SAggSupporter         aggSup;
+  SExprSupp             scalarSupp;  // supporter for perform scalar function
   SGroupResInfo         groupResInfo;
-  SStreamState*         pState;
-  SStateStore           stateStore;
-} SStreamFillOperatorInfo;
-
-typedef struct SStreamTimeSliceOperatorInfo {
-  SSteamOpBasicInfo     basic;
+  SWindowRowsSup        winSup;
+  bool                  reptScan;  // next round scan
+  int64_t               gap;       // session window gap
+  int32_t               tsSlotId;  // primary timestamp slot id
   STimeWindowAggSupp    twAggSup;
-  SStreamAggSupporter   streamAggSup;
-  SStreamFillSupporter* pFillSup;
-  SStreamFillInfo*      pFillInfo;
-  SSDataBlock*          pRes;
-  SSDataBlock*          pDelRes;
-  bool                  recvCkBlock;
-  SSDataBlock*          pCheckpointRes;
-  int32_t               fillType;
-  SResultRowData        leftRow;
-  SResultRowData        valueRow;
-  SResultRowData        rightRow;
-  int32_t               primaryTsIndex;
-  SExprSupp             scalarSup;  // scalar calculation
-  bool                  ignoreExpiredData;
-  bool                  ignoreExpiredDataSaved;
-  bool                  destHasPrimaryKey;
-  SArray*               historyPoints;
-  SArray*               pUpdated;  // SWinKey
-  SArray*               historyWins;
-  SSHashObj*            pUpdatedMap;
-  int32_t               delIndex;
-  SArray*               pDelWins;  // SWinKey
-  SSHashObj*            pDeletedMap;
-  uint64_t              numOfDatapack;
-  SGroupResInfo         groupResInfo;
-  bool                  ignoreNull;
-  bool                  isHistoryOp;
-  SArray*               pCloseTs;
   struct SOperatorInfo* pOperator;
-} SStreamTimeSliceOperatorInfo;
+  bool                  cleanGroupResInfo;
+} SSessionAggOperatorInfo;
 
-typedef struct SStreamIntervalSliceOperatorInfo {
-  SSteamOpBasicInfo     basic;
+typedef struct SStateWindowOperatorInfo {
   SOptrBasicInfo        binfo;
-  STimeWindowAggSupp    twAggSup;
-  SStreamAggSupporter   streamAggSup;
+  SAggSupporter         aggSup;
   SExprSupp             scalarSup;
-  SInterval             interval;
-  bool                  recvCkBlock;
-  SSDataBlock*          pCheckpointRes;
-  int32_t               primaryTsIndex;
-  SSHashObj*            pUpdatedMap;  // SWinKey
-  SArray*               pUpdated;     // SWinKey
-  SSHashObj*            pDeletedMap;
-  SArray*               pDelWins;
-  SSDataBlock*          pDelRes;
-  int32_t               delIndex;
-  bool                  destHasPrimaryKey;
-  int64_t               endTs;
   SGroupResInfo         groupResInfo;
+  SWindowRowsSup        winSup;
+  SColumn               stateCol;  // start row index
+  bool                  hasKey;
+  SStateKeys            stateKey;
+  int32_t               tsSlotId;  // primary timestamp column slot id
+  STimeWindowAggSupp    twAggSup;
   struct SOperatorInfo* pOperator;
-  bool                  hasFill;
-  bool                  hasInterpoFunc;
-  int32_t*              pOffsetInfo;
-} SStreamIntervalSliceOperatorInfo;
+  bool                  cleanGroupResInfo;
+  int64_t               trueForLimit;
+} SStateWindowOperatorInfo;
+
+
+typedef struct SEventWindowOperatorInfo {
+  SOptrBasicInfo     binfo;
+  SAggSupporter      aggSup;
+  SExprSupp          scalarSup;
+  SWindowRowsSup     winSup;
+  int32_t            tsSlotId;  // primary timestamp column slot id
+  STimeWindowAggSupp twAggSup;
+  uint64_t           groupId;  // current group id, used to identify the data block from different groups
+  SFilterInfo*       pStartCondInfo;
+  SFilterInfo*       pEndCondInfo;
+  bool               inWindow;
+  SResultRow*        pRow;
+  SSDataBlock*       pPreDataBlock;
+  struct SOperatorInfo*     pOperator;
+  int64_t            trueForLimit;
+} SEventWindowOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
+#define OPTR_CLR_OPENED(_optr) ((_optr)->status &= ~OP_OPENED)
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 
@@ -903,6 +745,7 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
 void    cleanupExprSupp(SExprSupp* pSup);
+void    cleanupExprSuppWithoutFilter(SExprSupp* pSupp);
 
 void     cleanupResultInfoInStream(SExecTaskInfo* pTaskInfo, void* pState, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);
@@ -937,6 +780,9 @@ bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
 int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
                                         int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);
 
+int32_t setFunctionResultOutput(struct SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
+                             int32_t numOfExprs);
+int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);                             
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart);
 void    updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t dataLen, int64_t startTs,
                              struct SOperatorInfo* pOperator);
@@ -951,11 +797,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 
 int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
-int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId,
-                         const char* name);
-int32_t setVgIdColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int32_t vgId);
-int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, int64_t vgVer);
-
 int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
                             int32_t* rowEntryInfoOffset);
 void    clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);
@@ -965,7 +806,10 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
                                    bool isIntervalQuery, SAggSupporter* pSup, bool keepGroup);
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList);
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams);
+int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
+                                        SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
+                                        const void* pExtraParams, bool doSelectFunc);
 
 int32_t setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                           bool createDummyCol);
@@ -987,8 +831,6 @@ bool isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, void* pState, STimeWindowAggSupp* pTwSup,
                            SStateStore* pStore);
-int32_t appendDataToSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid, uint64_t* pGp,
-                                 void* pTbName);
 
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
@@ -999,17 +841,12 @@ bool    groupbyTbname(SNodeList* pGroupList);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
 int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos, int32_t order,
                                int64_t* pData);
-int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, uint64_t groupId,
-                             SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock, SStateStore* pAPI);
-
 SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag);
 SExprInfo*   createExpr(SNodeList* pNodeList, int32_t* numOfExprs);
-void         destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 
 int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResultRow* pRow, SqlFunctionCtx* pCtx,
                                  SSDataBlock* pBlock, const int32_t* rowEntryOffset, SExecTaskInfo* pTaskInfo);
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset);
-void doClearBufferedBlocks(SStreamScanInfo* pInfo);
 
 void    streamOpReleaseState(struct SOperatorInfo* pOperator);
 void    streamOpReloadState(struct SOperatorInfo* pOperator);
@@ -1022,7 +859,7 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
                                SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
                                SStorageAPI* pApi, int32_t tsIndex, int8_t stateType, int32_t ratio);
 int32_t initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type,
-                       int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic);
+                       int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic, int64_t recalculateInterval);
 int32_t getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
 void    initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 void    getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);
@@ -1041,9 +878,10 @@ int32_t saveSessionOutputBuf(SStreamAggSupporter* pAggSup, SResultWindowInfo* pW
 int32_t saveResult(SResultWindowInfo winInfo, SSHashObj* pStUpdated);
 int32_t saveDeleteRes(SSHashObj* pStDelete, SSessionKey key);
 void    removeSessionResult(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SSHashObj* pResMap, SSessionKey* pKey);
-void    doBuildDeleteDataBlock(struct SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite);
+void    doBuildDeleteDataBlock(struct SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite,
+                               SGroupResInfo* pGroupResInfo);
 void    doBuildSessionResult(struct SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo,
-                             SSDataBlock* pBlock);
+                             SSDataBlock* pBlock, SArray* pSessionKeys);
 int32_t getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo);
 void    getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* pStUpdated, SResultWindowInfo* pCurWin,
                               SResultWindowInfo* pNextWin);
@@ -1052,8 +890,6 @@ int32_t compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeWi
                           SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool addGap);
 void    releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
 void    resetWinRange(STimeWindow* winRange);
-bool    checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId,
-                         TSKEY ts, void* pPkVal, int32_t len);
 int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
 void    resetUnCloseSessionWinInfo(SSHashObj* winMap);
 void    setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
@@ -1074,13 +910,14 @@ void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                        SSDataBlock** pResBlock);
 void getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, EStreamType mode, SSessionKey* pDelRange);
-void doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
+void    doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
 
 int32_t saveDeleteInfo(SArray* pWins, SSessionKey key);
 void    removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SArray* pWins);
@@ -1098,6 +935,11 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
 int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
 bool    getIgoreNullRes(SExprSupp* pExprSup);
 bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
+int64_t getMinWindowSize(struct SOperatorInfo* pOperator);
+
+void    destroyTmqScanOperatorInfo(void* param);
+int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);
+void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
 #ifdef __cplusplus
 }

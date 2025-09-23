@@ -258,7 +258,7 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL);
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -296,6 +296,34 @@ _end:
   return code;
 }
 
+static int32_t resetCountWindowOperatorState(SOperatorInfo* pOper) {
+  SCountWindowOperatorInfo* pCount = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SCountWindowPhysiNode* pPhynode = (SCountWindowPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
+  
+  resetBasicOperatorState(&pCount->binfo);
+  pCount->groupId = 0;
+  pCount->countSup.stateIndex = 0;
+  pCount->pPreDataBlock = NULL;
+  pCount->preStateIndex = 0;
+  pCount->pRow = NULL;
+
+  colDataDestroy(&pCount->twAggSup.timeWindowData);
+  int32_t code = initExecTimeWindowInfo(&pCount->twAggSup.timeWindowData, &pTaskInfo->window);
+  
+  if (code == 0) {
+    code = resetAggSup(&pOper->exprSupp, &pCount->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
+                        sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+                        &pTaskInfo->storageAPI.functionStore);
+  }
+  if (code == 0) {
+    code = resetExprSupp(&pCount->scalarSup, pTaskInfo, pPhynode->window.pExprs, NULL,
+                          &pTaskInfo->storageAPI.functionStore);
+  }
+  return code;
+}
+
 int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
                                              SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -309,9 +337,10 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
     goto _error;
   }
 
+  pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
 
-  SCountWinodwPhysiNode* pCountWindowNode = (SCountWinodwPhysiNode*)physiNode;
+  SCountWindowPhysiNode* pCountWindowNode = (SCountWindowPhysiNode*)physiNode;
 
   pInfo->tsSlotId = ((SColumnNode*)pCountWindowNode->window.pTspk)->slotId;
 
@@ -364,7 +393,8 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->pPreDataBlock = NULL;
   pInfo->preStateIndex = 0;
 
-  code = filterInitFromNode((SNode*)pCountWindowNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pCountWindowNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -374,7 +404,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, countWindowAggregateNext, NULL, destroyCountWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-
+  setOperatorResetStateFn(pOperator, resetCountWindowOperatorState);                                    
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

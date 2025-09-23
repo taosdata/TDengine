@@ -58,7 +58,7 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqS
   TSDB_CHECK_CODE(code, lino, end);
   code = tdbTbcMoveToFirst(pReader->pCur);
   TSDB_CHECK_CODE(code, lino, end);
-  tqInfo("vgId:%d, vnode tq snapshot reader opene success", TD_VID(pTq->pVnode));
+  tqInfo("vgId:%d, vnode tq snapshot reader open success", TD_VID(pTq->pVnode));
   *ppReader = pReader;
 
 end:
@@ -227,8 +227,11 @@ int32_t tqSnapCheckInfoWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nD
   code = tqMetaDecodeCheckInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   TSDB_CHECK_CODE(code, lino, end);
 
+  taosWLockLatch(&pTq->lock);
   code = tqMetaSaveInfo(pTq, pTq->pCheckStore, &info.topic, strlen(info.topic), pData + sizeof(SSnapDataHdr),
                         nData - sizeof(SSnapDataHdr));
+  taosWUnLockLatch(&pTq->lock);
+
   tDeleteSTqCheckInfo(&info);
   TSDB_CHECK_CODE(code, lino, end);
   tqInfo("vgId:%d, vnode tq check info  write success", TD_VID(pTq->pVnode));
@@ -251,8 +254,10 @@ int32_t tqSnapOffsetWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData
   code = tqMetaDecodeOffsetInfo(&info, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   TSDB_CHECK_CODE(code, lino, end);
 
+  taosWLockLatch(&pTq->lock);
   code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, info.subKey, strlen(info.subKey), pData + sizeof(SSnapDataHdr),
                         nData - sizeof(SSnapDataHdr));
+  taosWUnLockLatch(&pTq->lock);
   tDeleteSTqOffset(&info);
   TSDB_CHECK_CODE(code, lino, end);
   tqInfo("vgId:%d, vnode tq offset write success", TD_VID(pTq->pVnode));

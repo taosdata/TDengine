@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include "os.h"
 
+#ifdef USE_GEOS
 #include "tgeosctx.h"
 
 void geosFreeBuffer(void *buffer);
@@ -54,6 +55,13 @@ int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
                      const GEOSPreparedGeometry **outputPreparedGeom);
 void    destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom);
+
+#else
+int32_t initCtxAsText();
+int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT);
+int32_t checkWKB(const unsigned char *wkb, size_t size);
+
+#endif
 
 #ifdef __cplusplus
 }

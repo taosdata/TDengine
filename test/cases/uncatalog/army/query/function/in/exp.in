@@ -1,0 +1,45 @@
+select EXP(0)
+select EXP(1)
+select EXP(1.5)
+select EXP(100)
+select EXP(-1)
+select EXP(-1.5)
+select EXP(-100)
+select EXP(1) + 1
+select EXP(1) - 1
+select EXP(1) * 1
+select EXP(1) / 1
+select exp(1) from ts_4893.meters limit 5
+select exp(1) + 1 from ts_4893.meters limit 1
+select exp(1) - 1 from ts_4893.meters limit 1
+select exp(1) * 2 from ts_4893.meters limit 1
+select exp(1) / 2 from ts_4893.meters limit 1
+select exp(2) + exp(1) from ts_4893.meters limit 1
+select exp(2) - exp(1) from ts_4893.meters limit 1
+select exp(2) * exp(1) from ts_4893.meters limit 1
+select exp(2) / exp(1) from ts_4893.meters limit 1
+select exp(1) + id from ts_4893.meters order by ts limit 5
+select exp(id) + id from ts_4893.meters order by ts limit 5
+select abs(EXP(10))
+select pow(EXP(10), 2)
+select sqrt(EXP(10))
+select cast(EXP(10) as int)
+select EXP(sqrt(id)) from ts_4893.meters order by ts limit 5
+select EXP(EXP(EXP(EXP(0))))
+select exp(2)
+select exp(0.5)
+select exp(current) from ts_4893.d0 order by ts limit 10
+select exp(current) from ts_4893.meters order by ts limit 10
+select exp(null)
+select exp(100000)
+select exp(-1000)
+select exp(-9999999999)
+select exp(0.0001)
+select exp(pi())
+select exp(voltage) from ts_4893.meters limit 1
+select exp(current) from ts_4893.meters limit 1
+select exp(phase) from ts_4893.meters limit 1
+select exp(voltage + current) from ts_4893.meters limit 1
+select exp(abs(current)) from ts_4893.meters limit 1
+select exp(log(voltage)) from ts_4893.meters limit 1
+select round(exp(voltage), 2) from ts_4893.meters limit 1

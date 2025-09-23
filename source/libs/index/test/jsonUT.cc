@@ -40,7 +40,7 @@ static void initLog() {
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, 0) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
@@ -56,7 +56,7 @@ class JsonEnv : public ::testing::Test {
     initLog();
     opts = indexOptsCreate(1024 * 1024 * 4);
     int ret = indexJsonOpen(opts, dir.c_str(), &index);
-    assert(ret == 0);
+    TD_ALWAYS_ASSERT(ret == 0);
   }
   virtual void TearDown() {
     indexJsonClose(index);

@@ -4,27 +4,17 @@ title: Kafka Connect
 slug: /third-party-tools/data-collection/kafka-connect
 ---
 
-import Image from '@theme/IdealImage';
-import imgKafkaConnect from '../../assets/kafka-connect-01.png';
-import imgKafkaIntegration from '../../assets/kafka-connect-02.png';
-
 The TDengine Kafka Connector includes two plugins: TDengine Source Connector and TDengine Sink Connector. Users only need to provide a simple configuration file to synchronize data from a specified topic in Kafka to TDengine, or synchronize data from a specified database in TDengine to Kafka, either in batches or in real-time.
 
 ## What is Kafka Connect?
 
 Kafka Connect is a component of [Apache Kafka](https://kafka.apache.org/) that facilitates easy connections to Kafka from other systems, such as databases, cloud services, and file systems. Data can flow from these systems to Kafka and from Kafka to these systems through Kafka Connect. Plugins that read data from other systems are called Source Connectors, and plugins that write data to other systems are called Sink Connectors. Neither Source Connectors nor Sink Connectors connect directly to Kafka Brokers; instead, Source Connectors pass data to Kafka Connect, and Sink Connectors receive data from Kafka Connect.
 
-<figure>
-<Image img={imgKafkaConnect} alt="Kafka Connect structure"/>
-<figcaption>Figure 1. Kafka Connect structure</figcaption>
-</figure>
+![Kafka Connect architecture](../../assets/kafka-connect-01.png)
 
 The TDengine Source Connector is used to read data in real-time from TDengine and send it to Kafka Connect. The TDengine Sink Connector receives data from Kafka Connect and writes it to TDengine.
 
-<figure>
-<Image img={imgKafkaIntegration} alt="Streaming integration with Kafka Connect"/>
-<figcaption>Figure 2. Streaming integration with Kafka Connect</figcaption>
-</figure>
+![Streaming integration with Kafka Connect](../../assets/kafka-connect-02.png)
 
 ## Prerequisites
 
@@ -40,7 +30,7 @@ Prerequisites for running the examples in this tutorial.
 - Execute in any directory:
 
     ```shell
-    curl -O https://downloads.apache.org/kafka/3.4.0/kafka_2.13-3.4.0.tgz
+    curl -O https://dlcdn.apache.org/kafka/4.0.0/kafka_2.13-4.0.0.tgz
     tar xzf kafka_2.13-3.4.0.tgz -C /opt/
     ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
     ```
@@ -343,13 +333,14 @@ If you find that the performance is not up to expectations during the process of
 
 1. Open the KAFKA_HOME/config/producer.properties configuration file.
 2. Parameter description and configuration suggestions are as follows:
-    | **Parameter**         | **Description**                                                                                                                                                                                                                                                                                               | **Suggested Setting** |
-    | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-    | producer.type         | This parameter is used to set the message sending mode, the default value is `sync` which means synchronous sending, `async` means asynchronous sending. Using asynchronous sending can improve the throughput of message sending.                                                                               | async                 |
+
+    | **Parameter**         | **Description**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | **Suggested Setting** |
+    | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
+    | producer.type         | This parameter is used to set the message sending mode, the default value is `sync` which means synchronous sending, `async` means asynchronous sending. Using asynchronous sending can improve the throughput of message sending.                                                                                                                                                                                                                                                                                                                                                                                       | async                 |
     | request.required.acks | This parameter is used to configure the number of acknowledgments that the producer needs to wait for after sending a message. When set to 1, it means that as long as the leader replica successfully writes the message, it will send an acknowledgment to the producer without waiting for other replicas in the cluster to write successfully. This setting can ensure a certain level of message reliability while also ensuring throughput. Since it is not necessary to wait for all replicas to write successfully, it can reduce the waiting time for producers and improve the efficiency of sending messages. | 1                     |
-    | max.request.size      | This parameter determines the maximum amount of data that the producer can send in one request. Its default value is 1048576, which is 1M. If set too small, it may lead to frequent network requests, reducing throughput. If set too large, it may lead to high memory usage, or increase the probability of request failure in poor network conditions. It is recommended to set it to 100M. | 104857600             |
-    | batch.size            | This parameter is used to set the size of the batch, the default value is 16384, which is 16KB. During the message sending process, the messages sent to the Kafka buffer are divided into batches. Therefore, reducing the batch size helps reduce message latency, while increasing the batch size helps improve throughput. It can be reasonably configured according to the actual data volume size. It is recommended to set it to 512K. | 524288                |
-    | buffer.memory         | This parameter is used to set the total amount of memory for the producer to buffer messages waiting to be sent. A larger buffer can allow the producer to accumulate more messages and send them in batches, improving throughput, but it can also increase latency and memory usage. It can be configured according to machine resources, and it is recommended to set it to 1G. | 1073741824            |
+    | max.request.size      | This parameter determines the maximum amount of data that the producer can send in one request. Its default value is 1048576, which is 1M. If set too small, it may lead to frequent network requests, reducing throughput. If set too large, it may lead to high memory usage, or increase the probability of request failure in poor network conditions. It is recommended to set it to 100M.                                                                                                                                                                                                                          | 104857600             |
+    | batch.size            | This parameter is used to set the size of the batch, the default value is 16384, which is 16KB. During the message sending process, the messages sent to the Kafka buffer are divided into batches. Therefore, reducing the batch size helps reduce message latency, while increasing the batch size helps improve throughput. It can be reasonably configured according to the actual data volume size. It is recommended to set it to 512K.                                                                                                                                                                            | 524288                |
+    | buffer.memory         | This parameter is used to set the total amount of memory for the producer to buffer messages waiting to be sent. A larger buffer can allow the producer to accumulate more messages and send them in batches, improving throughput, but it can also increase latency and memory usage. It can be configured according to machine resources, and it is recommended to set it to 1G.                                                                                                                                                                                                                                       | 1073741824            |
 
 ## Configuration Reference
 

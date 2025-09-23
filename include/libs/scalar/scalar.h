@@ -33,17 +33,23 @@ pNode will be freed in API;
 */
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
+int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 
 /*
 pDst need to freed in caller
 */
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst);
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* pExtraParam, void* streamTsRange);
+int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, const void* pExtraParam, void* streamTsRange);
+void    sclFreeParam(SScalarParam* param);
 
 int32_t scalarGetOperatorParamNum(EOperatorType type);
-int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_t processType);
+int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType);
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2);
 int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex, int32_t numOfRows);
+int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod, int32_t startIndex, int32_t numOfRows);
+STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, const SColumnInfo *pCol2);
+uint32_t base64BufSize(size_t inputLenBytes);
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -71,6 +77,8 @@ int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t degreesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t radiansFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* String functions */
 int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -90,6 +98,11 @@ int32_t trimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t crc32Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t findInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t likeInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t regexpInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
 
 /* Conversion functions */
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -110,14 +123,17 @@ int32_t weekdayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
 int32_t dayofweekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t dateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 bool getTimePseudoFuncEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
+bool getMaskPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv);
 
 int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
@@ -149,6 +165,11 @@ int32_t sampleScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 int32_t tailScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t uniqueScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+// stream pseudo functions
+int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+ void calcTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, STimeWindow* pWinRange, bool* winRangeValid);
 
 #ifdef __cplusplus
 }

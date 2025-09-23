@@ -24,25 +24,39 @@
 #include "tdatablock.h"
 #include "ttime.h"
 
-typedef struct SEventWindowOperatorInfo {
-  SOptrBasicInfo     binfo;
-  SAggSupporter      aggSup;
-  SExprSupp          scalarSup;
-  SWindowRowsSup     winSup;
-  int32_t            tsSlotId;  // primary timestamp column slot id
-  STimeWindowAggSupp twAggSup;
-  uint64_t           groupId;  // current group id, used to identify the data block from different groups
-  SFilterInfo*       pStartCondInfo;
-  SFilterInfo*       pEndCondInfo;
-  bool               inWindow;
-  SResultRow*        pRow;
-  SSDataBlock*       pPreDataBlock;
-  SOperatorInfo*     pOperator;
-} SEventWindowOperatorInfo;
-
 static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** pRes);
 static void    destroyEWindowOperatorInfo(void* param);
 static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
+void cleanupResultInfoInEventWindow(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo);
+
+static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
+  SEventWindowOperatorInfo* pEvent = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SEventWinodwPhysiNode* pPhynode = (SEventWinodwPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
+
+  resetBasicOperatorState(&pEvent->binfo);
+  taosMemoryFreeClear(pEvent->pRow);
+
+  pEvent->groupId = 0;
+  pEvent->pPreDataBlock = NULL;
+  pEvent->inWindow = false;
+
+  colDataDestroy(&pEvent->twAggSup.timeWindowData);
+  int32_t code = initExecTimeWindowInfo(&pEvent->twAggSup.timeWindowData, &pTaskInfo->window);
+  cleanupResultInfoInEventWindow(pOper, pEvent);
+
+  if (code == 0) {
+    code = resetAggSup(&pOper->exprSupp, &pEvent->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
+                       sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+                       &pTaskInfo->storageAPI.functionStore);
+  }
+  if (code == 0) {
+    code = resetExprSupp(&pEvent->scalarSup, pTaskInfo, pPhynode->window.pExprs, NULL,
+                         &pTaskInfo->storageAPI.functionStore);
+  }
+  return code;
+}
 
 int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode,
                                              SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
@@ -57,15 +71,18 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
     goto _error;
   }
 
+  pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
 
   SEventWinodwPhysiNode* pEventWindowNode = (SEventWinodwPhysiNode*)physiNode;
 
   int32_t tsSlotId = ((SColumnNode*)pEventWindowNode->window.pTspk)->slotId;
-  code = filterInitFromNode((SNode*)pEventWindowNode->pStartCond, &pInfo->pStartCondInfo, 0);
+  code = filterInitFromNode((SNode*)pEventWindowNode->pStartCond, &pInfo->pStartCondInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = filterInitFromNode((SNode*)pEventWindowNode->pEndCond, &pInfo->pEndCondInfo, 0);
+  code = filterInitFromNode((SNode*)pEventWindowNode->pEndCond, &pInfo->pEndCondInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pEventWindowNode->window.pExprs != NULL) {
@@ -78,7 +95,8 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  code = filterInitFromNode((SNode*)pEventWindowNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pEventWindowNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -114,12 +132,14 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->tsSlotId = tsSlotId;
   pInfo->pPreDataBlock = NULL;
   pInfo->pOperator = pOperator;
+  pInfo->trueForLimit = pEventWindowNode->trueForLimit;
 
-  setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
+  setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, eventWindowAggregateNext, NULL, destroyEWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetEventWindowOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -218,7 +238,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL);
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -297,6 +317,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
   SWindowRowsSup*  pRowSup = &pInfo->winSup;
   int32_t          rowIndex = 0;
+  int64_t          minWindowSize = getMinWindowSize(pOperator);
 
   pRowSup->numOfRows = 0;
   if (pInfo->groupId == 0) {
@@ -341,18 +362,23 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         QUERY_CHECK_CODE(code, lino, _return);
         doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
 
-        // check buffer size
-        if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
-          int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
-          code = blockDataEnsureCapacity(pRes, newSize);
+        if (pRowSup->win.ekey - pRowSup->win.skey < minWindowSize) {
+          qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64,
+                 pInfo->groupId, pRowSup->win.ekey - pRowSup->win.skey, minWindowSize);
+        } else {
+          // check buffer size
+          if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
+            int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
+            code = blockDataEnsureCapacity(pRes, newSize);
+            QUERY_CHECK_CODE(code, lino, _return);
+          }
+
+          code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
+                                          pSup->rowEntryInfoOffset, pTaskInfo);
           QUERY_CHECK_CODE(code, lino, _return);
+
+          pRes->info.rows += pInfo->pRow->numOfRows;
         }
-
-        code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
-                                        pSup->rowEntryInfoOffset, pTaskInfo);
-        QUERY_CHECK_CODE(code, lino, _return);
-
-        pRes->info.rows += pInfo->pRow->numOfRows;
         pInfo->pRow->numOfRows = 0;
 
         pInfo->inWindow = false;

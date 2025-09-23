@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ func NewConnector(username, password, host string, port int, usessl bool) (*Conn
 	} else {
 		protocol = "http"
 	}
-	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn()})
+	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
 	dbLogger.Tracef("connect to adapter, host:%s, port:%d, usessl:%v", host, port, usessl)
 
 	db, err := sql.Open("taosRestful", fmt.Sprintf("%s:%s@%s(%s:%d)/?skipVerify=true", username, password, protocol, host, port))
@@ -56,7 +57,7 @@ func NewConnectorWithDb(username, password, host string, port int, dbname string
 		protocol = "http"
 	}
 
-	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn()})
+	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
 	dbLogger.Tracef("connect to adapter, host:%s, port:%d, usessl:%v", host, port, usessl)
 
 	db, err := sql.Open("taosRestful", fmt.Sprintf("%s:%s@%s(%s:%d)/%s?skipVerify=true", username, password, protocol, host, port, dbname))
@@ -72,6 +73,19 @@ func NewConnectorWithDb(username, password, host string, port int, dbname string
 type ReqIDKeyTy string
 
 const ReqIDKey ReqIDKeyTy = "taos_req_id"
+
+type RetryConfig struct {
+	BaseDelay time.Duration
+	MaxDelay  time.Duration
+	Logger    *logrus.Entry
+}
+
+var defaultRetryConfig = RetryConfig{
+	BaseDelay: 5 * time.Second,
+	MaxDelay:  60 * time.Second,
+}
+
+type operationWithResult[T any] func() (T, error)
 
 func (c *Connector) Exec(ctx context.Context, sql string, qid uint64) (int64, error) {
 	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
@@ -177,4 +191,64 @@ func (c *Connector) Query(ctx context.Context, sql string, qid uint64) (*Data, e
 
 func (c *Connector) Close() error {
 	return c.db.Close()
+}
+
+func executeWithRetry[T any](config RetryConfig, op operationWithResult[T]) (T, error) {
+	var (
+		delay   = config.BaseDelay
+		attempt = 0
+	)
+
+	for {
+		result, err := op()
+		if err == nil {
+			return result, nil
+		}
+
+		attempt++
+		config.Logger.Errorf("Attempt %d failed, error: %v, retrying in %v...",
+			attempt, err, delay)
+
+		time.Sleep(delay)
+		delay = time.Duration(math.Min(float64(delay)*2, float64(config.MaxDelay)))
+	}
+}
+
+func (c *Connector) ExecWithRetryForever(ctx context.Context, sql string, qid uint64) (int64, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
+	config := defaultRetryConfig
+	config.Logger = logger
+
+	return executeWithRetry(config, func() (int64, error) {
+		return c.Exec(ctx, sql, qid)
+	})
+}
+
+func (c *Connector) QueryWithRetryForever(ctx context.Context, sql string, qid uint64) (*Data, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
+	config := defaultRetryConfig
+	config.Logger = logger
+
+	return executeWithRetry(config, func() (*Data, error) {
+		return c.Query(ctx, sql, qid)
+	})
+}
+
+func NewConnectorWithRetryForever(username, password, host string, port int, usessl bool) (*Connector, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
+	config := defaultRetryConfig
+	config.Logger = logger
+
+	return executeWithRetry(config, func() (*Connector, error) {
+		return NewConnector(username, password, host, port, usessl)
+	})
+}
+
+func NewConnectorWithDbWithRetryForever(username, password, host string, port int, dbname string, usessl bool) (*Connector, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
+	config := defaultRetryConfig
+	config.Logger = logger
+	return executeWithRetry(config, func() (*Connector, error) {
+		return NewConnectorWithDb(username, password, host, port, dbname, usessl)
+	})
 }

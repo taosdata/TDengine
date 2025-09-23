@@ -9,7 +9,7 @@ public class WSParameterBindingStdInterfaceDemo {
     // modify host to your own
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
-    private static final int numOfSubTable = 10, numOfRow = 10;
+    private static final int NUM_OF_SUB_TABLE = 10, NUM_OF_ROW = 10;
 
     public static void main(String[] args) throws SQLException {
 
@@ -23,8 +23,8 @@ public class WSParameterBindingStdInterfaceDemo {
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
                 long current = System.currentTimeMillis();
 
-                for (int i = 1; i <= numOfSubTable; i++) {
-                    for (int j = 0; j < numOfRow; j++) {
+                for (int i = 1; i <= NUM_OF_SUB_TABLE; i++) {
+                    for (int j = 0; j < NUM_OF_ROW; j++) {
                         pstmt.setString(1, "d_bind_" + i);
 
                         pstmt.setInt(2, i);

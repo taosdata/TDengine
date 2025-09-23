@@ -59,6 +59,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   }
 
   // decode the entry
+  tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
   code = metaDecodeEntry(&pReader->coder, &pReader->me);
@@ -190,13 +191,20 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   return 0;
 }
 
-int metaGetTableTypeByName(void *pVnode, char *tbName, ETableType *tbType) {
+int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, uint64_t *suid) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
+  if (TSDB_CHILD_TABLE == mr.me.type) {
+    *suid = mr.me.ctbEntry.suid;
+  } else if (TSDB_SUPER_TABLE == mr.me.type) {
+    *suid = mr.me.uid;
+  } else {
+    *suid = 0;
+  }
 
   metaReaderClear(&mr);
   return code;
@@ -371,7 +379,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   return 0;
 }
 
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, int64_t *createTime) {
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema) {
   void           *pData = NULL;
   int             nData = 0;
   int64_t         version;
@@ -402,23 +410,23 @@ _query:
   if (me.type == TSDB_SUPER_TABLE) {
     if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
+      if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
       tDecoderClear(&dc);
       goto _exit;
     }
   } else if (me.type == TSDB_CHILD_TABLE) {
     uid = me.ctbEntry.suid;
-    if (createTime != NULL){
-      *createTime = me.ctbEntry.btime;
-    }
     tDecoderClear(&dc);
     goto _query;
   } else {
     if (sver == -1 || sver == me.ntbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
+      if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
       tDecoderClear(&dc);
       goto _exit;
     }
   }
+  if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
   tDecoderClear(&dc);
 
   // query from skm db
@@ -446,6 +454,48 @@ _err:
   }
   tdbFree(pData);
   return NULL;
+}
+
+int64_t metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock) {
+  void    *pData = NULL;
+  int      nData = 0;
+  int64_t  version = 0;
+  SDecoder dc = {0};
+  int64_t  createTime = INT64_MAX;
+  if (lock) {
+    metaRLock(pMeta);
+  }
+
+  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+    goto _exit;
+  }
+
+  version = ((SUidIdxVal *)pData)[0].version;
+
+  if (tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData) != 0) {
+    goto _exit;
+  }
+
+  SMetaEntry me = {0};
+  tDecoderInit(&dc, pData, nData);
+  int32_t code = metaDecodeEntry(&dc, &me);
+  if (code) {
+    tDecoderClear(&dc);
+    goto _exit;
+  }
+  if (me.type == TSDB_CHILD_TABLE) {
+    createTime = me.ctbEntry.btime;
+  } else if (me.type == TSDB_NORMAL_TABLE) {
+    createTime = me.ntbEntry.btime;
+  }
+  tDecoderClear(&dc);
+
+_exit:
+  if (lock) {
+    metaULock(pMeta);
+  }
+  tdbFree(pData);
+  return createTime;
 }
 
 SMCtbCursor *metaOpenCtbCursor(void *pVnode, tb_uid_t uid, int lock) {
@@ -691,7 +741,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       int32_t     nKey = 0;
       int32_t     ret = tdbTbcGet(pSkmDbC, &pKey, &nKey, NULL, NULL);
 
-      if (((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
+      if (ret != 0 || ((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
         metaULock(pMeta);
         tdbTbcClose(pSkmDbC);
         code = TSDB_CODE_NOT_FOUND;
@@ -1295,14 +1345,18 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   }
 
   code = TSDB_CODE_INVALID_PARA;
+
   for (int i = 0; i < oStbEntry.stbEntry.schemaTag.nCols; i++) {
     SSchema *schema = oStbEntry.stbEntry.schemaTag.pSchema + i;
-    if (schema->colId == param->cid && param->type == schema->type && (IS_IDX_ON(schema))) {
-      code = 0;
-    } else {
-      TAOS_CHECK_GOTO(code, NULL, END);
+    if (IS_IDX_ON(schema)) {
+      if (schema->colId == param->cid && param->type == schema->type) {
+        code = 0;
+        break;
+      }
     }
   }
+
+  TAOS_CHECK_GOTO(code, NULL, END);
 
   code = tdbTbcOpen(pMeta->pTagIdx, &pCursor->pCur, NULL);
   if (code != 0) {
@@ -1363,7 +1417,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
     if (valid < 0) {
-      code = valid;
+      break;
     }
     if (count > TRY_ERROR_LIMIT) {
       break;
@@ -1476,8 +1530,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
       memcpy(p->pTagVal, val, len);
       tdbFree(val);
     } else {
-      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
-                p->uid);
+      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64, TD_VID(pMeta->pVnode), suid, p->uid);
     }
   }
   //  }
@@ -1562,6 +1615,91 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t metaFlagCache(SVnode *pVnode) {
+  SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, 0);
+  if (!pCur) {
+    return terrno;
+  }
+
+  SArray *suids = NULL;
+  while (1) {
+    tb_uid_t id = metaStbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    if (!suids) {
+      suids = taosArrayInit(8, sizeof(tb_uid_t));
+      if (!suids) {
+        return terrno;
+      }
+    }
+
+    if (taosArrayPush(suids, &id) == NULL) {
+      taosArrayDestroy(suids);
+      return terrno;
+    }
+  }
+
+  metaCloseStbCursor(pCur);
+
+  for (int idx = 0; suids && idx < TARRAY_SIZE(suids); ++idx) {
+    tb_uid_t id = ((tb_uid_t *)TARRAY_DATA(suids))[idx];
+    STsdb   *pTsdb = pVnode->pTsdb;
+    SMeta   *pMeta = pVnode->pMeta;
+    SArray  *uids = NULL;
+
+    int32_t code = metaGetChildUidsOfSuperTable(pMeta, id, &uids);
+    if (code) {
+      metaError("vgId:%d, failed to get subtables, suid:%" PRId64 " since %s.", TD_VID(pVnode), id, tstrerror(code));
+
+      taosArrayDestroy(uids);
+      taosArrayDestroy(suids);
+
+      return code;
+    }
+
+    if (uids && TARRAY_SIZE(uids) > 0) {
+      STSchema *pTSchema = NULL;
+
+      code = metaGetTbTSchemaEx(pMeta, id, id, -1, &pTSchema);
+      if (code) {
+        metaError("vgId:%d, failed to get schema, suid:%" PRId64 " since %s.", TD_VID(pVnode), id, tstrerror(code));
+
+        taosArrayDestroy(uids);
+        taosArrayDestroy(suids);
+
+        return code;
+      }
+
+      int32_t nCol = pTSchema->numOfCols;
+      for (int32_t i = 0; i < nCol; ++i) {
+        int16_t cid = pTSchema->columns[i].colId;
+        int8_t  col_type = pTSchema->columns[i].type;
+
+        code = tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type);
+        if (code) {
+          metaError("vgId:%d, failed to flag cache, suid:%" PRId64 " since %s.", TD_VID(pVnode), id, tstrerror(code));
+
+          tDestroyTSchema(pTSchema);
+          taosArrayDestroy(uids);
+          taosArrayDestroy(suids);
+
+          return code;
+        }
+      }
+
+      tDestroyTSchema(pTSchema);
+    }
+
+    taosArrayDestroy(uids);
+  }
+
+  taosArrayDestroy(suids);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t metaCacheGet(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo);
 
 int32_t metaGetInfo(SMeta *pMeta, int64_t uid, SMetaInfo *pInfo, SMetaReader *pReader) {
@@ -1617,7 +1755,7 @@ _exit:
   return code;
 }
 
-int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols) {
+int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols, int8_t *flags) {
   int32_t code = 0;
 
   if (!numOfTables && !numOfCols) goto _exit;
@@ -1631,15 +1769,22 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
     metaULock(pVnodeObj->pMeta);
     if (numOfTables) *numOfTables = state.ctbNum;
     if (numOfCols) *numOfCols = state.colNum;
+    if (flags) *flags = state.flags;
     goto _exit;
   }
 
   // slow path: search TDB
   int64_t ctbNum = 0;
   int32_t colNum = 0;
+  int64_t keep = 0;
+  int8_t  flag = 0;
+
   code = vnodeGetCtbNum(pVnode, uid, &ctbNum);
   if (TSDB_CODE_SUCCESS == code) {
     code = vnodeGetStbColumnNum(pVnode, uid, &colNum);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = vnodeGetStbInfo(pVnode, uid, &keep, &flag);
   }
   metaULock(pVnodeObj->pMeta);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1648,17 +1793,20 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
 
   if (numOfTables) *numOfTables = ctbNum;
   if (numOfCols) *numOfCols = colNum;
+  if (flags) *flags = flag;
 
   state.uid = uid;
   state.ctbNum = ctbNum;
   state.colNum = colNum;
-
+  state.flags = flag;
+  state.keep = keep;
   // upsert the cache
   metaWLock(pVnodeObj->pMeta);
 
   int32_t ret = metaStatsCacheUpsert(pVnodeObj->pMeta, &state);
   if (ret) {
-    metaError("failed to upsert stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d", uid, ctbNum, colNum);
+    metaError("failed to upsert stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d, keep:%" PRId64 ", flags:%" PRIi8,
+              uid, ctbNum, colNum, keep, flag);
   }
 
   metaULock(pVnodeObj->pMeta);
@@ -1667,16 +1815,20 @@ _exit:
   return code;
 }
 
-void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol) {
+void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep) {
   SMetaStbStats stats = {0};
 
   if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
     stats.ctbNum += deltaCtb;
     stats.colNum += deltaCol;
+    if (deltaKeep > 0) {
+      stats.keep = deltaKeep;
+    }
+
     int32_t code = metaStatsCacheUpsert(pMeta, &stats);
     if (code) {
-      metaError("vgId:%d, failed to update stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d",
-                TD_VID(pMeta->pVnode), uid, deltaCtb, deltaCol);
+      metaError("vgId:%d, failed to update stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d, keep:%" PRId64,
+                TD_VID(pMeta->pVnode), uid, deltaCtb, deltaCol, deltaKeep > 0 ? deltaKeep : stats.keep);
     }
   }
 }

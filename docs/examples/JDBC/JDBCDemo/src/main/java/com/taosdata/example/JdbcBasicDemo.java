@@ -1,6 +1,4 @@
 package com.taosdata.example;
-
-import com.alibaba.fastjson.JSON;
 import com.taosdata.jdbc.AbstractStatement;
 
 import java.sql.*;

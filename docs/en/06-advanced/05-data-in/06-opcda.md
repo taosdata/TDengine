@@ -3,15 +3,9 @@ title: OPC DA
 slug: /advanced-features/data-connectors/opc-da
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep1 from '../../assets/opc-da-01.png';
-import imgStep2 from '../../assets/opc-da-02.png';
-import imgStep3 from '../../assets/opc-da-03.png';
-import imgStep4 from '../../assets/opc-da-04.png';
-import imgStep5 from '../../assets/opc-da-05.png';
-import imgStep6 from '../../assets/opc-da-06.png';
-import imgStep7 from '../../assets/opc-da-07.png';
-import imgStep8 from '../../assets/opc-da-08.png';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
 
 This section describes how to create data migration tasks through the Explorer interface, synchronizing data from an OPC-DA server to the current TDengine cluster.
 
@@ -29,9 +23,7 @@ TDengine can efficiently read data from OPC-DA servers and write it to TDengine,
 
 On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-<figure>
-<Image img={imgStep1} alt=""/>
-</figure>
+![](../../assets/opc-da-01.png)
 
 ### 2. Configure Basic Information
 
@@ -43,9 +35,7 @@ If the taosX service is running on the same server as OPC-DA, **Proxy** is not n
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right to create a new database.
 
-<figure>
-<Image img={imgStep2} alt=""/>
-</figure>
+![](../../assets/opc-da-02.png)
 
 ### 3. Configure Connection Information
 
@@ -53,9 +43,7 @@ Fill in the **OPC-DA Service Address** in the **Connection Configuration** area,
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-<figure>
-<Image img={imgStep3} alt=""/>
-</figure>
+![](../../assets/opc-da-03.png)
 
 ### 4. Configure Points Set
 
@@ -75,27 +63,29 @@ The encoding format of the CSV file uploaded by the user must be one of the foll
 
 (2) UTF-8 (i.e., UTF-8 without BOM)
 
-2. Header Configuration Rules
+1. Header Configuration Rules
 
 The header is the first line of the CSV file, with the following rules:
 
 (1) The header of the CSV can configure the following columns:
 
-| No. | Column Name             | Description                                                                                                                                                               | Required | Default Behavior                                                                                                                                                                                                                                                                |
-| ---- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | tag_name                | The id of the data point on the OPC DA server                                                                                                                              | Yes      | None                                                                                                                                                                                                                                                                            |
-| 2    | stable                  | The supertable in TDengine corresponding to the data point                                                                                                                | Yes      | None                                                                                                                                                                                                                                                                            |
-| 3    | tbname                  | The subtable in TDengine corresponding to the data point                                                                                                                   | Yes      | None                                                                                                                                                                                                                                                                            |
-| 4    | enable                  | Whether to collect data from this point                                                                                                                                    | No       | Use a unified default value `1` for enable                                                                                                                                                                                                                                      |
-| 5    | value_col               | The column name in TDengine corresponding to the collected value of the data point                                                                                         | No       | Use a unified default value `val` as the value_col                                                                                                                                                                                                                              |
-| 6    | value_transform         | The transform function executed in taosX for the collected value of the data point                                                                                         | No       | Do not perform a transform on the collected value                                                                                                                                                                                                                               |
-| 7    | type                    | The data type of the collected value of the data point                                                                                                                     | No       | Use the original type of the collected value as the data type in TDengine                                                                                                                                                                                                       |
-| 8    | quality_col             | The column name in TDengine corresponding to the quality of the collected value                                                                                            | No       | Do not add a quality column in TDengine                                                                                                                                                                                                                                         |
-| 9    | ts_col                  | The timestamp column in TDengine corresponding to the original timestamp of the data point                                                                                 | No       | If both ts_col and received_ts_col are non-empty, use the former as the timestamp column; if one of ts_col or received_ts_col is non-empty, use the non-empty column as the timestamp column; if both are empty, use the original timestamp of the data point as the timestamp column in TDengine, with the default column name ts. |
-| 10   | received_ts_col         | The timestamp column in TDengine corresponding to the timestamp when the data point value was received                                                                      | No       |                                                                                                                                                                                                                                                                                 |
-| 11   | ts_transform            | The transform function executed in taosX for the original timestamp of the data point                                                                                      | No       | Do not perform a transform on the original timestamp of the data point                                                                                                                                                                                                           |
-| 12   | received_ts_transform   | The transform function executed in taosX for the received timestamp of the data point                                                                                      | No       | Do not perform a transform on the received timestamp of the data point                                                                                                                                                                                                           |
-| 13   | tag::VARCHAR(200)::name | The Tag column in TDengine corresponding to the data point. Where `tag` is a reserved keyword, indicating that this column is a tag column; `VARCHAR(200)` indicates the type of this tag, which can also be other legal types; `name` is the actual name of this tag. | No       | If configuring more than one tag column, use the configured tag columns; if no tag columns are configured, and stable exists in TDengine, use the tags of the stable in TDengine; if no tag columns are configured, and stable does not exist in TDengine, automatically add the following two tag columns by default: tag::VARCHAR(256)::point_idtag::VARCHAR(256)::point_name |
+| No. | Column Name             | Description                                                                                                                                                                                                                                                            | Required | Default Behavior                                                                                                                                                                                                                                                               |
+|-----|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | tag_name                | The id of the data point on the OPC DA server                                                                                                                                                                                                                          | Yes      | None                                                                                                                                                                                                                                                                           |
+| 2   | stable                  | The supertable in TDengine corresponding to the data point                                                                                                                                                                                                             | Yes      | None                                                                                                                                                                                                                                                                           |
+| 3   | tbname                  | The subtable in TDengine corresponding to the data point                                                                                                                                                                                                               | Yes      | None                                                                                                                                                                                                                                                                           |
+| 4   | enable                  | Whether to collect data from this point                                                                                                                                                                                                                                | No       | Use a unified default value `1` for enable                                                                                                                                                                                                                                     |
+| 5   | value_col               | The column name in TDengine corresponding to the collected value of the data point                                                                                                                                                                                     | No       | Use a unified default value `val` as the value_col                                                                                                                                                                                                                             |
+| 6   | value_transform         | The transform function executed in taosX for the collected value of the data point                                                                                                                                                                                     | No       | Do not perform a transform on the collected value                                                                                                                                                                                                                              |
+| 7   | type                    | The data type of the collected value of the data point                                                                                                                                                                                                                 | No       | Use the original type of the collected value as the data type in TDengine                                                                                                                                                                                                      |
+| 8   | quality_col             | The column name in TDengine corresponding to the quality of the collected value                                                                                                                                                                                        | No       | Do not add a quality column in TDengine                                                                                                                                                                                                                                        |
+| 9   | ts_col                  | The timestamp column in TDengine corresponding to the original timestamp of the data point                                                                                                                                                                             | No       | ts_col, request_ts, received_ts these 3 columns, when there are more than 2 columns, the leftmost column is used as the primary key in TDengine.                                                                                                                               |
+| 10  | request_ts_col          | The timestamp column in TDengine corresponding to the timestamp when the data point value was request                                                                                                                                                                  | No       | Same as above                                                                                                                                                                                                                                                                  |
+| 11  | received_ts_col         | The timestamp column in TDengine corresponding to the timestamp when the data point value was received                                                                                                                                                                 | No       | Same as above                                                                                                                                                                                                                                                                  |
+| 12  | ts_transform            | The transform function executed in taosX for the original timestamp of the data point                                                                                                                                                                                  | No       | Do not perform a transform on the original timestamp of the data point                                                                                                                                                                                                         |
+| 13  | request_ts_transform    | The transform function executed in taosX for the request timestamp of the data point                                                                                                                                                                                   | No       | Do not perform a transform on the received timestamp of the data point                                                                                                                                                                                                         |
+| 14  | received_ts_transform   | The transform function executed in taosX for the received timestamp of the data point                                                                                                                                                                                  | No       | Do not perform a transform on the received timestamp of the data point                                                                                                                                                                                                         |
+| 15  | tag::VARCHAR(200)::name | The Tag column in TDengine corresponding to the data point. Where `tag` is a reserved keyword, indicating that this column is a tag column; `VARCHAR(200)` indicates the type of this tag, which can also be other legal types; `name` is the actual name of this tag. | No       | If configuring more than one tag column, use the configured tag columns; if no tag columns are configured, and stable exists in TDengine, use the tags of the stable in TDengine; if no tag columns are configured, and stable does not exist in TDengine, automatically add the following two tag columns by default: tag::VARCHAR(256)::point_idtag::VARCHAR(256)::point_name |
 
 (2) In the CSV Header, there cannot be duplicate columns;
 
@@ -105,14 +95,14 @@ The header is the first line of the CSV file, with the following rules:
 
 (5) In the CSV Header, columns that are not listed in the table above, such as: serial number, will be automatically ignored.
 
-3. Row Configuration Rules
+1. Row Configuration Rules
 
 Each Row in the CSV file configures an OPC data point. The rules for Rows are as follows:
 
 (1) Correspondence with columns in the Header
 
 | Number | Column in Header        | Type of Value | Range of Values                                                                                                                                                                                                                   | Mandatory | Default Value            |
-| ------ | ----------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------ |
+|--------|-------------------------| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------ |
 | 1      | tag_name                | String        | Strings like `root.parent.temperature`, must meet the OPC DA ID specification                                                                                                                                                     | Yes       |                          |
 | 2      | enable                  | int           | 0: Do not collect this point, and delete the corresponding subtable in TDengine before the OPC DataIn task starts; 1: Collect this point, do not delete the subtable before the OPC DataIn task starts.                         | No        | 1                        |
 | 3      | stable                  | String        | Any string that meets the TDengine supertable naming convention; if there are special characters `.`, replace with underscore. If `{type}` exists: if type in CSV file is not empty, replace with the value of type; if empty, replace with the original type of the collected value | Yes       |                          |
@@ -122,16 +112,18 @@ Each Row in the CSV file configures an OPC data point. The rules for Rows are as
 | 7      | type                    | String        | Supported types include: b/bool/i8/tinyint/i16/smallint/i32/int/i64/bigint/u8/tinyint unsigned/u16/smallint unsigned/u32/int unsigned/u64/bigint unsigned/f32/floatf64/double/timestamp/timestamp(ms)/timestamp(us)/timestamp(ns)/json | No        | Original type of data point value |
 | 8      | quality_col             | String        | Column name that meets TDengine naming convention                                                                                                                                                                                | No        | None                     |
 | 9      | ts_col                  | String        | Column name that meets TDengine naming convention                                                                                                                                                                                | No        | ts                       |
-| 10     | received_ts_col         | String        | Column name that meets TDengine naming convention                                                                                                                                                                                | No        | rts                      |
-| 11     | ts_transform            | String        | Supports +, -, *, /, % operators, for example: ts / 1000* 1000, sets the last 3 digits of a ms unit timestamp to 0; ts + 8 *3600* 1000, adds 8 hours to a ms precision timestamp; ts - 8 *3600* 1000, subtracts 8 hours from a ms precision timestamp; | No        | None                     |
-| 12     | received_ts_transform   | String        | No                                                                                                                                                                                                                                | None      |                          |
-| 13     | tag::VARCHAR(200)::name | String        | The value in tag, when the tag type is VARCHAR, it can be in Chinese                                                                                                                                                              | No        | NULL                     |
+| 10     | request_ts_col          | String        | Column name that meets TDengine naming convention                                                                                                                                                                                | No        | rts                      |
+| 11     | received_ts_col         | String        | Column name that meets TDengine naming convention                                                                                                                                                                                | No        | rts                      |
+| 12     | ts_transform            | String        | Supports +, -, *, /, % operators, for example: ts / 1000* 1000, sets the last 3 digits of a ms unit timestamp to 0; ts + 8 *3600* 1000, adds 8 hours to a ms precision timestamp; ts - 8 *3600* 1000, subtracts 8 hours from a ms precision timestamp; | No        | None                     |
+| 13     | request_ts_transform    | String        | No                                                                                                                                                                                                                                | None      |                          |
+| 14     | received_ts_transform   | String        | No                                                                                                                                                                                                                                | None      |                          |
+| 15     | tag::VARCHAR(200)::name | String        | The value in tag, when the tag type is VARCHAR, it can be in Chinese                                                                                                                                                              | No        | NULL                     |
 
 (2) `tag_name` is unique throughout the DataIn task, that is: in an OPC DataIn task, a data point can only be written to one subtable in TDengine. If you need to write a data point to multiple subtables, you need to create multiple OPC DataIn tasks;
 
 (3) When `tag_name` is different but `tbname` is the same, `value_col` must be different. This configuration allows data from multiple data points of different types to be written to different columns in the same subtable. This corresponds to the "OPC data into TDengine wide table" scenario.
 
-4. Other Rules
+1. Other Rules
 
 (1) If the number of columns in Header and Row are not consistent, validation fails, and the user is prompted with the line number that does not meet the requirements;
 
@@ -145,19 +137,15 @@ Data points can be filtered by configuring the **Root Node ID** and **Regular Ex
 
 Configure **Supertable Name** and **Table Name** to specify the supertable and subtable where the data will be written.
 
-Configure **Primary Key Column**, choosing `origin_ts` to use the original timestamp of the OPC data point as the primary key in TDengine; choosing `received_ts` to use the timestamp when the data is received as the primary key. Configure **Primary Key Alias** to specify the name of the TDengine timestamp column.
+Configure **Primary Key Column**, choosing `origin_ts` to use the original timestamp of the OPC data point as the primary key in TDengine; choosing `request_ts` to use the timestamp when the data is request as the primary key; choosing `received_ts` to use the timestamp when the data is received as the primary key. Configure **Primary Key Alias** to specify the name of the TDengine timestamp column.
 
-<figure>
-<Image img={imgStep4} alt=""/>
-</figure>
+![](../../assets/opc-da-04.png)
 
 ### 5. Collection Configuration
 
 In the collection configuration, set the current task's collection interval, connection timeout, and collection timeout.
 
-<figure>
-<Image img={imgStep5} alt=""/>
-</figure>
+![](../../assets/opc-da-05.png)
 
 As shown in the image:
 
@@ -175,9 +163,7 @@ When using **Select Data Points** in the **Data Point Set**, the collection conf
 
 ### 6. Advanced Options
 
-<figure>
-<Image img={imgStep6} alt=""/>
-</figure>
+![](../../assets/opc-da-06.png)
 
 As shown above, configure advanced options for more detailed optimization of performance, logs, etc.
 
@@ -208,14 +194,10 @@ Click the **Submit** button to complete the creation of the OPC DA to TDengine d
 
 During the task execution, click **Edit**, then click the **Add Data Points** button to append data points to the CSV file.
 
-<figure>
-<Image img={imgStep7} alt=""/>
-</figure>
+![](../../assets/opc-da-07.png)
 
 In the pop-up form, fill in the information for the data points.
 
-<figure>
-<Image img={imgStep8} alt=""/>
-</figure>
+![](import imgStep8 from '../../assets/opc-da-08.png)
 
 Click the **Confirm** button to complete the addition of data points.

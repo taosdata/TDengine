@@ -35,12 +35,10 @@ async fn prepare(taos: Taos) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
     let dsn = "taos://localhost:6030";
     let builder = TaosBuilder::from_dsn(dsn)?;
 
-    let taos = builder.build()?;
+    let taos = builder.build().await?;
     let db = "tmq";
 
     // prepare database
@@ -63,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
     // subscribe
     let tmq = TmqBuilder::from_dsn("taos://localhost:6030/?group.id=test")?;
 
-    let mut consumer = tmq.build()?;
+    let mut consumer = tmq.build().await?;
     consumer.subscribe(["tmq_meters"]).await?;
 
     {

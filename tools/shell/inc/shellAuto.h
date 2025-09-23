@@ -31,7 +31,7 @@ void pressTabKey(SShellCmd* cmd);
 void pressOtherKey(char c);
 
 // init shell auto function , shell start call once
-bool shellAutoInit();
+void shellAutoInit();
 
 // set conn
 void shellSetConn(TAOS* conn, bool runOnce);
@@ -43,7 +43,7 @@ void shellAutoExit();
 void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb);
 
 // introduction
-void printfIntroduction(bool community);
+void printfIntroduction(EVersionType type);
 
 // show enterprise AD at start or end
 void showAD(bool end);
@@ -51,9 +51,8 @@ void showAD(bool end);
 // show all commands help
 void showHelp();
 
-
 //
-//  for unit test 
+//  for unit test
 //
 bool fieldOptionsArea(char* p);
 bool isCreateFieldsArea(char* p);

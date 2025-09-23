@@ -1,0 +1,7 @@
+
+taos> select val,tablename,index_code,ps_code from test1.stb_sxny_cn_drzcfd_test02 order by _c0,tablename;
+            val            |           tablename            |           index_code           |            ps_code             |
+===============================================================================================================================
+                         0 | sxny_cn_drzcfd_test01_a0       | index_a0                       | pscode_a0                      |
+                         1 | sxny_cn_drzcfd_test01_a0       | index_a0                       | pscode_a0                      |
+

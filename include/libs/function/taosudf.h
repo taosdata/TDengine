@@ -110,6 +110,7 @@ typedef void *UdfcFuncHandle;
 #define udfColDataSetNull_var(pColumn, row) ((pColumn->colData.varLenCol.varOffsets)[row] = -1)
 
 typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
+
 #define VARSTR_HEADER_SIZE     sizeof(VarDataLenT)
 #define varDataLen(v)          ((VarDataLenT *)(v))[0]
 #define varDataVal(v)          ((char *)(v) + VARSTR_HEADER_SIZE)
@@ -117,11 +118,24 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define varDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), varDataTLen(v))
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
+
+typedef int32_t  VarDataOffsetT;
+typedef uint32_t BlobDataLenT;  // maxVarDataLen: 2^32 - 1
+#define BLOBSTR_HEADER_SIZE     sizeof(BlobDataLenT)
+#define blobDataTLen(v)         (sizeof(BlobDataLenT) + blobDataLen(v))
+#define blobDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), blobDataTLen(v))
+#define blobDataLenByData(v)    (*(BlobDataLenT *)(((char *)(v)) - BLOBSTR_HEADER_SIZE))
+#define blobDataSetLen(v, _len) (((BlobDataLenT *)(v))[0] = (BlobDataLenT)(_len))
+
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
-   ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
+   ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY) || ((t) == TSDB_DATA_TYPE_BLOB) ||      \
+   ((t) == TSDB_DATA_TYPE_MEDIUMBLOB))
+
 #define IS_STR_DATA_TYPE(t) \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
+
+#define IS_STR_DATA_BLOB(t) ((t) == TSDB_DATA_TYPE_BLOB || (t) == TSDB_DATA_TYPE_MEDIUMBLOB)
 
 static FORCE_INLINE char *udfColDataGetData(const SUdfColumn *pColumn, int32_t row) {
   if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
@@ -133,7 +147,7 @@ static FORCE_INLINE char *udfColDataGetData(const SUdfColumn *pColumn, int32_t r
 
 static FORCE_INLINE int32_t udfColDataGetDataLen(const SUdfColumn *pColumn, int32_t row) {
   if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
-    return *(uint16_t*)(pColumn->colData.varLenCol.payload + pColumn->colData.varLenCol.varOffsets[row]);
+    return *(uint16_t *)(pColumn->colData.varLenCol.payload + pColumn->colData.varLenCol.varOffsets[row]);
   } else {
     return pColumn->colMeta.bytes;
   }
@@ -220,7 +234,8 @@ static FORCE_INLINE int32_t udfColDataSetNull(SUdfColumn *pColumn, int32_t row) 
     udfColDataSetNull_f(pColumn, row);
   }
   pColumn->hasNull = true;
-  pColumn->colData.numOfRows = ((int32_t)(row + 1) > pColumn->colData.numOfRows) ? (int32_t)(row + 1) : pColumn->colData.numOfRows;
+  pColumn->colData.numOfRows =
+      ((int32_t)(row + 1) > pColumn->colData.numOfRows) ? (int32_t)(row + 1) : pColumn->colData.numOfRows;
   return 0;
 }
 
@@ -237,7 +252,7 @@ static FORCE_INLINE int32_t udfColDataSet(SUdfColumn *pColumn, uint32_t currentR
       (void)memcpy(data->fixLenCol.data + meta->bytes * currentRow, pData, meta->bytes);
     } else {
       int32_t dataLen = varDataTLen(pData);
-      // This is a piece of code to help users implement udf. It is only called during testing. 
+      // This is a piece of code to help users implement udf. It is only called during testing.
       // Currently, the json type is not supported and will not be called.
       // if (meta->type == TSDB_DATA_TYPE_JSON) {
       //   if (*pData == TSDB_DATA_TYPE_NULL) {
@@ -347,10 +362,10 @@ typedef int32_t (*TScriptCloseFunc)();
   extern int32_t udfDebugFlag;
   #define udfFatal(...) { if (udfDebugFlag & 1) { taosPrintLog("UDF FATAL ", 1, 255, __VA_ARGS__); }}
   #define udfError(...) { if (udfDebugFlag & 1) { taosPrintLog("UDF ERROR ", 1, 255, __VA_ARGS__); }}
-  #define udfWarn(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF WARN ",  2, 255, __VA_ARGS__); }}
-  #define udfInfo(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF ",       2, 255, __VA_ARGS__); }}
-  #define udfDebug(...) { if (udfDebugFlag & 4) { taosPrintLog("UDF ",       4, udfDebugFlag, __VA_ARGS__); }}
-  #define udfTrace(...) { if (udfDebugFlag & 8) { taosPrintLog("UDF ",       8, udfDebugFlag, __VA_ARGS__); }}
+  #define udfWarn(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF WARN  ", 2, 255, __VA_ARGS__); }}
+  #define udfInfo(...)  { if (udfDebugFlag & 2) { taosPrintLog("UDF INFO  ", 2, 255, __VA_ARGS__); }}
+  #define udfDebug(...) { if (udfDebugFlag & 4) { taosPrintLog("UDF DEBUG ", 4, udfDebugFlag, __VA_ARGS__); }}
+  #define udfTrace(...) { if (udfDebugFlag & 8) { taosPrintLog("UDF TRACE ", 8, udfDebugFlag, __VA_ARGS__); }}
 #endif
 // clang-format on
 

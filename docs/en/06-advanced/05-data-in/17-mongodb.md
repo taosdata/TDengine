@@ -3,21 +3,15 @@ title: MongoDB
 slug: /advanced-features/data-connectors/mongodb
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/mongodb-01.png';
-import imgStep02 from '../../assets/mongodb-02.png';
-import imgStep03 from '../../assets/mongodb-03.png';
-import imgStep04 from '../../assets/mongodb-04.png';
-import imgStep05 from '../../assets/mongodb-05.png';
-import imgStep06 from '../../assets/mongodb-06.png';
-import imgStep07 from '../../assets/mongodb-07.png';
-import imgStep08 from '../../assets/mongodb-08.png';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
 
 This section describes how to create data migration tasks through the Explorer interface, migrating data from MongoDB to the current TDengine cluster.
 
 ## Feature Overview
 
-MongoDB is a product that lies between relational and non-relational databases, widely used in content management systems, mobile applications, and the Internet of Things, among other fields. Starting from TDengine Enterprise Edition 3.3.3.0, TDengine can efficiently read data from MongoDB and write it into TDengine, achieving historical data migration or real-time data synchronization, and addressing technical pain points faced by businesses.
+MongoDB is a product that lies between relational and non-relational databases, widely used in content management systems, mobile applications, and the Internet of Things, among other fields. TDengine TSDB-Enterprise can efficiently read data from MongoDB and write it into TDengine, achieving historical data migration or real-time data synchronization, and addressing technical pain points faced by businesses.
 
 ## Creating a Task
 
@@ -25,9 +19,7 @@ MongoDB is a product that lies between relational and non-relational databases, 
 
 Click the **+ Add Data Source** button in the top right corner of the data writing page to enter the Add Data Source page, as shown below:
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](../../assets/mongodb-01.png)
 
 ### 2. Configure Basic Information
 
@@ -39,17 +31,13 @@ Select `MongoDB` from the **Type** dropdown menu, as shown below (the fields on 
 
 **Target Database** is mandatory. You can select a specific database from the dropdown menu, or click the **+ Create Database** button on the right to create a new database.
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](../../assets/mongodb-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *connection information for the source MongoDB database* in the **Connection Configuration** area, as shown below:
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](../../assets/mongodb-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -59,9 +47,7 @@ Fill in the *connection information for the source MongoDB database* in the **Co
 
 **Authentication Database** The database in MongoDB where user information is stored, default is admin.
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![](../../assets/mongodb-04.png)
 
 ### 5. Configure Connection Options
 
@@ -73,9 +59,7 @@ Fill in the *connection information for the source MongoDB database* in the **Co
 
 &emsp; 2. **Certificate File** Upload the SSL encryption certificate file.
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![](../../assets/mongodb-05.png)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally retrieve data from the source MongoDB database.
 
@@ -125,9 +109,7 @@ Different placeholders represent different time format requirements, specificall
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![](../../assets/mongodb-06.png)
 
 ### 7. Configure Data Mapping
 
@@ -143,9 +125,7 @@ In **Filter**, fill in the filtering conditions, for example: write `Value > 0`,
 
 In **Mapping**, select the supertable in TDengine to which the data will be mapped, as well as the columns to map to the supertable, and click the **Preview** button on the right to view the mapping results after configuration.
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![](../../assets/mongodb-07.png)
 
 ### 8. Configure Advanced Options
 
@@ -155,9 +135,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. Default is 10000.
 
-<figure>
-<Image img={imgStep08} alt=""/>
-</figure>
+![](../../assets/mongodb-08.png)
 
 ### 9. Completion
 

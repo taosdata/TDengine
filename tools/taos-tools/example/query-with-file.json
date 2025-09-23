@@ -1,0 +1,19 @@
+{
+    "filetype": "query",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "databases": "test",
+    "query_times": 2,
+    "query_mode": "taosc",
+    "kill_slow_query_threshold": 120,
+    "kill_slow_query_interval": 10,
+    "specified_table_query": {
+        "query_interval": 1,
+        "concurrent": 3,
+        "sql_file": "./query-sqls.txt"
+    }
+}

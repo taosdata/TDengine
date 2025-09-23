@@ -52,6 +52,16 @@ extern "C" {
 #define TD_PATH_MAX _POSIX_PATH_MAX
 #endif
 
+#ifdef WINDOWS
+typedef struct TaosIOVec {
+  void  *iov_base;
+  size_t iov_len;
+} TaosIOVec;
+#else
+#include <sys/uio.h>
+typedef struct iovec TaosIOVec;
+#endif
+
 typedef struct TdFile *TdFilePtr;
 
 #define TD_FILE_CREATE        0x0001
@@ -72,6 +82,7 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2
 #define TD_FILE_ACCESS_WRITE_OK 0x4
+#define TD_FILE_ACCESS_EXEC_OK  0x8
 
 #define TD_TMP_FILE_PREFIX "tdengine-"
 
@@ -121,6 +132,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName);
 int32_t taosSetFileHandlesLimit();
 
 int32_t taosLinkFile(char *src, char *dst);
+int32_t taosSymLink(const char *target, const char *linkpath);
 
 FILE  *taosOpenCFile(const char *filename, const char *mode);
 int    taosSeekCFile(FILE *file, int64_t offset, int whence);
@@ -129,7 +141,10 @@ size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *strea
 int    taosCloseCFile(FILE *);
 int    taosSetAutoDelFile(char *path);
 
-bool lastErrorIsFileNotExist();
+FILE   *taosOpenFileForStream(const char *path, int32_t tdFileOptions);
+bool    lastErrorIsFileNotExist();
+
+int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt);
 
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \
