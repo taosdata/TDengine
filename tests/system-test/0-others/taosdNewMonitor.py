@@ -237,6 +237,9 @@ class TDTestCase:
             sql = "insert into db3.tb values (now, %d)"%count
             tdSql.execute(sql)
             count += 1
+        
+        # fix missing trace_log_count, wait all feild to report
+        time.sleep(5)
 
         # create http server: bing ip/port , and  request processor
         if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
