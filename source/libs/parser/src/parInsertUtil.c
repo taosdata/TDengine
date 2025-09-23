@@ -655,8 +655,8 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
     }
   }
 
-  int32_t        code = TSDB_CODE_SUCCESS;
-  SArray**       rowP = NULL;
+  int32_t  code = TSDB_CODE_SUCCESS;
+  SArray** rowP = NULL;
 
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
@@ -974,11 +974,11 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
           code = tRowSort(pTableCxt->pData->aRowP);
         }
         if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
-        code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, PREFER_NON_NULL);
+          code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, PREFER_NON_NULL);
         }
       } else {
         if (!pTableCxt->ordered) {
-        code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobSet);
+          code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobSet);
         }
         if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
           code = tRowMergeWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobSet, 0);
@@ -1049,7 +1049,6 @@ static void destroyVgDataBlocks(void* p) {
   taosMemoryFree(pVg->pData);
   taosMemoryFree(pVg);
 }
-
 
 int32_t insResetBlob(SSubmitReq2* p) {
   int32_t code = 0;
@@ -1145,9 +1144,15 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
 
 int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fields, char* errstr, int32_t errstrLen) {
   if (*fields != pColSchema->type) {
-    if (errstr != NULL)
+    if (errstr != NULL) {
       snprintf(errstr, errstrLen, "column type not equal, name:%s, schema type:%s, data type:%s", pColSchema->name,
                tDataTypes[pColSchema->type].name, tDataTypes[*fields].name);
+    } else {
+      char buf[512] = {0};
+      snprintf(buf, sizeof(buf), "column type not equal, name:%s, schema type:%s, data type:%s", pColSchema->name,
+               tDataTypes[pColSchema->type].name, tDataTypes[*fields].name);
+      uError("checkSchema %s", buf);
+    }
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1165,25 +1170,50 @@ int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fiel
                  pColSchema->name, tDataTypes[pColSchema->type].name, precision, scale, tDataTypes[*fields].name,
                  precisionData, scaleData);
       return TSDB_CODE_INVALID_PARA;
+    } else {
+      char buf[512] = {0};
+      snprintf(buf, sizeof(buf),
+               "column decimal type not equal, name:%s, schema type:%s, precision:%d, scale:%d, data type:%s, "
+               "precision:%d, scale:%d",
+               pColSchema->name, tDataTypes[pColSchema->type].name, precision, scale, tDataTypes[*fields].name,
+               precisionData, scaleData);
+      uError("checkSchema %s", buf);
+      return TSDB_CODE_INVALID_PARA;
     }
     return 0;
   }
 
   if (IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) > pColSchema->bytes) {
-    if (errstr != NULL)
+    if (errstr != NULL) {
       snprintf(errstr, errstrLen,
                "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
                pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
                *(int32_t*)(fields + sizeof(int8_t)));
+    } else {
+      char buf[512] = {0};
+      snprintf(buf, sizeof(buf),
+               "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+               *(int32_t*)(fields + sizeof(int8_t)));
+      uError("checkSchema %s", buf);
+    }
     return TSDB_CODE_INVALID_PARA;
   }
 
   if (!IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
-    if (errstr != NULL)
+    if (errstr != NULL) {
       snprintf(errstr, errstrLen,
                "column normal data bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
                pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
                *(int32_t*)(fields + sizeof(int8_t)));
+    } else {
+      char buf[512] = {0};
+      snprintf(buf, sizeof(buf),
+               "column normal data bytes not equal, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+               *(int32_t*)(fields + sizeof(int8_t)));
+      uError("checkSchema %s", buf);
+    }
     return TSDB_CODE_INVALID_PARA;
   }
   return 0;
@@ -1227,7 +1257,7 @@ int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fiel
 
 int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* tFields,
                      int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw) {
-  int ret = 0;
+  int       ret = 0;
   int8_t    hasBlob = 0;
   SBlobSet* pBlobSet = NULL;
   if (data == NULL) {
@@ -1398,4 +1428,3 @@ int rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* 
 
   return 0;
 }
-
