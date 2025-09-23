@@ -1,6 +1,6 @@
 <template>
   <div label-width="0px">
-    <section class="flex-start mb20" :style="{ cursor: dataInProps.isCommunity ? 'not-allowed' : 'pointer' }">
+    <section class="flex-start mb-20px" :style="{ cursor: dataInProps.isCommunity ? 'not-allowed' : 'pointer' }">
       <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
         <template #content>
           <span v-dompurify-html="$t('common.communityTip')"></span>
@@ -37,7 +37,7 @@
         </div>
       </section>
     </section>
-    <section class="mb20">
+    <section class="mb-20px">
       <el-tooltip effect="light" :content="t('dataIn.downloadTemplateTip')">
         <a v-if="config.templateUrl" :class="{ disabled: dataInProps.isCommunity }" @click="handleDownEmptyTemplate">
           <el-icon><Download /></el-icon>
@@ -550,7 +550,6 @@ $color-primary: rgb(25 34 80);
 
 .disabled {
   pointer-events: none;
-  filter: alpha(opacity=50);
   -moz-opacity: 0.5;
   opacity: 0.5;
 }

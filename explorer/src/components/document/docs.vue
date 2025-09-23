@@ -39,12 +39,11 @@
 
 <script setup lang="ts">
 import * as config from '@/components/document/index';
-import { decrypt, compareVersion, getLocalLang } from '@/utils';
+import { decrypt, getLocalLang } from '@/utils';
 import { debounce } from 'lodash-es';
-import { OfficialSite } from '@/const';
+import { installUrlLinux, installUrlMac, installUrlMacArm, installUrlWindows } from 'taos-ui/config';
 import 'github-markdown-css/github-markdown-light.css';
 
-const { $IS_COMMUNITY } = inject('globalCustomProperties') as GlobalCustomProperties;
 interface DocsProps {
   lang: string;
   category: string;
@@ -95,31 +94,7 @@ const component = computed(() => {
 const TDengineVersion = computed(() => {
   return localStorage.getItem('td_version') ?? '';
 });
-const isLessThen3_1_1_11 = computed(() => {
-  return compareVersion(TDengineVersion.value, '<3.1.1.11');
-});
-const isLessThen3_3_2_1 = computed(() => {
-  return compareVersion(TDengineVersion.value, '<3.3.2.1');
-});
-const commonDownloadUrl = computed(() => {
-  return `${OfficialSite.value}/assets-download/3.0/TDengine${isLessThen3_1_1_11.value || $IS_COMMUNITY ? '' : '-enterprise'}-client-${TDengineVersion.value}-`;
-});
-const installUrlLinux = computed(() => {
-  return commonDownloadUrl.value + `Linux-x64.tar.gz`;
-});
-const macDownloadPrefix = computed(() => {
-  const prefix = commonDownloadUrl.value + 'macOS-';
-  return isLessThen3_3_2_1 ? prefix.replace('-enterprise', '') : prefix;
-});
-const installUrlMac = computed(() => {
-  return macDownloadPrefix.value + `x64.pkg`;
-});
-const installUrlMacArm = computed(() => {
-  return macDownloadPrefix.value + `arm64.pkg`;
-});
-const installUrlWindows = computed(() => {
-  return commonDownloadUrl.value + `Windows-x64.exe`;
-});
+
 const dsn = computed(() => {
   return `taos://${username.value}:${decryptPwd.value}@${url.value.replace(/^[a-z]+:\/\//, '')}`;
 });

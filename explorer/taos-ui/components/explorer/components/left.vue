@@ -154,7 +154,9 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
       // eslint-disable-next-line no-case-declarations
       const currentStbFilter = stableTagFilterMap[data['node-key']];
       if (currentStbFilter.name) {
-        return resolve(...(await getTagHierarchy(data.parent, data.name, currentStbFilter.name, currentStbFilter.type)));
+        return resolve(
+          ...(await getTagHierarchy(data.parent, data.name, currentStbFilter.name, currentStbFilter.type))
+        );
       } else {
         // eslint-disable-next-line no-case-declarations
         let conditions = '';
@@ -183,7 +185,7 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
       }
     case 'dimension':
       // eslint-disable-next-line no-case-declarations
-      const parts = data['node-key'].split(":");
+      const parts = data['node-key'].split(':');
       // eslint-disable-next-line no-case-declarations
       const tagName = parts[3];
       if (data.total > 0 && data.children) return resolve(data.children);
@@ -275,8 +277,8 @@ function allNodesLoaded(node: Node) {
 <style scoped lang="scss">
 .dbs-tree {
   display: flex;
-  flex-direction: column;
   flex-shrink: 0;
+  flex-direction: column;
   width: 19%;
   min-width: 360px;
   height: 100%;

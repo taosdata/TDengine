@@ -6,7 +6,7 @@
         <pre v-highlight><code class="language-xml">    &lt;dependency&gt;
       &lt;groupId&gt;com.taosdata.jdbc&lt;/groupId&gt;
       &lt;artifactId&gt;taos-jdbcdriver&lt;/artifactId&gt;
-      &lt;version&gt;3.2.9&lt;/version&gt;
+      &lt;version&gt;3.6.3&lt;/version&gt;
     &lt;/dependency&gt;
 </code></pre>
       </el-tab-pane>
@@ -36,7 +36,7 @@
 &lt;dependency&gt;
   &lt;groupId&gt;com.taosdata.jdbc&lt;/groupId&gt;
   &lt;artifactId&gt;taos-jdbcdriver&lt;/artifactId&gt;
-  &lt;version&gt;3.2.9&lt;/version&gt;
+  &lt;version&gt;3.6.3&lt;/version&gt;
 &lt;/dependency&gt;
         </code>
         </pre>
@@ -135,9 +135,9 @@ public class ConnectCloudExample {
 
     <p>
       {{ t('connector.bottom1') }} {{ t('connector.bottom2') }}
-      <a :href="`${docs.urlPrefix}/programming/insert/`">{{ `${docs.urlPrefix}/programming/insert/` }}</a>
+      <a :href="`${docs.urlPrefix}/programming/insert/`">{{ t('common.insert') }}</a>
       {{ t('connector.bottomand') }}
-      <a :href="`${docs.urlPrefix}/programming/query/`">{{ `${docs.urlPrefix}/programming/query/` }}</a
+      <a :href="`${docs.urlPrefix}/programming/query/`">{{ t('common.query') }}</a
       >{{ t('connector.bottom3end') }}
     </p>
     <p>

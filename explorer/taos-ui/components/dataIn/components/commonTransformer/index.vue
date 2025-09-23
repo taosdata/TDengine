@@ -542,7 +542,7 @@
     <el-dialog
       v-model="showCreateDialog"
       :title="t('dataIn.transformer.create_st')"
-      width="1000px"
+      width="1200px"
       center
       :close-on-click-modal="false"
       @close="closeDialog"
@@ -583,6 +583,7 @@ import {
 import { currentPageType, sourceForm, getDataRange, getWriteConfigData } from '../../model/util.js';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
 import { executeSqlFn } from 'components/api';
+import { isCompositeKey } from 'utils/tdengine';
 import { isEn } from 'config';
 import { isEmpty, cloneDeep } from 'lodash-es';
 import {
@@ -1016,7 +1017,7 @@ function getTopParserData() {
         };
         break;
       default:
-        // regex 
+        // regex
         expressionObj = {
           [parseruleForm.type]: parseruleForm.expression
         };
@@ -1025,13 +1026,16 @@ function getTopParserData() {
 
     topParser = {
       parser: {
-        parse: sourceForm.type == 'csv' ? {} : {
-          [sourceForm.type == 'mqtt' ? 'payload' : 'value']: {
-            ...expressionObj,
-            ...depthObj,
-            ...keepObj
-          }
-        }
+        parse:
+          sourceForm.type == 'csv'
+            ? {}
+            : {
+                [sourceForm.type == 'mqtt' ? 'payload' : 'value']: {
+                  ...expressionObj,
+                  ...depthObj,
+                  ...keepObj
+                }
+              }
       },
       input: sourceForm.type == 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
     };
@@ -1049,7 +1053,7 @@ async function handleParseResult(topParser: TopParseType) {
   const reqData = cloneDeep(topParser);
   if (parseruleForm.type == 'udt') {
     const config = topParser?.parser?.parse?.value;
-    if (config && "early_break" in config) {
+    if (config && 'early_break' in config) {
       delete config.early_break;
     }
   }
@@ -1063,7 +1067,7 @@ async function handleParseResult(topParser: TopParseType) {
   const transformerColumns = [
     {
       value: 'expression',
-      label: t('expression'),
+      label: t('common.expression'),
       children: maptypes.map(item => {
         return {
           value: item,
@@ -1464,10 +1468,10 @@ function echoExtractData(mutate: Recordable[]) {
         obj['jsonParams'] = {
           depth: item[1].depth,
           keep: item[1].keep,
-          expression: typeof item[1].json === 'string' ? item[1].json : item[1].json.join(",")
+          expression: typeof item[1].json === 'string' ? item[1].json : item[1].json.join(',')
         };
       }
-      
+
       if (columnsArr.value.length > 0) {
         extractArr.value.push(obj);
       }
@@ -2042,7 +2046,7 @@ async function getSTbaleList(isEcho: boolean, isTemplateCreate?: boolean, transf
       tableRow.Type = val[1] == 'TIMESTAMP' ? val[1] + '(' + precision.data[0][0] + ')' : val[1];
       tableRow.maptype = equalindex > -1 ? ['mapping', `${defaultmap[equalindex]}`] : ['expression', 'value'];
       tableRow.Expression = equalindex > -1 && !isEcho ? defaultmap[equalindex] : '';
-      tableRow.PrimaryKey = val[3] == 'COMPOSITE KEY' || (val[1].includes('TIMESTAMP') && !index);
+      tableRow.PrimaryKey = isCompositeKey(val[3]) || (val[1].includes('TIMESTAMP') && !index);
 
       return tableRow;
     });
@@ -2088,17 +2092,17 @@ function addNewExtract() {
 function mergeArrs() {
   const newArr: Recordable[] = [];
   extractArr.value.forEach(item => {
-    newArr.push(...item.columns)
+    newArr.push(...item.columns);
   });
   columnsArr.value.forEach(item => {
-    newArr.push(item)
+    newArr.push(item);
   });
   const seen = new Set();
   const uniqueArr = newArr.filter(item => {
     if (seen.has(item.name)) return false;
     seen.add(item.name);
     return true;
-  })
+  });
   return uniqueArr;
 }
 //新增filter

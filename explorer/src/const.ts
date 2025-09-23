@@ -51,7 +51,7 @@ export const DBFILED: Recordable<Recordable> = {
   cachemodel: { type: 'string', alter: true, defaultValue: 'none' },
   cachesize: { type: 'number', alter: true, defaultValue: 1 },
   comp: { type: 'number', alter: false, defaultValue: 2 },
-  duration: { type: 'number', alter: false, defaultValue: '50d' },
+  duration: { type: 'number', alter: false, defaultValue: '10d' },
   wal_fsync_period: { type: 'number', alter: true, defaultValue: 3000 },
   maxrows: { type: 'number', alter: false, defaultValue: 4096 },
   minrows: { type: 'number', alter: false, defaultValue: 100 },
@@ -63,7 +63,7 @@ export const DBFILED: Recordable<Recordable> = {
   retentions: { type: 'string', alter: false, defaultValue: '' },
   strict: { type: 'string', alter: false, defaultValue: 'off', version: '<=3.0.2.4' },
   wal_level: { type: 'number', alter: true, defaultValue: 1 },
-  vgroups: { type: 'number', alter: false, defaultValue: 1 },
+  vgroups: { type: 'number', alter: false, defaultValue: 4 },
   single_stable: { type: 'number', alter: false, defaultValue: 0 },
   wal_retention_period: { type: 'number', alter: false, defaultValue: 3600 }, //
   wal_retention_size: { type: 'number', alter: false, defaultValue: 0 },

@@ -50,7 +50,7 @@ const contentSpring = computed(() => {
 
 spring:
   datasource:
-    driver-class-name: com.taosdata.jdbc.rs.RestfulDriver
+    driver-class-name: com.taosdata.jdbc.ws.WebSocketDriver
     url: ${props.url}
 # using connection pools
     type: com.alibaba.druid.pool.DruidDataSource

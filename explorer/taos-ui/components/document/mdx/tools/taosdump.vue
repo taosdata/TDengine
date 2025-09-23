@@ -12,7 +12,7 @@
       <h2 id="installation">{{ t('tools.dump.step2') }}</h2>
       <p>
         {{ t('tools.dump.step2desc')
-        }}<a :href="`${OfficalUrl}/assets-download/3.0/taosTools-2.4.9-Linux-x64-comp3.tar.gz`">taosTools</a
+        }}<a :href="`${OfficialUrl}/assets-download/3.0/taosTools-2.4.9-Linux-x64-comp3.tar.gz`">taosTools</a
         >{{ t('tools.dump.step2desc1') }}<a :href="commonDownloadUrl">TDengine CLI</a>{{ t('connector.bottom3end') }}
       </p>
       <p>{{ t('tools.dump.step2desc2') }}</p>
@@ -118,7 +118,7 @@ Report bugs to &lt;support@taosdata.com&gt;.
 import { t } from 'locales';
 import { dsn, dsnKey } from '../utils';
 import { compareVersion } from 'utils/tdengine';
-import { TdDocsUrl, OfficalUrl, instance } from 'config';
+import { TdDocsUrl, OfficialUrl, instance } from 'config';
 import tdclient from './tdclient.vue';
 
 const isLessThen3_1_1_11 = computed(() => compareVersion(instance.version, '<3.1.1.11'));
@@ -126,6 +126,6 @@ const isLessThen3_2_3_4 = computed(() => compareVersion(instance.version, '<3.2.
 
 const commonDownloadUrl = computed(
   () =>
-    `${OfficalUrl.value}/assets-download/3.0/TDengine${isLessThen3_1_1_11.value ? '' : '-enterprise'}-client-${instance.version}-Linux-x64.tar.gz`
+    `${OfficialUrl.value}/assets-download/3.0/TDengine${isLessThen3_1_1_11.value ? '' : '-enterprise'}-client-${instance.version}-Linux-x64.tar.gz`
 );
 </script>

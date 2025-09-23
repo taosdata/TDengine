@@ -12,6 +12,7 @@ export type optionsType = {
   loading?: boolean;
   responseType?: AxioResponseType;
   timeout?: number;
+  ignoreError?: boolean;
   mfa?: string;
   language?: string;
   [key: string]: any;
@@ -51,11 +52,11 @@ export class HttpRequest {
     this.baseConfig = Object.assign(this.baseConfig, config);
   }
 
-  setRequestInterceptor(onFullfilled: (config: RequestConfig) => any, onRejected: (error: any) => any) {
-    this.instance.interceptors.request.use(onFullfilled, onRejected);
+  setRequestInterceptor(onFulfilled: (config: RequestConfig) => any, onRejected: (error: any) => any) {
+    this.instance.interceptors.request.use(onFulfilled, onRejected);
   }
-  setResponseInterceptor(onFullfilled: (response: any) => any, onRejected: (error: any) => any) {
-    this.instance.interceptors.response.use(onFullfilled, onRejected);
+  setResponseInterceptor(onFulfilled: (response: any) => any, onRejected: (error: any) => any) {
+    this.instance.interceptors.response.use(onFulfilled, onRejected);
   }
   setLoadingConfig(config: Recordable) {
     this.loadingConfig = config;

@@ -590,5 +590,6 @@ export default {
     sink_errorDesc: 'An error in the sink prevents writing.',
     fatal: 'Fatal',
     fatalDesc: 'An irrecoverable error. The data writing task will terminate at this point.'
-  }
+  },
+  version: 'Data In Version:'
 };

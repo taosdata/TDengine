@@ -1,7 +1,7 @@
 <template>
   <div>
     <p><a :href="`https://powerbi.microsoft.com/`">Power BI</a> {{ $t('docs.tools.powerbi.desc') }}</p>
-    <h2 id="powerbi-repare">{{ $t('docs.tools.powerbi.step1full') }}</h2>
+    <h2 id="powerbi-prepare">{{ $t('docs.tools.powerbi.step1full') }}</h2>
     <ol class="odbc-ol">
       <li>
         <span class="odbc-span">
@@ -33,7 +33,7 @@
         <span class="odbc-span">
           {{ $t('docs.connector.odbc.step12desc1')
           }}<a
-            :href="`https://www.${urlPart}.com/assets-download/3.0/TDengine${urlEnterprise}-client-${TDengineVersion}-Windows-x64.exe`"
+            :href="installUrlWindows"
           >
             {{ $t('docs.connector.odbc.step12desc2') }}</a
           >{{ $t('docs.connector.odbc.step12desc3') }}

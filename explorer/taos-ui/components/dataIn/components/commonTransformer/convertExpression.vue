@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { cloneDeep } from 'lodash-es';
 import { transformerState } from './util';
-import { ConvertExpresListType } from './type';
+import { ConvertExpressListType } from './type';
 import { t } from 'locales';
 
 const props = withDefaults(
@@ -57,10 +57,10 @@ const convertFormRef = ref();
 const emit = defineEmits(['update:ruleForm']);
 
 watch(
-  () => transformerState.convertExpresList,
+  () => transformerState.convertExpressList,
   val => {
-    const middleObj = cloneDeep(val) as ConvertExpresListType;
-    console.log('watch:', 'middleObj', middleObj, transformerState.convertExpresList);
+    const middleObj = cloneDeep(val) as ConvertExpressListType;
+    console.log('watch:', 'middleObj', middleObj, transformerState.convertExpressList);
   },
   {
     deep: true
@@ -72,9 +72,9 @@ watch(localeRuleForm, newData => {
 });
 
 onMounted(() => {
-  if (transformerState.convertExpresList) {
-    const middleobj = cloneDeep(transformerState.convertExpresList) as ConvertExpresListType;
-    console.log('onMounted:', 'middleObj', middleobj, transformerState.convertExpresList)
+  if (transformerState.convertExpressList) {
+    const middleobj = cloneDeep(transformerState.convertExpressList) as ConvertExpressListType;
+    console.log('onMounted:', 'middleObj', middleobj, transformerState.convertExpressList);
   }
 });
 
@@ -82,14 +82,14 @@ function submit() {
   convertFormRef.value.validate((valid: boolean) => {
     if (valid) {
       isValid.value = true;
-      const convertExpr = {} as ConvertExpresListType;
+      const convertExpr = {} as ConvertExpressListType;
       Object.keys(localeRuleForm)
         .filter(key => localeRuleForm[key])
         .forEach(item => {
           convertExpr[item] = localeRuleForm[item].toString().trim();
         });
-     
-      transformerState.convertExpresList = convertExpr;
+
+      transformerState.convertExpressList = convertExpr;
       return true;
     } else {
       isValid.value = false;

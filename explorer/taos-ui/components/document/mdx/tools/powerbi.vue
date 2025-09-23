@@ -1,7 +1,7 @@
 <template>
   <div class="docs">
     <p><a :href="`https://powerbi.microsoft.com/`">Power BI</a> {{ t('tools.powerbi.desc') }}</p>
-    <h2 id="powerbi-repare">{{ t('tools.powerbi.step1full') }}</h2>
+    <h2 id="powerbi-prepare">{{ t('tools.powerbi.step1full') }}</h2>
     <p>
       {{ t('tools.powerbi.step1desc') }}
       <a :href="`https://www.microsoft.com${biURLPart}/download/details.aspx?id=58494`">{{
@@ -21,7 +21,7 @@
       <li class="odbc-span">
         {{ t('connector.odbc.step12desc1')
         }}<a
-          :href="`${OfficalUrl}/assets-download/3.0/TDengine-enterprise-client-${instance.version}-Windows-x64.exe`"
+          :href="installUrlWindows"
           >{{ t('connector.odbc.step12desc2') }}</a
         >{{ t('connector.odbc.step12desc3') }}
       </li>
@@ -129,7 +129,7 @@
 <script lang="ts" setup>
 import { t } from 'locales';
 import { dsn } from '../utils';
-import { TdDocsUrl, OfficalUrl, isEn, instance, docs } from 'config';
+import { TdDocsUrl, isEn, docs, installUrlWindows } from 'config';
 
 const biURLPart = computed(() => (isEn.value ? '' : '/zh-cn'));
 const runtimeURLPart = computed(() => (isEn.value ? '/en-us' : '/zh-cn'));

@@ -4,7 +4,7 @@
       <a href="https://www.yonghongtech.com">{{ t('tools.yonghongbi.desc') }}</a
       >{{ t('tools.yonghongbi.desc1') }}
     </p>
-    <h2 id="yonghongbi-repare">{{ t('tools.yonghongbi.step1') }}</h2>
+    <h2 id="yonghongbi-prepare">{{ t('tools.yonghongbi.step1') }}</h2>
     <p>
       {{ t('tools.yonghongbi.step11desc')
       }}<a href="https://www.yonghongtech.com/cp/desktop/">{{ t('tools.yonghongbi.step11desc1') }}</a
@@ -14,8 +14,8 @@
     <p>
       {{ t('tools.yonghongbi.step2desc') }}<a href="https://maven.org/">maven.org</a
       >{{ t('tools.yonghongbi.step2desc1')
-      }}<a href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar"
-        >3.2.7</a
+      }}<a href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3-dist.jar"
+        >3.6.3</a
       >{{ t('tools.yonghongbi.step2desc2') }}
     </p>
     <h2 id="yonghongbi-config">{{ t('tools.yonghongbi.step3full') }}</h2>

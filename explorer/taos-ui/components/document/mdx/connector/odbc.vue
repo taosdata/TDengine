@@ -19,7 +19,7 @@
         <span class="odbc-span">
           {{ t('connector.odbc.step12desc1')
           }}<a
-            :href="`${OfficalUrl}/assets-download/3.0/TDengine-enterprise-client-${instance.version}-Windows-x64.exe`"
+            :href="installUrlWindows"
             >{{ t('connector.odbc.step12desc2') }}</a
           >{{ t('connector.odbc.step12desc3') }}
         </span>
@@ -60,9 +60,9 @@
     <p>{{ t('connector.odbc.step31desc') }}</p>
     <p>
       {{ t('connector.bottom2') }}
-      <a :href="`${docs.urlPrefix}/programming/insert/`">{{ `${docs.urlPrefix}/programming/insert/` }}</a>
+      <a :href="`${docs.urlPrefix}/programming/insert/`">{{ t('common.insert') }}</a>
       {{ t('connector.bottomand') }}
-      <a :href="`${docs.urlPrefix}/programming/query/`">{{ `${docs.urlPrefix}/programming/query/` }}</a
+      <a :href="`${docs.urlPrefix}/programming/query/`">{{ t('common.query') }}</a
       >{{ t('connector.bottom3end') }}
     </p>
     <p>
@@ -75,7 +75,7 @@
 <script lang="ts" setup>
 import { t } from 'locales';
 import { dsn } from '../utils';
-import { OfficalUrl, instance, isEn, docs } from 'config';
+import { isEn, docs, installUrlWindows } from 'config';
 
 const runtimeURLPart = computed(() => (isEn.value ? '/en-us' : ''));
 </script>

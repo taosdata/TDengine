@@ -52,7 +52,10 @@ while 1:
     ><code class="language-python"></code></pre>
     <h2 id="close-consumer">{{ t('topic.step5') }}</h2>
     <p>{{ t('topic.step5desc', [topicName]) }}</p>
-    <pre v-highlight><code class="language-python">consumer.close()</code></pre>
+    <pre v-highlight><code class="language-python"># Unsubscribe
+consumer.unsubscribe()
+# Close consumer
+consumer.close()</code></pre>
     <h2 id="fullexample">{{ t('topic.step6') }}</h2>
     <p>{{ t('topic.step6desc', [topicName]) }}</p>
     <pre

@@ -24,7 +24,7 @@ import {
   currentInfoDataProviderKey,
   backSqlPart
 } from './components/utils';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
 import { executeSqlFn } from '../api';
 
 const props = defineProps<ExplorerProps>();
@@ -71,10 +71,6 @@ function executeSql(sql = sqlStr.value) {
       handleSqlExecuteSuccess(data, sqlStr.value, startTime);
     })
     .catch(data => {
-      ElMessage.closeAll();
-      if (data) {
-        ElMessage.error(data);
-      }
       handleSqlExecuteFail(data, sqlStr.value, startTime);
     })
     .finally(() => {

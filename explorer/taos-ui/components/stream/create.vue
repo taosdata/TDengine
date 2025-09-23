@@ -216,7 +216,7 @@ const info = reactive({
   source_type: 1,
   subtale: '',
   stream_name: '',
-  parttionSet: 'tbname',
+  parttionSet: ['tbname'],
   window_type: 'INTERVAL',
   table_type: 'STABLE',
   tol_val: 0,
@@ -352,7 +352,7 @@ function generateSql(show = true) {
           }
           result += ' AS ' + subquery;
           if (info.parttionSet) {
-            result += ' PARTITION BY ' + info.parttionSet;
+            result += ' PARTITION BY ' + info.parttionSet.join(',');
           }
           if (info.window_type) {
             result += ' ';
@@ -404,7 +404,7 @@ function generateSql(show = true) {
 
 .delay-select {
   width: 100px;
-  min-width: none;
+  min-width: unset;
 }
 
 .btn-wrapper {

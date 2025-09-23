@@ -1,34 +1,71 @@
 <template>
   <div>
     <h2 id="install-connector">{{ t('connector.python.step1') }}</h2>
-    <p>{{ t('connector.python.step1desc') }}</p>
-    <el-tabs model-value="pip">
-      <el-tab-pane name="pip" label="Pip">
-        <pre v-highlight><code>pip3 install -U taospy
+    <div v-dompurify-html="t('connector.python.step1-1')"></div>
+    <div v-dompurify-html="t('connector.python.step1-2')"></div>
+    <el-tabs v-model="activeName" group-i-d="package">
+      <el-tab-pane name="REST" label="REST">
+        <pre v-highlight><code>pip3 uninstall taos taospy
 </code></pre>
       </el-tab-pane>
-      <el-tab-pane name="conda" label="Conda">
-        <pre v-highlight><code>conda install -c conda-forge taospy
+      <el-tab-pane name="WebSocket" label="WebSocket">
+        <pre v-highlight><code>pip3 uninstall taos taos-ws-py
+</code></pre>
+      </el-tab-pane>
+    </el-tabs>
+    <div v-dompurify-html="t('connector.python.step1-2-1')"></div>
+    <el-tabs v-model="activeName" group-i-d="package">
+      <el-tab-pane name="REST" label="REST">
+        <pre v-highlight><code># install latest version
+pip3 install taospy
+
+# install specific version
+pip3 install taospy==2.6.2
+
+# install from github
+pip3 install git+https://github.com/taosdata/taos-connector-python.git
+</code></pre>
+      </el-tab-pane>
+      <el-tab-pane name="WebSocket" label="WebSocket">
+        <pre v-highlight><code>pip3 install taos-ws-py
+</code></pre>
+      </el-tab-pane>
+    </el-tabs>
+    <h3>{{ t('connector.python.step1-3') }}</h3>
+    <el-tabs v-model="activeName" group-i-d="package">
+      <el-tab-pane name="REST" label="REST">
+        <p v-dompurify-html="$t('connector.python.step1-3-1')"></p>
+        <pre v-highlight><code>import taosrest
+</code></pre>
+      </el-tab-pane>
+      <el-tab-pane name="WebSocket" label="WebSocket">
+        <p v-dompurify-html="$t('connector.python.step1-3-2')"></p>
+        <pre v-highlight><code>import taosws
 </code></pre>
       </el-tab-pane>
     </el-tabs>
     <doc-config
       :url-des="t('docsConfig.url')"
       :need-token="project.isCloud"
-      :url="instance.gatewayUrl"
+      :url="dsn"
       :token="instance.token"
     ></doc-config>
     <h2 id="connect">{{ t('connector.python.step3') }}</h2>
     <p>{{ t('connector.python.step3desc') }}</p>
-    <el-tabs model-value="REST">
+    <el-tabs v-model="activeName">
       <el-tab-pane name="REST" label="REST">
         <pre v-highlight><code class="language-python">import taosrest
 import os
 
-url = os.environ[&quot;TDENGINE_CLOUD_URL&quot;]
-token = os.environ[&quot;TDENGINE_CLOUD_TOKEN&quot;]
+url = os.environ["TDENGINE_CLOUD_URL"]
+token = os.environ["TDENGINE_CLOUD_TOKEN"]
 
-conn = taosrest.connect(url=url, token=token)
+try:
+    conn = taosrest.connect(url=url, token=token)
+    # test the connection by getting version info
+    print("TDengine version: ", conn.server_info)
+except Exception as e:
+    print(str(e))
 </code></pre>
       </el-tab-pane>
       <el-tab-pane name="WebSocket" label="WebSocket">
@@ -45,57 +82,11 @@ except Exception as e:
       </el-tab-pane>
     </el-tabs>
 
-    <h2 id="jupyter">Jupyter</h2>
-    <p>
-      <strong>{{ t('connector.python.step41Title') }}</strong>
-    </p>
-    <p>{{ t('connector.python.step41Desc') }}</p>
-    <el-tabs model-value="pip">
-      <el-tab-pane name="pip" label="Pip">
-        <pre
-          v-highlight="
-            `pip3 install jupyterlab
-pip3 install -U taospy
-`
-          "
-        ><code class="language-bash"></code></pre>
-      </el-tab-pane>
-      <el-tab-pane name="conda" label="Conda">
-        <pre v-highlight><code>conda install -c conda-forge jupyterlab
-conda install -c conda-forge taospy
-</code></pre>
-      </el-tab-pane>
-    </el-tabs>
-
-    <p>
-      <strong>{{ t('connector.python.step42Title') }}</strong>
-    </p>
-    <p>{{ t('connector.python.step42Desc') }}</p>
-    <pre
-      v-highlight="
-        `export TDENGINE_CLOUD_TOKEN=&quot;${instance.token}&quot;
-export TDENGINE_CLOUD_URL=&quot;${instance.gatewayUrl}&quot;
-jupyter lab
-`
-      "
-    ><code class="language-bash"></code></pre>
-    <p>
-      <strong>{{ t('connector.python.step43Title') }}</strong>
-    </p>
-    <p>{{ t('connector.python.step43Desc') }}</p>
-    <pre v-highlight><code class="language-python">import taosrest
-import os
-
-url = os.environ[&quot;TDENGINE_CLOUD_URL&quot;]
-token = os.environ[&quot;TDENGINE_CLOUD_TOKEN&quot;]
-
-conn = taosrest.connect(url=url, token=token)
-</code></pre>
     <p>
       {{ t('connector.bottom1') }} {{ t('connector.bottom2') }}
-      <a :href="`${docs.urlPrefix}/cloud/programming/insert/`">{{ `${docs.urlPrefix}/cloud/programming/insert/` }}</a>
+      <a :href="`${docs.urlPrefix}/cloud/programming/insert/`">{{ t('common.insert') }}</a>
       {{ t('connector.bottomand') }}
-      <a :href="`${docs.urlPrefix}/cloud/programming/query/`">{{ `${docs.urlPrefix}/cloud/programming/query/` }}</a
+      <a :href="`${docs.urlPrefix}/cloud/programming/query/`">{{ t('common.query') }}</a
       >{{ t('connector.bottom3end') }}
     </p>
     <p>
@@ -109,4 +100,9 @@ conn = taosrest.connect(url=url, token=token)
 import DocConfig from '../configTabs.vue';
 import { t } from 'locales';
 import { docs, project, instance } from 'config';
+
+const activeName = ref('REST');
+const dsn = computed(() => {
+  return activeName.value === 'REST' ? instance.gatewayUrl : instance.gatewayUrl.replace('http', 'ws');
+});
 </script>

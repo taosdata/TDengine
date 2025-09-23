@@ -37,8 +37,12 @@ const props = withDefaults(
 const localData = reactive(props.data);
 
 const isEdit = computed(() => {
-  if (currentTaskStatus.value == 'created' && sourceForm.type == 'kafka' && (props.config.field == 'group' || props.config.field == 'client_id') ) {
-    return false
+  if (
+    currentTaskStatus.value == 'created' &&
+    sourceForm.type == 'kafka' &&
+    (props.config.field == 'group' || props.config.field == 'client_id')
+  ) {
+    return false;
   }
   return currentPageType.value == 'edit';
 });

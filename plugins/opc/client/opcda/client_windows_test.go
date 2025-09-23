@@ -856,9 +856,9 @@ func TestDAClient_Collect(t *testing.T) {
 		cancel()
 		time.Sleep(1 * time.Second)
 	}()
-	gotMessage := false
+	gotMessageCount := 0
 	var onmessage client.OnMessage = func(message []*common.NodeValue) {
-		gotMessage = true
+		gotMessageCount = len(message)
 	}
 	connConf := config.DaConnectConfig{
 		Server: "Graybox.Simulator.1",
@@ -874,8 +874,25 @@ func TestDAClient_Collect(t *testing.T) {
 				{
 					Tag: "numeric.saw.int16",
 				},
+				{
+					Tag: "storage.numeric.reg01",
+				},
 			},
 		},
+	}
+	collectConfWithTagAndBad := config.CollectConfig{
+		Interval: 1,
+		Da: config.DaCollectConfig{
+			Tags: []config.TagConfig{
+				{
+					Tag: "numeric.saw.int16",
+				},
+				{
+					Tag: "storage.numeric.reg01",
+				},
+			},
+		},
+		ContainsBad: true,
 	}
 	notConnectClient, err := NewDAClient(ctx, connConf, 0, logrus.New().WithField("test", "test"))
 	assert.NoError(t, err)
@@ -899,6 +916,12 @@ func TestDAClient_Collect(t *testing.T) {
 	assert.NoError(t, err)
 	err = normalConnectClient2.Connect()
 	assert.NoError(t, err)
+	defer normalConnectClient2.Close()
+	normalConnectClient3, err := NewDAClient(ctx, connConf, 3, logrus.New().WithField("test", "test"))
+	assert.NoError(t, err)
+	err = normalConnectClient3.Connect()
+	assert.NoError(t, err)
+	defer normalConnectClient3.Close()
 	tests := []struct {
 		name      string
 		c         *DAClient
@@ -906,6 +929,7 @@ func TestDAClient_Collect(t *testing.T) {
 		onMessage client.OnMessage
 		wantErr   assert.ErrorAssertionFunc
 		wait      time.Duration
+		wantCount int
 	}{
 		{
 			name:      "not connect",
@@ -935,6 +959,7 @@ func TestDAClient_Collect(t *testing.T) {
 			onMessage: onmessage,
 			wantErr:   assert.NoError,
 			wait:      2 * time.Second,
+			wantCount: 1,
 		},
 		{
 			name:      "normal2",
@@ -943,18 +968,33 @@ func TestDAClient_Collect(t *testing.T) {
 			onMessage: onmessage,
 			wantErr:   assert.NoError,
 			wait:      2 * time.Second,
+			wantCount: 1,
+		},
+		{
+			name:      "containsBad",
+			c:         normalConnectClient3,
+			conf:      collectConfWithTagAndBad,
+			onMessage: onmessage,
+			wantErr:   assert.NoError,
+			wait:      2 * time.Second,
+			wantCount: 2,
 		},
 	}
 	for _, test := range tests {
-		err = test.c.Collect(test.conf, test.onMessage)
-		if !test.wantErr(t, err) {
-			return
-		}
-		if test.wait > 0 {
-			time.Sleep(test.wait)
-			assert.Equal(t, true, gotMessage)
-		}
-		gotMessage = false
+		t.Run(test.name, func(t *testing.T) {
+			t.Log(test.conf)
+			err = test.c.Collect(test.conf, test.onMessage)
+			if !test.wantErr(t, err) {
+				return
+			}
+			if test.wait > 0 {
+				time.Sleep(test.wait)
+				assert.Equal(t, test.wantCount, gotMessageCount)
+			}
+			err = test.c.Close()
+			assert.NoError(t, err)
+			gotMessageCount = 0
+		})
 	}
 }
 
@@ -1136,5 +1176,20 @@ func TestChangeCollectConfig(t *testing.T) {
 	time.Sleep(time.Second * 3)
 	if len(expectGotNodes) != 0 {
 		t.Fatal("not all nodes got")
+	}
+}
+
+func Test_qualityGood(t *testing.T) {
+	var expectGoods = []int16{192, 216, -16129, 4544}
+	var expectBads = []int16{0, 4, 8, 12, 16, 20, 24, 28, 64, 68, 80, 84, 88}
+	for _, g := range expectGoods {
+		if !qualityGood(g) {
+			t.Fatal("expect good", g)
+		}
+	}
+	for _, b := range expectBads {
+		if qualityGood(b) {
+			t.Fatal("expect bad", b)
+		}
 	}
 }

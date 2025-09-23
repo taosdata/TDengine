@@ -8,6 +8,7 @@ use crate::runners::opc::config::collect::da::DaCollectConfig;
 use crate::runners::opc::config::collect::dump::DumpConfig;
 use crate::runners::opc::config::collect::ua::UaCollectConfig;
 use crate::runners::opc::config::OpcType;
+use crate::utils;
 
 pub mod da;
 pub mod dump;
@@ -51,11 +52,13 @@ impl PersistDataConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectConfig {
     pub interval: Option<i64>,
-    pub limit: Option<i64>,
+    pub contains_bad: Option<bool>,
+    pub dump: Option<DumpConfig>,
     pub ua: Option<UaCollectConfig>,
     pub da: Option<DaCollectConfig>,
+
+    pub limit: Option<i64>,
     pub persist_data: Option<PersistDataConfig>,
-    pub dump: Option<DumpConfig>,
 }
 
 impl CollectConfig {
@@ -64,6 +67,7 @@ impl CollectConfig {
         let collect_config = match opc_type {
             OpcType::OPCUA => Self {
                 interval: Self::parse_interval(dsn)?,
+                contains_bad: utils::parse_key_in_dsn(dsn, "contains_bad")?,
                 limit: Self::parse_limit(dsn)?,
                 ua: Some(UaCollectConfig::from_dsn(dsn).await?),
                 da: None,
@@ -72,6 +76,7 @@ impl CollectConfig {
             },
             OpcType::OPCDA => Self {
                 interval: Self::parse_interval(dsn)?,
+                contains_bad: utils::parse_key_in_dsn(dsn, "contains_bad")?,
                 limit: Self::parse_limit(dsn)?,
                 ua: None,
                 da: Some(DaCollectConfig::from_dsn(dsn).await?),
@@ -80,6 +85,7 @@ impl CollectConfig {
             },
             OpcType::FAKE => Self {
                 interval: None,
+                contains_bad: None,
                 limit: None,
                 ua: None,
                 da: None,

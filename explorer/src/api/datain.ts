@@ -261,7 +261,7 @@ export function listParserPlugins() {
 }
 
 // 用模版的方式创建超级表的预览api
-export function getStabelParser(data: Record<string, any>) {
+export function getStableParser(data: Record<string, any>) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     url: `/transform/sample/flat/s_model/preview?tz=${getLocalTimezone()}`,

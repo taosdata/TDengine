@@ -159,6 +159,7 @@ function scrollTo(dom: HTMLElement) {
 
   .image-contains {
     width: 100%;
+    max-width: 200px;
     height: 100%;
     object-fit: contain;
   }

@@ -54,7 +54,7 @@ export function generateConditionString(data: DataItem[], fields: Field[], isTag
       } else {
         if (!item.field || !item.value) return '';
         const connector = index == len - 1 ? '' : ' ' + item.connector;
-        const value = getFieldVlaue(item, fields);
+        const value = getFieldValue(item, fields);
         if (isTag) {
           return `tag_name='${item.field}' and tag_value ${item.operator} ${value} ` + connector;
         } else {
@@ -65,7 +65,7 @@ export function generateConditionString(data: DataItem[], fields: Field[], isTag
     .join(' ')
     .trim();
 }
-export function getFieldVlaue(data: RuleDataItem, fields: Field[]): string | number {
+export function getFieldValue(data: RuleDataItem, fields: Field[]): string | number {
   const { field, value, operator } = data;
   if (!value) return '';
   const valueType = getFieldType(fields.find(item => item.field == field)?.type ?? '');
@@ -129,10 +129,10 @@ export function parseWhereCondition(condition: string): DataItem[] {
   const tokens = tokenize(condition);
   return parseTokens(tokens);
 }
-
+const tokenRegex = /\s*(AND|OR|\(|\)|BETWEEN|AND|CONTAINS|IS NULL|LIKE|NOT LIKE|IN|NOT IN|[^\s()]+)\s*/gi;
 function tokenize(condition: string): string[] {
-  const regex = /\s*(AND|OR|\(|\)|BETWEEN|AND|CONTAINS|IS NULL|LIKE|NOT LIKE|IN|NOT IN|[^\s()]+)\s*/gi;
-  return condition.match(regex)?.map(item => item.trim().replace(/['"]/g, '')) || [];
+  if (!condition) return [];
+  return condition.match(tokenRegex)?.map(item => item.trim().replace(/['"]/g, '')) || [];
 }
 
 function parseTokens(tokens: string[]): DataItem[] {

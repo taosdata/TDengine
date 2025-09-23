@@ -407,9 +407,9 @@ batch_size = 1000
 batch_timeout = 1
 
 [points]
-regex_id = "^(?!.*_Error).+$"
-regex_name = "^(?!.*_Error).+$"
 limit = 0
+regex_name = "^(?!.*_Error).+$"
+regex_id = "^(?!.*_Error).+$"
 
 [points.ua]
 "#

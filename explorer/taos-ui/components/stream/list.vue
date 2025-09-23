@@ -8,7 +8,7 @@
     <el-table class="mt-20px" :data="streamList">
       <el-table-column show-overflow-tooltip :label="t('common.name')" width="200" prop="stream_name"></el-table-column>
       <el-table-column :label="t('date.createTime')" width="240" prop="create_time"> </el-table-column>
-      <el-table-column label="sql" min-width="200" prop="sql" show-overflow-tooltip>
+      <el-table-column label="sql" min-width="150" prop="sql" show-overflow-tooltip>
         <template #default="scope">
           <pre
             :key="scope.row.stream_name"
@@ -30,7 +30,7 @@
       <el-table-column width="100" label="watermark" prop="watermark"></el-table-column>
       <el-table-column width="120" :label="t('stream.trigger')" prop="trigger"></el-table-column>
 
-      <el-table-column :label="t('common.action')" width="80">
+      <el-table-column :label="t('common.action')" width="80" fixed="right">
         <template #default="scope">
           <el-button plain size="small" icon="delete" @click="del(scope.row)"></el-button>
         </template>

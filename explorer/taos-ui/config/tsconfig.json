@@ -9,7 +9,7 @@
     "allowJs": false,
     "rootDir": ".",
     /* Bundler mode */
-    "moduleResolution": "Node",
+    "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": false,
@@ -22,7 +22,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "ignoreDeprecations": "6.0"
   },
   "include": ["**/*"],
   "exclude": ["node_modules", "./dist"]

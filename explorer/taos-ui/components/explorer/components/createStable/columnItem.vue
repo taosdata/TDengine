@@ -14,7 +14,10 @@
           <el-option v-for="item in dataType" :key="item" :value="item"></el-option>
         </el-select>
         <el-input
-          v-if="VariableTableColumnType.includes(currentValue.type) || TwoVariableTableColumnType.includes(currentValue.type)"
+          v-if="
+            VariableTableColumnType.includes(currentValue.type) ||
+            TwoVariableTableColumnType.includes(currentValue.type)
+          "
           v-model="currentValue.length"
           class="custom-length"
           size="default"
@@ -31,7 +34,7 @@
           size="default"
           type="number"
           :min="8"
-          default-value=0
+          default-value="0"
           clearable
           :max="VariableTableColumnTypeMaxLengthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
           @change="processTypeLength2"
@@ -97,7 +100,9 @@
             v-model="currentValue.primaryKey"
             :disabled="isEdit || parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1"
             @change="valueChange"
-            ><el-tooltip effect="light" placement="top" :content="t('common.compositeKeyTooltip')">COMPOSITE KEY</el-tooltip></el-checkbox
+            ><el-tooltip effect="light" placement="top" :content="t('common.compositeKeyTooltip')"
+              >COMPOSITE KEY</el-tooltip
+            ></el-checkbox
           >
         </el-tag>
       </template>
@@ -142,7 +147,12 @@
 </template>
 
 <script lang="ts" setup>
-import { VariableTableColumnType, TDengineDataType, VariableTableColumnTypeMaxLengthMap, TwoVariableTableColumnType } from 'constants1/index';
+import {
+  VariableTableColumnType,
+  TDengineDataType,
+  VariableTableColumnTypeMaxLengthMap,
+  TwoVariableTableColumnType
+} from 'constants1/index';
 import { parmaryKeyType, levelList, getStbEncodeAndCompressListByType } from './utils';
 import { hasOwnProperty } from 'utils/validate';
 import { validTDKeywords } from 'utils/validate';

@@ -57,6 +57,10 @@ export default {
           templateUrl: 'template-en.csv',
           placeholder: 'OPC DA point configuration list.\n',
           required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
           multiple: true,
           editable: true,
           selectable: true,
@@ -260,6 +264,13 @@ export default {
           field: 'collect_options',
           description: 'Configurations for collecting data from OPC',
           children: [
+            {
+              label: 'Contains Bad',
+              description: 'Whether to collect data with Bad Quality. Default is true.',
+              field: 'contains_bad',
+              type: 'switch',
+              defaultValue: true
+            },
             {
               label: 'Collect Interval',
               description: 'Collect data interval in second',

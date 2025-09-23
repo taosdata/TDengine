@@ -43,6 +43,7 @@ export interface CreateStableForm {
   name: string;
   columns: ColumnStruct[];
   tags: TagStruct[];
+  version: string;
 }
 
 export interface CreateVirtualNormalTableProps extends ComponentCommonProps {

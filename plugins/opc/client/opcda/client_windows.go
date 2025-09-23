@@ -40,6 +40,8 @@ type DAClient struct {
 	once       sync.Once
 	dumper     *log.DataDump
 	changeChan chan *changeData
+
+	containsBad bool
 }
 
 type TagInfo struct {
@@ -95,6 +97,7 @@ func (c *DAClient) Collect(collectConfig config.CollectConfig, onMessage client.
 			return err
 		}
 	}
+	c.containsBad = collectConfig.ContainsBad
 	c.tags = tags
 	c.onmessage = onMessage
 	c.interval = time.Duration(interval) * time.Second
@@ -173,6 +176,12 @@ func (c *DAClient) Collect(collectConfig config.CollectConfig, onMessage client.
 	return nil
 }
 
+const qualityMask byte = 0b11000000
+
+func qualityGood(quality int16) bool {
+	return (byte(quality) & qualityMask) == qualityMask
+}
+
 func (c *DAClient) read() {
 	c.logger.Debug("opcda start to read")
 	startRead := time.Now()
@@ -197,6 +206,10 @@ func (c *DAClient) read() {
 				continue
 			}
 			info.valueType = vt
+		}
+		if !c.containsBad && !qualityGood(item.Quality) {
+			c.logger.Logger.WithField("tag", tag).WithField("quality", item.Quality).WithField("value", item.Value).Warn("opcda tag quality is bad, skip")
+			continue
 		}
 		v := &common.NodeValue{
 			IDStr:      tag,

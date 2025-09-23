@@ -140,7 +140,7 @@ export default {
               type: 'file',
               accept: '.csv'
             }
-          ],
+          ]
         },
         {
           label: '多列模式',

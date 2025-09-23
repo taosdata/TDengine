@@ -84,7 +84,7 @@
         v-model="localData[field]"
         :disabled="isFieldDisabled()"
         :placeholder="config.placeholder"
-        @change="changeSwith"
+        @change="changeSwitch"
       ></el-switch>
       <component
         :is="currentDatePicker"
@@ -171,7 +171,7 @@ import Bucket from './bucket.vue';
 import InputWithSelect from './inputWithSelect.vue';
 import InputNumberWithSelect from './inputNumberWithSelect.vue';
 import Namespace from './namespace.vue';
-import UTCDateTimePicker from 'components/UTCDateTimePicker';
+import UTCDateTimePicker from 'components/UTCDateTimePicker.vue';
 import TimezoneDatePicker from 'components/datePicker/index';
 import { project } from 'config';
 import { t } from 'locales';
@@ -416,7 +416,7 @@ watch(
   },
   { deep: true }
 );
-function changeSwith() {
+function changeSwitch() {
   if (props.config.field === 'use_csv_config') {
     emit('csv-enable', props.data[field.value]);
   }

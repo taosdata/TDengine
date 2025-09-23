@@ -585,15 +585,16 @@ class Node {
     }
   }
   // 用于分页加载数据
-  loadPageData() {
+  loadPageData(callback?: AnyFunction) {
     if (this.store.lazy && this.store.load && this.pagination) {
       this.loading = true;
       this.store.load(this, children => {
-        if (!children) return;
+        if (!children) return callback?.();
         this.childNodes = [];
         this.loading = false;
         this.doCreateChildren(children);
         this.updateLeafState();
+        callback?.();
       });
     }
   }
@@ -637,8 +638,8 @@ class Node {
   }
 
   getRootIDPath(): number {
-    if (!this.parent?.data?.id) {
-      return this.data?.id ? this.data.id : null;
+    if (!this.parent || this.parent?.level == 1) {
+      return this.data?.id;
     } else {
       return this.parent.getRootIDPath();
     }

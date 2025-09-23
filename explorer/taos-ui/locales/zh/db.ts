@@ -2,7 +2,7 @@ export default {
   edit: '编辑数据库',
   create: '创建数据库',
   nameExisted: '数据库名称“{0}”已存在',
-  backslashTip: '如果要创建区分大小写的数据库名称，请在名称前后添加 `。例如，`testDB`。',
+  backslashTip: '数据库名称是大小写敏感的，比如，testDB 和 testdb 是两个不同的数据库名称',
   replica: '副本数',
   bufferTip: '一个 VNODE 写入内存池大小，单位为 MB，默认为 32，最小为 3，最大为 16384。',
   cacheModelTip: `表示是否在内存中缓存子表的最近数据。默认为 none。<ul><li>none：表示不缓存。</li><li>last_row：表示缓存子表最近一行数据。这将显著改善 LAST_ROW 函数的性能表现。</li><li>last_value：表示缓存子表每一列的最近的非 NULL 值。这将显著改善无特殊影响（WHERE、ORDER BY、GROUP BY、INTERVAL）下的 LAST 函数的性能表现。</li><li>both：表示同时打开缓存最近行和列功能。</li></ul>`,
@@ -20,7 +20,7 @@ export default {
     '一个 VNODE 中元数据存储引擎的缓存页个数，默认为 256，最小 64。一个 VNODE 元数据存储占用 PAGESIZE * PAGES，默认情况下为 1MB 内存。',
   pageSizeTip: '一个 VNODE 中元数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB 到 16 MB。',
   precisionTip: '数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒。',
-  replicaTip: '表示数据库副本数，取值为 1 或 3，默认为 {0}。在集群中使用，副本数必须小于或等于 DNODE 的数目。',
+  replicaTip: '表示数据库副本数，取值为 1、2 或 3，默认为 {0}。在集群中使用，副本数必须小于或等于 DNODE 的数目。',
   retentionsTip:
     '表示数据的聚合周期和保存时长，如 RETENTIONS 15s:7d,1m:21d,15m:50d 表示数据原始采集周期为 15 秒，原始数据保存 7 天；按 1 分钟聚合的数据保存 21 天；按 15 分钟聚合的数据保存 50 天。目前支持且只支持三级存储周期。',
   strictTip: `表示数据同步的一致性要求，默认为 off。<ul><li>on 表示强一致，即运行标准的 raft 协议，半数提交返回成功。</li><li>off 表示弱一致，本地提交即返回成功。</li></ul>`,

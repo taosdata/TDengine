@@ -40,15 +40,7 @@
 <script lang="ts" setup>
 import Result from './result.vue';
 import { getSubtbCurrentStruct, getStableStructReq } from '../api';
-import {
-  NumericFn,
-  TimeSeriesFn,
-  StringFn,
-  AggregationFn,
-  SelectorFn,
-  StreamSupportFnMap,
-  TDFnType
-} from 'constants1';
+import { NumericFn, TimeSeriesFn, StringFn, AggregationFn, SelectorFn, StreamSupportFnMap, TDFnType } from 'constants1';
 import { isArray } from 'utils/validate';
 import { composeType, getFieldType } from 'utils/tdengine';
 import { CheckboxValueType } from 'element-plus';
@@ -94,7 +86,7 @@ const fnMap = computed(() => {
     NUMBER,
     STRING,
     AVGFN,
-    GENERALAVG: []
+    COMMON_AVGFN: AVGFN.filter(item => !item.applicableDataTypes || item.label != 'HYPERLOGLOG')
   };
 });
 const emits = defineEmits(['update:modelValue', 'update:columns', 'update:tags']);
@@ -145,8 +137,8 @@ function getData() {
         result.push({
           field: '*',
           name: '*',
-          result: handleFnParamsFiled(fnMap.value.GENERALAVG),
-          fnList: fnMap.value.GENERALAVG,
+          result: handleFnParamsFiled(fnMap.value.COMMON_AVGFN),
+          fnList: fnMap.value.COMMON_AVGFN,
           checked: true
         });
       }

@@ -1,6 +1,7 @@
 import streamSaver from 'streamsaver';
 import { connect, TaosResult } from '@tdengine/websocket';
 import { json2csv } from 'json-2-csv';
+import { project } from 'config';
 import FileSaver from 'file-saver';
 
 declare global {
@@ -17,7 +18,7 @@ export function convertData(rows: Recordable[]) {
     const row = rows[i];
     for (let j = 0; j < row.length; ++j) {
       if (typeof row[j] === 'bigint') {
-        row[j] = Number(row[j]);
+        row[j] = row[j].toString();
       }
     }
   }
@@ -43,7 +44,11 @@ function getFileName() {
 export async function wsExport(gatewayURL: string, token: string, sql: string, withHeaders: boolean) {
   const fileStream = streamSaver.createWriteStream(getFileName());
   const writer = fileStream.getWriter();
-  const dsn = gatewayURL.replace('http', 'ws') + '/rest/ws?token=' + token;
+  const dsn =
+    gatewayURL.replace('http', 'ws') +
+    '/rest/ws?token=' +
+    token +
+    (project.isCloud && project.isAliyun ? '&tz=Asia/Shanghai' : '');
   const ws = connect(dsn);
   let wsQueryResponse, result, wsInterface;
   try {

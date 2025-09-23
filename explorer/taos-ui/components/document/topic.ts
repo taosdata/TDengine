@@ -15,6 +15,18 @@ export default [
     ]
   },
   {
+    name: 'Node.js',
+    docs: mdx.topicNodeDoc,
+    steps: [
+      { title: t('topic.node.step1'), dom: 'install-module' },
+      { title: t('topic.step2'), dom: 'config' },
+      { title: t('topic.step3'), dom: 'create-consumer' },
+      { title: t('topic.step4'), dom: 'subscribe-consume' },
+      { title: t('topic.step5'), dom: 'close-consumer' },
+      { title: t('topic.step6'), dom: 'fullexample' }
+    ]
+  },
+  {
     name: 'Go',
     docs: mdx.topicGoDoc,
     steps: [
@@ -29,6 +41,18 @@ export default [
   {
     name: 'Rust',
     docs: mdx.topicRustDoc,
+    steps: [
+      { title: t('topic.createProject'), dom: 'create-project' },
+      { title: t('topic.step2'), dom: 'config' },
+      { title: t('topic.step3'), dom: 'create-consumer' },
+      { title: t('topic.step4'), dom: 'subscribe-consume' },
+      { title: t('topic.step5'), dom: 'close-consumer' },
+      { title: t('topic.step6'), dom: 'fullexample' }
+    ]
+  },
+  {
+    name: 'C#',
+    docs: mdx.topicCsharpDoc,
     steps: [
       { title: t('topic.createProject'), dom: 'create-project' },
       { title: t('topic.step2'), dom: 'config' },

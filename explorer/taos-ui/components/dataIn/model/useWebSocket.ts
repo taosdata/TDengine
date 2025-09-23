@@ -14,7 +14,7 @@ export class WebSocketManager {
 
   public status = ref<string>('CLOSED');
 
-  private constructor() { }
+  private constructor() {}
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {

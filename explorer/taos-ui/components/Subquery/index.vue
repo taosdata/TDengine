@@ -54,8 +54,20 @@
           <SqlCondition v-model="formData.conditionJson" top :fields="allFields" parent-field="conditionJson." />
         </el-form-item>
       </template>
-      <el-form-item v-if="parttion && level == 1" prop="parttionSet" :label="t('stream.parttionSet')">
-        <el-select v-model="formData.parttionSet" class="w-full" placeholder="" :disabled="!formData.stbName">
+      <el-form-item
+        v-if="parttion && level == 1"
+        prop="parttionSet"
+        :label="t('stream.parttionSet')"
+        :required="formData.window_type == 'STATE'"
+      >
+        <el-select
+          v-model="formData.parttionSet"
+          multiple
+          class="w-full"
+          placeholder=""
+          :disabled="!formData.stbName"
+          @change="parttionChange"
+        >
           <el-option v-for="item in partitionList" :key="item.field" :value="item.field"></el-option>
         </el-select>
       </el-form-item>
@@ -71,8 +83,8 @@ import { isArray } from 'utils/validate';
 import WindowClause from './windowClause.vue';
 import { generateConditionString, Field } from '../SqlCondition/utils';
 import { t } from 'locales';
-import { ElMessage } from 'element-plus';
-import SqlCondition from '../SqlCondition/condition.vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import SqlCondition from '../SqlCondition/index.vue';
 import { SubqueryValue } from './type';
 import { TDFnType } from 'constants1';
 
@@ -124,20 +136,16 @@ const rules = {
   tbName: [{ required: true, message: t('common.requiredTemp', [t('stb.table')]), trigger: 'change' }]
 };
 const partitionList = computed(() => {
-  if (props.modelValue.window_type == 'INTERVAL') {
+  if (props.level == 1) {
     return tags.value.concat([
       {
         field: 'tbname',
         type: 'STRING'
       }
     ]);
+  } else {
+    return tags.value;
   }
-  return [
-    {
-      field: 'tbname',
-      type: 'STRING'
-    }
-  ];
 });
 const formData = computed({
   get() {
@@ -156,6 +164,17 @@ watch(params, () => {
   formData.value.conditionJson = [];
 });
 
+watch(
+  () => props.level,
+  () => {
+    if (props.level == 1) {
+      formData.value.parttionSet = ['tbname'];
+    } else {
+      formData.value.parttionSet = [];
+    }
+  }
+);
+
 getDBList();
 function getDBList() {
   getDbList().then(data => {
@@ -167,6 +186,14 @@ function dbChange(val: string) {
   formData.value.stbName = '';
   formData.value.tbName = '';
   emits('db-change', val);
+}
+function parttionChange(val: string[]) {
+  if (formData.value.window_type == 'STATE') {
+    if (!val.includes('tbname')) {
+      formData.value.parttionSet = ['tbname', ...val];
+      ElMessageBox.alert(t('stream.partitionByTip', t('status.warning')));
+    }
+  }
 }
 function focus(type: number) {
   if (type == 0) {
@@ -246,10 +273,10 @@ function generateSql() {
         }
       }
       resultSet.push(`${result.fn}(${otherParmas})`);
-    } else {
-      if (!props.avgFn) {
-        resultSet.push(item.field);
-      }
+    } else if (!props.avgFn) {
+      resultSet.push(item.field);
+    } else if (tags.value.find(tag => tag.field === item.name)) {
+      resultSet.push(`${item.field}`);
     }
   });
   const name = props.level == 1 ? props.modelValue.stbName : props.modelValue.tbName;

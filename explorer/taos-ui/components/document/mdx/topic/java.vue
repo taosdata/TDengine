@@ -19,7 +19,7 @@
 <dependency>
     <groupId>com.taosdata.jdbc</groupId>
     <artifactId>taos-jdbcdriver</artifactId>
-    <version>3.2.7</version>
+    <version>3.6.3</version>
 </dependency>`
       "
     ><code class="language-xml">

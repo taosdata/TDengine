@@ -155,7 +155,7 @@ export default {
     </ul>
     `,
     vgroupsTip:
-      "vgroup 的数量，一般来说更多的 vgroup 意味着更多的处理能力，前提是系统中有足够的资源，默认值是2。",
+      "vgroup 的数量，一般来说更多的 vgroup 意味着更多的处理能力，前提是系统中有足够的资源，默认值是4。",
     singleStableTip: `数据库中是否只允许创建单个超级表。
     <ul>
     <li> 0 - 可以创建多个超级表。</li>
@@ -229,7 +229,7 @@ export default {
     specialParameters: "特殊参数",
     modifyColumn: "修改列宽",
     renameColumn: "修改列名",
-    backslashTip: '如果要创建区分大小写的数据库名称，请在名称前后添加 `。例如，`testDB`。',
+    backslashTip: '数据库名称是大小写敏感的，比如，testDB 和 testdb 是两个不同的数据库名称',
   },
   explorer: {
     databases: "数据库",

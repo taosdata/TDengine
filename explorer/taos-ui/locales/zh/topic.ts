@@ -5,6 +5,9 @@ export default {
     step1desc: '首先您需要安装 `taos-ws-py` 模块，版本需要大于 `0.2.1` 。在您的终端执行下面的命令。',
     step1desc1: '您需要先安装 `Python3`。'
   },
+  node: {
+    step1: '安装连接器'
+  },
   go: { step1: '初始化', step1desc: '您按照下面命令可以生成 Go 示例模块并加上 `driver-go` 依赖：' },
   createProject: '创建项目',
   step1desc: '您按照下面命令可以创建 {0} 项目：',

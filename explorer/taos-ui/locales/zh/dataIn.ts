@@ -595,5 +595,6 @@ export default {
     sink_errorDesc: '写入端错误导致无法进行写入。',
     fatal: 'Fatal',
     fatalDesc: '无法恢复的错误，此时数据写入任务将退出。'
-  }
+  },
+  version: '数据写入版本：'
 };
