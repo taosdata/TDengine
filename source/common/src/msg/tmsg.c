@@ -6514,23 +6514,6 @@ _exit:
   return code;
 }
 
-typedef struct {
-  char        db[TSDB_DB_FNAME_LEN];
-  int32_t     maxSpeed;
-  int32_t     sqlLen;
-  char*       sql;
-  SArray*     vgroupIds;
-  STimeWindow tw;
-  union {
-    uint32_t flags;
-    struct {
-      uint32_t optrType : 3;     // EOptrType
-      uint32_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
-      uint32_t reserved : 28;
-    };
-  };
-} STrimDbReq;
-
 int32_t tSerializeSTrimDbReq(void *buf, int32_t bufLen, STrimDbReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

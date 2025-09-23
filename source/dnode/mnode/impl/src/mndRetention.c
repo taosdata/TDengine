@@ -29,17 +29,25 @@
 
 #define MND_RETENTION_VER_NUMBER 1
 
-static int32_t mndProcessRetentionTimer(SRpcMsg *pReq);
+static int32_t mndProcessTrimTimer(SRpcMsg *pReq);
 static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
+
+/**
+ * @brief mndInitRetention
+ *  init retention module.
+ *  - trim is equivalent to retention
+ * @param pMnode
+ * @return
+ */
 
 int32_t mndInitRetention(SMnode *pMnode) { 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndRetrieveRetention);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndCancelRetrieveRetention);
-  mndSetMsgHandle(pMnode, TDMT_MND_KILL_RETENTION, mndProcessKillRetentionReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_RETENTION_PROGRESS_RSP, mndProcessQueryRetentionRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_TIMER, mndProcessRetentionTimer);
-  mndSetMsgHandle(pMnode, TDMT_VND_KILL_RETENTION_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRIM, mndProcessKillTrimReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_TRIM_PROGRESS_RSP, mndProcessQueryTrimRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB_TIMER, mndProcessTrimTimer);
+  mndSetMsgHandle(pMnode, TDMT_VND_KILL_TRIM_RSP, mndTransProcessRsp);
 
   SSdbTable table = {
       .sdbType = SDB_RETENTION,
@@ -248,7 +256,7 @@ static int32_t mndAddKillRetentionAction(SMnode *pMnode, STrans *pTrans, SVgObj 
 
   action.pCont = pReq;
   action.contLen = contLen;
-  action.msgType = TDMT_VND_KILL_RETENTION;
+  action.msgType = TDMT_VND_KILL_TRIM;
 
   mTrace("trans:%d, kill retention msg len:%d", pTrans->id, contLen);
 
@@ -342,7 +350,7 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
   return 0;
 }
 
-int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
+int32_t mndProcessKillTrimReq(SRpcMsg *pReq) {
   int32_t           code = 0;
   int32_t           lino = 0;
   SKillRetentionReq req = {0};
@@ -413,7 +421,7 @@ static int32_t mndUpdateRetentionProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t
   return TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST;
 }
 
-int32_t mndProcessQueryRetentionRsp(SRpcMsg *pReq) {
+int32_t mndProcessQueryTrimRsp(SRpcMsg *pReq) {
   int32_t                  code = 0;
   SQueryRetentionProgressRsp req = {0};
   if (pReq->code != 0) {
@@ -489,13 +497,13 @@ void mndRetentionSendProgressReq(SMnode *pMnode, SRetentionObj *pObj) {
         continue;
       }
 
-      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_RETENTION_PROGRESS, .contLen = contLen};
+      SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_TRIM_PROGRESS, .contLen = contLen};
 
       rpcMsg.pCont = pHead;
 
       char    detail[1024] = {0};
       int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
-                              TMSG_INFO(TDMT_VND_QUERY_RETENTION_PROGRESS), epSet.numOfEps, epSet.inUse);
+                              TMSG_INFO(TDMT_VND_QUERY_TRIM_PROGRESS), epSet.numOfEps, epSet.inUse);
       for (int32_t i = 0; i < epSet.numOfEps; ++i) {
         len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
       }
@@ -742,9 +750,9 @@ static void mndRetentionPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
-static int32_t mndProcessRetentionTimer(SRpcMsg *pReq) {
+static int32_t mndProcessTrimTimer(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
-  mTrace("start to process compact timer");
+  mTrace("start to process trim timer");
   mndRetentionPullup(pReq->info.node);
 #endif
   return 0;

@@ -1119,7 +1119,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
 
-    case TDMT_VND_QUERY_RETENTION_PROGRESS:
+    case TDMT_VND_QUERY_TRIM_PROGRESS:
       return vnodeQueryRetentionProgress(pVnode, pMsg);
 
     case TDMT_VND_LIST_SSMIGRATE_FILESETS:

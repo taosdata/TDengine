@@ -2643,7 +2643,7 @@ typedef struct {
 
 int32_t tSerializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
 int32_t tDeserializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
-void    tFreeSTrimDbReq(SCompactDbReq* pReq);
+void    tFreeSTrimDbReq(STrimDbReq* pReq);
 
 typedef SCompactVnodeReq SVTrimDbReq;  // reuse SCompactVnodeReq, add task monitor since 3.3.8.0
 
