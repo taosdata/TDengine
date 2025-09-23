@@ -3931,7 +3931,7 @@ int32_t mndBuildTrimVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
   action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
   int32_t contLen = 0;
-  // SVTrimDbReq is equivalent to SCompactVnodeReq
+  // reuse SCompactVnodeReq as SVTrimDbReq
   void *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, startTs, tw, false, type, triggerType);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -3941,7 +3941,7 @@ int32_t mndBuildTrimVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
 
   action.pCont = pReq;
   action.contLen = contLen;
-  action.msgType = TDMT_VND_COMPACT;
+  action.msgType = TDMT_VND_TRIM;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);

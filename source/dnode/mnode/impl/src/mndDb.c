@@ -20,6 +20,7 @@
 #include "mndArbGroup.h"
 #include "mndCluster.h"
 #include "mndCompact.h"
+#include "mndCompactDetail.h"
 #include "mndConfig.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
@@ -2192,8 +2193,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
-                                       STrimDbRsp *pRsp) {
+static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t startTs, STimeWindow tw, SArray *vgroupIds,
+                                      EOptrType type, ETriggerType triggerType, STrimDbRsp *pRsp) {
   int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -2223,14 +2224,14 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
       int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
       SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
 
-      if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly)) != 0) {
+      if ((code = mndBuildTrimVgroupAction(pMnode, pTrans, pDb, pVgroup, startTs, tw, type, triggerType)) != 0) {
         sdbRelease(pSdb, pVgroup);
         TAOS_RETURN(code);
       }
 
       for (int32_t i = 0; i < pVgroup->replica; i++) {
         SVnodeGid *gid = &pVgroup->vnodeGid[i];
-        if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, j)) != 0) {
+        if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &obj, pVgroup, gid, j)) != 0) {
           sdbRelease(pSdb, pVgroup);
           TAOS_RETURN(code);
         }
@@ -2245,7 +2246,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
       if (pIter == NULL) break;
 
       if (pVgroup->dbUid == pDb->uid) {
-        if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly)) != 0) {
+        if ((code = mndBuildTrimVgroupAction(pMnode, pTrans, pDb, pVgroup, startTs, tw, type, triggerType)) != 0) {
           sdbCancelFetch(pSdb, pIter);
           sdbRelease(pSdb, pVgroup);
           TAOS_RETURN(code);
@@ -2253,7 +2254,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
 
         for (int32_t i = 0; i < pVgroup->replica; i++) {
           SVnodeGid *gid = &pVgroup->vnodeGid[i];
-          if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &compact, pVgroup, gid, j)) != 0) {
+          if ((code = mndAddCompactDetailToTran(pMnode, pTrans, &obj, pVgroup, gid, j)) != 0) {
             sdbCancelFetch(pSdb, pIter);
             sdbRelease(pSdb, pVgroup);
             TAOS_RETURN(code);
@@ -2269,23 +2270,27 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SArray *vgroupIds) {
-  SSdb       *pSdb = pMnode->pSdb;
-  SVgObj     *pVgroup = NULL;
-  void       *pIter = NULL;
-  int32_t     code = 0, lino = 0;
+static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds, EOptrType type,
+                         ETriggerType triggerType) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+  int32_t code = 0, lino = 0;
   STrimDbRsp  rsp = {0};
-  SVTrimDbReq trimReq = {.dbUid = pDb->uid, .startTime = taosGetTimestampMs()};
-  trimReq.tw.skey = INT64_MIN;
-  trimReq.tw.ekey = trimReq.compactStartTime;
-  trimReq.id = 0;  // TODO: use the real value
-  trimReq.triggerType = TSDB_TRIGGER_MANUAL;
-  int32_t reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
-  int32_t contLen = reqLen + sizeof(SMsgHead);
+  // SVTrimDbReq trimReq = {.dbUid = pDb->uid, .startTime = taosGetTimestampMs()};
+  // trimReq.tw.skey = INT64_MIN;
+  // trimReq.tw.ekey = trimReq.compactStartTime;
+  // trimReq.id = 0;  // TODO: use the real value
+  // trimReq.triggerType = TSDB_TRIGGER_MANUAL;
+  // int32_t reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
+  // int32_t contLen = reqLen + sizeof(SMsgHead);
+  int64_t startTs = taosGetTimestampMs();
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "trim-db");
   if (pTrans == NULL) goto _exit;
-
-  mndSetTrimDbRedoActions(pMnode, pTrans, pDb);
+  mInfo("trans:%d, used to trim db:%s", pTrans->id, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
+  TAOS_CHECK_EXIT(mndTrancCheckConflict(pMnode, pTrans));
+  TAOS_CHECK_EXIT(mndSetTrimDbRedoActions(pMnode, pTrans, pDb, startTs, tw, vgroupIds, type, triggerType, &rsp));
 _exit:
   return 0;
 }
@@ -2315,7 +2320,7 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndTrimDb(pMnode, pReq, pDb, trimReq.vgroupIds);
+  code = mndTrimDb(pMnode, pReq, pDb, trimReq.tw, trimReq.vgroupIds, trimReq.optrType, trimReq.triggerType);
 
   SName name = {0};
   (void)tNameFromString(&name, trimReq.db, T_NAME_ACCT | T_NAME_DB);

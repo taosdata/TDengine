@@ -353,13 +353,13 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
 int32_t mndProcessKillTrimReq(SRpcMsg *pReq) {
   int32_t           code = 0;
   int32_t           lino = 0;
-  SKillRetentionReq req = {0};
+  SKillTrimReq req = {0};
 
   if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &req)) != 0) {
     TAOS_RETURN(code);
   }
 
-  mInfo("start to kill retention:%" PRId32, req.id);
+  mInfo("start to kill trim:%" PRId32, req.id);
 
   SMnode        *pMnode = pReq->info.node;
   SRetentionObj *pObj = mndAcquireCompact(pMnode, req.id);
@@ -378,16 +378,16 @@ int32_t mndProcessKillTrimReq(SRpcMsg *pReq) {
   char    obj[TSDB_INT32_ID_LEN] = {0};
   int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pObj->id);
   if ((uint32_t)nBytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "killRetention", pObj->dbname, obj, req.sql, req.sqlLen);
+    auditRecord(pReq, pMnode->clusterId, "killTrim", pObj->dbname, obj, req.sql, req.sqlLen);
   } else {
-    mError("retention:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    mError("trim:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to kill compact %" PRId32 " since %s", req.id, terrstr());
+    mError("failed to kill trim %" PRId32 " since %s", req.id, terrstr());
   }
 
-  tFreeSKillCompactReq(&req);
+  tFreeSKillCompactReq((SKillCompactReq *)&req);
   mndReleaseRetention(pMnode, pObj);
 
   TAOS_RETURN(code);
