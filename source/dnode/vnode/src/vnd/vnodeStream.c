@@ -2064,6 +2064,7 @@ static int32_t processTs(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTrigge
   }
 
 end:
+  STREAM_PRINT_LOG_END_WITHID(code, lino);
   return code;
 }
 
