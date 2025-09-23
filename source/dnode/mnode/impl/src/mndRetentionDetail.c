@@ -39,73 +39,47 @@ int32_t mndInitRetentionDetail(SMnode *pMnode) {
 void mndCleanupRetentionDetail(SMnode *pMnode) { mDebug("mnd retention detail cleanup"); }
 
 int32_t mndRetrieveRetentionDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode            *pMnode = pReq->info.node;
-  SSdb              *pSdb = pMnode->pSdb;
-  int32_t            numOfRows = 0;
+  SMnode              *pMnode = pReq->info.node;
+  SSdb                *pSdb = pMnode->pSdb;
+  int32_t              numOfRows = 0;
+  int32_t              code = 0, lino = 0;
   SRetentionDetailObj *pDetail = NULL;
-  char              *sep = NULL;
-  SDbObj            *pDb = NULL;
-
-  mInfo("retrieve compact detail");
-
-  if (strlen(pShow->db) > 0) {
-    sep = strchr(pShow->db, '.');
-    if (sep &&
-        ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
-      sep++;
-    } else {
-      pDb = mndAcquireDb(pMnode, pShow->db);
-      if (pDb == NULL) return terrno;
-    }
-  }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_RETENTION_DETAIL, pShow->pIter, (void **)&pDetail);
     if (pShow->pIter == NULL) break;
 
-    SColumnInfoData *pColInfo;
-    SName            n;
+    SColumnInfoData *pColInfo = NULL;
     int32_t          cols = 0;
 
-    char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDetail->id, false, pDetail, pShow->pIter, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->id, false),
-                                   pSdb, pDetail);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDetail->vgId, false, pDetail, pShow->pIter, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->vgId, false), pSdb,
-                                   pDetail);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDetail->dnodeId, false, pDetail, pShow->pIter, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->dnodeId, false),
-                                   pSdb, pDetail);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDetail->numberFileset, false, pDetail, pShow->pIter, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->numberFileset, false), pSdb, pDetail);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDetail->finished, false, pDetail, pShow->pIter, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->finished, false),
-                                   pSdb, pDetail);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDetail->startTime, false, pDetail, pShow->pIter, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->startTime, false),
-                                   pSdb, pDetail);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDetail->progress, false, pDetail, pShow->pIter, _exit);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->progress, false),
-                                   pSdb, pDetail);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    TAOS_CHECK_RETURN_WITH_RELEASE(
-        colDataSetVal(pColInfo, numOfRows, (const char *)&pDetail->remainingTime, false), pSdb, pDetail);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDetail->remainingTime, false, pDetail, pShow->pIter, _exit);
 
     numOfRows++;
     sdbRelease(pSdb, pDetail);
   }
-
+_exit:
   pShow->numOfRows += numOfRows;
-  mndReleaseDb(pMnode, pDb);
   return numOfRows;
 }

@@ -264,8 +264,7 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   SRetentionObj *pObj = NULL;
   char          *sep = NULL;
   SDbObj        *pDb = NULL;
-  int32_t        code = 0;
-  int32_t        lino = 0;
+  int32_t        code = 0, lino = 0;
   char           tmpBuf[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
   if (strlen(pShow->db) > 0) {

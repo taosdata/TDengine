@@ -786,7 +786,6 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
-    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -824,6 +823,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowCompactDetailsStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
+      code = makeNode(type, sizeof(SShowRetentionDetailsStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowScanDetailsStmt), &pNode);

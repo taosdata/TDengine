@@ -21569,7 +21569,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       code = rewriteShowCompactDetailsStmt(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
-      code = rewriteShowScanDetailsStmt(pCxt, pQuery);
+      code = rewriteShowRetentionDetailsStmt(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
       code = rewriteShowScanDetailsStmt(pCxt, pQuery);
