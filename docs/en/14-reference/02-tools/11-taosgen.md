@@ -151,6 +151,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
     - concurrency (int): Number of threads for data generation, default: same as write threads.
     - per_table_rows (int): Number of rows to write per table, default: 10000, -1 means unlimited.
     - per_batch_rows (int): Maximum number of rows per batch request, default: 10000.
+    - tables_reuse_data (bool): Whether multiple tables reuse the same data, default is false.
 
 ##### Column Configuration Attributes
 Each column includes:
