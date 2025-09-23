@@ -59,6 +59,7 @@ extern "C" {
 #define TSDB_INS_TABLE_VIEWS             "ins_views"
 #define TSDB_INS_TABLE_COMPACTS          "ins_compacts"
 #define TSDB_INS_TABLE_COMPACT_DETAILS   "ins_compact_details"
+#define TSDB_INS_TABLE_SSMIGRATES        "ins_ssmigrates"
 #define TSDB_INS_TABLE_GRANTS_FULL       "ins_grants_full"
 #define TSDB_INS_TABLE_GRANTS_LOGS       "ins_grants_logs"
 #define TSDB_INS_TABLE_MACHINES          "ins_machines"
@@ -68,6 +69,8 @@ extern "C" {
 #define TSDB_INS_TABLE_FILESETS          "ins_filesets"
 #define TSDB_INS_TABLE_TRANSACTION_DETAILS   "ins_transaction_details"
 #define TSDB_INS_TABLE_MOUNTS            "ins_mounts"
+#define TSDB_INS_TABLE_SCANS                 "ins_scans"
+#define TSDB_INS_TABLE_SCAN_DETAILS          "ins_scan_details"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB   "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS        "perf_smas"

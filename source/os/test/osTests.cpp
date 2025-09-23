@@ -201,7 +201,7 @@ TEST(osTest, sysinfo) {
   EXPECT_NE(ret32, 0);
   ret32 = taosGetProcMemory(NULL);
   EXPECT_NE(ret32, 0);
-  ret32 = taosGetSysMemory(NULL);
+  ret32 = taosGetSysMemory(NULL, NULL, NULL);
   EXPECT_NE(ret32, 0);
 
   ret32 = taosGetDiskSize(buf, NULL);

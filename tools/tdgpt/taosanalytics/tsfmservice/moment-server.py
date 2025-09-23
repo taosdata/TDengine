@@ -121,14 +121,18 @@ def padding_data_list(df, val, n_rows, mask, freq):
     last_time = df.index[-1]
 
     delta = None
-    if freq == 'H':
+    if freq == 'D':
+        delta = timedelta(days=1)
+    elif freq == 'H':
         delta = timedelta(hours=1)
-    elif freq == 's':
-        delta = timedelta(seconds=1)
     elif freq == 'T':
         delta = timedelta(minutes=1)
-    elif freq == 'D':
-        delta = timedelta(days=1)
+    elif freq == 'S':
+        delta = timedelta(seconds=1)
+    elif freq == 'L':
+        delta = timedelta(milliseconds=1)
+    elif freq == 'U':
+        delta = timedelta(microseconds=1)
     else:
         raise ValueError(f"Unsupported frequency: {freq}")
 
@@ -276,9 +280,9 @@ def merge_imputation_res(input_data, res_data_list, res_mask_list):
 
 def convert_ts(ts_list, precision):
     if precision == 'ms':
-        ts_list = ts_list.astype('int64') // 10e6
+        ts_list = ts_list.astype('int64') // 10e5
     elif precision == 'us':
-        ts_list = ts_list.astype('int64') // 10e3
+        ts_list = ts_list.astype('int64') // 10e2
     elif precision == 'ns':
         ts_list = ts_list
     else:

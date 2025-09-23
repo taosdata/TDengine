@@ -489,7 +489,8 @@ void resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step) {
   }
 }
 
-void clearBlockScanInfo(STableBlockScanInfo* p) {
+// keep the lastProcKey/sttRange/nextProcKey info
+void clearBlockScanInfoLoadInfo(STableBlockScanInfo* p) {
   if (p == NULL) {
     return;
   }
@@ -517,6 +518,14 @@ void clearBlockScanInfo(STableBlockScanInfo* p) {
   p->pMemDelData = NULL;
   taosArrayDestroy(p->pFileDelData);
   p->pFileDelData = NULL;
+}
+
+void clearBlockScanInfo(STableBlockScanInfo* p) {
+  if (p == NULL) {
+    return;
+  }
+
+  clearBlockScanInfoLoadInfo(p);
 
   clearRowKey(&p->lastProcKey);
   clearRowKey(&p->sttRange.skey);

@@ -5,7 +5,7 @@ title: TDengine Flink Connector
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import FlinkCommonInfo from './flink/_flink-common-info.mdx'
+import FlinkCommonInfo from '../../assets/resources/_flink-common-info.mdx'
 
 Apache Flink is an open-source distributed stream batch integrated processing framework supported by the Apache Software Foundation, which can be used for many big data processing scenarios such as stream processing, batch processing, complex event processing, real-time data warehouse construction, and providing real-time data support for machine learning. At the same time, Flink has a wealth of connectors and various tools that can interface with numerous different types of data sources to achieve data reading and writing. In the process of data processing, Flink also provides a series of reliable fault-tolerant mechanisms, effectively ensuring that tasks can run stably and continuously even in the event of unexpected situations.
 

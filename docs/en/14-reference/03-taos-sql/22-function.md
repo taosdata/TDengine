@@ -786,6 +786,22 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ... )
 
 **Applicable to**: Tables and supertables.
 
+#### FIND_IN_SET
+
+```sql
+FIND_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then return the index of `expr1` in the list, return 0 if not exist.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
 #### LENGTH
 
 ```sql
@@ -797,6 +813,22 @@ LENGTH(expr)
 **Return Result Type**: BIGINT.
 
 **Applicable Data Types**: VARCHAR, NCHAR, VARBINARY.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+#### LIKE_IN_SET
+
+```sql
+LIKE_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then match `expr1` with the items using the semantics of the `LIKE` operator, return the index of the first matched item, return 0 if there's no match.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -829,6 +861,22 @@ LTRIM(expr)
 **Return Result Type**: Same as the original type of the input field.
 
 **Applicable Data Types**: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+#### REGEXP_IN_SET
+
+```sql
+REGEXP_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then using `expr1` as a regular expression to match the items, return the index of the first matched item, return 0 if there's no match.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -2081,6 +2129,7 @@ PERCENTILE(expr, p [, p1] ... )
 
 **Usage Instructions**:
 
+- The PERCENTILE function is not applicable to virtual table.
 - *P* values range from 0≤*P*≤100, where P=0 is equivalent to MIN and P=100 is equivalent to MAX;
 - When calculating multiple percentiles for the same column, it is recommended to use one PERCENTILE function with multiple parameters to significantly reduce the response time of the query.
   For example, using the query SELECT percentile(col, 90, 95, 99) FROM table performs better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.

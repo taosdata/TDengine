@@ -129,7 +129,7 @@ Reuse the example content from the [Configure Table Mapping](#configure-table-ma
 
    ```sparql
     PREFIX ns: <http://example.org/ns#>
-
+   
     SELECT ?ts ?voltage ?phase ?groupid ?location
     WHERE {
         ?m a ns:Meters ;
@@ -148,7 +148,7 @@ Reuse the example content from the [Configure Table Mapping](#configure-table-ma
 
 2. Enter the above statement in the SPARQL query interface, click the "Run" button. Query results are shown below:
 
-   ![ontop-query](img/ontop-query.webp)
+   ![](../../assets/ontop-01.webp)
 
 3. Results are returned in SPARQL JSON format, containing meter collection timestamps, voltage readings, phase, group ID, and device location information.
 

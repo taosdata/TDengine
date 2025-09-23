@@ -226,13 +226,14 @@ taos-jdbcdriver 实现了 JDBC 标准的 Driver 接口，提供了 3 个实现�
 
 #### URL 规范
 TDengine TSDB 的 JDBC URL 规范格式为：
-`jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
+`jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host1:port1,host2:port2,...,hostN:portN]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
-`host_name` 参数支持合法的域名或 IP 地址。taos-jdbcdriver 同时支持 IPv4 和 IPv6 格式。对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。  
-JDBC URL 中支持设置 Properties 中所有属性，具体请参考下文 **Properties** 章节。  
+- `host` 参数支持合法的域名或 IP 地址。taos-jdbcdriver 同时支持 IPv4 和 IPv6 格式。对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。  
+- **仅 WebSocket 连接方式支持多个端点地址**，使用时用英文逗号隔开。多个端点地址在连接时会随机使用，以实现负载均衡。  
+- JDBC URL 中支持设置 Properties 中所有属性，具体请参考下文 **Properties** 章节。  
 
 **原生连接**  
-`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine TSDB 的默认端口），数据库名为 power 的连接。这个 URL
+`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 host 为 taosdemo.com，端口为 6030（TDengine TSDB 的默认端口），数据库名为 power 的连接。这个 URL
 中指定用户名（user）为 root，密码（password）为 taosdata。
 
 **注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll；macOS 下是 libtaos.dylib）。
@@ -250,7 +251,7 @@ JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/
 
 **使用 TDengine TSDB 客户端驱动配置文件建立连接**  
 
-当使用 JDBC 原生连接连接 TDengine TSDB 集群时，可以使用 TDengine TSDB 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `hostname` 和 `port`。 
+当使用 JDBC 原生连接连接 TDengine TSDB 集群时，可以使用 TDengine TSDB 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `host` 和 `port`。 
 配置如 `jdbc:TAOS://:/power?user=root&password=taosdata`。  
 在 TDengine TSDB 客户端驱动配置文件中指定 firstEp 和 secondEp，jdbc 会使用客户端的配置文件，建立连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
 TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
@@ -258,11 +259,12 @@ TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，�
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 **WebSocket 连接**  
-使用 JDBC WebSocket 连接，不需要依赖客户端驱动。这是一个示例： `jdbc:TAOS-WS://taosdemo.com:6041/power?user=root&password=taosdata&varcharAsString=true`。与 JDBC 原生连接相比，仅需要：
+使用 JDBC WebSocket 连接，不需要依赖客户端驱动。这是一个示例： `jdbc:TAOS-WS://taosdemo.com:6041,taosdemo2.com:6041/power?user=root&password=taosdata&varcharAsString=true`。与 JDBC 原生连接相比，仅需要：
 
 1. driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”；
 2. jdbcUrl 以“jdbc:TAOS-WS://”开头；
 3. 使用 6041 作为连接端口。
+4. 支持配置多个端点，连接时随机选择实现负载均衡。
 
 对于 WebSocket 连接，url 中的常见配置参数如下（所有参数请参考 Properties 一节）：
 - user：登录 TDengine TSDB 用户名，默认值 'root'。
@@ -1400,7 +1402,9 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
 
 创建消费者支持属性列表： 
 - td.connect.type：连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
-- bootstrap.servers：TDengine TSDB 服务端所在的`ip:port`，如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。
+- bootstrap.servers：
+  1. 如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。支持多个端点，逗号分割，如 `ip1:port1,ip2:port2`，若 poll 过程中连接断开可以切换到其他节点（需设置自动重连参数 `TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 `true`）。
+  2. 如果使用 Native 连接，则为 TDengine TSDB 服务端所在的`ip:port`，Native 连接不支持多个端点。
 - enable.auto.commit：是否允许自动提交。
 - group.id：consumer：所在的 group。
 - value.deserializer：结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。

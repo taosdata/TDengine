@@ -302,6 +302,7 @@ extern bool    tsWalForceRepair;
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
+extern int32_t tsScanPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
