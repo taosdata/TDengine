@@ -2983,6 +2983,9 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       int32_t nCalcCols = blockDataGetNumOfCols(pTask->pVirtCalcBlock);
       for (int32_t i = 0; i < nTrigCols; i++) {
         SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirtTrigBlock->pDataBlock, i);
+        if (*(bool *)TARRAY_GET_ELEM(pTask->pTrigIsPseudoCol, i)) {
+          continue;
+        }
         void            *px = taosArrayPush(pReq->cids, &pCol->info.colId);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
@@ -3027,7 +3030,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       int32_t ncol = blockDataGetNumOfCols(pVirDataBlock);
       QUERY_CHECK_CONDITION(ncol == TARRAY_SIZE(pIsPseudoCol), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       for (int32_t i = 0; i < ncol; i++) {
-        if (*(bool *)TARRAY_GET_ELEM(pIsPseudoCol, i) == false) {
+        if (!*(bool *)TARRAY_GET_ELEM(pIsPseudoCol, i)) {
           continue;
         }
         SColumnInfoData *pCol = TARRAY_GET_ELEM(pVirDataBlock->pDataBlock, i);
