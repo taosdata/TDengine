@@ -2,7 +2,7 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 import random
 import time
 
-class TestAbs:
+class TestFunAbs:
     # updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
     #                  "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
     #                  "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
@@ -573,24 +573,25 @@ class TestAbs:
         self.check_result_auto( f" select t4,c1 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select t4 , abs(c1) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
 
-    def test_abs(self):
-        """summary: xxx
+    def test_fun_sca_abs(self):
+        """ Function ABS()
 
-        description: xxx
+        1. Support types
+        2. Basic query
+        3. Boundary values
+        4. Filter query
+        5. Tag compute for scalar function
+        6. Check result of query
+        7. Check abs result of stable query
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_abs.py
         """
         # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare(replica=self.replicaVar)

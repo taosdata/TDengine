@@ -1,7 +1,7 @@
 import math
 from new_test_framework.utils import tdLog, tdSql
 
-class TestSin:
+class TestFunSin:
 
     def setup_class(cls):
         cls.replicaVar = 1
@@ -454,26 +454,26 @@ class TestSin:
         self.check_result_auto_sin( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select sin(t1) ,sin(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
         self.check_result_auto_sin( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select sin(t1) , sin(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
-    def test_sin(self):
-        """summary: xxx
+    def test_fun_sca_sin(self):
+        """ Function SIN()
 
-        description: xxx
+        1. Support types
+        2. Basic query
+        3. Big number query
+        4. Boundary query
+        5. Filter query
+        6. Stable table query
+        7. Error query
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_sin.py
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")

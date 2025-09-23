@@ -1,7 +1,7 @@
 from new_test_framework.utils import tdLog, tdSql
 import time, math
 
-class TestArccos:
+class TestFunAcos:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
@@ -471,24 +471,25 @@ class TestArccos:
         self.check_result_auto_acos( f" select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select acos(t1) , acos(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
 
-    def test_arccos(self):
-        """summary: xxx
+    def test_fun_sca_acos(self):
+        """ Function ACOS()
 
-        description: xxx
+        1. Support types
+        2. Basic query
+        3. Big number query
+        4. Boundary query
+        5. Filter query
+        6. Stable table query
+        7. Error query
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_arccos.py
         """
   # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
