@@ -2279,8 +2279,25 @@ static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow
   void      *pIter = NULL;
   int32_t    code = 0, lino = 0;
   STrimDbRsp rsp = {0};
-  int64_t    startTs = taosGetTimestampMs();
-  STrans    *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "trim-db");
+  bool       isExist = false;
+
+  while (1) {
+    SRetentionObj *pObj = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    if (strcmp(pObj->dbname, pDb->name) == 0) {
+      isExist = true;
+    }
+    sdbRelease(pMnode->pSdb, pObj);
+  }
+  if (isExist) {
+    mInfo("trim db:%s already exist", pDb->name);
+    TAOS_RETURN(TSDB_CODE_MND_TRIM_ALREADY_EXIST);
+  }
+
+  int64_t startTs = taosGetTimestampMs();
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "trim-db");
   if (pTrans == NULL) goto _exit;
   mInfo("trans:%d, used to trim db:%s", pTrans->id, pDb->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
