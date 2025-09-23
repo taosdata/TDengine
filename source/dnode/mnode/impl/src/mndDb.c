@@ -25,6 +25,7 @@
 #include "mndDnode.h"
 #include "mndIndex.h"
 #include "mndPrivilege.h"
+#include "mndRetention.h"
 #include "mndRsma.h"
 #include "mndScan.h"
 #include "mndShow.h"
@@ -2193,14 +2194,15 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t startTs, STimeWindow tw, SArray *vgroupIds,
-                                      EOptrType type, ETriggerType triggerType, STrimDbRsp *pRsp) {
+static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t startTs, STimeWindow tw,
+                                       SArray *vgroupIds, ETsdbOpType type, ETriggerType triggerType,
+                                       STrimDbRsp *pRsp) {
   int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
   SRetentionObj obj = {0};  // reuse SCompactObj struct
-  TAOS_CHECK_EXIT(mndAddCompactToTran(pMnode, pTrans, (SCompactObj *)&obj, pDb, (SCompactDbRsp *)pRsp));
+  TAOS_CHECK_EXIT(mndAddRetentionToTrans(pMnode, pTrans, &obj, pDb, pRsp));
 
   int32_t j = 0;
   int32_t numOfVgroups = taosArrayGetSize(vgroupIds);
@@ -2269,8 +2271,8 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds, EOptrType type,
-                         ETriggerType triggerType) {
+static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
+                         ETsdbOpType type, ETriggerType triggerType) {
   SSdb      *pSdb = pMnode->pSdb;
   SVgObj    *pVgroup = NULL;
   void      *pIter = NULL;

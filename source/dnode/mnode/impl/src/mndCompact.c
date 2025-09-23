@@ -64,6 +64,7 @@ int32_t tSerializeSCompactObj(void *buf, int32_t bufLen, const SCompactObj *pObj
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->compactId));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbname));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
+  TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pObj->flags));
 
   tEndEncode(&encoder);
 
@@ -87,6 +88,12 @@ int32_t tDeserializeSCompactObj(void *buf, int32_t bufLen, SCompactObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->compactId));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbname));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pObj->flags));
+  } else {
+    pObj->flags = 0;
+  }
 
   tEndDecode(&decoder);
 
@@ -929,7 +936,7 @@ static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pD
 }
 
 extern int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
-                            bool metaOnly, EOptrType type, ETriggerType triggerType);
+                            bool metaOnly, ETsdbOpType type, ETriggerType triggerType);
 static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   int32_t code = 0;
   SMnode *pMnode = pReq->info.node;

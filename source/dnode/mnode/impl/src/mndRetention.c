@@ -228,7 +228,7 @@ int32_t mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t 
   TAOS_RETURN(code);
 }
 
-int32_t mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pObj, SDbObj *pDb, SCompactDbRsp *rsp) {
+int32_t mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pObj, SDbObj *pDb, STrimDbRsp *rsp) {
   int32_t code = 0;
   pObj->id = tGenIdPI32();
 
@@ -236,7 +236,7 @@ int32_t mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pO
 
   pObj->startTime = taosGetTimestampMs();
 
-  SSdbRaw *pVgRaw = mndCompactActionEncode(pObj);
+  SSdbRaw *pVgRaw = mndRetentionActionEncode(pObj);
   if (pVgRaw == NULL) {
     code = TSDB_CODE_SDB_OBJ_NOT_THERE;
     if (terrno != 0) code = terrno;
@@ -266,6 +266,7 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   SDbObj        *pDb = NULL;
   int32_t        code = 0;
   int32_t        lino = 0;
+  char           tmpBuf[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -283,13 +284,10 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     if (pShow->pIter == NULL) break;
 
     SColumnInfoData *pColInfo;
-    SName            n;
     int32_t          cols = 0;
 
-    char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false), pObj, &lino, _OVER);
+    COL_DATA_SET_VAL_GOTO((const char *)&pObj->id, false, pObj, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pDb != NULL || !IS_SYS_DBNAME(pObj->dbname)) {
@@ -297,16 +295,33 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       TAOS_CHECK_GOTO(tNameFromString(&name, pObj->dbname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
       (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     } else {
-      tstrncpy(varDataVal(tmpBuf), pObj->dbname, TSDB_SHOW_SQL_LEN);
+      tstrncpy(varDataVal(tmpBuf), pObj->dbname, sizeof(tmpBuf) - VARSTR_HEADER_SIZE);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pObj, &lino, _OVER);
+    COL_DATA_SET_VAL_GOTO((const char *)tmpBuf, false, pObj, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->startTime, false), pObj, &lino, _OVER);
+    COL_DATA_SET_VAL_GOTO((const char *)&pObj->startTime, false, pObj, pShow->pIter, _OVER);
 
-    numOfRows++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), pObj->triggerType == TSDB_TRIGGER_MANUAL ? "manual" : "auto",
+             sizeof(tmpBuf) - VARSTR_HEADER_SIZE);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    COL_DATA_SET_VAL_GOTO((const char *)tmpBuf, false, pObj, pShow->pIter, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    char *optr = "trim";
+    if (pObj->optrType == TSDB_OPTR_SSMIGRATE) {
+      optr = "ssmigrate";
+    } else if (pObj->optrType == TSDB_OPTR_ROLLUP) {
+      optr = "rollup";
+    }
+    tstrncpy(varDataVal(tmpBuf), optr, sizeof(tmpBuf) - VARSTR_HEADER_SIZE);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    COL_DATA_SET_VAL_GOTO((const char *)tmpBuf, false, pObj, pShow->pIter, _OVER);
+
     sdbRelease(pSdb, pObj);
+    ++numOfRows;
   }
 
 _OVER:
@@ -315,6 +330,14 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
   return numOfRows;
 }
+
+static const SSysDbTableSchema retentionsSchema[] = {
+    {.name = "retention_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "trigger_mode", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "type", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
 
 static void mndCancelRetrieveRetention(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;

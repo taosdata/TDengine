@@ -209,7 +209,7 @@ typedef enum {
   TSDB_OPTR_NORMAL = 0,  // default
   TSDB_OPTR_SSMIGRATE = 1,
   TSDB_OPTR_ROLLUP = 2,
-} EOptrType;
+} ETsdbOpType;
 
 typedef enum {
   TSDB_TRIGGER_MANUAL = 0,  // default

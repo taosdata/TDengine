@@ -1368,7 +1368,7 @@ int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader) {
   return code;
 }
 
-extern bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, EOptrType type);
+extern bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, ETsdbOpType type);
 int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value) {
   const char *fieldName;
 

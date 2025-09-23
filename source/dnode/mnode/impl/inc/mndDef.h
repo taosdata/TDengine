@@ -1030,6 +1030,14 @@ typedef struct {
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime;
   SArray* compactDetail;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t optrType : 3;     // ETsdbOpType
+      uint32_t triggerType : 1;  // ETriggerType
+      uint32_t reserve : 28;
+    };
+  };
 } SCompactObj;
 
 typedef struct {

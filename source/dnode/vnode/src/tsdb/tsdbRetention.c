@@ -20,7 +20,7 @@
 #include "vnd.h"
 #include "tsdbInt.h"
 
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, EOptrType type);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type);
 
 // tsdbRetentionMonitor.c
 extern int32_t tsdbAddRetentionMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t fileSize);
