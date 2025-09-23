@@ -1030,7 +1030,10 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
     if (pResult->info.rows > 0 && !createNewColModel) {
       code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
     } else {
+      SColumnInfo oriInfo = pResColData->info;
       code = colDataAssign(pResColData, &idata, dest.numOfRows, &pResult->info);
+      // restore the original column info to satisfy the output column schema
+      pResColData->info = oriInfo;
     }
 
     colDataDestroy(&idata);
