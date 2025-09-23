@@ -1183,21 +1183,32 @@ int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fiel
     return 0;
   }
 
-  if (IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) > pColSchema->bytes) {
-    if (errstr != NULL) {
-      snprintf(errstr, errstrLen,
-               "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
-               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
-               *(int32_t*)(fields + sizeof(int8_t)));
+  if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+    int32_t bytes = *(int32_t*)(fields + sizeof(int8_t));
+    if (IS_STR_DATA_BLOB(pColSchema->type)) {
+      if (bytes >= TSDB_MAX_BLOB_LEN) {
+        uError("column blob data bytes exceed max limit, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name, bytes);
+        return TSDB_CODE_INVALID_PARA;
+      }
     } else {
-      char buf[512] = {0};
-      snprintf(buf, sizeof(buf),
-               "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
-               pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
-               *(int32_t*)(fields + sizeof(int8_t)));
-      uError("checkSchema %s", buf);
+      if (bytes > pColSchema->bytes) {
+        if (errstr != NULL) {
+          snprintf(errstr, errstrLen,
+                   "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+                   pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+                   *(int32_t*)(fields + sizeof(int8_t)));
+        } else {
+          char buf[512] = {0};
+          snprintf(buf, sizeof(buf),
+                   "column var data bytes error, name:%s, schema type:%s, bytes:%d, data type:%s, bytes:%d",
+                   pColSchema->name, tDataTypes[pColSchema->type].name, pColSchema->bytes, tDataTypes[*fields].name,
+                   *(int32_t*)(fields + sizeof(int8_t)));
+          uError("checkSchema %s", buf);
+        }
+        return TSDB_CODE_INVALID_PARA;
+      }
     }
-    return TSDB_CODE_INVALID_PARA;
   }
 
   if (!IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) != pColSchema->bytes) {
