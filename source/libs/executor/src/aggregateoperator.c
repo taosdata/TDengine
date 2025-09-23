@@ -236,6 +236,8 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     pAggInfo->hasValidBlock = true;
     pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
 
+    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
       SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
@@ -332,6 +334,8 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+
+  printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
   (*ppRes) = (rows == 0) ? NULL : pInfo->pRes;
   return code;

@@ -2586,7 +2586,9 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   pContext->sessionId = STREAM_TRIGGER_REALTIME_SESSIONID;
 
   bool needTrigData = true;
-  if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) || (pTask->triggerType == STREAM_TRIGGER_SLIDING)) {
+  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+    needTrigData = false;
+  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
     needTrigData = (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
   }
   if (!needTrigData) {
@@ -2984,7 +2986,10 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       int32_t nCalcCols = blockDataGetNumOfCols(pTask->pVirtCalcBlock);
       for (int32_t i = 0; i < nTrigCols; i++) {
         SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirtTrigBlock->pDataBlock, i);
-        void            *px = taosArrayPush(pReq->cids, &pCol->info.colId);
+        if (*(bool *)TARRAY_GET_ELEM(pTask->pTrigIsPseudoCol, i)) {
+          continue;
+        }
+        void *px = taosArrayPush(pReq->cids, &pCol->info.colId);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
       for (int32_t i = 0; i < nCalcCols; i++) {
@@ -3028,7 +3033,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       int32_t ncol = blockDataGetNumOfCols(pVirDataBlock);
       QUERY_CHECK_CONDITION(ncol == TARRAY_SIZE(pIsPseudoCol), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       for (int32_t i = 0; i < ncol; i++) {
-        if (*(bool *)TARRAY_GET_ELEM(pIsPseudoCol, i) == false) {
+        if (!*(bool *)TARRAY_GET_ELEM(pIsPseudoCol, i)) {
           continue;
         }
         SColumnInfoData *pCol = TARRAY_GET_ELEM(pVirDataBlock->pDataBlock, i);
@@ -3330,11 +3335,18 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         if (pContext->needPseudoCols || pDataBlock == NULL || startIdx >= endIdx) {
           break;
         }
-        TARRAY_SIZE(pDataBlock->pDataBlock)--;
+        if (pTask->isVirtualTable) {
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
+                                    pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          TARRAY_SIZE(pDataBlock->pDataBlock)--;
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
+                                    pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
+          QUERY_CHECK_CODE(code, lino, _end);
+          TARRAY_SIZE(pDataBlock->pDataBlock)++;
+        }
         pContext->curParamRows += (endIdx - startIdx);
-        code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
-                                  pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
-        TARRAY_SIZE(pDataBlock->pDataBlock)++;
         QUERY_CHECK_CODE(code, lino, _end);
       }
       if (pContext->needPseudoCols) {
@@ -4139,7 +4151,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
               taosMemoryFreeClear(pGroup);
               QUERY_CHECK_CODE(code, lino, _end);
             }
-            code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+            code = stRealtimeGroupInit(pGroup, pContext, gid, pVirtTableInfo->vgId);
             QUERY_CHECK_CODE(code, lino, _end);
           } else {
             pGroup = *(SSTriggerRealtimeGroup **)px;
@@ -4185,6 +4197,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
   // process delete data
   nrows = blockDataGetNumOfRows(pContext->pDeleteBlock);
   if (nrows > 0) {
+    ST_TASK_DLOG("got %d rows of delete data", nrows);
     int32_t          iCol = 0;
     SColumnInfoData *pGidCol = taosArrayGet(pContext->pDeleteBlock->pDataBlock, iCol++);
     QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
@@ -4218,7 +4231,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
               taosMemoryFreeClear(pGroup);
               QUERY_CHECK_CODE(code, lino, _end);
             }
-            code = stRealtimeGroupInit(pGroup, pContext, gid, vgId);
+            code = stRealtimeGroupInit(pGroup, pContext, gid, pVirtTableInfo->vgId);
             QUERY_CHECK_CODE(code, lino, _end);
           } else {
             pGroup = *(SSTriggerRealtimeGroup **)px;
@@ -4449,6 +4462,20 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         goto _end;
       }
 
+      if (pTask->triggerType == STREAM_TRIGGER_PERIOD && !pTask->ignoreNoDataTrigger) {
+        int32_t iter = 0;
+        void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+        while (px != NULL) {
+          SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+          if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+            pGroup->oldThreshold = INT64_MIN;
+            pGroup->newThreshold = INT64_MAX;
+            TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          }
+          px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+        }
+      }
+
       if (pContext->walMode == STRIGGER_WAL_META_ONLY) {
         pContext->catchUp = (TD_DLIST_NELES(&pContext->groupsToCheck) == 0);
         code = stRealtimeContextCheck(pContext);
@@ -4550,6 +4577,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
+      ST_TASK_DLOG("receive %" PRId64 " rows trig data of %d tables from vnode %d", pProgress->pTrigBlock->info.rows,
+                   nTables, pProgress->pTaskAddr->nodeId);
       if (pTask->isVirtualTable) {
         for (int32_t i = 0; i < nTables; i++) {
           int64_t           *ar = TARRAY_GET_ELEM(pContext->pTempSlices, i);
@@ -4674,7 +4703,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
-      ST_TASK_DLOG("receive %" PRId64 " rows calc data of %d tablese from vnode %d", pProgress->pCalcBlock->info.rows,
+      ST_TASK_DLOG("receive %" PRId64 " rows calc data of %d tables from vnode %d", pProgress->pCalcBlock->info.rows,
                    nTables, pProgress->pTaskAddr->nodeId);
       if (pTask->isVirtualTable) {
         SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
@@ -4685,7 +4714,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           int64_t            otbUid = ar[1];
           int32_t            startIdx = ar[2] >> 32;
           int32_t            endIdx = ar[2];
-          SSTriggerDataSlice slice = {.pDataBlock = pProgress->pTrigBlock, .startIdx = startIdx, .endIdx = endIdx};
+          SSTriggerDataSlice slice = {.pDataBlock = pProgress->pCalcBlock, .startIdx = startIdx, .endIdx = endIdx};
           code = tSimpleHashPut(pContext->pSlices, &otbUid, sizeof(int64_t), &slice, sizeof(SSTriggerDataSlice));
           QUERY_CHECK_CODE(code, lino, _end);
           SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &otbUid, sizeof(int64_t));
@@ -6918,7 +6947,9 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
   SStreamTriggerTask       *pTask = pContext->pTask;
   SObjList                 *pMetas = NULL;
 
-  pGroup->vgId = vgId;
+  if (!pTask->isVirtualTable) {
+    pGroup->vgId = vgId;
+  }
   pMetas = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
   if (pMetas == NULL) {
     SObjList newMetas = {0};
@@ -6939,12 +6970,7 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
   }
 
   // check disorder data
-  if (pTask->ignoreDisorder) {
-    SSTriggerMetaData *pLastMeta = taosObjListGetTail(pMetas);
-    if (pLastMeta != NULL) {
-      pMeta->skey = TMAX(pMeta->skey, pLastMeta->ekey - pTask->watermark + 1);
-    }
-  } else {
+  if (!pTask->ignoreDisorder) {
     if (pMeta->skey <= pGroup->oldThreshold) {
       STimeWindow range = {.skey = pMeta->skey, .ekey = pMeta->ekey};
       if (pTask->expiredTime > 0) {
@@ -7980,14 +8006,16 @@ static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup) {
     }
   }
 
-  int32_t nInitWins = pGroup->windows.neles;
-  code = stRealtimeGroupMergeWindows(pGroup);
-  QUERY_CHECK_CODE(code, lino, _end);
-  code = stRealtimeGroupGenCalcParams(pGroup, nInitWins);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (!pContext->needPseudoCols) {
+    int32_t nInitWins = pGroup->windows.neles;
+    code = stRealtimeGroupMergeWindows(pGroup);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = stRealtimeGroupGenCalcParams(pGroup, nInitWins);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  SSTriggerCalcParam *pLastParam = taosArrayGetLast(pContext->pCalcReq->params);
-  pContext->lastSentWinEnd = pLastParam ? pLastParam->wend : INT64_MIN;
+    SSTriggerCalcParam *pLastParam = pContext->pCalcReq ? taosArrayGetLast(pContext->pCalcReq->params) : NULL;
+    pContext->lastSentWinEnd = pLastParam ? pLastParam->wend : INT64_MIN;
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

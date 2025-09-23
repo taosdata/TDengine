@@ -424,7 +424,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
         ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
                      code, pBlock->info.rows, pExec->tbname, *createTb, pExec->runtimeInfo.funcInfo.groupId);
-        printDataBlock(pBlock, "output block to sink", "runner");
+        printDataBlock(pBlock, "output block to sink", "runner", pTask->task.streamId);
         if(code == TSDB_CODE_SUCCESS) *createTb = false;  // if output block success, then no need to create table
       } else {
         ST_TASK_ELOG("failed to init tag vals for output block: %s", tstrerror(code));
@@ -870,7 +870,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;
     STREAM_CHECK_RET_GOTO(streamExecuteTask(pExec->pExecutor, &pBlock, &ts, &finished));
-    printDataBlock(pBlock, __func__, "streamExecuteTask block");
+    printDataBlock(pBlock, __func__, "streamExecuteTask block", pTask->task.streamId);
     if (pTask->topTask) {
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) {
         ST_TASK_DLOG("[runner calc] external window: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",

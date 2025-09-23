@@ -202,8 +202,8 @@ class IdmpScene:
                 # check streams created
                 # tdStream.checkStreamStatus(stream_name)
 
-            # check streams created
-            tdStream.checkStreamStatus()
+        # check streams created
+        tdStream.checkStreamStatus()
 
         tdLog.info(f"create {stream_count} streams in {self.vdb}")
 

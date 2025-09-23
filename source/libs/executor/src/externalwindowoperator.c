@@ -553,7 +553,7 @@ void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _exit);
 
-    printDataBlock(pBlock, __func__, "externalwindowAlign");
+    printDataBlock(pBlock, __func__, "externalwindowAlign", pTaskInfo->id.queryId);
     qDebug("ext windowpExtWAlign->scalarMode:%d", pExtW->mode);
 
     if (EEXT_MODE_SCALAR == pExtW->mode) {
@@ -1968,7 +1968,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
       break;
     }
 
-    printDataBlock(pBlock, __func__, pTaskInfo->id.str);
+    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
     qDebug("ext window mode:%d got %" PRId64 " rows from downstream", pExtW->mode, pBlock->info.rows);
     
@@ -2067,7 +2067,7 @@ _exit:
   }
 
   if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
-    printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
   
   return code;
