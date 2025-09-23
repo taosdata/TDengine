@@ -40,12 +40,20 @@ export default {
   subscribeTime: '订阅时间',
   nanosecond: '纳秒',
   microsecond: '微秒',
-  millsecond: '毫秒',
+  millisecond: '毫秒',
   second: '秒',
   minute: '分钟',
   hour: '小时',
   day: '天',
   week: '周',
   month: '月',
-  year: '年'
+  year: '年',
+  nanoseconds: '纳秒',
+  microseconds: '微秒',
+  milliseconds: '毫秒',
+  seconds: '秒',
+  minutes: '分钟',
+  weeks: '周',
+  months: '月',
+  years: '年'
 };

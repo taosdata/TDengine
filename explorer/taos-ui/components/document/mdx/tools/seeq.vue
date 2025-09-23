@@ -1,7 +1,7 @@
 <template>
   <div>
     <p>{{ t('tools.seeq.topdesc') }} <a href="https://www.seeq.com/">Seeq</a>{{ t('tools.seeq.topdesc1') }}</p>
-    <h2 id="seeq-repare">{{ t('tools.seeq.step1') }}</h2>
+    <h2 id="seeq-prepare">{{ t('tools.seeq.step1') }}</h2>
     <p>
       {{ t('tools.seeq.step1desc') }}<a href="https://www.seeq.com/">www.seeq.com</a>{{ t('tools.seeq.step1desc1') }}
     </p>
@@ -20,8 +20,8 @@
         <span class="seeq-span"
           >{{ t('tools.seeq.step2desc11') }}<a href="https://maven.org/">maven.org</a>{{ t('tools.seeq.step2desc12')
           }}<a
-            href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar"
-            >3.2.7</a
+            href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.6.3/taos-jdbcdriver-3.6.3-dist.jar"
+            >3.6.3</a
           >{{ t('tools.seeq.step2desc13') }}</span
         >
       </li>
@@ -64,7 +64,7 @@
     &quot;JdbcProperties&quot;: null,
     &quot;GenericDatabaseConfig&quot;: {
         &quot;DatabaseJdbcUrl&quot;: &quot;${jdbcURL}&quot;,
-        &quot;SqlDriverClassName&quot;: &quot;com.taosdata.jdbc.rs.RestfulDriver&quot;,
+        &quot;SqlDriverClassName&quot;: &quot;com.taosdata.jdbc.ws.WebSocketDriver&quot;,
         &quot;ResolutionInNanoseconds&quot;: 1000,
         &quot;ZonedColumnTypes&quot;: []
     }
@@ -136,7 +136,7 @@
     &quot;JdbcProperties&quot;: null,
     &quot;GenericDatabaseConfig&quot;: {
         &quot;DatabaseJdbcUrl&quot;: &quot;${jdbcURL}&quot;,
-        &quot;SqlDriverClassName&quot;: &quot;com.taosdata.jdbc.rs.RestfulDriver&quot;,
+        &quot;SqlDriverClassName&quot;: &quot;com.taosdata.jdbc.ws.WebSocketDriver&quot;,
         &quot;ResolutionInNanoseconds&quot;: 1,
         &quot;ZonedColumnTypes&quot;: []
     }

@@ -233,6 +233,10 @@ export default {
           templateUrl: 'template-zh.csv',
           placeholder: '上传 CSV 配置文件，定义数据点位到 TDengine 数据子表的映射规则。\n',
           required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
           multiple: true,
           editable: true,
           selectable: true,
@@ -413,6 +417,13 @@ export default {
           field: 'collect_options',
           description: '数据采集相关配置项。',
           children: [
+            {
+              label: '上报异常值',
+              description: '是否上报异常值（Bad Quality）的数据，默认不上报异常值数据。',
+              field: 'contains_bad',
+              type: 'switch',
+              defaultValue: false
+            },
             {
               label: '采集模式',
               description:

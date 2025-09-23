@@ -13,7 +13,7 @@ export default [
     ]
   },
   {
-    name: 'Google Data Studio',
+    name: 'Google Looker Studio',
     desc: t('tools.gds.desc'),
     docs: mdx.gdsDoc,
     steps: [

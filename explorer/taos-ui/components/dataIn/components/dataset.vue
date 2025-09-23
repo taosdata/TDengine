@@ -1,6 +1,6 @@
 <template>
   <div label-width="0px">
-    <section class="flex-start mb20" :style="{ cursor: dataInProps.isCommunity ? 'not-allowed' : 'pointer' }">
+    <section class="flex-start mb-20px" :style="{ cursor: dataInProps.isCommunity ? 'not-allowed' : 'pointer' }">
       <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
         <template #content>
           <span v-dompurify-html="$t('common.communityTip')"></span>
@@ -37,7 +37,7 @@
         </div>
       </section>
     </section>
-    <section class="mb20">
+    <section class="mb-20px">
       <el-tooltip effect="light" :content="t('dataIn.downloadTemplateTip')">
         <a v-if="config.templateUrl" :class="{ disabled: dataInProps.isCommunity }" @click="handleDownEmptyTemplate">
           <el-icon><Download /></el-icon>
@@ -49,7 +49,7 @@
           <el-icon><Download /></el-icon>
           {{ t('dataIn.downloadnodestip') }}
           <div class="csv-progress">
-            <el-progress v-if="progressVisble" :percentage="percentage" :format="format" />
+            <el-progress v-if="progressVisible" :percentage="percentage" :format="format" />
           </div>
         </a>
       </el-tooltip>
@@ -76,7 +76,7 @@
       <template #header>
         <div>
           <div class="el-dialog-cus-title">{{ t('dataIn.filterPointTitle') }}</div>
-          <DocsContent :content="t('dataIn.filterPoinDesc')" />
+          <DocsContent :content="t('dataIn.filterPointDesc')" />
         </div>
       </template>
       <div>
@@ -219,7 +219,7 @@ const localeData = reactive(props.data);
 const requestIng = ref<boolean>(false);
 const oldFiles = ref<any[]>([]);
 const dialogVisible = ref<boolean>(false);
-const progressVisble = ref<boolean>(false);
+const progressVisible = ref<boolean>(false);
 const info = reactive<InfoProps>({
   root: '',
   namespaces: [],
@@ -349,7 +349,7 @@ async function submit() {
       params.via = via;
     }
 
-    progressVisble.value = true;
+    progressVisible.value = true;
     const result = await dataInProps.dataSource.api.fechTicketApi(params);
     ticket.value = result.ticket;
 
@@ -377,7 +377,7 @@ async function downloadFile() {
   completed.value = false;
   requestIng.value = false;
   setTimeout(() => {
-    progressVisble.value = false;
+    progressVisible.value = false;
     percentage.value = 5;
   }, 500);
 }
@@ -550,7 +550,6 @@ $color-primary: rgb(25 34 80);
 
 .disabled {
   pointer-events: none;
-  filter: alpha(opacity=50);
   -moz-opacity: 0.5;
   opacity: 0.5;
 }

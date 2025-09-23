@@ -40,7 +40,13 @@ public class ScheduleThread implements Runnable {
 
     public ScheduleThread(int threadPoolSize) {
         // 将corePoolSize与maxPoolSize设置为相同的线程数，这样可以减少在处理过程中创建线程的开销
-        this.threadPoolExecutor = new ThreadPoolExecutor(threadPoolSize, threadPoolSize, 0, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
+        this.threadPoolExecutor = new ThreadPoolExecutor(threadPoolSize, threadPoolSize, 0, TimeUnit.SECONDS, new LinkedBlockingDeque<>(),
+                runnable -> {
+                    Thread t = new Thread(runnable);
+                    t.setDaemon(true);
+                    t.setName("daemon-worker-" + t.getId());
+                    return t;
+                });
     }
 
     /**

@@ -158,12 +158,28 @@ export function validPhone(str: unknown) {
 }
 
 /**
+ *
+ * @param {string} str
+ * @returns  {Boolean}
+ */
+export function validEnPhone(str: unknown) {
+  let pass;
+  const val = ('' + str).trim();
+  if (!/^[\d\s+\-(),;]+$/i.test(val)) {
+    pass = false;
+  } else {
+    pass = true;
+  }
+  return pass;
+}
+
+/**
  * @param {string} url
  * @returns {Boolean}
  */
 export function validURL(url: string) {
   const reg =
-    /^(https?|ftp):\/\/([a-zA-Z0-9.-]+(:[a-zA-Z0-9.&%$-]+)*@)*((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}|([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.(com|edu|gov|int|mil|net|org|biz|arpa|info|name|pro|aero|coop|museum|[a-zA-Z]{2}))(:[0-9]+)*(\/($|[a-zA-Z0-9.,?'\\+&%$#=~_-]+))*$/;
+    /^(https?|ftp):\/\/(?:[a-zA-Z0-9.-]+(?::[a-zA-Z0-9.&%$-]+)*@)*(?:localhost|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}|(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9]))(?::[0-9]+)?(?:\/[^?#]*)?(?:\?[^#]*)?(?:#.*)?$/;
   return reg.test(url);
 }
 
@@ -202,6 +218,7 @@ export function validEmail(email: string) {
   const reg = /^\w+([-+.]\w+)*@\w+(-\w+)*(\.\w+){0,2}([-.][a-zA-Z]+)$/g;
   return reg.test(email);
 }
+
 export function validPassword(password: string) {
   return /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[._~!@#$^&*])[A-Za-z0-9._~!@#$^&*]{8,20}$/.test(password);
 }
@@ -210,8 +227,7 @@ export function validPassword(password: string) {
  * @returns {Boolean}
  */
 export function validID(str: string) {
-  const reg =
-    /^[1-9]\d{7}((0\d)|(1[0-2]))(([0|1|2]\d)|3[0-1])\d{3}$|^[1-9]\d{5}[1-9]\d{3}((0\d)|(1[0-2]))(([0|1|2]\d)|3[0-1])\d{3}([0-9]|X)$/;
+  const reg = /^(?=.*[a-zA-Z])(?=.*[0-9])(?=.*[._~!@#$^&*])[A-Za-z0-9._~!@#$^&*]{8,20}$/;
   return reg.test(str);
 }
 
@@ -264,7 +280,7 @@ export function validName(name: string) {
  * @returns {*}
  */
 export function validBankAccount(str: string) {
-  return /^([1-9]{1})\d{11,19}$/.test(str);
+  return /\d{11,22}$/.test(str);
 }
 
 /**

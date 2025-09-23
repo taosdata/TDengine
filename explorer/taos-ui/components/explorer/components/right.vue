@@ -176,11 +176,11 @@ async function toggleFavorite() {
 }
 
 function normalizeSql(sql: string) {
-  return sql.replace(/\s+/g, '').toLowerCase();
+  return sql.trim();
 }
 
 function addDesc() {
-    return new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     ElMessageBox.prompt('', t('explorer.addDesc'), {
       closeOnClickModal: false,
       confirmButtonText: t('common.confirm'),

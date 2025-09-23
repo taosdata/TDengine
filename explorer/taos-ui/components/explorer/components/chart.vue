@@ -31,11 +31,11 @@
       <Echart width="100%" height="100%" :option="chartOption" @finished="drawing = false"></Echart>
     </div>
     <!-- 列表 -->
-     <div class="idmptip">
+    <div class="idmptip">
       <router-link to="/idmp">
         <span class="title">{{ t('explorer.idmptip') }}</span>
       </router-link>
-     </div>
+    </div>
   </div>
 </template>
 <script lang="ts" setup>
@@ -116,9 +116,9 @@ function handleSeriesChange() {
       data: sqlExecResult.data.map(ite => {
         const bignumber = JSONBig.stringify(ite[item]);
         if (bignumber) {
-          return [ite[chartForm.label], bignumber]
+          return [ite[chartForm.label], bignumber];
         }
-        [ite[chartForm.label], ite[item]]
+        [ite[chartForm.label], ite[item]];
       })
     };
     if (chartForm.chartType === 'area') {
@@ -138,6 +138,7 @@ function handleSeriesChange() {
     height: 380px;
   }
 }
+
 .idmptip {
   position: absolute;
   right: 0;

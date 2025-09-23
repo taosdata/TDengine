@@ -1,7 +1,7 @@
 <template>
   <div class="docs">
     <p> {{ $t('docs.tools.superset.topdesc') }} <a href="https://superset.apache.org">Superset</a>{{ $t('docs.tools.superset.topdesc1') }} </p>
-    <h2 id="superset-repare">{{ $t('docs.tools.superset.step1') }}</h2>
+    <h2 id="superset-prepare">{{ $t('docs.tools.superset.step1') }}</h2>
     <p
       >{{ $t('docs.tools.superset.step1desc') }} <a :href="`https://superset.apache.org/`">{{ $t('docs.tools.superset.step1desc1') }}</a
       >{{ $t('docs.tools.superset.step1desc2') }}

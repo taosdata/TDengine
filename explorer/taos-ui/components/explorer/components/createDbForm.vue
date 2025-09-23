@@ -3,30 +3,13 @@
     <h3 v-if="showTitle" class="form-title">{{ formTitle }}</h3>
     <el-form ref="formIns" class="mt-20px" label-position="left" label-width="230px" :rules="rules" :model="formData">
       <div class="form-wrapper">
-        <el-alert class="mb-20px!" type="warning" :title="t('db.backslashTip')"></el-alert>
+        <el-alert v-if="showCaseSensitiveTip" class="mb-20px!" type="warning" :title="t('db.backslashTip')"></el-alert>
         <el-form-item :label="t('common.name')" prop="name">
           <el-input v-model="formData.name" :disabled="isEdit" :maxlength="32" style="max-width: 620px" />
         </el-form-item>
-        <el-form-item v-if="isHa" :label="t('db.replica')" prop="replica">
-          <template #label>
-            <span>
-              REPLICA
-              <el-tooltip placement="bottom" effect="light">
-                <template #content>
-                  <div v-dompurify-html="t('db.replicaTip', [isHa ? 3 : 1])"></div>
-                </template>
-                <Icon name="info" class="label-tips-icon"></Icon>
-              </el-tooltip>
-            </span>
-          </template>
-          <el-select v-model="formData.replica" :disabled="isRecplicaDisabled">
-            <el-option v-for="item in replicaList" :key="item" :value="item"></el-option>
-          </el-select>
-          <p v-if="formData.replica == 1" class="errorText">{{ t('db.replica1Tip') }}</p>
-        </el-form-item>
       </div>
       <div class="section2">
-        <div class="sub-title">{{ t('common.configurationParameters') }}</div>
+        <div class="sub-title">{{ t('explorer.configurationParametersForAd') }}</div>
         <section class="form-content-col">
           <el-collapse v-model="activeNames" class="w-full">
             <el-collapse-item :title="t('db.performanceRelatedParameters')" name="1">
@@ -134,6 +117,22 @@
                     controls-position="right"
                     placeholder="4kb"
                   ></el-input-number>
+                </el-form-item>
+                <el-form-item :label="t('db.replica')" prop="replica">
+                  <template #label>
+                    <span>
+                      REPLICA
+                      <el-tooltip placement="bottom" effect="light">
+                        <template #content>
+                          <div v-dompurify-html="t('db.replicaTip')"></div>
+                        </template>
+                        <Icon name="info" class="label-tips-icon"></Icon>
+                      </el-tooltip>
+                    </span>
+                  </template>
+                  <el-select v-model="formData.replica" :disabled="isEdit">
+                    <el-option v-for="item in replicaList" :key="item" :value="item"></el-option>
+                  </el-select>
                 </el-form-item>
               </div>
               <div class="column2">
@@ -630,7 +629,7 @@
       <el-button :disabled="requesting" :loading="requesting" type="primary" @click="handleCreateDb">{{
         t('common.' + (isEdit ? 'update' : 'create'))
       }}</el-button>
-      <el-button :disabled="requesting" @click="cancle">
+      <el-button :disabled="requesting" @click="cancel">
         {{ t('common.cancel') }}
       </el-button>
     </section>
@@ -640,7 +639,7 @@
 <script lang="ts" setup>
 import { validDbDuration, validDbKeep, validTDKeywords } from 'utils/validate';
 import { CreateDbProps } from './props';
-import { getDbParamsByTdVersion, rmStrBackquote } from 'utils/tdengine';
+import { getDbParamsByTdVersion, rmStrBackquote, compareVersion } from 'utils/tdengine';
 import { FormInstance, ElMessage } from 'element-plus';
 import { t } from 'locales';
 
@@ -653,9 +652,17 @@ const props = withDefaults(defineProps<CreateDbProps>(), {
 const dbParameters: Recordable = getDbParamsByTdVersion(props.version);
 const dbParamsterList = Object.keys(dbParameters);
 const formData = ref({ ...(props.formData ?? dbParameters) });
-const replicaList = [1, 3];
+const showCaseSensitiveTip = computed(() => {
+  const name: string = formData.value.name;
+  if (name && /[A-Z]/.test(name)) {
+    return true;
+  }
+  return false;
+});
 const requesting = ref(false);
-const activeNames = ref(['1']);
+const activeNames = ref([]);
+const version_gte_3320 = computed(() => compareVersion(props.version, '>=3.3.2.0'));
+const replicaList = computed(() => (version_gte_3320.value ? [1, 2, 3] : [1, 3]));
 const formIns = shallowRef<FormInstance | null>(null);
 const formTitle = props.isEdit ? t('db.edit') : t('db.create');
 const rules = {
@@ -669,7 +676,7 @@ const rules = {
       validator: (_: any, value: string, callback: AnyFunction) => {
         const dbName = rmStrBackquote(value);
         if (validTDKeywords(dbName)) {
-          callback(new Error(t('explorer.tdKewordTip', [dbName])));
+          callback(new Error(t('explorer.tdKeywordTip', [dbName])));
         } else if (!props.isEdit && props.dbList.some(item => item.name == dbName)) {
           callback(new Error(t('db.nameExisted', [dbName])));
         } else {
@@ -706,7 +713,6 @@ const rules = {
     }
   ]
 };
-const isRecplicaDisabled = computed(() => formData.value.replica == 3 && props.isEdit);
 const emits = defineEmits(['cancel', 'success', 'update']);
 
 function handleCreateDb() {
@@ -720,7 +726,7 @@ function handleCreateDb() {
         }
       }
       if (Object.keys(data).length == 0) {
-        return cancle();
+        return cancel();
       }
       data.name = formData.value.name;
     }
@@ -737,7 +743,7 @@ function handleCreateDb() {
       });
   });
 }
-function cancle() {
+function cancel() {
   emits('cancel');
 }
 </script>

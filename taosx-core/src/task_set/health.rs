@@ -565,6 +565,7 @@ pub fn health_checker(
             ));
             tokio::pin!(rx);
             tokio::pin!(checker);
+            tracing::info!("Health checker started, options: {:?}", checker.options);
 
             let mut source_messages = 0;
             let mut sink_messages = 0;

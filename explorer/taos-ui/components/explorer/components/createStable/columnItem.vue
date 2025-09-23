@@ -14,14 +14,17 @@
           <el-option v-for="item in dataType" :key="item" :value="item"></el-option>
         </el-select>
         <el-input
-          v-if="VariableTableColumnType.includes(currentValue.type) || TwoVariableTableColumnType.includes(currentValue.type)"
+          v-if="
+            VariableTableColumnType.includes(currentValue.type) ||
+            TwoVariableTableColumnType.includes(currentValue.type)
+          "
           v-model="currentValue.length"
           class="custom-length"
           size="default"
           type="number"
           :min="8"
           clearable
-          :max="VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
+          :max="VariableTableColumnTypeMaxLengthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
           @change="processTypeLength"
         ></el-input>
         <el-input
@@ -31,9 +34,9 @@
           size="default"
           type="number"
           :min="8"
-          default-value=0
+          default-value="0"
           clearable
-          :max="VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
+          :max="VariableTableColumnTypeMaxLengthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
           @change="processTypeLength2"
         ></el-input>
       </section>
@@ -97,7 +100,9 @@
             v-model="currentValue.primaryKey"
             :disabled="isEdit || parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1"
             @change="valueChange"
-            >PRIMARY KEY</el-checkbox
+            ><el-tooltip effect="light" placement="top" :content="t('common.compositeKeyTooltip')"
+              >COMPOSITE KEY</el-tooltip
+            ></el-checkbox
           >
         </el-tag>
       </template>
@@ -142,7 +147,12 @@
 </template>
 
 <script lang="ts" setup>
-import { VariableTableColumnType, TDengineDataType, VariableTableColumnTypeMaxLenthMap, TwoVariableTableColumnType } from 'constants1/index';
+import {
+  VariableTableColumnType,
+  TDengineDataType,
+  VariableTableColumnTypeMaxLengthMap,
+  TwoVariableTableColumnType
+} from 'constants1/index';
 import { parmaryKeyType, levelList, getStbEncodeAndCompressListByType } from './utils';
 import { hasOwnProperty } from 'utils/validate';
 import { validTDKeywords } from 'utils/validate';
@@ -150,7 +160,7 @@ import { ColumnItemProps } from '../props';
 import { isGte3300 } from '../utils';
 import { t } from 'locales';
 
-type ColumnTypeMaxLenMapKey = keyof typeof VariableTableColumnTypeMaxLenthMap;
+type ColumnTypeMaxLenMapKey = keyof typeof VariableTableColumnTypeMaxLengthMap;
 const props = withDefaults(defineProps<ColumnItemProps>(), {
   modelValue: () => ({}),
   isEdit: false,
@@ -229,7 +239,7 @@ function processTypeLength(val: number | string) {
   val = Number(val);
   currentValue.length = Math.min(
     Math.max(val, minTypeLength),
-    VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]
+    VariableTableColumnTypeMaxLengthMap[currentValue.type as ColumnTypeMaxLenMapKey]
   );
   valueChange();
 }
@@ -259,7 +269,7 @@ function typeChange(val: string) {
 }
 function validName() {
   if (validTDKeywords(props.modelValue.field)) {
-    errorText.value = t('explorer.tdKewordTip', [props.modelValue.field]);
+    errorText.value = t('explorer.tdKeywordTip', [props.modelValue.field]);
   }
 }
 </script>

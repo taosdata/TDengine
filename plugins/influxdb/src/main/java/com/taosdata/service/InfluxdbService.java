@@ -121,5 +121,5 @@ public interface InfluxdbService {
      * @return
      * @throws ArtificialException
      */
-    List<InfluxdbBucketDataEntity> selectBucketDataV1(String bucket, String measurement, String tagCondition, String startTime, String stopTime, long batch, long offset) throws ArtificialException;
+    List<InfluxdbBucketDataEntity> selectBucketDataV1(String bucket, String measurement, String tagCondition, String startTime, String stopTime, long batch, long offset, long last_time) throws ArtificialException;
 }

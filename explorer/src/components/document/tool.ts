@@ -70,7 +70,7 @@ export default () => [
       en: mdx.seeqDoc
     },
     steps: [
-      { title: t('docs.tools.seeq.step1'), dom: 'seeq-repare' },
+      { title: t('docs.tools.seeq.step1'), dom: 'seeq-prepare' },
       { title: t('docs.tools.seeq.step2'), dom: 'seeq-install' },
       { title: t('docs.tools.seeq.step3'), dom: 'seeq-add-ds' },
       { title: t('docs.tools.seeq.step4'), dom: 'seeq-example' }
@@ -100,7 +100,7 @@ export default () => [
     },
     version: '>=3.2.2.0',
     steps: [
-      { title: t('docs.tools.powerbi.step1'), dom: 'powerbi-repare' },
+      { title: t('docs.tools.powerbi.step1'), dom: 'powerbi-prepare' },
       { title: t('docs.tools.powerbi.step2'), dom: 'powerbi-install' },
       { title: t('docs.tools.powerbi.step3'), dom: 'powerbi-config' },
       { title: t('docs.tools.powerbi.step4'), dom: 'powerbi-import' },
@@ -119,7 +119,7 @@ export default () => [
     version: '>=3.2.2.0',
     isAli: true,
     steps: [
-      { title: t('docs.tools.yonghongbi.step1'), dom: 'yonghongbi-repare' },
+      { title: t('docs.tools.yonghongbi.step1'), dom: 'yonghongbi-prepare' },
       { title: t('docs.tools.yonghongbi.step2'), dom: 'yonghongbi-install' },
       { title: t('docs.tools.yonghongbi.step3'), dom: 'yonghongbi-config' },
       { title: t('docs.tools.yonghongbi.step4'), dom: 'yonghongbi-createds' },
@@ -138,7 +138,7 @@ export default () => [
     version: '>=3.3.5.0',
     isAli: true,
     steps: [
-      { title: t('docs.tools.superset.step1'), dom: 'superset-repare' },
+      { title: t('docs.tools.superset.step1'), dom: 'superset-prepare' },
       { title: t('docs.tools.superset.step2'), dom: 'superset-install' },
       { title: t('docs.tools.superset.step3'), dom: 'superset-config' },
       { title: t('docs.tools.superset.step4'), dom: 'superset-import' },
@@ -157,7 +157,7 @@ export default () => [
     version: '>=3.3.5.0',
     isAli: true,
     steps: [
-      { title: t('docs.tools.excel.step1'), dom: 'excel-repare' },
+      { title: t('docs.tools.excel.step1'), dom: 'excel-prepare' },
       { title: t('docs.tools.excel.step2'), dom: 'excel-install' },
       { title: t('docs.tools.excel.step3'), dom: 'excel-config' },
       { title: t('docs.tools.excel.step4'), dom: 'excel-import' },
@@ -176,7 +176,7 @@ export default () => [
     version: '>=3.3.5.0',
     isAli: true,
     steps: [
-      { title: t('docs.tools.tableau.step1'), dom: 'tableau-repare' },
+      { title: t('docs.tools.tableau.step1'), dom: 'tableau-prepare' },
       { title: t('docs.tools.tableau.step2'), dom: 'tableau-install' },
       { title: t('docs.tools.tableau.step3'), dom: 'tableau-config' },
       { title: t('docs.tools.tableau.step4'), dom: 'tableau-import' },

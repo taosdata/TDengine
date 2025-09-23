@@ -32,22 +32,23 @@ impl FromStr for UpdateMode {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PointsConfig {
-    /// 正则表达式，匹配 NodeId || BrowseName，兼容旧版本
-    pub regex: Option<String>,
-    /// 正则表达式，匹配 NodeId
-    pub regex_id: Option<String>,
-    /// 正则表达式，匹配 BrowseName
-    pub regex_name: Option<String>,
     // always 0
     pub limit: usize,
-    /// 点位更新模式
-    pub update_mode: Option<UpdateMode>,
-    /// 点位更新间隔
-    pub update_interval: Option<usize>,
+    /// 正则表达式，匹配 NodeId || BrowseName，兼容旧版本
+    pub regex: Option<String>,
+    /// 正则表达式，匹配 BrowseName
+    pub regex_name: Option<String>,
+    /// 正则表达式，匹配 NodeId
+    pub regex_id: Option<String>,
     /// OPC UA 配置
     pub ua: Option<PointsUaConfig>,
     /// OPC DA 配置
     pub da: Option<PointsDaConfig>,
+
+    /// 点位更新模式
+    pub update_mode: Option<UpdateMode>,
+    /// 点位更新间隔
+    pub update_interval: Option<usize>,
 }
 
 impl PointsConfig {

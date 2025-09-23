@@ -339,7 +339,8 @@ export default {
         {
           label: '数据源并发读取方式',
           field: 'read_concurrency_type',
-          description: 'measurement 的并行读取方式。queue: 多线程同时读取一个 measurement，完成后读取下一个。average: 平均方式，多个 measurement 同时被不同线程读取。sequence: 每个 measurement 同时只有一个线程读取。\n',
+          description:
+            'measurement 的并行读取方式。queue: 多线程同时读取一个 measurement，完成后读取下一个。average: 平均方式，多个 measurement 同时被不同线程读取。sequence: 每个 measurement 同时只有一个线程读取。\n',
           defaultValue: 'sequence',
           required: false,
           hint: {

@@ -45,7 +45,7 @@
 import { TDengineTimeUnit } from 'constants1';
 import { t } from 'locales';
 import { WindowClauseValue } from './type';
-const stateColumnExculde = ['TIMESTAMP', 'FLOAT', 'DOUBLE'];
+const stateColumnExclude = ['TIMESTAMP', 'FLOAT', 'DOUBLE'];
 const intervalTimeUnit = TDengineTimeUnit.slice(2);
 const props = defineProps<{
   modelValue: WindowClauseValue;
@@ -60,10 +60,10 @@ const currentValue = computed({
   }
 });
 const emits = defineEmits(['update:modelValue']);
-const stateColumn = computed(() => props.columnList.filter(item => !stateColumnExculde.includes(item.type)));
+const stateColumn = computed(() => props.columnList.filter(item => !stateColumnExclude.includes(item.type)));
 function typeChange(val: string) {
-  if (val != 'INTERVAL' && currentValue.value.parttionSet != 'tbname') {
-    currentValue.value.parttionSet = 'tbname';
+  if (val != 'STATE' && currentValue.value.parttionSet?.includes('tbname')) {
+    currentValue.value.parttionSet = currentValue.value.parttionSet.concat(['tbname']);
   }
 }
 </script>

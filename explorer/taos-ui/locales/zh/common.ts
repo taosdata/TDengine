@@ -20,6 +20,7 @@ export default {
   network: '网络',
   total: '总数',
   tips: '提示',
+  compositeKeyTooltip: '指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。',
   orderByAscending: '设置为升序',
   orderByDescending: '设置为降序',
   export: '导出',
@@ -68,5 +69,6 @@ export default {
     "仅企业版和云服务可用，了解更多，请访问 TDengine <a href='https://www.taosdata.com/tdengine-enterprise?utm_source=oss+&utm_medium=user&utm_campaign=explorer' target='_blank'>官网</a>。",
   communityDemoDataTip: '当前列表仅为示例数据',
   yes: '是',
-  no: '否'
+  no: '否',
+  insert: '插入'
 };

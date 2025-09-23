@@ -1,7 +1,7 @@
 <template>
   <div class="docs">
     <p><a :href="`https://www.microsoft.com${biURLPart}/microsoft-365/excel`">Excel</a> {{ $t('docs.tools.is') }}{{ $t('docs.tools.excel.desc') }} </p>
-    <h2 id="excel-repare">{{ $t('docs.tools.excel.step1full') }}</h2>
+    <h2 id="excel-prepare">{{ $t('docs.tools.excel.step1full') }}</h2>
     <p
       >{{ $t('docs.tools.excel.step1desc') }} <a :href="`https://www.microsoft.com${biURLPart}/download`">{{ $t('docs.tools.excel.step1desc1') }}</a
       >{{ $t('docs.tools.excel.step1desc2') }}
@@ -15,7 +15,7 @@
       </li>
       <li class="odbc-span">
         {{ $t('docs.connector.odbc.step12desc1')
-        }}<a :href="`https://www.${urlPart}.com/assets-download/3.0/TDengine${urlEnterprise}-client-${TDengineVersion}-Windows-x64.exe`">{{ $t('docs.connector.odbc.step12desc2') }}</a
+        }}<a :href="installUrlWindows">{{ $t('docs.connector.odbc.step12desc2') }}</a
         >{{ $t('docs.connector.odbc.step12desc3') }}
       </li>
     </ol>

@@ -7,6 +7,7 @@
       <el-upload
         ref="upload"
         class="upload-csv"
+        :headers="uploadHeaders"
         :data="uploadData"
         :accept="accept"
         :on-remove="handleRemove"
@@ -36,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { getDataInProps } from '../model/useDataIn';
+import { getDataInProps, uploadHeaders } from '../model/useDataIn';
 import { currentPageType } from '../model/util';
 import type { UploadRawFile, UploadFile } from 'element-plus';
 import { downloadByUrl } from 'utils/files';

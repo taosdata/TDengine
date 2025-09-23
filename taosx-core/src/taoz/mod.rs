@@ -145,6 +145,7 @@ impl ZFile {
             compression_level,
         )
         .await?;
+        tracing::info!("created new file {}", current_file.display());
 
         Ok(Self {
             api_version: api_version.to_string(),
@@ -278,8 +279,6 @@ impl ZFile {
         };
 
         if self.current_size as u64 >= self.max_file_size || timeout {
-            // 为当前文件计算 CRC 并写入到文件结尾
-
             // 关闭当前文件
             self.writer
                 .flush()
@@ -289,6 +288,7 @@ impl ZFile {
                 .shutdown()
                 .await
                 .context("failed to shutdown ZFile writer")?;
+            tracing::info!("closed file {}", self.get_file_name());
 
             // 如果 name.1 为空，即：没有指定备份点的时间戳，则使用当前时间作为备份点的时间戳，并更新文件名
             if self.name.1.is_none() {
@@ -311,7 +311,9 @@ impl ZFile {
                             old_file, new_file,
                         )
                     })?;
+                // keep metadata in sync
                 self.name.1 = Some(now);
+                self.current_file = new_file; // IMPORTANT: update current_file after rename
             }
 
             // 如果 move_to 不为空，则将当前备份文件移动到 move_to 目录
@@ -332,6 +334,7 @@ impl ZFile {
             self.writer = writer;
             self.current_size = 0;
             self.last_modified = None;
+            tracing::info!("created new file {}", self.get_file_name());
         }
         Ok(())
     }
@@ -378,16 +381,26 @@ impl ZFile {
     /// 如果 move_to 不为空，则将当前备份文件移动到 move_to 目录
     pub async fn move_to(&self) -> anyhow::Result<()> {
         if let Some(new_dir) = &self.move_to {
-            let path = self.dir.clone().join(self.get_file_name());
-            let new_path = new_dir.clone().join(self.get_file_name());
-            tracing::debug!(
-                "move file from {} to {}",
-                path.display(),
-                new_path.display()
-            );
-            tokio::fs::rename(path, new_path)
-                .await
-                .context("failed to move ZFile")?;
+            // Ensure destination directory exists
+            if !new_dir.exists() {
+                tokio::fs::create_dir_all(new_dir).await.with_context(|| {
+                    format!("failed to create move_to dir: {}", new_dir.display())
+                })?;
+            }
+            let src = self.current_file.clone();
+            let file_name = src
+                .file_name()
+                .and_then(|s| s.to_str())
+                .ok_or_else(|| anyhow::anyhow!("invalid current_file name: {}", src.display()))?;
+            let dst = new_dir.clone().join(file_name);
+            if src != dst {
+                tracing::info!("move file from {} to {}", src.display(), dst.display());
+                tokio::fs::rename(&src, &dst)
+                    .await
+                    .context("failed to move ZFile")?;
+            } else {
+                tracing::info!("move skipped, src equals dst: {}", src.display());
+            }
         }
         Ok(())
     }

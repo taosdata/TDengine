@@ -9,6 +9,7 @@ use std::sync::RwLock;
 use std::sync::atomic::Ordering::SeqCst;
 use std::time::{Duration, Instant};
 use std::{path::PathBuf, sync::Arc};
+use taos::sync::MessageSet;
 use taos::taos_query::tmq::VGroupId;
 use taos::*;
 use taos_query::common::RawData;
@@ -214,7 +215,6 @@ async fn wait_for_upcoming_impl(upcoming: Option<DateTime<Utc>>) -> Result<()> {
 
 impl BackupWorker {
     async fn run(&mut self) -> Result<()> {
-        tracing::info!("tmq_to_local [{}] start", self.id);
         let run_impl = self.run_impl().in_current_span();
         select! {
             _ = self.cancel.cancelled() => {
@@ -238,28 +238,48 @@ impl BackupWorker {
 
     async fn run_impl(&self) -> Result<()> {
         let timeout = self.consumer.default_timeout();
+        tracing::debug!(
+            "tmq_to_local consumer:[{}] start, use timeout: {:?}",
+            self.id,
+            timeout
+        );
         let mut last = Instant::now();
-        while let Ok(msg) = self.consumer.recv_timeout(Timeout::from_millis(500)).await {
-            match msg {
-                None => {
-                    self.man.check_or_next().await?;
+        loop {
+            tracing::trace!("tmq_to_local consumer:[{}] polling...", self.id);
+            let res = self.consumer.recv_timeout(Timeout::from_millis(500)).await;
+            tracing::trace!("tmq_to_local consumer:[{}] polled.", self.id);
+            match res {
+                Ok(None) => {
                     // 如果超过了 consumer.timeout 没有收到消息，则退出
                     match timeout {
                         Timeout::Duration(d) => {
                             if last.elapsed() > d {
-                                tracing::info!("tmq_to_local [{}] timeout", self.id);
+                                tracing::info!("tmq_to_local consumer:[{}] timeout", self.id);
                                 break;
                             }
                         }
                         Timeout::None => {
+                            tracing::info!(
+                                "tmq_to_local consumer:[{}] timeout is None, exit",
+                                self.id
+                            );
                             break;
                         }
                         Timeout::Never => {
-                            // do nothing
+                            tracing::trace!(
+                                "tmq_to_local consumer[{}]: no messages received for {:?}",
+                                self.id,
+                                last.elapsed()
+                            );
+                            self.man.check_or_next().await?;
+                            tracing::trace!(
+                                "tmq_to_local consumer[{}]: check_or_next completed",
+                                self.id
+                            );
                         }
                     }
                 }
-                Some((offset, message)) => {
+                Ok(Some((offset, message))) => {
                     // 更新最后一次收到消息的时间
                     last = Instant::now();
 
@@ -307,7 +327,6 @@ impl BackupWorker {
                                 .flush_vgroup(vg_id)
                                 .await
                                 .context("Flush vgroup error")?;
-
                             if let Some(metrics) = &self.metrics {
                                 let metrics = metrics.tmq();
                                 metrics.add_messages_of_meta(1);
@@ -351,6 +370,10 @@ impl BackupWorker {
                         let metrics = metrics.tmq();
                         metrics.add_messages(1);
                     }
+                }
+                Err(err) => {
+                    tracing::error!(?err, "tmq_to_local consumer[{}] recv error", self.id);
+                    return Err(err).context("tmq_to_local consumer recv error");
                 }
             }
         }
@@ -440,11 +463,13 @@ impl ZFileMan {
         for entry in self.writers.iter_mut() {
             let mut man = entry.value().lock().await;
             tracing::info!("Flush vgroup {}", entry.key());
-            man.move_to().await?;
+            // Finish any open data block and ensure contents are flushed to disk first
             man.start_raw_block().await?;
             man.finish_raw_block().await?;
             man.flush().await?;
             man.shutdown().await?;
+            // After the file has been closed, move it
+            man.move_to().await?;
         }
         Ok(())
     }

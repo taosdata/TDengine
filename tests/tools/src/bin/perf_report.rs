@@ -485,36 +485,32 @@ fn render_trend_section(
     {
         return String::new();
     }
-    // 按天聚合取最大
-    let mut by_day: HashMap<i64, ScatterPoint> = HashMap::new();
+    use chrono::{Local, NaiveDate, TimeZone};
+    // 以本地时区自然日（00:00）为界按日聚合：选取每天最大值
+    let mut by_day: HashMap<NaiveDate, ScatterPoint> = HashMap::new();
     for p in scatter_points {
-        let day = p.ts / 86_400;
-        by_day
-            .entry(day)
-            .and_modify(|e| {
-                if p.val > e.val {
-                    *e = p.clone();
-                }
-            })
-            .or_insert_with(|| p.clone());
+        if let Some(dt) = Local.timestamp_opt(p.ts, 0).single() {
+            let date = dt.date_naive();
+            by_day
+                .entry(date)
+                .and_modify(|e| {
+                    if p.val > e.val {
+                        *e = p.clone();
+                    }
+                })
+                .or_insert_with(|| p.clone());
+        }
     }
-    let mut daily: Vec<ScatterPoint> = by_day.into_values().collect();
-    daily.sort_by_key(|p| p.ts);
+    let mut daily_points: Vec<ScatterPoint> = by_day.into_values().collect();
+    daily_points.sort_by_key(|p| p.ts);
+
     let (mut min_ts_d, mut max_ts_d, mut min_v_d, mut max_v_d) =
         (i64::MAX, i64::MIN, f64::MAX, f64::MIN);
-    for p in &daily {
-        if p.ts < min_ts_d {
-            min_ts_d = p.ts;
-        }
-        if p.ts > max_ts_d {
-            max_ts_d = p.ts;
-        }
-        if p.val < min_v_d {
-            min_v_d = p.val;
-        }
-        if p.val > max_v_d {
-            max_v_d = p.val;
-        }
+    for p in &daily_points {
+        min_ts_d = min_ts_d.min(p.ts);
+        max_ts_d = max_ts_d.max(p.ts);
+        min_v_d = min_v_d.min(p.val);
+        max_v_d = max_v_d.max(p.val);
     }
     if min_v_d == f64::MAX {
         min_v_d = 0.0;
@@ -522,6 +518,7 @@ fn render_trend_section(
     if max_v_d == f64::MIN {
         max_v_d = 0.0;
     }
+
     let mut s = String::new();
     s.push_str("<section class=sec><h2>趋势分析</h2>");
     let target_name = case
@@ -531,14 +528,14 @@ fn render_trend_section(
         .unwrap_or("mig_rate");
     s.push_str(&build_scatter_svg(
         "性能趋势",
-        &daily,
+        &daily_points,
         min_ts_d,
         max_ts_d,
         min_v_d,
         max_v_d,
         target_name,
     ));
-    s.push_str("<p style='font-size:12px;color:#555'>按天聚合：仅展示每天最高的 ");
+    s.push_str("<p style='font-size:12px;color:#555'>按天聚合：按本地时区自然日(00:00)分组，展示每天最高的 ");
     s.push_str(&escape(target_name));
     s.push_str(" 值。</p></section>");
     s
@@ -906,9 +903,20 @@ fn build_scatter_svg(
             escape(title)
         );
     }
-    let min_day = min_ts / 86_400;
-    let max_day = max_ts / 86_400;
-    let day_span = (max_day - min_day).max(1) as f64;
+    use chrono::{Local, NaiveDate, TimeZone};
+
+    let min_day_date = Local
+        .timestamp_opt(min_ts, 0)
+        .single()
+        .map(|d| d.date_naive())
+        .unwrap_or_else(|| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
+    let max_day_date = Local
+        .timestamp_opt(max_ts, 0)
+        .single()
+        .map(|d| d.date_naive())
+        .unwrap_or(min_day_date);
+    let day_span = (max_day_date.signed_duration_since(min_day_date).num_days()).max(1) as f64;
+
     let width = 900f64;
     let height = 300f64;
     let pl = 60f64; // left padding
@@ -953,15 +961,16 @@ fn build_scatter_svg(
     ));
 
     // vertical grid + x ticks
-    let total_days = (max_day - min_day + 1).max(1);
+    let total_days = (max_day_date.signed_duration_since(min_day_date).num_days() + 1).max(1);
     let tick_step = if total_days <= 14 {
         1
     } else {
         (total_days / 10).max(1)
     };
-    let mut day = min_day;
-    while day <= max_day {
-        let x = pl + ((day - min_day) as f64 / day_span) * plot_w;
+    let mut cur = min_day_date;
+    while cur <= max_day_date {
+        let offset = cur.signed_duration_since(min_day_date).num_days();
+        let x = pl + (offset as f64 / day_span) * plot_w;
         svg.push_str(&format!(
             "<line x1='{:.2}' y1='{}' x2='{:.2}' y2='{}' stroke='#eee' stroke-width='1' />",
             x,
@@ -969,11 +978,8 @@ fn build_scatter_svg(
             x,
             pt + plot_h
         ));
-        if (day - min_day) % tick_step == 0 || day == max_day {
-            let day_ts = day * 86_400;
-            let label = chrono::DateTime::from_timestamp(day_ts, 0)
-                .map(|d| d.format("%m-%d").to_string())
-                .unwrap_or_else(|| day.to_string());
+        if offset % tick_step == 0 || cur == max_day_date {
+            let label = cur.format("%m-%d").to_string();
             svg.push_str(&format!(
                 "<text x='{:.2}' y='{}' font-size='10' text-anchor='middle'>{}</text>",
                 x,
@@ -981,7 +987,7 @@ fn build_scatter_svg(
                 label
             ));
         }
-        day += 1;
+        cur = cur.succ_opt().unwrap();
     }
 
     // y axis label
@@ -990,36 +996,38 @@ fn build_scatter_svg(
     // points
     let color = "#2563eb";
     for p in points {
-        let day = p.ts / 86_400;
-        let x = pl + ((day - min_day) as f64 / day_span) * plot_w;
-        let y = pt + plot_h - ((p.val - min_v) / span_v) * plot_h;
-        let ts_fmt = chrono::DateTime::from_timestamp(p.ts, 0)
-            .map(|d| d.format("%Y-%m-%d %H:%M:%S").to_string())
-            .unwrap_or_else(|| p.ts.to_string());
-        let mut lines: Vec<String> = Vec::new();
-        lines.push(format!("row: {}", p.row));
-        lines.push(format!("{}: {:.4}", target, p.val));
-        lines.push(format!("ts: {}", ts_fmt));
-        lines.push("TDengine Version:".into());
-        for seg in p.td_raw.split(';') {
-            let seg = seg.trim();
-            if !seg.is_empty() {
-                lines.push(seg.to_string());
+        if let Some(dt) = Local.timestamp_opt(p.ts, 0).single() {
+            let day_offset = dt
+                .date_naive()
+                .signed_duration_since(min_day_date)
+                .num_days();
+            let x = pl + (day_offset as f64 / day_span) * plot_w;
+            let y = pt + plot_h - ((p.val - min_v) / span_v) * plot_h;
+            let ts_fmt = dt.format("%Y-%m-%d %H:%M:%S").to_string();
+            let mut lines: Vec<String> = Vec::new();
+            lines.push(format!("row: {}", p.row));
+            lines.push(format!("{}: {:.4}", target, p.val));
+            lines.push(format!("ts: {}", ts_fmt));
+            lines.push("TDengine Version:".into());
+            for seg in p.td_raw.split(';') {
+                let seg = seg.trim();
+                if !seg.is_empty() {
+                    lines.push(seg.to_string());
+                }
             }
-        }
-        lines.push("TaosX Version:".into());
-        for seg in p.tx_raw.split(';') {
-            let seg = seg.trim();
-            if !seg.is_empty() {
-                lines.push(seg.to_string());
+            lines.push("TaosX Version:".into());
+            for seg in p.tx_raw.split(';') {
+                let seg = seg.trim();
+                if !seg.is_empty() {
+                    lines.push(seg.to_string());
+                }
             }
+            let info_txt = escape(&lines.join("\n"));
+            svg.push_str(&format!("<circle class='pt' cx='{:.2}' cy='{:.2}' r='5' fill='{color}' data-info='{}'></circle>", x, y, info_txt));
         }
-        let info_txt = escape(&lines.join("\n"));
-        svg.push_str(&format!("<circle class='pt' cx='{:.2}' cy='{:.2}' r='5' fill='{color}' data-info='{}'></circle>", x, y, info_txt));
     }
 
     svg.push_str("</svg>");
-    // tooltip script (initialized once)
     svg.push_str(r#"<script>(function(){if(window.__perfTooltipInit)return;window.__perfTooltipInit=true;const tip=document.createElement('div');tip.className='tip';tip.id='perf-tip';tip.style.display='none';document.body.appendChild(tip);let showTimer=null,hideTimer=null;function position(e){const r=tip.getBoundingClientRect();let x=e.clientX+16,y=e.clientY+16;if(x+r.width>window.innerWidth-8)x=window.innerWidth-8-r.width;if(y+r.height>window.innerHeight-8)y=window.innerHeight-8-r.height;tip.style.left=x+'px';tip.style.top=y+'px';}function scheduleHide(){if(hideTimer)clearTimeout(hideTimer);hideTimer=setTimeout(()=>{if(!tip.matches(':hover')){tip.style.display='none';}},250);}document.addEventListener('mouseover',e=>{const el=e.target;if(el instanceof SVGCircleElement && el.classList.contains('pt')){if(hideTimer)clearTimeout(hideTimer);if(showTimer)clearTimeout(showTimer);showTimer=setTimeout(()=>{const info=el.getAttribute('data-info');if(!info)return;tip.textContent=info;tip.style.display='block';position(e);},100);}else if(!tip.contains(el)){scheduleHide();}});document.addEventListener('mousemove',e=>{if(tip.style.display==='block')position(e);});tip.addEventListener('mouseleave',scheduleHide);tip.addEventListener('mouseenter',()=>{if(hideTimer)clearTimeout(hideTimer);});})();</script>"#);
     svg.push_str("</div>");
     svg

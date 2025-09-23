@@ -1,7 +1,7 @@
 <template>
   <div>
     <p> {{ $t('docs.tools.seeq.topdesc') }} <a href="https://www.seeq.com/">Seeq</a>{{ $t('docs.tools.seeq.topdesc1') }} </p>
-    <h2 id="seeq-repare">{{ $t('docs.tools.seeq.step1') }}</h2>
+    <h2 id="seeq-prepare">{{ $t('docs.tools.seeq.step1') }}</h2>
     <p>{{ $t('docs.tools.seeq.step1desc') }}<a href="https://www.seeq.com/">www.seeq.com</a>{{ $t('docs.tools.seeq.step1desc1') }} </p>
     <h2 id="seeq-install">{{ $t('docs.tools.seeq.step2') }}</h2>
     <ol class="seeq-ol">

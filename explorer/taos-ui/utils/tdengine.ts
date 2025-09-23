@@ -1,4 +1,10 @@
-import { TDengineStringType, TDengineNumberType, DBParameters, VariableTableColumnType, TwoVariableTableColumnType } from 'constants1/tdengine';
+import {
+  TDengineStringType,
+  TDengineNumberType,
+  DBParameters,
+  VariableTableColumnType,
+  TwoVariableTableColumnType
+} from 'constants1/tdengine';
 /**
  * @description 针对TDengine的restful接口中返回的head和data，返回一个适合table组件的对象
  * @author 阿宾
@@ -32,6 +38,8 @@ export function compHeadAndData(head: string[][], data: string[][]): Recordable[
  * @returns {*}
  */
 export function compareVersion(currentVersion: string, targetVersion: string): boolean {
+  console.log('compareVersion', currentVersion, targetVersion);
+  if (!currentVersion || !targetVersion) return false;
   const v1Arr = currentVersion.split('.');
   const compareOperator = targetVersion.match(/^[><=]+/)?.[0] || '>';
   const v2Arr = targetVersion.replace(compareOperator, '').split('.');
@@ -110,7 +118,7 @@ export function composeType(data: ComposeTypeParameter) {
     return `${type}(${length})`;
   }
   if (TwoVariableTableColumnType.includes(type)) {
-    return `${type}(${length},${length2})`
+    return `${type}(${length},${length2})`;
   }
   return type;
 }
@@ -121,4 +129,9 @@ export function processStringTagValue(dataType: string, value: string) {
   } else {
     return value;
   }
+}
+
+// The composite key in SQL is 'PRIMARY KEY' in <3.3.6.3, 'COMPOSITE KEY' in >=3.3.6.3
+export function isCompositeKey(note: string): boolean {
+  return note == 'COMPOSITE KEY' || note == 'PRIMARY KEY';
 }

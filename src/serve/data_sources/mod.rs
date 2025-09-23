@@ -23,7 +23,7 @@ use taosx_core::runners::opc::{csv::CsvParser, model::ModelType};
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
 use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from};
-use taosx_core::{QueryDataSourceReq, dsv::DataSourceValidation, utils::license};
+use taosx_core::{QueryDataSourceReq, dsv::DataSourceValidation};
 use taosx_core::{
     plugins::transform::parse::plugin::ParserPlugin,
     runners::pi::{
@@ -553,25 +553,31 @@ async fn validate_2dsn_and_license(
         Some(agent) => controller.validate_dsn_via_agent(agent, &from).await,
     };
 
-    let to = match to.into_dsn() {
-        Ok(dsn) => dsn,
-        Err(err) => {
-            return DataSourceValidation::invalid(
-                "unknown".to_string(),
-                format!("Target DSN error: {err:#}"),
-            );
-        }
-    };
+    if cfg!(not(feature = "disable-enterprise-only-validation")) {
+        use taosx_core::utils::license;
 
-    match license::validate_enterprise_license(&from, &to).await {
-        Ok(license::LicenseKind::Good { .. }) => res,
-        Ok(license::LicenseKind::Feature(err))
-        | Ok(license::LicenseKind::Edition(err))
-        | Ok(license::LicenseKind::Connector(err))
-        | Err(err) => DataSourceValidation::invalid(
-            "unknown".to_string(),
-            format!("DSN license validate error: {err:#}"),
-        ),
+        let to = match to.into_dsn() {
+            Ok(dsn) => dsn,
+            Err(err) => {
+                return DataSourceValidation::invalid(
+                    "unknown".to_string(),
+                    format!("Target DSN error: {err:#}"),
+                );
+            }
+        };
+
+        match license::validate_enterprise_license(&from, &to).await {
+            Ok(license::LicenseKind::Good { .. }) => res,
+            Ok(license::LicenseKind::Feature(err))
+            | Ok(license::LicenseKind::Edition(err))
+            | Ok(license::LicenseKind::Connector(err))
+            | Err(err) => DataSourceValidation::invalid(
+                "unknown".to_string(),
+                format!("DSN license validate error: {err:#}"),
+            ),
+        }
+    } else {
+        res
     }
 }
 

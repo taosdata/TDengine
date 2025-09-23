@@ -47,7 +47,7 @@
             v-if="TwoVariableTableColumnType.includes(column.type)"
             v-model="column.length2"
             size="default"
-            default-value=0
+            default-value="0"
             :min="1"
             :max="column.type == 'NCHAR' ? 4093 : 65517"
             label="Length"
@@ -72,7 +72,9 @@
             <el-checkbox
               v-model="column.primaryKey"
               :disabled="parmaryKeyType.findIndex(item => column.type.startsWith(item.value)) == -1"
-              >PRIMARY KEY</el-checkbox
+              ><el-tooltip placement="top" effect="light" :content="t('common.compositeKeyTooltip')"
+                >COMPOSITE KEY</el-tooltip
+              ></el-checkbox
             >
           </el-tag>
           <el-tooltip
@@ -258,7 +260,8 @@ const state = reactive({
     ts_field_name: '',
     rollup: '',
     columns: [] as any[],
-    tags: [] as any[]
+    tags: [] as any[],
+    version: instance.version
   },
   rules: {
     name: [
@@ -482,7 +485,13 @@ async function createTemplateStable() {
         return {
           name: col.field,
           length: col.length,
-          type: col.type + (VariableTableColumnType.includes(col.type) ? `(${col.length})` : TwoVariableTableColumnType.includes(col.type) ? `(${col.length},${col.length2})` : '')
+          type:
+            col.type +
+            (VariableTableColumnType.includes(col.type)
+              ? `(${col.length})`
+              : TwoVariableTableColumnType.includes(col.type)
+                ? `(${col.length},${col.length2})`
+                : '')
         };
       });
       const newTags = tags.map(col => {
@@ -502,7 +511,7 @@ async function createTemplateStable() {
         const topparse = transformerState?.topParse as SpbTopParseType | null;
         const samples = topparse?.samples;
         parserData = {
-        parser: {
+          parser: {
             parse: transformerState?.topParse?.parser?.parse,
             s_model: s_model,
             mutate: transformerState.transformExtractParseData ? [transformerState.transformExtractParseData] : []
@@ -514,7 +523,7 @@ async function createTemplateStable() {
         const topparse = transformerState?.topParse as TopParseType | null;
         const input = topparse?.input;
         parserData = {
-        parser: {
+          parser: {
             parse: transformerState?.topParse?.parser?.parse,
             s_model: s_model,
             mutate: transformerState.transformExtractParseData ? [transformerState.transformExtractParseData] : []
@@ -524,7 +533,7 @@ async function createTemplateStable() {
         };
       }
 
-      const result = await dataInProps.transform.api.getStabelParser(parserData);
+      const result = await dataInProps.transform.api.getStableParser(parserData);
       if (result && Object.hasOwnProperty.call(result, 'code')) {
         ElMessage.error(result.message || result.desc);
         return;

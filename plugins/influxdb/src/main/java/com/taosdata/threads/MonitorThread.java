@@ -5,6 +5,7 @@ import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.MessageCache;
 import com.taosdata.caches.StatusCache;
+import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.utils.DateUtils;
@@ -49,7 +50,7 @@ public class MonitorThread implements Runnable {
 
     @Override
     public void run() {
-        while (true) {
+        while (LocalConfig.isRunMonitorThread) {
             long start = System.currentTimeMillis();
             try {
                 this.name = Thread.currentThread().getName();

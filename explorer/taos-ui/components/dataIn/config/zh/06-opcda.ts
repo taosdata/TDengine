@@ -57,6 +57,10 @@ export default {
           accept: '.csv',
           templateUrl: 'template-zh.csv',
           required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
           multiple: true,
           editable: true,
           selectable: true,
@@ -242,6 +246,13 @@ export default {
           field: '39088942-8a97-43e0-a94c-6885a806a79f',
           description: '数据采集相关配置项。',
           children: [
+            {
+              label: '上报异常值',
+              description: '是否上报异常值（Bad Quality）的数据，默认上报异常值数据。',
+              field: 'contains_bad',
+              type: 'switch',
+              defaultValue: true
+            },
             {
               label: '采集间隔',
               description: '数据点位采集间隔，单位为：秒。',

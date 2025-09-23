@@ -124,7 +124,7 @@ impl Recorder for TaosXRecorder {
         _unit: Option<metrics::Unit>,
         _description: metrics::SharedString,
     ) {
-        unimplemented!()
+        // No-op, we don't store descriptions.
     }
 
     fn describe_gauge(
@@ -133,7 +133,7 @@ impl Recorder for TaosXRecorder {
         _unit: Option<metrics::Unit>,
         _description: metrics::SharedString,
     ) {
-        unimplemented!()
+        // No-op, we don't store descriptions.
     }
 
     fn describe_histogram(
@@ -142,7 +142,7 @@ impl Recorder for TaosXRecorder {
         _unit: Option<metrics::Unit>,
         _description: metrics::SharedString,
     ) {
-        unimplemented!()
+        // No-op, we don't store descriptions.
     }
 
     fn register_counter(
@@ -219,17 +219,22 @@ mod test {
         let recorder = TaosXRecorder::new(Some(Duration::from_secs(1)));
         let handle = recorder.handle();
         recorder.install();
+        // let a = metrics::set_global_recorder(recorder).unwrap();
         let key = Key::from_name("test_counter");
         let counter = counter!("test_counter");
         counter.increment(10);
         counter.increment(10);
+        let gauge = metrics::gauge!("test_gauge", "a" => "b");
+        gauge.increment(1.2);
         let snapshot = handle.snapshot();
         println!("{:?}", snapshot);
-        assert_eq!(snapshot.0.len(), 1);
+        assert_eq!(snapshot.0.len(), 2);
         assert_eq!(snapshot.0[0].0, key);
         assert_eq!(snapshot.0[0].1, DebugValue::Counter(20));
+        assert_eq!(snapshot.0[1].1, DebugValue::Gauge(1.2));
         std::thread::sleep(Duration::from_secs(2));
         let snapshot = handle.snapshot();
+        dbg!(&snapshot);
         assert_eq!(snapshot.0.len(), 0);
     }
 }

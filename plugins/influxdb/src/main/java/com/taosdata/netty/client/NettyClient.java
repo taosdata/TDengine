@@ -48,6 +48,7 @@ public class NettyClient {
             // 建立连接
             connect(bootstrap, workGroup, dataSourceKey);
         });
+        waitThread.setDaemon(true);
         waitThread.start();
     }
 
@@ -92,6 +93,7 @@ public class NettyClient {
                     // 启动线程PushThread
                     PushThread push = new PushThread(dataSourceKey, listener.channel());
                     Thread pushThread = new Thread(push);
+                    pushThread.setDaemon(true);
                     pushThread.setName(threadName);
                     pushThread.start();
                     ThreadInfo threadInfo = new ThreadInfo();

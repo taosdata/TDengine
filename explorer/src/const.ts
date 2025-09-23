@@ -51,7 +51,7 @@ export const DBFILED: Recordable<Recordable> = {
   cachemodel: { type: 'string', alter: true, defaultValue: 'none' },
   cachesize: { type: 'number', alter: true, defaultValue: 1 },
   comp: { type: 'number', alter: false, defaultValue: 2 },
-  duration: { type: 'number', alter: false, defaultValue: '50d' },
+  duration: { type: 'number', alter: false, defaultValue: '10d' },
   wal_fsync_period: { type: 'number', alter: true, defaultValue: 3000 },
   maxrows: { type: 'number', alter: false, defaultValue: 4096 },
   minrows: { type: 'number', alter: false, defaultValue: 100 },
@@ -63,7 +63,7 @@ export const DBFILED: Recordable<Recordable> = {
   retentions: { type: 'string', alter: false, defaultValue: '' },
   strict: { type: 'string', alter: false, defaultValue: 'off', version: '<=3.0.2.4' },
   wal_level: { type: 'number', alter: true, defaultValue: 1 },
-  vgroups: { type: 'number', alter: false, defaultValue: 1 },
+  vgroups: { type: 'number', alter: false, defaultValue: 4 },
   single_stable: { type: 'number', alter: false, defaultValue: 0 },
   wal_retention_period: { type: 'number', alter: false, defaultValue: 3600 }, //
   wal_retention_size: { type: 'number', alter: false, defaultValue: 0 },
@@ -106,7 +106,7 @@ export const TDengineTimeUnit = [
     value: 'u'
   },
   {
-    label: 'millsecond',
+    label: 'millisecond',
     value: 'a'
   },
   {
@@ -161,19 +161,19 @@ export const CustomShellContent = ['Welcome to TDengine '];
 
 export const IntegerType = [
   'int',
-  'int unsinged',
+  'int unsigned',
   'bigint',
-  'bigint unsinged',
+  'bigint unsigned',
   'float',
   'double',
   'smallint',
   'smallint unsigned',
   'tinyint',
-  'tinyint unsinged'
+  'tinyint unsigned'
 ];
 export const StringType = ['varchar', 'nchar', 'binary'];
 // 数学函数
-export const NumbericFn = [
+export const NumericFn = [
   {
     label: 'ABS',
     supportDatatype: IntegerType
@@ -341,7 +341,7 @@ export const StringFn = [
 ];
 
 // 转换函数
-export const CoversionFn = [
+export const ConversionFn = [
   {
     label: 'CAST',
     supportDatatype: StringType.concat(IntegerType)
@@ -384,7 +384,7 @@ export const DatetimeFN = [
             value: '1u'
           },
           {
-            label: 'millsecond',
+            label: 'millisecond',
             value: '1a'
           },
           {
@@ -430,7 +430,7 @@ export const DatetimeFN = [
             value: '1u'
           },
           {
-            label: 'millsecond',
+            label: 'millisecond',
             value: '1a'
           },
           {
@@ -538,7 +538,7 @@ export const AggregationFn = [
             value: '1u'
           },
           {
-            label: 'millsecond',
+            label: 'millisecond',
             value: '1a'
           },
           {
@@ -987,7 +987,7 @@ export const SeriesSpecificFn = [
             value: '1u'
           },
           {
-            label: 'millsecond',
+            label: 'millisecond',
             value: '1a'
           },
           {
@@ -1088,7 +1088,7 @@ export const TDengineFill = ['NONE', 'VALUE', 'PREV', 'NULL', 'LINEAR', 'NEXT', 
 export const backupMockData = [
   {
     to_expand: { path: '/data/test' },
-    database: 'myDatabse',
+    database: 'myDatabase',
     created_at: '2024-03-28T13:38:06+08:00',
     status: 'stopped'
   }
@@ -1097,7 +1097,7 @@ export const backupMockData = [
 export const replicationMockData = [
   {
     id: '1',
-    fromdb: 'myDatabse',
+    fromdb: 'myDatabase',
     hostport: 'taos+ws://root:taosdata@192.168.1.10:6041/mytest',
     status: 'stopped',
     reason: 'Task has been stopped',
@@ -1114,9 +1114,9 @@ export const auditMockData = [
     client_address: '127.0.0.1:60640',
     user_name: 'root',
     operation: 'createStb',
-    db: 'myDatabse',
+    db: 'myDatabase',
     resource: 'meteralltype',
-    details: 'dbname:myDatabse, stable name:meteralltype'
+    details: 'dbname:myDatabase, stable name:meteralltype'
   },
   {
     ts: '2024-03-28T13:36:06+08:00',
@@ -1136,7 +1136,7 @@ export const dataInMockData = [
     name: 'td3-demo',
     localname: 'td3',
     localtype: 'TDengine Data Subscription',
-    target: 'targetDatabse',
+    target: 'targetDatabase',
     created_at: '2024-03-27T10:34:15.994Z',
     finished_at: '2024-03-27T21:20:51.681Z',
     status: 'completed',

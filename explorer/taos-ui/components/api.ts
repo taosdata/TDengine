@@ -1,11 +1,25 @@
 import { ExecuteSqlApiFn } from './explorer/model/useExplorer';
-import { ElMessage } from 'element-plus';
 import { TDengineStringType } from 'constants1/index';
-import { escapeSpecialChar, composeType, processStringTagValue, addStrBackquote } from 'utils/tdengine';
-import { ColumnStruct, CreateStableForm, CreateTableForm, CreateSubTbForm, TagStruct, CreateVirtualNormalTableForm } from './explorer/components/props';
+import {
+  escapeSpecialChar,
+  composeType,
+  processStringTagValue,
+  addStrBackquote,
+  isCompositeKey,
+  compareVersion
+} from 'utils/tdengine';
+import {
+  ColumnStruct,
+  CreateStableForm,
+  CreateTableForm,
+  CreateSubTbForm,
+  TagStruct,
+  CreateVirtualNormalTableForm
+} from './explorer/components/props';
+import { ElMessage } from 'element-plus';
 
-export const NORMAL_TABLE = "NORMAL_TABLE";
-export const VIRTUAL_NORMAL_TABLE = "VIRTUAL_NORMAL_TABLE";
+export const NORMAL_TABLE = 'NORMAL_TABLE';
+export const VIRTUAL_NORMAL_TABLE = 'VIRTUAL_NORMAL_TABLE';
 
 export let executeSqlFn: ExecuteSqlApiFn | undefined;
 
@@ -29,8 +43,7 @@ export async function getPaginationData(
     .then(({ data }) => {
       return Number(data?.[0]?.[0]) || 0;
     })
-    .catch(err => {
-      err.desc && ElMessage.error(err.desc);
+    .catch(() => {
       return 0;
     });
   if (!count || !currentPage || !pageSize) return [[], 0];
@@ -39,10 +52,7 @@ export async function getPaginationData(
   if (dataSql.endsWith(';')) {
     dataSql = dataSql.slice(0, -1);
   }
-  let data = await executeSqlFn!(`${dataSql} limit ${startIndex},${pageSize};`, true).catch(err => {
-    err.desc && ElMessage.error(err.desc);
-    return [];
-  });
+  let data = await executeSqlFn!(`${dataSql} limit ${startIndex},${pageSize};`, true);
   if (typeof handleDataFn === 'function') {
     data = handleDataFn(data);
   }
@@ -98,8 +108,7 @@ function getStableConditionStr(stableList: Recordable[]) {
 export function getAllData(sql: string, handleDataFn?: AnyFunction): Promise<treeDataResult> {
   return executeSqlFn!(sql, true)
     .then((data): treeDataResult => [handleDataFn ? handleDataFn(data) : data, data.length])
-    .catch(err => {
-      err.desc && ElMessage.error(err.desc);
+    .catch(() => {
       return [[], 0];
     });
 }
@@ -149,20 +158,17 @@ export function getStableTags(dbName: string, stableList: Recordable[]) {
       ''
     )});`,
     true
-  ).catch(err => {
-    err.desc && ElMessage.error(err.desc);
-    return [];
-  });
+  );
 }
 
-export function getTagHierachy(dbName: string, stableName: string, tagName: string, tagType: string) {
+export function getTagHierarchy(dbName: string, stableName: string, tagName: string, tagType: string) {
   const TagValueSQL = `select tag_value, count(*) as total from information_schema.ins_tags where db_name="${dbName}" and stable_name="${stableName}" and tag_name="${tagName}" group by tag_value`;
   return getAllData(TagValueSQL).then(data => {
-    return handleTagHierachyData(data[0], dbName, stableName, tagType, tagName);
+    return handleTagHierarchyData(data[0], dbName, stableName, tagType, tagName);
   });
 }
 
-export function handleTagHierachyData(
+export function handleTagHierarchyData(
   data: Recordable[],
   dbName: string,
   stableName: string,
@@ -200,7 +206,7 @@ export function handleTagHierachyData(
         currentItem = currentItem[subItem].children;
       });
     });
-    const result = generateTagHierachy(tmpTags);
+    const result = generateTagHierarchy(tmpTags);
     tagTree = result?.obj;
   } else {
     tagTree = data?.map(item => {
@@ -219,14 +225,14 @@ export function handleTagHierachyData(
   return [tagTree, tagTree.length];
 }
 
-function generateTagHierachy(tmpTags: Recordable) {
+function generateTagHierarchy(tmpTags: Recordable) {
   let total = 0;
   const result = Object.keys(tmpTags)
     .sort()
     .map(item => {
       const tmpObj = tmpTags[item];
       if (Object.keys(tmpObj.children).length > 0) {
-        const result = generateTagHierachy(tmpObj.children);
+        const result = generateTagHierarchy(tmpObj.children);
         tmpObj.children = result.obj;
         tmpObj.total = result.total;
       } else {
@@ -246,8 +252,8 @@ export function deleteStableReq(payload: { dbName: string; stbName: string }) {
 }
 
 export function getStableStructReq(dbName: string, stableName: string) {
-  return executeSqlFn!(`DESCRIBE \`${dbName}\`.\`${stableName}\`;`, true)
-    .then((list): { columns: ColumnStruct[]; tags: TagStruct[] } => {
+  return executeSqlFn!(`DESCRIBE \`${dbName}\`.\`${stableName}\`;`, true).then(
+    (list): { columns: ColumnStruct[]; tags: TagStruct[] } => {
       const columns: ColumnStruct[] = [];
       const tags: TagStruct[] = [];
       for (let i = 0; i < list.length; i++) {
@@ -255,18 +261,15 @@ export function getStableStructReq(dbName: string, stableName: string) {
         if (item.note == 'TAG') {
           tags.push(item as TagStruct);
         } else {
-          columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY' } as ColumnStruct);
+          columns.push({ ...item, primaryKey: isCompositeKey(item.note) } as ColumnStruct);
         }
       }
       return {
         columns: columns,
         tags: tags
       };
-    })
-    .catch(err => {
-      err.desc && ElMessage.error(err.desc);
-      return Promise.reject(err);
-    });
+    }
+  );
 }
 
 export async function getNormalTableStructReq(dbName: string, stableName: string): Promise<ColumnStruct[]> {
@@ -276,48 +279,48 @@ export async function getNormalTableStructReq(dbName: string, stableName: string
     const columns: ColumnStruct[] = [];
     for (let i = 0; i < list.length; i++) {
       const item = list[i];
-      columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY' } as ColumnStruct);
+      columns.push({ ...item, primaryKey: isCompositeKey(item.note) } as ColumnStruct);
     }
     return columns;
-  }
-  catch (err: any) {
+  } catch (err: any) {
     err.desc && ElMessage.error(err.desc);
     return Promise.reject(err);
-  };
+  }
 }
-
 
 export async function createVirtualNormalTableReq(formData: CreateVirtualNormalTableForm, dbName: string) {
   const { name, columns } = formData;
-  console.log("Create virtual normal table with:", formData);
-  const columnDefinitions = columns.map((item: any, index) => {
-    if (index === 0) {
-      // The first column is the primary key, so we add PRIMARY KEY constraint
-      return `${escapeName(item.field)} ${composeType(item)}`;
-    } else {
-      return `${escapeName(item.field)} ${composeType(item)} FROM ${buildVirtualColumn(item)}`;
-    }
-  }).join(',');
-  console.log("Column definitions for virtual normal table:", columnDefinitions);
+  console.log('Create virtual normal table with:', formData);
+  const columnDefinitions = columns
+    .map((item: any, index) => {
+      if (index === 0) {
+        // The first column is the primary key, so we add COMPOSITE KEY constraint
+        return `${escapeName(item.field)} ${composeType(item)}`;
+      } else {
+        return `${escapeName(item.field)} ${composeType(item)} FROM ${buildVirtualColumn(item)}`;
+      }
+    })
+    .join(',');
+  console.log('Column definitions for virtual normal table:', columnDefinitions);
 
   try {
     await executeSqlFn!(`CREATE VTABLE \`${dbName}\`.${escapeName(name)} (${columnDefinitions});`);
-  }
-  catch (err: any) {
+  } catch (err: any) {
     err.desc && ElMessage.error(err.desc);
     return Promise.reject(err);
   }
 }
 export async function createNormalTableReq(formData: CreateTableForm, dbName: string) {
   const { name, columns } = formData;
-  const columnDefinitions = columns.map(item => {
-    return `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}${item.primaryKey ? ' PRIMARY KEY' : ''}`;
-  }).join(',');
+  const columnDefinitions = columns
+    .map(item => {
+      return `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}${item.primaryKey ? ' COMPOSITE KEY' : ''}`;
+    })
+    .join(',');
 
   try {
     await executeSqlFn!(`CREATE TABLE \`${dbName}\`.${name} (${columnDefinitions});`);
-  }
-  catch (err: any) {
+  } catch (err: any) {
     err.desc && ElMessage.error(err.desc);
     return Promise.reject(err);
   }
@@ -347,15 +350,17 @@ export async function changeNormalTableStruct(data: changeNormalTableStructData,
   }
 }
 export async function createStableReq(formData: CreateStableForm, dbName: string) {
-  const { name, columns, tags } = formData;
+  const { name, columns, tags, version } = formData;
+  const lt_3363 = compareVersion(version, '<3.3.6.3');
 
   try {
     return await executeSqlFn!(
       `CREATE STABLE \`${dbName}\`.${name} (${columns
         .map(
           item =>
-            `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''
-            }${item.primaryKey ? ' PRIMARY KEY' : ''}`
+            `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${
+              item.level ? ' LEVEL ' + `'${item.level}'` : ''
+            }${item.primaryKey ? (lt_3363 ? ' COMPOSITE KEY' : ' PRIMARY KEY') : ''}`
         )
         .join(
           ','
@@ -384,10 +389,7 @@ export function changeStableStruct(data: changeStbStructData, stableName: string
     first_field = `\`${first_field}\``;
   }
   sql = `ALTER STABLE  \`${dbName}\`.\`${stableName}\` ${operation} ${first_field} ${second_field}${other};`;
-  return executeSqlFn!(sql).catch(err => {
-    err.desc && ElMessage.error(err.desc);
-    return Promise.reject(err);
-  });
+  return executeSqlFn!(sql);
 }
 export function handleDataKey(data: Recordable[], type: string, parent = '') {
   return data.map(item => {
@@ -411,7 +413,7 @@ export async function getTableListReq(params: Recordable) {
   } else {
     where += `stable_name='${stbName}'`;
   }
-  console.log("Fetch table list for", where);
+  console.log('Fetch table list for', where);
   if (filter) {
     where += ` and table_name like '%${filter}%'`;
   }
@@ -433,10 +435,7 @@ export function searchTable(prefix: string, dbname: string) {
 
 export function deleteTableReq(payload: { dbName: string; tbName: string }) {
   const { dbName, tbName } = payload;
-  return executeSqlFn!(`DROP TABLE \`${dbName}\`.\`${tbName}\`;`).catch(err => {
-    err.desc && ElMessage.error(err.desc);
-    return Promise.reject(err);
-  });
+  return executeSqlFn!(`DROP TABLE \`${dbName}\`.\`${tbName}\`;`);
 }
 
 function escapeName(name: string) {
@@ -463,20 +462,18 @@ export function createTableReq(formData: CreateSubTbForm, dbName: string) {
       `CREATE VTABLE \`${dbName}\`.${name} (${columns.map((item: Recordable) => buildVirtualColumn(item)).join(',')}) USING \`${dbName}\`.\`${stbTmpl}\` (${tags.map((item: Recordable) => `\`${item.field}\``).join(',')}) TAGS (${tags
         .map((item: Recordable) => processStringTagValue(item.type, item.value))
         .join(',')});`
-    ).catch(err => {
-      err.desc && ElMessage.error(err.desc);
-      return Promise.reject(err);
-    });
+    );
   }
   // 以超级表为模版创建表
   return executeSqlFn!(
     `CREATE TABLE \`${dbName}\`.${name} USING \`${dbName}\`.\`${stbTmpl}\` (${tags.map((item: Recordable) => `\`${item.field}\``).join(',')}) TAGS (${tags
       .map((item: Recordable) => processStringTagValue(item.type, item.value))
       .join(',')});`
-  ).catch(err => {
-    err.desc && ElMessage.error(err.desc);
-    return Promise.reject(err);
-  });
+  );
+  // return executeSqlFn!(`CREATE TABLE ${dbName}.${name} (${columns.map(item => `${item.field} ${item.type}`).join(",")});`).catch(err => {
+  //   err.desc && ElMessage.error(err.desc);
+  //   return Promise.reject(err);
+  // });
 }
 
 export function getSubtbInitStruct(dbName: string, stbName: string) {
@@ -504,9 +501,17 @@ export function getSubtbInitStruct(dbName: string, stbName: string) {
     }));
 }
 
-export async function getValidTablesForVirtualTableRef(dbName: string, type: string, tbPattern: string = '', limit: number = 10) {
+export async function getValidTablesForVirtualTableRef(
+  dbName: string,
+  type: string,
+  tbPattern: string = '',
+  limit: number = 10
+) {
   console.log('getValidColumnsForVirtualTableRef', dbName, type);
-  const res = await executeSqlFn!(`SELECT table_name FROM information_schema.ins_columns where table_type != 'SUPER_TABLE' and db_name = '${dbName}' and col_type = '${type}' and table_name like '%${tbPattern || ''}%' limit ${limit};`, true);
+  const res = await executeSqlFn!(
+    `SELECT table_name FROM information_schema.ins_columns where table_type != 'SUPER_TABLE' and db_name = '${dbName}' and col_type = '${type}' and table_name like '%${tbPattern || ''}%' limit ${limit};`,
+    true
+  );
 
   console.log('getValidColumnsForVirtualTableRef res', res);
   return res.map((item: Recordable) => {
@@ -520,24 +525,21 @@ export async function getValidColumnsForVirtualTableRef(dbName: string, tbName: 
   console.log('getValidColumnsForVirtualTableRef res', res);
   const { columns } = res;
   return columns.filter((item: Recordable, index: number) => {
-    return index != 0 && // 排除第一个字段
-      item.type == type;
+    return (
+      index != 0 && // 排除第一个字段
+      item.type == type
+    );
   });
 }
 
 // 修改表结构
-export async function changeTableStruct(data: changeStbStructData, tableName: string, dbName: string) {
+export function changeTableStruct(data: changeStbStructData, tableName: string, dbName: string) {
   // eslint-disable-next-line prefer-const
   const { operation, first_field = '' } = data;
   const second_field = escapeSpecialChar(data.second_field || '');
   let sql = '';
   sql = `ALTER TABLE  \`${dbName}\`.\`${tableName}\` ${operation} ${first_field} ${second_field};`;
-  try {
-    await executeSqlFn!(sql);
-  } catch (err: any) {
-    err.desc && ElMessage.error(err.desc);
-    return Promise.reject(err);
-  };
+  return executeSqlFn!(sql);
 }
 
 // 获取表的tag value
@@ -555,8 +557,7 @@ export function getTagValue(tags: Recordable[], database: string, table_name: st
       });
       return result;
     })
-    .catch(err => {
-      err.desc && ElMessage.error(err.desc);
+    .catch(() => {
       return {} as Recordable;
     });
 }

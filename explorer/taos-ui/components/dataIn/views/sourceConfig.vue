@@ -100,7 +100,7 @@
       </el-form>
 
       <section class="bottom">
-        <el-affix position="bottom" offset="0">
+        <el-affix position="bottom" :offset="0">
           <div class="btn-group-task">
             <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
               <template #content>
@@ -153,7 +153,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
+import { ElMessage, ElMessageBox, FormInstance, ElAffix } from 'element-plus';
 import { isEqualWith, isEqual, isArray, cloneDeep } from 'lodash-es';
 import { useRoute, useRouter } from 'hooks/useCurrentRouter';
 import {
@@ -242,7 +242,13 @@ const toUrl = computed(() => {
 
 const labels = computed(() => {
   if (dataInProps.isCloud) {
-    return ['ds', sourceForm.type, 'name::' + sourceForm.name, 'dsType::' + sourceForm.type];
+    return [
+      'ds',
+      sourceForm.type,
+      'name::' + sourceForm.name,
+      'dsType::' + sourceForm.type,
+      'cluster-id::' + instance?.id
+    ];
   }
   return ['type::datain', `cluster-id::${instance?.tdClusterId}`, `user::${instance?.user}`];
 });
@@ -274,7 +280,7 @@ onMounted(async () => {
   if (route?.params.page === 'edit' || route?.params.page === 'copy') {
     await handleDetailData(route?.params.taskId);
   } else {
-    dataInProps.isIndusty ? (sourceForm.type = 'csv') : (sourceForm.type = 'tmq');
+    dataInProps.isIndustry ? (sourceForm.type = 'csv') : (sourceForm.type = 'tmq');
     getDataSource();
   }
 });
@@ -359,6 +365,7 @@ function typeChang() {
 
   if (!currentDefinition.value) return;
   sourceForm.agent = '';
+  console.log(currentDefinition.value);
   sourceForm.data = generateFormInitData(currentDefinition.value?.config);
   componentKey.value++;
   configureSupportFlags(sourceForm.type);

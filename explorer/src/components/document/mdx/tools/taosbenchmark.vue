@@ -613,8 +613,8 @@ const { $IS_COMMUNITY }  = inject("globalCustomProperties") as GlobalCustomPrope
 
 const props = defineProps<DocsProps>()
 
-const benchcode = ref(`tar -xzf TDengine${$IS_COMMUNITY ? '' : '-enterprise'}-client-${props.version}-Linux-x64.tar.gz
-cd TDengine${$IS_COMMUNITY ? '' : '-enterprise'}-client-${props.version}
+const benchcode = ref(`tar -xzf tdengine${$IS_COMMUNITY ? '' : '-enterprise'}-client-${props.version}-linux-x64.tar.gz
+cd tdengine${$IS_COMMUNITY ? '' : '-enterprise'}-client-${props.version}
 sudo ./install_client.sh`)
  
 </script>

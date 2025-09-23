@@ -232,6 +232,10 @@ export default {
           templateUrl: 'template-en.csv',
           placeholder: 'Upload a csv file to define the mapping rules for each data point to the TDengine table.\n',
           required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
           multiple: true,
           editable: true,
           selectable: true,
@@ -419,6 +423,13 @@ export default {
           field: 'collect_options',
           description: 'Configurations for collecting data from OPC UA server.',
           children: [
+            {
+              label: 'Contains Bad',
+              description: 'Whether to collect data with Bad Quality. Default is false.',
+              field: 'contains_bad',
+              type: 'switch',
+              defaultValue: false
+            },
             {
               label: 'Collect Mode',
               description: 'observe or subscribe. default is subscribe',

@@ -7,7 +7,7 @@
             v-model="ruleForm.filter_name"
             size="default"
             :placeholder="t('dataIn.transformer.filter_input')"
-            @keyup.enter="excuteFilter"
+            @keyup.enter="executeFilter"
             @input="changeFilterCont"
           ></el-input>
         </el-form-item>
@@ -15,7 +15,7 @@
 
       <div class="btns">
         <el-button icon="Delete" @click="deleteFilter"></el-button>
-        <el-button @click="excuteFilter">
+        <el-button @click="executeFilter">
           <Icon name="PREVIEW" style="width: 16px; height: 16px"></Icon>
         </el-button>
       </div>
@@ -33,7 +33,7 @@ const props = defineProps<{
   itemData: Recordable;
   payload: string;
   // inputparamsColumns: [];
-  indentifiedColumns: Recordable[];
+  identifiedColumns: Recordable[];
   msgForm: Recordable;
   datasourceType: string;
 }>();
@@ -71,7 +71,7 @@ onMounted(() => {
   }
 });
 
-function excuteFilter() {
+function executeFilter() {
   isexecuted.value = true;
   submit();
 }
@@ -126,23 +126,26 @@ async function getParserData(data: any) {
         ]);
     transformerState.showResultTb = true;
     transformerState.resultTbTitle = 'filterResTb';
-    transformerState.transformResultTable = supportTransform.is_sparkplugb ? result.map((entry: any) => {
-      return entry.columns.map((data: any) => {
-        return Object.fromEntries(
-          entry.fields
-            .map((item: { name: any }, index: string | number) => {
-              return [
-                item.name,
-                filterEmpty(data[index])
-                  ? Array.isArray(data[index])
-                    ? JSON.stringify(data[index])
-                    : data[index].toString()
-                  : null
-              ];
-            })
-        );
-      });
-    }).flat(Infinity) : tableData.value;
+    transformerState.transformResultTable = supportTransform.is_sparkplugb
+      ? result
+          .map((entry: any) => {
+            return entry.columns.map((data: any) => {
+              return Object.fromEntries(
+                entry.fields.map((item: { name: any }, index: string | number) => {
+                  return [
+                    item.name,
+                    filterEmpty(data[index])
+                      ? Array.isArray(data[index])
+                        ? JSON.stringify(data[index])
+                        : data[index].toString()
+                      : null
+                  ];
+                })
+              );
+            });
+          })
+          .flat(Infinity)
+      : tableData.value;
 
     const transformerColumns = [
       {
@@ -166,7 +169,7 @@ async function getParserData(data: any) {
         })
       }
     ];
-    transformerState.transformerMapCloumns = transformerColumns;
+    transformerState.transformerMapColumns = transformerColumns;
     transformerState.transResultName = 'filter';
   } catch (error) {
     console.log(error);
@@ -187,7 +190,7 @@ function deleteFilter() {
   emit('delete-filter', props.itemData.key);
 }
 
-const generateInput:any = inject('generateInput');
+const generateInput: any = inject('generateInput');
 //提交
 function submitFilter() {
   let parser;
@@ -197,7 +200,7 @@ function submitFilter() {
         parse: transformerState.topParse?.parser.parse,
         mutate: transformerState.transformExtractParseData
           ? [{ ...transformerState.transformExtractParseData }, { filter: ruleForm.filter_name.trim() }]
-          : [{ filter: ruleForm.filter_name.trim() }],
+          : [{ filter: ruleForm.filter_name.trim() }]
       },
       samples: Array.from(Object.values(generateInput()[0]))
     };
@@ -207,7 +210,7 @@ function submitFilter() {
         parse: transformerState.topParse?.parser.parse,
         mutate: transformerState.transformExtractParseData
           ? [{ ...transformerState.transformExtractParseData }, { filter: ruleForm.filter_name.trim() }]
-          : [{ filter: ruleForm.filter_name.trim() }],
+          : [{ filter: ruleForm.filter_name.trim() }]
       },
       input: props.datasourceType === 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
     };

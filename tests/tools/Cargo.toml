@@ -48,6 +48,8 @@ paste.workspace = true
 shadow-rs.workspace = true
 orc-rust.workspace = true
 duckdb = { workspace = true, features = ["appender-arrow", "bundled"] }
+async-compression = { workspace = true }
+taosx-core = { path = "../../taosx-core" }
 
 [build-dependencies]
 shadow-rs.workspace = true
@@ -62,3 +64,7 @@ path = "src/bin/read_parquet.rs"
 [[bin]]
 name = "perf-report"
 path = "src/bin/perf_report.rs"
+
+[[bin]]
+name = "backup-parser"
+path = "src/bin/backup_parser.rs"

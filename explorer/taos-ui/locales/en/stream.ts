@@ -17,5 +17,6 @@ export default {
   slidingPeriod: 'Sliding Period',
   slidingTip: 'The time step for which the time window moves forward between query calculations.',
   streamOption: 'Stream Option',
-  maxDelayTime: 'Max Delay Time'
+  maxDelayTime: 'Max Delay Time',
+  partitionByTip: 'State windows must be used with partition by tbname when paired with supertables. '
 };

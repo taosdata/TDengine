@@ -347,7 +347,8 @@ export default {
         {
           label: 'Concurrent Reading Methods',
           field: 'read_concurrency_type',
-          description: 'Concurrent reading methods for measurement. Queue: Multiple threads read one measurement at the same time, and then move on to the next one. Average: In an average manner, multiple measurements are read simultaneously by different threads. Sequence: Each measurement is read by only one thread at a time. \n',
+          description:
+            'Concurrent reading methods for measurement. Queue: Multiple threads read one measurement at the same time, and then move on to the next one. Average: In an average manner, multiple measurements are read simultaneously by different threads. Sequence: Each measurement is read by only one thread at a time. \n',
           defaultValue: 'sequence',
           required: false,
           hint: {

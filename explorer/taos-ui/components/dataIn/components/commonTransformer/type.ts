@@ -14,12 +14,12 @@ export interface TransformerState {
   transformExtractParseData: TransformExtractParseDataType | null;
   csvTransformerParser: CsvTransformerParserType | null;
   transformerFilterParseData: TransformerFilterParseDataType | null;
-  transformerMapCloumns: TransformerMapCloumnsType[];
+  transformerMapColumns: TransformerMapColumnsType[];
   transformerParserData: TransformerfullparamsType | TransformerSpbfullparamsType | null;
   transformColumnIdentify: [];
   csvTransformerlocalCols: string[]; //csv无头部时候的自定义列
-  splitExpresList: SplitExpresListType | null; //transformer的split;
-  convertExpresList: ConvertExpresListType | null;
+  splitExpressList: SplitExpressListType | null; //transformer的split;
+  convertExpressList: ConvertExpressListType | null;
   jsonExtractListType: JsonParseExtractType | null;
   mappingjoin: ''; //mapping时候映射值是join时候的
   definitions: [];
@@ -36,7 +36,7 @@ export interface TransformerState {
   resultTbTitle: string;
   activeColumns: string[]; // 转换拆分出来的新字段
   resultCurrentPage: 1;
-  stbDefaultColumns: Record<string, any>[]; // transfrom 创建超级表时默认的列
+  stbDefaultColumns: Record<string, any>[]; // transform 创建超级表时默认的列
 }
 
 export interface CsvFileConfigType {
@@ -51,7 +51,7 @@ export interface CsvFileConfigType {
 interface csvParser {
   input: Recordable[];
 }
-interface TransformerMapCloumnsType {
+interface TransformerMapColumnsType {
   value: string;
   label: string;
   children: Recordable[];
@@ -92,24 +92,24 @@ export interface CsvTransformerParserType {
   columns?: string[];
 }
 
-export interface SplitExpresListType {
+export interface SplitExpressListType {
   n: number | string;
   sep: string;
   names: string[] | string;
   [key: string]: any;
 }
 
-export interface ConvertExpresListType {
-  rule: string,
-  name: string,
+export interface ConvertExpressListType {
+  rule: string;
+  name: string;
   [key: string]: any;
 }
 
 export interface JsonParseExtractType {
-  depth: number,
-  keep: boolean,
-  expression: any,
-  [key: string]: any
+  depth: number;
+  keep: boolean;
+  expression: any;
+  [key: string]: any;
 }
 
 interface TransformerFilterParseDataType {

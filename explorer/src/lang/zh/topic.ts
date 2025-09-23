@@ -77,9 +77,9 @@ export default {
     delTopic: '删除主题',
     validTopicSqlDesc: '不支持的SQL语句对于创建主题',
     explorerfns: {
-      NumbericFn: '数学函数',
+      NumericFn: '数学函数',
       StringFn: '字符串函数',
-      CoversionFn: '转换函数',
+      ConversionFn: '转换函数',
       DatetimeFN: '时间和日期函数',
       AggregationFn: '聚合函数',
       SelectorFn: '选择函数',

@@ -1,27 +1,52 @@
 <template>
-  <div :class="[
-    'extract-split',
-    itemData.columnname && itemData.columnname == transformerState.transResultName ? 'active' : ''
-  ]">
+  <div
+    :class="[
+      'extract-split',
+      itemData.columnname && itemData.columnname == transformerState.transResultName ? 'active' : ''
+    ]"
+  >
     <div class="extract-item">
       <el-form ref="extractFormRef" :model="ruleForm" :rules="rules" size="default">
         <el-form-item prop="col_name">
-          <el-select v-model="ruleForm.col_name" :placeholder="t('dataIn.transformer.col_select')"
-            :disabled="ruleForm.col_name != '' && itemData.columnname != ''" @change="selectCol">
-            <el-option v-for="(item, index) in extractColumns" :key="index" :label="item.name" :value="item.name"
-              :disabled="!item.show"></el-option>
+          <el-select
+            v-model="ruleForm.col_name"
+            :placeholder="t('dataIn.transformer.col_select')"
+            :disabled="ruleForm.col_name != '' && itemData.columnname != ''"
+            @change="selectCol"
+          >
+            <el-option
+              v-for="(item, index) in extractColumns"
+              :key="index"
+              :label="item.name"
+              :value="item.name"
+              :disabled="!item.show"
+            ></el-option>
           </el-select>
         </el-form-item>
         <el-form-item prop="filter_name">
-          <el-select v-model="ruleForm.filter_name" :placeholder="t('dataIn.transformer.filter_type')"
-            :disabled="isViewable" style="width: 120px; min-width:120px;" @change="changeExtractType">
-            <el-option v-for="item in extractTypes" :key="item" :label="item" :value="item"
-              :disabled="item == 'join' && itemData.value_type !== 'array'"></el-option>
+          <el-select
+            v-model="ruleForm.filter_name"
+            :placeholder="t('dataIn.transformer.filter_type')"
+            :disabled="isViewable"
+            style="width: 120px; min-width: 120px"
+            @change="changeExtractType"
+          >
+            <el-option
+              v-for="item in extractTypes"
+              :key="item"
+              :label="item"
+              :value="item"
+              :disabled="item == 'join' && itemData.value_type !== 'array'"
+            ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item prop="filter_expres">
+        <el-form-item prop="filter_express">
           <template v-if="ruleForm.filter_name == 'json'">
-            <JsonExtractExpression ref="jsonExtractExpressionRef" :rule-form="itemData.jsonParams" :is-viewable="isViewable">
+            <JsonExtractExpression
+              ref="jsonExtractExpressionRef"
+              :rule-form="itemData.jsonParams"
+              :is-viewable="isViewable"
+            >
             </JsonExtractExpression>
           </template>
           <template v-else-if="ruleForm.filter_name == 'split'">
@@ -32,9 +57,13 @@
             <ConvertExpression ref="convertExpressionRef" :rule-form="itemData.convertParams" :is-viewable="isViewable">
             </ConvertExpression>
           </template>
-          <el-input v-else v-model="ruleForm.filter_expres"
-            :placeholder="t('dataIn.transformer.expre_' + ruleForm.filter_name)" :disabled="isViewable"
-            @input="changeExtractExpr"></el-input>
+          <el-input
+            v-else
+            v-model="ruleForm.filter_express"
+            :placeholder="t('dataIn.transformer.expre_' + ruleForm.filter_name)"
+            :disabled="isViewable"
+            @input="changeExtractExpr"
+          ></el-input>
         </el-form-item>
       </el-form>
 
@@ -74,7 +103,7 @@ const props = defineProps<{
   itemData: Recordable;
   indexKey: number | string;
   extractColumns: Recordable[];
-  indentifiedColumns: Recordable[];
+  identifiedColumns: Recordable[];
   datasourceType: string;
   extractArr: Recordable[];
   msgForm: Recordable;
@@ -88,11 +117,11 @@ let extractParseData = reactive<TransformExtractParseDataType>({
 });
 const tableColumns = ref<Recordable[]>([]);
 const maptypes = ['value', 'generator', 'join', 'format', 'sum', 'expr'];
-const extractTypes = ['json','split', 'regex', 'join', 'convert'];
+const extractTypes = ['json', 'split', 'regex', 'join', 'convert'];
 const ruleForm = reactive({
   col_name: '',
   filter_name: '',
-  filter_expres: ''
+  filter_express: ''
 });
 const rules = reactive({
   col_name: [
@@ -109,7 +138,7 @@ const rules = reactive({
       message: t('dataIn.transformer.filter_type')
     }
   ],
-  filter_expres: [
+  filter_express: [
     {
       required: false,
       trigger: 'blur',
@@ -157,7 +186,7 @@ function changeExtractExpr(val: string) {
 }
 function initData(val: Recordable) {
   ruleForm.col_name = val.columnname;
-  ruleForm.filter_expres = val.expression;
+  ruleForm.filter_express = val.expression;
   ruleForm.filter_name = val.type;
 }
 function selectCol() {
@@ -236,16 +265,16 @@ async function getParserData(data: any, isall: boolean | undefined) {
       props.datasourceType == 'csv'
         ? result[0].fields
         : result[0].fields.filter((val: { name: string }) => {
-          if (props.datasourceType == 'mqtt' && !defaultColsMap.mqtt.includes(val.name)) {
-            return val;
-          } else if (props.datasourceType == 'kafka' && !defaultColsMap.kafka.includes(val.name)) {
-            return val;
-          } else if (props.datasourceType == 'mongodb' && !defaultColsMap.mongodb.includes(val.name)) {
-            return val;
-          } else {
-            return val;
-          }
-        })
+            if (props.datasourceType == 'mqtt' && !defaultColsMap.mqtt.includes(val.name)) {
+              return val;
+            } else if (props.datasourceType == 'kafka' && !defaultColsMap.kafka.includes(val.name)) {
+              return val;
+            } else if (props.datasourceType == 'mongodb' && !defaultColsMap.mongodb.includes(val.name)) {
+              return val;
+            } else {
+              return val;
+            }
+          })
     ).map((item: { name: any; type: string }) => {
       return {
         description: item.name,
@@ -256,11 +285,28 @@ async function getParserData(data: any, isall: boolean | undefined) {
       };
     });
 
-    tbdata = supportTransform.is_sparkplugb ?
-      result.map((result: any) => {
-        return result.columns.map((data: { toString: () => any }[]) => {
+    tbdata = supportTransform.is_sparkplugb
+      ? result
+          .map((result: any) => {
+            return result.columns.map((data: { toString: () => any }[]) => {
+              return Object.fromEntries(
+                result.fields.map((item: { name: any }, index: number) => {
+                  return [
+                    item.name,
+                    filterEmpty(data[index])
+                      ? Array.isArray(data[index])
+                        ? JSON.stringify(data[index])
+                        : data[index].toString()
+                      : null
+                  ];
+                })
+              );
+            });
+          })
+          .flat(Infinity)
+      : result[0].columns.map((data: { toString: () => any }[]) => {
           return Object.fromEntries(
-            result.fields.map((item: { name: any }, index: number) => {
+            result[0].fields.map((item: { name: any }, index: number) => {
               return [
                 item.name,
                 filterEmpty(data[index])
@@ -272,25 +318,10 @@ async function getParserData(data: any, isall: boolean | undefined) {
             })
           );
         });
-      }).flat(Infinity)
-      : result[0].columns.map((data: { toString: () => any }[]) => {
-        return Object.fromEntries(
-          result[0].fields.map((item: { name: any }, index: number) => {
-            return [
-              item.name,
-              filterEmpty(data[index])
-                ? Array.isArray(data[index])
-                  ? JSON.stringify(data[index])
-                  : data[index].toString()
-                : null
-            ];
-          })
-        );
-      });
 
     if (isall) {
       transformerColumns.splice(1, 1, mappingObj);
-      transformerState.transformerMapCloumns = transformerColumns;
+      transformerState.transformerMapColumns = transformerColumns;
       // 将当前提取或拆分的数据放在 table 的最前面
       const resultData: Recordable[] = [];
       tbdata.map((item: Recordable, index: number) => {
@@ -320,7 +351,7 @@ async function getParserData(data: any, isall: boolean | undefined) {
       obj.value = finalVal.join('') ? finalVal.join(' ; ') : '';
       return obj;
     });
-    emit("update-extract-columns", props.indexKey, colLists);
+    emit('update-extract-columns', props.indexKey, colLists);
 
     tableData.value = tbdata;
     transformerState.activeColumns = Object.keys(tbdata[0]);
@@ -383,7 +414,7 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
     if (isJson.value) {
       jsonValue = JSON.parse(msg)[props.itemData.columnname];
     }
-    props.indentifiedColumns
+    props.identifiedColumns
       .filter((val: Recordable) => !hiddenCols.includes(val.name))
       .forEach((item: Recordable) => {
         if (props.datasourceType == 'mqtt') {
@@ -392,12 +423,12 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
               ? msg
               : isJson.value && jsonValue
                 ? JSON.stringify({
-                  [`${props.itemData.columnname}`]: jsonValue
-                })
+                    [`${props.itemData.columnname}`]: jsonValue
+                  })
                 : msg;
           } else {
             if (item.type == 'timestamp') {
-              inputobj[item.name] = getTimeParser(new Date())
+              inputobj[item.name] = getTimeParser(new Date());
             }
           }
         } else if (props.datasourceType == 'kafka') {
@@ -406,12 +437,12 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
               ? msg
               : isJson.value && jsonValue
                 ? JSON.stringify({
-                  [`${props.itemData.columnname}`]: jsonValue
-                })
+                    [`${props.itemData.columnname}`]: jsonValue
+                  })
                 : msg;
           } else {
             if (item.type == 'timestamp') {
-              inputobj[item.name] = getTimeParser(new Date())
+              inputobj[item.name] = getTimeParser(new Date());
             }
           }
         } else if (props.datasourceType == 'mongodb') {
@@ -420,8 +451,8 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
               ? msg
               : isJson.value && jsonValue
                 ? JSON.stringify({
-                  [`${props.itemData.columnname}`]: jsonValue
-                })
+                    [`${props.itemData.columnname}`]: jsonValue
+                  })
                 : msg;
           } else {
             inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
@@ -430,7 +461,6 @@ function getInputList(resultMsgbody: string[], isall?: boolean): Recordable[] {
       });
     return inputobj;
   });
-
 
   if (props.datasourceType == 'mqtt' || props.datasourceType == 'kafka') {
     inputList = inputList.map((msg: any, index: string | number) => {
@@ -471,11 +501,11 @@ function getExtractData(): Recordable {
           Object.entries(item.convertParams).filter(([value]) => value != null && value !== '')
         );
         value = {
-          convert: typeof convertobj.convert == "string" ? JSON.parse(convertobj.convert) : convertobj.convert,
+          convert: typeof convertobj.convert == 'string' ? JSON.parse(convertobj.convert) : convertobj.convert,
           new_field_name: convertobj.new_field_name
         };
       } else if (item.type === 'json') {
-        const jsonParamsValue = {} as any
+        const jsonParamsValue = {} as any;
         if (item.jsonParams.depth !== undefined && item.jsonParams.depth !== null) {
           jsonParamsValue.depth = item.jsonParams.depth;
         }
@@ -526,19 +556,19 @@ function getParserParams(isall?: boolean): Recordable {
     topparse['parser']['mutate'] = isall
       ? [{ extract: slicedObj }]
       : [
-        {
-          extract: {
-            [`${props.itemData.columnname}`]: extractParseData['extract'][props.itemData.columnname]
+          {
+            extract: {
+              [`${props.itemData.columnname}`]: extractParseData['extract'][props.itemData.columnname]
+            }
           }
-        }
-      ];
+        ];
     return {
       parser: {
         parse: topparse.parser.parse,
         mutate: topparse['parser']['mutate']
       },
       samples: topparse.samples
-    }
+    };
   }
 
   const topparse = cloneDeep(transformerState.topParse) as TopParseType;
@@ -546,12 +576,12 @@ function getParserParams(isall?: boolean): Recordable {
   topparse['parser']['mutate'] = isall
     ? [{ extract: slicedObj }]
     : [
-      {
-        extract: {
-          [`${props.itemData.columnname}`]: extractParseData['extract'][props.itemData.columnname]
+        {
+          extract: {
+            [`${props.itemData.columnname}`]: extractParseData['extract'][props.itemData.columnname]
+          }
         }
-      }
-    ];
+      ];
 
   const parser = {
     parser: {
@@ -563,22 +593,22 @@ function getParserParams(isall?: boolean): Recordable {
         ? isall
           ? transformerState.csvTransformerParser?.inputList
           : transformerState.csvTransformerParser?.inputList.map(item => {
-            if (Object.keys(item).includes(props.itemData.columnname)) {
-              return {
-                [props.itemData.columnname]: item[props.itemData.columnname]
-              };
-            }
-          })
+              if (Object.keys(item).includes(props.itemData.columnname)) {
+                return {
+                  [props.itemData.columnname]: item[props.itemData.columnname]
+                };
+              }
+            })
         : supportTransform.supportSQL
           ? isall
             ? topparse.input
             : [
-              topparse.input.map((_item, index) => {
-                return {
-                  [`${props.itemData.columnname}`]: topparse.input[index][props.itemData.columnname]
-                };
-              })
-            ]
+                topparse.input.map((_item, index) => {
+                  return {
+                    [`${props.itemData.columnname}`]: topparse.input[index][props.itemData.columnname]
+                  };
+                })
+              ]
           : inputList
   };
 

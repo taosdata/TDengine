@@ -244,7 +244,7 @@ export default {
   namespace: '命名空间',
   pointRegexp: '正则匹配',
   noDsn: '请检查输入的服务地址',
-  filterPoinDesc: '根据输入的查询条件过滤出数据点位填充 CSV 模版生成文件',
+  filterPointDesc: '根据输入的查询条件过滤出数据点位填充 CSV 模版生成文件',
   rootNodePlaceholder: {
     opcua: '例如 ns=3;i=1001',
     opcda: '例如 root.parent'
@@ -378,7 +378,7 @@ export default {
     st_input: '请输入超级表名称',
     create_st: '创建超级表',
     targetSt: '目标超级表',
-    mutiple: '多条件查询以分号分隔',
+    multiple: '多条件查询以分号分隔',
     msgbody: '示例消息体',
     msgbodytip:
       '请直接输入 Payload 示例，也可点击右侧按钮从服务器获取 Payload 或者从文件上传 Payload。请注意 Payload 示例 默认只处理 5 行，您可以修改该配置但上限是 100 行。',
@@ -429,10 +429,10 @@ export default {
   fileurlTip: '输入了不支持的字符，所有支持的字符列表请查看帮助提示',
   csvcol: 'CSV列',
   dbcol: 'DB列',
-  percisiontip: '请选择精度',
+  precisiontip: '请选择精度',
   tabletip: '请输入表名',
   includeheader: '包含Header',
-  percision: '精度',
+  precision: '精度',
   csvtable: '表名',
   csvNext: '解析',
   seconds: '秒',
@@ -595,5 +595,6 @@ export default {
     sink_errorDesc: '写入端错误导致无法进行写入。',
     fatal: 'Fatal',
     fatalDesc: '无法恢复的错误，此时数据写入任务将退出。'
-  }
+  },
+  version: '数据写入版本：'
 };

@@ -850,12 +850,26 @@ pub async fn check_wal_enabled(taos_builder: &TaosBuilder, topics: &[Topic]) -> 
     let taos = taos_builder.build().await?;
     for topic in topics {
         // get all subscriptions by topic and consumer group
-        let wal_retention_period = taos
+        let wal_retention_period = match taos
             .query_one::<_, usize>(format!(
                 "SELECT `wal_retention_period` FROM information_schema.ins_databases WHERE `name` = '{}'",
                 topic.database
             ))
-            .await?;
+            .await {
+                Ok(res) => res,
+                Err(e) => {
+                    let code: i32 = e.code().into();
+                    match code {
+                        0x2602 => {
+                            // 云服务数据库没有 wal_retention_period 这个字段
+                            return Ok(())
+                        }
+                        _ => {
+                            bail!("check wal enabled error: {e:#}")
+                        }
+                    }
+                },
+            };
         // check if wal is enabled
         if let Some(wal_retention_period) = wal_retention_period {
             if wal_retention_period == 0 {

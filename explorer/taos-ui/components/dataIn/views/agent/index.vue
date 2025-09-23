@@ -99,7 +99,7 @@ import AddAgent from './addAgent.vue';
 import Activities from '../../components/activities.vue';
 import PageTitle from '../../components/pageTitle.vue';
 import { getDataInProps } from '../../model/useDataIn';
-import { useActivitySubscription, ActivitieProps } from '../../model/useWebSoket';
+import { useActivitySubscription, ActivitieProps } from '../../model/useWebSocket';
 import { t } from 'locales';
 
 const dataInProps = getDataInProps();
@@ -154,8 +154,10 @@ watch(
 );
 
 function closeConnect() {
-  connectData.close(dataInProps.agent.webSoketUrl);
   hasConnect.value = false;
+  if (connectData && connectData.close) {
+    connectData.close(dataInProps.agent.webSocketUrl);
+  }
 }
 
 onMounted(() => {
@@ -219,10 +221,11 @@ const getAgents = async () => {
   try {
     requestIng.value = true;
     await getAgentList(dataInProps.agent.api);
+    closeConnect();
     nextTick(() => {
       if (!hasConnect.value) {
         hasConnect.value = true;
-        const { activity, close } = useActivitySubscription(dataInProps.agent.webSoketUrl);
+        const { activity, close } = useActivitySubscription(dataInProps.agent.webSocketUrl);
         connectData.activity = activity;
         connectData.close = close;
       } else {
@@ -263,7 +266,7 @@ function handleTaskActivities(activity: ActivitieProps) {
 </script>
 
 <style lang="scss" scoped>
-.tabel-expand {
+.table-expand {
   min-width: 70%;
   padding: 0 5px;
   margin-left: 40px;

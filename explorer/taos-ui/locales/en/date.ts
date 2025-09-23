@@ -40,12 +40,20 @@ export default {
   subscribeTime: 'Subscribe Time',
   nanosecond: 'Nanosecond',
   microsecond: 'Microsecond',
-  millsecond: 'Millisecond',
+  millisecond: 'Millisecond',
   second: 'Second',
   minute: 'Minute',
   hour: 'Hour',
   day: 'Day',
   week: 'Week',
   month: 'Month',
-  year: 'Year'
+  year: 'Year',
+  nanoseconds: 'Nanoseconds',
+  microseconds: 'Microseconds',
+  milliseconds: 'Milliseconds',
+  seconds: 'Seconds',
+  minutes: 'Minutes',
+  weeks: 'Weeks',
+  months: 'Months',
+  years: 'Years'
 };

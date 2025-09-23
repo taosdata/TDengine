@@ -4,7 +4,7 @@
       ><a href="https://www.yonghongtech.com">{{ $t('docs.tools.yonghongbi.desc') }}</a
       >{{ $t('docs.tools.yonghongbi.desc1') }}
     </p>
-    <h2 id="yonghongbi-repare">{{ $t('docs.tools.yonghongbi.step1') }}</h2>
+    <h2 id="yonghongbi-prepare">{{ $t('docs.tools.yonghongbi.step1') }}</h2>
     <ol class="seeq-ol">
       <li>
         <span class="seeq-span"

@@ -31,7 +31,7 @@ import {
   getParser,
   getSampleDataMsgbody,
   listParserPlugins,
-  getStabelParser,
+  getStableParser,
   getCSVColumns,
   AddSource,
   EditSource,
@@ -132,7 +132,7 @@ const props: Props = {
       getParser,
       getSampleDataMsgbody,
       listParserPlugins,
-      getStabelParser,
+      getStableParser,
       getCSVColumns
     }
   }

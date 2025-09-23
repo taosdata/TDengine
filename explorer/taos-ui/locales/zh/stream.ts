@@ -15,5 +15,6 @@ export default {
   slidingPeriod: '滑动时间',
   slidingTip: '时间窗口在两次查询计算之间向前移动的时间步长。',
   streamOption: '流选项',
-  maxDelayTime: '最大延迟时间'
+  maxDelayTime: '最大延迟时间',
+  partitionByTip: '状态窗口必须与 partition by tbname 一起使用。'
 };

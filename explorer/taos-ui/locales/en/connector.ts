@@ -33,21 +33,24 @@ export default {
   },
   python: {
     step1: 'Install connector',
-    step1desc:
-      'First, you need to install the latest taospy module which needs Python 3.6+. Run the command below in your terminal:',
+    'step1-1': `
+        <h3>Preparation</h3>
+        You must first install Python3 and Pip3.
+        <ol>
+        <li>Install Python. The newer versions of the taospy package require Python 3.6.2+. Earlier versions of the taospy package require Python 3.7+. The taos-ws-py package requires Python 3.7+. If Python is not yet installed on your system, you can refer to the <a target="_blank" href="https://wiki.python.org/moin/BeginnersGuide/Download">Python Beginners Guide</a> for installation.</li>
+        <li>Install Pip3. In most cases, the Python installation package comes with the pip tool. If it's not included, please refer to the <a target="_blank" href="https://pypi.org/project/pip/">pip documentation</a> for installation</li>
+        </ol>
+        `,
+    'step1-2': `<h3>Install with Pip</h3>If you have installed an older version of the Python connector, please uninstall it in advance.`,
+    'step1-2-1': `To install the latest or a specific version of <code>taospy</code> or <code>taos-ws-py</code>, execute the following command in the terminal.`,
+    'step1-3': 'Verify',
+    'step1-3-1':
+      'For REST connections, simply verify that the <code>taosrest</code> module can be successfully imported. You can enter the following in the Python interactive Shell:',
+    'step1-3-2':
+      'For WebSocket connections, simply verify that the <code>taosws</code> module can be successfully imported. You can enter the following in the Python interactive Shell:',
     step2: 'Config',
     step3: 'Connect',
-    step3desc:
-      'Copy code bellow to your editor and run it. If you are using jupyter, assuming you have followed the guide about Jupyter in previous sections, you can copy the code into Jupyter editor in your browser.',
-    step41Title: 'Step 1: Install',
-    step41Desc:
-      'For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.',
-    step42Title: 'Step 2: Configure',
-    step42Desc:
-      'In order for Jupyter to connect to TDengine Cloud instance, before launching Jupypter, the environment setting must be performed. We use Linux bash as example.',
-    step43Title: 'Step 3: Connect',
-    step43Desc:
-      'Once jupyter lab is launched, Jupyter lab service is automatically connected and shown in your browser. You can create a new notebook and copy the sample code below and run it.'
+    step3desc: 'Copy code bellow to your editor, then run it.'
   },
   node: {
     step1: 'Install connector',

@@ -21,7 +21,7 @@
           type="number"
           :min="8"
           clearable
-          :max="VariableTableColumnTypeMaxLenthMap[type as ColumnTypeMaxLenMapKey]"
+          :max="VariableTableColumnTypeMaxLengthMap[type as ColumnTypeMaxLenMapKey]"
           @change="processTypeLength"
         ></el-input>
       </section>
@@ -121,13 +121,13 @@
 </template>
 
 <script lang="ts" setup>
-import { VariableTableColumnType, TDengineDataType, VariableTableColumnTypeMaxLenthMap } from 'constants1/index';
+import { VariableTableColumnType, TDengineDataType, VariableTableColumnTypeMaxLengthMap } from 'constants1/index';
 import { validTDKeywords } from 'utils/validate';
 import { VirtualColumnProps } from '../props';
 import { t } from 'locales';
 import { getValidTablesForVirtualTableRef, getValidColumnsForVirtualTableRef } from '../../../api';
 
-type ColumnTypeMaxLenMapKey = keyof typeof VariableTableColumnTypeMaxLenthMap;
+type ColumnTypeMaxLenMapKey = keyof typeof VariableTableColumnTypeMaxLengthMap;
 
 const defaultModel = {
   field: '',
@@ -256,7 +256,7 @@ function processTypeLength(val: number | string) {
   val = Number(val);
   fieldLength = Math.min(
     Math.max(val, minTypeLength),
-    VariableTableColumnTypeMaxLenthMap[type as ColumnTypeMaxLenMapKey]
+    VariableTableColumnTypeMaxLengthMap[type as ColumnTypeMaxLenMapKey]
   );
   // valueChange();
 }
@@ -268,7 +268,7 @@ function typeChange(val: string) {
 }
 function validName() {
   if (validTDKeywords(props.modelValue.field)) {
-    errorText.value = t('explorer.tdKewordTip', [props.modelValue.field]);
+    errorText.value = t('explorer.tdKeywordTip', [props.modelValue.field]);
   }
 }
 </script>

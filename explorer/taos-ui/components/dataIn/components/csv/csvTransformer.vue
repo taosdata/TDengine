@@ -19,6 +19,7 @@
                       ref="upload"
                       class="upload-demo"
                       accept=".csv"
+                      :headers="uploadHeaders"
                       multiple
                       :on-remove="handleRemove"
                       :data="state.uploadData"
@@ -55,6 +56,7 @@
           </div>
         </el-tab-pane>
         <el-tab-pane
+          v-if="!dataInProps.isCloud"
           :label="t('dataIn.configcsv')"
           name="monitor_file_directory"
           :disabled="state.isModifying && !isAddable && localData.currentTab == 'upload_csv_file'"
@@ -200,10 +202,10 @@
 </template>
 <script setup lang="ts">
 import { ElMessage } from 'element-plus';
-import { getCSVOptions, sourceForm, currentDefinition } from '../../model/util';
+import { getCSVOptions, sourceForm } from '../../model/util';
 import CommonTransformer from '../commonTransformer/index.vue';
 import DocsContent from 'components/MdRender.vue';
-import { getDataInProps } from 'components/dataIn/model/useDataIn';
+import { getDataInProps, uploadHeaders } from 'components/dataIn/model/useDataIn';
 import { currentPageType, taskId } from 'components/dataIn/model/util';
 import { transformerState } from '../commonTransformer/util';
 import { CsvTransformerParserType } from '../commonTransformer/type';
@@ -370,7 +372,9 @@ function handleSuccess(_response: any, _file: any, fileList: []) {
 
   state.fileList = fileList;
   state.showfiletip = false;
-  localData.upload_csv_file.file_url = fileList.map((item: any) => item.response[0]).join(',');
+  localData.upload_csv_file.file_url = dataInProps.isCloud
+    ? _response.data.join(',')
+    : fileList.map((item: any) => item.response[0]).join(',');
 }
 function csvFileInputOK() {
   if (localData.currentTab == 'upload_csv_file' && state.fileList.length == 0) {
@@ -484,7 +488,7 @@ function formatCsvTransformerData(columns: string[], values: any[]) {
         value: ''
       };
     });
-    (obj['columnname'] = ''), (obj['expression'] = ''), (obj['type'] = '');
+    ((obj['columnname'] = ''), (obj['expression'] = ''), (obj['type'] = ''));
     state.extractArr.push(obj);
   });
   const csvTransformer = {
@@ -515,14 +519,14 @@ function formatCsvTransformerData(columns: string[], values: any[]) {
     }
   ];
 
-  transformerState.transformerMapCloumns = transformerColumns;
+  transformerState.transformerMapColumns = transformerColumns;
   transformerState.csvTransformerParser = csvTransformer as CsvTransformerParserType;
   state.showTransformer = true;
 }
 
 //获取 csv 解析需要的参数
 function getCsvParseParam() {
-  const options = getCSVOptions(sourceForm.data, currentDefinition.value);
+  const options = getCSVOptions(sourceForm.data);
   if (localData.currentTab == 'monitor_file_directory') {
     options.push(`file_pattern=${localData.monitor_file_directory.file_pattern}`);
   }

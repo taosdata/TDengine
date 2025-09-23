@@ -1,5 +1,6 @@
 <template>
-  <el-input v-model="num" type="number" class="td-time-input">
+  <span v-if="props.readonly">{{ valueText }}</span>
+  <el-input v-else v-model="num" type="number" class="td-time-input">
     <template #append>
       <el-select v-model="unit">
         <el-option
@@ -15,9 +16,17 @@
 
 <script lang="ts" setup>
 import { TDengineTimeUnit } from 'constants1';
-const props = defineProps<{
-  modelValue: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: string;
+    timeUnits?: LabelValue[];
+    readonly?: boolean;
+  }>(),
+  {
+    timeUnits: () => TDengineTimeUnit,
+    readonly: false
+  }
+);
 const currentTimeUint = TDengineTimeUnit.slice(0, 6);
 const num = computed({
   get: () => props.modelValue.replace(/[^\d-]/g, ''),
@@ -31,6 +40,15 @@ const unit = computed({
     emits('update:modelValue', num.value + val);
   }
 });
+
+const valueText = computed(() => {
+  const value = props.modelValue;
+  if (!value) return '';
+  const num = value.replace(/[^\d-]/g, '');
+  const unit = value.replace(/[-\d]/g, '');
+  return `${num} ${props.timeUnits.find(item => item.value === unit)?.label}`;
+});
+
 const emits = defineEmits<{
   'update:modelValue': [string];
 }>();

@@ -282,8 +282,9 @@ export function generateCreateStbSql(data: CreateStableForm, dbName: string) {
   `CREATE STABLE \`${dbName}\`.${name} (${columns
     .map(
       item =>
-        `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''
-        }${item.primaryKey ? ' PRIMARY KEY' : ''}`
+        `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${
+          item.level ? ' LEVEL ' + `'${item.level}'` : ''
+        }${item.primaryKey ? ' COMPOSITE KEY' : ''}`
     )
     .join(
       ','

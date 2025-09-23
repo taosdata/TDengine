@@ -68,7 +68,7 @@ export default {
     step2end: 'For installation instructions on other platforms please refer to the',
     step2doc: 'official documentation',
     step3: 'Configure',
-    step3desc: 'Run this command in your terminal to save TDengine cloud token and URL as zariables:',
+    step3desc: 'Run this command in your terminal to save TDengine cloud token and URL as variables:',
     step3desc1: 'Then run this command to generate new telegraf.conf.',
     step3desc2: 'Edit section "outputs.http".',
     step3desc3:
@@ -248,7 +248,7 @@ export default {
   namespace: 'Namespace',
   pointRegexp: 'Regex match',
   noDsn: 'Please check the server endpoint',
-  filterPoinDesc:
+  filterPointDesc:
     'Download data points according to the specified filter rules, and download in the format designed by the CSV template.',
   rootNodePlaceholder: {
     opcua: 'For example: ns=3;i=1001',
@@ -319,7 +319,7 @@ export default {
     retrieveSuccTip: ' appended {0} examples of data',
     filterexecuted: 'Filter condition triggered',
     filterunexe: 'The filtering condition has not been triggered yet, press the enter key to trigger it',
-    parsefirst: 'Please excute the parse,extract or split first',
+    parsefirst: 'Please execute the parse,extract or split first',
     parse: '1. Parse',
     jsonPlaceholder: 'Please select the JSON key needed. if left blank, all keys will be parsed.',
     jsontip: 'Please enter the correct JSON format',
@@ -335,7 +335,7 @@ export default {
       <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/advanced-features/data-connectors/#parsing" target="_blank"> the enterprise version documentation</a>.</span>`,
     subextractdesc: `<strong>taosX supports two kinds of extractor</strong>:<br/>
       1. <strong>Split</strong>: To split a string into multiple columns, you need to specify the parameter <em>delimiter</em> and the <em>number</em>. For example, after splitting the field <em>location</em> into two fields, the field names are <em>location_0</em> and <em>location_1</em>.<br/>
-      2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
+      2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: a regex pattern <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
       <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/advanced-features/data-connectors/#extraction-or-splitting" target="_blank">the enterprise version documentation</a>.</span>`,
     filterdesc: `<strong>Only rows with a filtering expression of true are written to TDengine:</strong><br/>
       1. <strong>Bool type</strong> can directly use variable names of BOOL type as expressions.<br/>
@@ -382,7 +382,7 @@ export default {
     st_input: 'Please enter the super table name',
     create_st: 'Create STable',
     targetSt: 'Target Super Table',
-    mutiple: 'Multiple addition queries separated by semicolons',
+    multiple: 'Multiple addition queries separated by semicolons',
     msgbody: 'Sample Message Body',
     msgbodytip:
       'You can input payload sample directly, or click one of the buttons on the right side to get payload from the server or by uploading a file. Please be aware that the default limit of payload sample is 5 lines, you can modify the configuration but the hard limit of payload sample is 100 lines.​',
@@ -417,7 +417,7 @@ export default {
       'The task has been stopped and no metrics information has been received yet. If necessary,please rerun this task'
   },
   csvconfigtip: 'Please configure csv information',
-  csvwholeinfo: 'Please fill in the complete csv information(Primary Key,Tag,Coloumn,Column Type)',
+  csvwholeinfo: 'Please fill in the complete csv information(Primary Key,Tag,Column,Column Type)',
   customcolname: 'Custom Columns',
   customcol: 'Please enter custom columns',
   uploadcsvtip: 'Please upload file',
@@ -434,9 +434,9 @@ export default {
   csvcol: 'CSV Column',
   dbcol: 'DB Column',
   tabletip: 'Please enter the table name',
-  percisiontip: 'Please select the percision',
+  precisiontip: 'Please select the precision',
   includeheader: 'Include Header',
-  percision: 'Percison',
+  precision: 'Percison',
   csvtable: 'Table Name',
   csvNext: 'Parse',
   seconds: 's',
@@ -487,7 +487,7 @@ export default {
   colname: 'Field(Source)',
   rename: 'Column(Target)',
   coltype: 'Data Type',
-  primarykey: 'Primary Key',
+  primarykey: 'Composite Key',
   usageType: 'Usage Type',
   name: 'Child Table Naming Rule',
   normalname: 'Normal Table Naming Rule',
@@ -590,5 +590,6 @@ export default {
     sink_errorDesc: 'An error in the sink prevents writing.',
     fatal: 'Fatal',
     fatalDesc: 'An irrecoverable error. The data writing task will terminate at this point.'
-  }
+  },
+  version: 'Data In Version:'
 };
