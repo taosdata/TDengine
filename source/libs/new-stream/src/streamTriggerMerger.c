@@ -1716,7 +1716,14 @@ int32_t stNewVtableMergerInit(SSTriggerNewVtableMerger *pMerger, struct SStreamT
   pMerger->pTask = pTask;
   code = createOneDataBlock(pDataBlock, false, &pMerger->pDataBlock);
   QUERY_CHECK_CODE(code, lino, _end);
-  pMerger->pIsPseudoCol = pIsPseudoCol;
+  bool hasPseudo = false;
+  for (int32_t i = 0; i < TARRAY_SIZE(pMerger->pDataBlock->pDataBlock); i++) {
+    if (pIsPseudoCol[i]) {
+      hasPseudo = true;
+      break;
+    }
+  }
+  pMerger->pIsPseudoCol = hasPseudo ? pIsPseudoCol : NULL;
   code = filterInitFromNode(pFilter, &pMerger->pFilter, 0, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
