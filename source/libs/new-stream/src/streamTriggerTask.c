@@ -3332,11 +3332,18 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         if (pContext->needPseudoCols || pDataBlock == NULL || startIdx >= endIdx) {
           break;
         }
-        TARRAY_SIZE(pDataBlock->pDataBlock)--;
+        if (pTask->isVirtualTable) {
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
+                                    pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {        
+          TARRAY_SIZE(pDataBlock->pDataBlock)--;
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
+                                    pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
+          QUERY_CHECK_CODE(code, lino, _end);   
+          TARRAY_SIZE(pDataBlock->pDataBlock)++;
+        }
         pContext->curParamRows += (endIdx - startIdx);
-        code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
-                                  pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
-        TARRAY_SIZE(pDataBlock->pDataBlock)++;
         QUERY_CHECK_CODE(code, lino, _end);
       }
       if (pContext->needPseudoCols) {
