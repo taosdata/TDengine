@@ -211,6 +211,17 @@ static void destroySSlidingGrpMgr(void* pData) {
   taosMemoryFreeClear(pGroupData);
 }
 
+static void cleanSlidingGrpMgr(SSlidingGrpMgr* pGroupData) {
+  if (pGroupData->winDataInMem) {
+    taosArrayClearEx(pGroupData->winDataInMem, destroySlidingWindowInMemPP);
+  }
+  if (pGroupData->blocksInFile) {
+    // todo destroy blocks in file
+    taosArrayDestroy(pGroupData->blocksInFile);
+    pGroupData->blocksInFile = NULL;
+  }
+}
+
 static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t tsSlotId, void** ppCache) {
   SSlidingTaskDSMgr* pSlidingTaskDSMgr = taosMemCalloc(1, sizeof(SSlidingTaskDSMgr));
   if (pSlidingTaskDSMgr == NULL) {
@@ -647,6 +658,32 @@ _end:
   return code;
 }
 
+static int32_t cleanSlidingDataCache(void* pCache, int64_t groupId) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
+
+  stDebug("[clean data cache] groupID:%" PRId64 " STREAMID:%" PRIx64, groupId, pStreamTaskMgr->streamId);
+
+  SSlidingGrpMgr** ppExistGrpMgr =
+      (SSlidingGrpMgr**)taosHashGet(pStreamTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
+  if (ppExistGrpMgr == NULL) {
+    stDebug("[clean data cache] nogroup groupID:%" PRId64 "STREAMID:%" PRIx64, groupId, pStreamTaskMgr->streamId);
+    return TSDB_CODE_SUCCESS;
+  }
+  SSlidingGrpMgr* pExistGrpMgr = *ppExistGrpMgr;
+  bool            canClean = changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_WRITING);
+  if (!canClean) {
+    stError("failed to change group data sink manager status when clean data, status: %d", pExistGrpMgr->status);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  cleanSlidingGrpMgr(pExistGrpMgr);
+
+  (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
+  return code;
+}
+
 int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end, void** pIter) {
   if (!isManagerReady()) {
     stError("DataSinkManager is not ready");
@@ -671,6 +708,23 @@ int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end
     stError("invalid clean mode: %d", getCleanModeFromDSMgr(pCache));
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
+}
+
+int32_t cleanStreamDataCache(void* pCache, int64_t groupId) {
+  if (!isManagerReady()) {
+    stError("DataSinkManager is not ready");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
+    stError("cleanStreamDataCache not support immediate mode");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+
+  } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {
+    return cleanSlidingDataCache((SSlidingTaskDSMgr*)pCache, groupId);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t createDataResult(void** pIter) {
