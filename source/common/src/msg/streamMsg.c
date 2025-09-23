@@ -3025,6 +3025,7 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   switch (pSrc->triggerType) {
     case WINDOW_TYPE_STATE:
       pDst->trigger.stateWin.slotId = pSrc->trigger.stateWin.slotId;
+      pDst->trigger.stateWin.extend = pSrc->trigger.stateWin.extend;
       pDst->trigger.stateWin.trueForDuration = pSrc->trigger.stateWin.trueForDuration;
       if (pSrc->trigger.stateWin.expr) {
         pDst->trigger.stateWin.expr = COPY_STR(pSrc->trigger.stateWin.expr);
