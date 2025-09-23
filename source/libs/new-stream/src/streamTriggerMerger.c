@@ -1381,9 +1381,9 @@ static int32_t stNewTimestampSorterSliceListCompare(const void *pLeft, const voi
     SColumnInfoData *pTsCol = TARRAY_GET_ELEM(pSorter->pDataBlock->pDataBlock, pSorter->tsSlotId);
     int64_t         *pTsData = (int64_t *)pTsCol->pData;
     int32_t          leftIdx = (TD_DLIST_HEAD(pLeftList) != NULL) ? TD_DLIST_HEAD(pLeftList)->startIdx : -1;
-    int64_t          leftTs = (leftIdx > 0) ? pTsData[leftIdx] : INT64_MAX;
+    int64_t          leftTs = (leftIdx >= 0) ? pTsData[leftIdx] : INT64_MAX;
     int32_t          rightIdx = (TD_DLIST_HEAD(pRightList) != NULL) ? TD_DLIST_HEAD(pRightList)->startIdx : -1;
-    int64_t          rightTs = (rightIdx > 0) ? pTsData[rightIdx] : INT64_MAX;
+    int64_t          rightTs = (rightIdx >= 0) ? pTsData[rightIdx] : INT64_MAX;
 
     // compare by start timestamp first, then by start index
     if (leftTs < rightTs) {
@@ -1513,7 +1513,8 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
       if (TARRAY_SIZE(pSorter->pSliceBuf) > 0) {
         pLastSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, TARRAY_SIZE(pSorter->pSliceBuf) - 1);
       }
-      if (pLastSlice != NULL && pLastSlice->endIdx == slice.startIdx) {
+      if (pLastSlice != NULL && pLastSlice->endIdx == slice.startIdx &&
+          pTsData[pLastSlice->endIdx - 1] <= pTsData[slice.startIdx]) {
         // merge with the last slice
         pLastSlice->endIdx = slice.endIdx;
       } else {
@@ -1628,7 +1629,7 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
   }
   QUERY_CHECK_CONDITION(endTs > startTs, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
-  if (pTsData[pSlice->endIdx] < endTs) {
+  if (pTsData[pSlice->endIdx - 1] < endTs) {
     *pEndIdx = pSlice->endIdx;
     TD_DLIST_POP(pList, pSlice);
     pSlice = TD_DLIST_HEAD(pList);
