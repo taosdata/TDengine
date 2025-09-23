@@ -628,15 +628,11 @@ typedef struct {
   int64_t interval[2];
   union {
     uint64_t reserved;
-    struct {
-      uint8_t enable : 1;
-      uint8_t padding : 7;
-    };
   };
-  int32_t version;
-  int8_t  tbType;
-  int8_t  intervalUnit;
-  int16_t nFuncs;
+  int32_t    version;
+  int8_t     tbType;
+  int8_t     intervalUnit;
+  int16_t    nFuncs;
   col_id_t*  funcColIds;
   func_id_t* funcIds;
   SRWLatch   lock;

@@ -30,9 +30,12 @@
 #define MND_RETENTION_VER_NUMBER 1
 
 static int32_t mndProcessRetentionTimer(SRpcMsg *pReq);
+static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
 
 int32_t mndInitRetention(SMnode *pMnode) { 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndRetrieveRetention);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndCancelRetrieveRetention);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_RETENTION, mndProcessKillRetentionReq);
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY_RETENTION_PROGRESS_RSP, mndProcessQueryRetentionRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_TIMER, mndProcessRetentionTimer);
@@ -122,8 +125,7 @@ int32_t mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pO
   return 0;
 }
 
-// retrieve retention
-int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode        *pMnode = pReq->info.node;
   SSdb          *pSdb = pMnode->pSdb;
   int32_t        numOfRows = 0;
@@ -145,7 +147,7 @@ int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   }
 
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pObj);
+    pShow->pIter = sdbFetch(pSdb, SDB_RETENTION, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
 
     SColumnInfoData *pColInfo;
@@ -182,7 +184,11 @@ _OVER:
   return numOfRows;
 }
 
-// kill compact
+static void mndCancelRetrieveRetention(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetchByType(pSdb, pIter, SDB_RETENTION);
+}
+
 static void *mndBuildKillRetentionReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pContLen, int32_t id, int32_t dnodeId) {
   SVKillRetentionReq req = {0};
   req.taskId = id;

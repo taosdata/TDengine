@@ -61,8 +61,8 @@ int32_t mndInitRsma(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_RSMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_RSMA, mndProcessDropRsmaReq);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_RSMA_RSP, mndTransProcessRsp);
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RSMAS, mndRetrieveRsma);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMAS, mndCancelRetrieveRsma);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndRetrieveRsma);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndCancelRetrieveRsma);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -647,7 +647,6 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
   obj.version = 1;
   obj.tbType = pCreate->tbType;  // ETableType: 1 stable. Only super table supported currently.
   obj.intervalUnit = pCreate->intervalUnit;
-  obj.enable = 1;                // enable by default
   obj.nFuncs = pCreate->nFuncs;
   if (obj.nFuncs > 0) {
     TSDB_CHECK_NULL((obj.funcColIds = taosMemoryCalloc(obj.nFuncs, sizeof(col_id_t))), code, lino, _exit, terrno);
@@ -896,11 +895,6 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
         }
         varDataSetLen(pBuf, strlen(qBuf));
         COL_DATA_SET_VAL_GOTO(pBuf, false, pObj, pIter, _exit);
-      }
-
-      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-        uint8_t enable = pObj->enable;
-        COL_DATA_SET_VAL_GOTO((const char *)&enable, false, pObj, pIter, _exit);
       }
 
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {

@@ -34,7 +34,6 @@ int32_t  mndRetentionActionDelete(SSdb *pSdb, SRetentionObj *pRetention);
 int32_t  mndRetentionActionUpdate(SSdb *pSdb, SRetentionObj *pOldRetention, SRetentionObj *pNewRetention);
 int32_t  mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pRetention, SDbObj *pDb,
                                 SRetentionDbRsp *rsp);
-int32_t  mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 int32_t  mndProcessKillRetentionReq(SRpcMsg *pReq);
 int32_t  mndProcessQueryRetentionRsp(SRpcMsg *pReq);
 
