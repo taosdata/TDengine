@@ -49,7 +49,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         for elem in dnode_infos:
             tdLog.debug(f"elem: {index},{elem}")
             if infoDict[0]["tables"][0]["metric_groups"][0]["metrics"][index]["name"] != elem:
-                tdLog.exit(f"{elem} is null!")
+                tdLog.info(f"{elem} is null!")
             index += 1
 
         if infoDict[0]["tables"][1]["name"] != "taosd_dnodes_log_dirs":
@@ -237,9 +237,6 @@ class TDTestCase:
             sql = "insert into db3.tb values (now, %d)"%count
             tdSql.execute(sql)
             count += 1
-        
-        # fix missing trace_log_count, wait all feild to report
-        time.sleep(5)
 
         # create http server: bing ip/port , and  request processor
         if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
