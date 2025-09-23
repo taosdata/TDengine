@@ -8006,17 +8006,15 @@ static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup) {
     }
   }
 
-  int32_t nInitWins = pGroup->windows.neles;
-  code = stRealtimeGroupMergeWindows(pGroup);
-  QUERY_CHECK_CODE(code, lino, _end);
-  code = stRealtimeGroupGenCalcParams(pGroup, nInitWins);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (!pContext->needPseudoCols) {
+    int32_t nInitWins = pGroup->windows.neles;
+    code = stRealtimeGroupMergeWindows(pGroup);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = stRealtimeGroupGenCalcParams(pGroup, nInitWins);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  if (pContext->pCalcReq) {
-    SSTriggerCalcParam *pLastParam = taosArrayGetLast(pContext->pCalcReq->params);
+    SSTriggerCalcParam *pLastParam = pContext->pCalcReq ? taosArrayGetLast(pContext->pCalcReq->params) : NULL;
     pContext->lastSentWinEnd = pLastParam ? pLastParam->wend : INT64_MIN;
-  } else {
-    pContext->lastSentWinEnd = INT64_MIN;
   }
 
 _end:
