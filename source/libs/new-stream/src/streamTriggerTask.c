@@ -4184,6 +4184,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
   // process delete data
   nrows = blockDataGetNumOfRows(pContext->pDeleteBlock);
   if (nrows > 0) {
+    ST_TASK_DLOG("got %d rows of delete data", nrows);
     int32_t          iCol = 0;
     SColumnInfoData *pGidCol = taosArrayGet(pContext->pDeleteBlock->pDataBlock, iCol++);
     QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
