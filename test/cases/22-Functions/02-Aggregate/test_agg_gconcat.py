@@ -21,14 +21,12 @@ class TestFuncGconcat:
         Jira: None
 
         History:
-            - 2025-9-18 Stephen Jin 
+            - 2025-9-18 Stephen Jin
 
         """
 
         self.smoking()
         tdStream.dropAllStreamsAndDbs()
-        #self.QueryStddev()
-        #tdStream.dropAllStreamsAndDbs()
 
     def smoking(self):
         db = "testdb"
@@ -46,7 +44,7 @@ class TestFuncGconcat:
             tdSql.execute(f"insert into {tb} values ({ms} , {xfield})")
 
             x = x + 1
-        
+
         tdSql.query(f"select group_concat(tbcol, '?') from {tb}")
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkRows(1)
