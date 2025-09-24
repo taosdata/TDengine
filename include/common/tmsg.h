@@ -2123,7 +2123,7 @@ typedef struct {
   union {
     uint16_t flags;
     struct {
-      uint16_t optrType : 3;     // EOptrType
+      uint16_t optrType : 3;     // ETsdbOpType
       uint16_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
       uint16_t reserved : 12;
     };
@@ -2600,7 +2600,7 @@ typedef struct {
   union {
     uint16_t flags;
     struct {
-      uint16_t optrType : 3;     // EOptrType
+      uint16_t optrType : 3;     // ETsdbOpType
       uint16_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
       uint16_t reserved : 12;
     };
@@ -2634,7 +2634,7 @@ typedef struct {
   union {
     uint32_t flags;
     struct {
-      uint32_t optrType : 3;     // EOptrType
+      uint32_t optrType : 3;     // ETsdbOpType
       uint32_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
       uint32_t reserved : 28;
     };

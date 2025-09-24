@@ -69,7 +69,7 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryCompactProgress(SVnode *pVnode, SRpcMsg *pMsg);
 
-extern int32_t vnodeProcessKillRetetnionReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+extern int32_t vnodeProcessKillRetentionReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 extern int32_t vnodeQueryRetentionProgress(SVnode *pVnode, SRpcMsg *pMsg);
 
 extern int32_t vnodeProcessKillScanReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -962,6 +962,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 #endif
     case TDMT_VND_KILL_SCAN:
       vnodeProcessKillScanReq(pVnode, ver, pReq, len, pRsp);
+      break;
+    case TDMT_VND_KILL_TRIM:
+      vnodeProcessKillRetentionReq(pVnode, ver, pReq, len, pRsp);
       break;
     /* ARB */
     case TDMT_VND_ARB_CHECK_SYNC:

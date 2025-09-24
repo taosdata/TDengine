@@ -338,12 +338,6 @@ int32_t tsdbRetention(void *arg) {
           .nodeId = rtnArg->nodeId,
   };
 
-  int64_t nLoops = 0;
-  while(1) {
-    printf("vgId:%d, retention task start, fid:%d, lastCommit:%" PRId64 ", sleep:%"PRId64"\n", TD_VID(pVnode), rtnArg->fid, rtnArg->lastCommit, nLoops++);
-    taosSsleep(1);
-  }
-
   // begin task
   (void)taosThreadMutexLock(&pTsdb->mutex);
 

@@ -176,3 +176,26 @@ extern int32_t vnodeKillSsMigrate(SVnode *pVnode, SVnodeKillSsMigrateReq *pReq) 
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
+
+extern void tsdbStopAllRetentionTask(STsdb *tsdb);
+
+int32_t vnodeProcessKillRetentionReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SVKillRetentionReq req = {0};  // same as SVKillCompactReq
+
+  vDebug("vgId:%d, kill retention msg will be processed, pReq:%p, len:%d", TD_VID(pVnode), pReq, len);
+  int32_t code = tDeserializeSVKillCompactReq(pReq, len, &req);
+  if (code) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  vInfo("vgId:%d, kill retention msg will be processed, taskId:%d, dnodeId:%d, vgId:%d", TD_VID(pVnode), req.taskId,
+        req.dnodeId, req.vgId);
+
+  tsdbStopAllRetentionTask(pVnode->pTsdb);
+
+  pRsp->msgType = TDMT_VND_KILL_TRIM_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  return 0;
+}
