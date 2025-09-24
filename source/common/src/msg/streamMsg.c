@@ -14,6 +14,7 @@
  */
 
 #include "streamMsg.h"
+#include "taos.h"
 #include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
@@ -3563,8 +3564,8 @@ static int32_t encodeSetTableMapInfo(SEncoder* encoder, SSHashObj* pInfo) {
   while (px != NULL) {
     int64_t* uid = tSimpleHashGetKey(px, NULL);
     TAOS_CHECK_EXIT(tEncodeI64(encoder, *uid));
+    TAOS_CHECK_EXIT(tEncodeI64(encoder, *(uid + 1)));
     SSHashObj* info = *(SSHashObj**)px;
-
     int32_t len = tSimpleHashGetSize(info);
     TAOS_CHECK_EXIT(tEncodeI32(encoder, len));
     int32_t iter1 = 0;
@@ -3771,22 +3772,23 @@ static int32_t decodeSetTableMapInfo(SDecoder* decoder, SSHashObj** ppInfo) {
   int32_t  lino = 0;
   int32_t size = 0;
   TAOS_CHECK_EXIT(tDecodeI32(decoder, &size));
-  *ppInfo = tSimpleHashInit(size, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  *ppInfo = tSimpleHashInit(size, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   if (*ppInfo == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
   tSimpleHashSetFreeFp(*ppInfo, destroyHash);
   
   for (int32_t i = 0; i < size; ++i) {
-    int64_t uid = 0;
-    TAOS_CHECK_EXIT(tDecodeI64(decoder, &uid));
+    int64_t id[2] = {0};
+    TAOS_CHECK_EXIT(tDecodeI64(decoder, id));
+    TAOS_CHECK_EXIT(tDecodeI64(decoder, id+1));
     int32_t len = 0;
     TAOS_CHECK_EXIT(tDecodeI32(decoder, &len));
     SSHashObj* tmp = tSimpleHashInit(len, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
     if (tmp == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    TAOS_CHECK_EXIT(tSimpleHashPut(*ppInfo, &uid, sizeof(uid), &tmp, POINTER_BYTES));
+    TAOS_CHECK_EXIT(tSimpleHashPut(*ppInfo, id, sizeof(id), &tmp, POINTER_BYTES));
 
     for (int32_t j = 0; j < len; ++j) {
       int16_t slotId = 0;

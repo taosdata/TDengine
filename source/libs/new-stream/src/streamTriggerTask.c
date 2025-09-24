@@ -20,6 +20,7 @@
 #include "plannodes.h"
 #include "scalar.h"
 #include "streamInt.h"
+#include "taos.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tcompare.h"
@@ -685,7 +686,7 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
       // set original table info
       SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
       if (pOrigTableInfo == NULL) {
-        SSTriggerOrigTableInfo newInfo = {.tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
+        SSTriggerOrigTableInfo newInfo = {.tbSuid = pTbInfo->suid, .tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
         code = tSimpleHashPut(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t), &newInfo,
                               sizeof(SSTriggerOrigTableInfo));
         QUERY_CHECK_CODE(code, lino, _end);
@@ -769,7 +770,7 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
     // set original table info
     SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
     if (pOrigTableInfo == NULL) {
-      SSTriggerOrigTableInfo newInfo = {.tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
+      SSTriggerOrigTableInfo newInfo = {.tbSuid = pTbInfo->suid, .tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
       code = tSimpleHashPut(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t), &newInfo,
                             sizeof(SSTriggerOrigTableInfo));
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1850,9 +1851,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->watermark = pMsg->watermark;
   pTask->expiredTime = pMsg->expiredTime;
   pTask->ignoreDisorder = pMsg->igDisorder;
-  if ((pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0) ||
-      pTask->triggerType == STREAM_TRIGGER_COUNT) {
-    pTask->ignoreDisorder = true;  // sliding trigger and count window trigger has no recalculation
+  if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
+    pTask->ignoreDisorder = true;  // count window trigger has no recalculation
   }
   pTask->fillHistory = pMsg->fillHistory;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
@@ -2319,10 +2319,10 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
           QUERY_CHECK_NULL(pProgress->reqCids, code, lino, _end, terrno);
           pProgress->reqCols = taosArrayInit(0, sizeof(OTableInfo));
           QUERY_CHECK_NULL(pProgress->reqCols, code, lino, _end, terrno);
-          pProgress->uidInfoTrigger = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+          pProgress->uidInfoTrigger = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
           QUERY_CHECK_NULL(pProgress->uidInfoTrigger, code, lino, _end, terrno);
           tSimpleHashSetFreeFp(pProgress->uidInfoTrigger, stTriggerTaskDestroyHashElem);
-          pProgress->uidInfoCalc = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+          pProgress->uidInfoCalc = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
           QUERY_CHECK_NULL(pProgress->uidInfoCalc, code, lino, _end, terrno);
           tSimpleHashSetFreeFp(pProgress->uidInfoCalc, stTriggerTaskDestroyHashElem);
         }
@@ -2624,10 +2624,10 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
       QUERY_CHECK_NULL(pProgress->reqCids, code, lino, _end, terrno);
       pProgress->reqCols = taosArrayInit(0, sizeof(OTableInfo));
       QUERY_CHECK_NULL(pProgress->reqCols, code, lino, _end, terrno);
-      pProgress->uidInfoTrigger = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+      pProgress->uidInfoTrigger = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
       QUERY_CHECK_NULL(pProgress->uidInfoTrigger, code, lino, _end, terrno);
       tSimpleHashSetFreeFp(pProgress->uidInfoTrigger, stTriggerTaskDestroyHashElem);
-      pProgress->uidInfoCalc = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+      pProgress->uidInfoCalc = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
       QUERY_CHECK_NULL(pProgress->uidInfoCalc, code, lino, _end, terrno);
       tSimpleHashSetFreeFp(pProgress->uidInfoCalc, stTriggerTaskDestroyHashElem);
     }
@@ -3096,7 +3096,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         if (tSimpleHashGetSize(pInfo->pTrigColMap) > 0) {
           SSHashObj *pMatch = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
           QUERY_CHECK_NULL(pMatch, code, lino, _end, terrno);
-          code = tSimpleHashPut(pReq->uidInfoTrigger, &pInfo->tbUid, sizeof(int64_t), &pMatch, POINTER_BYTES);
+          int64_t id[2] = {pInfo->tbSuid, pInfo->tbUid};
+          code = tSimpleHashPut(pReq->uidInfoTrigger, id, sizeof(id), &pMatch, POINTER_BYTES);
           if (code != TSDB_CODE_SUCCESS) {
             tSimpleHashCleanup(pMatch);
             QUERY_CHECK_CODE(code, lino, _end);
@@ -3114,7 +3115,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         if (tSimpleHashGetSize(pInfo->pCalcColMap) > 0) {
           SSHashObj *pMatch = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
           QUERY_CHECK_NULL(pMatch, code, lino, _end, terrno);
-          code = tSimpleHashPut(pReq->uidInfoCalc, &pInfo->tbUid, sizeof(int64_t), &pMatch, POINTER_BYTES);
+          int64_t id[2] = {pInfo->tbSuid, pInfo->tbUid};
+          code = tSimpleHashPut(pReq->uidInfoCalc, id, sizeof(id), &pMatch, POINTER_BYTES);
           if (code != TSDB_CODE_SUCCESS) {
             tSimpleHashCleanup(pMatch);
             QUERY_CHECK_CODE(code, lino, _end);
@@ -3141,7 +3143,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         while (px1 != NULL) {
           int16_t *slot = tSimpleHashGetKey(px1, NULL);
           int16_t *cid = (int16_t *)px1;
-          ST_TASK_DLOG("SetTable: [trigger] uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *slot, *cid);
+          ST_TASK_DLOG("SetTable: [trigger] suid: %" PRId64 ", uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *(pUid + 1),
+                       *slot, *cid);
           px1 = tSimpleHashIterate(info, px1, &iter1);
         }
         px = tSimpleHashIterate(pReq->uidInfoTrigger, px, &iter);
@@ -3156,7 +3159,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         while (px1 != NULL) {
           int16_t *slot = tSimpleHashGetKey(px1, NULL);
           int16_t *cid = (int16_t *)px1;
-          ST_TASK_DLOG("SetTable: [calc] uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *slot, *cid);
+          ST_TASK_DLOG("SetTable: [calc] suid: %" PRId64 ", uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *(pUid + 1),
+                       *slot, *cid);
           px1 = tSimpleHashIterate(info, px1, &iter1);
         }
         px = tSimpleHashIterate(pReq->uidInfoCalc, px, &iter);
@@ -3284,7 +3288,6 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
                    pGroup->gid);
       ST_TASK_DLOG("calc range is [%" PRId64 ", %" PRId64 "] for groupId:%" PRId64, pContext->calcRange.skey,
                    pContext->calcRange.ekey, pGroup->gid);
-      QUERY_CHECK_CONDITION(metaRange.skey <= metaRange.ekey, code, lino, _end, TSDB_CODE_INVALID_PARA);
       QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
                             TSDB_CODE_INVALID_PARA);
       if (pContext->calcRange.skey < metaRange.skey && metaRange.skey <= pContext->calcRange.ekey) {
@@ -5477,6 +5480,17 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
         SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pColRefToFetch->pColMatches, i);
         void              *px = taosArrayPush(pReq->cids, &pColMatch->otbColId);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+      if (stDebugFlag & DEBUG_DEBUG) {
+        char    buf[128];
+        int32_t bufLen = 0;
+        for (int32_t i = 0; i < TARRAY_SIZE(pReq->cids); i++) {
+          col_id_t colId = *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i);
+          bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
+        }
+        buf[bufLen - 1] = '\0';
+        ST_TASK_DLOG("pull data request for table:%" PRId64 " on node:%d, cids:%s", pReq->uid,
+                     pProgress->pTaskAddr->nodeId, buf);
       }
       pReq->order = 1;
       pReq->ver = pProgress->version;

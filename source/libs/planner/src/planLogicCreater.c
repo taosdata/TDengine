@@ -2081,6 +2081,7 @@ typedef struct SConditionCheckContext {
   bool    hasNegativeConst;
   bool    hasOtherFunc;
   bool    placeholderAtRight;
+  bool    hasPlaceHolder;
   int32_t placeholderType;
 } SConditionCheckContext;
 
@@ -2093,6 +2094,9 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
     }
   } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode *pFunc = (SFunctionNode*)pNode;
+    if(fmIsPlaceHolderFunc(pFunc->funcId)) {
+      pCxt->hasPlaceHolder = true;
+    }
     if (pFunc->funcType == FUNCTION_TYPE_TWSTART ||
       pFunc->funcType == FUNCTION_TYPE_TWEND ||
       pFunc->funcType == FUNCTION_TYPE_TPREV_TS ||
@@ -2202,6 +2206,15 @@ static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
   return filterHasPlaceHolderRange(pStart, pEnd);
 }
 
+static bool conditionHasPlaceHolder(SNode* pNode) {
+  if (!pNode) {
+    return false;
+  }
+  SConditionCheckContext cxt = {.hasPlaceHolder = false};
+  nodesWalkExpr(pNode, conditionOnlyPhAndConstImpl, &cxt);
+  return cxt.hasPlaceHolder;
+}
+
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
       !pCxt->pPlanCxt->streamCalcQuery ||
@@ -2209,7 +2222,8 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
-      !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
+      !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange) ||
+      conditionHasPlaceHolder(pSelect->pWhere)) {
     pCxt->pPlanCxt->withExtWindow = false;
     return TSDB_CODE_SUCCESS;
   }

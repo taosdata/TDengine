@@ -166,8 +166,8 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       int32_t iter = 0;
       void*   px = tSimpleHashIterate(options->mapInfo, NULL, &iter);
       while (px != NULL) {
-        int64_t* uid = tSimpleHashGetKey(px, NULL);
-        STREAM_CHECK_RET_GOTO(qStreamSetTableList(&pTask->pTableList, *uid, *uid));
+        int64_t* id = tSimpleHashGetKey(px, NULL);
+        STREAM_CHECK_RET_GOTO(qStreamSetTableList(&pTask->pTableList, *(id+1), *id));
         px = tSimpleHashIterate(options->mapInfo, px, &iter);
       }
       
@@ -178,6 +178,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       } else if (options->scanMode == STREAM_SCAN_ALL) {
         STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
       }
+      options->suid = pList->groupId;
     } else {
       if (options->uid != 0) {
         pListTmp.groupId = qStreamGetGroupId(pTask->pTableList, options->uid);
