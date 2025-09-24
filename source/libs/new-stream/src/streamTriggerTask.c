@@ -686,7 +686,7 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
       // set original table info
       SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
       if (pOrigTableInfo == NULL) {
-        SSTriggerOrigTableInfo newInfo = { .tbSuid = pTbInfo->suid, .tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
+        SSTriggerOrigTableInfo newInfo = {.tbSuid = pTbInfo->suid, .tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
         code = tSimpleHashPut(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t), &newInfo,
                               sizeof(SSTriggerOrigTableInfo));
         QUERY_CHECK_CODE(code, lino, _end);
@@ -770,7 +770,7 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
     // set original table info
     SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
     if (pOrigTableInfo == NULL) {
-      SSTriggerOrigTableInfo newInfo = { .tbSuid = pTbInfo->suid, .tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
+      SSTriggerOrigTableInfo newInfo = {.tbSuid = pTbInfo->suid, .tbUid = pTbInfo->uid, .vgId = pTbInfo->vgId};
       code = tSimpleHashPut(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t), &newInfo,
                             sizeof(SSTriggerOrigTableInfo));
       QUERY_CHECK_CODE(code, lino, _end);
@@ -3143,7 +3143,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         while (px1 != NULL) {
           int16_t *slot = tSimpleHashGetKey(px1, NULL);
           int16_t *cid = (int16_t *)px1;
-          ST_TASK_DLOG("SetTable: [trigger] suid: %" PRId64 ", uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *(pUid + 1), *slot, *cid);
+          ST_TASK_DLOG("SetTable: [trigger] suid: %" PRId64 ", uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *(pUid + 1),
+                       *slot, *cid);
           px1 = tSimpleHashIterate(info, px1, &iter1);
         }
         px = tSimpleHashIterate(pReq->uidInfoTrigger, px, &iter);
@@ -3158,7 +3159,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
         while (px1 != NULL) {
           int16_t *slot = tSimpleHashGetKey(px1, NULL);
           int16_t *cid = (int16_t *)px1;
-          ST_TASK_DLOG("SetTable: [calc] uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *slot, *cid);
+          ST_TASK_DLOG("SetTable: [calc] suid: %" PRId64 ", uid: %" PRId64 ", slot: %d, cid: %d", *pUid, *(pUid + 1),
+                       *slot, *cid);
           px1 = tSimpleHashIterate(info, px1, &iter1);
         }
         px = tSimpleHashIterate(pReq->uidInfoCalc, px, &iter);
@@ -5479,6 +5481,17 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
         SSTriggerColMatch *pColMatch = TARRAY_GET_ELEM(pColRefToFetch->pColMatches, i);
         void              *px = taosArrayPush(pReq->cids, &pColMatch->otbColId);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+      if (stDebugFlag & DEBUG_DEBUG) {
+        char    buf[128];
+        int32_t bufLen = 0;
+        for (int32_t i = 0; i < TARRAY_SIZE(pReq->cids); i++) {
+          col_id_t colId = *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i);
+          bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
+        }
+        buf[bufLen - 1] = '\0';
+        ST_TASK_DLOG("pull data request for table:%" PRId64 " on node:%d, cids:%s", pReq->uid,
+                     pProgress->pTaskAddr->nodeId, buf);
       }
       pReq->order = 1;
       pReq->ver = pProgress->version;
