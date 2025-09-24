@@ -3907,7 +3907,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
           pContext->needPseudoCols = false;
           goto _end;
         }
-        stRealtimeGroupClearTempState(pGroup);
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
           code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
@@ -3915,6 +3914,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
         }
+        stRealtimeGroupClearTempState(pGroup);
         pContext->status = STRIGGER_CONTEXT_SEND_CALC_REQ;
       }
       case STRIGGER_CONTEXT_SEND_CALC_REQ: {
