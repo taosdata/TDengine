@@ -174,7 +174,7 @@ function collect_coverage_data() {
     local remote_debug_dir="${workdirs[index]}/${DEBUGPATH}"
     local cmd=""
     
-    echo "开始收集覆盖率数据: ${case_file} (${status})"
+    # echo "开始收集覆盖率数据: ${case_file} (${status})"
     
     # 方案1: 直接复制所有 GCDA 文件
     if ! is_local_host "${hosts[index]}"; then
@@ -183,7 +183,7 @@ function collect_coverage_data() {
         local remote_tar_file="${workdirs[index]}/tmp/thread_volume/$thread_no/coverage_${case_file##*/}.tar.gz"
         
         # 在远程主机打包 GCDA 文件
-        cmd="${ssh_script} \"cd ${remote_debug_dir} && find . -name '*.gcda' -type f | tar -czf ${remote_tar_file} -T - 2>/dev/null || echo 'No gcda files found'\""
+        cmd="${ssh_script} \"cd ${remote_debug_dir} && find . -name '*.gcda' -type f | tar -czf ${remote_tar_file} -T - 2>/dev/null \""
         echo "打包覆盖率文件: $cmd"
         bash -c "$cmd"
         
@@ -208,14 +208,14 @@ function collect_coverage_data() {
         bash -c "$cmd"
     fi
     
-    # 方案2: 额外创建 sim/cover 目录的符号链接（可选）
-    local sim_coverage_dir="${log_dir}/${case_file}.sim.coverage"
-    if [ -d "${coverage_dir}" ] && [ -n "$(ls -A ${coverage_dir} 2>/dev/null)" ]; then
-        mkdir -p "$sim_coverage_dir"
-        # 创建到 coverage 目录的符号链接，方便查找
-        ln -sf "../${case_file}.coverage" "$sim_coverage_dir/gcda_files"
-        echo "创建覆盖率数据链接: $sim_coverage_dir/gcda_files -> ${case_file}.coverage"
-    fi
+    # # 方案2: 额外创建 sim/cover 目录的符号链接（可选）
+    # local sim_coverage_dir="${log_dir}/${case_file}.sim.coverage"
+    # if [ -d "${coverage_dir}" ] && [ -n "$(ls -A ${coverage_dir} 2>/dev/null)" ]; then
+    #     mkdir -p "$sim_coverage_dir"
+    #     # 创建到 coverage 目录的符号链接，方便查找
+    #     ln -sf "../${case_file}.coverage" "$sim_coverage_dir/gcda_files"
+    #     echo "创建覆盖率数据链接: $sim_coverage_dir/gcda_files -> ${case_file}.coverage"
+    # fi
     
     # 统计收集到的文件数量
     local gcda_count=$(find "$coverage_dir" -name "*.gcda" -type f 2>/dev/null | wc -l)
