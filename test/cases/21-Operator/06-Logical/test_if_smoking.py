@@ -47,6 +47,10 @@ class TestIfSmoking:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'yes')
 
+        tdSql.query(f"SELECT IF(1>2,'yes','no')")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'no')
+
     def IfNull(self):
         tdSql.query(f"select ifnull(1, 0);")
         tdSql.checkRows(1)
