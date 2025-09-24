@@ -3279,12 +3279,16 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         }
         pMetas = tSimpleHashIterate(pGroup->pWalMetas, pMetas, &iter1);
       }
-      pContext->calcRange.skey = TMAX(pContext->calcRange.skey, metaRange.skey);
-      pContext->calcRange.ekey = TMIN(pContext->calcRange.ekey, metaRange.ekey);
-      QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
-                            TSDB_CODE_INVALID_PARA);
+      ST_TASK_DLOG("meta range is [%" PRId64 ", %" PRId64 "] for groupId:%" PRId64, metaRange.skey, metaRange.ekey,
+                   pGroup->gid);
       ST_TASK_DLOG("calc range is [%" PRId64 ", %" PRId64 "] for groupId:%" PRId64, pContext->calcRange.skey,
                    pContext->calcRange.ekey, pGroup->gid);
+      QUERY_CHECK_CONDITION(metaRange.skey <= metaRange.ekey, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
+                            TSDB_CODE_INVALID_PARA);
+      if (pContext->calcRange.skey < metaRange.skey && metaRange.skey <= pContext->calcRange.ekey) {
+        pContext->calcRange.skey = metaRange.skey;
+      }
 
       // fill calc range
       tSimpleHashClear(pContext->pRanges);
@@ -7839,10 +7843,14 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
     SSTriggerNotifyWindow *pWin = TARRAY_GET_ELEM(pContext->pWindows, i);
     // window open event may have been triggered previously
     if ((calcOpen || notifyOpen) && i >= nInitWins) {
-      SSTriggerCalcParam param = {.triggerTime = now,
-                                  .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
-                                  .extraNotifyContent = pWin->pWinOpenNotify};
-      code = stRealtimeGroupFillParam(pGroup, &param, pWin);
+      SSTriggerCalcParam    param = {.triggerTime = now,
+                                     .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
+                                     .extraNotifyContent = pWin->pWinOpenNotify};
+      SSTriggerNotifyWindow win = *pWin;
+      if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
+        win.range.ekey = win.range.skey;
+      }
+      code = stRealtimeGroupFillParam(pGroup, &param, &win);
       QUERY_CHECK_CODE(code, lino, _end);
       if (calcOpen) {
         if (!shouldPending) {
