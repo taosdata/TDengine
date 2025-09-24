@@ -427,7 +427,7 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
 
   mndTransSetDbName(pTrans, pObj->dbname, NULL);
 
-  SSdbRaw *pCommitRaw = mndCompactActionEncode(pObj);
+  SSdbRaw *pCommitRaw = mndRetentionActionEncode(pObj);
   if (pCommitRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -447,7 +447,7 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
   void *pIter = NULL;
   while (1) {
     SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION_DETAIL, pIter, (void **)&pDetail);
     if (pIter == NULL) break;
 
     if (pDetail->id == pObj->id) {
@@ -471,16 +471,6 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
       }
 
       mndReleaseVgroup(pMnode, pVgroup);
-
-      /*
-      SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
-      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-        mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-        mndTransDrop(pTrans);
-        return -1;
-      }
-      sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
-      */
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
@@ -799,7 +789,7 @@ static int32_t mndSaveRetentionProgress(SMnode *pMnode, int32_t id) {
       if (pIter == NULL) break;
 
       if (pDetail->id == id) {
-        SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
+        SSdbRaw *pCommitRaw = mndRetentionDetailActionEncode(pDetail);
         if (pCommitRaw == NULL) {
           mndTransDrop(pTrans);
           code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -833,7 +823,7 @@ static int32_t mndSaveRetentionProgress(SMnode *pMnode, int32_t id) {
       if (terrno != 0) code = terrno;
       TAOS_RETURN(code);
     }
-    SSdbRaw *pCommitRaw = mndCompactActionEncode(pObj);
+    SSdbRaw *pCommitRaw = mndRetentionActionEncode(pObj);
     mndReleaseRetention(pMnode, pObj);
     if (pCommitRaw == NULL) {
       mndTransDrop(pTrans);
