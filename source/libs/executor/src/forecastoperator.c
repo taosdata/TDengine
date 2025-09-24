@@ -221,6 +221,12 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
     return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
   }
 
+  if (pSupp->cachedRows < ANALY_TDTSFM_FORECAST_MIN_ROWS && strcmp(pSupp->algoName, "tdtsfm_1") == 0) {
+    qError("%s history rows for forecasting when using tdtsfm model not enough, min required:%d, current:%" PRId64, id,
+           ANALY_TDTSFM_FORECAST_MIN_ROWS, pSupp->forecastRows);
+    return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
+  }
+
   code = taosAnalyBufWriteOptInt(pBuf, "forecast_rows", pSupp->forecastRows);
   if (code != 0) return code;
 
