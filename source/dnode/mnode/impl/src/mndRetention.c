@@ -204,7 +204,7 @@ SRetentionObj *mndAcquireRetention(SMnode *pMnode, int32_t id) {
   if (pObj == NULL && (terrno != TSDB_CODE_SDB_OBJ_NOT_THERE && terrno != TSDB_CODE_SDB_OBJ_CREATING &&
                        terrno != TSDB_CODE_SDB_OBJ_DROPPING)) {
     terrno = TSDB_CODE_APP_ERROR;
-    mError("retention:" PRId32 ", failed to acquire retention since %s", id, terrstr());
+    mError("retention:%" PRId32 ", failed to acquire retention since %s", id, terrstr());
   }
   return pObj;
 }
