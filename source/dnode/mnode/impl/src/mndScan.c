@@ -1179,13 +1179,6 @@ int32_t mndProcessScanDbReq(SRpcMsg *pReq) {
   code = mndScanDb(pMnode, pReq, pDb, scanReq.timeRange, scanReq.vgroupIds);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  SName name = {0};
-  code = tNameFromString(&name, scanReq.db, T_NAME_ACCT | T_NAME_DB);
-  if (code != 0) {
-    mError("db:%s, failed to parse db name since %s", scanReq.db, terrstr());
-    goto _OVER;
-  }
-
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to process scan db req since %s", scanReq.db, terrstr());

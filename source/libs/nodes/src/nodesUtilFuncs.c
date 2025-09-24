@@ -1004,7 +1004,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SSessionWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-      code = makeNode(type, sizeof(SStateWinodwPhysiNode), &pNode);
+      code = makeNode(type, sizeof(SStateWindowPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
       code = makeNode(type, sizeof(SEventWinodwPhysiNode), &pNode);
@@ -1260,6 +1260,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pState->pCol);
       nodesDestroyNode(pState->pExpr);
       nodesDestroyNode(pState->pTrueForLimit);
+      nodesDestroyNode(pState->pExtend);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -2225,7 +2226,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
-      SStateWinodwPhysiNode* pPhyNode = (SStateWinodwPhysiNode*)pNode;
+      SStateWindowPhysiNode* pPhyNode = (SStateWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pStateKey);
       break;

@@ -2719,7 +2719,7 @@ static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   ENodeType type = QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE;
-  SStateWinodwPhysiNode* pState = (SStateWinodwPhysiNode*)makePhysiNode(
+  SStateWindowPhysiNode* pState = (SStateWindowPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode, type);
   if (NULL == pState) {
     return terrno;
@@ -2748,6 +2748,7 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
     // }
   }
 
+  pState->extendOption = pWindowLogicNode->extendOption;
   pState->trueForLimit = pWindowLogicNode->trueForLimit;
 
   if (TSDB_CODE_SUCCESS == code) {

@@ -28,7 +28,7 @@ trigger_type: {
     PERIOD(period_time[, offset_time])
   | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
@@ -142,12 +142,13 @@ SESSION(ts_col, session_val)
 ##### 状态窗口触发
 
 ```sql
-STATE_WINDOW(col) [TRUE_FOR(duration_time)] 
+STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)] 
 ```
 
 状态窗口触发是指对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 
 - col：状态列的列名。
+- extend：可选，窗口开始结束时的扩展策略：extend 值为 0 时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；extend 值为 2 时，窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
 - duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
 
 使用说明：
@@ -313,7 +314,7 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 - WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 `duration_time` 值为 0。
 - EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
 - IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据。注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。乱序数据既包括新的乱序数据的写入，也包括对已写入数据的更新操作。
-- DELETE_RECALC: 指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
+- DELETE_RECALC：指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
 - DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按子表分组的场景，未指定时触发子表被删除不会删除其输出子表。
 - FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算，未指定时从最早的记录开始触发计算。如果未指定 `FILL_HISTORY` 和 `FILL_HISTORY_FIRST`，则不进行历史数据的触发计算。该选项不能与 `FILL_HISTORY_FIRST` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
 - FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算，未指定时从最早的记录开始触发计算。该选项适合在需要按照时间顺序计算历史数据且历史数据计算完成前不需要实时计算的场景下指定，未指定时优先实时计算，不能与 `FILL_HISTORY` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
@@ -352,7 +353,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 - [ON (event_types)]：指定需要通知的事件类型，可多选。SLIDING（不带 INTERVAL）和 PERIOD 触发不需要指定，其他触发必须指定，支持的事件类型有：
   - WINDOW_OPEN：窗口打开事件，在触发表分组窗口打开时发送通知。
   - WINDOW_CLOSE：窗口关闭事件，在触发表分组窗口关闭时发送通知。
-  - ON_TIME: 定时触发事件，在触发时发送通知。
+  - ON_TIME：定时触发事件，在触发时发送通知。
 - [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
   - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
@@ -472,7 +473,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 - triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
 - triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
-- groupId: 字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。
+- groupId：字符串类型，是对应分组的唯一标识符，如果是按子表分组，则与对应表的 uid 一致。
 
 ###### 定时触发相关字段
 
@@ -558,7 +559,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 这部分是 eventType 为 WINDOW_INVALIDATION 时，event 对象才有的字段。
 
 - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
-- windowEnd: 长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+- windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
 
 ## 删除流式计算
 
