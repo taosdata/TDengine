@@ -29,6 +29,7 @@
 
 #define MND_RETENTION_VER_NUMBER 1
 
+static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq);
 static int32_t mndProcessQueryRetentionTimer(SRpcMsg *pReq);
 static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
@@ -44,6 +45,7 @@ static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
 int32_t mndInitRetention(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndRetrieveRetention);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndCancelRetrieveRetention);
+  mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB_TIMER, mndProcessTrimDbTimer);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRIM, mndProcessKillRetentionReq);  // trim is equivalent to retention
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY_TRIM_PROGRESS_RSP, mndProcessQueryRetentionRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_QUERY_TRIM_TIMER, mndProcessQueryRetentionTimer);
@@ -879,10 +881,81 @@ static void mndRetentionPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
+static int32_t mndTrimDbDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow *tw) {
+  if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
+    return 0;
+  }
+
+  SName   name = {0};
+  int32_t sqlLen = 0;
+  char    sql[256] = {0};
+  char    skeyStr[40] = {0};
+  char    ekeyStr[40] = {0};
+  char   *pDbName = pDb->name;
+
+  if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) == 0) {
+    pDbName = name.dbname;
+  }
+
+  if (taosFormatUtcTime(skeyStr, sizeof(skeyStr), tw->skey, pDb->cfg.precision) == 0 &&
+      taosFormatUtcTime(ekeyStr, sizeof(ekeyStr), tw->ekey, pDb->cfg.precision) == 0) {
+    sqlLen = tsnprintf(sql, sizeof(sql), "trim db %s start with '%s' end with '%s'", pDbName, skeyStr, ekeyStr);
+  } else {
+    sqlLen = tsnprintf(sql, sizeof(sql), "trim db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey,
+                       tw->ekey);
+  }
+  auditRecord(NULL, pMnode->clusterId, "autoTrimDB", name.dbname, "", sql, sqlLen);
+
+  return 0;
+}
+
+extern int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
+                         ETsdbOpType type, ETriggerType triggerType);
+static int32_t mndTrimDbDispatch(SRpcMsg *pReq) {
+  int32_t    code = 0, lino = 0;
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int64_t    curMs = taosGetTimestampMs();
+  STrimDbReq trimReq = {
+      .tw.skey = INT64_MIN, .tw.ekey = curMs, .optrType = TSDB_OPTR_NORMAL, .triggerType = TSDB_TRIGGER_AUTO};
+
+  void   *pIter = NULL;
+  SDbObj *pDb = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
+    if (pDb->cfg.isMount) {
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    (void)snprintf(trimReq.db, sizeof(trimReq.db), "%s", pDb->name);
+
+    if ((code = mndTrimDb(pMnode, pReq, pDb, trimReq.tw, trimReq.vgroupIds, trimReq.optrType, trimReq.triggerType)) ==
+        0) {
+      mInfo("db:%s, start to auto trim, optr:%u, tw:%" PRId64 ",%" PRId64, trimReq.db, trimReq.optrType,
+            trimReq.tw.skey, trimReq.tw.ekey);
+    } else {
+      mError("db:%s, failed to auto trim since %s", pDb->name, tstrerror(code));
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    TAOS_UNUSED(mndTrimDbDispatchAudit(pMnode, pReq, pDb, &trimReq.tw));
+
+    sdbRelease(pSdb, pDb);
+  }
+_exit:
+  return code;
+}
+
 static int32_t mndProcessQueryRetentionTimer(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
   mTrace("start to process query trim timer");
   mndRetentionPullup(pReq->info.node);
 #endif
   return 0;
+}
+
+static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
+  mTrace("start to process trim db timer");
+  return mndTrimDbDispatch(pReq);
 }

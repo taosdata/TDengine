@@ -2293,7 +2293,7 @@ static int32_t mndBuildTrimDbRsp(STrimDbRsp *rsp, int32_t *pRspLen, void **ppRsp
   TAOS_RETURN(code);
 }
 
-static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
+int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
                          ETsdbOpType type, ETriggerType triggerType) {
   SSdb      *pSdb = pMnode->pSdb;
   SVgObj    *pVgroup = NULL;
