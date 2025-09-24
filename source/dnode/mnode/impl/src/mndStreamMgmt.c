@@ -3568,9 +3568,13 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       SStmTaskStatus taskStatus = {0};
       taskStatus.pStream = pStatus;
       mstSetTaskStatusFromMsg(pCtx, &taskStatus, pTask);
-      pNewTask = taosArrayPush(pList, &taskStatus);
-      TSDB_CHECK_NULL(pNewTask, code, lino, _exit, terrno);
-
+      if (STREAM_IS_TRIGGER_READER(pTask->flags)) {
+        pNewTask = taosArrayPush(pList, &taskStatus);
+        TSDB_CHECK_NULL(pNewTask, code, lino, _exit, terrno);
+      } else {
+        TAOS_CHECK_EXIT(tdListAppend(pStatus->calcReaders, &taskStatus));
+      }
+      
       TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pNewTask));
       TAOS_CHECK_EXIT(msmSTAddToVgroupMapImpl(streamId, pNewTask, STREAM_IS_TRIGGER_READER(pTask->flags)));
       break;
