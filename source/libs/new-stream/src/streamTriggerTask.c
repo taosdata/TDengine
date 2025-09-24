@@ -3287,7 +3287,6 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
                    pGroup->gid);
       ST_TASK_DLOG("calc range is [%" PRId64 ", %" PRId64 "] for groupId:%" PRId64, pContext->calcRange.skey,
                    pContext->calcRange.ekey, pGroup->gid);
-      QUERY_CHECK_CONDITION(metaRange.skey <= metaRange.ekey, code, lino, _end, TSDB_CODE_INVALID_PARA);
       QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
                             TSDB_CODE_INVALID_PARA);
       if (pContext->calcRange.skey < metaRange.skey && metaRange.skey <= pContext->calcRange.ekey) {
