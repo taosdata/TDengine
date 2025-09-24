@@ -392,6 +392,7 @@ end:
 }
 
 static int32_t reloadTableList(SStreamTriggerReaderInfo* sStreamReaderInfo){
+  (void)taosThreadMutexLock(&sStreamReaderInfo->mutex);
   qStreamDestroyTableList(sStreamReaderInfo->tableList);
   sStreamReaderInfo->tableList = NULL;
   int32_t code = generateTablistForStreamReader(sStreamReaderInfo->pVnode, sStreamReaderInfo, false);
@@ -400,6 +401,7 @@ static int32_t reloadTableList(SStreamTriggerReaderInfo* sStreamReaderInfo){
     sStreamReaderInfo->historyTableList = NULL;
     code = generateTablistForStreamReader(sStreamReaderInfo->pVnode, sStreamReaderInfo, true);
   }
+  (void)taosThreadMutexUnlock(&sStreamReaderInfo->mutex);
   return code;
 }
 
@@ -3201,10 +3203,14 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     stDebug("vgId:%d %s start, type:%d, streamId:%" PRIx64 ", readerTaskId:%" PRIx64 ", sessionId:%" PRIx64,
             TD_VID(pVnode), __func__, req.base.type, req.base.streamId, req.base.readerTaskId, req.base.sessionId);
     SStreamTriggerReaderInfo* sStreamReaderInfo = (STRIGGER_PULL_OTABLE_INFO == req.base.type) ? NULL : qStreamGetReaderInfo(req.base.streamId, req.base.readerTaskId, &taskAddr);
-    if (sStreamReaderInfo != NULL && sStreamReaderInfo->tableList == NULL) {  
-      STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(pVnode, sStreamReaderInfo, false));
-      STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(pVnode, sStreamReaderInfo, true));
-      STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->pConditions, &sStreamReaderInfo->pFilterInfo, 0, NULL));
+    if (sStreamReaderInfo != NULL) {  
+      (void)taosThreadMutexLock(&sStreamReaderInfo->mutex);
+      if (sStreamReaderInfo->tableList == NULL) {
+        STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(pVnode, sStreamReaderInfo, false));  
+        STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(pVnode, sStreamReaderInfo, true));
+        STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->pConditions, &sStreamReaderInfo->pFilterInfo, 0, NULL));
+      }
+      (void)taosThreadMutexUnlock(&sStreamReaderInfo->mutex);
       sStreamReaderInfo->pVnode = pVnode;
     }
     switch (req.base.type) {
