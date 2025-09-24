@@ -2895,10 +2895,6 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
   STsdb *pTsdb = pVnode->pTsdb;
 
-  // if (deleteReq.level) {
-  //   pTsdb = deleteReq.level == 1 ? VND_RSMA1(pVnode) : VND_RSMA2(pVnode);
-  // }
-
   int32_t sz = taosArrayGetSize(deleteReq.deleteReqs);
   for (int32_t i = 0; i < sz; i++) {
     SSingleDeleteReq *pOneReq = taosArrayGet(deleteReq.deleteReqs, i);

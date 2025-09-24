@@ -236,7 +236,6 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
     metaInfo("vgId:%d, super table %s uid:%" PRId64 " is dropped, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
              pReq->suid, verison);
   }
-  // TODO: destroy the rsma calculation tasks related with the stable if exists
   TAOS_RETURN(code);
 }
 
@@ -323,10 +322,8 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
 
       if (tTagGet(pTag, &tagVal)) {
         if (pTagSchema->pSchema[i].type != tagVal.type) {
-          metaError(
-              "vgId:%d, %s failed at %s:%d since child table %s tag type does not match the expected type, "
-              "version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, version);
+          metaError("vgId:%d, %s failed at %s:%d since child table %s tag type does not match the expected type, version:%" PRId64,
+                    TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->name, version);
           metaFetchEntryFree(&pStbEntry);
           return TSDB_CODE_INVALID_MSG;
         }
@@ -2518,8 +2515,6 @@ int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) {
     metaInfo("vgId:%d, table %s uid %" PRId64 " is updated since rsma created %s:%" PRIi64 ", version:%" PRId64,
              TD_VID(pMeta->pVnode), pReq->tbName, pReq->tbUid, pReq->name, pReq->uid, version);
   }
-
-  // TODO: destroy the rsma calculation tasks if exists
 
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);

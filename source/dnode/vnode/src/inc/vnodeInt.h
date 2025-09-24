@@ -523,7 +523,6 @@ struct SVnode {
     SVATaskID      metaCompactTask;
   };
 
-  SSma*         pSma;
   STsdb*        pTsdb;
   SWal*         pWal;
   STQ*          pTq;
@@ -547,12 +546,7 @@ struct SVnode {
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
 #define VND_TSDB(vnd)       ((vnd)->pTsdb)
-// #define VND_RSMA0(vnd)      ((vnd)->pTsdb)
-// #define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
-// #define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
-// #define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
 #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
-// #define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
 
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)

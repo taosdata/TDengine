@@ -20,7 +20,9 @@
 #include "vnd.h"
 #include "tsdbInt.h"
 
+
 extern int32_t tsdbAsyncCompact(STsdb* tsdb, const STimeWindow* tw, ETsdbOpType type);
+
 
 // migrate monitor related functions
 typedef struct SSsMigrateMonitor {
@@ -595,7 +597,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     } else {
       setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_COMPACT);
     }
-    return false;  // compact in progress
+    return false; // compact in progress
   }
 
   char path[TSDB_FILENAME_LEN];

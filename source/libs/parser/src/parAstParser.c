@@ -1018,18 +1018,9 @@ static int32_t collectMetaKeyFromShowCreateRsma(SCollectMetaKeyCxt* pCxt, SShowC
   tstrncpy(name.tname, pStmt->rsmaName, TSDB_TABLE_NAME_LEN);
   char dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(&name, dbFName);
-  int32_t code = 0 ; //catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->viewName, 0);
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->viewName,
-  //                                     AUTH_TYPE_READ, pCxt->pMetaCache);
-  // }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, pCxt->pMetaCache);
-  }
-  // pCxt->pMetaCache->forceFetchViewMeta = true;
-  return code;
-}
 
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, pCxt->pMetaCache);
+}
 
 static int32_t collectMetaKeyFromShowApps(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_APPS,

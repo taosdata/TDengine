@@ -255,8 +255,7 @@ typedef enum {
 #define TSDB_ALTER_USER_DROP_WHITE_LIST 0x8
 #define TSDB_ALTER_USER_CREATEDB        0x9
 
-#define TSDB_ALTER_RSMA_ENABLE          0x1
-#define TSDB_ALTER_RSMA_FUNCTION        0x2
+#define TSDB_ALTER_RSMA_FUNCTION        0x1
 
 #define TSDB_KILL_MSG_LEN 30
 
@@ -2081,7 +2080,7 @@ typedef struct {
   int32_t     sqlLen;
   char*       sql;
   SArray*     vgroupIds;
-  int32_t     compactId;
+  // int32_t     compactId;
   int8_t      metaOnly;
 } SCompactDbReq;
 
@@ -2112,27 +2111,6 @@ typedef struct {
 int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
-
-// typedef struct {
-//   char        db[TSDB_DB_FNAME_LEN];
-//   STimeWindow timeRange;
-//   int32_t     sqlLen;
-//   char*       sql;
-//   SArray*     vgroupIds;
-//   int32_t     id;
-//   union {
-//     uint16_t flags;
-//     struct {
-//       uint16_t optrType : 3;     // ETsdbOpType
-//       uint16_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
-//       uint16_t reserved : 12;
-//     };
-//   };
-// } SRetentionDbReq;
-
-// int32_t tSerializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
-// int32_t tDeserializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
-// void    tFreeSRetentionDbReq(SRetentionDbReq* pReq);
 
 typedef SCompactDbRsp   STrimDbRsp;         // reuse structs
 typedef SKillCompactReq SKillRetentionReq;  // reuse structs
@@ -3800,13 +3778,6 @@ typedef struct {
 } SDDropTopicReq;
 
 typedef struct {
-#if 0
-  int64_t maxdelay[2];
-  int64_t watermark[2];
-  int64_t deleteMark[2];
-  int32_t qmsgLen[2];
-  char*   qmsg[2];  // pAst:qmsg:SRetention => trigger aggr task1/2
-#else
   char*      name;
   int64_t    uid;
   int64_t    interval[2];
@@ -3814,7 +3785,6 @@ typedef struct {
   int16_t    nFuncs;
   col_id_t*  funcColIds;  // column ids specified by user
   func_id_t* funcIds;     // function ids specified by user
-#endif
 } SRSmaParam;
 
 int32_t tEncodeSRSmaParam(SEncoder* pCoder, const SRSmaParam* pRSmaParam);

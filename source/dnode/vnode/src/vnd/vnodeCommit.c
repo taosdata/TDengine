@@ -135,12 +135,6 @@ int vnodeBegin(SVnode *pVnode) {
   code = tsdbBegin(pVnode->pTsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // begin sma
-  // if (VND_IS_RSMA(pVnode)) {
-  //   code = smaBegin(pVnode->pSma);
-  //   TSDB_CHECK_CODE(code, lino, _exit);
-  // }
-
 _exit:
   if (code) {
     terrno = code;
@@ -306,9 +300,6 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   code = metaPrepareAsyncCommit(pVnode->pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // code = smaPrepareAsyncCommit(pVnode->pSma);
-  // TSDB_CHECK_CODE(code, lino, _exit);
-
   (void)taosThreadMutexLock(&pVnode->mutex);
   pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
@@ -451,10 +442,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  // if (VND_IS_RSMA(pVnode)) {
-  //   code = smaCommit(pVnode->pSma, pInfo);
-  //   TSDB_CHECK_CODE(code, lino, _exit);
-  // }
   // blob storage engine commit
   code = bseCommit(pVnode->pBse);
   // commit info
@@ -464,20 +451,10 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   code = tsdbCommitCommit(pVnode->pTsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // if (VND_IS_RSMA(pVnode)) {
-  //   code = smaFinishCommit(pVnode->pSma);
-  //   TSDB_CHECK_CODE(code, lino, _exit);
-  // }
-
   code = metaFinishCommit(pVnode->pMeta, pInfo->txn);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   pVnode->state.committed = pInfo->info.state.committed;
-
-  // if (smaPostCommit(pVnode->pSma) < 0) {
-  //   vError("vgId:%d, failed to post-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-  //   return -1;
-  // }
 
   code = syncEndSnapshot(pVnode->sync);
   TSDB_CHECK_CODE(code, lino, _exit);

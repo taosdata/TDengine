@@ -317,7 +317,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED18, "vnode-unused18", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_CREATE_RSMA, "vnode-create-rsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_RSMA, "vnode-drop-rsma", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_RECALC_RSMA, "vnode-recalc-rsma", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_UNUSED19, "vnode-unused19", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DELETE, "delete-data", SVDeleteReq, SVDeleteRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_BATCH_DEL, "batch-delete", SBatchDeleteReq, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ALTER_CONFIG, "alter-config", NULL, NULL)

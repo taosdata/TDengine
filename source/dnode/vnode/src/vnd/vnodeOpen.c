@@ -540,12 +540,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     goto _err;
   }
 
-  // open sma
-  // vInfo("vgId:%d, start to open vnode sma", TD_VID(pVnode));
-  // if (smaOpen(pVnode, rollback, force)) {
-  //   vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
-  //   goto _err;
-  // }
   // open blob store engine
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
@@ -594,7 +588,6 @@ _err:
   if (pVnode->pTq) tqClose(pVnode->pTq);
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-  // if (pVnode->pSma) smaClose(pVnode->pSma);
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
@@ -621,7 +614,6 @@ void vnodeClose(SVnode *pVnode) {
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-    // smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
 
