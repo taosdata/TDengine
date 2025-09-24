@@ -41,7 +41,7 @@ class TestIf:
         self.IsNotNull()
         self.Coalesce()
         tdStream.dropAllStreamsAndDbs()
-        
+
     def If(self):
         tdLog.info(f"======== prepare data")
 
