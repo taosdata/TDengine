@@ -43,13 +43,12 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
 
         dnode_infos =  ['disk_engine', 'mem_cache_buffer', 'system_net_in', 'vnodes_num', 'system_net_out', 'uptime', 'has_mnode', 'io_read_disk', 'error_log_count',
         'io_read', 'cpu_cores', 'has_qnode', 'has_snode', 'disk_total', 'mem_engine', 'info_log_count', 'cpu_engine', 'io_write_disk',
-        'debug_log_count', 'disk_used', 'mem_total', 'io_write', 'masters', 'cpu_system',
-        'trace_log_count', 'mem_free']
+        'debug_log_count', 'disk_used', 'mem_total', 'io_write', 'masters', 'cpu_system', 'mem_free']
         index = 0
         for elem in dnode_infos:
             tdLog.debug(f"elem: {index},{elem}")
             if infoDict[0]["tables"][0]["metric_groups"][0]["metrics"][index]["name"] != elem:
-                tdLog.info(f"{elem} is null!")
+                tdLog.exit(f"{elem} is null!")
             index += 1
 
         if infoDict[0]["tables"][1]["name"] != "taosd_dnodes_log_dirs":
