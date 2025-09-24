@@ -104,6 +104,9 @@ class TestStreamSubquerySession:
         tdLog.info("prepare view")
         tdStream.prepareViews(views=5)
 
+        self.prepareDataFor133()
+
+
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")
 
@@ -137,6 +140,7 @@ class TestStreamSubquerySession:
             "insert into tdb.n1 values ('2025-01-01 00:31:00', 30, 10 ) ('2025-01-01 00:40:00', 40, 0  )",
         ]
         tdSql.executes(sqls)
+        self.writeTriggerData133()
 
     def checkStreamStatus(self):
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
@@ -1232,6 +1236,15 @@ class TestStreamSubquerySession:
             exp_query="select tb.cts tbts, ta.ts tats, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta right join qdb.t1 tb on ta.ts=tb.cts where tb.cts >= '2025-01-01 00:00:00.000' and tb.cts < '2025-01-01 00:15:00.000';",
         )
         self.streams.append(stream)
+        
+        stream = StreamItem(
+            id=133,
+            stream="create stream qdb133.s133 session(ts, 72d) from qdb133.stream133_trigger  stream_options(event_type(window_close))  notify('ws://192.168.2.11:6041/eventReceive') on(window_open|window_close) into qdb133.res_133 "
+            "as select first(cts) ts, first(cint) as first_cint_val, stddev_pop(cuint) as stddev_pop_cuint_val "
+            "from qdb133.meters133  where cts >= _twstart and cts < _twend;",
+            check_func=self.check133,
+        )
+        self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
@@ -1668,3 +1681,44 @@ class TestStreamSubquerySession:
             sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
             func=lambda: tdSql.getRows() == 2,
         )
+        
+    def check133(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from qdb.res_133",
+            func=lambda: tdSql.getRows() == 15
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 10),
+        )
+    
+    def prepareDataFor133(self):
+        tdSql.execute("create database qdb133;")
+        tdSql.execute("use qdb133;")
+        tdSql.execute("create table qdb133.stream133_trigger (ts timestamp, cint int, cuint INT UNSIGNED) tags(t1  int);")
+        tdSql.execute(
+            "create table qdb133.stream133_trigger_1 using qdb133.stream133_trigger tags(1);"
+        )
+        tdSql.execute("create table meters133 (cts timestamp, cint int, cuint INT UNSIGNED) tags(t1  int);")
+        tdSql.execute("create table meters133_1 using meters133 tags(1);")
+        tdSql.execute("insert into meters133_1 values('2025-01-01 00:00:00', 10, 100),('2025-01-01 00:00:10', 20, 200),"
+                      "('2025-01-01 00:00:20', 30, 300),('2025-01-01 00:00:30', 40, 400), ('2025-01-01 00:00:40', 50, 500)")
+
+
+    def writeTriggerData133(self):
+        tdSql.execute("use qdb133;")
+        
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:00', 10, 100);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:10', 20, 200);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:20', 30, 300);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:30', 40, 400);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:40', 50, 500);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-02 00:00:00', 60, 600);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-02 00:00:10', 70, 700);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-03 00:00:00', 80, 800);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-03 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-04 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-05 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-06 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-10 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-11 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-04-11 00:00:10', 90, 900);")
+
