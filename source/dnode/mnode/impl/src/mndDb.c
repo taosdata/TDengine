@@ -2287,7 +2287,7 @@ static int32_t mndBuildTrimDbRsp(STrimDbRsp *rsp, int32_t *pRspLen, void **ppRsp
     TAOS_RETURN(code);
   }
 
-  (void)tSerializeSCompactDbRsp(pRsp, rspLen, (SCompactDbRsp *)pRsp);
+  (void)tSerializeSCompactDbRsp(pRsp, rspLen, (SCompactDbRsp *)rsp);
   *pRspLen = rspLen;
   *ppRsp = pRsp;
   TAOS_RETURN(code);
