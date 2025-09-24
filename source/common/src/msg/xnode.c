@@ -15,11 +15,79 @@
 
 #define _DEFAULT_SOURCE
 
+#include <stdint.h>
 #include <stdio.h>
+#include "libs/nodes/nodes.h"
+#include "osMemPool.h"
+#include "osMemory.h"
 #include "taoserror.h"
+#include "tencode.h"
 #include "tglobal.h"
 #include "tmsg.h"
+#include "tutil.h"
 
+CowStr xCreateCowStr(int32_t len, const char *ptr, bool shouldClone) {
+  CowStr cow;
+  if (shouldClone) {
+    cow.len = len;
+    cow.ptr = taosStrndupi(ptr, (int64_t)len);
+    cow.free = true;
+  } else {
+    cow.len = len;
+    cow.ptr = ptr;
+    cow.free = false;
+  }
+  return cow;
+}
+void xSetCowStr(CowStr *cow, int32_t len, const char *ptr, bool free) {
+  if (cow == NULL) {
+    return;
+  }
+  cow->len = len;
+  cow->ptr = taosStrndupi(ptr, (int64_t)len);
+  cow->free = free;
+}
+CowStr xCloneRefCowStr(CowStr *cow) {
+  CowStr ref = {0};
+  if (cow == NULL) {
+    return ref;
+  }
+  ref.len = cow->len;
+  ref.ptr = cow->ptr;
+  ref.free = cow->free;
+  return ref;
+}
+void xFreeCowStr(CowStr *cow) {
+  if (cow == NULL) {
+    return;
+  }
+  if (cow->free) {
+    taosMemoryFreeClear(cow->ptr);
+  }
+  cow->len = 0;
+  cow->ptr = NULL;
+  cow->free = false;
+}
+int32_t xEncodeCowStr(SEncoder *encoder, CowStr *cow) { return tEncodeCStrWithLen(encoder, cow->ptr, cow->len); }
+int32_t xDecodeCowStr(SDecoder *decoder, CowStr *cow, bool shouldClone) {
+  if (decoder == NULL || cow == NULL) {
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
+  }
+  int32_t code = 0;
+  int32_t lino;
+
+  if (shouldClone) {
+    uint64_t len = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAndLenAlloc(decoder, (char **)&cow->ptr, (uint64_t *)&len));
+    cow->len = (int32_t)len;
+    cow->free = true;
+  } else {
+    TAOS_CHECK_EXIT(tDecodeCStrAndLen(decoder, (char **)&cow->ptr, (uint32_t *)&cow->len));
+    cow->free = false;
+  }
+_exit:
+  return code;
+}
 // #define DECODESQL()                                                               \
 //   do {                                                                            \
 //     if (!tDecodeIsEnd(&decoder)) {                                                \
@@ -119,9 +187,197 @@ void tFreeSMCreateXnodeReq(SMCreateXnodeReq *pReq) {
   taosMemoryFreeClear(pReq->pass);
   FREESQL();
 }
+void xFreeTaskSource(xTaskSource *source) {
+  if (source == NULL) {
+    return;
+  }
+  xFreeCowStr(&source->cstr);
+}
+xTaskSource xCreateClonedTaskSource(ENodeXTaskSourceType sourceType, int32_t len, char *source) {
+  xTaskSource taskSource = {0};
+  taskSource.type = sourceType;
+  taskSource.cstr = xCreateCowStr(len, source, true);
+  return taskSource;
+}
+xTaskSource xCreateTaskSource(ENodeXTaskSourceType sourceType, int32_t len, char *ptr) {
+  xTaskSource taskSource = {0};
+  taskSource.type = sourceType;
+  taskSource.cstr = xCreateCowStr(len, ptr, false);
+  return taskSource;
+}
+const char *xGetTaskSourceTypeAsStr(xTaskSource *source) {
+  switch (source->type) {
+    case XNODE_TASK_SOURCE_DATABASE:
+      return "database";
+    case XNODE_TASK_SOURCE_TOPIC:
+      return "topic";
+    case XNODE_TASK_SOURCE_DSN:
+      return "dsn";
+    default:
+      return "unknown";
+  }
+}
+const char *xGetTaskSourceStr(xTaskSource *source) { return source->cstr.ptr; }
+int32_t     xSerializeTaskSource(SEncoder *encoder, xTaskSource *source) {
+  int32_t code = 0;
+  int32_t lino;
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, source->type));
+  TAOS_CHECK_EXIT(xEncodeCowStr(encoder, &source->cstr));
+_exit:
+  return code;
+}
+int32_t xDeserializeTaskSource(SDecoder *decoder, xTaskSource *source) {
+  if (decoder == NULL || source == NULL) {
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
+  }
+  int32_t code = 0;
+  int32_t lino;
+  int32_t type;
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &type));
+  source->type = type;
+  TAOS_CHECK_EXIT(xDecodeCowStr(decoder, &source->cstr, true));
+_exit:
+  return code;
+}
 
+void xFreeTaskSink(xTaskSink *sink) {
+  if (sink == NULL) {
+    return;
+  }
+  xFreeCowStr(&sink->cstr);
+}
+xTaskSink xCreateClonedTaskSink(ENodeXTaskSinkType sinkType, int32_t len, char *sink) {
+  xTaskSink taskSink = {0};
+  taskSink.type = sinkType;
+  taskSink.cstr = xCreateCowStr(len, sink, false);
+  return taskSink;
+}
+xTaskSink xCreateTaskSink(ENodeXTaskSinkType sinkType, int32_t len, char *ptr) {
+  xTaskSink taskSink = {0};
+  taskSink.type = sinkType;
+  taskSink.cstr = xCreateCowStr(len, ptr, false);
+  return taskSink;
+}
+const char *xGetTaskSinkTypeAsStr(xTaskSink *sink) {
+  switch (sink->type) {
+    case XNODE_TASK_SINK_DATABASE:
+      return "database";
+    case XNODE_TASK_SINK_DSN:
+      return "dsn";
+    default:
+      return "unknown";
+  }
+}
+const char *xGetTaskSinkStr(xTaskSink *sink) { return sink->cstr.ptr; }
+
+int32_t xSerializeTaskSink(SEncoder *encoder, xTaskSink *sink) {
+  int32_t code = 0;
+  int32_t lino;
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, sink->type));
+  TAOS_CHECK_EXIT(xEncodeCowStr(encoder, &sink->cstr));
+_exit:
+  return code;
+}
+int32_t xDeserializeTaskSink(SDecoder *decoder, xTaskSink *sink) {
+  if (decoder == NULL || sink == NULL) {
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
+  }
+  int32_t code = 0;
+  int32_t lino;
+  int32_t type;
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &type));
+  switch (type) {
+    case XNODE_TASK_SINK_DSN:
+    case XNODE_TASK_SINK_DATABASE:
+      sink->type = type;
+      break;
+    default:
+      TAOS_RETURN(TSDB_CODE_MND_XNODE_INVALID_MSG);
+  }
+  TAOS_CHECK_EXIT(xDecodeCowStr(decoder, &sink->cstr, true));
+_exit:
+  return code;
+}
+
+void xFreeTaskOptions(xTaskOptions *options) {
+  if (options == NULL) {
+    return;
+  }
+  options->via = -1;
+  xFreeCowStr(&options->trigger);
+  xFreeCowStr(&options->parser);
+  xFreeCowStr(&options->health);
+  for (int i = 0; i < TSDB_XNODE_TASK_OPTIONS_MAX_NUM; i++) {
+    xFreeCowStr(&options->options[i]);
+  }
+}
+void printXnodeTaskOptions(xTaskOptions *options) {
+  printf("Xnode Task Options:\n");
+  printf("  trigger: %s\n", options->trigger.ptr);
+  printf("  parser: %s\n", options->parser.ptr);
+  printf("  health: %s\n", options->health.ptr);
+  if (options->via > 0) {
+    printf("  via: %d\n", options->via);
+  } else {
+    printf("  via: nil\n");
+  }
+  for (int i = 0; i < options->optionsNum; ++i) {
+    printf("  option[%d]: %s\n", i, options->options[i].ptr);
+  }
+}
+int32_t xSerializeTaskOptions(SEncoder *encoder, xTaskOptions *options) {
+  int32_t code = 0;
+  int32_t lino;
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, options->via));
+  TAOS_CHECK_EXIT(xEncodeCowStr(encoder, &options->parser));
+  TAOS_CHECK_EXIT(xEncodeCowStr(encoder, &options->trigger));
+  TAOS_CHECK_EXIT(xEncodeCowStr(encoder, &options->health));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, options->optionsNum));
+  for (int i = 0; i < options->optionsNum && i < TSDB_XNODE_TASK_OPTIONS_MAX_NUM; i++) {
+    TAOS_CHECK_EXIT(xEncodeCowStr(encoder, &options->options[i]));
+  }
+_exit:
+  return code;
+}
+int32_t xDeserializeTaskOptions(SDecoder *decoder, xTaskOptions *options) {
+  if (decoder == NULL || options == NULL) {
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
+  }
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &options->via));
+  TAOS_CHECK_EXIT(xDecodeCowStr(decoder, &options->parser, true));
+  TAOS_CHECK_EXIT(xDecodeCowStr(decoder, &options->trigger, true));
+  TAOS_CHECK_EXIT(xDecodeCowStr(decoder, &options->health, true));
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &options->optionsNum));
+  for (int i = 0; i < options->optionsNum && i < TSDB_XNODE_TASK_OPTIONS_MAX_NUM; i++) {
+    TAOS_CHECK_EXIT(xDecodeCowStr(decoder, &options->options[i], true));
+  }
+_exit:
+  return code;
+}
+int32_t tSerializeXnodeTaskSource(SEncoder *encoder, xTaskSource *source) {
+  int32_t code = 0;
+  int32_t lino;
+  int32_t tlen;
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, source->type));
+  TAOS_CHECK_EXIT(xEncodeCowStr(encoder, &source->cstr));
+_exit:
+  return code;
+}
+
+int32_t tDeserializeXnodeTaskSource(SDecoder *decoder, xTaskSource *source) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, (int32_t *)&source->type));
+  TAOS_CHECK_EXIT(xDecodeCowStr(decoder, &source->cstr, true));
+_exit:
+  return code;
+}
 int32_t tSerializeSMCreateXnodeTaskReq(void *buf, int32_t bufLen, SMCreateXnodeTaskReq *pReq) {
-  printf("serializeCreateXnodeTask: %s\n", pReq->name);
+  printf("serializeCreateXnodeTask: %s\n", pReq->name.ptr);
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -131,10 +387,10 @@ int32_t tSerializeSMCreateXnodeTaskReq(void *buf, int32_t bufLen, SMCreateXnodeT
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   ENCODESQL();
 
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->nameLen));
-  if (pReq->nameLen > 0) {
-    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->name, pReq->nameLen));
-  }
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->name));
+  TAOS_CHECK_EXIT(xSerializeTaskSource(&encoder, &pReq->source));
+  TAOS_CHECK_EXIT(xSerializeTaskSink(&encoder, &pReq->sink));
+  TAOS_CHECK_EXIT(xSerializeTaskOptions(&encoder, &pReq->options));
   tEndEncode(&encoder);
 
 _exit:
@@ -147,7 +403,6 @@ _exit:
   return tlen;
 }
 int32_t tDeserializeSMCreateXnodeTaskReq(void *buf, int32_t bufLen, SMCreateXnodeTaskReq *pReq) {
-  printf("deserializeCreateXnodeTask: %s\n", pReq->name);
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -157,10 +412,15 @@ int32_t tDeserializeSMCreateXnodeTaskReq(void *buf, int32_t bufLen, SMCreateXnod
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   DECODESQL();
 
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->nameLen));
-  if (pReq->nameLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->name, NULL));
-  }
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->name, true));
+  printf("deserializeCreateXnodeTask: %s\n", pReq->name.ptr);
+  printf("Deserialized name: %s\n", pReq->name.ptr);
+  TAOS_CHECK_EXIT(xDeserializeTaskSource(&decoder, &pReq->source));
+  printf("Deserialized source: %s:%s\n", xGetTaskSourceTypeAsStr(&pReq->source), xGetTaskSourceStr(&pReq->source));
+  TAOS_CHECK_EXIT(xDeserializeTaskSink(&decoder, &pReq->sink));
+  printf("Deserialized sink: %s:%s\n", xGetTaskSinkTypeAsStr(&pReq->sink), xGetTaskSinkStr(&pReq->sink));
+  TAOS_CHECK_EXIT(xDeserializeTaskOptions(&decoder, &pReq->options));
+  printXnodeTaskOptions(&pReq->options);
   tEndDecode(&decoder);
 
 _exit:
@@ -168,9 +428,12 @@ _exit:
   return code;
 }
 void tFreeSMCreateXnodeTaskReq(SMCreateXnodeTaskReq *pReq) {
-  printf("freeCreateXnodeTask: %s\n", pReq->name);
-  taosMemoryFreeClear(pReq->name);
+  printf("freeCreateXnodeTask: %s\n", pReq->name.ptr);
   FREESQL();
+  xFreeCowStr(&pReq->name);
+  xFreeTaskSource(&pReq->source);
+  xFreeTaskSink(&pReq->sink);
+  xFreeTaskOptions(&pReq->options);
 }
 int32_t tSerializeSMDropXnodeTaskReq(void *buf, int32_t bufLen, SMDropXnodeTaskReq *pReq) {
   printf("serializeDropXnodeTask: %d\n", pReq->tid);

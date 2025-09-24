@@ -461,6 +461,9 @@ static SXnodeTaskObj *mndAcquireXnodeTaskByName(SMnode *pMnode, const char *name
     SXnodeTaskObj *pTask = NULL;
     pIter = sdbFetch(pSdb, SDB_XNODE_TASK, pIter, (void **)&pTask);
     if (pIter == NULL) break;
+    if (pTask->name == NULL) {
+      continue;
+    }
 
     if (strcasecmp(name, pTask->name) == 0) {
       sdbCancelFetch(pSdb, pIter);
@@ -644,14 +647,9 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   xnodeObj.createdTime = taosGetTimestampMs();
   xnodeObj.updateTime = xnodeObj.createdTime;
   xnodeObj.version = 0;
-  xnodeObj.nameLen = pCreate->nameLen;
-  if (xnodeObj.nameLen > TSDB_XNODE_TASK_NAME_LEN) {
-    code = TSDB_CODE_MND_XNODE_TASK_NAME_TOO_LONG;
-    goto _OVER;
-  }
-  xnodeObj.name = taosMemoryCalloc(1, pCreate->nameLen);
+  xnodeObj.name = taosMemoryCalloc(1, pCreate->name.len);
   if (xnodeObj.name == NULL) goto _OVER;
-  (void)memcpy(xnodeObj.name, pCreate->name, pCreate->nameLen);
+  (void)memcpy(xnodeObj.name, pCreate->name.ptr, pCreate->name.len);
 
   mInfo("create xnode task, id:%d, name: %s, time:%ld", xnodeObj.id, xnodeObj.name, xnodeObj.createdTime);
 
@@ -661,12 +659,12 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
     if (terrno != 0) {
       code = terrno;
     }
-    mInfo("failed to create transaction for xnode-task:%s, code:0x%x:%s", pCreate->name, code, tstrerror(code));
+    mInfo("failed to create transaction for xnode-task:%s, code:0x%x:%s", pCreate->name.ptr, code, tstrerror(code));
     goto _OVER;
   }
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, used to create xnode task:%s as task:%d", pTrans->id, pCreate->name, xnodeObj.id);
+  mInfo("trans:%d, used to create xnode task:%s as task:%d", pTrans->id, pCreate->name.ptr, xnodeObj.id);
 
   TAOS_CHECK_GOTO(mndSetCreateXnodeTaskRedoLogs(pTrans, &xnodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateXnodeTaskUndoLogs(pTrans, &xnodeObj), NULL, _OVER);
@@ -700,16 +698,16 @@ static int32_t mndParseCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq *p
     return code;
   }
 
-  mInfo("xnode task:%s, start to create", pCreateReq->name);
+  mInfo("xnode task:%s, start to create", pCreateReq->name.ptr);
   return TSDB_CODE_SUCCESS;
 }
 
 // Helper function to check if xnode task already exists
-static int32_t mndCheckXnodeTaskExists(SMnode *pMnode, const char *name, SXnodeTaskObj **ppObj) {
-  *ppObj = mndAcquireXnodeTaskByName(pMnode, name);
-  if (*ppObj != NULL) {
+static int32_t mndCheckXnodeTaskExists(SMnode *pMnode, const char *name) {
+  SXnodeTaskObj *pObj = mndAcquireXnodeTaskByName(pMnode, name);
+  if (pObj != NULL) {
     mError("xnode task:%s already exists", name);
-    return TSDB_CODE_MND_XNODE_ALREADY_EXIST;
+    return TSDB_CODE_MND_XNODE_TASK_ALREADY_EXIST;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -723,7 +721,7 @@ static int32_t mndHandleCreateXnodeTaskResult(int32_t createCode) {
 }
 
 static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
-  printf("xnode create task request received, contLen:%d", pReq->contLen);
+  printf("xnode create task request received, contLen:%d\n", pReq->contLen);
   SMnode              *pMnode = pReq->info.node;
   int32_t              code = -1;
   SXnodeTaskObj       *pObj = NULL;
@@ -742,7 +740,7 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   }
 
   // Step 3: Check if task already exists
-  code = mndCheckXnodeTaskExists(pMnode, createReq.name, &pObj);
+  code = mndCheckXnodeTaskExists(pMnode, createReq.name.ptr);
   if (code != TSDB_CODE_SUCCESS) {
     goto _OVER;
   }
@@ -753,7 +751,8 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("xnode task:%s, failed to create since %s", createReq.name ? createReq.name : "unknown", tstrerror(code));
+    mError("xnode task:%s, failed to create since %s", createReq.name.ptr ? createReq.name.ptr : "unknown",
+           tstrerror(code));
   }
 
   mndReleaseXnodeTask(pMnode, pObj);

@@ -79,6 +79,20 @@
     }                                                                        \
   } while (0)
 
+#define COPY_COW_STR_FROM_ID_TOKEN(cow, pToken)                       \
+  do {                                                                \
+    if (pToken->z[0] == '`') {                                        \
+      (cow) = xCreateCowStr((pToken)->n, (pToken)->z, true);          \
+    } else {                                                          \
+      (cow) = xCreateCowStr((pToken)->n - 2, (pToken)->z + 1, false); \
+    }                                                                 \
+  } while (0)
+#define COPY_COW_STR_FROM_STR_TOKEN(cow, pToken)                     \
+  do {                                                               \
+    if ((pToken)->n > 2) {                                           \
+      (cow) = xCreateCowStr((pToken)->n - 2, (pToken)->z + 1, true); \
+    }                                                                \
+  } while (0)
 SToken nil_token = {.type = TK_NK_NIL, .n = 0, .z = NULL};
 
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
@@ -4162,8 +4176,8 @@ SNode* createXnodeSourceAsDsn(SAstCreateContext* pCxt, const SToken* pToken) {
                                             TSDB_XNODE_TASK_SOURCE_LEN);
     goto _err;
   }
-  pSource->sourceType = XNODE_TASK_SOURCE_DSN;
-  COPY_STRING_FORM_STR_TOKEN(pSource->dsn, pToken);
+  pSource->source.type = XNODE_TASK_SOURCE_DSN;
+  COPY_COW_STR_FROM_STR_TOKEN(pSource->source.cstr, pToken);
   return (SNode*)pSource;
 _err:
   return NULL;
@@ -4183,8 +4197,8 @@ SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken
                                             TSDB_XNODE_TASK_SOURCE_LEN);
     goto _err;
   }
-  pSource->sourceType = XNODE_TASK_SOURCE_DATABASE;
-  COPY_STRING_FORM_ID_TOKEN(pSource->database, pToken);
+  pSource->source.type = XNODE_TASK_SOURCE_DATABASE;
+  COPY_COW_STR_FROM_STR_TOKEN(pSource->source.cstr, pToken);
   return (SNode*)pSource;
 _err:
   return NULL;
@@ -4204,8 +4218,8 @@ SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pToken) {
                                             TSDB_TOPIC_NAME_LEN);
     goto _err;
   }
-  pSource->sourceType = XNODE_TASK_SOURCE_TOPIC;
-  COPY_STRING_FORM_ID_TOKEN(pSource->topic, pToken);
+  pSource->source.type = XNODE_TASK_SOURCE_TOPIC;
+  COPY_COW_STR_FROM_STR_TOKEN(pSource->source.cstr, pToken);
   return (SNode*)pSource;
 _err:
   return NULL;
@@ -4225,8 +4239,8 @@ SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pToken) {
                                             TSDB_XNODE_TASK_SINK_LEN);
     goto _err;
   }
-  pSink->sinkType = XNODE_TASK_SINK_DSN;
-  COPY_STRING_FORM_STR_TOKEN(pSink->dsn, pToken);
+  pSink->sink.type = XNODE_TASK_SINK_DSN;
+  COPY_COW_STR_FROM_STR_TOKEN(pSink->sink.cstr, pToken);
   return (SNode*)pSink;
 _err:
   return NULL;
@@ -4246,11 +4260,11 @@ SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken) 
                                             TSDB_XNODE_TASK_SINK_LEN);
     goto _err;
   }
-  pSink->sinkType = XNODE_TASK_SINK_DATABASE;
+  pSink->sink.type = XNODE_TASK_SINK_DATABASE;
   if (pToken->type == TK_NK_STRING) {
-    COPY_STRING_FORM_STR_TOKEN(pSink->database, pToken);
+    COPY_COW_STR_FROM_STR_TOKEN(pSink->sink.cstr, pToken);
   } else if (pToken->type == TK_NK_ID) {
-    COPY_STRING_FORM_ID_TOKEN(pSink->database, pToken);
+    COPY_COW_STR_FROM_ID_TOKEN(pSink->sink.cstr, pToken);
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                             "Invalid xnode sink database type: %d", pToken->type);
@@ -4262,70 +4276,92 @@ _err:
   return NULL;
 }
 
-void printXnodeTaskOptions(SXnodeTaskOptions* pOptions) {
-  printf("Xnode Task Options:\n");
-  printf("  trigger: %s\n", pOptions->trigger);
-  printf("  parser: %s\n", pOptions->parser);
-  printf("  health: %s\n", pOptions->health);
-  if (pOptions->via > 0) {
-    printf("  via: %d\n", pOptions->via);
+SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
+                                          SNode* pSink, SNode* pNode) {
+  SNode* pStmt = NULL;
+  if (pResourceName == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode task name should not be NULL");
+    goto _err;
+  }
+  if (pSource == NULL || pSink == NULL) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode task source and sink should not be NULL");
+    goto _err;
+  }
+  if (nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT || nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode task source and sink should be valid nodes");
+    goto _err;
+  }
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_TASK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
+  if (pResourceName->type == TK_NK_STRING) {
+    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
+  } else if (pResourceName->type == TK_NK_ID) {
+    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
   } else {
-    printf("  via: nil\n");
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid xnode name type: %d",
+                                            pResourceName->type);
+    goto _err;
   }
-  for (int i = 0; i < pOptions->optionsNum; ++i) {
-    printf("  option[%d]: %s\n", i, pOptions->options[i]);
+
+  if (pSource != NULL) {
+    SXTaskSource* source = (SXTaskSource*)(pSource);
+    printf("createXnodeTaskWithOptionsDirectly param source: %s:%s\n", xGetTaskSourceTypeAsStr(&source->source),
+           xGetTaskSourceStr(&source->source));
+    pTaskStmt->source = source;
   }
+  if (pSink != NULL) {
+    SXTaskSink* sink = (SXTaskSink*)(pSink);
+    printf("createXnodeTaskWithOptionsDirectly param sink: %s:%s\n", xGetTaskSinkTypeAsStr(&sink->sink),
+           xGetTaskSinkStr(&sink->sink));
+    pTaskStmt->sink = sink;
+  }
+  if (pNode != NULL) {
+    if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+      SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
+      // printXnodeTaskOptions(&options->opts);
+      pTaskStmt->options = options;
+    }
+  }
+  return (SNode*)pTaskStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
 }
+
+SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
+                                           SNode* pSink, SNode* pNode) {
+  SNode* pStmt = NULL;
+  if (pSource != NULL || pSink != NULL) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode agent should not have source or sink");
+    goto _err;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODES_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
 SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
                                   SNode* pSource, SNode* pSink, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = NULL;
 
   switch (resourceType) {
     case XNODE_TASK: {
-      if (pSource == NULL || pSink == NULL) {
-        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                "xnode task source and sink should not be NULL");
-        goto _err;
-      }
-      if (nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT || nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT) {
-        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                "xnode task source and sink should be valid nodes");
-        goto _err;
-      }
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_TASK_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
-
-      if (pSource != NULL) {
-        SXTaskSource* source = (SXTaskSource*)(pSource);
-        printf("createXnodeTaskWithOptions param source: dsn:%s, database:%s, topic:%s\n", source->dsn,
-               source->database, source->topic);
-        pTaskStmt->source = source;
-      }
-      if (pSink != NULL) {
-        SXTaskSink* sink = (SXTaskSink*)(pSink);
-        printf("createXnodeTaskWithOptions param sink: dsn:%s, database:%s\n", sink->dsn, sink->database);
-        pTaskStmt->sink = sink;
-      }
-      if (pNode != NULL) {
-        if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
-          SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
-          printXnodeTaskOptions(options);
-          pTaskStmt->options = options;
-        }
-      }
-      break;
+      return createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
     }
     case XNODE_AGENT: {
-      if (pSource != NULL || pSink != NULL) {
-        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                "xnode agent should not have source or sink");
-        goto _err;
-      }
-
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODES_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
+      return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
       break;
     }
     default:
@@ -4333,11 +4369,7 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
                                               "Invalid xnode resource type: %d", resourceType);
       goto _err;
   }
-  return (SNode*)pStmt;
 _err:
-  if (pStmt != NULL) {
-    nodesDestroyNode(pStmt);
-  }
   return NULL;
 }
 
@@ -4478,9 +4510,7 @@ SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt) {
   SXnodeTaskOptions* pOptions = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_TASK_OPTIONS, (SNode**)&pOptions);
   CHECK_MAKE_NODE(pOptions);
-  if (NULL != pOptions) {
-    pOptions->via = -1;
-  }
+  pOptions->via = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -4523,7 +4553,9 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
     printf("setXnodeTaskOption: k:\"%s\", v:\"%s\"\n", key, pVal->z);
   }
   char via[TSDB_COL_NAME_LEN] = {0};
+  char buf[TSDB_XNODE_TASK_OPTIONS_MAX_NUM] = {0};
   if (strcmp(key, "trigger") == 0) {
+    // COPY_COW_STR_FROM_ID_TOKEN(pOptions->opts.trigger, pVal);
     (void)trimString(pVal->z, pVal->n, pOptions->trigger, sizeof(pOptions->trigger));
     printf("setXnodeTaskOption trigger: %s\n", pOptions->trigger);
   } else if (strcmp(key, "parser") == 0 || strcmp(key, "transform") == 0) {
@@ -4608,7 +4640,7 @@ SNode* createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType
       CHECK_MAKE_NODE(pStmt);
       SCreateXnodeJobStmt* pJobStmt = (SCreateXnodeJobStmt*)pStmt;
       printf("createXnodeTaskJobWithOptions param task id: %s\n", pTidToken->z);
-      printXnodeTaskOptions((SXnodeTaskOptions*)pNodeOptions);
+      // printXnodeTaskOptions(&((SXnodeTaskOptions*)pNodeOptions)->opts);
       pJobStmt->options = (SXnodeTaskOptions*)pNodeOptions;
       pJobStmt->tid = pTidToken->type == TK_NK_STRING ? atoi(pTidToken->z) : taosStr2Int32(pTidToken->z, NULL, 10);
       break;

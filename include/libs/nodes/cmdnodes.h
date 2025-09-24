@@ -479,8 +479,10 @@ typedef struct {
 } SUpdateXnodeStmt;
 
 typedef struct {
-  ENodeType type;
+  ENodeType    type;
+  // xTaskOptions opts;
   // taosX Agent ID.
+
   int32_t via;
   char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
   char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
@@ -490,28 +492,17 @@ typedef struct {
                                                      // "via=1", "parser=taosx"
 } SXnodeTaskOptions;
 
-typedef enum {
-  XNODE_TASK_SOURCE_DSN = 1,
-  XNODE_TASK_SOURCE_DATABASE,
-  XNODE_TASK_SOURCE_TOPIC,
-} ENodeXTaskSourceType;
-
-typedef enum {
-  XNODE_TASK_SINK_DSN = 1,
-  XNODE_TASK_SINK_DATABASE,
-} ENodeXTaskSinkType;
 typedef struct {
-  ENodeType            type;
-  ENodeXTaskSourceType sourceType;
-  char                 database[TSDB_DB_NAME_LEN + 3];
-  char                 topic[TSDB_TOPIC_NAME_LEN + 3];
-  char                 dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
+  ENodeType   type;
+  xTaskSource source;
+  // ENodeXTaskSourceType sourceType;
+  // char                 database[TSDB_DB_NAME_LEN + 3];
+  // char                 topic[TSDB_TOPIC_NAME_LEN + 3];
+  // char                 dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
 } SXTaskSource;
 typedef struct {
-  ENodeType          type;
-  ENodeXTaskSinkType sinkType;
-  char               database[TSDB_DB_NAME_LEN + 3];
-  char               dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
+  ENodeType type;
+  xTaskSink sink;
 } SXTaskSink;
 
 typedef struct {

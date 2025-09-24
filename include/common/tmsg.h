@@ -429,19 +429,19 @@ typedef enum ENodeType {
   QUERY_NODE_RECALCULATE_STREAM_STMT,
   QUERY_NODE_CREATE_BNODE_STMT,
   QUERY_NODE_DROP_BNODE_STMT,
-  QUERY_NODE_CREATE_XNODE_STMT,           // XNode
-  QUERY_NODE_DROP_XNODE_STMT,             // XNode
-  QUERY_NODE_UPDATE_XNODE_STMT,           // XNode for taosx
-  QUERY_NODE_XNODE_TASK_OPTIONS,          // XNode task options
-  QUERY_NODE_XNODE_TASK_SOURCE_OPT,       // XNode task source
-  QUERY_NODE_XNODE_TASK_SINK_OPT,         // XNode task sink
-  QUERY_NODE_CREATE_XNODE_AGENT_STMT,     // XNode agent
-  QUERY_NODE_CREATE_XNODE_TASK_STMT,      // XNode task
-  QUERY_NODE_DROP_XNODE_TASK_STMT,        // XNode task
-  QUERY_NODE_DROP_XNODE_AGENT_STMT,       // XNode agent
-  QUERY_NODE_ALTER_XNODE_TASK_STMT,       // XNode task
-  QUERY_NODE_CREATE_XNODE_JOB_STMT,  // XNode task job
-  QUERY_NODE_DROP_XNODE_JOB_STMT,         // XNode task job
+  QUERY_NODE_CREATE_XNODE_STMT,        // XNode
+  QUERY_NODE_DROP_XNODE_STMT,          // XNode
+  QUERY_NODE_UPDATE_XNODE_STMT,        // XNode for taosx
+  QUERY_NODE_XNODE_TASK_OPTIONS,       // XNode task options
+  QUERY_NODE_XNODE_TASK_SOURCE_OPT,    // XNode task source
+  QUERY_NODE_XNODE_TASK_SINK_OPT,      // XNode task sink
+  QUERY_NODE_CREATE_XNODE_AGENT_STMT,  // XNode agent
+  QUERY_NODE_CREATE_XNODE_TASK_STMT,   // XNode task
+  QUERY_NODE_DROP_XNODE_TASK_STMT,     // XNode task
+  QUERY_NODE_DROP_XNODE_AGENT_STMT,    // XNode agent
+  QUERY_NODE_ALTER_XNODE_TASK_STMT,    // XNode task
+  QUERY_NODE_CREATE_XNODE_JOB_STMT,    // XNode task job
+  QUERY_NODE_DROP_XNODE_JOB_STMT,      // XNode task job
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -3017,10 +3017,146 @@ int32_t tDeserializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq
 void    tFreeSMUpdateXnodeReq(SMUpdateXnodeReq* pReq);
 
 typedef struct {
+  bool        free;
+  int32_t     len;
+  const char* ptr;
+} CowStr;
+/**
+ * @brief Create a CowStr object.
+ *
+ * @param len: length of the string.
+ * @param ptr: pointer to the string input.
+ * @param shouldClone: whether to clone the string.
+ * @return CowStr object.
+ */
+CowStr xCreateCowStr(int32_t len, const char* ptr, bool shouldClone);
+/**
+ * @brief Set a CowStr object with given string.
+ *
+ * @param cow: pointer to the CowStr object.
+ * @param len: length of the string.
+ * @param ptr: pointer to the string input.
+ * @param free: whether to free the string.
+ */
+void xSetCowStr(CowStr* cow, int32_t len, const char* ptr, bool free);
+/**
+ * @brief Clone a CowStr object without copy the string.
+ *
+ * @param cow: pointer to the CowStr object.
+ * @return CowStr object.
+ */
+CowStr xCloneRefCowStr(CowStr* cow);
+/**
+ * @brief Deallocate a CowStr object. Clears the string and resets length to 0.
+ *
+ * @param cow: pointer to the CowStr object.
+ */
+void xFreeCowStr(CowStr* cow);
+/**
+ * @brief Encode and push a CowStr object into the encoder.
+ *
+ * @param encoder
+ * @param cow
+ * @return int32_t
+ */
+int32_t xEncodeCowStr(SEncoder* encoder, CowStr* cow);
+/**
+ * @brief Decode a CowStr from the encoder.
+ *
+ * @param decoder
+ * @param cow
+ * @param shouldClone
+ * @return int32_t
+ */
+int32_t xDecodeCowStr(SDecoder* decoder, CowStr* cow, bool shouldClone);
+
+typedef enum {
+  XNODE_TASK_SOURCE_DSN = 1,
+  XNODE_TASK_SOURCE_DATABASE,
+  XNODE_TASK_SOURCE_TOPIC,
+} ENodeXTaskSourceType;
+
+typedef enum {
+  XNODE_TASK_SINK_DSN = 1,
+  XNODE_TASK_SINK_DATABASE,
+} ENodeXTaskSinkType;
+
+typedef struct {
+  ENodeXTaskSourceType type;
+  CowStr               cstr;
+} xTaskSource;
+/**
+ * @brief Deallocate a xTaskSource object.
+ *
+ * @param source ptr
+ */
+void xFreeTaskSource(xTaskSource* source);
+/**
+ * @brief Create a xTaskSource object with cloned source string.
+ *
+ * @param sourceType: source type.
+ * @param len: length of source string.
+ * @param source: source string ptr.
+ * @return xTaskSource object
+ */
+xTaskSource xCreateClonedTaskSource(ENodeXTaskSourceType sourceType, int32_t len, char* ptr);
+xTaskSource xCreateTaskSource(ENodeXTaskSourceType sourceType, int32_t len, char* ptr);
+const char* xGetTaskSourceTypeAsStr(xTaskSource* source);
+const char* xGetTaskSourceStr(xTaskSource* source);
+int32_t     xSerializeTaskSource(SEncoder* encoder, xTaskSource* source);
+int32_t     xDeserializeTaskSource(SDecoder* decoder, xTaskSource* source);
+
+typedef struct {
+  ENodeXTaskSinkType type;
+  CowStr             cstr;
+} xTaskSink;
+/**
+ * @brief Deallocate a xTaskSink object.
+ *
+ * @param sink ptr
+ */
+void xFreeTaskSink(xTaskSink* sink);
+/**
+ * @brief Create a xTaskSink object with cloned name string.
+ *
+ * @param sinkType: sink type.
+ * @param len: length of sink string.
+ * @param ptr: sink string ptr.
+ * @return xTaskSink object
+ */
+xTaskSink   xCreateClonedTaskSink(ENodeXTaskSinkType sinkType, int32_t len, char* ptr);
+xTaskSink   xCreateTaskSink(ENodeXTaskSinkType sinkType, int32_t len, char* ptr);
+const char* xGetTaskSinkTypeAsStr(xTaskSink* sink);
+const char* xGetTaskSinkStr(xTaskSink* sink);
+int32_t     xSerializeTaskSink(SEncoder* encoder, xTaskSink* sink);
+int32_t     xDeserializeTaskSink(SDecoder* decoder, xTaskSink* sink);
+
+typedef struct {
+  int32_t via;
+  CowStr  trigger;
+  CowStr  health;
+  CowStr  parser;
+  int32_t optionsNum;
+  CowStr  options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];
+} xTaskOptions;
+/**
+ * @brief Deallocate a xTaskOptions object.
+ *
+ * @param options ptr
+ */
+void    xFreeTaskOptions(xTaskOptions* options);
+void    printXnodeTaskOptions(xTaskOptions* options);
+int32_t xSerializeTaskOptions(SEncoder* encoder, xTaskOptions* options);
+int32_t xDeserializeTaskOptions(SDecoder* decoder, xTaskOptions* options);
+
+typedef struct {
   int32_t sqlLen;
-  int32_t nameLen;
-  char*   name;
   char*   sql;
+
+  CowStr       name;
+  xTaskSource  source;
+  xTaskSink    sink;
+  xTaskOptions options;
 } SMCreateXnodeTaskReq;
 
 int32_t tSerializeSMCreateXnodeTaskReq(void* buf, int32_t bufLen, SMCreateXnodeTaskReq* pReq);

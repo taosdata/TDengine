@@ -2279,7 +2279,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN:
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       break;
+    case QUERY_NODE_XNODE_TASK_SOURCE_OPT:
+      xFreeTaskSource(&((SXTaskSource*)pNode)->source);
+      break;
+    case QUERY_NODE_XNODE_TASK_SINK_OPT:
+      xFreeTaskSink(&((SXTaskSink*)pNode)->sink);
+      break;
     case QUERY_NODE_XNODE_TASK_OPTIONS: {
+      // xFreeTaskOptions(&((SXnodeTaskOptions*)pNode)->opts);
       SXnodeTaskOptions* pOptions = (SXnodeTaskOptions*)pNode;
       printf("Destroying Xnode task options with %d options\n", pOptions->optionsNum);
       for (int32_t i = 0; i < pOptions->optionsNum; ++i) {

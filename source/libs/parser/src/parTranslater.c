@@ -12500,19 +12500,39 @@ static int32_t translateUpdateXnode(STranslateContext* pCxt, SUpdateXnodeStmt* p
   return code;
 }
 
+static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions* pOpts) {
+  if (pOptions == NULL) return TSDB_CODE_INVALID_OPTION;
+  if (pOpts == NULL) {
+    xTaskOptions* pNewOpts = taosMemoryCalloc(1, sizeof(xTaskOptions));
+    if (pNewOpts == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pOpts = pNewOpts;
+  }
+
+  pOpts->via = pOptions->via;
+  pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger), pOptions->trigger, true);
+  pOpts->health = xCreateCowStr(strlen(pOptions->health), pOptions->health, true);
+  pOpts->parser = xCreateCowStr(strlen(pOptions->parser), pOptions->parser, true);
+  pOpts->optionsNum = pOptions->optionsNum;
+
+  for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
+    const char* option = pOptions->options[i];
+    if (option != NULL) {
+      xSetCowStr(pOpts->options + i, strlen(option), option, true);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTaskStmt* pStmt) {
   printf("translateCreateXnodeTask: %s\n", pStmt->name);
   SMCreateXnodeTaskReq createReq = {0};
 
-  createReq.nameLen = strlen(pStmt->name) + 1;
-  if (createReq.nameLen > TSDB_XNODE_URL_LEN) {
-    return TSDB_CODE_MND_ANODE_TOO_LONG_URL;
-  }
-  createReq.name = taosMemoryCalloc(createReq.nameLen, 1);
-  if (createReq.name == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tstrncpy(createReq.name, pStmt->name, createReq.nameLen);
+  createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
+  createReq.source = pStmt->source->source;
+  createReq.sink = pStmt->sink->sink;
+  covertXNodeTaskOptions(pStmt->options, &createReq.options);
+  printXnodeTaskOptions(&createReq.options);
 
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_TASK, (FSerializeFunc)tSerializeSMCreateXnodeTaskReq, &createReq);
