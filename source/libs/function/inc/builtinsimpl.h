@@ -112,6 +112,9 @@ int32_t corrFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t corrFunction(SqlFunctionCtx* pCtx);
 int32_t corrFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t corrScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t corrPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t getCorrInfoSize();
+int32_t corrFuncMerge(SqlFunctionCtx* pCtx);
 
 bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);

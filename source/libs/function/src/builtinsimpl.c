@@ -7216,24 +7216,22 @@ int32_t corrFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
 }
 
 int32_t corrFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = 0;
-
-  // Only the pre-computing information loaded and actual data does not loaded
+  int32_t               numOfElem = 0;
   SInputColumnInfoData* pInput = &pCtx->input;
-  int32_t               type = pInput->pData[0]->info.type;
-
-  SCorrRes* pCorrRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t               xType = pInput->pData[0]->info.type;
+  int32_t               yType = pInput->pData[1]->info.type;
+  SCorrRes*             pCorrRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   // computing based on the true data block
   SColumnInfoData* pLeft = pInput->pData[0];  // left
   SColumnInfoData* pRight = pInput->pData[1]; // right
+
   int32_t leftMod = typeGetTypeModFromColInfo(&pLeft->info);
   int32_t rightMod = typeGetTypeModFromColInfo(&pRight->info);
-
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
-  if (IS_NULL_TYPE(type)) {
+  if (IS_NULL_TYPE(xType) || IS_NULL_TYPE(yType)) {
     numOfElem = 0;
     goto _over;
   }
@@ -7241,13 +7239,15 @@ int32_t corrFunction(SqlFunctionCtx* pCtx) {
   for(int32_t i = 0; i < numOfRows; ++i) {
     double pInputX = 0, pInputY = 0;
 
+    if (colDataIsNull_f(pLeft, i) || colDataIsNull_f(pRight, i)) {
+      continue;
+    }
+
     char*  pXVal = colDataGetData(pLeft, i);
     char*  pYVal = colDataGetData(pRight, i);
 
-    // null value check
-
-    GET_TYPED_DATA(pInputX, double, type, pXVal, leftMod);
-    GET_TYPED_DATA(pInputY, double, type, pYVal, rightMod);
+    GET_TYPED_DATA(pInputX, double, xType, pXVal, leftMod);
+    GET_TYPED_DATA(pInputY, double, yType, pYVal, rightMod);
 
     pCorrRes->sumLeft += pInputX;
     pCorrRes->sumRight += pInputY;
@@ -7256,6 +7256,7 @@ int32_t corrFunction(SqlFunctionCtx* pCtx) {
     pCorrRes->quadRight += pInputY * pInputY;
 
     pCorrRes->productVal += pInputX * pInputY;
+
     pCorrRes->count += 1;
     numOfElem += 1;
   }
@@ -7266,14 +7267,9 @@ _over:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t corrScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return 0;
-}
-
 int32_t corrFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SCorrRes*             pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  // int32_t               type = pRes->type;
   double                avg;
 
   if (pRes->count == 0) {
@@ -7298,16 +7294,94 @@ int32_t corrFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     double dnmX = sqrt(pRes->quadLeft - pRes->sumLeft * pRes->sumLeft/pRes->count);
     double dnmY = sqrt(pRes->quadRight - pRes->sumRight * pRes->sumRight/pRes->count);  
 
-    if (dnmX == 0.0 || dnmY == 0.0) {
+    if (DBL_EQUAL(dnmX, 0.0) || DBL_EQUAL(dnmY, 0.0)) {
       pRes->result = 0.0;
     } else {
       pRes->result = numerator / (dnmX * dnmY);
 
       if (pRes->result > 1 || pRes->result < -1) {
         qError("invalid corr results, %.4f, numerator:%.4f, dnmX:%.4f, dnmY:%.4f", pRes->result, numerator, dnmX, dnmY);
+        if (pRes->result > 1) {
+          pRes->result = 1;
+        } else if (pRes->result < -1) {
+          pRes->result = -1;
+        }
       }
     }
   }
 
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t getCorrInfoSize() {return sizeof(SCorrRes);}
+
+int32_t corrPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SStdRes*             pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t              resultBytes = getCorrInfoSize();
+  char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+  int32_t              slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t              code = 0;
+
+  if (NULL == res) {
+    return terrno;
+  }
+  
+  (void)memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    taosMemoryFree(res);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  code = colDataSetVal(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return code;
+}
+
+int32_t corrFuncMerge(SqlFunctionCtx* pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (IS_NULL_TYPE(pCol->info.type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pCol->info.type != TSDB_DATA_TYPE_BINARY) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  SCorrRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) {
+      continue;
+    }
+
+    char*     data = colDataGetData(pCol, i);
+    SCorrRes* pInputInfo = (SCorrRes*)varDataVal(data);
+
+    if (pInputInfo->count == 0) {
+      continue;
+    }
+
+    // pOutput->type = pInput->type;
+    if (pInfo->count == 0) {
+      TAOS_MEMCPY(pInfo, pInputInfo, sizeof(SCorrRes));
+    } else if (pInfo->count > 0) {
+      pInfo->productVal += pInputInfo->productVal;
+      pInfo->quadLeft += pInputInfo->quadLeft;
+      pInfo->quadRight += pInputInfo->quadRight;
+      pInfo->sumLeft += pInputInfo->sumLeft;
+      pInfo->sumRight += pInputInfo->sumRight;
+      pInfo->count += pInputInfo->count;
+    }
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), pInfo->count, 1);
+  return TSDB_CODE_SUCCESS;
 }

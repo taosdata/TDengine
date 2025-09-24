@@ -1829,6 +1829,10 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     case FUNCTION_TYPE_STD_PARTIAL:
       bytes = getStdInfoSize() + VARSTR_HEADER_SIZE;
       break;
+    case FUNCTION_TYPE_CORR_MERGE:
+    case FUNCTION_TYPE_CORR_PARTIAL:
+      bytes = getCorrInfoSize() + VARSTR_HEADER_SIZE;
+      break;
     case FUNCTION_TYPE_AVG_PARTIAL:
     case FUNCTION_TYPE_AVG_STATE:
       pFunc->srcFuncInputType = ((SExprNode*)pFunc->pParameterList->pHead->pNode)->resType;
@@ -6293,7 +6297,52 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = corrFuncSetup,
     .processFunc  = corrFunction,
     .sprocessFunc = corrScalarFunction,
-    .finalizeFunc = corrFinalize
+    .finalizeFunc = corrFinalize,
+    .pPartialFunc = "_corr_partial",
+    .pMergeFunc   = "_corr_merge"
+  },
+  {
+    .name = "_corr_partial",
+    .type = FUNCTION_TYPE_CORR_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
+    .getEnvFunc   = getCorrFuncEnv,
+    .initFunc     = corrFuncSetup,
+    .processFunc  = corrFunction,
+    .finalizeFunc = corrPartialFinalize,
+  },
+  {
+    .name = "_corr_merge",
+    .type = FUNCTION_TYPE_CORR_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateOutDouble,
+    .getEnvFunc   = getCorrFuncEnv,
+    .initFunc     = corrFuncSetup,
+    .processFunc  = corrFuncMerge,
+    .finalizeFunc = corrFinalize,
+    .pMergeFunc = "_corr_merge",
   },
 };
 // clang-format on
