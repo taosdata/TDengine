@@ -7160,18 +7160,10 @@ static int32_t stRealtimeGroupDoPeriodCheck(SSTriggerRealtimeGroup *pGroup) {
   int32_t                   startIdx = 0;
   int32_t                   endIdx = 0;
 
-  if (pContext->walMode != STRIGGER_WAL_META_ONLY) {
-    code = stRealtimeGroupNextDataBlock(pGroup, &pDataBlock, &startIdx, &endIdx);
-    QUERY_CHECK_CODE(code, lino, _end);
-    if (pContext->needPseudoCols) {
-      goto _end;
-    }
-  }
-
   SSTriggerNotifyWindow newWin = {0};
   newWin.range.skey = INT64_MIN;
   newWin.range.ekey = INT64_MAX;
-  newWin.wrownum = endIdx - startIdx;
+  newWin.wrownum = 1;
   void *px = taosArrayPush(pContext->pWindows, &newWin);
   QUERY_CHECK_NULL(px, code, lino, _end, terrno);
 
