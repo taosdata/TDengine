@@ -1,6 +1,8 @@
 from new_test_framework.utils import tdLog, tdSql
 import datetime
 
+PRIMARY_COL = "ts"
+
 INT_COL     = "c1"
 BINT_COL    = "c2"
 SINT_COL    = "c3"
@@ -13,33 +15,49 @@ BINARY_COL  = "c8"
 NCHAR_COL   = "c9"
 TS_COL      = "c10"
 
-UN_CHAR_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_COL, ]
+NUM_COL     = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
 CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
-TS_TYPE_COL = [TS_COL]
+BOOLEAN_COL = [ BOOL_COL, ]
+TS_TYPE_COL = [ TS_COL, ]
 
-class TestUpper:
+DBNAME = "db"
+
+class TestFunLtrim:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
+        pass
 
-    def __upper_condition(self):
-        upper_condition = []
+    def __ltrim_condition(self):  # sourcery skip: extract-method
+        ltrim_condition = []
         for char_col in CHAR_COL:
-            upper_condition.extend(
+            ltrim_condition.extend(
                 (
                     char_col,
-                    f"lower( {char_col} )",
+                    f"upper( {char_col} )",
                 )
             )
-            upper_condition.extend(f"cast( {un_char_col} as binary(16) ) " for un_char_col in UN_CHAR_COL)
-            upper_condition.extend( f"cast( {char_col} + {char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            upper_condition.extend( f"cast( {char_col} + {un_char_col} as binary(32) ) " for un_char_col in UN_CHAR_COL )
+            ltrim_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
+            ltrim_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
+            ltrim_condition.extend( f"concat( cast( {char_col} + {num_col} as binary(16) ), {char_col}) " for num_col in NUM_COL )
+            ltrim_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            ltrim_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            ltrim_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            # ltrim_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            ltrim_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
+            ltrim_condition.extend( f"concat( {char_col}, {char_col_2} ) " for char_col_2 in CHAR_COL )
 
-        upper_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
+        for num_col in NUM_COL:
+            ltrim_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            ltrim_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL)
 
-        return upper_condition
+        ltrim_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
+
+        ltrim_condition.append(''' "   test1234!@#$%^&*()  :'><?/.,][}{   " ''')
+
+        return ltrim_condition
 
     def __where_condition(self, col):
         # return f" where count({col}) > 0 "
@@ -48,79 +66,87 @@ class TestUpper:
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __upper_current_check(self, tbname):
-        upper_condition = self.__upper_condition()
-        for condition in upper_condition:
+    def __ltrim_check(self, tbname):
+        ltrim_condition = self.__ltrim_condition()
+        for condition in ltrim_condition:
             where_condition = self.__where_condition(condition)
-            group_having = self.__group_condition(condition, having=f"{condition} is not null " )
-            group_no_having= self.__group_condition(condition )
-            groups = ["", group_having, group_no_having]
+            ltrim_group_having = self.__group_condition(condition, having=f"{condition} is not null " )
+            ltrim_group_no_having= self.__group_condition(condition)
+            groups = ["", ltrim_group_having, ltrim_group_no_having]
 
-            for group_condition in groups:
-                tdSql.query(f"select upper( {condition} ), {condition} from {tbname} {where_condition}  {group_condition}")
-                for i in range(tdSql.queryRows):
-                    tdSql.checkData(i, 0, str(tdSql.getData(i, 1)).upper() ) if tdSql.getData(i, 1) else tdSql.checkData(i, 0, None)
+            tdSql.query(f"select ltrim( {condition}) , {condition} from {tbname} ")
+            for j in range(tdSql.queryRows):
+                tdSql.checkData(j,0, tdSql.getData(j,1).lstrip()) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
 
-    def __upper_err_check(self,tbname):
+            [ tdSql.query(f"select ltrim({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
+
+    def __ltrim_err_check(self,tbname):
         sqls = []
 
-        for un_char_col in UN_CHAR_COL:
+        for num_col in NUM_COL:
             sqls.extend(
                 (
-                    f"select upper( {un_char_col} ) from {tbname} ",
-                    f"select upper(ceil( {un_char_col} )) from {tbname} ",
-                    f"select {un_char_col} from {tbname} group by upper( {un_char_col} ) ",
+                    f"select ltrim( {num_col} ) from {tbname} ",
+                    f"select ltrim(ceil( {num_col} )) from {tbname} ",
+                    f"select {num_col} from {tbname} group by ltrim( {num_col} ) ",
                 )
             )
 
-            sqls.extend( f"select upper( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in UN_CHAR_COL )
-            sqls.extend( f"select upper( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select ltrim( {char_col} , {num_col} ) from {tbname} " for char_col in CHAR_COL )
+            sqls.extend( f"select ltrim( {num_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select ltrim( {num_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
 
-        sqls.extend( f"select {char_col} from {tbname} group by upper( {char_col} ) " for char_col in CHAR_COL)
-        sqls.extend( f"select upper( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select upper( {char_col} + {ts_col} ) from {tbname} " for char_col in UN_CHAR_COL for ts_col in TS_TYPE_COL)
-        sqls.extend( f"select upper( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-        sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
-        sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
+        sqls.extend( f"select ltrim( {ts_col}+{bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select ltrim( {num_col}+{ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select ltrim( {num_col}+ {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
+        sqls.extend( f"select ltrim( {num_col}+ {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
+        sqls.extend( f"select ltrim( {ts_col}+{ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select ltrim( {bool_col}+ {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
+
+        sqls.extend( f"select ltrim( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+        sqls.extend( f"select ltrim({num_col}, '1') from {tbname} " for num_col in NUM_COL )
+        sqls.extend( f"select ltrim({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select ltrim({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select ltrim({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
-                f"select upper() from {tbname} ",
-                f"select upper(*) from {tbname} ",
-                f"select upper(ccccccc) from {tbname} ",
-                f"select upper(111) from {tbname} ",
+                f"select ltrim() from {tbname} ",
+                f"select ltrim(*) from {tbname} ",
+                f"select ltrim(ccccccc) from {tbname} ",
+                f"select ltrim(111) from {tbname} ",
             )
         )
 
         return sqls
 
-    def __test_current(self, dbname="db"):
+    def __test_current(self, dbname=DBNAME):  # sourcery skip: use-itertools-product
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = [f"{dbname}.ct1", f"{dbname}.ct2", f"{dbname}.ct4", f"{dbname}.t1", f"{dbname}.stb1"]
         for tb in tbname:
-            self.__upper_current_check(tb)
+            self.__ltrim_check(tb)
             tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
-    def __test_error(self, dbname="db"):
+    def __test_error(self, dbname=DBNAME):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
         tbname = [f"{dbname}.ct1", f"{dbname}.ct2", f"{dbname}.ct4", f"{dbname}.t1", f"{dbname}.stb1"]
 
         for tb in tbname:
-            for errsql in self.__upper_err_check(tb):
+            for errsql in self.__ltrim_err_check(tb):
                 tdSql.error(sql=errsql)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
-    def all_test(self, dbname="db"):
-        self.__test_current(dbname)
-        self.__test_error(dbname)
+    def all_test(self):
+        self.__test_current()
+        self.__test_error()
 
-    def __create_tb(self, dbname="db"):
+    def __create_tb(self, dbname=DBNAME):
 
         tdLog.printNoPrefix("==========step1:create table")
         create_stb_sql  =  f'''create table {dbname}.stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
-            ) tags (tag1 int)
+            ) tags (t1 int)
             '''
         create_ntb_sql = f'''create table {dbname}.t1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
@@ -134,7 +160,7 @@ class TestUpper:
         for i in range(4):
             tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
 
-    def __insert_data(self, rows, dbname="db"):
+    def __insert_data(self, rows, dbname=DBNAME):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         for i in range(rows):
             tdSql.execute(
@@ -208,24 +234,23 @@ class TestUpper:
             '''
         )
 
-    def test_upper(self):
-        """summary: xxx
+    def test_fun_sca_ltrim(self):
+        """ Function LTRIM()
 
-        description: xxx
+        1. LTRIM on super/child/normal table
+        2. LTRIM between all data types
+        3. LTRIM with null values
+        4. LTRIM constant operation
+        5. LTRIM with invalid parameters
+   
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_ltrim.py
         """
 
         tdSql.prepare()
@@ -234,7 +259,8 @@ class TestUpper:
         self.__create_tb()
 
         tdLog.printNoPrefix("==========step2:insert data")
-        self.__insert_data(10)
+        self.rows = 10
+        self.__insert_data(self.rows)
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()

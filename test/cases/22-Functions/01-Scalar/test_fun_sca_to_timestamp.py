@@ -6,7 +6,7 @@ import threading
 from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.common import tdCom
 
-class TestFuncToCharTimestamp:
+class TestFuncToTimestamp:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -156,24 +156,23 @@ class TestFuncToCharTimestamp:
             time_str  = time_str + "1234567890"
         tdSql.query("select to_timestamp('%s', '%s')" % (time_str, format))
 
-    def test_func_to_char_timestamp(self):
-        """summary: xxx
+    def test_func_sca_to_timestamp(self):
+        """ Function TO_TIMESTAMP()
 
-        description: xxx
+        1. Query from child/super/without table
+        2. Query from ns/us/ms precision database
+        3. Query from different timestamp format
+        4. Query Error timestamp format string
+        
+   
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_func_to_char_timestamp.py
         """
 
         self.prepareTestEnv()

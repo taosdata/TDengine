@@ -2,7 +2,7 @@ from new_test_framework.utils import tdLog, tdSql, gettime
 
 import time
 import datetime
-class TestTimetruncate:
+class TestFunTimetruncate:
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
@@ -241,24 +241,25 @@ class TestTimetruncate:
             self.data_check(date_time,precision,'ctb')
             self.data_check(date_time,precision,'stb')
 
-    def test_timetruncate(self):
-        """summary: xxx
+    def test_fun_sca_timetruncate(self):
+        """ Function TIMETRUNCATE()
 
-        description: xxx
+        1. Query from normal/child/super/without table
+        2. Query from ns/us/ms precision database
+        3. Query from different unit time character
+        4. Consider the influence of timezone
+        5. Query from different timestamp format, such as string/unix timestamp
+        6. Query Error unit time character
+ 
+   
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_timetruncate.py
         """
 
         self.function_check_ntb()

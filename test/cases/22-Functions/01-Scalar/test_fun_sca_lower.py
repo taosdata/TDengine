@@ -1,8 +1,6 @@
 from new_test_framework.utils import tdLog, tdSql
 import datetime
 
-PRIMARY_COL = "ts"
-
 INT_COL     = "c1"
 BINT_COL    = "c2"
 SINT_COL    = "c3"
@@ -15,50 +13,34 @@ BINARY_COL  = "c8"
 NCHAR_COL   = "c9"
 TS_COL      = "c10"
 
-NUM_COL     = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
+UN_CHAR_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_COL, ]
 CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
-BOOLEAN_COL = [ BOOL_COL, ]
-TS_TYPE_COL = [ TS_COL, ]
+TS_TYPE_COL = [TS_COL]
 
-ERR_POS     = 0
-CURRENT_POS = 1
-LENS        = 6
-
-class TestSubstr:
+class TestFunLower:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
+        pass
 
-    def __substr_condition(self):  # sourcery skip: extract-method
-        substr_condition = []
+    def __lower_condition(self):
+        lower_condition = []
         for char_col in CHAR_COL:
-            substr_condition.extend(
+            lower_condition.extend(
                 (
                     char_col,
                     f"upper( {char_col} )",
                 )
             )
-            substr_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
-            substr_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
-            substr_condition.extend( f"concat( cast( {char_col} + {num_col} as binary(16) ), {char_col}) " for num_col in NUM_COL )
-            substr_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            substr_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            substr_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            # substr_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            substr_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
-            substr_condition.extend( f"concat( {char_col}, {char_col_2} ) " for char_col_2 in CHAR_COL )
+            lower_condition.extend(f"cast( {un_char_col} as binary(16) ) " for un_char_col in UN_CHAR_COL)
+            lower_condition.extend( f"cast( {char_col} + {char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
+            lower_condition.extend( f"cast( {char_col} + {un_char_col} as binary(32) ) " for un_char_col in UN_CHAR_COL )
 
-        for num_col in NUM_COL:
-            substr_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            substr_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL)
+        lower_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
 
-        substr_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
-
-        substr_condition.append(''' "   test1234!@#$%^&*()  :'><?/.,][}{   " ''')
-
-        return substr_condition
+        return lower_condition
 
     def __where_condition(self, col):
         # return f" where count({col}) > 0 "
@@ -67,68 +49,57 @@ class TestSubstr:
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __substr_check(self, tbname,pos, lens=None):
-        substr_condition = self.__substr_condition()
-        for condition in substr_condition:
+    def __lower_current_check(self, tbname):
+        lower_condition = self.__lower_condition()
+        for condition in lower_condition:
             where_condition = self.__where_condition(condition)
-            substr_group_having = self.__group_condition(condition, having=f"{condition} is not null " )
-            substr_group_no_having= self.__group_condition(condition)
-            groups = ["", substr_group_having, substr_group_no_having]
+            group_having = self.__group_condition(condition, having=f"{condition} is not null " )
+            group_no_having= self.__group_condition(condition )
+            groups = ["", group_having, group_no_having]
 
-            if  pos < 1:
-                tdSql.query(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
-                break
+            for group_condition in groups:
+                tdSql.query(f"select lower( {condition} ), {condition} from {tbname} {where_condition}  {group_condition}")
+                for i in range(tdSql.queryRows):
+                    tdSql.checkData(i, 0, str(tdSql.getData(i, 1)).lower() ) if tdSql.getData(i, 1) else tdSql.checkData(i, 0, None)
 
-            tdSql.query(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
-            for j in range(tdSql.queryRows):
-                tdSql.checkData(j,0, tdSql.getData(j,1)[pos-1:lens]) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
-
-            [ tdSql.query(f"select substr({condition}, {pos}, {lens})  from {tbname} {where_condition}  {group} ") for group in groups ]
-
-    def __substr_err_check(self,tbname):
+    def __lower_err_check(self,tbname):
         sqls = []
 
-        for num_col in NUM_COL:
+        for un_char_col in UN_CHAR_COL:
             sqls.extend(
                 (
-                    f"select substr( {num_col} ) from {tbname} ",
-                    f"select substr(ceil( {num_col} )) from {tbname} ",
-                    f"select {num_col} from {tbname} group by substr( {num_col} ) ",
+                    f"select lower( {un_char_col} ) from {tbname} ",
+                    f"select lower(ceil( {un_char_col} )) from {tbname} ",
+                    f"select {un_char_col} from {tbname} group by lower( {un_char_col} ) ",
                 )
             )
 
-            sqls.extend( f"select substr( {char_col} + {num_col} ) from {tbname} " for char_col in CHAR_COL )
-            sqls.extend( f"select substr( {num_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-            sqls.extend( f"select substr( {num_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
+            sqls.extend( f"select lower( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in UN_CHAR_COL )
+            sqls.extend( f"select lower( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
 
-        sqls.extend( f"select substr( {ts_col}+{bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select substr( {num_col}+{ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
-        sqls.extend( f"select substr( {num_col}+ {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
-        sqls.extend( f"select substr( {num_col}+ {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
-        sqls.extend( f"select substr( {ts_col}+{ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select substr( {bool_col}+ {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
-
-        sqls.extend( f"select substr( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-        sqls.extend( f"select substr({num_col}, '1') from {tbname} " for num_col in NUM_COL )
-        sqls.extend( f"select substr({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select substr({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select substr({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
+        sqls.extend( f"select {char_col} from {tbname} group by lower( {char_col} ) " for char_col in CHAR_COL)
+        sqls.extend( f"select lower( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select lower( {char_col} + {ts_col} ) from {tbname} " for char_col in UN_CHAR_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select lower( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+        sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
+        sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
-                f"select substr() from {tbname} ",
-                f"select substr(*) from {tbname} ",
-                f"select substr(ccccccc) from {tbname} ",
-                f"select substr(111) from {tbname} ",
+                f"select lower() from {tbname} ",
+                f"select lower(*) from {tbname} ",
+                f"select lower(ccccccc) from {tbname} ",
+                f"select lower(111) from {tbname} ",
+                f"select lower(c8, 11) from {tbname} ",
             )
         )
 
         return sqls
 
-    def __test_current(self, dbname="db"):  # sourcery skip: use-itertools-product
+    def __test_current(self, dbname="db"):
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = [f"{dbname}.ct1", f"{dbname}.ct2", f"{dbname}.ct4", f"{dbname}.t1", f"{dbname}.stb1"]
         for tb in tbname:
-            self.__substr_check(tb, CURRENT_POS, LENS)
+            self.__lower_current_check(tb)
             tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self, dbname="db"):
@@ -136,9 +107,8 @@ class TestSubstr:
         tbname = [f"{dbname}.ct1", f"{dbname}.ct2", f"{dbname}.ct4", f"{dbname}.t1", f"{dbname}.stb1"]
 
         for tb in tbname:
-            for errsql in self.__substr_err_check(tb):
+            for errsql in self.__lower_err_check(tb):
                 tdSql.error(sql=errsql)
-            self.__substr_check(tb, ERR_POS, LENS)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
     def all_test(self, dbname="db"):
@@ -240,24 +210,23 @@ class TestSubstr:
             '''
         )
 
-    def test_substr(self):
-        """summary: xxx
+    def test_fun_sca_lower(self):
+        """ Function LOWER()
 
-        description: xxx
+        1. LOWER on super/child/normal table
+        2. LOWER between all data types
+        3. LOWER with null values
+        4. LOWER constant operation
+        5. LOWER with invalid parameters
+   
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_lower.py
         """
 
         tdSql.prepare()
@@ -266,8 +235,7 @@ class TestSubstr:
         self.__create_tb()
 
         tdLog.printNoPrefix("==========step2:insert data")
-        self.rows = 10
-        self.__insert_data(self.rows)
+        self.__insert_data(10)
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()

@@ -7,7 +7,7 @@ import time
 if platform.system().lower() == 'windows':
     import tzlocal
 
-class TestTimezone:
+class TestFunTimezone:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -193,26 +193,23 @@ class TestTimezone:
             if tdSql.getData(i, 0) == "charset" :
                 if tdSql.getData(i, 1).find(charset) == -1:
                     tdLog.exit("show charset:%s != %s"%(tdSql.getData(i, 1), charset))
-    def test_timezone(self):
-        """summary: xxx
 
-        description: xxx
+    def test_fun_sca_timezone(self):
+        """ Function TIMEZONE()
 
-        Since: xxx
+        1. Check show local/dnode variables timezone
+        2. Check timezone() function on normal table/stable/child table
+        3. Check timezone format when insert data
+   
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_timezone.py
         """
-  # sourcery skip: extract-duplicate-method
         timezone = self.get_system_timezone()
         # timezone = "Asia/Shanghai"
         self.charset_check("show local variables", "UTF-8")

@@ -4,7 +4,7 @@ import datetime
 
 from time import sleep
 
-class TestToUnixtimestamp:
+class TestFunToUnixtimestamp:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -74,6 +74,7 @@ class TestToUnixtimestamp:
                 tdSql.checkRows(len(values_list)*tb_num)
         for time in self.error_param:
             tdSql.error(f"select to_unixtimestamp({time}) from {tbname}")
+ 
     def timestamp_change_check_ntb(self):
         tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
@@ -81,6 +82,7 @@ class TestToUnixtimestamp:
             tdSql.execute(f'insert into {self.ntbname} values({self.values_list[i]})')
         self.data_check(self.ntbname,self.values_list,'ntb')
         tdSql.execute(f'drop database {self.dbname}')
+ 
     def timestamp_change_check_stb(self):
         tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
@@ -92,6 +94,7 @@ class TestToUnixtimestamp:
             self.data_check(f'{self.stbname}_{i}',self.values_list,'ctb')
         self.data_check(self.stbname,self.values_list,'stb',self.tbnum)
         tdSql.execute(f'drop database {self.dbname}')
+
     def timestamp_change_return_type(self):
         tdSql.query(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 0);")
         tdSql.checkEqual(tdSql.queryResult[0][0], 0)
@@ -102,26 +105,24 @@ class TestToUnixtimestamp:
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 'abc');")
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', true);")
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 1, 3);")
-    def test_To_unixtimestamp(self):
-        """summary: xxx
 
-        description: xxx
+    def test_fun_sca_to_unixtimestamp(self):
+        """ Function TO_UNIXTIMESTAMP()
 
-        Since: xxx
+        1. Query from normal/super/without table
+        2. Query from boundary timestamp
+        3. Query from different time zone string
+        4. Query Error timestamp format string
+        
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_To_unixtimestamp.py
         """
-  # sourcery skip: extract-duplicate-method
         self.timestamp_change_check_ntb()
         self.timestamp_change_check_stb()
         self.timestamp_change_return_type()

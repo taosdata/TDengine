@@ -3,7 +3,7 @@ import datetime
 import inspect
 import sys
 
-class TestCast:
+class TestFunCast:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -692,24 +692,25 @@ class TestCast:
         tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1 union all select 123 from {self.dbname}.stb1 ")
         tdSql.query(f"select cast(c8 as tinyint unsigned) as b from {self.dbname}.stb1 union all select last(cast(c8 as tinyint unsigned)) from {self.dbname}.stb1")
 
-    def test_cast(self):
-        """summary: xxx
+    def test_fun_sca_cast(self):
+        """ Function CAST()
 
-        description: xxx
+        1. CAST on super table and normal table
+        2. CAST between all data types
+        3. CAST with null values
+        4. CAST constant operation
+        5. CAST with aggregation functions
+        6. CAST with union all
+        7. CAST with function embedded
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_cast.py
         """
 
         tdSql.prepare()

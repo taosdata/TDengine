@@ -6,7 +6,7 @@ import platform
 
 import os
 
-class TestToIso8601:
+class TestFunToIso8601:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -169,26 +169,29 @@ class TestToIso8601:
             tdSql.checkRows(3)
             tdSql.checkData(0,0,None)
 
-    def test_To_iso8601(self):
-        """summary: xxx
+    def test_fun_sca_to_iso8601(self):
+        """ Function TO_ISO8601()
 
-        description: xxx
+        1. Query from child/normal/super/without table
+        2. Query from ns/us/ms precision database
+        3. Query with different time format string
+        4. Query with different timezone string
+        5. Query with null value
+        6. Query with wrong parameter
+        7. Input parameter with now()/today()/null/constant/timestamp field
 
-        Since: xxx
+        
+   
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_To_iso8601.py
         """
-  # sourcery skip: extract-duplicate-method
+
         self.check_base_function()
         self.check_customize_param_ms()
         self.check_timestamp_precision()

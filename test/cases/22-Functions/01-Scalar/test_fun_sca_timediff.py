@@ -8,7 +8,7 @@ def c_style_div(a, b):
         quotient += 1
     return quotient
 
-class TestTimediff:
+class TestFunTimediff:
 
     updatecfgDict = {'keepColumnName': 1}
 
@@ -225,24 +225,23 @@ class TestTimediff:
         tdSql.query(f'select timediff(now, now-23h-59m, 1d)')
         tdSql.checkData(0, 0, 0)    
     
-    def test_Timediff(self):
-        """summary: xxx
+    def test_fun_sca_timediff(self):
+        """ Function TIMEDIFF()
 
-        description: xxx
+        1. Constant timestamp test
+        2. Normal table test
+        3. Super table test
+        4. Without unit test
+        5. Multi-res parameters test
+   
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_Timediff.py
         """
         # sourcery skip: extract-duplicate-method
         self.function_constant_timestamp()

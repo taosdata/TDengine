@@ -2,7 +2,7 @@ from new_test_framework.utils import tdLog, tdSql
 import datetime
 import pandas as pd
 
-class TestToday:
+class TestFunToday:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -183,26 +183,23 @@ class TestToday:
             self.data_check(self.column_dict,self.stbname,self.values_list,self.tbnum,'stb',time_unit)
             tdSql.execute(f'drop database {self.dbname}')
 
-    def test_Today(self):
-        """summary: xxx
+    def test_fun_sca_today(self):
+        """ Function TODAY()
 
-        description: xxx
+        1. Query from normal/super table
+        2. Query from ms/us/ns precision database
+        3. Query from where condition
+        4. Query Error parameter
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_Today.py
         """
-  # sourcery skip: extract-duplicate-method
 
         self.today_check_ntb()
         self.today_check_stb_tb()

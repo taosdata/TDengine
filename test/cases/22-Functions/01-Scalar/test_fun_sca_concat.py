@@ -1,5 +1,5 @@
-import datetime
 from new_test_framework.utils import tdLog, tdSql
+import datetime
 
 PRIMARY_COL = "ts"
 
@@ -20,97 +20,115 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
-class TestRtrim:
+class TestFunConcat:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
+        pass
 
-    def __rtrim_condition(self):  # sourcery skip: extract-method
-        rtrim_condition = []
+    def __concat_condition(self):  # sourcery skip: extract-method
+        concat_condition = []
         for char_col in CHAR_COL:
-            rtrim_condition.extend(
+            concat_condition.extend(
                 (
                     char_col,
-                    f"upper( {char_col} )",
+                    # f"upper( {char_col} )",
                 )
             )
-            rtrim_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
-            rtrim_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
-            rtrim_condition.extend( f"concat( cast( {char_col} + {num_col} as binary(16) ), {char_col}) " for num_col in NUM_COL )
-            rtrim_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            rtrim_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            rtrim_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            # rtrim_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            rtrim_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
-            rtrim_condition.extend( f"concat( {char_col}, {char_col_2} ) " for char_col_2 in CHAR_COL )
+            concat_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
+            concat_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
+            # concat_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            # concat_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            concat_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            # concat_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            concat_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
 
         for num_col in NUM_COL:
-            rtrim_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            rtrim_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL )
+            # concat_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            concat_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL)
 
-        rtrim_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
+        concat_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
 
-        rtrim_condition.append(''' "   test1234!@#$%^&*()  :'><?/.,][}{   " ''')
+        concat_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
 
-        return rtrim_condition
+        return concat_condition
 
     def __where_condition(self, col):
         # return f" where count({col}) > 0 "
         return ""
 
+    def __concat_num(self, concat_lists, num):
+        return [ concat_lists[i] for i in range(num) ]
+
+
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __rtrim_check(self, tbname):
-        rtrim_condition = self.__rtrim_condition()
-        for condition in rtrim_condition:
-            where_condition = self.__where_condition(condition)
-            rtrim_group_having = self.__group_condition(condition, having=f"{condition} is not null " )
-            rtrim_group_no_having= self.__group_condition(condition)
-            groups = ["", rtrim_group_having, rtrim_group_no_having]
+    def __concat_check(self, tbname, num):
+        concat_condition = self.__concat_condition()
+        for i in range(len(concat_condition) - num + 1 ):
+            condition = self.__concat_num(concat_condition[i:], num)
+            concat_filter = f"concat( {','.join( condition ) }) "
+            where_condition = self.__where_condition(condition[0])
+            # group_having = self.__group_condition(condition[0], having=f"{condition[0]} is not null " )
+            concat_group_having = self.__group_condition(concat_filter, having=f"{concat_filter} is not null " )
+            # group_no_having= self.__group_condition(condition[0] )
+            concat_group_no_having= self.__group_condition(concat_filter)
+            groups = ["", concat_group_having, concat_group_no_having]
 
-            tdSql.query(f"select rtrim( {condition}) , {condition} from {tbname} ")
+            if num > 8 or num < 2 :
+                [tdSql.error(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
+                break
+
+            tdSql.query(f"select  {','.join(condition)}  from {tbname}  ")
+            rows = tdSql.queryRows
+            concat_data = []
+            for m in range(rows):
+                concat_data.append("".join(tdSql.queryResult[m])) if tdSql.getData(m, 0) else concat_data.append(None)
+            tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} ")
+            tdSql.checkRows(rows)
             for j in range(tdSql.queryRows):
-                tdSql.checkData(j,0, tdSql.getData(j,1).rstrip()) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
+                assert tdSql.getData(j, 0) in concat_data
 
-            [ tdSql.query(f"select rtrim({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
+            [ tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
 
-    def __rtrim_err_check(self,tbname):
+    def __concat_err_check(self,tbname):
         sqls = []
 
-        for num_col in NUM_COL:
+        for char_col in CHAR_COL:
             sqls.extend(
                 (
-                    f"select rtrim( {num_col} ) from {tbname} ",
-                    f"select rtrim(ceil( {num_col} )) from {tbname} ",
-                    f"select {num_col} from {tbname} group by rtrim( {num_col} ) ",
+                    f"select concat( {char_col} ) from {tbname} ",
+                    f"select concat(ceil( {char_col} )) from {tbname} ",
+                    f"select {char_col} from {tbname} group by concat( {char_col} ) ",
                 )
             )
 
-            sqls.extend( f"select rtrim( {char_col} , {num_col} ) from {tbname} " for char_col in CHAR_COL )
-            sqls.extend( f"select rtrim( {num_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-            sqls.extend( f"select rtrim( {num_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
+            sqls.extend( f"select concat( {char_col} , {num_col} ) from {tbname} " for num_col in NUM_COL )
+            sqls.extend( f"select concat( {char_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select concat( {char_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
 
-        sqls.extend( f"select rtrim( {ts_col}+{bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select rtrim( {num_col}+{ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
-        sqls.extend( f"select rtrim( {num_col}+ {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
-        sqls.extend( f"select rtrim( {num_col}+ {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
-        sqls.extend( f"select rtrim( {ts_col}+{ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select rtrim( {bool_col}+ {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select concat( {ts_col}, {bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select concat( {num_col} , {ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select concat( {num_col} , {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
+        sqls.extend( f"select concat( {num_col} , {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
+        sqls.extend( f"select concat( {ts_col}, {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select concat( {bool_col}, {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
 
-        sqls.extend( f"select rtrim( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-        sqls.extend( f"select rtrim({num_col}, '1') from {tbname} " for num_col in NUM_COL )
-        sqls.extend( f"select rtrim({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select rtrim({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select rtrim({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
+        sqls.extend( f"select concat( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+        sqls.extend( f"select concat({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
+        sqls.extend( f"select concat({num_col}, '1') from {tbname} " for num_col in NUM_COL )
+        sqls.extend( f"select concat({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select concat({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select concat({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
-                f"select rtrim() from {tbname} ",
-                f"select rtrim(*) from {tbname} ",
-                f"select rtrim(ccccccc) from {tbname} ",
-                f"select rtrim(111) from {tbname} ",
+                f"select concat() from {tbname} ",
+                f"select concat(*) from {tbname} ",
+                f"select concat(ccccccc) from {tbname} ",
+                f"select concat(111) from {tbname} ",
             )
         )
 
@@ -118,25 +136,40 @@ class TestRtrim:
 
     def __test_current(self, dbname="db"):  # sourcery skip: use-itertools-product
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tbname = [f"{dbname}.ct1", f"{dbname}.ct2", f"{dbname}.ct4", f"{dbname}.t1", f"{dbname}.stb1"]
+        tbname = [
+            f"{dbname}.ct1",
+            f"{dbname}.ct2",
+            f"{dbname}.ct4",
+        ]
+        tdSql.query("select concat(null,null)")  # TD-31571
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
         for tb in tbname:
-            self.__rtrim_check(tb)
-            tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
+            for i in range(2,8):
+                self.__concat_check(tb,i)
+                tdLog.printNoPrefix(f"==========current sql condition check in {tb}, col num: {i} over==========")
 
     def __test_error(self, dbname="db"):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
-        tbname = [f"{dbname}.ct1", f"{dbname}.ct2", f"{dbname}.ct4", f"{dbname}.t1", f"{dbname}.stb1"]
+        tbname = [
+            f"{dbname}.t1",
+            f"{dbname}.stb1",
+        ]
 
         for tb in tbname:
-            for errsql in self.__rtrim_err_check(tb):
+            for errsql in self.__concat_err_check(tb):
                 tdSql.error(sql=errsql)
+            self.__concat_check(tb,1)
+            self.__concat_check(tb,9)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
-    def all_test(self):
-        self.__test_current()
-        self.__test_error()
+
+    def all_test(self, dbname="db"):
+        self.__test_current(dbname)
+        self.__test_error(dbname)
 
     def __create_tb(self, dbname="db"):
+
         tdLog.printNoPrefix("==========step1:create table")
         create_stb_sql  =  f'''create table {dbname}.stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
@@ -230,44 +263,45 @@ class TestRtrim:
             '''
         )
 
-    def test_rtrim(self):
-        """summary: xxx
+    def test_fun_sca_concat(self):
+        """ Function CONCAT()
 
-        description: xxx
+        1. CONCAT on super/child/normal table
+        2. CONCAT between all data types
+        3. CONCAT with null values
+        4. CONCAT with different number of columns
+        5. CONCAT with negative test cases
+   
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_concat.py
         """
 
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
-        self.__create_tb()
+        self.__create_tb(dbname="db")
 
         tdLog.printNoPrefix("==========step2:insert data")
         self.rows = 10
-        self.__insert_data(self.rows)
+        self.__insert_data(self.rows, dbname="db")
 
         tdLog.printNoPrefix("==========step3:all check")
-        self.all_test()
+        self.all_test(dbname="db")
 
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
         tdSql.execute("flush database db")
 
         tdSql.execute("use db")
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
-        self.all_test()
+        self.all_test(dbname="db")
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

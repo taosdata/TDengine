@@ -289,14 +289,30 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_acos.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_asin.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_atan.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_cast.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_ceil.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_concat.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_concat_ws.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_cos.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_floor.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_length.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_log.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_lower.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_ltrim.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_round.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_rtrim.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_sin.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_sqrt.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_substr.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_tan.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timediff.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timetruncate.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timezone.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_iso8601.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_timestamp.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_unixtimestamp.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_today.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_upper.py
 
 ## 02-Aggregate
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_all.py
@@ -667,8 +683,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interp.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval_diff_tz.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_concat.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_cast.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3
 
@@ -862,7 +876,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_by_col_agg.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interval_limit_opt_2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_func_to_char_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_cache_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
@@ -907,8 +920,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat_ws2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py
@@ -948,11 +959,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_length.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_lower.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ltrim.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_partition.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py
@@ -968,7 +976,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_rtrim.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaBasic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py
@@ -979,22 +986,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_substr.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sum.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Timediff.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timetruncate.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_timezone.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_iso8601.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_To_unixtimestamp.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Today.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_unique.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_upper.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varchar.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py
