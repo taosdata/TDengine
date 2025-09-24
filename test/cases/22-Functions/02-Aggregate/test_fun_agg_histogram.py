@@ -584,7 +584,7 @@ class TestHistogram:
             f"insert into {dbname}.{NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
 
     def test_fun_agg_histogram(self):
-       """ Function HISTOGRAM
+        """ Function HISTOGRAM
 
         1. Query on super/child/normal table
         2. Query with bin_type parameter as user_input/linear_bin/log_bin
