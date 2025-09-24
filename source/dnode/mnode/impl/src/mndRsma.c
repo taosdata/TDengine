@@ -631,7 +631,7 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
   SStbObj *pStbs = NULL;
   STrans  *pTrans = NULL;
 
-  (void)snprintf(obj.name, TSDB_TABLE_FNAME_LEN, "%s", pCreate->name);
+  (void)snprintf(obj.name, TSDB_TABLE_NAME_LEN, "%s", pCreate->name);
   (void)snprintf(obj.dbFName, TSDB_DB_FNAME_LEN, "%s", pDb->name);
 
   const char *tbName = strrchr(pCreate->tbFName, '.');

@@ -2368,7 +2368,9 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
-  (void)tNameFromString(&name, trimReq.db, T_NAME_ACCT | T_NAME_DB);
+  if (tNameFromString(&name, trimReq.db, T_NAME_ACCT | T_NAME_DB) < 0) {
+    mWarn("db:%s, failed at line %d to parse db name", trimReq.db, __LINE__);
+  }
 
   char optrType[16] = {0};
   (void)snprintf(optrType, sizeof(optrType), "%u", trimReq.optrType);
