@@ -153,9 +153,9 @@ static bool uidInTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t 
           if (*id == -1) return false;
         }
       } else {
-        *id= uid;
-        //*id = qStreamGetGroupId(sStreamReaderInfo->tableList, uid);
-        //if (*id == -1) return false;
+        //*id= uid;
+        *id = qStreamGetGroupId(sStreamReaderInfo->tableList, uid);
+        if (*id == -1) return false;
       }
     } else {
       *id = qStreamGetGroupId(sStreamReaderInfo->tableList, uid);
