@@ -73,6 +73,19 @@ int32_t sortCid(const void *lp, const void *rp) {
   return 0;
 }
 
+int32_t sortSSchema(const void *lp, const void *rp) {
+  SSchema* c1 = (SSchema*)lp;
+  SSchema* c2 = (SSchema*)rp;
+
+  if (c1->colId < c2->colId) {
+    return -1;
+  } else if (c1->colId > c2->colId) {
+    return 1;
+  }
+
+  return 0;
+}
+
 static int32_t addColData(SSDataBlock* pResBlock, int32_t index, void* data) {
   SColumnInfoData* pSrc = taosArrayGet(pResBlock->pDataBlock, index);
   if (pSrc == NULL) {
@@ -2516,7 +2529,7 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
     }
 
     STREAM_CHECK_RET_GOTO(createOptionsForTsdbData(pVnode, &options, sStreamReaderInfo, req->tsdbDataReq.uid,
-                                                   sortedCid, req->tsdbDataReq.order, req->tsdbDataReq.skey,
+                                                   req->tsdbDataReq.cids, req->tsdbDataReq.order, req->tsdbDataReq.skey,
                                                    req->tsdbDataReq.ekey, req->tsdbDataReq.ver));
     reSetUid(&options, req->tsdbDataReq.suid, req->tsdbDataReq.uid);
 
@@ -2527,6 +2540,8 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
 
     STableKeyInfo       keyInfo = {.uid = req->tsdbDataReq.uid};
     cleanupQueryTableDataCond(&pTaskInner->cond);
+    taosArraySort(pTaskInner->options.schemas, sortSSchema);
+
     STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTaskInner->cond, pTaskInner->options.order, pTaskInner->options.schemas,
                                                         pTaskInner->options.isSchema, pTaskInner->options.twindows,
                                                         pTaskInner->options.suid, pTaskInner->options.ver, &slotIdList));
