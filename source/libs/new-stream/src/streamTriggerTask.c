@@ -37,6 +37,8 @@
 
 #define STREAM_TRIGGER_HISTORY_STEP_MS 10 * 24 * 60 * 60 * 1000  // 10d
 
+#define IS_TRIGGER_GROUP_TO_CHECK(pGroup) \
+  (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)
 #define IS_TRIGGER_GROUP_NONE_WINDOW(pGroup) (TRINGBUF_CAPACITY(&(pGroup)->winBuf) == 0)
 #define IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) (TRINGBUF_SIZE(&(pGroup)->winBuf) > 0)
 #define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   (1L << 62)
@@ -3278,10 +3280,16 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         }
         pMetas = tSimpleHashIterate(pGroup->pWalMetas, pMetas, &iter1);
       }
-      pContext->calcRange.skey = TMAX(pContext->calcRange.skey, metaRange.skey);
-      pContext->calcRange.ekey = TMIN(pContext->calcRange.ekey, metaRange.ekey);
+      ST_TASK_DLOG("meta range is [%" PRId64 ", %" PRId64 "] for groupId:%" PRId64, metaRange.skey, metaRange.ekey,
+                   pGroup->gid);
+      ST_TASK_DLOG("calc range is [%" PRId64 ", %" PRId64 "] for groupId:%" PRId64, pContext->calcRange.skey,
+                   pContext->calcRange.ekey, pGroup->gid);
+      QUERY_CHECK_CONDITION(metaRange.skey <= metaRange.ekey, code, lino, _end, TSDB_CODE_INVALID_PARA);
       QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
                             TSDB_CODE_INVALID_PARA);
+      if (pContext->calcRange.skey < metaRange.skey && metaRange.skey <= pContext->calcRange.ekey) {
+        pContext->calcRange.skey = metaRange.skey;
+      }
 
       // fill calc range
       tSimpleHashClear(pContext->pRanges);
@@ -3859,7 +3867,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         }
         pGroup->oldThreshold = INT64_MIN;
         pGroup->newThreshold = INT64_MAX;
-        if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+        if (!IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
           TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
         }
       }
@@ -4159,8 +4167,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
           SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
           code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
           QUERY_CHECK_CODE(code, lino, _end);
-          if (pGroup->oldThreshold < pGroup->newThreshold && TD_DLIST_NODE_NEXT(pGroup) == NULL &&
-              TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+          if (pGroup->oldThreshold < pGroup->newThreshold && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
             TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
           }
         }
@@ -4186,8 +4193,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
         code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pGroup->oldThreshold < pGroup->newThreshold && TD_DLIST_NODE_NEXT(pGroup) == NULL &&
-            TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+        if (pGroup->oldThreshold < pGroup->newThreshold && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
           TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
         }
       }
@@ -4467,7 +4473,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
         while (px != NULL) {
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-          if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+          if (!IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
             pGroup->oldThreshold = INT64_MIN;
             pGroup->newThreshold = INT64_MAX;
             TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
@@ -4490,8 +4496,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             void *px = tSimpleHashGet(pContext->pGroups, &pVirtTableInfo->tbGid, sizeof(int64_t));
             if (px != NULL) {
               SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-              if (pGroup->oldThreshold < pGroup->newThreshold &&
-                  (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)) {
+              if (pGroup->oldThreshold < pGroup->newThreshold && IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
                 STimeWindow range = {.skey = pGroup->oldThreshold + 1, .ekey = pGroup->newThreshold};
                 for (int32_t i = 0; i < TARRAY_SIZE(pVirtTableInfo->pTrigColRefs); i++) {
                   SSTriggerTableColRef *pRef = TARRAY_GET_ELEM(pVirtTableInfo->pTrigColRefs, i);
@@ -4604,9 +4609,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
               QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
             }
             SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-            int64_t                 id[2] = {vtbUid, otbUid};
-            code = taosObjListAppend(&pGroup->tableUids, id);
-            QUERY_CHECK_CODE(code, lino, _end);
+            if (IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+              int64_t id[2] = {vtbUid, otbUid};
+              code = taosObjListAppend(&pGroup->tableUids, id);
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
           }
         }
       } else {
@@ -4626,9 +4633,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
           }
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-          int64_t                 id[2] = {uid, pProgress->pTaskAddr->nodeId};
-          code = taosObjListAppend(&pGroup->tableUids, id);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+            int64_t id[2] = {uid, pProgress->pTaskAddr->nodeId};
+            code = taosObjListAppend(&pGroup->tableUids, id);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
         }
       }
 
@@ -5400,7 +5409,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       SSTriggerTsdbMetaRequest *pReq = &pProgress->pullReq.tsdbMetaReq;
       pReq->startTime = pContext->stepRange.skey;
       pReq->endTime = pContext->stepRange.ekey;
-      pReq->gid = pContext->gid;
+      pReq->gid = pTask->isVirtualTable ? 0 : pContext->gid;
       pReq->order = 1;
       pReq->ver = pProgress->version;
       break;
@@ -6486,7 +6495,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
             } else {
               pGroup = *(SSTriggerHistoryGroup **)px;
             }
-            if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+            if (!IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
               bool added = false;
               code = stHistoryGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds, &added);
               QUERY_CHECK_CODE(code, lino, _end);
@@ -6501,11 +6510,13 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
         while (px != NULL) {
           SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
-          bool                   added = false;
-          code = stHistoryGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds, &added);
-          QUERY_CHECK_CODE(code, lino, _end);
-          if (added) {
-            TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          if (pContext->gid == pGroup->gid || pContext->gid == 0) {
+            bool added = false;
+            code = stHistoryGroupAddMetaDatas(pGroup, pAllMetadatas, pVgIds, &added);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (added) {
+              TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+            }
           }
           px = tSimpleHashIterate(pContext->pGroups, px, &iter);
         }
@@ -6582,7 +6593,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
                                 sizeof(SSTriggerTableMeta));
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        if (TD_DLIST_NODE_NEXT(pGroup) == NULL && TD_DLIST_TAIL(&pContext->groupsToCheck) != pGroup) {
+        if (!IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
           TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
         }
       }
@@ -6802,7 +6813,7 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
 
   pGroup->pContext = pContext;
   pGroup->gid = gid;
-  pGroup->recalcNextWindow = pTask->fillHistory;
+  pGroup->recalcNextWindow = pTask->fillHistory && !pTask->ignoreDisorder;
   pGroup->vgId = vgId;
 
   pGroup->pWalMetas = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
@@ -7154,18 +7165,10 @@ static int32_t stRealtimeGroupDoPeriodCheck(SSTriggerRealtimeGroup *pGroup) {
   int32_t                   startIdx = 0;
   int32_t                   endIdx = 0;
 
-  if (pContext->walMode != STRIGGER_WAL_META_ONLY) {
-    code = stRealtimeGroupNextDataBlock(pGroup, &pDataBlock, &startIdx, &endIdx);
-    QUERY_CHECK_CODE(code, lino, _end);
-    if (pContext->needPseudoCols) {
-      goto _end;
-    }
-  }
-
   SSTriggerNotifyWindow newWin = {0};
   newWin.range.skey = INT64_MIN;
   newWin.range.ekey = INT64_MAX;
-  newWin.wrownum = endIdx - startIdx;
+  newWin.wrownum = 1;
   void *px = taosArrayPush(pContext->pWindows, &newWin);
   QUERY_CHECK_NULL(px, code, lino, _end, terrno);
 
@@ -7691,6 +7694,7 @@ static int32_t stRealtimeGroupMergeWindows(SSTriggerRealtimeGroup *pGroup) {
     taosObjListInitIter(&pGroup->windows, &iter, TOBJLIST_ITER_FORWARD);
     while ((pTmpWin = taosObjListIterNext(&iter)) != NULL) {
       QUERY_CHECK_CONDITION(pTmpWin->range.skey == pWin->range.skey, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pTmpWin->range.ekey = pWin->range.ekey;
       pTmpWin->wrownum = pWin->wrownum;
       pWin++;
     }
@@ -7842,10 +7846,14 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
     SSTriggerNotifyWindow *pWin = TARRAY_GET_ELEM(pContext->pWindows, i);
     // window open event may have been triggered previously
     if ((calcOpen || notifyOpen) && i >= nInitWins) {
-      SSTriggerCalcParam param = {.triggerTime = now,
-                                  .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
-                                  .extraNotifyContent = pWin->pWinOpenNotify};
-      code = stRealtimeGroupFillParam(pGroup, &param, pWin);
+      SSTriggerCalcParam    param = {.triggerTime = now,
+                                     .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
+                                     .extraNotifyContent = pWin->pWinOpenNotify};
+      SSTriggerNotifyWindow win = *pWin;
+      if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
+        win.range.ekey = win.range.skey;
+      }
+      code = stRealtimeGroupFillParam(pGroup, &param, &win);
       QUERY_CHECK_CODE(code, lino, _end);
       if (calcOpen) {
         if (!shouldPending) {
