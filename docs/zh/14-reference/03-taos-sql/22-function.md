@@ -661,7 +661,6 @@ CORR(expr1, expr2)
 
 - 若 `expr1` 或 `expr2` 为 NULL，返回 NULL。
 
-
 **举例**：
 
 ```sql
@@ -918,7 +917,7 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 
 #### FIND_IN_SET
 
-```
+```sql
 FIND_IN_SET(expr1, expr2[, expr3])
 ```
 
@@ -950,7 +949,7 @@ LENGTH(expr)
 
 #### LIKE_IN_SET
 
-```
+```sql
 LIKE_IN_SET(expr1, expr2[, expr3])
 ```
 
@@ -1047,7 +1046,7 @@ taos> select position('d' in 'cba');
 
 #### REGEXP_IN_SET
 
-```
+```sql
 REGEXP_IN_SET(expr1, expr2[, expr3])
 ```
 
@@ -1598,6 +1597,7 @@ DATE(expr)
 **举例**：
 
 (注意：例中语句在UTC+0800时区执行，精度为毫秒)
+
 ```sql
 taos> select date(946656000000);
        date(946656000000)       |
