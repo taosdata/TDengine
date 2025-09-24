@@ -44,7 +44,8 @@ class TestStreamOptionsVtable:
         streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
         streams.append(self.Basic7())  # CALC_NOTIFY_ONLY [ok]
         # # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test
-        # streams.append(self.Basic9())  # PRE_FILTER     [ok] pre filter with %%trows and virtual table is not support
+        # TD-38126 pre_filter 在 %%trows 且触发表为虚拟表时不可用
+        # streams.append(self.Basic9())  # PRE_FILTER     [ok]
         streams.append(self.Basic10()) # FORCE_OUTPUT   [fail] 
         streams.append(self.Basic11()) # MAX_DELAY [ok]        
         # streams.append(self.Basic11_1()) # MAX_DELAY [ok]        need to modify case
