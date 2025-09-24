@@ -2393,9 +2393,9 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   if (TABLE_IS_ROLLUP(pEntry->flags)) {
     if (pEntry->stbEntry.rsmaParam.uid == pReq->uid &&
         strncmp(pEntry->stbEntry.rsmaParam.name, pReq->name, TSDB_TABLE_NAME_LEN) == 0) {
-      metaInfo("vgId:%d, %s no need at %s since table %s is rollup table with same rsma name and uid:" PRIi64
+      metaInfo("vgId:%d, %s no need at %d since table %s is rollup table with same rsma name:%s and uid:%" PRIi64
                ", version:%" PRId64,
-               TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pReq->uid, version);
+               TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->tbName, pReq->name, pReq->uid, version);
       metaFetchEntryFree(&pEntry);
       TAOS_RETURN(TSDB_CODE_RSMA_ALREADY_EXISTS);
     }
@@ -2477,7 +2477,7 @@ int metaDropRsma(SMeta *pMeta, int64_t version, SVDropRsmaReq *pReq) {
         strncmp(pEntry->stbEntry.rsmaParam.name, pReq->name, TSDB_TABLE_NAME_LEN) != 0) {
       metaError(
           "vgId:%d, %s failed at line %d to drop %s since table %s is rollup table with different rsma name %s or "
-          "uid:" PRIi64 ", version:%" PRId64,
+          "uid:%" PRIi64 ", version:%" PRId64,
           TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->name, pReq->tbName, pEntry->stbEntry.rsmaParam.name,
           pReq->uid, version);
       metaFetchEntryFree(&pEntry);

@@ -84,7 +84,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtlTimer);
-  mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB_TIMER, mndProcessTrimDbTimer);
+  // mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB_TIMER, mndProcessTrimDbTimer);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_CFG, mndProcessTableCfgReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STB_DROP, mndProcessDropStbReqFromMNode);
   mndSetMsgHandle(pMnode, TDMT_MND_STB_DROP_RSP, mndTransProcessRsp);
@@ -1107,6 +1107,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
   return 0;
 }
 
+#if 0
 static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
@@ -1159,6 +1160,7 @@ static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
 
   return 0;
 }
+#endif
 
 static int32_t mndFindSuperTableTagIndex(const SStbObj *pStb, const char *tagName) {
   for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
