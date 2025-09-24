@@ -23,7 +23,7 @@ TS_TYPE_COL = [ TS_COL, ]
 ALL_COL = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_COL, BINARY_COL, NCHAR_COL, TS_COL ]
 DBNAME = "db"
 
-class TestHyperloglog:
+class TestFunHyperloglog:
 
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
 
@@ -329,23 +329,26 @@ class TestHyperloglog:
             '''
         )
 
-    def test_hyperloglog(self):
-        """summary: xxx
+    def test_fun_agg_hyperloglog(self):
+       """ Function HISTOGRAM
 
-        description: xxx
+        1. Query on super/child/normal table
+        2. Query with group by 
+        3. Query with having
+        4. Query with different data type
+        5. Query with filter
+        6. Query with join
+        7. Error cases
+        8. Check again after flush database
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_hyperloglog.py
 
         """
 

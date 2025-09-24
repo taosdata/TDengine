@@ -316,15 +316,15 @@
 
 ## 02-Aggregate
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_all.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_apercentile.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_avg.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_count.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_elapsed.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_leastsquares.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_percentile.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_spread.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stddev.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_sum.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_apercentile.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_avg.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_count.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_elapsed.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_leastsquares.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_percentile.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_spread.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_stddev.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_sum.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_first_last.py
@@ -909,10 +909,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_td_32548.py
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_large_data.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stddev_test.py
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_and_or_for_byte.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py
@@ -921,27 +918,19 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_partition.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py -N 3 --replica 3 -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_count.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_stddev.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_sum.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_histogram.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hyperloglog.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py
@@ -958,7 +947,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_3.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_4.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_5.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_leastsquares.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_logical_operators.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mavg.py
@@ -973,7 +961,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_orderBy.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_percentile.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py
@@ -986,7 +973,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sum.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py
@@ -1010,7 +996,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_td28163.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stablity_1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_elapsed.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_csum.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_diff.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tagFilter.py

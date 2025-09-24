@@ -29,7 +29,7 @@ TS_TYPE_COL = [ TS_COL, ]
 ALL_COL = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_COL, BINARY_COL, NCHAR_COL, TS_COL, UINT_COL, UBINT_COL, USINT_COL, UTINT_COL ]
 
 DBNAME = "db"
-class TestLeastsquares:
+class TestFunLeastsquares:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -350,23 +350,24 @@ class TestLeastsquares:
             '''
         )
 
-    def test_leastsquares(self):
-        """summary: xxx
+    def test_fun_agg_leastsquares(self):
+        """ Function AVG
 
-        description: xxx
+        1. Query on different data types
+        2. Query on super/child/normal table
+        3. Error cases
+        4. Query with partition by
+        5. Query with group by and having
+        6. Query with union
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-9-24 Alex  Duan Migrated from uncatalog/system-test/2-query/test_leastsquares.py
 
         """
 

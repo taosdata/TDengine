@@ -1,94 +1,569 @@
-###################################################################
-#           Copyright (c) 2020 by TAOS Technologies, Inc.
-#                     All rights reserved.
-#
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
-#
-###################################################################
-
-# -*- coding: utf-8 -*-
-
 import sys
 import os
 
 from new_test_framework.utils import tdLog, tdSql
 
-class TestElapsed:
+class TestFunElapsed:
+    #
+    # ------------------ case 1 ------------------
+    #    
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
-        cls.ts = 1420041600000 
-        cls.num = 10
+        cls.dbname = 'db'
+        cls.table_dic = {
+            "super_table": ["st1", "st2", "st_empty"],
+            "child_table": ["ct1_1", "ct1_2", "ct1_empty", "ct2_1", "ct2_2", "ct2_empty"],
+            "tags_value": [("2023-03-01 15:00:00", 1, 'bj'), ("2023-03-01 15:10:00", 2, 'sh'), ("2023-03-01 15:20:00", 3, 'sz'), ("2023-03-01 15:00:00", 4, 'gz'), ("2023-03-01 15:10:00", 5, 'cd'), ("2023-03-01 15:20:00", 6, 'hz')],
+            "common_table": ["t1", "t2", "t_empty"]
+        }
+        cls.start_ts = 1677654000000 # 2023-03-01 15:00:00.000
+        cls.row_num = 100
+        # db
+        tdSql.execute(f"create database {cls.dbname};")
+        tdSql.execute(f"use {cls.dbname};")
+        tdLog.debug(f"Create database {cls.dbname}")
 
-    def caseDescription(self):
+        # commont table
+        for common_table in cls.table_dic["common_table"]:
+            tdSql.execute(f"create table {common_table} (ts timestamp, c_ts timestamp, c_int int, c_bigint bigint, c_double double, c_nchar nchar(16));")
+            tdLog.debug("Create common table %s" % common_table)
 
-        '''
-        case1 <wenzhouwww>: [TD-11804]  test case for elapsed function :
+        # super table
+        for super_table in cls.table_dic["super_table"]:
+            tdSql.execute(f"create stable {super_table} (ts timestamp, c_ts timestamp, c_int int, c_bigint bigint, c_double double, c_nchar nchar(16)) tags (t1 timestamp, t2 int, t3 binary(16));")
+            tdLog.debug("Create super table %s" % super_table)
 
-        this test case is for aggregate function elapsed , elapsed function can only used for the timestamp primary key column (ts) ,
-        it has two input parameters,  the first parameter is necessary, basic SQL as follow:
+        # child table
+        for i in range(len(cls.table_dic["child_table"])):
+            if cls.table_dic["child_table"][i].startswith("ct1"):
+                tdSql.execute("create table {} using {} tags('{}', {}, '{}');".format(cls.table_dic["child_table"][i], "st1", cls.table_dic["tags_value"][i][0], cls.table_dic["tags_value"][i][1], cls.table_dic["tags_value"][i][2]))
+            elif cls.table_dic["child_table"][i].startswith("ct2"):
+                tdSql.execute("create table {} using {} tags('{}', {}, '{}');".format(cls.table_dic["child_table"][i], "st2", cls.table_dic["tags_value"][i][0], cls.table_dic["tags_value"][i][1], cls.table_dic["tags_value"][i][2]))
 
-        ===================================================================================================================================
-        SELECT ELAPSED(field_name[, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
-        ===================================================================================================================================
+        # insert data
+        table_list = ["t1", "t2", "ct1_1", "ct1_2", "ct2_1", "ct2_2"]
+        for t in table_list:
+            sql = "insert into {} values".format(t)
+            for i in range(cls.row_num):
+                sql += "({}, {}, {}, {}, {}, '{}'),".format(cls.start_ts + i * 1000, cls.start_ts + i * 1000, 32767+i, 65535+i, i, t + str(i))
+            sql += ";"
+            tdSql.execute(sql)
+            tdLog.debug("Insert data into table %s" % t)
 
-        elapsed function can acting on ordinary tables and super tables , notice that this function is related to the timeline.
-        If it acts on a super table , it must be group by tbname . by the way ,this function support nested query.
+    def do_normal_query(self):
+        """Agg-special: Elapsed
 
-        The scenarios covered by the test cases are as follows:
+        test Elapsed function
 
-        ====================================================================================================================================
+        Catalog:
+            - Function:Aggregate
+            
+        Since: v3.3.0.0
 
-        case: select * from table|stable[group by tbname]|regular_table
+        Labels: elapsed
 
-        case:select elapsed(ts) from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        History:
+            - 2024-6-5 Alex Duan Created
+            - 2025-5-08 Huo Hong Migrated to new test framework
 
-        case:select elapsed(ts) , elapsed(ts,unit_time1)*regular_num1 , elapsed(ts,unit_time1)+regular_num2 from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        """
+        # only one timestamp
+        tdSql.query("select elapsed(ts) from t1 group by c_ts;")
+        tdSql.checkRows(self.row_num)
+        tdSql.checkData(0, 0, 0)
 
-        //mixup with all functions only once query (it's different with nest query)
-        case:select elapsed(ts), count(*), avg(col), twa(col), irate(col), sum(col), stddev(col), leastsquares(col, 1, 1),min(col), max(col), first(col), last(col), percentile(col, 20), apercentile(col, 30), last_row(col), spread(col)from table|stable where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        tdSql.query("select elapsed(ts, 1m) from t1 group by c_ts;")
+        tdSql.checkRows(self.row_num)
+        tdSql.checkData(0, 0, 0)
 
-        //mixup with ordinary col
-        case:select ts ,elapsed(ts)*10 ,col+5 from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        # child table with group by
+        tdSql.query("select elapsed(ts) from ct1_2 group by tbname;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 99000)
 
-        //nest query
-        case:select elapsed(ts) from (select elapsed(ts), count(*), avg(col), twa(col), irate(col), sum(col), stddev(col), leastsquares(col, 1, 1),min(col), max(col), first(col), last(col), percentile(col, 20), apercentile(col, 30), last_row(col), spread(col)from table|stable where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc]) where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        # empty super table
+        tdSql.query("select elapsed(ts, 1s) from st_empty group by tbname;")
+        tdSql.checkRows(0)
 
-        //clause about filter condition
-        case:select  elapsed(ts) from table|stable[group by tbname] where [ts|col|tag >|<|=|>=|<=|=|<>|!= value] | [between ... and ...] |[in] |[is null|not null] interval (unit_time) ;
-        case:select  elapsed(ts) from table|stable[group by tbname] where clause1 and clause 2 and clause3  interval (unit_time)  ;
+        # empty child table
+        tdSql.query("select elapsed(ts, 1s) from ct1_empty group by tbname;")
+        tdSql.checkRows(0)
 
-        //JOIN query
-        case:select elapsed(ts) from TABLE1 as tb1 , TABLE2 as tb2 where join_condition [TABLE1 and TABLE2 can be stable|table|sub_table|empty_table]
+        # empty common table
+        tdSql.query("select elapsed(ts, 1s) from t_empty group by tbname;")
+        tdSql.checkRows(0)
 
-        //UNION ALL query
-       case:select elapsed(ts) from TABLE1 union all select elapsed(ts) from TABLE2 [TABLE1 and TABLE2 can be stable|table|sub_table|empty_table]
+        # unit as second
+        tdSql.query("select elapsed(ts, 1s) from st2 group by tbname;")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 99)
 
-        // Window aggregation
+        # unit as minute
+        tdSql.query("select elapsed(ts, 1m) from st2 group by tbname;")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1.65)
 
-        case:select elapsed(ts) from t1 where  clause session(ts, time_units) ;
-        case:select elapsed(ts) from t1 where  clause state_window(regular_nums);
+        # unit as hour
+        tdSql.query("select elapsed(ts, 1h) from st2 group by tbname;")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 0.0275)
 
-        // Continuous query
-        case:create table select elapsed(ts)  ,avg(col) from (select elapsed(ts) ts_inter ,avg(col) col from stable|table interval (unit_time) [fill(LINEAR,NEXT,PREV,VALUE,NULL)][group by tbname])  interval (unit_time) [fill(LINEAR,NEXT,PREV,VALUE,NULL) sliding(unit_time_windows);
+    def do_query_with_filter(self):
+        """test elapsed function with filter
 
-        ========================================================================================================================================
+        test elapsed function with filter
 
-        this test case notice successful execution and correctness of results.
+        Since: v3.3.0.0
 
-        '''
-        return
+        Labels: elapsed
 
+        History:
+            - 2024-9-14 Feng Chao Created
+            - 2025-5-08 Huo Hong Migrated to new test framework
+
+        """
+        end_ts = 1677654000000 + 1000 * 99
+        query_list = [
+            {
+                "sql": "select elapsed(ts, 1s) from st1 where ts >= 1677654000000 group by tbname;",
+                "res": [(99.0, ), (99.0, )]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st1 where ts >= 1677654000000 and c_ts >= 1677654000000 group by tbname;",
+                "res": [(99.0, ), (99.0, )]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st1 where ts >= 1677654000000 and c_ts >= 1677654000000 and t1='2023-03-01 15:10:00.000' group by tbname;",
+                "res": [(99.0, )]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st_empty where ts >= 1677654000000 and c_ts >= 1677654000000 and t1='2023-03-01 15:10:00.000' group by tbname;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from ct1_1 where ts >= 1677654000000 group by tbname;",
+                "res": [(99.0, )]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from ct1_2 where ts >= 1677654000000 and c_ts >= 1677654000000 group by tbname;",
+                "res": [(99.0, )]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from ct1_empty where ts >= 1677654000000 and c_ts >= 1677654000000 group by tbname;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from t1 where ts >= 1677654000000 group by tbname;",
+                "res": [(99.0, )]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from t2 where ts >= 1677654000000 and c_ts >= 1677654000000 group by tbname;",
+                "res": [(99.0, )]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from t_empty where ts >= 1677654000000 and c_ts >= 1677654000000 group by tbname;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_ts > {} group by tbname;".format(end_ts),
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_ts > {} and t1='2023-03-01 15:10:00' group by tbname;".format(end_ts),
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_int < 1 group by tbname;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_int >= 1 and t1='2023-03-01 15:10:00' group by tbname;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_int <> 1 and t1='2023-03-01 15:10:00' group by tbname;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_nchar like 'ct2_%' and t1='2023-03-01 15:10:00' group by tbname;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_nchar like 'ct1_%' and t1='2023-03-01 15:10:00' group by tbname;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_nchar match '^ct2_' and t1='2023-03-01 15:10:00' group by tbname;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and c_nchar nmatch '^ct1_' and t1='2023-03-01 15:10:00' group by tbname;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st2 where ts >= 1677654000000 and t3 like 'g%' group by tbname;",
+                "res": [(99,)]
+            }
+        ]
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+
+    def do_query_with_other_function(self):
+        """test elapsed function with other function
+
+        test elapsed function with avg, count, leastsquares, spread, sum, hyperloglog, twa
+
+        Since: v3.3.0.0
+
+        Labels: elapsed
+
+        History:
+            - 2024-6-5 Alex Duan Created
+            - 2025-5-08 Huo Hong Migrated to new test framework
+
+        """
+        query_list = [
+            {
+                "sql": "select avg(c_int), count(*), elapsed(ts, 1s), leastsquares(c_int, 0, 1), spread(c_bigint), sum(c_int), hyperloglog(c_int) from st1;",
+                "res": [(32816.5, 200, 99.0, '{slop:0.499962, intercept:32766.753731}', 99.0, 6563300, 100)]
+            },
+            {
+                "sql": "select twa(c_int) * elapsed(ts, 1s) from ct1_1;",
+                "res": [(3.248833500000000e+06,)]
+            }
+        ]
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+
+    def do_query_with_join(self):
+        """test elapsed function with join
+
+        test elapsed function with join
+
+        Since: v3.3.0.0
+
+        Labels: elapsed
+
+        History:
+            - 2024-6-5 Alex Duan Created
+            - 2025-5-08 Huo Hong Migrated to new test framework
+
+        """
+        query_list = [
+            {
+                "sql": "select elapsed(st1.ts, 1s) from st1, st2 where st1.ts = st2.ts;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(st1.ts, 1s) from st1, st_empty where st1.ts = st_empty.ts and st1.c_ts = st_empty.c_ts;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(st1.ts, 1s) from st1, ct1_1 where st1.ts = ct1_1.ts;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ct1.ts, 1s) from ct1_1 ct1, ct1_2 ct2 where ct1.ts = ct2.ts;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ct1.ts, 1s) from ct1_1 ct1, ct1_empty ct2 where ct1.ts = ct2.ts;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(st1.ts, 1s) from st1, ct1_empty where st1.ts = ct1_empty.ts;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(st1.ts, 1s) from st1, t1 where st1.ts = t1.ts;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(st1.ts, 1s) from st1, t_empty where st1.ts = t_empty.ts;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ct1.ts, 1s) from ct1_1 ct1, t1 t2 where ct1.ts = t2.ts;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ct1.ts, 1s) from ct1_1 ct1, t_empty t2 where ct1.ts = t2.ts;",
+                "res": []  
+            },
+            {
+                "sql": "select elapsed(st1.ts, 1s) from st1, st2, st_empty where st1.ts=st2.ts and st2.ts=st_empty.ts;",
+                "res": []
+            }
+        ]
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+
+    def do_query_with_union(self):
+        """test elapsed function with union
+
+        test elapsed function with union
+
+        Since: v3.3.0.0
+
+        Labels: elapsed
+
+        History:
+            - 2024-6-5 Alex Duan Created
+            - 2025-5-08 Huo Hong Migrated to new test framework
+
+        """
+        query_list = [
+            {
+                "sql": "select elapsed(ts, 1s) from st1 union select elapsed(ts, 1s) from st2;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st1 union all select elapsed(ts, 1s) from st2;",
+                "res": [(99,),(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st1 union all select elapsed(ts, 1s) from st_empty;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from ct1_1 union all select elapsed(ts, 1s) from ct1_2;",
+                "res": [(99,),(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from ct1_1 union select elapsed(ts, 1s) from ct1_2;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from ct1_1 union select elapsed(ts, 1s) from ct1_empty;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st1 where ts < '2023-03-01 15:05:00.000' union select elapsed(ts, 1s) from ct1_1 where ts >= '2023-03-01 15:01:00.000';",
+                "res": [(39,),(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from ct1_empty union select elapsed(ts, 1s) from t_empty;",
+                "res": []
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st1 group by tbname union select elapsed(ts, 1s) from st2 group by tbname;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st1 group by tbname union all select elapsed(ts, 1s) from st2 group by tbname;",
+                "res": [(99,),(99,),(99,),(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st_empty group by tbname union all select elapsed(ts, 1s) from st2 group by tbname;",
+                "res": [(99,),(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from t1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next) union select elapsed(ts, 1s) from st2 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:49.000' interval(5s) fill(prev);",
+                "res": [(9,), (None,), (4,), (5,),(10,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from st1 group by tbname union select elapsed(ts, 1s) from st2 group by tbname union select elapsed(ts, 1s) from st_empty group by tbname;",
+                "res": [(99,)]
+            }
+        ]
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+
+    #def test_query_with_window(self):
+    #    """test elapsed function with window
+
+    #    test elapsed function with interval, fill, session
+
+    #    Since: v3.3.0.0
+
+    #    Labels: elapsed, interval, fill, session
+
+    #    History:
+    #        - 2024-6-5 Alex Duan Created
+    #        - 2025-5-08 Huo Hong Migrated to new test framework
+
+    #    """
+    #    query_list = [
+    #        {
+    #            "sql": "select elapsed(ts, 1s) from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' interval(10s) fill(next);",
+    #            "res": [(10,),(10,)()]
+    #        },
+    #        {
+    #            "sql": "select elapsed(ts, 1s) from (select * from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:20.000' and c_int > 100) where ts >= '2023-03-01 15:01:00.000' and ts < '2023-03-01 15:02:00.000' interval(10s) fill(prev);",
+    #            "res": [(10,)(10,)(),(),(),()]
+    #        },
+    #        {
+    #            "sql": "select elapsed(ts, 1s) from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' session(ts, 2s);",
+    #            "res": [(20,)]
+    #        },
+    #        {
+    #            "sql": "select elapsed(ts, 1s) from st_empty where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' session(ts, 2s);",
+    #            "res": []
+    #        }
+    #    ]
+    #    sql_list = []
+    #    res_list = []
+    #    for item in query_list:
+    #        sql_list.append(item["sql"])
+    #        res_list.append(item["res"])
+    #    tdSql.queryAndCheckResult(sql_list, res_list)
+
+    def do_nested_query(self):
+        """test elapsed function with nested query
+
+        test elapsed function with nested query
+
+        Since: v3.3.0.0
+
+        Labels: elapsed
+
+        History:
+            - 2024-6-5 Alex Duan Created
+            - 2025-5-08 Huo Hong Migrated to new test framework
+
+        """
+        query_list = [
+            {
+                "sql": "select elapsed(ts, 1s) from (select * from st1 where c_int > 10 and ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000');",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select sum(v) from (select elapsed(ts, 1s) as v from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' interval(10s) fill(next));",
+                "res": [(20,)]
+            },
+            {
+                "sql": "select avg(v) from (select elapsed(ts, 1s) as v from st2 group by tbname order by v);",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from (select * from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000') where c_int > 10;",
+                "res": [(99,)]
+            },
+            {
+                "sql": "select elapsed(ts, 1s) from (select * from st1 where c_int > 10 and ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000') where c_int < 20;",
+                "res": []
+            }
+        ]
+        sql_list = []
+        res_list = []
+        for item in query_list:
+            sql_list.append(item["sql"])
+            res_list.append(item["res"])
+        tdSql.queryAndCheckResult(sql_list, res_list)
+
+    def do_abnormal_query(self):
+        """test unsupported elapsed sql command
+
+        test unsupported elapsed sql command
+
+        Since: v3.3.0.0
+
+        Labels: elapsed
+
+        History:
+            - 2024-6-5 Alex Duan Created
+            - 2025-5-08 Huo Hong Migrated to new test framework
+
+        """
+        # incorrect parameter
+        table_list = self.table_dic["super_table"] + self.table_dic["child_table"] + self.table_dic["common_table"]
+        incorrect_parameter_list = ["()", "(null)", "(*)", "(c_ts)", "(c_ts, 1s)", "(c_int)", "(c_bigint)", "(c_double)", "(c_nchar)", "(ts, null)",
+                                    "(ts, *)", "(2024-01-09 17:00:00)", "(2024-01-09 17:00:00, 1s)", "(t1)", "(t1, 1s)", "(t2)", "(t3)"]
+        for table in table_list:
+            for param in incorrect_parameter_list:
+                if table.startswith("st"):
+                    tdSql.error("select elapsed{} from {} group by tbname order by ts;".format(param, table))
+                else:
+                    tdSql.error("select elapsed{} from {};".format(param, table))
+                tdSql.error("select elapsed{} from {} group by ".format(param, table))
+
+        # query with unsupported function, like leastsquares、diff、derivative、top、bottom、last_row、interp
+        unsupported_sql_list = [
+            "select elapsed(leastsquares(c_int, 1, 2)) from st1 group by tbname;",
+            "select elapsed(diff(ts)) from st1;",
+            "select elapsed(derivative(ts, 1s, 1)) from st1 group by tbname order by ts;",
+            "select elapsed(top(ts, 5)) from st1 group by tbname order by ts;",
+            "select top(elapsed(ts), 5) from st1 group by tbname order by ts;",
+            "select elapsed(bottom(ts)) from st1 group by tbname order by ts;",
+            "select bottom(elapsed(ts)) from st1 group by tbname order by ts;",
+            "select elapsed(last_row(ts)) from st1 group by tbname order by ts;",
+            "select elapsed(interp(ts, 0)) from st1 group by tbname order by ts;"
+        ]
+        tdSql.errors(unsupported_sql_list)
+
+        # nested aggregate function
+        nested_sql_list = [
+            "select avg(elapsed(ts, 1s)) from st1 group by tbname order by ts;",
+            "select elapsed(avg(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(sum(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(count(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(min(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(max(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(first(ts), 1s) from st1 group by tbname order by ts;",
+            "select elapsed(last(ts), 1s) from st1 group by tbname order by ts;"
+        ]
+        tdSql.errors(nested_sql_list)
+
+        # other error
+        other_sql_list = [
+            "select elapsed(ts, 1s) from t1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next) union select elapsed(ts, 1s) from st2 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:49.000' interval(5s) fill(prev) group by tbname;",
+            "select elapsed(time ,1s) from (select elapsed(ts,1s) time from st1);",
+            "select elapsed(ts , 1s) from (select elapsed(ts, 1s) ts from st2);",
+            "select elapsed(time, 1s) from (select elapsed(ts, 1s) time from st1 group by tbname);",
+            "select elapsed(ts , 1s) from (select elapsed(ts, 1s) ts from st2 group by tbname);",
+            "select elapsed(ts, 1s) from (select * from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000' interval(10s) fill(next)) where c_int > 10;"
+        ]
+        tdSql.errors(other_sql_list)
+
+    def do_ns_precision(self):
+        """test elapsed function with ns precision
+
+        test elapsed function with ns precision
+
+        Since: v3.3.0.0
+
+        Labels: elapsed
+
+        History:
+            - 2024-9-10 Jing Sima Created
+
+        """
+        tdSql.execute("CREATE DATABASE test BUFFER 256 CACHESIZE 1 CACHEMODEL 'none' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 1 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ns' REPLICA 1 WAL_LEVEL 1 VGROUPS 2 SINGLE_STABLE 0 TABLE_PREFIX 0 TABLE_SUFFIX 0 TSDB_PAGESIZE 4 WAL_RETENTION_PERIOD 3600 WAL_RETENTION_SIZE 0 KEEP_TIME_OFFSET 0;")
+        tdSql.execute("use test")
+        tdSql.execute("CREATE TABLE t_test (sdbkey TIMESTAMP, name NCHAR(10), sales INT)")
+        tdSql.execute("insert into t_test values(1790000000000000000, 'name1',1)")
+        tdSql.execute("insert into t_test values(1790000000000000001, 'name2',1)")
+        tdSql.query("select elapsed(sdbkey,1b) from t_test")
+        tdSql.checkData(0, 0, 1)
+        tdSql.execute("insert into t_test values(1790000000000001000, 'name2',1)")
+        tdSql.query("select elapsed(sdbkey,1b) from t_test")
+        tdSql.checkData(0, 0, 1000)
+        tdSql.query("select elapsed(sdbkey,1u) from t_test")
+        tdSql.checkData(0, 0, 1)
+
+    #
+    # ------------------ test_elapsed.py ------------------
+    #
     def prepare_db(self,dbname,vgroupVar):
 
         tdLog.info (" ====================================== prepare db ==================================================")
         tdSql.execute('drop database if exists testdb ;')
         tdSql.execute('create database %s keep 36500 vgroups %d ;'%(dbname,vgroupVar))
-
 
     def prepare_data(self,dbname):
 
@@ -1589,25 +2064,10 @@ class TestElapsed:
                     basic_result = 90
                     tdSql.checkData(0,0,basic_result*pow(1000,index))
 
-    def test_elapsed(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-
-        """
+    def do_elapsed(self):
+        # init
+        self.ts = 1420041600000 
+        self.num = 10
 
         tdSql.prepare()
         dbNameTest="testdbV1"
@@ -1647,6 +2107,44 @@ class TestElapsed:
         self.query_session_windows()
         self.continuous_query()
         # self.query_precision()
+        
+        print("do_elapsed ............................ [passed]\n")
 
-        #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_agg_elapsed(self):
+        """ Function ELAPSED
+
+        1. Query on super/child/normal table
+        2. Query with nested
+        3. Query with join
+        4. Query with union
+        5. Query with other function
+        6. Query with filter
+        7. Query with tags
+        8. Error cases
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-5-08 Huo  Hong Migrated to new test framework
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_elapsed.py
+
+        """
+        # case 1
+        self.do_normal_query()
+        self.do_abnormal_query()
+        self.do_nested_query()
+        self.do_query_with_union()
+        self.do_query_with_join()
+        self.do_query_with_other_function()
+        self.do_query_with_filter()
+        print("\ndo case1 .............................. [passed]\n")
+        # case2
+        self.do_elapsed()

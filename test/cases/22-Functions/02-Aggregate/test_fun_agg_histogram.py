@@ -49,7 +49,7 @@ PARAINF = float("inf")
 
 
 @dataclass
-class Hsgschema:
+class TestFunHsgschema:
 
     func_type           : str           = "SELECT"
     from_clause         : str           = f"{STBNAME}"
@@ -583,23 +583,25 @@ class TestHistogram:
         tdSql.execute(
             f"insert into {dbname}.{NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
 
-    def test_histogram(self):
-        """summary: xxx
+    def test_fun_agg_histogram(self):
+       """ Function HISTOGRAM
 
-        description: xxx
+        1. Query on super/child/normal table
+        2. Query with bin_type parameter as user_input/linear_bin/log_bin
+        3. Query with bin_description parameter 
+        4. Query with different data type
+        5. Query with filter
+        6. Error cases
+        7. Check again after flush database
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_histogram.py
 
         """
 
