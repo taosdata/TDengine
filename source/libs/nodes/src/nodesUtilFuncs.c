@@ -1799,7 +1799,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
-    case QUERY_NODE_SHOW_RSMAS_STMT: {
+    case QUERY_NODE_SHOW_RSMAS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -1817,7 +1818,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
     case QUERY_NODE_SHOW_COMPACTS_STMT:
-    case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_SCANS_STMT:
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:

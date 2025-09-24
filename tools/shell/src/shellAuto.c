@@ -139,6 +139,7 @@ SWords shellCommands[] = {
     {"grant read on <anyword> to <user_name>;", 0, 0, NULL},
     {"grant write on <anyword> to <user_name>;", 0, 0, NULL},
     {"kill connection <anyword>;", 0, 0, NULL},
+    {"kill retention ", 0, 0, NULL},
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
@@ -573,6 +574,7 @@ void showHelp() {
   ----- K ----- \n\
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
+    kill retention <retention_id>; \n\
     kill transaction <transaction_id>;\n\
   ----- P ----- \n\
     pause stream <stream_name>;\n\
