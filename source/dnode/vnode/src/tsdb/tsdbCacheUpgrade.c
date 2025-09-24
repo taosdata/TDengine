@@ -170,30 +170,74 @@ static int32_t tsdbCacheGetValuesFromColRocks(STsdb *pTsdb, rocksdb_t *pColDB, r
   return TSDB_CODE_SUCCESS;
 }
 
-// Helper function to clean up allocated memory in column values
-static void tsdbCleanupColValArray(SArray *pColArray) {
-  if (!pColArray) return;
+// Function to convert column cache to row cache
+int32_t tsdbConvertColCacheToRowCache(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, STSchema *pTSchema, int8_t lflag,
+                                      SArray *pColArray, SArray *pColStatus) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
-  int32_t size = taosArrayGetSize(pColArray);
-  for (int32_t i = 0; i < size; i++) {
-    SColVal *pColVal = taosArrayGet(pColArray, i);
-    // For now, we'll need to identify which columns have allocated data
-    // This is a simple approach - we'll track allocations differently
-    (void)pColVal;  // Suppress unused variable warning
+  if (!pTsdb || !pTSchema || !pColArray || !pColStatus) {
+    return TSDB_CODE_INVALID_PARA;
   }
+
+  int32_t colArraySize = taosArrayGetSize(pColArray);
+  if (colArraySize != pTSchema->numOfCols) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Find the latest timestamp from valid columns
+  STsdbRowKey rowKey = {.key.ts = TSKEY_MIN, .key.numOfPKs = 0};
+
+  for (int32_t i = 0; i < colArraySize; i++) {
+    SColCacheStatus *pStatus = taosArrayGet(pColStatus, i);
+    if (pStatus && pStatus->status == TSDB_LAST_CACHE_VALID) {
+      if (pStatus->lastTs > rowKey.key.ts) {
+        rowKey.key.ts = pStatus->lastTs;
+      }
+    }
+  }
+
+  // Build row from column values
+  SRow             *pRow = NULL;
+  SRowBuildScanInfo sinfo = {0};
+
+  code = tRowBuild(pColArray, pTSchema, &pRow, &sinfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  // Create SLastRow structure
+  SLastRow lastRow = {
+      .rowKey = rowKey,
+      .pRow = pRow,
+      .dirty = 1,
+      .numCols = pTSchema->numOfCols,
+      .colStatus = (SColCacheStatus *)TARRAY_DATA(pColStatus),
+  };
+
+  // Write to row cache
+  SLastRowKey rowCacheKey = {.uid = uid, .lflag = lflag};
+  code = tsdbRowCachePutToRocksdb(pTsdb, &rowCacheKey, &lastRow);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pRow);
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  // Free the row after successful write
+  taosMemoryFree(pRow);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("vgId:%d, failed at %s:%d to convert column cache to row cache for table uid:%" PRId64 " since %s",
+              TD_VID(pTsdb->pVnode), __FILE__, lino, uid, tstrerror(code));
+  }
+
+  return code;
 }
 
-// Structure to hold cleanup resources
-typedef struct {
-  char  **values_list;
-  size_t *values_list_sizes;
-  int32_t numKeys;
-  SArray *pLastCols;  // Array of SLastCol* that need to be freed
-} SColCacheCleanup;
-
-// Function to query column cache entries for a table with specific flag
-int32_t tsdbQueryColCacheForTable(STsdb *pTsdb, tb_uid_t uid, STSchema *pTSchema, int8_t lflag, SArray **ppColArray,
-                                  SArray **ppColStatus, rocksdb_t *pColDB, rocksdb_readoptions_t *pColReadoptions) {
+// Function to query column cache entries for a table with specific flag and convert to row cache
+int32_t tsdbQueryColCacheForTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, STSchema *pTSchema, int8_t lflag,
+                                  rocksdb_t *pColDB, rocksdb_readoptions_t *pColReadoptions) {
   int32_t code = 0, lino = 0;
 
   if (!pTsdb || !pTSchema) {
@@ -201,15 +245,14 @@ int32_t tsdbQueryColCacheForTable(STsdb *pTsdb, tb_uid_t uid, STSchema *pTSchema
   }
 
   // Initialize column array and status array
-  *ppColArray = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
-  if (!*ppColArray) {
+  SArray *pColArray = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (!pColArray) {
     TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
-  *ppColStatus = taosArrayInit(pTSchema->numOfCols, sizeof(SColCacheStatus));
-  if (!*ppColStatus) {
-    taosArrayDestroy(*ppColArray);
-    *ppColArray = NULL;
+  SArray *pColStatus = taosArrayInit(pTSchema->numOfCols, sizeof(SColCacheStatus));
+  if (!pColStatus) {
+    taosArrayDestroy(pColArray);
     TAOS_CHECK_GOTO(terrno, &lino, _exit);
   }
 
@@ -264,11 +307,10 @@ int32_t tsdbQueryColCacheForTable(STsdb *pTsdb, tb_uid_t uid, STSchema *pTSchema
     if (values_list && values_list[i] && values_list_sizes[i] > 0) {
       SLastCol *pLastCol = NULL;
       int32_t   deserCode = tsdbCacheDeserialize(values_list[i], values_list_sizes[i], &pLastCol);
-      
+
       if (deserCode == TSDB_CODE_SUCCESS && pLastCol && pLastCol->cacheStatus != TSDB_LAST_CACHE_NO_CACHE) {
-        // Simply use the colVal as-is, but do NOT free the pLastCol yet
         // Add valid column value from RocksDB
-        if (!taosArrayPush(*ppColArray, &pLastCol->colVal)) {
+        if (!taosArrayPush(pColArray, &pLastCol->colVal)) {
           taosMemoryFreeClear(pLastCol);
           code = terrno;
           goto _cleanup;
@@ -276,15 +318,12 @@ int32_t tsdbQueryColCacheForTable(STsdb *pTsdb, tb_uid_t uid, STSchema *pTSchema
 
         // Set column status as valid
         SColCacheStatus colStatus = {.cid = cid, .status = TSDB_LAST_CACHE_VALID, .lastTs = pLastCol->rowKey.ts};
-        if (!taosArrayPush(*ppColStatus, &colStatus)) {
+        if (!taosArrayPush(pColStatus, &colStatus)) {
           taosMemoryFreeClear(pLastCol);
           code = terrno;
           goto _cleanup;
         }
         found = true;
-
-        // Store pLastCol pointer for later cleanup instead of freeing immediately
-        // We'll need to modify the function to track these
       }
       taosMemoryFreeClear(pLastCol);
     }
@@ -292,17 +331,30 @@ int32_t tsdbQueryColCacheForTable(STsdb *pTsdb, tb_uid_t uid, STSchema *pTSchema
     if (!found) {
       // Initialize NONE column value for columns without cache
       SColVal noneColVal = COL_VAL_NONE(cid, colType);
-      if (!taosArrayPush(*ppColArray, &noneColVal)) {
+      if (!taosArrayPush(pColArray, &noneColVal)) {
         code = terrno;
         goto _cleanup;
       }
 
       // Set column status as no cache
       SColCacheStatus colStatus = {.cid = cid, .status = TSDB_LAST_CACHE_NO_CACHE, .lastTs = TSKEY_MIN};
-      if (!taosArrayPush(*ppColStatus, &colStatus)) {
+      if (!taosArrayPush(pColStatus, &colStatus)) {
         code = terrno;
         goto _cleanup;
       }
+    }
+  }
+
+  // Convert column cache to row cache if we have valid data
+  if (code == TSDB_CODE_SUCCESS) {
+    code = tsdbConvertColCacheToRowCache(pTsdb, uid, suid, pTSchema, lflag, pColArray, pColStatus);
+    if (code == TSDB_CODE_SUCCESS) {
+      SVnode *pVnode = pTsdb->pVnode;
+      tsdbDebug("vgId:%d, successfully converted cache for table uid:%" PRId64 " lflag:%d", TD_VID(pVnode), uid, lflag);
+    } else {
+      SVnode *pVnode = pTsdb->pVnode;
+      tsdbError("vgId:%d, failed to convert column cache for table uid:%" PRId64 " lflag:%d since %s", TD_VID(pVnode),
+                uid, lflag, tstrerror(code));
     }
   }
 
@@ -312,99 +364,27 @@ _cleanup:
   taosMemoryFree(keys_list);
   taosMemoryFree(keys_list_sizes);
 
-  // DO NOT free values_list here as it may still be referenced by colVal
-  // We'll free it after all processing is done
-
-  if (code != TSDB_CODE_SUCCESS) {
-    // Only free values_list on error, since we won't be using the data
-    if (values_list) {
+  // Free RocksDB values properly
+  if (values_list) {
 #ifdef USE_ROCKSDB
-      for (int i = 0; i < numKeys; ++i) {
-        rocksdb_free(values_list[i]);
-      }
+    for (int i = 0; i < numKeys; ++i) {
+      rocksdb_free(values_list[i]);
+    }
 #endif
-      taosMemoryFree(values_list);
-      values_list = NULL;
-    }
-    if (values_list_sizes) {
-      taosMemoryFree(values_list_sizes);
-      values_list_sizes = NULL;
-    }
+    taosMemoryFree(values_list);
   }
+  if (values_list_sizes) {
+    taosMemoryFree(values_list_sizes);
+  }
+
+  // Clean up arrays
+  taosArrayDestroy(pColArray);
+  taosArrayDestroy(pColStatus);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, failed at %s:%d to query column cache for table uid:%" PRId64 " lflag:%d since %s",
               TD_VID(pTsdb->pVnode), __FILE__, lino, uid, lflag, tstrerror(code));
-    // Clean up allocated memory in column values before destroying arrays
-    tsdbCleanupColValArray(*ppColArray);
-    taosArrayDestroy(*ppColArray);
-    taosArrayDestroy(*ppColStatus);
-    *ppColArray = NULL;
-    *ppColStatus = NULL;
-  }
-
-  // NOTE: We're intentionally NOT freeing values_list here!
-  // The SColVal structures may contain pointers to this memory.
-  // This creates a memory leak, but prevents use-after-free.
-  // A proper solution would require deeper changes to the data flow.
-
-  return code;
-}
-
-// Function to convert column cache to row cache
-int32_t tsdbConvertColCacheToRowCache(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, STSchema *pTSchema, int8_t lflag,
-                                      SArray *pColArray, SArray *pColStatus) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  if (!pTsdb || !pTSchema || !pColArray || !pColStatus) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  int32_t colArraySize = taosArrayGetSize(pColArray);
-  if (colArraySize != pTSchema->numOfCols) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  // Find the latest timestamp from valid columns
-  STsdbRowKey rowKey = {.key.ts = TSKEY_MIN, .key.numOfPKs = 0};
-
-  for (int32_t i = 0; i < colArraySize; i++) {
-    SColCacheStatus *pStatus = taosArrayGet(pColStatus, i);
-    if (pStatus && pStatus->status == TSDB_LAST_CACHE_VALID) {
-      if (pStatus->lastTs > rowKey.key.ts) {
-        rowKey.key.ts = pStatus->lastTs;
-      }
-    }
-  }
-
-  // Build row from column values
-  SRow             *pRow = NULL;
-  SRowBuildScanInfo sinfo = {0};
-
-  code = tRowBuild(pColArray, pTSchema, &pRow, &sinfo);
-  if (code == TSDB_CODE_SUCCESS && pRow) {
-    // Create SLastRow structure
-    SLastRow lastRow = {
-        .rowKey = rowKey,
-        .pRow = pRow,
-        .dirty = 1,
-        .numCols = pTSchema->numOfCols,
-        .colStatus = (SColCacheStatus *)TARRAY_DATA(pColStatus),
-    };
-
-    // Write to row cache
-    SLastRowKey rowCacheKey = {.uid = uid, .lflag = lflag};
-    code = tsdbRowCachePutToRocksdb(pTsdb, &rowCacheKey, &lastRow);
-
-    taosMemoryFree(pRow);
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, failed at %s:%d to convert column cache to row cache for table uid:%" PRId64
-              " lflag:%d since %s",
-              TD_VID(pTsdb->pVnode), __FILE__, __LINE__, uid, lflag, tstrerror(code));
   }
 
   return code;
@@ -422,34 +402,13 @@ int32_t tsdbUpgradeTableCacheCallback(SVnode *pVnode, tb_uid_t uid, tb_uid_t sui
 
   // Process both LAST_ROW and LAST cache types
   for (int8_t lflag = LFLAG_LAST_ROW; lflag <= LFLAG_LAST; lflag++) {
-    SArray *pColArray = NULL;
-    SArray *pColStatus = NULL;
-
-    // Query column cache for this table with specific flag
-    code = tsdbQueryColCacheForTable(pCtx->pTsdb, uid, pTSchema, lflag, &pColArray, &pColStatus, pCtx->pColDB,
-                                     pCtx->pColReadoptions);
+    // Query column cache for this table with specific flag and convert to row cache
+    code = tsdbQueryColCacheForTable(pCtx->pTsdb, uid, suid, pTSchema, lflag, pCtx->pColDB, pCtx->pColReadoptions);
     if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("vgId:%d, failed to query column cache for table uid:%" PRId64 " lflag:%d since %s", TD_VID(pVnode),
-                uid, lflag, tstrerror(code));
+      tsdbError("vgId:%d, failed to query and convert column cache for table uid:%" PRId64 " lflag:%d since %s",
+                TD_VID(pVnode), uid, lflag, tstrerror(code));
       continue;  // Continue with next flag
     }
-
-    // Convert column cache to row cache
-    code = tsdbConvertColCacheToRowCache(pCtx->pTsdb, uid, suid, pTSchema, lflag, pColArray, pColStatus);
-    if (code == TSDB_CODE_SUCCESS) {
-      tsdbDebug("vgId:%d, successfully converted cache for table uid:%" PRId64 " lflag:%d", TD_VID(pVnode), uid, lflag);
-    } else {
-      tsdbError("vgId:%d, failed to convert column cache for table uid:%" PRId64 " lflag:%d since %s", TD_VID(pVnode),
-                uid, lflag, tstrerror(code));
-    }
-
-    // After tRowBuild is done, we can safely clean up the temporary data
-    // Note: tRowBuild has already copied the data into the row structure
-
-    // Cleanup arrays and allocated memory
-    tsdbCleanupColValArray(pColArray);
-    taosArrayDestroy(pColArray);
-    taosArrayDestroy(pColStatus);
   }
   // Continue processing even if this table failed
   return TSDB_CODE_SUCCESS;
@@ -476,8 +435,9 @@ int32_t tsdbUpgradeCache(STsdb *pTsdb) {
   rocksdb_t             *pColDB = NULL;
   rocksdb_options_t     *pColOptions = NULL;
   rocksdb_readoptions_t *pColReadoptions = NULL;
+  rocksdb_comparator_t  *pColCmp = NULL;
 
-  code = tsdbOpenColCacheRocksDB(pTsdb, &pColDB, &pColOptions, &pColReadoptions);
+  code = tsdbOpenColCacheRocksDB(pTsdb, &pColDB, &pColOptions, &pColReadoptions, &pColCmp);
   if (code != TSDB_CODE_SUCCESS) {
     if (code == TSDB_CODE_NOT_FOUND) {
       tsdbInfo("vgId:%d, no column cache RocksDB found, nothing to upgrade", TD_VID(pVnode));
@@ -493,7 +453,7 @@ int32_t tsdbUpgradeCache(STsdb *pTsdb) {
   // Check row cache RocksDB health before upgrade
   if (pTsdb->rCache.db == NULL) {
     tsdbError("vgId:%d, row cache RocksDB is not available, cannot perform cache upgrade", TD_VID(pVnode));
-    tsdbCloseColCacheRocksDB(pColDB, pColOptions, pColReadoptions);
+    tsdbCloseColCacheRocksDB(pColDB, pColOptions, pColReadoptions, pColCmp);
     return TSDB_CODE_TDB_INIT_FAILED;
   }
 
@@ -511,10 +471,11 @@ int32_t tsdbUpgradeCache(STsdb *pTsdb) {
     code = tsdbSetCacheFormat(pVnode, TSDB_CACHE_FORMAT_ROW);
     if (code == TSDB_CODE_SUCCESS) {
       // Close column cache RocksDB before deletion
-      tsdbCloseColCacheRocksDB(pColDB, pColOptions, pColReadoptions);
+      tsdbCloseColCacheRocksDB(pColDB, pColOptions, pColReadoptions, pColCmp);
       pColDB = NULL;
       pColOptions = NULL;
       pColReadoptions = NULL;
+      pColCmp = NULL;
 
       // Delete the column cache RocksDB directory
       int32_t deleteCode = tsdbDeleteColCacheRocksDB(pTsdb);
@@ -533,7 +494,7 @@ int32_t tsdbUpgradeCache(STsdb *pTsdb) {
 
   // Cleanup resources
   if (pColDB) {
-    tsdbCloseColCacheRocksDB(pColDB, pColOptions, pColReadoptions);
+    tsdbCloseColCacheRocksDB(pColDB, pColOptions, pColReadoptions, pColCmp);
   }
 
   return code;

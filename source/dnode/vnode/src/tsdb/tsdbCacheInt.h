@@ -152,8 +152,9 @@ int32_t tsdbSetCacheFormat(SVnode* pVnode, int8_t cacheFormat);
 
 // External functions needed for column cache RocksDB operations
 int32_t tsdbOpenColCacheRocksDB(STsdb* pTsdb, rocksdb_t** ppColDB, rocksdb_options_t** ppOptions,
-                                rocksdb_readoptions_t** ppReadoptions);
-void    tsdbCloseColCacheRocksDB(rocksdb_t* colDB, rocksdb_options_t* options, rocksdb_readoptions_t* readoptions);
+                                rocksdb_readoptions_t** ppReadoptions, rocksdb_comparator_t** ppColCmp);
+void    tsdbCloseColCacheRocksDB(rocksdb_t* colDB, rocksdb_options_t* options, rocksdb_readoptions_t* readoptions,
+                                 rocksdb_comparator_t* colCmp);
 int32_t tsdbDeleteColCacheRocksDB(STsdb* pTsdb);
 
 #ifdef __cplusplus

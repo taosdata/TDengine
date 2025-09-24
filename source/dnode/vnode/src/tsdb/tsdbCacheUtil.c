@@ -141,30 +141,30 @@ static void tsdbGetRocksPath(STsdb *pTsdb, char *path, bool isRowCache) {
 
 // Open column cache RocksDB for upgrade purposes
 int32_t tsdbOpenColCacheRocksDB(STsdb *pTsdb, rocksdb_t **ppColDB, rocksdb_options_t **ppOptions,
-                                rocksdb_readoptions_t **ppReadoptions) {
+                                rocksdb_readoptions_t **ppReadoptions,rocksdb_comparator_t **ppColCmp) {
   int32_t code = 0, lino = 0;
 #ifdef USE_ROCKSDB
   // Create column cache comparator
-  rocksdb_comparator_t *colCmp = rocksdb_comparator_create(
+  *ppColCmp = rocksdb_comparator_create(
       NULL, myCmpDestroy, (int (*)(void *, const char *, size_t, const char *, size_t))tsdbColCacheCmp, myCmpName);
-  if (NULL == colCmp) {
+  if (NULL == *ppColCmp) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   rocksdb_options_t *options = rocksdb_options_create();
   if (NULL == options) {
-    rocksdb_comparator_destroy(colCmp);
+    rocksdb_comparator_destroy(*ppColCmp);
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   rocksdb_options_set_create_if_missing(options, 0);  // Don't create if missing for upgrade
-  rocksdb_options_set_comparator(options, colCmp);
+  rocksdb_options_set_comparator(options, *ppColCmp);
   rocksdb_options_set_info_log_level(options, 2);  // WARN_LEVEL
 
   rocksdb_readoptions_t *readoptions = rocksdb_readoptions_create();
   if (NULL == readoptions) {
     rocksdb_options_destroy(options);
-    rocksdb_comparator_destroy(colCmp);
+    rocksdb_comparator_destroy(*ppColCmp);
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -180,7 +180,7 @@ int32_t tsdbOpenColCacheRocksDB(STsdb *pTsdb, rocksdb_t **ppColDB, rocksdb_optio
     if (err) rocksdb_free(err);
     rocksdb_readoptions_destroy(readoptions);
     rocksdb_options_destroy(options);
-    rocksdb_comparator_destroy(colCmp);
+    rocksdb_comparator_destroy(*ppColCmp);
     TAOS_RETURN(TSDB_CODE_NOT_FOUND);  // Column cache DB doesn't exist, which is fine
   }
 
@@ -194,7 +194,7 @@ int32_t tsdbOpenColCacheRocksDB(STsdb *pTsdb, rocksdb_t **ppColDB, rocksdb_optio
 }
 
 // Close column cache RocksDB
-void tsdbCloseColCacheRocksDB(rocksdb_t *colDB, rocksdb_options_t *options, rocksdb_readoptions_t *readoptions) {
+void tsdbCloseColCacheRocksDB(rocksdb_t *colDB, rocksdb_options_t *options, rocksdb_readoptions_t *readoptions, rocksdb_comparator_t *colCmp) {
 #ifdef USE_ROCKSDB
   if (colDB) {
     rocksdb_close(colDB);
@@ -204,6 +204,9 @@ void tsdbCloseColCacheRocksDB(rocksdb_t *colDB, rocksdb_options_t *options, rock
   }
   if (options) {
     rocksdb_options_destroy(options);
+  }
+  if (colCmp) {
+    rocksdb_comparator_destroy(colCmp);
   }
 #endif
 }
