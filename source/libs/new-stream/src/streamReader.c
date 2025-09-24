@@ -181,7 +181,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       options->suid = pList->groupId;
     } else {
       if (options->uid != 0) {
-        pListTmp.groupId = qStreamGetGroupId(pTask->pTableList, options->uid);
+        pListTmp.groupId = options->sStreamReaderInfo->isVtableStream ? options->uid : qStreamGetGroupId(pTask->pTableList, options->uid);
         STREAM_CHECK_CONDITION_GOTO(pListTmp.groupId == -1, TSDB_CODE_INVALID_PARA);
         pListTmp.uid = options->uid;
         pNum = 1;
