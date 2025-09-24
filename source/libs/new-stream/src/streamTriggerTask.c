@@ -2595,7 +2595,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   }
   if (!needTrigData) {
     pContext->walMode = STRIGGER_WAL_META_ONLY;
-  } else if (pTask->watermark == 0) {
+  } else if (pTask->watermark == 0 || pTask->isVirtualTable) {
     pContext->walMode = STRIGGER_WAL_META_WITH_DATA;
   } else {
     pContext->walMode = STRIGGER_WAL_META_THEN_DATA;
@@ -4050,7 +4050,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     do {
       stDebug("[checkpoint] generate checkpoint for stream %" PRIx64, pTask->task.streamId);
       code = stTriggerTaskGenCheckpoint(pTask, buf, &len);
-      if (code != 0) break;
+      if (code != 0 || len == 0) break;
       buf = taosMemoryMalloc(len);
       code = stTriggerTaskGenCheckpoint(pTask, buf, &len);
       if (code != 0) break;
