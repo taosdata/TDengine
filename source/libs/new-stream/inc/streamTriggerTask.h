@@ -41,6 +41,7 @@ typedef struct SSTriggerVirtTableInfo {
 } SSTriggerVirtTableInfo;
 
 typedef struct SSTriggerOrigTableInfo {
+  int64_t    tbSuid;
   int64_t    tbUid;
   int32_t    vgId;
   SSHashObj *pTrigColMap;  // SSHashObj<colId, slotId>
