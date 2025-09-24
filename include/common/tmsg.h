@@ -2134,8 +2134,8 @@ int32_t tSerializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pR
 int32_t tDeserializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
 void    tFreeSRetentionDbReq(SRetentionDbReq* pReq);
 
-typedef SCompactDbRsp   STrimDbRsp;    // reuse structs
-typedef SKillCompactReq SKillTrimReq;  // reuse structs
+typedef SCompactDbRsp   STrimDbRsp;         // reuse structs
+typedef SKillCompactReq SKillRetentionReq;  // reuse structs
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];

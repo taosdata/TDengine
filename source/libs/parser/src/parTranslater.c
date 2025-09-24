@@ -13347,11 +13347,10 @@ static int32_t translateKillCompact(STranslateContext* pCxt, SKillStmt* pStmt) {
 }
 
 static int32_t translateKillRetention(STranslateContext* pCxt, SKillStmt* pStmt) {
-  SKillTrimReq killReq = {0};
+  SKillRetentionReq killReq = {0};  // same as SKillCompactReq
   killReq.id = pStmt->targetId;
   return buildCmdMsg(pCxt, TDMT_MND_KILL_TRIM, (FSerializeFunc)tSerializeSKillCompactReq, &killReq);
 }
-
 static int32_t translateKillScan(STranslateContext* pCxt, SKillStmt* pStmt) {
   SKillScanReq killReq = {0};
   killReq.scanId = pStmt->targetId;

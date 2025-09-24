@@ -116,6 +116,8 @@ int32_t tsdbDoSsMigrate(SRTNer *rtner);
 void    tsdbRetentionCancel(void *arg);
 int32_t tsdbRetention(void *arg);
 
+FORCE_INLINE bool tsdbRetentionTaskKilled(STsdb *tsdb) { return atomic_load_8(&tsdb->pRetentionMonitor->killed) != 0; }
+
 #ifdef __cplusplus
 }
 #endif

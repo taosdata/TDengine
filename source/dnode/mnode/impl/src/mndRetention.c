@@ -29,7 +29,7 @@
 
 #define MND_RETENTION_VER_NUMBER 1
 
-static int32_t mndProcessQueryTrimTimer(SRpcMsg *pReq);
+static int32_t mndProcessQueryRetentionTimer(SRpcMsg *pReq);
 static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
 
@@ -44,9 +44,9 @@ static void    mndCancelRetrieveRetention(SMnode *pMnode, void *pIter);
 int32_t mndInitRetention(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndRetrieveRetention);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RETENTION, mndCancelRetrieveRetention);
-  mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRIM, mndProcessKillTrimReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_TRIM_PROGRESS_RSP, mndProcessQueryTrimRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_QUERY_TRIM_TIMER, mndProcessQueryTrimTimer);
+  mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRIM, mndProcessKillRetentionReq);  // trim is equivalent to retention
+  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_TRIM_PROGRESS_RSP, mndProcessQueryRetentionRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_QUERY_TRIM_TIMER, mndProcessQueryRetentionTimer);
   mndSetMsgHandle(pMnode, TDMT_VND_KILL_TRIM_RSP, mndTransProcessRsp);
 
   SSdbTable table = {
@@ -496,21 +496,21 @@ static int32_t mndKillRetention(SMnode *pMnode, SRpcMsg *pReq, SRetentionObj *pO
   return 0;
 }
 
-int32_t mndProcessKillTrimReq(SRpcMsg *pReq) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  SKillTrimReq req = {0};
+int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
+  int32_t           code = 0;
+  int32_t           lino = 0;
+  SKillRetentionReq req = {0};  // reuse SKillCompactReq
 
   if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &req)) != 0) {
     TAOS_RETURN(code);
   }
 
-  mInfo("start to kill trim:%" PRId32, req.id);
+  mInfo("start to kill retention:%" PRId32, req.id);
 
   SMnode        *pMnode = pReq->info.node;
-  SRetentionObj *pObj = mndAcquireCompact(pMnode, req.id);
+  SRetentionObj *pObj = mndAcquireRetention(pMnode, req.id);
   if (pObj == NULL) {
-    code = TSDB_CODE_MND_INVALID_COMPACT_ID;
+    code = TSDB_CODE_MND_INVALID_TRIM_ID;
     tFreeSKillCompactReq(&req);
     TAOS_RETURN(code);
   }
@@ -524,13 +524,13 @@ int32_t mndProcessKillTrimReq(SRpcMsg *pReq) {
   char    obj[TSDB_INT32_ID_LEN] = {0};
   int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pObj->id);
   if ((uint32_t)nBytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "killTrim", pObj->dbname, obj, req.sql, req.sqlLen);
+    auditRecord(pReq, pMnode->clusterId, "killRetention", pObj->dbname, obj, req.sql, req.sqlLen);
   } else {
-    mError("trim:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    mError("retention:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to kill trim %" PRId32 " since %s", req.id, terrstr());
+    mError("failed to kill retention %" PRId32 " since %s", req.id, terrstr());
   }
 
   tFreeSKillCompactReq((SKillCompactReq *)&req);
@@ -567,7 +567,7 @@ static int32_t mndUpdateRetentionProgress(SMnode *pMnode, SRpcMsg *pReq, int32_t
   return TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST;
 }
 
-int32_t mndProcessQueryTrimRsp(SRpcMsg *pReq) {
+int32_t mndProcessQueryRetentionRsp(SRpcMsg *pReq) {
   int32_t                    code = 0;
   SQueryRetentionProgressRsp req = {0};
   if (pReq->code != 0) {
@@ -897,7 +897,7 @@ static void mndRetentionPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
-static int32_t mndProcessQueryTrimTimer(SRpcMsg *pReq) {
+static int32_t mndProcessQueryRetentionTimer(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
   mTrace("start to process query trim timer");
   mndRetentionPullup(pReq->info.node);

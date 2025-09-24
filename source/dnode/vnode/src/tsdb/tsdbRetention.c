@@ -25,7 +25,6 @@ extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType 
 // tsdbRetentionMonitor.c
 extern int32_t tsdbAddRetentionMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t fileSize);
 extern void    tsdbRemoveRetentionMonitorTask(STsdb *tsdb, SVATaskID *taskId);
-extern int32_t tsdbRetentionMonitorGetKilled(STsdb *tsdb);
 
 static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
   STFileOp op = {

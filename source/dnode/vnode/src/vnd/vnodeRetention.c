@@ -16,12 +16,12 @@
 #include "vnd.h"
 
 extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
-extern int32_t tsdbListSsMigrateFileSets(STsdb* tsdb, SArray* fidArr);
+extern int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray *fidArr);
 extern int32_t tsdbAsyncSsMigrateFileSet(STsdb *tsdb, SSsMigrateFileSetReq *pReq);
 extern int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, SSsMigrateProgress *pProgress);
-extern int32_t tsdbUpdateSsMigrateProgress(STsdb* tsdb, SSsMigrateProgress* pProgress);
-extern void tsdbStopSsMigrateTask(STsdb* tsdb, int32_t ssMigrateId);
-
+extern int32_t tsdbUpdateSsMigrateProgress(STsdb *tsdb, SSsMigrateProgress *pProgress);
+extern void    tsdbStopSsMigrateTask(STsdb *tsdb, int32_t ssMigrateId);
+extern int32_t tsdbRetentionMonitorGetInfo(STsdb *tsdb, SQueryRetentionProgressRsp *rsp);
 
 int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now, SRpcMsg *pRsp) {
   // async retention
@@ -175,6 +175,50 @@ extern int32_t vnodeKillSsMigrate(SVnode *pVnode, SVnodeKillSsMigrateReq *pReq) 
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
+}
+
+int32_t vnodeQueryRetentionProgress(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t                    code = 0;
+  SQueryRetentionProgressReq req = {0};
+  int32_t                    rspSize = 0;
+  SRpcMsg                    rspMsg = {0};
+  void                      *pRsp = NULL;
+  SQueryRetentionProgressRsp rsp = {0}; // same as SQueryCompactProgressRsp
+
+  code = tDeserializeSQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  if (code) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  rsp.dnodeId = req.dnodeId;
+  TAOS_UNUSED(tsdbRetentionMonitorGetInfo(pVnode->pTsdb, &rsp));
+  vInfo("update retention progress, id:%d vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", rsp.id, rsp.vgId,
+        rsp.dnodeId, rsp.numberFileset, rsp.finished);
+  rsp.id = req.id;
+
+  rspSize = tSerializeSQueryCompactProgressRsp(NULL, 0, &rsp);
+  if (rspSize < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (!(pRsp = rpcMallocCont(rspSize))) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  if ((code = tSerializeSQueryCompactProgressRsp(pRsp, rspSize, &rsp)) < 0) {
+    goto _exit;
+  }
+  code = 0; // set to 0 since tSerializeSQueryCompactProgressRsp may return the rspSize
+_exit:
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = TDMT_VND_QUERY_TRIM_PROGRESS_RSP;
+  tmsgSendRsp(&rspMsg);
+
+  return 0;
 }
 
 extern void tsdbStopAllRetentionTask(STsdb *tsdb);
