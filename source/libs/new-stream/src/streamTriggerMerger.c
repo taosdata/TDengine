@@ -1488,10 +1488,14 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   int64_t *pVerData = (int64_t *)pVerCol->pData;
 
   int32_t            i = pSlice->startIdx;
+  int64_t            lastTs = INT64_MIN;
   SSTriggerMetaData *pMeta = NULL;
   SObjListIter       iter;
   taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
   while ((i < pSlice->endIdx) && (pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
+    while (pTask->ignoreDisorder && i < pSlice->endIdx && pTsData[i] < lastTs) {
+      i++;
+    }
     while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
       i++;
     }
@@ -1509,6 +1513,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     }
     slice.endIdx = i;
     if (slice.startIdx < slice.endIdx) {
+      lastTs = pTsData[slice.endIdx - 1];
       SNewTimestampSorterSlice *pLastSlice = NULL;
       if (TARRAY_SIZE(pSorter->pSliceBuf) > 0) {
         pLastSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, TARRAY_SIZE(pSorter->pSliceBuf) - 1);
@@ -1543,6 +1548,17 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     TD_DLIST_APPEND(pList, pSlice);
   }
 
+  if (stDebugFlag & DEBUG_DEBUG) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pSorter->pSliceLists); i++) {
+      SNewTimestampSorterSliceList *pList = TARRAY_GET_ELEM(pSorter->pSliceLists, i);
+      SNewTimestampSorterSlice     *pSlice = TD_DLIST_HEAD(pList);
+      while (pSlice != NULL) {
+        ST_TASK_DLOG("Slice List %d: add [%d, %d)", i, pSlice->startIdx, pSlice->endIdx);
+        pSlice = TD_DLIST_NODE_NEXT(pSlice);
+      }
+    }
+  }
+
   if (TARRAY_SIZE(pSorter->pSliceLists) == 0) {
     goto _end;
   }
@@ -1573,6 +1589,7 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
+  bool                needRebuild = false;
 
   QUERY_CHECK_CONDITION(pSorter->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -1616,6 +1633,8 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
     }
     if (pTsData[pTempSlice->startIdx] == startTs) {
       // skip the current row
+      ST_TASK_DLOG("Slice List %d: pop [%d, %d)", i, pTempSlice->startIdx, pTempSlice->startIdx + 1);
+      needRebuild = true;
       pTempSlice->startIdx++;
       if (pTempSlice->startIdx == pTempSlice->endIdx) {
         TD_DLIST_POP(pTempList, pTempSlice);
@@ -1641,7 +1660,12 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
     pSlice->startIdx = *pEndIdx;
   }
 
-  if (pSlice == NULL || pTsData[pSlice->startIdx] >= endTs) {
+  ST_TASK_DLOG("Slice List %d: pop [%d, %d)", idx, *pStartIdx, *pEndIdx);
+
+  if (needRebuild) {
+    code = tMergeTreeRebuild(pSorter->pDataMerger);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (pSlice == NULL || pTsData[pSlice->startIdx] >= endTs) {
     code = tMergeTreeAdjust(pSorter->pDataMerger, tMergeTreeGetAdjustIndex(pSorter->pDataMerger));
     QUERY_CHECK_CODE(code, lino, _end);
   }
