@@ -234,6 +234,7 @@ static void releaseStreamReaderInfo(void* p) {
   taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
 
+  (void)taosThreadMutexDestroy(&pInfo->mutex);
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
   
@@ -351,6 +352,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   SStreamTriggerReaderInfo* sStreamReaderInfo = taosMemoryCalloc(1, sizeof(SStreamTriggerReaderInfo));
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
+  (void)taosThreadMutexInit(&sStreamReaderInfo->mutex, 0);
   sStreamReaderInfo->pTask = pTask;
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
   if (pMsg->msg.trigger.triggerTblType == TD_SUPER_TABLE) {
