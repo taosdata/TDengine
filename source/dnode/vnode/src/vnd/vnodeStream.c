@@ -64,9 +64,9 @@ int32_t sortCid(const void *lp, const void *rp) {
   int16_t* c1 = (int16_t*)lp;
   int16_t* c2 = (int16_t*)rp;
 
-  if (c1 < c2) {
+  if (*c1 < *c2) {
     return -1;
-  } else if (c1 > c2) {
+  } else if (*c1 > *c2) {
     return 1;
   }
 
