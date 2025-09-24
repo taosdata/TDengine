@@ -188,7 +188,12 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
 } SCompactDatabaseStmt;
 
-typedef SCompactDatabaseStmt SRollupDatabaseStmt;
+typedef struct SRollupDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SRollupDatabaseStmt;
 
 typedef struct SScanDatabaseStmt {
   ENodeType type;

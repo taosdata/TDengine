@@ -291,6 +291,10 @@ int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (cJSON_AddNumberToObject(json, "rlevel", fset->lastRollupLevel) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   return 0;
 }
 
@@ -369,6 +373,13 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
     (*fset)->lastRollup = item1->valuedouble;
   } else {
     (*fset)->lastRollup = 0;
+  }
+
+  item1 = cJSON_GetObjectItem(json, "rlevel");
+  if (cJSON_IsNumber(item1)) {
+    (*fset)->lastRollupLevel = item1->valuedouble;
+  } else {
+    (*fset)->lastRollupLevel = 0;
   }
 
   return 0;
@@ -517,6 +528,7 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
   fset2->lastCommit = fset1->lastCommit;
   fset2->lastMigrate = fset1->lastMigrate;
   fset2->lastRollup = fset1->lastRollup;
+  fset2->lastRollupLevel = fset1->lastRollupLevel;
 
   return 0;
 }
@@ -580,6 +592,7 @@ int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **f
   (*fset)->lastCommit = fset1->lastCommit;
   (*fset)->lastMigrate = fset1->lastMigrate;
   (*fset)->lastRollup = fset1->lastRollup;
+  (*fset)->lastRollupLevel = fset1->lastRollupLevel;
 
   return 0;
 }
@@ -680,6 +693,7 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
   (*fset)->lastCommit = fset1->lastCommit;
   (*fset)->lastMigrate = fset1->lastMigrate;
   (*fset)->lastRollup = fset1->lastRollup;
+  (*fset)->lastRollupLevel = fset1->lastRollupLevel;
 
   return 0;
 }

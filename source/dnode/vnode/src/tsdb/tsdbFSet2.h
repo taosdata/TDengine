@@ -108,6 +108,9 @@ struct STFileSet {
   int32_t      numWaitCommit;
   bool         blockCommit;
 
+  // rollup
+  int8_t lastRollupLevel;  // 1 or 2
+
   // conditions
   struct STFileSetCond conds[2];
 };

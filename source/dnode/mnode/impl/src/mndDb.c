@@ -2202,7 +2202,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
-  SRetentionObj obj = {0};  // reuse SCompactObj struct
+  SRetentionObj obj = {.optrType = type, .triggerType = triggerType};  // reuse SCompactObj struct
   TAOS_CHECK_EXIT(mndAddRetentionToTrans(pMnode, pTrans, &obj, pDb, pRsp));
 
   int32_t j = 0;
@@ -2272,6 +2272,27 @@ _exit:
   TAOS_RETURN(code);
 }
 
+static int32_t mndBuildTrimDbRsp(STrimDbRsp *rsp, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc) {
+  int32_t code = 0;
+  int32_t rspLen = tSerializeSCompactDbRsp(NULL, 0, (SCompactDbRsp *)rsp);
+  void   *pRsp = NULL;
+  if (useRpcMalloc) {
+    pRsp = rpcMallocCont(rspLen);
+  } else {
+    pRsp = taosMemoryMalloc(rspLen);
+  }
+
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_RETURN(code);
+  }
+
+  (void)tSerializeSCompactDbRsp(pRsp, rspLen, (SCompactDbRsp *)pRsp);
+  *pRspLen = rspLen;
+  *ppRsp = pRsp;
+  TAOS_RETURN(code);
+}
+
 static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
                          ETsdbOpType type, ETriggerType triggerType) {
   SSdb      *pSdb = pMnode->pSdb;
@@ -2303,6 +2324,13 @@ static int32_t mndTrimDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow
   mndTransSetDbName(pTrans, pDb->name, NULL);
   TAOS_CHECK_EXIT(mndTrancCheckConflict(pMnode, pTrans));
   TAOS_CHECK_EXIT(mndSetTrimDbRedoActions(pMnode, pTrans, pDb, startTs, tw, vgroupIds, type, triggerType, &rsp));
+  if (pReq) {
+    int32_t rspLen = 0;
+    void   *pRsp = NULL;
+    rsp.bAccepted = true;
+    TAOS_CHECK_EXIT(mndBuildTrimDbRsp(&rsp, &rspLen, &pRsp, false));
+    mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+  }
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2314,30 +2342,30 @@ _exit:
 
 static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
-  int32_t    code = -1;
+  int32_t    code = 0, lino = 0;
   SDbObj    *pDb = NULL;
   STrimDbReq trimReq = {0};
 
-  TAOS_CHECK_GOTO(tDeserializeSTrimDbReq(pReq->pCont, pReq->contLen, &trimReq), NULL, _OVER);
+  TAOS_CHECK_EXIT(tDeserializeSTrimDbReq(pReq->pCont, pReq->contLen, &trimReq));
 
-  mInfo("db:%s, start to trim, optr:%u, tw:%" PRId64 "-%" PRId64, trimReq.db, trimReq.optrType, trimReq.tw.skey,
+  mInfo("db:%s, start to trim, optr:%u, tw:%" PRId64 ",%" PRId64, trimReq.db, trimReq.optrType, trimReq.tw.skey,
         trimReq.tw.ekey);
 
   pDb = mndAcquireDb(pMnode, trimReq.db);
   if (pDb == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    goto _OVER;
+    TAOS_CHECK_EXIT(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb));
 
   if (pDb->cfg.isMount) {
-    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
-    goto _OVER;
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT);
   }
 
-  code = mndTrimDb(pMnode, pReq, pDb, trimReq.tw, trimReq.vgroupIds, trimReq.optrType, trimReq.triggerType);
+  TAOS_CHECK_EXIT(mndTrimDb(pMnode, pReq, pDb, trimReq.tw, trimReq.vgroupIds, trimReq.optrType, trimReq.triggerType));
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
   (void)tNameFromString(&name, trimReq.db, T_NAME_ACCT | T_NAME_DB);
@@ -2347,9 +2375,9 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
 
   auditRecord(pReq, pMnode->clusterId, "trimDB", name.dbname, optrType, trimReq.sql, trimReq.sqlLen);
 
-_OVER:
-  if (code != 0) {
-    mError("db:%s, failed to process trim db req since %s", trimReq.db, tstrerror(code));
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed at line %d to process trim db req since %s", trimReq.db, lino, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);

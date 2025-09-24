@@ -2113,26 +2113,26 @@ int32_t tSerializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pR
 int32_t tDeserializeSKillCompactReq(void* buf, int32_t bufLen, SKillCompactReq* pReq);
 void    tFreeSKillCompactReq(SKillCompactReq* pReq);
 
-typedef struct {
-  char        db[TSDB_DB_FNAME_LEN];
-  STimeWindow timeRange;
-  int32_t     sqlLen;
-  char*       sql;
-  SArray*     vgroupIds;
-  int32_t     id;
-  union {
-    uint16_t flags;
-    struct {
-      uint16_t optrType : 3;     // ETsdbOpType
-      uint16_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
-      uint16_t reserved : 12;
-    };
-  };
-} SRetentionDbReq;
+// typedef struct {
+//   char        db[TSDB_DB_FNAME_LEN];
+//   STimeWindow timeRange;
+//   int32_t     sqlLen;
+//   char*       sql;
+//   SArray*     vgroupIds;
+//   int32_t     id;
+//   union {
+//     uint16_t flags;
+//     struct {
+//       uint16_t optrType : 3;     // ETsdbOpType
+//       uint16_t triggerType : 1;  // ETriggerType 0 manual, 1 auto
+//       uint16_t reserved : 12;
+//     };
+//   };
+// } SRetentionDbReq;
 
-int32_t tSerializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
-int32_t tDeserializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
-void    tFreeSRetentionDbReq(SRetentionDbReq* pReq);
+// int32_t tSerializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
+// int32_t tDeserializeSRetentionDbReq(void* buf, int32_t bufLen, SRetentionDbReq* pReq);
+// void    tFreeSRetentionDbReq(SRetentionDbReq* pReq);
 
 typedef SCompactDbRsp   STrimDbRsp;         // reuse structs
 typedef SKillCompactReq SKillRetentionReq;  // reuse structs

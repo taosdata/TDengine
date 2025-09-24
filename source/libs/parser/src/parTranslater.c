@@ -10572,6 +10572,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
       break;
     }
+    case TDMT_MND_TRIM_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, STrimDbReq, pReq);
+      break;
+    }
     case TDMT_MND_SCAN_DB: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SScanDbReq, pReq);
       break;
@@ -13194,16 +13198,16 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
 
 static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SRetentionDbReq req = {.optrType = TSDB_OPTR_ROLLUP, .triggerType = TSDB_TRIGGER_MANUAL};
+  STrimDbReq req = {.optrType = TSDB_OPTR_ROLLUP, .triggerType = TSDB_TRIGGER_MANUAL};
   SName   name;
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, req.db);
-  code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &req.timeRange);
+  code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &req.tw);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSRetentionDbReq, &req);
+    code = buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
   }
-  tFreeSRetentionDbReq(&req);
+  tFreeSTrimDbReq(&req);
   return code;
 }
 

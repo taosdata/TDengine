@@ -1693,9 +1693,14 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:  // no pointer field
       break;
-    case QUERY_NODE_ROLLUP_DATABASE_STMT:
     case QUERY_NODE_COMPACT_DATABASE_STMT: {
       SCompactDatabaseStmt* pStmt = (SCompactDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_ROLLUP_DATABASE_STMT: {
+      SRollupDatabaseStmt* pStmt = (SRollupDatabaseStmt*)pNode;
       nodesDestroyNode(pStmt->pStart);
       nodesDestroyNode(pStmt->pEnd);
       break;
