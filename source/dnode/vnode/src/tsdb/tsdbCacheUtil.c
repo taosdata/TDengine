@@ -127,12 +127,103 @@ static void tsdbCloseRocksCache(STsdb *pTsdb) {
 #endif
 }
 
-static void tsdbGetRocksPath(STsdb *pTsdb, char *path) {
+static void tsdbGetRocksPath(STsdb *pTsdb, char *path, bool isRowCache) {
   SVnode *pVnode = pTsdb->pVnode;
   vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
 
   int32_t offset = strlen(path);
-  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%scache.rdb", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
+  if (isRowCache) {
+    snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%srow_cache.rdb", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
+  } else {
+    snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%scache.rdb", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
+  }
+}
+
+// Open column cache RocksDB for upgrade purposes
+int32_t tsdbOpenColCacheRocksDB(STsdb *pTsdb, rocksdb_t **ppColDB, rocksdb_options_t **ppOptions,
+                                rocksdb_readoptions_t **ppReadoptions) {
+  int32_t code = 0, lino = 0;
+#ifdef USE_ROCKSDB
+  // Create column cache comparator
+  rocksdb_comparator_t *colCmp = rocksdb_comparator_create(
+      NULL, myCmpDestroy, (int (*)(void *, const char *, size_t, const char *, size_t))tsdbColCacheCmp, myCmpName);
+  if (NULL == colCmp) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  rocksdb_options_t *options = rocksdb_options_create();
+  if (NULL == options) {
+    rocksdb_comparator_destroy(colCmp);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  rocksdb_options_set_create_if_missing(options, 0);  // Don't create if missing for upgrade
+  rocksdb_options_set_comparator(options, colCmp);
+  rocksdb_options_set_info_log_level(options, 2);  // WARN_LEVEL
+
+  rocksdb_readoptions_t *readoptions = rocksdb_readoptions_create();
+  if (NULL == readoptions) {
+    rocksdb_options_destroy(options);
+    rocksdb_comparator_destroy(colCmp);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  char *err = NULL;
+  char  cachePath[TSDB_FILENAME_LEN] = {0};
+
+  // Open column cache database
+  tsdbGetRocksPath(pTsdb, cachePath, false);  // false for column cache
+
+  rocksdb_t *colDB = rocksdb_open(options, cachePath, &err);
+  if (NULL == colDB) {
+    tsdbWarn("vgId:%d, failed to open column cache RocksDB: %s", TD_VID(pTsdb->pVnode), err ? err : "unknown");
+    if (err) rocksdb_free(err);
+    rocksdb_readoptions_destroy(readoptions);
+    rocksdb_options_destroy(options);
+    rocksdb_comparator_destroy(colCmp);
+    TAOS_RETURN(TSDB_CODE_NOT_FOUND);  // Column cache DB doesn't exist, which is fine
+  }
+
+  *ppColDB = colDB;
+  *ppOptions = options;
+  *ppReadoptions = readoptions;
+
+  tsdbInfo("vgId:%d, successfully opened column cache RocksDB for upgrade", TD_VID(pTsdb->pVnode));
+#endif
+  TAOS_RETURN(code);
+}
+
+// Close column cache RocksDB
+void tsdbCloseColCacheRocksDB(rocksdb_t *colDB, rocksdb_options_t *options, rocksdb_readoptions_t *readoptions) {
+#ifdef USE_ROCKSDB
+  if (colDB) {
+    rocksdb_close(colDB);
+  }
+  if (readoptions) {
+    rocksdb_readoptions_destroy(readoptions);
+  }
+  if (options) {
+    rocksdb_options_destroy(options);
+  }
+#endif
+}
+
+// Delete column cache RocksDB directory
+int32_t tsdbDeleteColCacheRocksDB(STsdb *pTsdb) {
+  char cachePath[TSDB_FILENAME_LEN] = {0};
+  tsdbGetRocksPath(pTsdb, cachePath, false);  // false for column cache
+
+  // Remove the directory
+  taosRemoveDir(cachePath);
+
+  // Check if directory still exists
+  if (taosCheckExistFile(cachePath)) {
+    tsdbWarn("vgId:%d, failed to delete column cache RocksDB: %s", TD_VID(pTsdb->pVnode), cachePath);
+    return TSDB_CODE_FAILED;
+  } else {
+    tsdbInfo("vgId:%d, successfully deleted column cache RocksDB: %s", TD_VID(pTsdb->pVnode), cachePath);
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
@@ -171,7 +262,9 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
 
   char *err = NULL;
   char  cachePath[TSDB_FILENAME_LEN] = {0};
-  tsdbGetRocksPath(pTsdb, cachePath);
+
+  // Always open row cache database for current operations
+  tsdbGetRocksPath(pTsdb, cachePath, true);  // true for row cache
 
   rocksdb_t *db = rocksdb_open(options, cachePath, &err);
   if (NULL == db) {
@@ -253,10 +346,10 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
   if (tsdbNeedCacheUpgrade(pVnode)) {
     vInfo("vgId:%d, start to upgrade cache from column format to row format", TD_VID(pVnode));
 
-    if (tsdbUpgradeCache(pVnode) < 0) {
-      vError("vgId:%d, failed to upgrade cache since %s", TD_VID(pVnode), tstrerror(terrno));
-      // Note: Continue with startup even if cache upgrade fails
-      // The system can still function with the old cache format
+    code = tsdbUpgradeCache(pTsdb);
+    if (code != TSDB_CODE_SUCCESS) {
+      vError("vgId:%d, failed to upgrade cache since %s", TD_VID(pVnode), tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _err);
     } else {
       vInfo("vgId:%d, cache upgrade completed successfully", TD_VID(pVnode));
     }

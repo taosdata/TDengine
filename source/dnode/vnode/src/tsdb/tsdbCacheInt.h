@@ -147,8 +147,14 @@ int32_t tsdbCacheDeserialize(char const* value, size_t size, SLastCol** ppLastCo
 
 // tsdb cache upgrade
 bool    tsdbNeedCacheUpgrade(SVnode* pVnode);
-int32_t tsdbUpgradeCache(SVnode* pVnode);
+int32_t tsdbUpgradeCache(STsdb* pTsdb);
 int32_t tsdbSetCacheFormat(SVnode* pVnode, int8_t cacheFormat);
+
+// External functions needed for column cache RocksDB operations
+int32_t tsdbOpenColCacheRocksDB(STsdb* pTsdb, rocksdb_t** ppColDB, rocksdb_options_t** ppOptions,
+                                rocksdb_readoptions_t** ppReadoptions);
+void    tsdbCloseColCacheRocksDB(rocksdb_t* colDB, rocksdb_options_t* options, rocksdb_readoptions_t* readoptions);
+int32_t tsdbDeleteColCacheRocksDB(STsdb* pTsdb);
 
 #ifdef __cplusplus
 }
