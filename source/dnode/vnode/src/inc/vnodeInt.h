@@ -102,7 +102,7 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_RSMA1_DIR      "rsma1"
 #define VNODE_RSMA2_DIR      "rsma2"
 #define VNODE_TQ_STREAM      "stream"
-#define VNODE_CACHE_DIR      "cache.rdb"
+#define VNODE_CACHE_DIR      "row_cache.rdb"
 #define VNODE_TSDB_CACHE_DIR VNODE_TSDB_DIR TD_DIRSEP VNODE_CACHE_DIR
 #define VNODE_BSE_DIR   "bse"
 
