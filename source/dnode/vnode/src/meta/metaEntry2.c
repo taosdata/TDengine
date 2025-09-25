@@ -98,12 +98,18 @@ int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
   if (code) {
     metaError("vgId:%d, failed to decode entry by uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid,
               tstrerror(code));
+    if (TABLE_IS_ROLLUP(entry.flags)) {
+      metaFreeRsmaParam(&entry.stbEntry.rsmaParam, 0);
+    }
     tDecoderClear(&decoder);
     tdbFreeClear(value);
     return code;
   }
 
   code = metaCloneEntry(&entry, ppEntry);
+  if (TABLE_IS_ROLLUP(entry.flags)) {
+    metaFreeRsmaParam(&entry.stbEntry.rsmaParam, 0);
+  }
   if (code) {
     metaError("vgId:%d, failed to clone entry by uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid,
               tstrerror(code));

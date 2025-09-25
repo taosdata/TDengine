@@ -16790,6 +16790,20 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     }
     ++idx;
   }
+  if (pReq->interval[1] > 0) {
+    if (pReq->interval[1] <= pReq->interval[0]) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                     "Second interval value for rsma should be greater than first interval: %" PRId64
+                                     ",%" PRId64,
+                                     pReq->interval[0], pReq->interval[1]);
+    }
+    if (pReq->interval[1] % pReq->interval[0]) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                     "Second interval value for rsma should be a multiple of first interval: %" PRId64
+                                     ",%" PRId64,
+                                     pReq->interval[0], pReq->interval[1]);
+    }
+  }
 
   int32_t  numOfCols = 0, numOfTags = 0;
   SSchema *pCols = NULL, *pTags = NULL;
