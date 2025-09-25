@@ -51,6 +51,7 @@ typedef struct SPlanContext {
   bool        streamVtableCalc;
   SNode*      streamTriggerScanSubplan;
   SArray*     pStreamCalcVgArray;
+  ENodeType  streamTriggerWinType;
   SNodeList*  streamTriggerScanList;
 } SPlanContext;
 
