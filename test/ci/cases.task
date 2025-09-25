@@ -316,13 +316,13 @@
 
 ## 02-Aggregate
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_all.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_avg.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_count.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_elapsed.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_leastsquares.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_percentile.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_stddev.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_sum.py
 ## 03-Selection
@@ -858,7 +858,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_expr.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_project_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname_vgroup.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_count_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_compact_col.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tms_memleak.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py
@@ -913,10 +912,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py
