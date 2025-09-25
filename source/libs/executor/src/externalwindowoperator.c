@@ -543,7 +543,7 @@ void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       // close last time window
       if (pMlExtInfo->curTs != INT64_MIN && EEXT_MODE_AGG == pExtW->mode) {
-        mergeAlignExtWinFinalizeResult(pOperator, &pExtW->binfo.resultRowInfo, pRes);
+        TAOS_CHECK_EXIT(mergeAlignExtWinFinalizeResult(pOperator, &pExtW->binfo.resultRowInfo, pRes));
       }
       setOperatorCompleted(pOperator);
       break;
