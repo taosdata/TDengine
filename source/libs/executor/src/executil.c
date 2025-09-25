@@ -3320,18 +3320,19 @@ char* getStreamOpName(uint16_t opType) {
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
-  if (!pBlock) {
-    qDebug("%" PRIx64 " %s===stream===%s: Block is Null", qId, taskIdStr, flag);
-    return;
-  } else if (pBlock->info.rows == 0) {
-    qDebug("%" PRIx64 " %s===stream===%s: Block is Empty. block type %d", qId, taskIdStr, flag, pBlock->info.type);
-    return;
-  }
-  if (qDebugFlag & DEBUG_DEBUG) {
+  if (qDebugFlag & DEBUG_TRACE) {
+    if (!pBlock) {
+      qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
+      return;
+    } else if (pBlock->info.rows == 0) {
+      qDebug("%" PRIx64 " %s %s %s: Block is Empty. block type %d", qId, taskIdStr, flag, __func__, pBlock->info.type);
+      return;
+    }
+    
     char*   pBuf = NULL;
     int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr, qId);
     if (code == 0) {
-      qDebugL("%" PRIx64 " %s", qId, pBuf);
+      qDebugL("%" PRIx64 " %s %s", qId, __func__, pBuf);
       taosMemoryFree(pBuf);
     }
   }
