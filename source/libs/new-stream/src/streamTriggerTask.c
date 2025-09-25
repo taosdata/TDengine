@@ -3731,6 +3731,7 @@ static int32_t stRealtimeContextRetryDropRequest(SSTriggerRealtimeContext *pCont
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -4052,6 +4053,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         QUERY_CHECK_CODE(code, lino, _end);
         if (needColVal) {
           allSent = false;
+        } else {
+          code = stTriggerTaskReleaseDropTableRequest(pTask, &pDropReq);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         taosArrayRemove(pContext->groupsToDelete, i);
       }
@@ -4852,6 +4856,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
               code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
               QUERY_CHECK_CODE(code, lino, _end);
               code = stRealtimeContextRetryDropRequest(pContext, pNode, pDropReq);
+              QUERY_CHECK_CODE(code, lino, _end);
+              code = stTriggerTaskReleaseDropTableRequest(pTask, &pDropReq);
               QUERY_CHECK_CODE(code, lino, _end);
               break;
             }
