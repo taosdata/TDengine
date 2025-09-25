@@ -203,7 +203,7 @@ function collect_coverage_data() {
         bash -c "$cmd" 2>/dev/null
     else
         # 本地主机 - 直接复制
-        cmd="cd ${remote_debug_dir} && find . -name '*.gcda' -type f -exec cp --parents {} ${coverage_dir}/ \\; 2>/dev/null || echo 'No gcda files found'"
+        cmd="cd ${remote_debug_dir} && find . -name '*.gcda' -type f -exec cp --parents {} ${coverage_dir}/ \\; 2>/dev/null "
         echo "本地复制覆盖率文件: $cmd"
         bash -c "$cmd"
     fi
