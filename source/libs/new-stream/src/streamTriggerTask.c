@@ -1792,6 +1792,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pTask->triggerType = STREAM_TRIGGER_STATE;
       const SStateWinTrigger *pState = &pMsg->trigger.stateWin;
       pTask->stateSlotId = pState->slotId;
+      pTask->stateExtend = pState->extend;
       pTask->stateTrueFor = pState->trueForDuration;
       code = nodesStringToNode(pState->expr, &pTask->pStateExpr);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -7459,7 +7460,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       // initialize state value
       SValue *pStateVal = &pGroup->stateVal;
       pStateVal->type = pStateCol->info.type;
-      if (isVarType) {
+      if (isVarType && pStateVal->pData == NULL) {
         pStateVal->nData = pStateCol->info.bytes;
         pStateVal->pData = taosMemoryCalloc(pStateVal->nData, 1);
         QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);
@@ -7477,15 +7478,18 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
         char   *oldVal = (pWin != NULL) ? pStateData : NULL;
         char   *newVal = colDataGetData(pStateCol, i);
         int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
+        int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[i];
         if (pWin != NULL) {
           if (memcmp(pStateData, newVal, bytes) == 0) {
             pWin->wrownum += pGroup->numPendingNull + 1;
           } else {
-            if (pTask->stateExtend == 1) {
+            // mark window as closed
+            pWin->range.ekey = pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
               pWin->wrownum += pGroup->numPendingNull;
               pWin->range.ekey = pTsData[i] - 1;
-            } else {
-              pWin->range.ekey = pGroup->pendingNullStart - 1;
+            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+              startTs = pWin->range.ekey + 1;
             }
             if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
               code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
@@ -7500,8 +7504,8 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
           newWin.range.skey = pTsData[i];
           newWin.range.ekey = INT64_MAX;
           newWin.wrownum = 1;
-          if (pTask->stateExtend == 2 && pGroup->pendingNullStart != INT64_MIN) {
-            newWin.range.skey = pGroup->pendingNullStart;
+          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD|| taosArrayGetSize(pContext->pWindows) == 0) {
+            newWin.range.skey = startTs;
             newWin.wrownum += pGroup->numPendingNull;
           }
           pWin = taosArrayPush(pContext->pWindows, &newWin);
@@ -7515,7 +7519,6 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
         }
         pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         pGroup->numPendingNull = 0;
-        pGroup->pendingNullStart = pTsData[i] + 1;
       }
     }
   }

@@ -185,6 +185,7 @@ typedef struct SSessionTrigger {
 
 typedef struct SStateWinTrigger {
   int16_t slotId;
+  int16_t extend;
   int64_t trueForDuration;
   void*   expr;
 } SStateWinTrigger;

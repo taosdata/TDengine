@@ -576,7 +576,7 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
     }
     case WINDOW_TYPE_STATE: {
       SStateWinTrigger* t = &q->trigger.stateWin;
-      mstsDebug("state trigger options, slotId:%d, expr:%s, trueForDuration:%" PRId64, t->slotId, (char *)t->expr, t->trueForDuration);
+      mstsDebug("state trigger options, slotId:%d, expr:%s, extend:%d, trueForDuration:%" PRId64, t->slotId, (char *)t->expr, t->extend, t->trueForDuration);
       break;
     }
     case WINDOW_TYPE_EVENT:{

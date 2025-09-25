@@ -664,7 +664,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
         if (rowsInBlock == 0) {
           doKeepNewWindowStartInfo(pRowSup, tsList, r, gid);
         }
-        doKeepTuple(pRowSup, tsList[r], gid);
+        doKeepTuple(pRowSup, tsList[r], r, gid);
         rowsInBlock++;
         rowsInWin++;
       } else {
@@ -686,7 +686,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
           qTrace("group:%" PRId64 ", block:%d win:%d, row:%d ts:%" PRId64 ", riwin:%d riblock:%d, new window detect",
                  pSupp->groupId, b, pSupp->curWinIndex, r, key, rowsInWin, rowsInBlock);
           doKeepNewWindowStartInfo(pRowSup, tsList, r, gid);
-          doKeepTuple(pRowSup, tsList[r], gid);
+          doKeepTuple(pRowSup, tsList[r], r, gid);
           rowsInBlock = 1;
           rowsInWin = 1;
         } else {

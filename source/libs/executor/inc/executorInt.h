@@ -679,7 +679,18 @@ typedef struct SWindowRowsSup {
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
+  uint32_t    numNullRows;  // number of continuous rows with null state col
 } SWindowRowsSup;
+
+// return true if there are continuous rows with null state col
+static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
+  return pRowSup->numNullRows > 0;
+}
+
+// reset on initialization or found of a row with non-null state col
+static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
+  pRowSup->numNullRows = 0;
+}
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 
@@ -711,6 +722,7 @@ typedef struct SStateWindowOperatorInfo {
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
   int64_t               trueForLimit;
+  EStateWinExtendOption extendOption;
 } SStateWindowOperatorInfo;
 
 
