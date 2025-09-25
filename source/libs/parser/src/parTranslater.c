@@ -19486,7 +19486,6 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
         pQuery->msgType = pQuery->pCmdMsg->msgType;
       }
       break;
-      // test
   }
 
   pQuery->stableQuery = pCxt->stableQuery;
