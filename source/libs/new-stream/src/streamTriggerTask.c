@@ -5506,11 +5506,14 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       if (stDebugFlag & DEBUG_DEBUG) {
         char    buf[128];
         int32_t bufLen = 0;
+        buf[0] = '\0';
         for (int32_t i = 0; i < TARRAY_SIZE(pReq->cids); i++) {
           col_id_t colId = *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i);
           bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
         }
-        buf[bufLen - 1] = '\0';
+        if (bufLen > 0) {
+          buf[bufLen - 1] = '\0';
+        }
         ST_TASK_DLOG("pull data request for table:%" PRId64 " on node:%d, cids:%s", pReq->uid,
                      pProgress->pTaskAddr->nodeId, buf);
       }
@@ -7738,8 +7741,7 @@ static int32_t stRealtimeGroupMergeWindows(SSTriggerRealtimeGroup *pGroup) {
 
   // add new unclosed windows
   int64_t                now = taosGetTimestampNs();
-  SSTriggerNotifyWindow *pEnd =
-      TARRAY_DATA(pContext->pWindows) + TARRAY_SIZE(pContext->pWindows) * sizeof(SSTriggerNotifyWindow);
+  SSTriggerNotifyWindow *pEnd = TARRAY_GET_ELEM(pContext->pWindows, TARRAY_SIZE(pContext->pWindows));
   while (pWin < pEnd) {
     SSTriggerWindow win = {0};
     win.range = pWin->range;
