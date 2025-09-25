@@ -92,6 +92,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_VND_ARB_HEARTBEAT:
       code = vmProcessArbHeartBeatReq(pMgmt, pMsg);
       break;
+    case TDMT_VND_ALTER_ELECTBASELINE:
+      code = vmProcessAlterVnodeElectBaselineReq(pMgmt, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in vnode-mgmt queue", pMsg);
@@ -440,7 +443,7 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   }
 
   pVnode->pQueryQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
-  pVnode->pStreamReaderQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessStreamReaderQueue);
+  pVnode->pStreamReaderQ = tQueryAutoQWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, (FItem)vmProcessStreamReaderQueue);
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||

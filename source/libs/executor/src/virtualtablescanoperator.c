@@ -597,7 +597,7 @@ int32_t vtableAddTagPseudoColumnData(const SExprInfo* pExpr, int32_t numOfExpr, 
     char* data = colDataGetData(pTagInfoData, 0);
 
     if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
-      code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, false);
+      code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, 1, false);
       QUERY_CHECK_CODE(code, lino, _return);
     } else {  // todo opt for json tag
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
@@ -674,7 +674,7 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
 
     VTS_ERR_JRET(doSetTagColumnData(pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock), (*pResBlock)->info.rows));
-    VTS_ERR_JRET(doFilter(*pResBlock, pOperator->exprSupp.pFilterInfo, NULL));
+    VTS_ERR_JRET(doFilter(*pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL));
     if ((*pResBlock)->info.rows > 0) {
       break;
     }

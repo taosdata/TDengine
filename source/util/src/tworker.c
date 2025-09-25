@@ -20,6 +20,7 @@
 #include "tgeosctx.h"
 #include "tlog.h"
 #include "ttrace.h"
+#include "tcurl.h"
 
 #define QUEUE_THRESHOLD (1000 * 1000)
 
@@ -253,6 +254,7 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
     taosUpdateItemSize(qinfo.queue, 1);
   }
   DestoryThreadLocalRegComp();
+  closeThreadNotificationConn();
 
   return NULL;
 }
@@ -710,6 +712,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
   }
 
   DestoryThreadLocalRegComp();
+  closeThreadNotificationConn();
 
   return NULL;
 }
@@ -1158,6 +1161,7 @@ static void *tDispatchWorkerThreadFp(SDispatchWorker *pWorker) {
     }
   }
   DestoryThreadLocalRegComp();
+  closeThreadNotificationConn();
   return NULL;
 }
 

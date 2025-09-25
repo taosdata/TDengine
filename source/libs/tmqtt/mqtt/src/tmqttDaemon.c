@@ -318,6 +318,13 @@ int32_t udfdOpenClientRpc() {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   TAOS_CHECK_RETURN(taosVersionStrToInt(td_version, &rpcInit.compatibilityVer));
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
+
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     bndError("failed to init dnode rpc client");

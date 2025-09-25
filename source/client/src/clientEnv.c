@@ -383,6 +383,13 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   if (TSDB_CODE_SUCCESS != code) {
