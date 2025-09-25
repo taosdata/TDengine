@@ -1161,6 +1161,7 @@ static void *tDispatchWorkerThreadFp(SDispatchWorker *pWorker) {
     }
   }
   DestoryThreadLocalRegComp();
+  closeThreadNotificationConn();
   return NULL;
 }
 
