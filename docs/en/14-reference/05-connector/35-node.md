@@ -25,7 +25,7 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
-| 3.2.0                     | Optimize STMT parameter binding to improve write efficiency | - | 
+| 3.2.0                     | Optimize STMT parameter binding to improve write efficiency. | - | 
 | 3.1.9                     | Fix timezone handling in WebSocket connections. | - | 
 | 3.1.8                     | Fix when the connection pool returns unavailable connections during network anomalies. | - | 
 | 3.1.7                     | Fix cloud service TMQ connection parameter issue. | - |
