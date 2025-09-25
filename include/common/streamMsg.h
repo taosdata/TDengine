@@ -561,9 +561,10 @@ typedef struct {
   int8_t fillHistoryFirst;
   int8_t lowLatencyCalc;
   int8_t igNoDataTrigger;
-  int8_t hasPartitionBy;
   int8_t isTriggerTblVirt;
   int8_t triggerHasPF;
+  int8_t isTriggerTblStb;
+  void*  partitionCols;
 
   // notify options
   SArray* pNotifyAddrUrls;

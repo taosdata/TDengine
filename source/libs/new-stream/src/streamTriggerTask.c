@@ -1758,8 +1758,9 @@ _end:
 }
 
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
+  SNodeList *pPartitionCols = NULL;
 
   EWindowType type = pMsg->triggerType;
   switch (pMsg->triggerType) {
@@ -1861,8 +1862,21 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     // always enable low latency calc for period trigger
     pTask->lowLatencyCalc = true;
   }
-  pTask->hasPartitionBy = pMsg->hasPartitionBy;
+  pTask->hasPartitionBy = (pMsg->partitionCols != NULL);
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
+  pTask->isStbPartitionByTag = pMsg->isTriggerTblStb;
+  if (pMsg->isTriggerTblStb && pMsg->partitionCols != NULL) {
+    code = nodesStringToList(pMsg->partitionCols, &pPartitionCols);
+    QUERY_CHECK_CODE(code, lino, _end);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pPartitionCols) {
+      if ((pNode->type == QUERY_NODE_FUNCTION) &&
+          (strcmp(((struct SFunctionNode *)pNode)->functionName, "tbname") == 0)) {
+        pTask->isStbPartitionByTag = false;
+        break;
+      }
+    }
+  }
   pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
   pTask->hasTriggerFilter = pMsg->triggerHasPF;
   if (pTask->ignoreNoDataTrigger) {
@@ -1965,6 +1979,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->task.status = STREAM_STATUS_INIT;
 
 _end:
+  if (pPartitionCols != NULL) {
+    nodesDestroyList(pPartitionCols);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTask->task.status = STREAM_STATUS_FAILED;
@@ -2595,10 +2612,10 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   }
   if (!needTrigData) {
     pContext->walMode = STRIGGER_WAL_META_ONLY;
-  } else if (pTask->watermark == 0 || pTask->isVirtualTable) {
-    pContext->walMode = STRIGGER_WAL_META_WITH_DATA;
-  } else {
+  } else if (pTask->watermark > 0 || pTask->isVirtualTable || pTask->isStbPartitionByTag) {
     pContext->walMode = STRIGGER_WAL_META_THEN_DATA;
+  } else {
+    pContext->walMode = STRIGGER_WAL_META_WITH_DATA;
   }
 
   pContext->pReaderWalProgress = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
