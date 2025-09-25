@@ -249,6 +249,7 @@ class TestTDgptBasic:
 
     def test_corr_table(self):
         """测试单表中的皮尔逊相关系数查询
+        
         1. corr function query test cases on normal tables or child tables
 
         Catalog:
