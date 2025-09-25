@@ -5442,6 +5442,11 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerTsdbTsDataRequest *pReq = &pProgress->pullReq.tsdbTsDataReq;
       pReq->suid = 0;
+      if (pTask->isVirtualTable) {
+        SSTriggerOrigTableInfo *pInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pCurTableMeta->tbUid, sizeof(int64_t));
+        QUERY_CHECK_NULL(pInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        pReq->suid = pInfo->tbSuid;
+      }
       pReq->uid = pCurTableMeta->tbUid;
       pReq->skey = pMetaToFetch->skey;
       pReq->ekey = pMetaToFetch->ekey;
@@ -7521,7 +7526,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
           newWin.range.skey = pTsData[i];
           newWin.range.ekey = INT64_MAX;
           newWin.wrownum = 1;
-          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD|| taosArrayGetSize(pContext->pWindows) == 0) {
+          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD || taosArrayGetSize(pContext->pWindows) == 0) {
             newWin.range.skey = startTs;
             newWin.wrownum += pGroup->numPendingNull;
           }
@@ -7952,7 +7957,13 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
     pContext->needCheckAgain = (pGroup->pPendingCalcParams.neles >= STREAM_CALC_REQ_MAX_WIN_NUM);
   }
 
-  if (!pContext->needCheckAgain) {
+  if (pContext->pCalcReq != NULL && TARRAY_SIZE(pContext->pCalcReq->params) > 0 && pGroup->nextExecTime != 0) {
+    pGroup->nextExecTime = 0;
+    heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
+    ST_TASK_DLOG("group %" PRId64 " is calculated, no longer need max delay check", pGroup->gid);
+  }
+
+  if (!pContext->needCheckAgain && pGroup->nextExecTime == 0) {
     // check next exec time for max delay and non-low-latency calc
     int64_t nextExecTime = INT64_MAX;
     if (pTask->maxDelayNs > 0 && pGroup->windows.neles > 0) {
@@ -7969,12 +7980,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
       nextExecTime = TMIN(nextExecTime, t);
     }
 
-    if (pGroup->nextExecTime != 0 && pGroup->nextExecTime < nextExecTime) {
-      pGroup->nextExecTime = 0;
-      heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
-      ST_TASK_DLOG("group %" PRId64 " is calculated, no longer need max delay check", pGroup->gid);
-    }
-    if (pGroup->nextExecTime == 0 && nextExecTime != INT64_MAX) {
+    if (nextExecTime != INT64_MAX) {
       pGroup->nextExecTime = nextExecTime;
       heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
       ST_TASK_DLOG("group %" PRId64 " holds %" PRId64 " params, expecting to exec at %" PRId64, pGroup->gid,
