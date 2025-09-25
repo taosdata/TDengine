@@ -21,7 +21,7 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 
-extern int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans);
+extern int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans, int32_t index);
 extern int32_t mndAddAlterVnodeConfigAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup);
 extern int32_t mndCheckDnodeMemory(SMnode *pMnode, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pOldVgroup,
                                    SVgObj *pNewVgroup, SArray *pArray);
@@ -32,6 +32,11 @@ extern void   *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj 
                                             int32_t *pContLen);
 extern int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SArray *pArray,
                                         SVnodeGid *pDelVgid);
+
+static int32_t mndUtilRandom(int32_t min, int32_t max) {
+  int32_t rdm = min + taosRand() % (max - min + 1);
+  return rdm;
+}
 
 int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   int32_t code = -1;
@@ -70,6 +75,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
 
   void   *pIter = NULL;
   int32_t count = 0;
+  int32_t index = mndUtilRandom(1,3);
   while (1) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -88,8 +94,9 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
       continue;
     }
 
-    if (mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0) {
+    if (mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans, index) == 0) {
       count++;
+      index++;
     }
 
     sdbRelease(pSdb, pVgroup);
