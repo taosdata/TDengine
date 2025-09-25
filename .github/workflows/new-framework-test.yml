@@ -6,6 +6,7 @@ on:
       - '3.0'
       - 'main'
       - '3.3.6'
+      - 'test/td-37719'
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
