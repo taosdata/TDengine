@@ -504,7 +504,11 @@ int32_t tsdbRowCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, STsdbRowKe
           // Initialize column status array for the new row
           STSchema *pTSchema = NULL;
           if (metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pTSchema) == 0 && pTSchema) {
-            tsdbLastRowInitColStatus(&lastRowTmp, pTSchema);
+            code = tsdbLastRowInitColStatus(&lastRowTmp, pTSchema);
+            if (code != TSDB_CODE_SUCCESS) {
+              tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
+                        tstrerror(code));
+            }
             taosMemoryFree(pTSchema);
           }
 

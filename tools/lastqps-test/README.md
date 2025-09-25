@@ -32,7 +32,7 @@ make all
 ./taos_query_a_simple 1
 ```
 
-**SQL Query:**
+**SQL Query**
 
 ```sql
 SELECT tbname, last(*) 
@@ -50,7 +50,7 @@ WHERE tbname IN ('d1','d2','d3','d4','d5','d6','d7','d8','d9','d10',
 PARTITION BY tbname;
 ```
 
-**Parameters:**
+**Parameters**
 
 - **Thread Count**: 16 threads
 - **Queries per Thread**: 100 queries
@@ -64,13 +64,13 @@ PARTITION BY tbname;
 ./taos_query_a_simple 2
 ```
 
-**SQL Query:**
+**SQL Query**
 
 ```sql
 SELECT last(ts, r32) FROM test.d1;
 ```
 
-**Parameters:**
+**Parameters**
 
 - **Thread Count**: 16 threads
 - **Queries per Thread**: 10,000 queries
