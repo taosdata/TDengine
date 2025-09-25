@@ -44,7 +44,7 @@ class Test_IDMP_Meters:
         #  main test
         #
 
-        tdSql.execute(f"alter all dnodes 'debugflag 143';")
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
 
         # env
         tdStream.createSnode()
