@@ -35,11 +35,12 @@ typedef struct SStreamTriggerReaderInfo {
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
   SSDataBlock* triggerResBlock;
-  SSDataBlock* calcResBlock;
-  SSDataBlock* tsBlock;
   SSDataBlock* triggerBlock;
+  SSDataBlock* calcResBlock;
   SSDataBlock* calcBlock;
   SSDataBlock* metaBlock;
+  SSDataBlock* tsBlock;
+  SArray*      tsSchemas;
   SExprInfo*   pExprInfoTriggerTag;
   int32_t      numOfExprTriggerTag;
   SExprInfo*   pExprInfoCalcTag;
@@ -83,7 +84,6 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   uint64_t    uid;
   int64_t     ver;
   uint64_t    gid;
-  int8_t      tableType;
   EScanMode   scanMode;
   bool        initReader;  // whether to init the reader
   SSHashObj*  mapInfo;    // SArray<SetTableMapInfo>
