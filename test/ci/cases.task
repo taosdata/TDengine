@@ -64,6 +64,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_vnode_clean.py -N 4 -C 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_leader.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance1.py -N 4 -C 1
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance2.py -N 5 -C 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance3.py -N 6 -C 4
@@ -1744,7 +1745,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_empty_identifier.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_transaction_detail.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py
 #failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_vgroups.py
