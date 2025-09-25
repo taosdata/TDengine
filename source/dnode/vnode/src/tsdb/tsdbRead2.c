@@ -1808,7 +1808,7 @@ static FORCE_INLINE STSchema* getTableSchemaImpl(STsdbReader* pReader, uint64_t 
   code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->info.suid, uid, -1, &pReader->info.pSchema);
   if (code != TSDB_CODE_SUCCESS || pReader->info.pSchema == NULL) {
     terrno = code;
-    tsdbError("failed to get table schema, uid:%" PRIu64 ", it may have been dropped, ver:-1, %s", uid, pReader->idStr);
+    tsdbError("failed to get table schema, suid:%"PRIu64",uid:%" PRIu64 ", it may have been dropped, ver:-1, %s", pReader->info.suid, uid, pReader->idStr);
   }
   TSDB_CHECK_CODE(code, lino, _end);
   TSDB_CHECK_NULL(pReader->info.pSchema, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);

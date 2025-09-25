@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils import tdLog, tdSql, tdStream, StreamItem
 import time
 
 
@@ -1065,12 +1065,29 @@ class TestColsFunction:
     
     def stream_cols_test(self):
         tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(f'CREATE STREAM {self.dbname}.last_col_s1 INTERVAL(1s) SLIDING(1s) \
+        streams: list[StreamItem] = []
+        stream = StreamItem(
+            id=0,
+            stream=f'CREATE STREAM {self.dbname}.last_col_s1 INTERVAL(1s) SLIDING(1s) \
                       FROM {self.dbname}.meters PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO {self.dbname}.last_col1 \
-                      AS SELECT cols(last(ts), ts, c0), _twstart, _twend from %%tbname where _c0 >= _twstart and _c0 < _twend;')
-        tdSql.execute(f'CREATE STREAM {self.dbname}.last_col_s2 INTERVAL(1s) SLIDING(1s) \
+                      AS SELECT _twstart wstart, _twend wend, cols(last(ts), ts, c0) from %%tbname where _c0 >= _twstart and _c0 < _twend;',
+            res_query='select wstart, wend, ts, c0 from last_col1 where tag_tbname = \'d0\'',
+            exp_query='select _wstart wstart, _wend wend, cols(last(ts), ts, c0) from d0 INTERVAL(1s) SLIDING(1s) limit 4;',
+        )
+        streams.append(stream)
+
+        stream = StreamItem(
+            id=1,
+            stream=f'CREATE STREAM {self.dbname}.last_col_s2 INTERVAL(1s) SLIDING(1s) \
                       FROM {self.dbname}.meters PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO {self.dbname}.last_col2 \
-                      AS SELECT _twstart, _twend, last_row(ts), cols(last(c0), ts as ts0), cols(last(c1), ts as ts1) from %%tbname where _c0 >= _twstart and _c0 < _twend;')
+                      AS SELECT _twstart wstart, _twend wend, last_row(ts) lts, cols(last(c0), ts as ts0), cols(last(c1), ts as ts1) from %%tbname where _c0 >= _twstart and _c0 < _twend;',
+            res_query='select wstart, wend, lts, ts0, ts1 from last_col2 where tag_tbname = \'d0\'',
+            exp_query='select _wstart wstart, _wend wend, last_row(ts) lts, cols(last(c0), ts as ts0), cols(last(c1), ts as ts1) from d0 INTERVAL(1s) SLIDING(1s) limit 4;',
+        )
+        streams.append(stream)
+
+        for s in streams:
+            s.createStream()
         tdStream.checkStreamStatus()
 
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574930000, 0, 1, NULL, NULL)')
@@ -1078,23 +1095,8 @@ class TestColsFunction:
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574932000, 2, 2, NULL, NULL)')
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574933000, 3, 3, NULL, NULL)')
 
-        time.sleep(5)
-        tdSql.query(f'select * from {self.dbname}.last_col1 where tag_tbname = \'d0\'')
-        tdSql.checkRows(4)
-        tdSql.checkData(0, 0, 1734574929014)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(1, 0, 1734574930000)
-        tdSql.checkData(1, 1, 0)
-        tdSql.checkData(2, 0, 1734574931000)
-        tdSql.checkData(2, 1, 1)
-        tdSql.checkData(3, 0, 1734574932000)
-        tdSql.checkData(3, 1, 2)
-
-        tdSql.query(f'select * from {self.dbname}.last_col2 where tag_tbname = \'d0\'')
-        tdSql.checkRows(4)
-        tdSql.checkData(0, 2, 1734574929014)
-        tdSql.checkData(0, 3, 1734574929010)
-        tdSql.checkData(0, 4, 1734574929011)
+        for s in streams:
+            s.checkResults()
         
     def include_null_test(self):
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929010, 0, NULL, NULL, NULL)')

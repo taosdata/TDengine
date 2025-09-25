@@ -437,7 +437,7 @@ class TestWriteUpdate:
 
         tdLog.info(f"====== create database")
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} keep 1000 duration 10")
+        tdSql.execute(f"create database {db} keep 36500d duration 10")
         tdLog.info(f"====== create tables")
         tdSql.execute(f"use {db}")
         tdSql.execute(

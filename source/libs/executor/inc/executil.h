@@ -58,6 +58,7 @@ struct SResultRow {
   bool                       closed;       // this result status: closed or opened
   uint32_t                   numOfRows;    // number of rows of current time window
   STimeWindow                win;
+  int32_t                    winIdx;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
 };
 
@@ -121,6 +122,13 @@ typedef struct SDBVgInfoMgr {
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
+typedef struct SInsertTableInfo {
+  int64_t                  uid;
+  int64_t                  vgid;
+  int32_t                  version;
+  STSchema*                pSchema;
+  char*                    tbname;
+} SInsertTableInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
@@ -234,5 +242,8 @@ int32_t extractKeysLen(const SArray* keys, int32_t* pLen);
 
 int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbName, SVgroupInfo* pVgInfo);
 void    rmDbVgInfoFromCache(const char* dbFName);
+
+int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
+int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 #endif  // TDENGINE_EXECUTIL_H
