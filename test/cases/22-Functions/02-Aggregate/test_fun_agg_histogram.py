@@ -49,7 +49,7 @@ PARAINF = float("inf")
 
 
 @dataclass
-class TestFunHsgschema:
+class Hsgschema:
 
     func_type           : str           = "SELECT"
     from_clause         : str           = f"{STBNAME}"
@@ -138,7 +138,7 @@ class TestFunHsgschema:
         elif isinstance(self.bin_type,str) and self.bin_type.upper().strip() == "LOG_BIN":
             self.bin_desc = self.log_bin
 
-class TestHistogram:
+class TestFunHistogram:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
