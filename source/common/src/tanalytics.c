@@ -44,6 +44,8 @@ const char *taosAnalysisAlgoType(EAnalAlgoType type) {
       return "anomaly-detection";
     case ANALY_ALGO_TYPE_FORECAST:
       return "forecast";
+    case ANALY_ALGO_TYPE_IMPUTATION:
+      return "imputation";
     default:
       return "unknown";
   }
@@ -55,6 +57,8 @@ const char *taosAnalyAlgoUrlStr(EAnalAlgoType type) {
       return "anomaly-detect";
     case ANALY_ALGO_TYPE_FORECAST:
       return "forecast";
+    case ANALY_ALGO_TYPE_IMPUTATION:
+      return "imputation";
     default:
       return "unknown";
   }
@@ -863,8 +867,8 @@ int8_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) {
     uDebug("%s analysis wncheck:%d", id, v);
     return v;
   } else {
-    uDebug("%s analysis wncheck not found, use default:%d", id, ANALY_FORECAST_DEFAULT_WNCHECK);
-    return ANALY_FORECAST_DEFAULT_WNCHECK;
+    uDebug("%s analysis wncheck not found, use default:%d", id, ANALY_DEFAULT_WNCHECK);
+    return ANALY_DEFAULT_WNCHECK;
   }
 }
 
@@ -872,7 +876,7 @@ int8_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) {
 
 int32_t taosAnalyticsInit() { return 0; }
 void    taosAnalyticsCleanup() {}
-SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout, const char*id) {
+SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout, const char* id) {
   return NULL;
 }
 

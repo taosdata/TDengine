@@ -1,13 +1,14 @@
 #!/bin/bash
 
 # Find the process ID (PID) of the running time-moe_server.py script
-pid=$(pgrep -f "time-moe_server.py")
+script_file="timemoe-server.py"
+pid=$(pgrep -f "${script_file}")
 
 # If the process is found, kill it
 if [ -n "$pid" ]; then
-  echo "Stopping time-moe_server.py with PID $pid"
+  echo "Stopping ${script_file} with PID $pid"
   kill -9 $pid
-  echo "time-moe_server.py stopped"
+  echo "${script_file} stopped"
 else
-  echo "time-moe_server.py is not running"
+  echo "${script_file} is not running"
 fi

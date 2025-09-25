@@ -286,6 +286,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
 int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
 }
+
 int32_t asyncFreeConnById(void* pTransporter, int64_t pid) {
   QUERY_PARAM_CHECK(pTransporter);
   return rpcFreeConnById(pTransporter, pid);

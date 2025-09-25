@@ -78,12 +78,12 @@ class TestCase:
 
     def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
         if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
+            logFile = os.path.join(os.path.dirname(cfgPath), 'log', 'valgrind-tmq.log')
             shellCmd = 'nohup valgrind --log-file=' + logFile
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
 
         if (platform.system().lower() == 'windows'):
-            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd = 'mintty -h never -w hide ' + f"{os.path.join(buildPath, 'build','bin', 'tmq_sim.exe')} -c " + cfgPath
             shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
             shellCmd += "> nul 2>&1 &"
         else:

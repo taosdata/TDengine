@@ -4,9 +4,17 @@ sidebar_label: taosc
 toc_max_heading_level: 4
 ---
 
-TDengine TSDB 客户端驱动提供了应用编程所需要的全部 API，并且在整个集群的分布式计算中扮演着重要角色。客户端驱动的行为除了 API 及其具体参数以外，也可以通过配置文件的形式进行全局控制，本节列举 TDengine TSDB 客户端可以使用的配置参数。
+TDengine TSDB 客户端驱动提供了应用编程所需要的全部 API，并且在整个集群的分布式计算中扮演着重要角色。客户端驱动的行为除了 API 及其具体参数以外，也可以通过配置文件的形式进行全局控制，本节列举 TDengine TSDB 客户端可以使用的配置参数。配置参数一部分是针对 Native 连接生效，一部分是针对 WebSocket 连接生效，使用的时候请注意区分。
 
-## 配置参数
+## Native 连接配置参数
+
+下面配置参数只针对 Native 连接生效。
+
+:::note
+配置文件参数修改后，通常需要重启客户端应用才能生效。
+配置参数的动态修改方法请您参考 [节点管理](https://docs.taosdata.com/reference/taos-sql/node/)。
+taosc 和 taosd 存在许多同名参数，虽然名称相同但作用范围可能不同，详细请参考[TDengine 配置参数作用范围对比](https://docs.taosdata.com/reference/components/config-scope)。
+:::
 
 ### 连接相关
 
@@ -603,7 +611,9 @@ TDengine TSDB 客户端驱动提供了应用编程所需要的全部 API，并�
 - 动态修改：不支持
 - 支持版本：从 v3.1.0.0 版本开始引入
 
-### WebSocket 相关
+## WebSocket 连接配置参数
+
+下面配置参数只针对 WebSocket 连接生效。  
 
 #### serverPort
 

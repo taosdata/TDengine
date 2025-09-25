@@ -3316,9 +3316,9 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     pSelect->hasTwaOrElapsedFunc = pSelect->hasTwaOrElapsedFunc ? true
                                                                 : (FUNCTION_TYPE_TWA == pFunc->funcType ||
                                                                    FUNCTION_TYPE_ELAPSED == pFunc->funcType);
-    pSelect->hasInterpPseudoColFunc =
-        pSelect->hasInterpPseudoColFunc ? true : fmIsInterpPseudoColumnFunc(pFunc->funcId);
-    pSelect->hasForecastFunc = pSelect->hasForecastFunc ? true : (FUNCTION_TYPE_FORECAST == pFunc->funcType);
+    pSelect->hasInterpPseudoColFunc = pSelect->hasInterpPseudoColFunc || fmIsInterpPseudoColumnFunc(pFunc->funcId);
+    pSelect->hasForecastFunc = pSelect->hasForecastFunc || (FUNCTION_TYPE_FORECAST == pFunc->funcType);
+    pSelect->hasImputationFunc = pSelect->hasImputationFunc || (FUNCTION_TYPE_IMPUTATION == pFunc->funcType);
     pSelect->hasForecastPseudoColFunc =
         pSelect->hasForecastPseudoColFunc ? true : fmIsForecastPseudoColumnFunc(pFunc->funcId);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
@@ -14512,26 +14512,38 @@ typedef struct SCheckNotifyCondContext {
   bool               valid;
 } SCheckNotifyCondContext;
 
-static EDealRes doCheckNotifyCond(SNode* pNode, void* pContext) {
+static EDealRes doCheckNotifyCond(SNode** pNode, void* pContext) {
   SCheckNotifyCondContext* pCxt = (SCheckNotifyCondContext*)pContext;
   SSelectStmt*             pSelect = (SSelectStmt*)pCxt->pTransCxt->pCurrStmt;
   SNode*                   pProj = NULL;
 
-  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+  if (nodeType(*pNode) == QUERY_NODE_VALUE) {
     return DEAL_RES_CONTINUE;
   }
 
   FOREACH(pProj, pSelect->pProjectionList) {
-    if (nodesEqualNode(pProj, pNode)) {
+    if (nodesEqualNode(pProj, *pNode)) {
       return DEAL_RES_IGNORE_CHILD;
     }
     if (nodesIsStar(pProj) && nodeType(pProj) == QUERY_NODE_COLUMN) {
       // if projection is *, then all columns are valid
       return DEAL_RES_IGNORE_CHILD;
     }
+    if (strcmp(((SExprNode*)pProj)->userAlias, ((SExprNode*)*pNode)->aliasName) == 0) {
+      SNode*  tmpNode = NULL;
+      int32_t code = nodesCloneNode(pProj, &tmpNode);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(tmpNode);
+        parserError("%s failed, code:%d", __func__, code);
+        return DEAL_RES_ERROR;
+      }
+      nodesDestroyNode(*pNode);
+      *pNode = tmpNode;
+      return DEAL_RES_IGNORE_CHILD;
+    }
   }
 
-  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+  if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
     pCxt->valid = false;
     return DEAL_RES_ERROR;
   }
@@ -14602,7 +14614,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
 
   if (pNotifyCond) {
     SCheckNotifyCondContext checkNotifyCondCxt = {.pTransCxt = pCxt, .valid = true};
-    nodesWalkExpr(pNotifyCond, doCheckNotifyCond, &checkNotifyCondCxt);
+    nodesRewriteExpr(&pNotifyCond, doCheckNotifyCond, &checkNotifyCondCxt);
     if (!checkNotifyCondCxt.valid) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY_COND, "notify condition can only contain expr from query clause"));
     }

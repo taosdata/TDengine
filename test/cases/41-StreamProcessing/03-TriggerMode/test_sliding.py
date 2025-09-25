@@ -222,7 +222,7 @@ class TestStreamSlidingTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_sliding_trigger(self):
-        """Stream sliding trigger
+        """Sliding:
         
         1. create table
         2. insert data

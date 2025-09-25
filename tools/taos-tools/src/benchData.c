@@ -2232,12 +2232,15 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
         }
     }
 
-    if (0 != convertServAddr(
-            stbInfo->iface,
-            stbInfo->tcpTransfer,
-            stbInfo->lineProtocol)) {
-        return -1;
-    }    
+    // rest need convert server ip
+    if (isRest(stbInfo->iface)) {
+        if ( 0 != convertServAddr(
+                stbInfo->iface,
+                stbInfo->tcpTransfer,
+                stbInfo->lineProtocol)) {
+            return -1;
+        }
+    }
     return 0;
 }
 
