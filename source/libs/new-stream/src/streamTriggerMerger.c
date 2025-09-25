@@ -1493,7 +1493,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   SObjListIter       iter;
   taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
   while ((i < pSlice->endIdx) && (pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
-    while (pTask->ignoreDisorder && i < pSlice->endIdx && pTsData[i] < lastTs) {
+    while (pTask->ignoreDisorder && i < pSlice->endIdx && pTsData[i] <= lastTs - pTask->watermark) {
       i++;
     }
     while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
