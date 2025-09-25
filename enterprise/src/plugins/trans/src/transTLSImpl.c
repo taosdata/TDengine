@@ -50,7 +50,7 @@ static int32_t sslHandleError(STransTLS* pTls, int ret);
 static int32_t sslWriteToBIO(STransTLS* pTls, int32_t nread);
 static void destroySSLCtxImpl(SSL_CTX* ctx);
 
-#if defined(TD_ENTERPRISE) && defined(TD_LINUX)
+#if defined(TD_ENTERPRISE) && defined(LINUX)
 
 SSL_CTX* initSSLCtxImpl(const char* certPath, const char* keyPath, const char* caPath, int8_t cliMode) {
   int32_t lino = 0;
@@ -482,7 +482,7 @@ _error:
   return code;
 }
 
-void sslDestroy(STransTLS* pTls) {
+void sslDestroyImpl(STransTLS* pTls) {
   if (pTls) {
     SSL_free(pTls->ssl);
 
