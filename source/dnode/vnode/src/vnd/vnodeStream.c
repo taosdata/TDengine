@@ -2173,8 +2173,15 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   lastTsRsp.ver = pVnode->state.applied + 1;
 
   STREAM_CHECK_RET_GOTO(processTs(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner));
-  ST_TASK_DLOG("vgId:%d %s get result", TD_VID(pVnode), __func__);
+  ST_TASK_DLOG("vgId:%d %s get result, ver:%" PRId64, TD_VID(pVnode), __func__, lastTsRsp.ver);
   STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
+  if (stDebugFlag & DEBUG_DEBUG) {
+    int32_t nInfo = taosArrayGetSize(lastTsRsp.tsInfo);
+    for (int32_t i = 0; i < nInfo; i++) {
+      STsInfo* tsInfo = TARRAY_GET_ELEM(lastTsRsp.tsInfo, i);
+      ST_TASK_DLOG("vgId:%d %s get ts:%" PRId64 ", gId:%" PRIu64, TD_VID(pVnode), __func__, tsInfo->ts, tsInfo->gId);
+    }
+  }
 
 end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
