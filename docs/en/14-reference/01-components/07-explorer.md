@@ -241,3 +241,11 @@ Other feature pages, such as `Data Writing - Data Source` and others, are exclus
 Since of network issues, if you cannot complete the registration process, you need to register in an environment with external network access, and then replace the registered `/etc/taos/explorer-register.cfg` file to the internal network environment.
 
 From version 3.3.7.1, you can use the environment variable `EXPLORER_SKIP_REGISTER=true` to skip the registration process and log in directly with your account.
+
+In Linux with systemd, you can add the environment variable in the environment file `/etc/default/taos-explorer` as follows:
+
+```shell
+EXPLORER_SKIP_REGISTER=true
+```
+
+In Windows, you can set the environment variable in the system environment variables.
