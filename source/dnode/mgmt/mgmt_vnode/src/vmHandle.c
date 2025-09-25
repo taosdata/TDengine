@@ -1662,8 +1662,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 int32_t vmProcessAlterVnodeElectBaselineReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SAlterVnodeElectBaselineReq alterReq = {0};
   if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   int32_t vgId = alterReq.vgId;
@@ -1674,15 +1673,15 @@ int32_t vmProcessAlterVnodeElectBaselineReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
     dError("vgId:%d, failed to alter replica since %s", vgId, terrstr());
-    terrno = TSDB_CODE_VND_NOT_EXIST;
-    if (pVnode) vmReleaseVnode(pMgmt, pVnode);
-    return -1;
+    return terrno;
   }
 
   if(vnodeSetElectBaseline(pVnode->pImpl, alterReq.electBaseLine) != 0){
+    vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
+  vmReleaseVnode(pMgmt, pVnode);
   return 0;
 }
 
