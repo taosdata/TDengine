@@ -1406,7 +1406,9 @@ int32_t tRowGetLastColVal(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal 
 }
 
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  if (!(iCol < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
+  if (!(iCol < pTSchema->numOfCols)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
 
   STColumn *pTColumn = pTSchema->columns + iCol;

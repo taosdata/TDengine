@@ -720,7 +720,7 @@ static int32_t tsdbRowCacheUpdateLastCols(STsdb *pTsdb, tb_uid_t suid, tb_uid_t 
     SColVal   colVal = COL_VAL_NULL(pCol->colId, pCol->type);
 
     if (pLastRow->pRow) {
-      code = tRowGetLastColVal(pLastRow->pRow, pTSchema, pCol->colId, &colVal);
+      code = tRowGetLastColVal(pLastRow->pRow, pTSchema, j, &colVal);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroy(lastColVals);
         (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
