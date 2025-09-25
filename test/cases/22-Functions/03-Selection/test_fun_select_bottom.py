@@ -15,8 +15,89 @@ from new_test_framework.utils import tdLog, tdSql, common
 from new_test_framework.utils.sqlset import TDSetSql
 
 class TestBottom:
+    #
+    # ------------------ sim case ------------------
+    #
+    def do_sim_bottom(self):
+        dbPrefix = "m_bo_db"
+        tbPrefix = "m_bo_tb"
+        mtPrefix = "m_bo_mt"
+        tbNum = 10
+        rowNum = 20
+        totalNum = 200
+
+        tdLog.info(f"=============== step1")
+        i = 0
+        db = dbPrefix + str(i)
+        mt = mtPrefix + str(i)
+
+        tdSql.prepare(db, drop=True)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
+
+        i = 0
+        while i < tbNum:
+            tb = tbPrefix + str(i)
+            tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
+
+            sql = f"insert into {tb} values"
+            x = 0
+            while x < rowNum:
+                cc = x * 60000
+                ms = 1601481600000 + cc
+                sql += f" ({ms},{x})"
+                x = x + 1
+            tdSql.execute(sql)
+            i = i + 1
+
+        tdLog.info(f"=============== step2")
+        i = 1
+        tb = tbPrefix + str(i)
+
+        tdSql.query(f"select bottom(tbcol, 1) from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step3")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(f"select bottom(tbcol, 1) from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 5)
+
+        tdLog.info(f"=============== step4")
+        tdSql.query(f"select bottom(tbcol, 1) as b from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step5")
+        tdSql.query(f"select bottom(tbcol, 2) as b from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}  {tdSql.getData(1,0)}")
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 0)
+
+        tdLog.info(f"=============== step6")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(f"select bottom(tbcol, 2) as b from {tb} where ts > {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}  {tdSql.getData(1,0)}")
+        tdSql.checkData(0, 0, 6)
+        tdSql.checkData(1, 0, 5)
+
+        tdSql.error(f"select bottom(tbcol, 122) as b from {tb}")
+
+        tdLog.info(f"=============== clear")
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+        print("\n")
+        print("do_sim_bottom ......................... [passed]\n")
+
+    #
+    # ------------------ python case ------------------
+    #
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
         cls.dbname = 'db_test'
@@ -45,11 +126,13 @@ class TestBottom:
         }
 
         cls.param_list = [1,100]
+
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
             self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+
     def bottom_check_data(self,tbname,tb_type):
         new_column_dict = {}
         for param in self.param_list:
@@ -83,6 +166,7 @@ class TestBottom:
                     tdSql.error(f'select top({k},{param}) from {tbname}')
                 tdSql.error(f'select * from {tbname} where top({k},{param})=1')
         pass
+
     def bottom_check_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname} vgroups 1')
         tdSql.execute(f'use {self.dbname}')
@@ -90,6 +174,7 @@ class TestBottom:
         self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         self.bottom_check_data(self.ntbname,'normal_table')
         tdSql.execute(f'drop database {self.dbname}')
+
     def bottom_check_stb(self):
         stbname = f'{self.dbname}.{common.tdCom.getLongName(5, "letters")}'
         tag_dict = {
@@ -121,28 +206,39 @@ class TestBottom:
         self.bottom_check_data(f'{stbname}','stable')
         tdSql.execute(f'drop database {self.dbname}')
 
-    def test_bottom(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-
-        """
-
+    def do_bottom(self):
         self.bottom_check_ntb()
         self.bottom_check_stb()
+        print("do_sim_bottom ......................... [passed]\n")
 
-        #tdSql.close()
+
+
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_select_bottom(self):
+        """ Function BOTTOM()
+
+        1. Sim case
+        2. Query on all data types
+        3. Input parameter with different values
+        4. Query on stable/normal table
+        5. Query on null data
+        6. Query on where clause
+        7. Query with filter
+        8. Error check
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-8-26 Simon Guan Migrated from tsim/compute/bottom.sim
+            - 2025-9-25 Alex  Duan Migrated from uncatalog/system-test/2-query/test_bottom.py
+
+        """
+        self.do_sim_bottom()
+        self.do_bottom()
         tdLog.success("%s successfully executed" % __file__)

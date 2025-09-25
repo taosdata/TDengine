@@ -15,7 +15,139 @@ import string
 from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.common import tdCom
 
-class TestFirst:
+class TestFunFirst:
+    #
+    # ------------------ sim ------------------
+    #
+    def do_sim_first(self):
+        dbPrefix = "m_fi_db"
+        tbPrefix = "m_fi_tb"
+        mtPrefix = "m_fi_mt"
+        tbNum = 10
+        rowNum = 20
+        totalNum = 200
+
+        tdLog.info(f"=============== step1")
+        i = 0
+        db = dbPrefix + str(i)
+        mt = mtPrefix + str(i)
+
+        tdSql.prepare(db, drop=True)
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
+
+        i = 0
+        while i < tbNum:
+            tb = tbPrefix + str(i)
+            tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
+            x = 0
+            sql = f"insert into {tb} values"
+            while x < rowNum:
+                cc = x * 60000
+                ms = 1601481600000 + cc
+                sql +=f" ({ms},{x})"
+                x = x + 1
+            tdSql.execute(sql)    
+            i = i + 1
+
+        tdLog.info(f"=============== step2")
+        i = 1
+        tb = tbPrefix + str(i)
+
+        tdSql.query(f"select first(tbcol) from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step3")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(f"select first(tbcol) from {tb} where ts <= {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step4")
+        tdSql.query(f"select first(tbcol) as b from {tb}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step5")
+        tdSql.query(f"select first(tbcol) as b from {tb} interval(1m)")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select first(tbcol) as b from {tb} interval(1d)")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step6")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(f"select first(tbcol) as b from {tb} where ts <= {ms} interval(1m)")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(4, 0, 4)
+        tdSql.checkRows(5)
+
+        tdLog.info(f"=============== step7")
+        tdSql.query(f"select first(tbcol) from {mt}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step8")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(f"select first(tbcol) as c from {mt} where ts <= {ms}")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select first(tbcol) as c from {mt} where tgcol < 5")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(
+            f"select first(tbcol) as c from {mt} where tgcol < 5 and ts <= {ms}"
+        )
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step9")
+        tdSql.query(f"select first(tbcol) as b from {mt} interval(1m)")
+        tdLog.info(f"select first(tbcol) as b from {mt} interval(1m)")
+        tdLog.info(f"===> {tdSql.getData(1,0)}")
+        tdSql.checkData(1, 0, 1)
+
+        tdSql.query(f"select first(tbcol) as b from {mt} interval(1d)")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info(f"=============== step10")
+        tdSql.query(f"select first(tbcol) as b from {mt} group by tgcol")
+        tdLog.info(f"===> {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkRows(tbNum)
+
+        tdLog.info(f"=============== step11")
+        cc = 4 * 60000
+        ms = 1601481600000 + cc
+        tdSql.query(
+            f"select first(tbcol) as b from {mt}  where ts <= {ms} partition by tgcol interval(1m)"
+        )
+        tdLog.info(f"===> {tdSql.getData(1,0)}")
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkRows(50)
+
+        tdLog.info(f"=============== clear")
+        tdSql.execute(f"drop database {db}")
+        tdSql.query(f"select * from information_schema.ins_databases")
+        tdSql.checkRows(2)
+
+        print("\n")
+        print("do_sim_first .......................... [passed]\n")
+
+    #
+    # ------------------ test_first.py ------------------
+    #    
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
@@ -57,9 +189,12 @@ class TestFirst:
             for j in ['stb_1']:
                 tdSql.query(f"select first({i}) from {dbname}.{j}")
                 tdSql.checkRows(0)
+
+        sql = f"insert into {dbname}.stb_1 values"        
         for i in range(self.rowNum):
-            tdSql.execute(f"insert into {dbname}.stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
-                          % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+            sql += f" (%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')" % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1)
+        tdSql.execute(sql)
+
         for k, v in column_dict.items():
             for j in ['stb_1', 'stb']:
                 tdSql.query(f"select first({k}) from {dbname}.{j}")
@@ -134,9 +269,10 @@ class TestFirst:
                 tdLog.exit(f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
 
         for i in range(child_table_num):
+            sql = f"insert into {dbname}.{stbname}_{i} values"
             for j in range(self.rowNum):
-                tdSql.execute(f"insert into {dbname}.{stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
-                          % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))
+                sql += f" (%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"%(self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1)
+            tdSql.execute(sql)
 
         for k, v in column_dict.items():
             for j in [f'{dbname}.{stbname}_{i}', f'{dbname}.{stbname}']:
@@ -163,28 +299,39 @@ class TestFirst:
         tdSql.checkRows(0)
         tdSql.execute(f'drop database {dbname}')
 
-    def test_first(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-
-        """
-
+    def do_first(self):
         self.first_check_base()
         self.first_check_stb_distribute()
+        print("do_first .............................. [passed]\n")
 
-        #tdSql.close()
+
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_select_first(self):
+        """ Function FIRST()
+
+        1. Sim case
+        2. Query on all data types
+        3. Input parameter with different values
+        4. Query on stable/normal table
+        5. Query on null data
+        6. Query on where clause
+        7. Query with filter
+        8. Error check
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-8-26 Simon Guan Migrated from tsim/compute/first.sim
+            - 2025-9-25 Alex  Duan Migrated from uncatalog/system-test/2-query/test_first.py
+
+        """
+        self.do_sim_first()
+        self.do_first()
+
         tdLog.success("%s successfully executed" % __file__)

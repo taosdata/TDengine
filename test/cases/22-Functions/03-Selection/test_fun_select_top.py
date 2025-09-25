@@ -1,39 +1,24 @@
+import string
 import time
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+from new_test_framework.utils.sqlset import TDSetSql
 
 
-class TestSelectTopBottom:
+class TestSelectTop:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_select_top_bottom(self):
-        """Select: Top Bottom
-
-        Test the Top and Bottom function, including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
-
-        Catalog:
-            - Function:Selection
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-8-26 Simon Guan Migrated from tsim/parser/topbot.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/compute/bottom.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/compute/top.sim
-
-        """
-
+    #
+    # ------------------ sim case ------------------
+    #
+    def do_sim_top(self):
         self.TopBot()
-        tdStream.dropAllStreamsAndDbs()
-        self.Bottom()
         tdStream.dropAllStreamsAndDbs()
         self.Top()
         tdStream.dropAllStreamsAndDbs()
+        print("\n")
+        print("do_sim_top ............................ [passed]\n")
 
     def TopBot(self):
         dbPrefix = "tb_db"
@@ -206,9 +191,11 @@ class TestSelectTopBottom:
         tdLog.info(f"=======================>td-1446")
         tdSql.execute(f"create table t(ts timestamp, k int)")
         ts = 6000
+        sql = "insert into t values"
         while ts < 7000:
-            tdSql.execute(f"insert into t values ( {ts} , {ts} )")
+            sql += f" ({ts},{ts})"
             ts = ts + 1
+        tdSql.execute(sql)
 
         sc.dnodeStop(1)
         sc.dnodeStart(1)
@@ -218,9 +205,11 @@ class TestSelectTopBottom:
         tdSql.execute(f"use db;")
 
         ts = 1000
+        sql = "insert into t values"
         while ts < 5096:
-            tdSql.execute(f"insert into t values ( {ts} , {ts} )")
+            sql += f" ({ts},{ts})"
             ts = ts + 1
+        tdSql.execute(sql)
 
         tdSql.query(f"select * from t where ts < 6500")
         tdSql.checkRows(4596)
@@ -299,77 +288,6 @@ class TestSelectTopBottom:
         tdSql.error(f"select * from ttm2 where k like null")
         tdSql.query(f"select * from ttm2 where k<null")
 
-    def Bottom(self):
-        dbPrefix = "m_bo_db"
-        tbPrefix = "m_bo_tb"
-        mtPrefix = "m_bo_mt"
-        tbNum = 10
-        rowNum = 20
-        totalNum = 200
-
-        tdLog.info(f"=============== step1")
-        i = 0
-        db = dbPrefix + str(i)
-        mt = mtPrefix + str(i)
-
-        tdSql.prepare(db, drop=True)
-        tdSql.execute(f"use {db}")
-        tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
-
-        i = 0
-        while i < tbNum:
-            tb = tbPrefix + str(i)
-            tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
-
-            x = 0
-            while x < rowNum:
-                cc = x * 60000
-                ms = 1601481600000 + cc
-                tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
-                x = x + 1
-            i = i + 1
-
-        tdLog.info(f"=============== step2")
-        i = 1
-        tb = tbPrefix + str(i)
-
-        tdSql.query(f"select bottom(tbcol, 1) from {tb}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step3")
-        cc = 4 * 60000
-        ms = 1601481600000 + cc
-        tdSql.query(f"select bottom(tbcol, 1) from {tb} where ts > {ms}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 5)
-
-        tdLog.info(f"=============== step4")
-        tdSql.query(f"select bottom(tbcol, 1) as b from {tb}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step5")
-        tdSql.query(f"select bottom(tbcol, 2) as b from {tb}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}  {tdSql.getData(1,0)}")
-        tdSql.checkData(0, 0, 1)
-        tdSql.checkData(1, 0, 0)
-
-        tdLog.info(f"=============== step6")
-        cc = 4 * 60000
-        ms = 1601481600000 + cc
-        tdSql.query(f"select bottom(tbcol, 2) as b from {tb} where ts > {ms}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}  {tdSql.getData(1,0)}")
-        tdSql.checkData(0, 0, 6)
-        tdSql.checkData(1, 0, 5)
-
-        tdSql.error(f"select bottom(tbcol, 122) as b from {tb}")
-
-        tdLog.info(f"=============== clear")
-        tdSql.execute(f"drop database {db}")
-        tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
-
     def Top(self):
         dbPrefix = "m_to_db"
         tbPrefix = "m_to_tb"
@@ -392,11 +310,13 @@ class TestSelectTopBottom:
             tb = tbPrefix + str(i)
             tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
             x = 0
+            sql = f"insert into {tb} values"
             while x < rowNum:
                 cc = x * 60000
                 ms = 1601481600000 + cc
-                tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
+                sql += f" ({ms},{x})"
                 x = x + 1
+            tdSql.execute(sql)
             i = i + 1
 
         tdLog.info(f"=============== step2")
@@ -441,3 +361,161 @@ class TestSelectTopBottom:
         tdSql.execute(f"drop database {db}")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(2)
+
+    #
+    # ------------------ test_top.py ------------------
+    #
+    def insert_data(self,column_dict,tbname,row_num):
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        for i in range(row_num):
+            insert_list = []
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+
+    def top_check_data(self,tbname,tb_type):
+        new_column_dict = {}
+        for param in self.param_list:
+            for k,v in self.column_dict.items():
+                if v.lower() in ['tinyint','smallint','int','bigint','tinyint unsigned','smallint unsigned','int unsigned','bigint unsigned']:
+                    tdSql.query(f'select top({k},{param}) from {tbname}')
+                    if param >= self.rowNum:
+                        if tb_type in ['normal_table','child_table']:
+                            tdSql.checkRows(self.rowNum)
+                            values_list = []
+                            for i in range(self.rowNum):
+                                tp = (self.rowNum-i-1,)
+                                values_list.insert(0,tp)
+                            tdSql.checkEqual(tdSql.queryResult,values_list)
+                        elif tb_type == 'stable':
+                            tdSql.checkRows(param)
+                    elif param < self.rowNum:
+                        if tb_type in ['normal_table','child_table']:
+                            tdSql.checkRows(param)
+                            values_list = []
+                            for i in range(param):
+                                tp = (self.rowNum-i-1,)
+                                values_list.insert(0,tp)
+                            tdSql.checkEqual(tdSql.queryResult,values_list)
+                        elif tb_type == 'stable':
+                            tdSql.checkRows(param)
+                    for i in [self.param_list[0]-1,self.param_list[-1]+1]:
+                        tdSql.error(f'select top({k},{i}) from {tbname}')
+                    new_column_dict.update({k:v})
+                elif v.lower() == 'bool' or 'binary' in v.lower() or 'nchar' in v.lower():
+                    tdSql.error(f'select top({k},{param}) from {tbname}')
+                tdSql.error(f'select * from {tbname} where top({k},{param})=1')
+        for key in new_column_dict.keys():
+            for k in self.column_dict.keys():
+                if key == k :
+                    continue
+                else:
+                    tdSql.query(f'select top({key},2),{k} from {tbname} group by tbname')
+                    if tb_type == 'normal_table' or tb_type == 'child_table':
+                        tdSql.checkRows(2)
+                    else:
+                        tdSql.checkRows(2*self.tbnum)
+
+    def top_check_stb(self):
+        
+        tag_dict = {
+            't0':'int'
+        }
+        tag_values = [
+            f'1'
+            ]
+        tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,tag_dict))
+
+        for i in range(self.tbnum):
+            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({tag_values[0]})")
+            self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
+        tdSql.query(f'select * from information_schema.ins_tables where db_name = "{self.dbname}"')
+        vgroup_list = []
+        for i in range(len(tdSql.queryResult)):
+            vgroup_list.append(tdSql.queryResult[i][6])
+        vgroup_list_set = set(vgroup_list)
+        for i in vgroup_list_set:
+            vgroups_num = vgroup_list.count(i)
+            if vgroups_num >= 2:
+                tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
+            else:
+                tdLog.exit(
+                    'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+        for i in range(self.tbnum):
+            self.top_check_data(f'{self.stbname}_{i}','child_table')
+        self.top_check_data(self.stbname,'stable')
+        tdSql.execute(f'drop database {self.dbname}')
+
+    def top_check_ntb(self):
+        tdSql.execute(f"create database if not exists {self.dbname}")
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        self.insert_data(self.column_dict,self.ntbname,self.rowNum)
+        self.top_check_data(self.ntbname,'normal_table')
+        tdSql.execute(f'drop database {self.dbname}')
+
+    def do_top(self):
+        # init
+        self.setsql = TDSetSql()
+        self.dbname = 'db'
+        self.stbname = f'{self.dbname}.stb'
+        self.ntbname = f'{self.dbname}.ntb'
+        self.rowNum = 10
+        self.tbnum = 20
+        self.ts = 1537146000000
+        self.binary_str = 'taosdata'
+        self.nchar_str = '涛思数据'
+        self.column_dict = {
+            'ts'  : 'timestamp',
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+        self.param_list = [1,100]
+
+        # do
+        self.top_check_ntb()
+        self.top_check_stb()
+        print("do_top ................................ [passed]\n")
+
+
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_select_top(self):
+        """ Function TOP()
+
+        1. Sim case
+        2. Query on all data types
+        3. Input parameter with different values
+        4. Query on stable/normal table
+        5. Query on null data
+        6. Query on where clause
+        7. Query with filter
+        8. Error check
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-8-26 Simon Guan Migrated from tsim/parser/topbot.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/compute/top.sim
+            - 2025-9-25 Alex  Duan Migrated from uncatalog/system-test/2-query/test_top.py
+
+        """
+        self.do_sim_top()
+        self.do_top()
+        tdLog.success("%s successfully executed" % __file__)

@@ -1,3 +1,5 @@
+import random
+import string
 import time
 from new_test_framework.utils import (
     tdLog,
@@ -9,44 +11,14 @@ from new_test_framework.utils import (
     etool,
 )
 
-
-class TestSelectFirstLast:
+class TestFunLast:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
-
-    def test_select_first_last(self):
-        """Select: First Last
-
-        1. Perform First queries on child tables and supertables.
-        2. Test time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
-        3. Test Last LRU (insufficient memory, multiple VGroups, complex queries).
-        4. Test scenarios where FIRST() and LAST() return multiple rows of data.
-        5. Test last_row, first, last function support 520 parameters.
-
-        Catalog:
-            - Function:Selection
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-8-26 Simon Guan Migrated from tsim/parser/first_last.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/parser/last_both.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/parser/last_cache.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/parser/last_groupby.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/parser/single_row_in_tb.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/query/cache_last.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/query/cache_last_tag.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/query/multires_func.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/compute/first.sim
-            - 2025-8-26 Simon Guan Migrated from tsim/compute/last.sim
-
-        """
-
+    #
+    # ------------------ sim case  ------------------
+    #
+    def do_sim_last(self):
         self.PareserFirstLast()
         tdStream.dropAllStreamsAndDbs()
         self.ParserLastBoth()
@@ -63,10 +35,10 @@ class TestSelectFirstLast:
         tdStream.dropAllStreamsAndDbs()
         self.MultiRes()
         tdStream.dropAllStreamsAndDbs()
-        self.ComputeFirst()
-        tdStream.dropAllStreamsAndDbs()
         self.ComputeLast()
         tdStream.dropAllStreamsAndDbs()
+        print("\n")
+        print("do_sim_last ........................... [passed]\n")
 
     def PareserFirstLast(self):
         dbPrefix = "first_db"
@@ -95,15 +67,15 @@ class TestSelectFirstLast:
             tb = tbPrefix + str(i)
             tdSql.execute(f"create table {tb} using {stb} tags( {i} )")
 
+            sql = f"insert into {tb} values"
             x = 0
             while x < rowNum:
                 xs = x * delta
                 ts = ts0 + xs
                 c6 = x % 128
-                tdSql.execute(
-                    f"insert into {tb} values ( {ts} , {x} , {x} , {x} , {x} , {x} , {c6} , true, 'BINARY', 'NCHAR' )"
-                )
+                sql += f" ({ts},{x},{x},{x},{x},{x},{c6},true,'BINARY','NCHAR')"
                 x = x + 1
+            tdSql.execute(sql)
 
             i = i + 1
 
@@ -153,15 +125,17 @@ class TestSelectFirstLast:
         ts0 = 1537146000000
         xs = 6000
 
+        sql = "insert into tm0 values"
         x = 0
         while x < 5000:
             ts = ts0 + xs
             ts1 = ts + xs
             x1 = x + 1
 
-            tdSql.execute(f"insert into tm0 values ( {ts} , {x} ) ( {ts1} , {x1} )")
+            sql += f" ({ts},{x}) ({ts1},{x1})"
             x = x1
             ts0 = ts1
+        tdSql.execute(sql)    
 
         sc.dnodeStop(1)
         sc.dnodeStart(1)
@@ -1727,127 +1701,6 @@ class TestSelectFirstLast:
             resultfile, "cases/22-Functions/03-Selection/r/multires_func.result"
         )
 
-    def ComputeFirst(self):
-        dbPrefix = "m_fi_db"
-        tbPrefix = "m_fi_tb"
-        mtPrefix = "m_fi_mt"
-        tbNum = 10
-        rowNum = 20
-        totalNum = 200
-
-        tdLog.info(f"=============== step1")
-        i = 0
-        db = dbPrefix + str(i)
-        mt = mtPrefix + str(i)
-
-        tdSql.prepare(db, drop=True)
-        tdSql.execute(f"use {db}")
-        tdSql.execute(f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol int)")
-
-        i = 0
-        while i < tbNum:
-            tb = tbPrefix + str(i)
-            tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
-            x = 0
-            while x < rowNum:
-                cc = x * 60000
-                ms = 1601481600000 + cc
-                tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
-                x = x + 1
-            i = i + 1
-
-        tdLog.info(f"=============== step2")
-        i = 1
-        tb = tbPrefix + str(i)
-
-        tdSql.query(f"select first(tbcol) from {tb}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step3")
-        cc = 4 * 60000
-        ms = 1601481600000 + cc
-        tdSql.query(f"select first(tbcol) from {tb} where ts <= {ms}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step4")
-        tdSql.query(f"select first(tbcol) as b from {tb}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step5")
-        tdSql.query(f"select first(tbcol) as b from {tb} interval(1m)")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdSql.query(f"select first(tbcol) as b from {tb} interval(1d)")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step6")
-        cc = 4 * 60000
-        ms = 1601481600000 + cc
-        tdSql.query(f"select first(tbcol) as b from {tb} where ts <= {ms} interval(1m)")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(4, 0, 4)
-        tdSql.checkRows(5)
-
-        tdLog.info(f"=============== step7")
-        tdSql.query(f"select first(tbcol) from {mt}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step8")
-        cc = 4 * 60000
-        ms = 1601481600000 + cc
-        tdSql.query(f"select first(tbcol) as c from {mt} where ts <= {ms}")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdSql.query(f"select first(tbcol) as c from {mt} where tgcol < 5")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        cc = 4 * 60000
-        ms = 1601481600000 + cc
-        tdSql.query(
-            f"select first(tbcol) as c from {mt} where tgcol < 5 and ts <= {ms}"
-        )
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step9")
-        tdSql.query(f"select first(tbcol) as b from {mt} interval(1m)")
-        tdLog.info(f"select first(tbcol) as b from {mt} interval(1m)")
-        tdLog.info(f"===> {tdSql.getData(1,0)}")
-        tdSql.checkData(1, 0, 1)
-
-        tdSql.query(f"select first(tbcol) as b from {mt} interval(1d)")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-
-        tdLog.info(f"=============== step10")
-        tdSql.query(f"select first(tbcol) as b from {mt} group by tgcol")
-        tdLog.info(f"===> {tdSql.getData(0,0)}")
-        tdSql.checkData(0, 0, 0)
-        tdSql.checkRows(tbNum)
-
-        tdLog.info(f"=============== step11")
-        cc = 4 * 60000
-        ms = 1601481600000 + cc
-        tdSql.query(
-            f"select first(tbcol) as b from {mt}  where ts <= {ms} partition by tgcol interval(1m)"
-        )
-        tdLog.info(f"===> {tdSql.getData(1,0)}")
-        tdSql.checkData(1, 0, 1)
-        tdSql.checkRows(50)
-
-        tdLog.info(f"=============== clear")
-        tdSql.execute(f"drop database {db}")
-        tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
-
     def ComputeLast(self):
         dbPrefix = "m_la_db"
         tbPrefix = "m_la_tb"
@@ -1870,11 +1723,13 @@ class TestSelectFirstLast:
             tb = tbPrefix + str(i)
             tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
             x = 0
+            sql = f"insert into {tb} values "
             while x < rowNum:
                 cc = x * 60000
                 ms = 1601481600000 + cc
-                tdSql.execute(f"insert into {tb} values ({ms} , {x} )")
+                sql += f" ({ms},{x})"
                 x = x + 1
+            tdSql.execute(sql)
             i = i + 1
 
         tdLog.info(f"=============== step2")
@@ -1970,3 +1825,627 @@ class TestSelectFirstLast:
         tdSql.execute(f"drop database {db}")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(2)
+
+    #
+    # ------------------ army/test_last.py ------------------
+    #
+    def prepare_data(self):
+        tdSql.execute("create database db_td30816 cachemodel 'both';")
+        tdSql.execute("use db_td30816;")
+        # create regular table
+        tdSql.execute("create table rt_int (ts timestamp, c1 int primary key, c2 int);")
+        tdSql.execute("create table rt_str (ts timestamp, c1 varchar(16) primary key, c2 varchar(16));")
+
+        # create stable
+        tdSql.execute("create table st_pk_int (ts timestamp, c1 int primary key, c2 int) tags (t1 int);")
+        tdSql.execute("create table st_pk_str (ts timestamp, c1 varchar(16) primary key, c2 varchar(16)) tags (t1 int);")
+
+        # create child table
+        tdSql.execute("create table ct1 using st_pk_int tags(1);")
+        tdSql.execute("create table ct2 using st_pk_int tags(2);")
+
+        tdSql.execute("create table ct3 using st_pk_str tags(3);")
+        tdSql.execute("create table ct4 using st_pk_str tags(4);")
+
+        # insert data to regular table
+        tdSql.execute("insert into rt_int values ('2021-01-01 00:00:00', 1, NULL);")
+        tdSql.execute("insert into rt_int values ('2021-01-01 00:00:01', 2, 1);")
+        tdSql.execute("insert into rt_str values ('2021-01-01 00:00:00', 'a', NULL);")
+        tdSql.execute("insert into rt_str values ('2021-01-01 00:00:01', 'b', '1');")
+
+        # insert data to child table
+        tdSql.execute("insert into ct1 values ('2021-01-01 00:00:00', 1, 1);")
+        tdSql.execute("insert into ct1 values ('2021-01-01 00:00:01', 2, NULL);")
+        tdSql.execute("insert into ct2 values ('2021-01-01 00:00:00', 3, 3);")
+        tdSql.execute("insert into ct2 values ('2021-01-01 00:00:01', 4, NULL);")
+
+        tdSql.execute("insert into ct3 values ('2021-01-01 00:00:00', 'a', '1');")
+        tdSql.execute("insert into ct3 values ('2021-01-01 00:00:01', 'b', NULL);")
+        tdSql.execute("insert into ct4 values ('2021-01-01 00:00:00', 'c', '3');")
+        tdSql.execute("insert into ct4 values ('2021-01-01 00:00:01', 'd', NULL);")
+        
+        # TD-32051
+        tdSql.execute("drop database if exists db32051;")
+        tdSql.execute("create database db32051 replica 1 vgroups 1 cachemodel 'none';")
+        tdSql.execute("use db32051;")
+        tdSql.execute("create table ntb1(ts timestamp, kval int primary key, ival int);")
+        tdSql.execute("insert into ntb1 values('2024-09-14 10:08:00.8', 3, 3);")
+        tdSql.execute("flush database db32051;")
+        tdSql.execute("insert into ntb1 values('2024-09-14 10:08:00.8', 1, 1);")
+
+    def run_last_with_primarykey_int_ct(self):
+        tdSql.execute("use db_td30816;")
+        tdSql.query("select last(*) from st_pk_int;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:01')
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(0, 2, 3)
+        
+        tdSql.query("select last_row(*) from st_pk_int;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:01')
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(0, 2, None)
+
+        # delete and insert data
+        tdSql.execute("delete from ct1 where ts='2021-01-01 00:00:01';")
+        tdSql.execute("delete from ct2 where ts='2021-01-01 00:00:01';")
+        tdSql.execute("insert into ct1 values ('2021-01-01 00:00:00', 0, 5);")
+        tdSql.execute("insert into ct2 values ('2021-01-01 00:00:00', -1, 6);")
+        tdSql.query("select last(*) from st_pk_int;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:00')
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(0, 2, 3)
+        
+        tdSql.query("select last_row(*) from st_pk_int;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:00')
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(0, 2, 3)
+        tdLog.info("Finish test_last_with_primarykey_int_ct")
+        
+    def run_last_with_primarykey_str_ct(self):
+        tdSql.execute("use db_td30816;")
+        tdSql.query("select last(*) from st_pk_str;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:01')
+        tdSql.checkData(0, 1, 'd')
+        tdSql.checkData(0, 2, '3')
+        
+        tdSql.query("select last_row(*) from st_pk_str;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:01')
+        tdSql.checkData(0, 1, 'd')
+        tdSql.checkData(0, 2, None)
+        
+        # delete and insert data
+        tdSql.execute("delete from ct3 where ts='2021-01-01 00:00:01';")
+        tdSql.execute("delete from ct4 where ts='2021-01-01 00:00:01';")
+        tdSql.execute("insert into ct3 values ('2021-01-01 00:00:00', '6', '5');")
+        tdSql.execute("insert into ct4 values ('2021-01-01 00:00:00', '7', '6');")
+        
+        tdSql.query("select last(*) from st_pk_str;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:00')
+        tdSql.checkData(0, 1, 'c')
+        tdSql.checkData(0, 2, '3')
+
+        tdSql.query("select last_row(*) from st_pk_str;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:00')
+        tdSql.checkData(0, 1, 'c')
+        tdSql.checkData(0, 2, 3)
+        tdLog.info("Finish test_last_with_primarykey_str_ct")
+
+    def run_last_with_primarykey_int_rt(self):
+        tdSql.execute("use db_td30816;")
+        tdSql.query("select last(*) from rt_int;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:01')
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 1)
+
+        tdSql.query("select last_row(*) from rt_int;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:01')
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, 1)
+
+        tdSql.execute("delete from rt_int where ts='2021-01-01 00:00:01';")
+        tdSql.execute("insert into rt_int values ('2021-01-01 00:00:00', 0, 5);")
+
+        tdSql.query("select last(*) from rt_int;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:00')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 5)
+
+        tdSql.query("select last_row(*) from rt_int;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:00')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, None)
+        tdLog.info("Finish test_last_with_primarykey_int_rt")
+
+    def run_last_with_primarykey_str_rt(self):
+        tdSql.execute("use db_td30816;")
+        tdSql.query("select last(*) from rt_str;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:01')
+        tdSql.checkData(0, 1, 'b')
+        tdSql.checkData(0, 2, '1')
+        
+        tdSql.query("select last_row(*) from rt_str;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:01')
+        tdSql.checkData(0, 1, 'b')
+        tdSql.checkData(0, 2, '1')
+        
+        tdSql.execute("delete from rt_str where ts='2021-01-01 00:00:01';")
+        tdSql.execute("insert into rt_str values ('2021-01-01 00:00:00', '2', '5');")
+
+        tdSql.query("select last(*) from rt_str;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:00')
+        tdSql.checkData(0, 1, 'a')
+        tdSql.checkData(0, 2, '5')
+
+        tdSql.query("select last_row(*) from rt_str;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2021-01-01 00:00:00')
+        tdSql.checkData(0, 1, 'a')
+        tdSql.checkData(0, 2, None)
+        tdLog.info("Finish test_last_with_primarykey_str_rt")
+
+    def run_ts5389(self):
+        """add test case to cover the crash issue of ts-5389
+        """
+        tdSql.execute("create database db_ts5389;")
+        tdSql.execute("use db_ts5389;")
+        tdSql.execute("create stable trackers(ts timestamp, reg_firmware_rev double) tags(site nchar(8), tracker nchar(16), zone nchar(2));")
+        tdSql.execute("create table tr1 using trackers tags ('MI-01', 'N29-26', '12');")
+        tdSql.execute("create table tr2 using trackers tags ('MI-01', 'N29-6', '11');")
+        tdSql.execute("insert into tr1 values(now,null);")
+        tdSql.execute("insert into tr2 values(now,null);")
+        tdSql.query("select distinct site,zone,tracker,last(reg_firmware_rev) from trackers where ts > now() -1h and site='MI-01' partition by site;")
+        tdSql.checkRows(1)
+
+    def run_td32051(self):
+        tdSql.execute("use db32051;")
+        tdSql.execute("alter database db32051 cachemodel 'both';")
+        time.sleep(5)
+        tdSql.query("select last(ival) from db32051.ntb1;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+
+    def do_army_last(self):
+        self.prepare_data()
+        # regular table
+        self.run_last_with_primarykey_int_rt()
+        self.run_last_with_primarykey_str_rt()
+        # child tables
+        self.run_last_with_primarykey_int_ct()
+        self.run_last_with_primarykey_str_ct()
+        # ts-5389
+        self.run_ts5389()
+        # TD-32051
+        self.run_td32051()
+        print("do_army_last .......................... [passed]\n")
+
+    #
+    # ------------------ system-test/test_last.py ------------------
+    #
+    def generateString(self, length):
+        chars = string.ascii_uppercase + string.ascii_lowercase
+        v = ""
+        for i in range(length):
+            v += random.choice(chars)
+        return v
+
+    def set_create_normaltable_sql(self, ntbname, column_dict):
+        column_sql = ''
+        for k, v in column_dict.items():
+            column_sql += f"{k} {v},"
+        create_ntb_sql = f'create table {ntbname} (ts timestamp,{column_sql[:-1]})'
+        return create_ntb_sql
+
+    def set_create_stable_sql(self,stbname,column_dict,tag_dict):
+        column_sql = ''
+        tag_sql = ''
+        for k,v in column_dict.items():
+            column_sql += f"{k} {v},"
+        for k,v in tag_dict.items():
+            tag_sql += f"{k} {v},"
+        create_stb_sql = f'create table {stbname} (ts timestamp,{column_sql[:-1]}) tags({tag_sql[:-1]})'
+        return create_stb_sql
+
+    def last_check_stb_tb_base(self):
+        tdSql.execute(
+            f'create database if not exists db cachemodel "{self.cachemodel}"')
+        stbname = f'db.{tdCom.getLongName(5, "letters")}'
+        column_dict = {
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+        tag_dict = {
+            'loc':'nchar(20)'
+        }
+        tdSql.execute(self.set_create_stable_sql(stbname,column_dict,tag_dict))
+
+        tdSql.execute(f"create table {stbname}_1 using {stbname} tags('beijing')")
+        tdSql.execute(f"insert into {stbname}_1(ts) values(%d)" % (self.ts - 1))
+
+        for i in [f'{stbname}_1']:
+            tdSql.query(f"select last(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
+        #!bug TD-16561
+        # for i in ['stb','db.stb','stb','db.stb']:
+        #     tdSql.query(f"select last(*) from {i}")
+        #     tdSql.checkRows(1)
+        #     tdSql.checkData(0, 1, None)
+        for i in column_dict.keys():
+            for j in [f'{stbname}_1', f'{stbname}']:
+                tdSql.query(f"select last({i}) from {j}")
+                tdSql.checkRows(0)
+        tdSql.query(f"select last({list(column_dict.keys())[0]}) from {stbname}_1 group by {list(column_dict.keys())[-1]}")
+        tdSql.checkRows(1)
+        sql = f"insert into {stbname}_1 values"
+        for i in range(self.rowNum):
+            sql += f" (%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')" \
+                    % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1)
+        tdSql.execute(sql)
+        for i in [f'{stbname}_1',f'{stbname}']:
+            tdSql.query(f"select last(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 10)
+        for k, v in column_dict.items():
+            for j in [f'{stbname}_1', f'{stbname}']:
+                tdSql.query(f"select last({k}) from {j}")
+                tdSql.checkRows(1)
+                # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
+                    tdSql.checkData(0, 0, 10)
+                # float,double
+                elif v.lower() == 'float' or v.lower() == 'double':
+                    tdSql.checkData(0, 0, 9.1)
+                # bool
+                elif v.lower() == 'bool':
+                    tdSql.checkData(0, 0, True)
+                # binary
+                elif 'binary' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
+                # nchar
+                elif 'nchar' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
+        for i in [f'{stbname}_1', f'{stbname}']:
+            tdSql.query(f"select last({list(column_dict.keys())[0]},{list(column_dict.keys())[1]},{list(column_dict.keys())[2]}) from {stbname}_1")
+            tdSql.checkData(0, 2, 10)
+
+        tdSql.error(f"select {list(column_dict.keys())[0]} from {stbname} where last({list(column_dict.keys())[12]})='涛思数据10'")
+        tdSql.error(f"select {list(column_dict.keys())[0]} from {stbname}_1 where last({list(column_dict.keys())[12]})='涛思数据10'")
+        tdSql.execute('drop database db')
+
+    def last_check_ntb_base(self):
+        tdSql.execute(
+            f'create database if not exists db cachemodel "{self.cachemodel}"')
+        ntbname = f'db.{tdCom.getLongName(5, "letters")}'
+        column_dict = {
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+        create_ntb_sql = self.set_create_normaltable_sql(ntbname, column_dict)
+        tdSql.execute(create_ntb_sql)
+        tdSql.execute(f"insert into {ntbname}(ts) values(%d)" % (self.ts - 1))
+        tdSql.query(f"select last(*) from {ntbname}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
+        for i in column_dict.keys():
+            for j in [f'{ntbname}']:
+                tdSql.query(f"select last({i}) from {j}")
+                tdSql.checkRows(0)
+        sql = f"insert into {ntbname} values"
+        for i in range(self.rowNum):
+            sql += f" (%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')" \
+                   % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1)
+        tdSql.execute(sql)
+        tdSql.query(f"select last(*) from {ntbname}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 10)
+        for k, v in column_dict.items():
+            for j in [f'{ntbname}']:
+                tdSql.query(f"select last({k}) from {j}")
+                tdSql.checkRows(1)
+                # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
+                    tdSql.checkData(0, 0, 10)
+                # float,double
+                elif v.lower() == 'float' or v.lower() == 'double':
+                    tdSql.checkData(0, 0, 9.1)
+                # bool
+                elif v.lower() == 'bool':
+                    tdSql.checkData(0, 0, True)
+                # binary
+                elif 'binary' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
+                # nchar
+                elif 'nchar' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
+        
+        
+
+        tdSql.error(
+            f"select {list(column_dict.keys())[0]} from {ntbname} where last({list(column_dict.keys())[9]})='涛思数据10'")
+
+    def last_check_stb_distribute(self):
+        # prepare data for vgroup 4
+        dbname = tdCom.getLongName(10, "letters")
+        stbname = f'{dbname}.{tdCom.getLongName(5, "letters")}'
+        vgroup_num = 2
+        column_dict = {
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+
+        tdSql.execute(
+            f'create database if not exists {dbname} vgroups {vgroup_num}  cachemodel "{self.cachemodel}"')
+        tdSql.execute(f'use {dbname}')
+
+        # build 20 child tables,every table insert 10 rows
+        tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned,
+                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
+        for i in range(self.tbnum):
+            tdSql.execute(
+                f"create table {stbname}_{i} using {stbname} tags('beijing')")
+            tdSql.execute(
+                f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}'")
+        vgroup_list = []
+        for i in range(len(tdSql.queryResult)):
+            vgroup_list.append(tdSql.queryResult[i][6])
+        vgroup_list_set = set(vgroup_list)
+        for i in vgroup_list_set:
+            vgroups_num = vgroup_list.count(i)
+            if vgroups_num >= 2:
+                tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
+                continue
+
+        for i in range(self.tbnum):
+            sql = f"insert into {stbname}_{i} values"
+            for j in range(self.rowNum):
+                sql += f" (%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')" \
+                        % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1)
+            tdSql.execute(sql)
+        for i in [f'{stbname}']:
+            tdSql.query(f"select last(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 10)
+        for k, v in column_dict.items():
+            for j in [f'{stbname}']:
+                tdSql.query(f"select last({k}) from {j}")
+                tdSql.checkRows(1)
+                # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
+                    tdSql.checkData(0, 0, 10)
+                # float,double
+                elif v.lower() == 'float' or v.lower() == 'double':
+                    tdSql.checkData(0, 0, 9.1)
+                # bool
+                elif v.lower() == 'bool':
+                    tdSql.checkData(0, 0, True)
+                # binary
+                elif 'binary' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
+                # nchar
+                elif 'nchar' in v.lower():
+                    tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
+        tdSql.execute(f'drop database {dbname}')
+
+    def last_file_check(self):
+        dbname = tdCom.getLongName(10, "letters")
+        stbname = f'{dbname}.{tdCom.getLongName(5, "letters")}'
+        vgroup_num = 10
+        buffer_size = 3
+        tables = 100
+        rows = 50
+        str = self.generateString(1024)
+        column_dict = {
+            'c1': 'int',
+            'c2': 'binary(1024)',
+            'c3': 'nchar(1024)'
+        }
+        tag_dict = {
+            't1':'int'
+        }                
+        
+        tdSql.execute(
+            f"create database if not exists {dbname} vgroups {vgroup_num} buffer {buffer_size}")
+        tdSql.execute(f'use {dbname}')
+
+        create_ntb_sql = self.set_create_stable_sql(stbname, column_dict, tag_dict)
+        tdSql.execute(create_ntb_sql)
+
+        for i in range(tables):
+            sql = f"create table {dbname}.sub_tb{i} using {stbname} tags({i})"
+            tdSql.execute(sql)
+            sql = f"insert into {dbname}.sub_tb{i} values"
+            for j in range(rows):
+                sql += f" (%d, %d, '%s', '%s')" % (self.ts + j, i, str, str)
+            tdSql.execute(sql)
+
+        tdSql.query(f"select * from {stbname}")
+        tdSql.checkRows(tables * rows)
+
+    def check_explain_res_has_row(self, plan_str_expect: str, rows, sql):
+        plan_found = False
+        for row in rows:
+            if str(row).find(plan_str_expect) >= 0:
+                tdLog.debug("plan: [%s] found in: [%s]" % (plan_str_expect, str(row)))
+                plan_found = True
+                break
+        if not plan_found:
+            tdLog.exit("plan: %s not found in res: [%s] in sql: %s" % (plan_str_expect, str(rows), sql))
+
+    def check_explain_res_no_row(self, plan_str_not_expect: str, res, sql):
+        for row in res:
+            if str(row).find(plan_str_not_expect) >= 0:
+                tdLog.exit('plan: [%s] found in: [%s] for sql: %s' % (plan_str_not_expect, str(row), sql))
+
+    def explain_sql(self, sql: str):
+        sql = "explain " + sql
+        tdSql.query(sql, queryTimes=1)
+        return tdSql.queryResult
+
+    def last_check_scan_type(self, cacheModel):
+        tdSql.execute("create database test_last_tbname cachemodel '%s';" % cacheModel)
+        tdSql.execute("use test_last_tbname;")
+        tdSql.execute("create stable test_last_tbname.st(ts timestamp, id int) tags(tid int);")
+        tdSql.execute("create table test_last_tbname.test_t1 using test_last_tbname.st tags(1);")
+
+        maxRange = 100
+        # 2023-11-13 00:00:00.000
+        startTs = 1699804800000
+        sql = "insert into test_last_tbname.test_t1 values"
+        for i in range(maxRange):
+            sql += " (%d, %d)" % (startTs + i, i)
+        tdSql.execute(sql)
+        
+        last_ts = startTs + maxRange
+        tdSql.execute("insert into test_last_tbname.test_t1 (ts) values(%d)" % (last_ts))
+        sql = f'select tbname, last(ts)  from test_last_tbname.test_t1;'
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "test_t1")     
+        tdSql.checkData(0, 1, last_ts)
+
+        explain_res = self.explain_sql(sql)
+        if cacheModel == "both" or cacheModel == "last_value":
+            self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
+        else:
+            self.check_explain_res_has_row("Table Scan", explain_res, sql)
+        
+        
+        sql = f'select last(ts), tbname from test_last_tbname.test_t1;'
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, last_ts)     
+        tdSql.checkData(0, 1, "test_t1")  
+
+        explain_res = self.explain_sql(sql)
+        if cacheModel == "both" or cacheModel == "last_value":
+            self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
+        else:
+            self.check_explain_res_has_row("Table Scan", explain_res, sql)
+
+        sql = f'select tbname, last(ts), tbname from test_last_tbname.test_t1;'
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "test_t1")     
+        tdSql.checkData(0, 1, last_ts)  
+        tdSql.checkData(0, 2, "test_t1") 
+
+        explain_res = self.explain_sql(sql)
+        if cacheModel == "both" or cacheModel == "last_value":
+            self.check_explain_res_has_row("Last Row Scan", explain_res, sql)
+        else:
+            self.check_explain_res_has_row("Table Scan", explain_res, sql)
+
+        tdSql.execute("drop table if exists test_last_tbname.test_t1 ;")
+        tdSql.execute("drop stable if exists test_last_tbname.st;")
+        tdSql.execute("drop database if exists test_last_tbname;")
+
+    def do_last(self):
+        # init
+        self.rowNum = 10
+        self.tbnum = 20
+        self.ts = 1537146000000
+        self.binary_str = 'taosdata'
+        self.nchar_str = '涛思数据'
+        self.cachemodel = None
+
+        # do
+        self.last_check_stb_tb_base()
+        self.last_check_ntb_base()
+        self.last_check_stb_distribute()
+        self.last_file_check()
+
+        self.last_check_scan_type("none")
+        self.last_check_scan_type("last_row")
+        self.last_check_scan_type("last_value")
+        self.last_check_scan_type("both")
+        print("do_last ............................... [passed]\n")
+
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_select_last(self):
+        """ Function LAST()
+
+        1. Perform Last queries on child tables and supertables.
+        2. Test time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
+        3. Test Last LRU (insufficient memory, multiple VGroups, complex queries).
+        4. Test scenarios where LAST() return multiple rows of data.
+        5. Test last_row, last function support 520 parameters.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-8-26 Simon Guan Migrated from tsim/parser/first_last.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/parser/last_both.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/parser/last_cache.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/parser/last_groupby.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/parser/single_row_in_tb.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/query/cache_last.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/query/cache_last_tag.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/query/multires_func.sim
+            - 2025-8-26 Simon Guan Migrated from tsim/compute/last.sim
+            - 2025-9-25 Alex  Duan Migrated from uncatalog/system-test/2-query/test_last.py
+            - 2025-9-25 Alex  Duan Migrated from uncatalog/army/last/test_last.py
+
+        """
+        self.do_sim_last()
+        self.do_army_last()
+        self.do_last()
+
+        tdLog.success("%s successfully executed" % __file__)

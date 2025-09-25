@@ -327,11 +327,13 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_sum.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_all.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_first_last.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_first.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_last.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_last_as_param.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_last_row.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_max_min.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_top_bottom.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_top.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_bottom.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_with_520_cols.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_with_json.py
 ## 04-Timeseries
@@ -686,8 +688,6 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/last/test_last.py
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/window/test_window_base.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/sys/test_tb_perf_queries_exist.py -N 3
@@ -912,7 +912,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_and_or_for_byte.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_bottom.py
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_cast.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py
@@ -928,7 +928,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_first.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp.py
@@ -937,7 +936,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py
@@ -974,7 +972,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_top.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsbsQuery.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ttl_comment.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_twa.py
@@ -984,7 +981,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_case_when.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_blockSMA.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py
@@ -1278,3 +1274,4 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5130.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5580.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_20582.py
+
