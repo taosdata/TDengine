@@ -246,3 +246,116 @@ class TestTDgptBasic:
 
         tdSql.error("select forecast(c5, 'conf=0.5 ,algo = arima, rows=1') from ct1")
         tdSql.error("select count(*) from ct1 anomaly_window(c1, 'algo=iqr')")
+
+    def test_corr_table(self):
+        """测试单表中的皮尔逊相关系数查询
+        1. corr function query test cases on normal tables or child tables
+
+        Catalog:
+            - TDgpt
+
+        Since: v3.3.8.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-09-25  Haojun Liao
+
+        """
+
+        tdSql.execute("create stable st_corr(ts timestamp, a int, b float, c double, d varchar(10), e tinyint, f int unsigned, g bool) tags(t1 int)")
+        tdSql.execute("create table t_corr_1 using st_corr tags(1)")
+        tdSql.execute("create table t_corr_2 using st_corr tags(2)")
+        tdSql.execute("create table t_corr_3 using st_corr tags(3)")
+
+        ## 数组 X‌: [3,5,7,9,11]
+        ## 数组 Y‌: [1,3,6,8,10]
+        tdSql.execute("insert into t_corr_1 values(now,    1, 2, 5, 'a', 3, 1, 1 )")
+        tdSql.execute("insert into t_corr_1 values(now+1a, 2, 4, 4, 'a', 5, 3, 1)")
+        tdSql.execute("insert into t_corr_1 values(now+2a, 3, 6, 3, 'a', 7, 6, 1)")
+        tdSql.execute("insert into t_corr_1 values(now+3a, 4, 8, 2, 'a', 9, 8, 1)")
+        tdSql.execute("insert into t_corr_1 values(now+4a, 5, 10,1, 'a', 11, 10, 1)")
+
+        tdSql.query("select corr(a,b) from t_corr_1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0.999999999)
+
+        tdSql.query("select corr(a, c) from t_corr_1")
+        tdSql.checkData(0, 0, -0.99999999)
+
+        tdSql.query("select corr(e, f) from t_corr_1")
+        tdSql.checkData(0, 0, 0.997176)
+
+        tdSql.query("select corr(a, cast(g as int)) from t_corr_1")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query("select corr(1, 1) from t_corr_1")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query("select corr(a, null) from t_corr_1")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select corr(null, a) from t_corr_1")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select corr(null, null)")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.error("select corr(a) from t_corr_1")
+        tdSql.error("select corr(a, d) from t_corr_1")
+        tdSql.error("select corr(a, b, b) from t_corr_1")
+        tdSql.error("select corr(a, g) from t_corr_1")
+
+    def test_corr_stable(self):
+        """测试超级表中的皮尔逊相关系数查询
+
+        1. corr function query test cases on super table
+
+        Catalog:
+            - TDgpt
+
+        Since: v3.3.8.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-09-25  Haojun Liao
+
+        """
+
+        tdSql.execute("create database d1 vgroups 3")
+        tdSql.execute("use d1")
+
+        tdSql.execute("create stable st_corr(ts timestamp, a int, b float, c double, d varchar(10), e tinyint, f int unsigned, g bool) tags(t1 int)")
+        tdSql.execute("create table t_corr_1 using st_corr tags(1)")
+        tdSql.execute("create table t_corr_2 using st_corr tags(2)")
+        tdSql.execute("create table t_corr_3 using st_corr tags(3)")
+
+        ## 数组 X‌: [3,5,7,9,11]
+        ## 数组 Y‌: [1,3,6,8,10]
+        tdSql.execute("insert into t_corr_1 values(now,    1, 2, 5, 'a', 3, 1, 1 )")
+        tdSql.execute("insert into t_corr_1 values(now+1a, 2, 4, 4, 'a', 5, 3, 1)")
+        tdSql.execute("insert into t_corr_1 values(now+2a, 3, 6, 3, 'a', 7, 6, 1)")
+        tdSql.execute("insert into t_corr_1 values(now+3a, 4, 8, 2, 'a', 9, 8, 1)")
+        tdSql.execute("insert into t_corr_1 values(now+4a, 5, 10,1, 'a', 11, 10, 1)")
+
+        tdSql.execute("insert into t_corr_2 values(now,    1, 2, 5, 'a', 3, 1, 1 )")
+        tdSql.execute("insert into t_corr_2 values(now+1a, 2, 4, 4, 'a', 5, 3, 1)")
+        tdSql.execute("insert into t_corr_2 values(now+2a, 3, 6, 3, 'a', 7, 6, 1)")
+        tdSql.execute("insert into t_corr_2 values(now+3a, 4, 8, 2, 'a', 9, 8, 1)")
+        tdSql.execute("insert into t_corr_2 values(now+4a, 5, 10,1, 'a', 11, 10, 1)")
+
+        tdSql.execute("insert into t_corr_3 values(now,    1, 2, 5, 'a', 3, 1, 1 )")
+        tdSql.execute("insert into t_corr_3 values(now+1a, 2, 4, 4, 'a', 5, 3, 1)")
+        tdSql.execute("insert into t_corr_3 values(now+2a, 3, 6, 3, 'a', 7, 6, 1)")
+        tdSql.execute("insert into t_corr_3 values(now+3a, 4, 8, 2, 'a', 9, 8, 1)")
+        tdSql.execute("insert into t_corr_3 values(now+4a, 5, 10,1, 'a', 11, 10, 1)")
+
+        tdSql.query("select corr(a, b) from st_corr")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0.9999999)
+
