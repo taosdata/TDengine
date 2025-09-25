@@ -686,6 +686,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
       taosMemoryFree(pRes);
     }
     tFreeSShowVariablesRsp(&rsp);
@@ -841,6 +842,7 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
       taosMemoryFree(pRes);
     }
   }
@@ -995,6 +997,7 @@ static int32_t processScanDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
       taosMemoryFree(pRes);
     }
   }
@@ -1028,6 +1031,7 @@ int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
       taosMemoryFree(pRes);
     }
   }

@@ -585,7 +585,7 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
   }
 
   SName name = {0};
-  TAOS_CHECK_EXIT(tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB));
+  TAOS_CHECK_EXIT(tNameFromString(&name, pObj->dbFName, T_NAME_ACCT | T_NAME_DB));
 
   char db[TSDB_TABLE_FNAME_LEN] = {0};
   (void)tNameGetFullDbName(&name, db);
@@ -712,7 +712,7 @@ static int32_t mndCheckRsmaConflicts(SMnode *pMnode, SDbObj *pDbObj, SMCreateRsm
       sdbRelease(pSdb, pObj);
       mError("rsma:%s, conflict with existing rsma %s on same table %s.%s:%" PRIi64, pCreate->name, pObj->name,
              pObj->dbFName, pObj->tbName, pObj->tbUid);
-      return TSDB_CODE_QRY_DUPLICATED_OPERATION;
+      return TSDB_CODE_MND_RSMA_EXIST_IN_TABLE;
     }
     sdbRelease(pSdb, pObj);
   }

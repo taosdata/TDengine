@@ -1009,7 +1009,7 @@ static FORCE_INLINE void tDeleteSchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
 
 static FORCE_INLINE void tDestroySchemaWrapper(SSchemaWrapper* pSchemaWrapper) {
   if (pSchemaWrapper) {
-    taosMemoryFree(pSchemaWrapper->pSchema);
+    taosMemoryFreeClear(pSchemaWrapper->pSchema);
     if(pSchemaWrapper->pRsma) {
       taosMemoryFreeClear(pSchemaWrapper->pRsma->funcIds);
       taosMemoryFreeClear(pSchemaWrapper->pRsma);
@@ -2080,7 +2080,7 @@ typedef struct {
   int32_t     sqlLen;
   char*       sql;
   SArray*     vgroupIds;
-  // int32_t     compactId;
+  int32_t     compactId;
   int8_t      metaOnly;
 } SCompactDbReq;
 

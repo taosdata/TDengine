@@ -10870,7 +10870,9 @@ static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt*
   int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, req.db);
-  return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
+  code = buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
+  tFreeSTrimDbReq(&req);
+  return code;
 }
 
 static int32_t checkColumnOptions(SNodeList* pList, bool virtual) {
@@ -16873,6 +16875,7 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
   PAR_ERR_JRET(tNameExtractFullName(&name, dropReq.name));
+  (void)snprintf(dropReq.name, TSDB_TABLE_NAME_LEN, "%s", name.tname);
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_RSMA, (FSerializeFunc)tSerializeSMDropRsmaReq, &dropReq));
@@ -17445,6 +17448,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+    case QUERY_NODE_TRIM_DATABASE_STMT:
       return extractCompactDbResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
@@ -21709,6 +21713,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
     case QUERY_NODE_SCAN_DATABASE_STMT:
+    case QUERY_NODE_TRIM_DATABASE_STMT:
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
