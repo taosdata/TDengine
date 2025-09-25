@@ -154,6 +154,7 @@ void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
+int32_t    vnodeSetElectBaseline(SVnode* pVnode, int32_t ms);
 
 #ifdef __cplusplus
 }
