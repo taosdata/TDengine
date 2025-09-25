@@ -2001,35 +2001,36 @@ end:
 }
 
 static int32_t processTs(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTriggerReaderInfo* sStreamReaderInfo,
-                                  SStreamReaderTaskInner* pTask) {
+                                  SStreamReaderTaskInner* pTaskInner) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  tsRsp->tsInfo = taosArrayInit(qStreamGetTableListGroupNum(pTask->pTableList), sizeof(STsInfo));
+  void* pTask = sStreamReaderInfo->pTask;
+  tsRsp->tsInfo = taosArrayInit(qStreamGetTableListGroupNum(pTaskInner->pTableList), sizeof(STsInfo));
   STREAM_CHECK_NULL_GOTO(tsRsp->tsInfo, terrno);
   while (true) {
     bool hasNext = false;
-    STREAM_CHECK_RET_GOTO(getTableDataInfo(pTask, &hasNext));
+    STREAM_CHECK_RET_GOTO(getTableDataInfo(pTaskInner, &hasNext));
     if (hasNext) {
-      pTask->api.tsdReader.tsdReaderReleaseDataBlock(pTask->pReader);
+      pTaskInner->api.tsdReader.tsdReaderReleaseDataBlock(pTaskInner->pReader);
       STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
       STREAM_CHECK_NULL_GOTO(tsInfo, terrno)
-      if (pTask->options.order == TSDB_ORDER_ASC) {
-        tsInfo->ts = pTask->pResBlock->info.window.skey;
+      if (pTaskInner->options.order == TSDB_ORDER_ASC) {
+        tsInfo->ts = pTaskInner->pResBlock->info.window.skey;
       } else {
-        tsInfo->ts = pTask->pResBlock->info.window.ekey;
+        tsInfo->ts = pTaskInner->pResBlock->info.window.ekey;
       }
       tsInfo->gId = (sStreamReaderInfo->groupByTbname || sStreamReaderInfo->tableType != TSDB_SUPER_TABLE) ? 
-                    pTask->pResBlock->info.id.uid : qStreamGetGroupId(pTask->pTableList, pTask->pResBlock->info.id.uid);
-      stDebug("vgId:%d %s get ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
+                    pTaskInner->pResBlock->info.id.uid : qStreamGetGroupId(pTaskInner->pTableList, pTaskInner->pResBlock->info.id.uid);
+      ST_TASK_DLOG("vgId:%d %s get ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
               tsInfo->gId, tsRsp->ver);
     }
     
-    pTask->currentGroupIndex++;
-    if (pTask->currentGroupIndex >= qStreamGetTableListGroupNum(pTask->pTableList) || pTask->options.gid != 0) {
+    pTaskInner->currentGroupIndex++;
+    if (pTaskInner->currentGroupIndex >= qStreamGetTableListGroupNum(pTaskInner->pTableList) || pTaskInner->options.gid != 0) {
       break;
     }
-    STREAM_CHECK_RET_GOTO(resetTsdbReader(pTask));
+    STREAM_CHECK_RET_GOTO(resetTsdbReader(pTaskInner));
   }
 
 end:
@@ -2125,7 +2126,7 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   firstTsRsp.ver = pVnode->state.applied;
   STREAM_CHECK_RET_GOTO(processTs(pVnode, &firstTsRsp, sStreamReaderInfo, pTaskInner));
 
-  ST_TASK_DLOG("vgId:%d %s get result, ver:%"PRId64, TD_VID(pVnode), __func__, firstTsRsp.ver);
+  ST_TASK_DLOG("vgId:%d %s get result size:%"PRIzu", ver:%"PRId64, TD_VID(pVnode), __func__, taosArrayGetSize(firstTsRsp.tsInfo), firstTsRsp.ver);
   STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size));
   if (stDebugFlag & DEBUG_DEBUG) {
     int32_t nInfo = taosArrayGetSize(firstTsRsp.tsInfo);
@@ -2970,7 +2971,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
 
   STREAM_CHECK_RET_GOTO(createDataBlock(&pBlock));
   if (metaReader.me.type == TD_VIRTUAL_NORMAL_TABLE) {
-    STREAM_CHECK_CONDITION_GOTO (taosArrayGetSize(cols) < 1 && *(col_id_t*)taosArrayGet(cols, 0) != -1, TSDB_CODE_INVALID_PARA);
+    STREAM_CHECK_CONDITION_GOTO (taosArrayGetSize(cols) < 1 || *(col_id_t*)taosArrayGet(cols, 0) != -1, TSDB_CODE_INVALID_PARA);
     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
     STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
@@ -3053,6 +3054,9 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
 end:
+  if(size == 0){
+    code = TSDB_CODE_STREAM_NO_DATA;
+  }
   api.metaReaderFn.clearReader(&metaReaderStable);
   api.metaReaderFn.clearReader(&metaReader);
   STREAM_PRINT_LOG_END(code, lino);
