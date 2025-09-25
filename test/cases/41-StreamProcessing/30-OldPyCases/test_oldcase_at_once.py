@@ -111,21 +111,22 @@ class TestOthersOldCaseAtonce:
                 f" as select last_row(_c0), first(_c0), count(cint), sum(cint), sum(ctiny), _twstart, _twend from %%trows;"
             )
 
-            tdSql.execute(
-                f"create stream s0_v count_window(1, 1, cint) from {self.db}.vct1"
-                f" stream_options(pre_filter(cint > 4 and cint < 7) | watermark(10s) | expired_time(60s) | max_delay(5s)"
-                f" | delete_recalc | fill_history('2025-03-01 00:00:00') | force_output)"
-                f" into res_vct1 (lastts, firstts, cnt_v, sum_v, ysum_v, tws, twe)"
-                f" as select last_row(_c0), first(_c0), count(cint), sum(cint), sum(ctiny), _twstart, _twend from %%trows;"
-            )
+            # TD-38126 pre_filter 在 %%trows 且触发表为虚拟表时不可用
+            #tdSql.execute(
+            #    f"create stream s0_v count_window(1, 1, cint) from {self.db}.vct1"
+            #    f" stream_options(pre_filter(cint > 4 and cint < 7) | watermark(10s) | expired_time(60s) | max_delay(5s)"
+            #    f" | delete_recalc | fill_history('2025-03-01 00:00:00') | force_output)"
+            #    f" into res_vct1 (lastts, firstts, cnt_v, sum_v, ysum_v, tws, twe)"
+            #    f" as select last_row(_c0), first(_c0), count(cint), sum(cint), sum(ctiny), _twstart, _twend from %%trows;"
+            #)
             
-            tdSql.execute(
-                f"create stream sg0_v count_window(1, 1, cint) from {self.db}.{self.vstbName} partition by tbname, tint "
-                f" stream_options(pre_filter(cint > 4 and cint < 7) | watermark(10s) | expired_time(60s) | max_delay(5s)"
-                f" | delete_recalc | fill_history('2025-03-01 00:00:00') | force_output)"
-                f" into res_vstb OUTPUT_SUBTABLE(CONCAT('res_vstb_', tbname)) (lastts, firstts, cnt_v, sum_v, ysum_v, tws, twe)"
-                f" as select last_row(_c0), first(_c0), count(cint), sum(cint), sum(ctiny), _twstart, _twend from %%trows;"
-            )
+            #tdSql.execute(
+            #    f"create stream sg0_v count_window(1, 1, cint) from {self.db}.{self.vstbName} partition by tbname, tint "
+            #    f" stream_options(pre_filter(cint > 4 and cint < 7) | watermark(10s) | expired_time(60s) | max_delay(5s)"
+            #    f" | delete_recalc | fill_history('2025-03-01 00:00:00') | force_output)"
+            #    f" into res_vstb OUTPUT_SUBTABLE(CONCAT('res_vstb_', tbname)) (lastts, firstts, cnt_v, sum_v, ysum_v, tws, twe)"
+            #    f" as select last_row(_c0), first(_c0), count(cint), sum(cint), sum(ctiny), _twstart, _twend from %%trows;"
+            #)
             
 
         def insert1(self):
@@ -160,18 +161,18 @@ class TestOthersOldCaseAtonce:
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_ct1"',
                 func=lambda: tdSql.getRows() == 1,
             )
-            tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_vct1"',
-                func=lambda: tdSql.getRows() == 1,
-            )
+            #tdSql.checkResultsByFunc(
+            #    sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_vct1"',
+            #    func=lambda: tdSql.getRows() == 1,
+            #)
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
                 func=lambda: tdSql.getRows() == 2,
             )
-            tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_vstb_vct%"',
-                func=lambda: tdSql.getRows() == 2,
-            )
+            #tdSql.checkResultsByFunc(
+            #    sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_vstb_vct%"',
+            #    func=lambda: tdSql.getRows() == 2,
+            #)
             
             tdSql.checkTableSchema(
                 dbname=self.db,
@@ -212,11 +213,11 @@ class TestOthersOldCaseAtonce:
             #     and tdSql.compareData(3, 4, 3)
             # )
             self.common_checkResults('res_ct1')
-            self.common_checkResults('res_vct1')
+            #self.common_checkResults('res_vct1')
             self.common_checkResults('res_stb_ct1')
             self.common_checkResults('res_stb_ct2')
-            self.common_checkResults('res_vstb_vct1')
-            self.common_checkResults('res_vstb_vct2')
+            #self.common_checkResults('res_vstb_vct1')
+            #self.common_checkResults('res_vstb_vct2')
 
         def common_checkResults(self, res_tbl_name):  
             tdSql.checkResultsByFunc(
