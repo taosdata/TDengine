@@ -244,7 +244,7 @@ class TestStreamSubquerySliding:
             id=11,
             stream="create stream rdb.s11 sliding(5m) from tdb.n1 into rdb.r11 as select _tcurrent_ts tc, _tprev_ts tp, _tnext_ts tn, case when _tgrpid != 0 then 1 else 0 end tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _tcurrent_ts and cts < _tnext_ts and _tgrpid is not null and _tlocaltime is not null and tbname != 't1';",
             res_query="select tc, tp, tn, tg, c1, c2 from rdb.r11;",
-            exp_query="select _wstart, _wstart - 5m, _wend, 1, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:45:00.000' and tbname != 't1' interval(5m);",
+            exp_query="select _wstart, _wstart - 5m, _wend, 0, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:45:00.000' and tbname != 't1' interval(5m);",
             check_func=self.check11,
         )
         self.streams.append(stream)
@@ -286,7 +286,7 @@ class TestStreamSubquerySliding:
             id=16,
             stream="create stream rdb.s16 sliding(5m) from tdb.n1 into rdb.r16 as select _tcurrent_ts ts, count(*) c1, avg(cint) c2, _tcurrent_ts + 1 as ts2, case when _tgrpid != 0 then 1 else 0 end from qdb.meters where tbname = 't1' partition by tbname;",
             res_query="select * from rdb.r16 limit 1;",
-            exp_query="select cast('2025-01-01 00:25:00.000' as timestamp), count(*), avg(cint), cast('2025-01-01 00:25:00.001' as timestamp), 1 from qdb.meters where tbname = 't1'",
+            exp_query="select cast('2025-01-01 00:25:00.000' as timestamp), count(*), avg(cint), cast('2025-01-01 00:25:00.001' as timestamp), 0 from qdb.meters where tbname = 't1'",
             check_func=self.check16,
         )
         self.streams.append(stream)
@@ -327,7 +327,7 @@ class TestStreamSubquerySliding:
             id=21,
             stream="create stream rdb.s21 sliding(5m) from tdb.n1 into rdb.r21 as select _tcurrent_ts tw, count(*) c1, case when _tgrpid != 0 then 1 else 0 end tg, _tlocaltime tl from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
             res_query="select tw, c1, tg from rdb.r21",
-            exp_query="select _wstart, count(*) cnt, 1 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:45:00.000' interval(5m);",
+            exp_query="select _wstart, count(*) cnt, 0 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:45:00.000' interval(5m);",
         )
         self.streams.append(stream)
 
