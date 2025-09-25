@@ -1416,6 +1416,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
       nodesDestroyList(pExternal->pAggFuncList);
       nodesDestroyList(pExternal->pProjectionList);
+      nodesDestroyNode(pExternal->pTimeRange);
       taosMemoryFreeClear(pExternal->timezone);
     }
     case QUERY_NODE_HINT: {
@@ -1965,6 +1966,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
       nodesDestroyNode(pLogicNode->pTspk);
+      nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pTsEnd);
       nodesDestroyNode(pLogicNode->pStateExpr);
       nodesDestroyNode(pLogicNode->pStartCond);
@@ -2069,6 +2071,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {
       SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
+      nodesDestroyNode(pPhyNode->pTimeRange);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
@@ -2752,6 +2755,19 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
     case OP_TYPE_MULTI:
     case OP_TYPE_DIV:
     case OP_TYPE_REM:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool nodesIsBasicArithmeticOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
       return true;
     default:
       break;

@@ -10739,7 +10739,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
   return 0;
 }
 
-int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
+int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bool needStreamPesudoFuncVals) {
   int32_t code = 0;
   int32_t lino;
   int32_t headLen = sizeof(SMsgHead);
@@ -10765,7 +10765,7 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
   if (pReq->pStRtFuncInfo) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
-    TAOS_CHECK_EXIT(tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo));
+    TAOS_CHECK_EXIT(tSerializeStRtFuncInfo(&encoder, pReq->pStRtFuncInfo, pReq->reset && needStreamPesudoFuncVals));
   } else {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 0));
   }
@@ -13417,7 +13417,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     for (int32_t i = 0; i < nColData; ++i) {
-      TAOS_CHECK_EXIT(tDecodeColData(version, pCoder, taosArrayReserve(pSubmitTbData->aCol, 1)));
+      TAOS_CHECK_EXIT(tDecodeColData(version, pCoder, taosArrayReserve(pSubmitTbData->aCol, 1), false));
     }
   } else {
     uint64_t nRow = 0;

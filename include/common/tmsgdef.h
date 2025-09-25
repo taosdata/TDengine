@@ -343,7 +343,8 @@
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_SSMIGRATE_PROGRESS, "vnode-query-ssmigrate-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_SSMIGRATE_FILESET, "vnode-ssmigrate-fileset", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FOLLOWER_SSMIGRATE, "vnode-follower-ssmigrate", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_KILL_SSMIGRATE, "vnode-kill-ssmigrate", NULL, NULL) // placeholder for future use
+  TD_DEF_MSG_TYPE(TDMT_VND_SNODE_DROP_TABLE, "snode-drop-table", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_SCAN_PROGRESS, "vnode-query-scan-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_KILL_SCAN, "kill-scan", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_SCAN, "vnode-scan", NULL, NULL)
@@ -392,6 +393,7 @@
   TD_DEF_MSG_TYPE(TDMT_STREAM_FETCH_FROM_RUNNER, "stream-fetch-runner", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_SYNC_CHECKPOINT, "stream-sync-checkpoint", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_DELETE_CHECKPOINT, "stream-delete-checkpoint", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_TRIGGER_DROP, "stream-trigger-drop", NULL, NULL)
   
   TD_CLOSE_MSG_SEG(TDMT_STREAM_MSG)
 

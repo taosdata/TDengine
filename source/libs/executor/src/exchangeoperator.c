@@ -189,9 +189,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
     }
 
     code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
+    TAOS_CHECK_EXIT(code);
 
     SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
     if (pRsp->completed == 1) {
@@ -454,7 +452,7 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       return code;
     }
 
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL);
+    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (blockDataGetNumOfRows(pBlock) == 0) {
@@ -962,6 +960,36 @@ _return:
   return code;
 }
 
+static int32_t getCurrentWinCalcTimeRange(SStreamRuntimeFuncInfo* pRuntimeInfo, STimeWindow* pTimeRange) {
+  if (!pRuntimeInfo || !pTimeRange) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SSTriggerCalcParam* pParam = taosArrayGet(pRuntimeInfo->pStreamPesudoFuncVals, pRuntimeInfo->curIdx);
+  if (!pParam) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  switch (pRuntimeInfo->triggerType) {
+    case STREAM_TRIGGER_SLIDING:
+      // Unable to distinguish whether there is an interval, all use wstart/wend
+      // and the results are equal to those of prevTs/currentTs, using the same address of union.
+      pTimeRange->skey = pParam->wstart;  // is equal to wstart
+      pTimeRange->ekey = pParam->wend;    // is equal to wend
+      break;
+    case STREAM_TRIGGER_PERIOD:
+      pTimeRange->skey = pParam->prevLocalTime;
+      pTimeRange->ekey = pParam->triggerTime;
+      break;
+    default:
+      pTimeRange->skey = pParam->wstart;
+      pTimeRange->ekey = pParam->wend;
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -998,6 +1026,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     taosMemoryFree(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
+    bool needStreamPesudoFuncVals = true;
     SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
     req.sId = pSource->sId;
@@ -1008,9 +1037,18 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (pTaskInfo->pStreamRuntimeInfo) {
       req.dynTbname = pExchangeInfo->dynTbname;
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
-      if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER)
-        qDebug("doSendFetchDataRequest to execId:%d, %p", req.execId, pTaskInfo->pStreamRuntimeInfo);
       req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+      if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
+        qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
+      } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
+        code = getCurrentWinCalcTimeRange(req.pStRtFuncInfo, &req.pStRtFuncInfo->curWindow);
+        QUERY_CHECK_CODE(code, lino, _end);
+        needStreamPesudoFuncVals = false;
+        qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]",
+               GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
+               req.pStRtFuncInfo->curWindow.ekey);
+      }
       if (!pDataInfo->fetchSent) {
         req.reset = pDataInfo->fetchSent = true;
       }
@@ -1048,7 +1086,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       }
     }
 
-    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
+    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals);
     if (msgSize < 0) {
       pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
@@ -1064,7 +1102,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       return pTaskInfo->code;
     }
 
-    msgSize = tSerializeSResFetchReq(msg, msgSize, &req);
+    msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamPesudoFuncVals);
     if (msgSize < 0) {
       pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);

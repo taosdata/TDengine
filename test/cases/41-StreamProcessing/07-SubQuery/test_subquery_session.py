@@ -104,6 +104,9 @@ class TestStreamSubquerySession:
         tdLog.info("prepare view")
         tdStream.prepareViews(views=5)
 
+        self.prepareDataFor133()
+
+
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")
 
@@ -137,6 +140,7 @@ class TestStreamSubquerySession:
             "insert into tdb.n1 values ('2025-01-01 00:31:00', 30, 10 ) ('2025-01-01 00:40:00', 40, 0  )",
         ]
         tdSql.executes(sqls)
+        self.writeTriggerData133()
 
     def checkStreamStatus(self):
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
@@ -162,7 +166,7 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=1,
-            stream="create stream rdb.s1 session(ts, 2m) from tdb.triggers into rdb.r1 as select _twstart ts, _twstart + 5m te, _twduration td, _twrownum tw, _tgrpid tg, cast(_tlocaltime as bigint) tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
+            stream="create stream rdb.s1 session(ts, 2m) from tdb.triggers into rdb.r1 as select _twstart ts, _twstart + 5m te, _twduration td, _twrownum tw, case when _tgrpid != 0 then 1 else 0 end tg, cast(_tlocaltime as bigint) tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
             res_query="select ts, te, td, tg, c1, c2 from rdb.r1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:20:00';",
             exp_query="select _wstart ts, _wend te, 60000, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:20:00' interval(5m);",
             check_func=self.check1,
@@ -248,7 +252,7 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=11,
-            stream="create stream rdb.s11 session(ts, 2m) from tdb.n1 into rdb.r11 as select _twstart tc, _twstart - 5m tp, _twstart + 5m tn, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _tgrpid is not null and _tlocaltime is not null and tbname != 't1';",
+            stream="create stream rdb.s11 session(ts, 2m) from tdb.n1 into rdb.r11 as select _twstart tc, _twstart - 5m tp, _twstart + 5m tn, case when _tgrpid != 0 then 1 else 0 end tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _tgrpid is not null and _tlocaltime is not null and tbname != 't1';",
             res_query="select tc, tp, tn, tg, c1, c2 from rdb.r11 limit 2;",
             exp_query="select _wstart, _wstart - 5m, _wend, 0, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:35:00.000' and tbname != 't1' interval(5m);",
             check_func=self.check11,
@@ -290,7 +294,7 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=16,
-            stream="create stream rdb.s16 session(ts, 2m) from tdb.n1 into rdb.r16 as select _twstart ts, count(*) c1, avg(cint) c2, _twstart + 1 as ts2, _tgrpid from qdb.meters where tbname = 't1' partition by tbname;",
+            stream="create stream rdb.s16 session(ts, 2m) from tdb.n1 into rdb.r16 as select _twstart ts, count(*) c1, avg(cint) c2, _twstart + 1 as ts2, case when _tgrpid != 0 then 1 else 0 end from qdb.meters where tbname = 't1' partition by tbname;",
             res_query="select * from rdb.r16 limit 1;",
             exp_query="select cast('2025-01-01 00:25:00.000' as timestamp), count(*), avg(cint), cast('2025-01-01 00:25:00.001' as timestamp), 0 from qdb.meters where tbname = 't1'",
             check_func=self.check16,
@@ -331,7 +335,7 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=21,
-            stream="create stream rdb.s21 session(ts, 2m) from tdb.n1 into rdb.r21 as select _twstart tw, count(*) c1, _tgrpid tg, _tlocaltime tl from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s21 session(ts, 2m) from tdb.n1 into rdb.r21 as select _twstart tw, count(*) c1, case when _tgrpid != 0 then 1 else 0 end tg, _tlocaltime tl from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
             res_query="select tw, c1, tg from rdb.r21",
             exp_query="select _wstart, count(*) cnt, 0 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:35:00.000' interval(5m);",
         )
@@ -476,7 +480,7 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=39,
-            stream="create stream rdb.s39 session(ts, 2m) from tdb.v2 into rdb.r39 as select _twstart + 5m tn, TIMETRUNCATE(_twstart + 5m, 1d) tnt, sum(cint) c1, _tgrpid tg, TIMETRUNCATE(cast(_tlocaltime /1000000 as timestamp), 1d) tl from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tint = 1 partition by tint",
+            stream="create stream rdb.s39 session(ts, 2m) from tdb.v2 into rdb.r39 as select _twstart + 5m tn, TIMETRUNCATE(_twstart + 5m, 1d) tnt, sum(cint) c1, case when _tgrpid != 0 then 1 else 0 end tg, TIMETRUNCATE(cast(_tlocaltime /1000000 as timestamp), 1d) tl from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tint = 1 partition by tint",
             res_query="select * from rdb.r39 limit 5",
             exp_query="select _wstart + 5m, timetruncate(_wstart, 1d), sum(cint), 0, timetruncate(now(), 1d) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:25:00.000' interval(5m);",
             check_func=self.check39,
@@ -528,7 +532,7 @@ class TestStreamSubquerySession:
         stream = StreamItem(
             id=45,
             stream="create stream rdb.s45 session(ts, 2m) from tdb.triggers partition by id, name, tbname into rdb.r45 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tbname='t2' order by cts limit 1",
-            res_query="select  ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from rdb.r45 limit 1",
+            res_query="select  ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from rdb.r45 order by ts limit 1",
             exp_query="select cts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.t2 where cts = '2025-01-01 00:00:00.000';",
         )
         self.streams.append(stream)
@@ -543,7 +547,7 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=47,
-            stream="create stream rdb.s47 session(ts, 2m) from tdb.triggers into rdb.r47 as select _twstart ts, sum(`vgroups`) c1, sum(ntables) c2 from information_schema.ins_databases where name != 'information_schema' and name != 'performance_schema'",
+            stream="create stream rdb.s47 session(ts, 2m) from tdb.triggers into rdb.r47 as select _twstart ts, sum(`vgroups`) c1, sum(ntables) c2 from information_schema.ins_databases where name != 'information_schema' and name != 'performance_schema' and name != 'qdb133'",
             res_query="select ts, c1, c2 >= 100, 1000 from rdb.r47 limit 3",
             exp_query="select _wstart ts, 3, true, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
         )
@@ -1232,6 +1236,15 @@ class TestStreamSubquerySession:
             exp_query="select tb.cts tbts, ta.ts tats, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta right join qdb.t1 tb on ta.ts=tb.cts where tb.cts >= '2025-01-01 00:00:00.000' and tb.cts < '2025-01-01 00:15:00.000';",
         )
         self.streams.append(stream)
+        
+        stream = StreamItem(
+            id=133,
+            stream="create stream qdb133.s133 session(ts, 72d) from qdb133.stream133_trigger  stream_options(event_type(window_close))  notify('ws://192.168.2.11:6041/eventReceive') on(window_open|window_close) into qdb133.res_133 "
+            "as select first(cts) ts, first(cint) as first_cint_val, stddev_pop(cuint) as stddev_pop_cuint_val "
+            "from qdb133.meters133  where cts >= _twstart and cts < _twend;",
+            check_func=self.check133,
+        )
+        self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
@@ -1668,3 +1681,44 @@ class TestStreamSubquerySession:
             sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
             func=lambda: tdSql.getRows() == 2,
         )
+        
+    def check133(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from qdb133.res_133",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 10),
+        )
+    
+    def prepareDataFor133(self):
+        tdSql.execute("create database qdb133;")
+        tdSql.execute("use qdb133;")
+        tdSql.execute("create table qdb133.stream133_trigger (ts timestamp, cint int, cuint INT UNSIGNED) tags(t1  int);")
+        tdSql.execute(
+            "create table qdb133.stream133_trigger_1 using qdb133.stream133_trigger tags(1);"
+        )
+        tdSql.execute("create table meters133 (cts timestamp, cint int, cuint INT UNSIGNED) tags(t1  int);")
+        tdSql.execute("create table meters133_1 using meters133 tags(1);")
+        tdSql.execute("insert into meters133_1 values('2025-01-01 00:00:00', 10, 100),('2025-01-01 00:00:10', 20, 200),"
+                      "('2025-01-01 00:00:20', 30, 300),('2025-01-01 00:00:30', 40, 400), ('2025-01-01 00:00:40', 50, 500)")
+
+
+    def writeTriggerData133(self):
+        tdSql.execute("use qdb133;")
+        
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:00', 10, 100);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:10', 20, 200);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:20', 30, 300);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:30', 40, 400);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-01 00:00:40', 50, 500);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-02 00:00:00', 60, 600);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-02 00:00:10', 70, 700);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-03 00:00:00', 80, 800);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-03 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-04 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-05 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-06 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-10 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-01-11 00:00:10', 90, 900);")
+        tdSql.execute("insert into qdb133.stream133_trigger_1 values('2025-04-11 00:00:10', 90, 900);")
+
