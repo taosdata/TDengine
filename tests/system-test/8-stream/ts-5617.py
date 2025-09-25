@@ -77,7 +77,7 @@ insertJson = '''{
 }'''
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 135, 'asynclog': 0, 'streamFailedTimeout': 10000}
+    updatecfgDict = {'debugFlag': 135, 'asynclog': 0, 'streamFailedTimeout': 2000}
     clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
     updatecfgDict["clientCfg"] = clientCfgDict
     def init(self, conn, logSql, replicaVar=1):
