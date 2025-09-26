@@ -1980,10 +1980,10 @@ SPREAD(expr)
 
 **Applicable to**: Tables and supertables.
 
-### STDDEV/STDDEV_POP
+### STDDEV/STDDEV_POP/STD
 
 ```sql
-STDDEV/STDDEV_POP(expr)
+STDDEV/STDDEV_POP/STD(expr)
 ```
 
 **Function Description**: Calculates the population standard deviation of a column in the table.
@@ -1997,6 +1997,7 @@ STDDEV/STDDEV_POP(expr)
 **Description**:
 
 - Function `STDDEV_POP` equals `STDDEV` and is supported from ver-3.3.3.0.
+- Function `STD` equals `STDDEV` and is supported from ver-3.3.8.0.
 
 **Example**:
 
@@ -2016,15 +2017,87 @@ taos> select stddev_pop(id) from test_stddev;
          1.414213562373095 |
 ```
 
-### VAR_POP
+### STDDEV_SAMP
 
 ```sql
-VAR_POP(expr)
+STDDEV_SAMP
+```
+
+**Function Description**: Calculates the sample standard deviation of a column in the table.
+
+**Version**: ver-3.3.8.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Example**:
+
+```sql
+taos> select id from test_stddev;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> select stddev_samp(id) from test_stddev;
+      stddev_samp(id)       |
+============================
+         1.58113883008419   |
+```
+
+### VARIANCE/VAR_POP
+
+```sql
+VARIANCE/VAR_POP(expr)
 ```
 
 **Function Description**: Calculates the population variance of a column in a table.
 
 **Version**: ver-3.3.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Description**:
+
+- Function `VARIANCE` equals `VAR_POP` and is supported from ver-3.3.8.0.
+
+**Example**:
+
+```sql
+taos> select id from test_var;
+     id      |
+==============
+           3 |
+           1 |
+           2 |
+           4 |
+           5 |
+
+taos> select var_pop(id) from test_var;
+        var_pop(id)        |
+============================
+         2.000000000000000 |
+```
+
+### VAR_SAMP
+
+```sql
+VAR_SAMP(expr)
+```
+
+**Function Description**: Calculates the sample variance of a column in a table.
+
+**Version**: ver-3.3.8.0
 
 **Return Data Type**: DOUBLE.
 
@@ -2044,10 +2117,42 @@ taos> select id from test_var;
            4 |
            5 |
 
-taos> select var_pop(id) from test_var;
-        var_pop(id)        |
+taos> select var_samp(id) from test_var;
+        var_samp(id)        |
 ============================
-         2.000000000000000 |
+         2.500000000000000 |
+```
+
+### GROUP_CONCAT
+
+```sql
+GROUP_CONCAT(expr)
+```
+
+**Function Description**: Concatenate the non-null fields of a table.
+
+**Version**: ver-3.3.8.0
+
+**Return Data Type**: VARCHAR.
+
+**Applicable Data Types**: String types.
+
+**Applicable to**: Tables and supertables.
+
+**Example**:
+
+```sql
+taos> select str1, str2 from test_var;
+     id      |      id      |
+=============================
+          a1 |       b1     |
+          a2 |       b2     |
+          a3 |       b3     |
+
+taos> select group_concat(str1, str2, ':') from test_var;
+         group_concat(str1, str2, ':')   |
+==========================================
+         a1b1:a2b2:a3b3                  |
 ```
 
 ### SUM
@@ -2133,6 +2238,99 @@ PERCENTILE(expr, p [, p1] ... )
 - *P* values range from 0≤*P*≤100, where P=0 is equivalent to MIN and P=100 is equivalent to MAX;
 - When calculating multiple percentiles for the same column, it is recommended to use one PERCENTILE function with multiple parameters to significantly reduce the response time of the query.
   For example, using the query SELECT percentile(col, 90, 95, 99) FROM table performs better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
+
+## Control Flow Functions
+
+### IF
+
+```sql
+IF(expr1, expr2, expr3)
+```
+
+**Function Description**: If expr1 is true, return expr2, otherwise return expr3.
+
+**Return Data Type**: Depends on the contexts.
+
+**Applicable Fields**: expressions.
+
+**Usage Instructions**:
+
+- Similar to the CASE expressions.
+
+**Example**:
+
+```sql
+taos> SELECT IF(1>2,2,3);
+      if(1>2,2,3)      |
+========================
+                     3 |
+```
+
+### IFNULL
+
+```sql
+IFNULL(expr1, expr2)
+```
+
+**Function Description**: If expr1 is not null, return expr1, otherwise return expr2.
+
+**Return Data Type**: Depends on the contexts.
+
+**Applicable Fields**: expressions.
+
+**Example**:
+
+```sql
+taos> SELECT IFNULL(1,0);
+      ifnull(1,0)      |
+========================
+                    1 |
+```
+
+### NVL
+
+`NVL` is a synonym for [IFNULL](#ifnull).
+
+### NULLIF
+
+```sql
+NULLIF(expr1, expr2)
+```
+
+**Function Description**: If expr1  = expr2, return NULL, otherwise return expr1.
+
+**Return Data Type**: Depends on the contexts.
+
+**Applicable Fields**: expressions.
+
+**Example**:
+
+```sql
+taos> SELECT NULLIF(1,1);
+      nullif(1,1)      |
+========================
+ NULL                  |
+```
+
+### NVL2
+
+```sql
+NVL2(expr1, expr2, expr3)
+```
+
+**Function Description**: If expr1 is not null, return expr2, otherwise return expr1.
+
+**Return Data Type**: Depends on the contexts.
+
+**Applicable Fields**: expressions.
+
+**Example**:
+
+```sql
+taos> SELECT NVL2(NULL,1,2);
+========================
+                     2 |
+```
 
 ## Selection Functions
 
