@@ -250,30 +250,47 @@ class TestCase:
 
     def s5_trim_db(self):
         self.s5_0_trim_db('trim')
+        # insert more data after trim
         tdSql.execute("insert  into ctb0 values('2024-10-01 08:00:01.001',1,1,1,1,true, '1','1')")
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(7)
         tdSql.execute("flush database d0")
+        # trim again
         tdSql.execute("trim database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
         self.s5_0_wait_trim_done()
+        # trim has no effect since no fset retention happen 
         tdSql.query("select * from d0.stb0")
-        # tdSql.checkRows(7)
+        tdSql.checkRows(7)
 
 
     def s6_rollup_db(self):
         self.s5_0_trim_db('rollup')
+        # insert more data after rollup
         tdSql.execute("insert  into ctb0 values('2024-10-01 08:00:01.001',1,1,1,1,true, '1','1')")
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(7)
         tdSql.execute("flush database d0")
+        # rollup again
         tdSql.execute("rollup database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
         self.s5_0_wait_trim_done()
+        # rollup has effect since new commit happen after last rollup
         tdSql.query("select * from d0.stb0")
-        # tdSql.checkRows(6)
+        tdSql.checkRows(6)
+        tdSql.query("select * from d0.ctb0")
+        tdSql.checkRows(3)
+        # check rollup result
+        tdSql.checkData(0, 0, '2024-10-01 08:00:00.000')
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(0, 3, 1.5)
+        tdSql.checkData(0, 4, 7)
+        tdSql.checkData(0, 5, True)
+        tdSql.checkData(0, 6, 1)
+        tdSql.checkData(0, 7, 1)
 
     def test_rsma(self):
         """ Test case for rsma.

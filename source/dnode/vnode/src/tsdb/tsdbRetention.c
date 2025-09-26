@@ -314,18 +314,20 @@ static bool tsdbFSetNeedRetention(STFileSet *fset, int32_t expLevel) {
   if (expLevel < 0) {
     return false;
   }
+
+  STFileObj *fobj = NULL;
   for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    if (expLevel > fset->farr[ftype]->f->did.level) {
+    fobj = fset->farr[ftype];
+    if (fobj && (expLevel > fset->farr[ftype]->f->did.level)) {
       return true;
     }
   }
 
   // handle stt file
-  SSttLvl   *lvl = NULL;
-  STFileObj *fobj = NULL;
+  SSttLvl *lvl = NULL;
   TARRAY2_FOREACH(fset->lvlArr, lvl) {
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-      if (expLevel > fobj->f->did.level) {
+      if (fobj && (expLevel > fobj->f->did.level)) {
         return true;
       }
     }
