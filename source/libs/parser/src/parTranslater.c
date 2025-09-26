@@ -10825,7 +10825,7 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
 static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt* pStmt) {
   STrimDbReq req = {.maxSpeed = pStmt->maxSpeed,
                     .tw.skey = INT64_MIN,
-                    .tw.ekey = taosGetTimestampMs(),
+                    .tw.ekey = taosGetTimestampMs() / 1000,
                     .optrType = TSDB_OPTR_NORMAL,
                     .triggerType = TSDB_TRIGGER_MANUAL};
   SName      name = {0};
@@ -13176,13 +13176,31 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
 }
 
 static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* pStmt) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t    code = TSDB_CODE_SUCCESS;
   STrimDbReq req = {.optrType = TSDB_OPTR_ROLLUP, .triggerType = TSDB_TRIGGER_MANUAL};
-  SName   name;
+  SName      name;
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, req.db);
-  code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &req.tw);
+  if (pStmt->pStart && pStmt->pEnd) {
+    code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &req.tw);
+    if (TSDB_CODE_SUCCESS == code) {
+      SDbCfgInfo dbCfg = {0};
+      code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+      if (TSDB_CODE_SUCCESS == code) {
+        if (dbCfg.precision != TSDB_TIME_PRECISION_MICRO) {
+          req.tw.skey = convertTimePrecision(req.tw.skey, dbCfg.precision, TSDB_TIME_PRECISION_MICRO);
+          req.tw.ekey = convertTimePrecision(req.tw.ekey, dbCfg.precision, TSDB_TIME_PRECISION_MICRO);
+        }
+        req.tw.skey /= 1000;  // convert to second
+        req.tw.ekey /= 1000;
+      }
+    }
+  } else {
+    req.tw.skey = INT64_MIN;
+    req.tw.ekey = taosGetTimestampMs() / 1000;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
   }

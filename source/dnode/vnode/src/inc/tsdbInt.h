@@ -23,10 +23,10 @@
 #include "../tsdb/tsdbSttFileRW.h"
 
 typedef struct {
-  STsdb  *tsdb;
-  int32_t szPage;
-  int32_t nodeId; // node id of leader vnode in ss migration
-  int64_t now;
+  STsdb      *tsdb;
+  int32_t     szPage;
+  int32_t     nodeId;  // node id of leader vnode in ss migration
+  STimeWindow tw;
 
   // lastCommit time when the task is scheduled, we will compare it with the
   // fileset last commit time at the start of the task execution, if mismatch,
@@ -38,15 +38,15 @@ typedef struct {
   TFileOpArray fopArr;
 } SRTNer;
 
-
 typedef struct {
-  STsdb    *tsdb;
-  int64_t   now;
-  TSKEY     lastCommit;
-  int32_t   nodeId;  // node id of leader vnode in ss migration
-  int32_t   fid;
-  bool      ssMigrate;
-  SVATaskID taskid;
+  STsdb      *tsdb;
+  STimeWindow tw;  // unit is second
+  TSKEY       lastCommit;
+  int32_t     nodeId;  // node id of leader vnode in ss migration
+  int32_t     fid;
+  int8_t      optrType;     // ETsdbOpType
+  int8_t      triggerType;  // ETriggerType
+  SVATaskID   taskid;
 } SRtnArg;
 
 typedef struct {

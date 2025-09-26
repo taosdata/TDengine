@@ -915,9 +915,9 @@ static int32_t mndTrimDbDispatch(SRpcMsg *pReq) {
   int32_t    code = 0, lino = 0;
   SMnode    *pMnode = pReq->info.node;
   SSdb      *pSdb = pMnode->pSdb;
-  int64_t    curMs = taosGetTimestampMs();
+  int64_t    curSec = taosGetTimestampMs() / 1000;
   STrimDbReq trimReq = {
-      .tw.skey = INT64_MIN, .tw.ekey = curMs, .optrType = TSDB_OPTR_NORMAL, .triggerType = TSDB_TRIGGER_AUTO};
+      .tw.skey = INT64_MIN, .tw.ekey = curSec, .optrType = TSDB_OPTR_NORMAL, .triggerType = TSDB_TRIGGER_AUTO};
 
   void   *pIter = NULL;
   SDbObj *pDb = NULL;

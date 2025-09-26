@@ -2608,7 +2608,7 @@ typedef struct {
   int32_t     sqlLen;
   char*       sql;
   SArray*     vgroupIds;
-  STimeWindow tw;
+  STimeWindow tw;  // unit is second
   union {
     uint32_t flags;
     struct {

@@ -1159,7 +1159,7 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
-extern int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now, SRpcMsg *pRsp);
+extern int32_t vnodeAsyncRetention(SVnode *pVnode, STimeWindow tw, int8_t optrType, int8_t triggerType);
 
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   if (!pVnode->restored) {
@@ -1176,9 +1176,10 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     goto _exit;
   }
 
-  vInfo("vgId:%d, process trim vnode request, time:%" PRIi64 " s", pVnode->config.vgId, trimReq.tw.ekey / 1000);
+  vInfo("vgId:%d, process trim vnode request, time:%" PRIi64 ",%" PRIi64 ", optr:%d, trigger:%d", pVnode->config.vgId,
+        trimReq.tw.skey, trimReq.tw.ekey, (int32_t)trimReq.optrType, (int32_t)trimReq.triggerType);
 
-  code = vnodeAsyncRetention(pVnode, trimReq.tw.ekey / 1000, pRsp);
+  code = vnodeAsyncRetention(pVnode, trimReq.tw, (int8_t)trimReq.optrType, (int8_t)trimReq.triggerType);
 
 _exit:
   return code;

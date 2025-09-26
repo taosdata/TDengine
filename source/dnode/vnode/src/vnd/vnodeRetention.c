@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
+extern int32_t tsdbAsyncRetention(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType);
 extern int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray *fidArr);
 extern int32_t tsdbAsyncSsMigrateFileSet(STsdb *tsdb, SSsMigrateFileSetReq *pReq);
 extern int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, SSsMigrateProgress *pProgress);
@@ -23,9 +23,9 @@ extern int32_t tsdbUpdateSsMigrateProgress(STsdb *tsdb, SSsMigrateProgress *pPro
 extern void    tsdbStopSsMigrateTask(STsdb *tsdb, int32_t ssMigrateId);
 extern int32_t tsdbRetentionMonitorGetInfo(STsdb *tsdb, SQueryRetentionProgressRsp *rsp);
 
-int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now, SRpcMsg *pRsp) {
+int32_t vnodeAsyncRetention(SVnode *pVnode, STimeWindow tw, int8_t optrType, int8_t triggerType) {
   // async retention
-  return tsdbAsyncRetention(pVnode->pTsdb, now);
+  return tsdbAsyncRetention(pVnode->pTsdb, tw, optrType, triggerType);
 }
 
 

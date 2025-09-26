@@ -285,7 +285,7 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
   STFileSet *fset = rtner->fset;
 
   // handle data file sets
-  int32_t expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
+  int32_t expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->tw.ekey);
   for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
     code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fset->farr[ftype]);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -310,6 +310,26 @@ _exit:
 
 void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
 
+static bool tsdbShouldRollup(STsdb *tsdb, SRTNer *rtner) {
+  SVnode    *pVnode = tsdb->pVnode;
+  STFileSet *fset = rtner->fset;
+
+  if (fset == NULL || rtner == NULL) {
+    return false;
+  }
+
+  int32_t fidLevel = tsdbFidLevel(fset->fid, &tsdb->keepCfg, rtner->tw.ekey);
+  if (fidLevel < 0) {
+    return false;
+  }
+
+  if (VND_IS_RSMA(pVnode)) {
+    return false;
+  }
+
+  return true;
+}
+
 int32_t tsdbRetention(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -321,7 +341,7 @@ int32_t tsdbRetention(void *arg) {
   SRTNer     rtner = {
           .tsdb = pTsdb,
           .szPage = pVnode->config.tsdbPageSize,
-          .now = rtnArg->now,
+          .tw = rtnArg->tw,
           .lastCommit = rtnArg->lastCommit,
           .cid = tsdbFSAllocEid(pTsdb->pFS),
           .nodeId = rtnArg->nodeId,
@@ -349,11 +369,11 @@ int32_t tsdbRetention(void *arg) {
   // do retention
   if (rtner.fset) {
     EFEditT etype = TSDB_FEDIT_RETENTION;
-    if (rtnArg->ssMigrate) {
+    if (rtnArg->optrType == TSDB_OPTR_SSMIGRATE) {
       etype = TSDB_FEDIT_SSMIGRATE;
       TAOS_CHECK_GOTO(tsdbDoSsMigrate(&rtner), &lino, _exit);
 #ifdef TD_ENTERPRISE
-    } else if (VND_IS_RSMA(pVnode)) {
+    } else if (tsdbShouldRollup(pTsdb, &rtner)) {
       etype = TSDB_FEDIT_ROLLUP;
       TAOS_CHECK_GOTO(tsdbDoRollup(&rtner), &lino, _exit);
 #endif
@@ -382,7 +402,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
+static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -400,10 +420,11 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now) {
     }
 
     arg->tsdb = tsdb;
-    arg->now = now;
+    arg->tw = tw;
     arg->fid = fset->fid;
     arg->nodeId = 0;
-    arg->ssMigrate = false;
+    arg->optrType = optrType;
+    arg->triggerType = triggerType;
     arg->lastCommit = fset->lastCommit;
 
     code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
@@ -424,10 +445,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
+int32_t tsdbAsyncRetention(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType) {
   int32_t code = 0;
   (void)taosThreadMutexLock(&tsdb->mutex);
-  code = tsdbAsyncRetentionImpl(tsdb, now);
+  code = tsdbAsyncRetentionImpl(tsdb, tw, optrType, triggerType);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
