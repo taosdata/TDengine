@@ -465,7 +465,7 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       return code;
     }
 
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
+    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (blockDataGetNumOfRows(pBlock) == 0) {

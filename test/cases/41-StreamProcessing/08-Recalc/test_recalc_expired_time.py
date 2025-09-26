@@ -490,6 +490,8 @@ class TestStreamRecalcExpiredTime:
                 and tdSql.compareData(2, 2, 243.5)
             )
 
+        time.sleep(5)
+
         trigger_sqls = [
             "insert into tdb.ew1 values ('2025-01-01 01:00:00', 10, 6);",
             "insert into tdb.ew1 values ('2025-01-01 01:00:30', 20, 7);",

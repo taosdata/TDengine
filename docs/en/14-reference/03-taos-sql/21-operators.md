@@ -45,6 +45,9 @@ TDengine supports `UNION ALL` and `UNION` operators. UNION ALL combines the resu
 | 11  |   MATCH, NMATCH     | BINARY, NCHAR, and VARCHAR                                               | Regular expression match   |
 | 12  |   REGEXP, NOT REGEXP     | BINARY, NCHAR, and VARCHAR                                               | Regular expression match   |
 | 13  |     CONTAINS        | JSON                                                                     | Whether a key exists in JSON |
+| 14  |     ISNULL          | All types                                                                | Whether it is a null value      |
+| 15  |     ISNOTNULL       | All types                                                                | Whether it is not a null value  |
+| 16  |     COALESCE        | All types                                                                | Return the first non-null value |
 
 LIKE conditions use wildcard strings for matching checks, with the following rules:
 
