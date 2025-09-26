@@ -1,0 +1,128 @@
+
+taos> select VARIANCE(current) from ts_4893.meters
+     variance(current)     |
+============================
+          1.33250006771082 |
+
+taos> select VARIANCE(current) from ts_4893.meters interval(1d) order by 1 limit 10
+     variance(current)     |
+============================
+          0.70270236872882 |
+           0.7033161874832 |
+         0.705108381402508 |
+         0.705108381402508 |
+         0.706550970594425 |
+         0.713307092277611 |
+         0.716868426325289 |
+         0.717430199108789 |
+         0.717718701247475 |
+         0.719483011074183 |
+
+taos> select VARIANCE(id) from ts_4893.meters
+       variance(id)        |
+============================
+          8333333.24999998 |
+
+taos> select VARIANCE(id) from ts_4893.meters interval(1d) limit 10
+       variance(id)        |
+============================
+                     21.25 |
+                        70 |
+                        70 |
+                        70 |
+                        70 |
+                     65.25 |
+                        70 |
+                        70 |
+                        70 |
+                        70 |
+
+taos> select VARIANCE(id) from ts_4893.meters where id > 100
+       variance(id)        |
+============================
+          8165849.99999995 |
+
+taos> select VARIANCE(id) from ts_4893.meters interval(1d) order by 1 limit 10
+       variance(id)        |
+============================
+                     21.25 |
+                        30 |
+                     65.25 |
+                     65.25 |
+                     65.25 |
+                     65.25 |
+                     65.25 |
+                     65.25 |
+                     65.25 |
+                     65.25 |
+
+taos> select variance(null) from ts_4893.meters
+      variance(null)       |
+============================
+ NULL                      |
+
+taos> select variance(id) from ts_4893.d0
+       variance(id)        |
+============================
+          8333333.24999998 |
+
+taos> select variance(current) from ts_4893.d0
+     variance(current)     |
+============================
+          1.33250006771082 |
+
+taos> select variance(voltage) from ts_4893.meters
+     variance(voltage)     |
+============================
+          8.27402043999999 |
+
+taos> select variance(voltage) from ts_4893.meters where voltage is not null
+     variance(voltage)     |
+============================
+          8.27402043999999 |
+
+taos> select variance(phase) from ts_4893.meters
+      variance(phase)      |
+============================
+        0.0832873384334247 |
+
+taos> select variance(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+      variance(phase)      |
+============================
+        0.0829874118660322 |
+
+taos> select variance(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+  variance(total_voltage)  |
+============================
+                         0 |
+
+taos> select round(variance(current), 2) from ts_4893.meters
+ round(variance(current), 2) |
+==============================
+                        1.33 |
+
+taos> select pow(variance(current), 2) from ts_4893.meters
+ pow(variance(current), 2) |
+============================
+          1.77555643044935 |
+
+taos> select log(variance(voltage) + 1) from ts_4893.meters
+ log(variance(voltage) + 1) |
+=============================
+           2.22721698997805 |
+
+taos> select groupid, variance(voltage) from ts_4893.meters group by groupid order by groupid
+ groupid |     variance(voltage)     |
+======================================
+       1 |          8.27402043999999 |
+
+taos> select location, variance(current) from ts_4893.meters group by location order by location
+      location      |     variance(current)     |
+=================================================
+ beijing            |          1.33250006771082 |
+
+taos> select location, variance(voltage) from ts_4893.meters group by location order by location
+      location      |     variance(voltage)     |
+=================================================
+ beijing            |          8.27402043999999 |
+
