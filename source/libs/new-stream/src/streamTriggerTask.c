@@ -2494,10 +2494,6 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
-  } else if (pRsp->msgType == TDMT_SND_BATCH_META) {
-    // todo(kjq): handle progress request
-    code = TSDB_CODE_OPS_NOT_SUPPORT;
-    QUERY_CHECK_CODE(code, lino, _end);
   } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_DROP_RSP) {
     // TODO kuang
   }
@@ -2511,6 +2507,14 @@ _end:
 
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus) {
   // todo(kjq): implement how to get recalculation progress
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stTriggerTaskGetDelay(SStreamTask *pStreamTask, int64_t *pDelay, bool *pFillHisFinished) {
+  SStreamTriggerTask *pTask = (SStreamTriggerTask *)pStreamTask;
+  int64_t             now = taosGetTimestampNs();
+  *pDelay = now - atomic_load_64(&pTask->latestVersionTime);
+  *pFillHisFinished = atomic_load_8(&pTask->historyFinished);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4491,6 +4495,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
         pContext->pMetaBlock->info.version = rsp.ver;
+        pProgress->verTime = rsp.verTime;
       }
 
       code = stRealtimeContextProcWalMeta(pContext, pProgress);
@@ -4503,6 +4508,18 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       if (--pContext->curReaderIdx > 0) {
         ST_TASK_DLOG("wait for response from other %d readers", pContext->curReaderIdx);
         goto _end;
+      }
+
+      int64_t latestVersionTime = INT64_MAX;
+      for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
+        SStreamTaskAddr      *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+        SSTriggerWalProgress *pTempProgress =
+            tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
+        QUERY_CHECK_NULL(pTempProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        latestVersionTime = TMIN(latestVersionTime, pTempProgress->verTime);
+      }
+      if (latestVersionTime != INT64_MAX) {
+        atomic_store_64(&pTask->latestVersionTime, latestVersionTime);
       }
 
       if (pContext->continueToFetch) {
@@ -4622,6 +4639,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           pContext->pMetaBlock->info.version = rsp.ver;
+          pProgress->verTime = rsp.verTime;
         }
       }
 
@@ -4726,6 +4744,20 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       if (--pContext->curReaderIdx > 0) {
         ST_TASK_DLOG("wait for response from other %d readers", pContext->curReaderIdx);
         goto _end;
+      }
+
+      if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
+        int64_t latestVersionTime = INT64_MAX;
+        for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
+          SStreamTaskAddr      *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+          SSTriggerWalProgress *pTempProgress =
+              tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
+          QUERY_CHECK_NULL(pTempProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          latestVersionTime = TMIN(latestVersionTime, pTempProgress->verTime);
+        }
+        if (latestVersionTime != INT64_MAX) {
+          atomic_store_64(&pTask->latestVersionTime, latestVersionTime);
+        }
       }
 
       pContext->catchUp = (TD_DLIST_NELES(&pContext->groupsToCheck) == 0);
@@ -6318,6 +6350,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     code = stHistoryContextAllCalcFinish(pContext, &calcFinish);
     QUERY_CHECK_CODE(code, lino, _end);
     if (calcFinish) {
+      if (pContext->isHistory) {
+        atomic_store_8(&pTask->historyFinished, 1);
+      }
       stHistoryContextDestroy(&pTask->pHistoryContext);
       pTask->pHistoryContext = taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext));
       QUERY_CHECK_NULL(pTask->pHistoryContext, code, lino, _end, terrno);
@@ -6845,6 +6880,9 @@ static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SR
       code = stHistoryContextAllCalcFinish(pContext, &calcFinish);
       QUERY_CHECK_CODE(code, lino, _end);
       if (calcFinish) {
+        if (pContext->isHistory) {
+          atomic_store_8(&pTask->historyFinished, 1);
+        }
         stHistoryContextDestroy(&pTask->pHistoryContext);
         pTask->pHistoryContext = taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext));
         QUERY_CHECK_NULL(pTask->pHistoryContext, code, lino, _end, terrno);
