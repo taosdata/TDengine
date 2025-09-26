@@ -184,7 +184,7 @@ int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return mmPutMsgToWorker(pMgmt, &pMgmt->mqueryWorker, pMsg);
   } else {
     code = TSDB_CODE_INVALID_PARA;
-    dGError("msg:%p, invalid task qType:%d, not put into (m)query queue, type:%s", pMsg, qType, tstrerror(code),
+    dGError("msg:%p, invalid task qType:%d, not put into (m)query queue, type:%s", pMsg, qType,
             TMSG_INFO(pMsg->msgType));
     return code;
   }

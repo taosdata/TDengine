@@ -264,7 +264,7 @@ typedef struct SSchTask {
 typedef enum {
   JOB_TYPE_INSERT = 1,
   JOB_TYPE_QUERY,
-  JOB_TYPE_HQUERY,
+  JOB_TYPE_HQUERY,  // high-priority query is also a query.
 } EJobType;
 
 typedef struct SSchJobAttr {
