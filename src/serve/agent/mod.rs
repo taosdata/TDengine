@@ -201,14 +201,13 @@ async fn send_all_agents_activities_ws(
         Ok(activities) => {
             for activity in activities.into_iter() {
                 // only send activities for tasks in the current cluster
-                if agent_ids.contains(&activity.id) {
-                    if let Err(err) = session
+                if agent_ids.contains(&activity.id)
+                    && let Err(err) = session
                         .text(serde_json::to_string(&activity).unwrap())
                         .await
-                    {
-                        tracing::info!("agent-ws session closed: {:#}", err);
-                        break;
-                    }
+                {
+                    tracing::info!("agent-ws session closed: {:#}", err);
+                    break;
                 }
             }
         }

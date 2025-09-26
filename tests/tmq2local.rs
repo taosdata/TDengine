@@ -662,10 +662,10 @@ mod test_tmq_to_local {
         for entry in std::fs::read_dir(path)? {
             let entry = entry?;
             let p = entry.path();
-            if p.is_file() {
-                if let Some(file_name) = p.file_name() {
-                    files.push(file_name.to_string_lossy().to_string());
-                }
+            if p.is_file()
+                && let Some(file_name) = p.file_name()
+            {
+                files.push(file_name.to_string_lossy().to_string());
             }
         }
         dbg!(&files);

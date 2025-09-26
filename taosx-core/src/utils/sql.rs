@@ -667,7 +667,7 @@ impl std::fmt::Display for SingleQuoteSqlValueEscaped<'_> {
     }
 }
 
-pub fn sql_value_escaped_fmt(value: &str) -> SingleQuoteSqlValueEscaped {
+pub fn sql_value_escaped_fmt(value: &str) -> SingleQuoteSqlValueEscaped<'_> {
     SingleQuoteSqlValueEscaped(value)
 }
 /// Escape a string value for SQL.

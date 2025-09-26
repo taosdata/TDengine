@@ -1317,12 +1317,12 @@ impl Worker {
             }
         }
 
-        if let Some(data) = message.data.as_mut() {
-            if raw_changed || self.options.strategy.by_block() {
-                self.try_mutate_data(data)?;
-                self.write_blocks(data).in_current_span().await?;
-                return Ok(());
-            }
+        if let Some(data) = message.data.as_mut()
+            && (raw_changed || self.options.strategy.by_block())
+        {
+            self.try_mutate_data(data)?;
+            self.write_blocks(data).in_current_span().await?;
+            return Ok(());
         }
 
         let conn = self.target_connection.as_ref().unwrap();
@@ -1614,8 +1614,8 @@ pub async fn get_stable_name(
     tablename: &str,
 ) -> Result<Option<String>> {
     let database_name;
-    if database.is_some() {
-        database_name = database.unwrap().to_string();
+    if let Some(database) = database {
+        database_name = database.to_string();
     } else {
         let database: Option<String> = taos.query_one("select database()").await?;
         database_name = database.expect("get database name withe 'select database()'");

@@ -198,8 +198,8 @@ pub async fn migrate_history_by_interval(
 
     // get break point
     let breakpoint = get_breakpoint(config.task_id, &config.sub_task_id.clone().unwrap());
-    if breakpoint.is_some() {
-        config.task.start = breakpoint.unwrap();
+    if let Some(start) = breakpoint {
+        config.task.start = start;
         tracing::info!("migrate mssql from breakpoint: {}", config.task.start);
     }
     tracing::info!("migrate mssql start, config: {:?}", config);
@@ -397,11 +397,8 @@ fn get_breakpoint(task_id: Option<i64>, sub_task_id: &String) -> Option<DateTime
                         .map(|dt| Some(dt.with_timezone(&Utc)))
                         .unwrap_or(None);
                     // find the earliest break point
-                    if date_time.is_some() {
-                        earliest = Some(cmp::min(
-                            earliest.unwrap_or(date_time.unwrap()),
-                            date_time.unwrap(),
-                        ));
+                    if let Some(date_time) = date_time {
+                        earliest = Some(earliest.unwrap_or(date_time).min(date_time));
                     }
                 }
             }

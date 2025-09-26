@@ -41,6 +41,7 @@ pub enum ResumeStrategy {
 /// Task error handling strategy when error occurs.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)] // keep this for future
 pub enum HealthyStrategy {
     /// Raise error when task is not healthy.
     Bail,
@@ -80,6 +81,7 @@ impl Display for HealthyStrategy {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
+#[allow(dead_code)] // keep this for future
 pub struct ErrorRate(u32, Duration);
 
 impl Display for ErrorRate {

@@ -590,7 +590,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                             }
                             _ => unreachable!(),
                         };
-                        return Ok((
+                        Ok((
                             from,
                             builder,
                             vec![Topic {
@@ -604,7 +604,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                             }],
                             with_meta_delete,
                             with_meta_drop,
-                        ));
+                        ))
                     } else {
                         let (_, sql): ((), String) = source
                             .query_one(format!("SHOW CREATE TABLE `{}`.`{}`", database, &table))
@@ -662,7 +662,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                             _ => unreachable!(),
                         };
 
-                        return Ok((
+                        Ok((
                             from,
                             builder,
                             vec![Topic {
@@ -676,7 +676,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                             }],
                             with_meta_delete,
                             with_meta_drop,
-                        ));
+                        ))
                     }
                 } else {
                     bail!("table does not exist: `{database}`.`{table}`");

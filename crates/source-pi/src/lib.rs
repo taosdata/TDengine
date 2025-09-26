@@ -85,7 +85,7 @@ pub async fn pi_to_taos(
     pre_check_config(&config)?;
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new().context("Failed to create tempfile")?;
-    write!(config_file, "{}", &toml).context("Faile to write config file")?;
+    write!(config_file, "{}", &toml).context("Failed to write config file")?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
@@ -280,11 +280,10 @@ pub async fn pi_to_taos(
             err = ipc.recv_error() => {
                 if let Some(err) = err {
                     tracing::warn!("PI writer error occurred: {err}");
-                    if let Ok(Some(status)) = safe_exit!(wait).await {
-                        if status.success() {
+                    if let Ok(Some(status)) = safe_exit!(wait).await
+                        && status.success() {
                             return Ok(());
                         }
-                    }
                     anyhow::bail!("PI writer error: {err}");
                 }
             },

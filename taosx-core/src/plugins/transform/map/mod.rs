@@ -22,6 +22,7 @@ mod format;
 mod generator;
 mod join;
 mod sum;
+#[allow(dead_code)]
 mod timestamp;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

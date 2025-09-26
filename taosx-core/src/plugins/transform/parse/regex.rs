@@ -63,7 +63,7 @@ impl ExtractRule<'_> {
     }
 }
 impl Regex {
-    fn extract_rule(&self) -> ExtractRule {
+    fn extract_rule(&self) -> ExtractRule<'_> {
         let names = self.regex.capture_names().flatten().collect_vec();
         // dbg!(&names);
         if !names.is_empty() {

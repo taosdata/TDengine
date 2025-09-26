@@ -378,6 +378,7 @@ impl Drop for TaskController {
     }
 }
 
+#[allow(dead_code)] // FIXME: not used
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
@@ -695,10 +696,10 @@ impl TaskController {
             let file = sqlite.trim_start_matches("sqlite:");
             tracing::debug!("check sqlite file: {}", file);
             let path = std::path::Path::new(&file);
-            if let Some(dir) = path.parent() {
-                if !dir.exists() {
-                    std::fs::create_dir_all(dir).context("Cannot create directory for database")?;
-                }
+            if let Some(dir) = path.parent()
+                && !dir.exists()
+            {
+                std::fs::create_dir_all(dir).context("Cannot create directory for database")?;
             }
             if path.is_absolute() {
                 (true, path.display().to_string())
@@ -1350,10 +1351,10 @@ impl TaskController {
             .await?
             .ok_or_else(|| anyhow!("Task not found: {}", id))?;
         tracing::info!("update task {id}: {task:?}");
-        if let Some(topic) = task.oneshot_topic.as_deref() {
-            if topic.len() > 64 {
-                anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
-            }
+        if let Some(topic) = task.oneshot_topic.as_deref()
+            && topic.len() > 64
+        {
+            anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
         }
 
         let from = if let Some(from_json) = task.from_json.clone() {
@@ -1575,39 +1576,37 @@ impl TaskController {
                     }
                 }
 
-                if let Some(action) = task.after_delete.as_deref() {
-                    if action == "clear" {
-                        let from = task.from.parse::<Dsn>()?;
-                        let to = task.to.parse::<Dsn>()?;
-                        match (from.driver.as_str(), to.driver.as_str()) {
-                            ("tmq", "local") => {
-                                if let Some(path) = to.path.as_deref() {
-                                    let dir = std::path::Path::new(path)
-                                        .join(task.id.to_string())
-                                        .canonicalize()
-                                        .map_err(|err| {
-                                            anyhow::Error::from(err).context(format!(
-                                                "failed to canonicalize path: {}, task: {}",
-                                                path, task.id
-                                            ))
-                                        })?
-                                        .display()
-                                        .to_string();
-                                    tokio::spawn(async move {
-                                        // 删除目录下的所有文件
-                                        taosx_core::utils::clear_local_dir(dir.as_str()).await
-                                    });
-                                }
+                if let Some(action) = task.after_delete.as_deref()
+                    && action == "clear"
+                {
+                    let from = task.from.parse::<Dsn>()?;
+                    let to = task.to.parse::<Dsn>()?;
+                    match (from.driver.as_str(), to.driver.as_str()) {
+                        ("tmq", "local") => {
+                            if let Some(path) = to.path.as_deref() {
+                                let dir = std::path::Path::new(path)
+                                    .join(task.id.to_string())
+                                    .canonicalize()
+                                    .map_err(|err| {
+                                        anyhow::Error::from(err).context(format!(
+                                            "failed to canonicalize path: {}, task: {}",
+                                            path, task.id
+                                        ))
+                                    })?
+                                    .display()
+                                    .to_string();
+                                tokio::spawn(async move {
+                                    // 删除目录下的所有文件
+                                    taosx_core::utils::clear_local_dir(dir.as_str()).await
+                                });
                             }
-                            (_, "local") => {
-                                let dsn: Dsn = task.to.parse()?;
-                                // std::mem::drop(task);
-                                tokio::spawn(
-                                    async move { taosx_core::utils::clear_local(&dsn).await },
-                                );
-                            }
-                            _ => {}
                         }
+                        (_, "local") => {
+                            let dsn: Dsn = task.to.parse()?;
+                            // std::mem::drop(task);
+                            tokio::spawn(async move { taosx_core::utils::clear_local(&dsn).await });
+                        }
+                        _ => {}
                     }
                 }
                 sqlx::query!("DELETE FROM tasks where id = ?", id)
@@ -2039,6 +2038,7 @@ impl TaskController {
         }
     }
 
+    #[allow(dead_code)] // mistaken reported as dead_code
     pub async fn get_tasks_of_agent(&self, agent_id: i64) -> anyhow::Result<Vec<TaskDetail>> {
         self.tasks(TaskFilter::default().via(agent_id)).await
     }
@@ -2336,15 +2336,15 @@ impl TaskController {
         if let Some(mut exist) = replica {
             let request_rid = opts.id.take();
             let id = exist.id.take().expect("id should not be None");
-            if let Some(request_rid) = request_rid.as_deref() {
-                if request_rid != id {
-                    bail!(
-                        "Replica with source: {}, sink: {} already exists as id: {}",
-                        exist.source,
-                        exist.sink,
-                        id,
-                    );
-                }
+            if let Some(request_rid) = request_rid.as_deref()
+                && request_rid != id
+            {
+                bail!(
+                    "Replica with source: {}, sink: {} already exists as id: {}",
+                    exist.source,
+                    exist.sink,
+                    id,
+                );
             }
             if exist == opts {
                 if MONITOR_TASK
@@ -2728,14 +2728,6 @@ where
 }
 
 pub mod trigger;
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct TaskWithAgent {
-    #[serde(flatten)]
-    task: Task,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    agent: Option<Agent>,
-}
 
 /// A streaming workflow task description.
 #[derive(
@@ -3398,10 +3390,10 @@ impl Task {
                     if let Some(value) = label.split_once("::") {
                         self.to_cluster = Some(value.1.to_string())
                     }
-                } else if label.starts_with("stream_type") {
-                    if let Some(value) = label.split_once("::") {
-                        self.stream_type = Some(value.1.to_string())
-                    }
+                } else if label.starts_with("stream_type")
+                    && let Some(value) = label.split_once("::")
+                {
+                    self.stream_type = Some(value.1.to_string())
                 }
             }
         }
@@ -3636,69 +3628,6 @@ impl NewTask {
             self.labels = Some(labels)
         } else {
             self.labels = None
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, FromRow)]
-struct NewTaskV1 {
-    /// The stream data source.
-    #[schema(example = "tmq:///test")]
-    from: Option<String>,
-    from_json: Option<serde_json::Value>,
-
-    /// Use oneshot topic for a task, delete the topic after task deleted.
-    // #[serde(default)]
-    oneshot_topic: Option<String>,
-
-    /// The target of the stream.
-    #[schema(example = "local:/path/to/backup/test")]
-    to: String,
-
-    /// Set if the target database should be cleared before running task.
-    #[schema(example = "false")]
-    #[serde(default)]
-    clear: bool,
-
-    /// Jobs number
-    #[schema(example = 0)]
-    #[serde(default)]
-    jobs: u16,
-
-    /// Add after_delete hook action, the string would be action name, with or without some configuration.
-    ///
-    /// It will do nothing if the action is not supported by a specific task case.
-    after_delete: Option<String>,
-
-    /// Labels for a task.
-    ///
-    /// You can use k-v style label such as `key::value` or key-only label `key`.
-    ///
-    /// You can filter tasks by some labels.
-    labels: Option<Vec<String>>,
-}
-
-impl From<NewTask> for NewTaskV1 {
-    fn from(value: NewTask) -> Self {
-        let mut labels = value.labels.unwrap_or_default();
-        if let Some(value) = value.stream_type {
-            labels.push(format!("stream_type::{}", value));
-        }
-        if let Some(value) = value.from_cluster {
-            labels.push(format!("from_cluster::{value}"))
-        }
-        if let Some(value) = value.to_cluster {
-            labels.push(format!("from_cluster::{value}"))
-        }
-        Self {
-            from: value.from,
-            from_json: value.from_json,
-            oneshot_topic: value.oneshot_topic,
-            to: value.to,
-            clear: value.clear,
-            jobs: value.jobs,
-            after_delete: value.after_delete,
-            labels: Some(labels),
         }
     }
 }

@@ -2918,9 +2918,9 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 ),
                 None => (Cache::default(), Archive::default()),
             };
-            let metrics = get_metrics_arc_from_i64(Some(task_id.unwrap())).await;
+            let metrics = get_metrics_arc_from_i64(task_id).await;
 
-            match ArchiveConsumer::new(task_id.unwrap(), cache, archive, |num_rows: u64| {
+            match ArchiveConsumer::new(task_id.unwrap_or(-1), cache, archive, |num_rows: u64| {
                 let metrics = metrics.ipc();
                 metrics.add_archived_rows(num_rows);
                 Ok::<_, anyhow::Error>(())
@@ -3898,9 +3898,9 @@ pub async fn channel_based_transformer(
                 ),
                 None => (Cache::default(), Archive::default()),
             };
-            let metrics = get_metrics_arc_from_i64(Some(task_id.unwrap())).await;
+            let metrics = get_metrics_arc_from_i64(task_id).await;
 
-            ArchiveConsumer::new(task_id.unwrap(), cache, archive, |num_rows: u64| {
+            ArchiveConsumer::new(task_id.unwrap_or(-1), cache, archive, |num_rows: u64| {
                 let metrics = metrics.ipc();
                 metrics.add_archived_rows(num_rows);
                 Ok::<_, anyhow::Error>(())

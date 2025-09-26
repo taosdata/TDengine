@@ -784,7 +784,7 @@ impl LushMessageBuilder {
         self
     }
 
-    pub fn child_tables_builder(&self) -> ChildTablesBuilder {
+    pub fn child_tables_builder(&self) -> ChildTablesBuilder<'_> {
         let fields = self.table_fields();
         let builder = self.tables_builder();
         let columns_builder = self.columns_builder();
@@ -883,7 +883,7 @@ impl LushMessageBuilder {
         ListOfStructBuilder::new(fields, 1)
     }
 
-    pub fn insert_builder(&self) -> LushInsertBuilder {
+    pub fn insert_builder(&self) -> LushInsertBuilder<'_> {
         let columns_builder = self.columns_builder();
         let attrs_builder = self.attrs_builder();
         LushInsertBuilder {

@@ -13,7 +13,7 @@ use super::proto::{
 pub enum Error {
     #[snafu(display("unsupported datatype: {datatype}"))]
     UnsupportedDataType { datatype: u32 },
-    #[snafu(display("datatype and value missmatch: {datatype}"))]
+    #[snafu(display("datatype and value mismatch: {datatype}"))]
     DataTypeValueMissMatch { datatype: u32 },
     #[snafu(display("serialize metadata error"))]
     SerializeMetadata { source: serde_json::Error },
@@ -47,6 +47,7 @@ impl TryFrom<proto::Payload> for Payload {
     }
 }
 
+#[allow(dead_code)] // Keep unused struct as-is for future
 #[derive(Clone, PartialEq, serde::Serialize)]
 pub struct Template {
     pub version: Option<String>,
@@ -56,6 +57,7 @@ pub struct Template {
     pub is_definition: Option<bool>,
 }
 
+#[allow(dead_code)] // Keep unused struct as-is for future
 #[derive(Clone, PartialEq, serde::Serialize)]
 pub struct Parameter {
     pub name: Option<String>,
@@ -63,6 +65,7 @@ pub struct Parameter {
     pub value: Option<Value>,
 }
 
+#[allow(dead_code)] // Keep unused struct as-is for future
 #[derive(Clone, PartialEq, serde::Serialize)]
 pub struct DataSet {
     pub num_of_columns: Option<u64>,
@@ -76,6 +79,7 @@ pub struct DataSetValue {
     pub value: Option<Value>,
 }
 
+#[allow(dead_code)] // Keep unused struct as-is for future
 #[derive(Clone, PartialEq, serde::Serialize)]
 pub struct Row {
     pub elements: Vec<DataSetValue>,
@@ -104,12 +108,14 @@ impl TryFrom<proto::payload::PropertyValue> for PropertyValue {
     }
 }
 
+#[allow(dead_code)] // Keep unused struct as-is for future
 #[derive(Clone, PartialEq, serde::Serialize)]
 pub struct PropertySet {
     pub keys: Vec<FastStr>,
     pub values: Vec<PropertyValue>,
 }
 
+#[allow(dead_code)] // Keep unused struct as-is for future
 #[derive(Clone, PartialEq, serde::Serialize)]
 pub struct PropertySetList {
     pub propertyset: Vec<PropertySet>,
@@ -351,7 +357,7 @@ mod tests {
 
     #[test]
     fn serialize_test() {
-        let paylaod = Payload {
+        let payload = Payload {
             timestamp: Some(12345),
             metrics: vec![Metric {
                 name: Some("metric_1".into()),
@@ -389,7 +395,7 @@ mod tests {
             }],
             seq: Some(1),
         };
-        let a = serde_json::to_string(&paylaod).unwrap();
+        let a = serde_json::to_string(&payload).unwrap();
         assert_eq!(
             a,
             "{\"timestamp\":12345,\"metrics\":[{\"name\":\"metric_1\",\"alias\":1,\"timestamp\":12345,\"datatype\":1,\"is_historical\":true,\"is_transient\":false,\"is_null\":false,\"metadata\":\"{\\\"is_multi_part\\\":true,\\\"content_type\\\":\\\"application/json\\\",\\\"size\\\":10,\\\"seq\\\":1,\\\"file_name\\\":\\\"file1\\\",\\\"file_type\\\":\\\"fileA\\\",\\\"md5\\\":\\\"aabc\\\",\\\"description\\\":\\\"description\\\"}\",\"properties\":\"{\\\"prop1\\\":{\\\"type\\\":1,\\\"is_null\\\":false,\\\"datatype_str\\\":\\\"Int8\\\",\\\"value\\\":98}}\",\"datatype_str\":\"Int8\",\"value\":99}],\"seq\":1}"

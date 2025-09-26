@@ -422,11 +422,10 @@ impl FlightServiceImpl {
                             .await
                             .map_err(|err| Status::internal(err.to_string()).into())
                             .transpose()
+                                && let Err(err) = tx.send_async(batch).await
                             {
-                                if let Err(err) = tx.send_async(batch).await {
-                                    tracing::info!(agent_id, "Task listener disconnected: {err:#}");
-                                    break;
-                                }
+                                tracing::info!(agent_id, "Task listener disconnected: {err:#}");
+                                break;
                             }
                         } else if tx.is_disconnected() {
                             tracing::info!(agent_id, "Task listener disconnected");
@@ -1192,10 +1191,10 @@ async fn modify_dsn_params(dsn: &str) -> anyhow::Result<Dsn> {
         if k == "transform_config_file" {
             continue;
         }
-        if v.contains("@") {
-            if let Some(new_value) = get_string_content_from_param_value(v, false, false)? {
-                *v = new_value;
-            }
+        if v.contains("@")
+            && let Some(new_value) = get_string_content_from_param_value(v, false, false)?
+        {
+            *v = new_value;
         }
     }
 

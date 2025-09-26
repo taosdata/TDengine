@@ -1166,8 +1166,7 @@ impl LushMessageInsert {
                                 let v_ty = v.ty();
                                 if v_ty.is_var_type() {
                                     let field_ipc_type = field_map.get_mut(column_name);
-                                    if field_ipc_type.is_some() {
-                                        let field_ipc_type = field_ipc_type.unwrap();
+                                    if let Some(field_ipc_type) = field_ipc_type {
                                         match field_ipc_type {
                                             IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
                                                 if *len < sql_value.len() as u32 {
@@ -1255,14 +1254,13 @@ impl LushMessageInsert {
                                     continue;
                                 }
                                 let exist_cv = c.get(data_i);
-                                if exist_cv.is_none() {
-                                    // insert ColumnView
-                                    c.push(cv.slice(j..j + 1).unwrap());
-                                } else {
+                                if let Some(old_exist_cv) = exist_cv {
                                     // ColumnView insert
-                                    let old_exist_cv = exist_cv.unwrap();
                                     let new_value = cv.slice(j..j + 1).unwrap();
                                     c[data_i] = old_exist_cv.concat(&new_value);
+                                } else {
+                                    // insert ColumnView
+                                    c.push(cv.slice(j..j + 1).unwrap());
                                 }
                                 data_i += 1;
                             }

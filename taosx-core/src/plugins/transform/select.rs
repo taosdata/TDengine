@@ -111,14 +111,14 @@ impl FromStr for SelectItem {
 pub struct IncludeItem(SelectItem);
 
 impl IncludeItem {
-    pub fn name(&self) -> Cow<str> {
+    pub fn name(&self) -> Cow<'_, str> {
         match &self.0.name {
             SelectItemPattern::Name(name) => Cow::Borrowed(name),
             SelectItemPattern::JsonPath(json_path) => Cow::Owned(json_path.to_string()),
         }
     }
 
-    fn readable_name(&self) -> Cow<str> {
+    fn readable_name(&self) -> Cow<'_, str> {
         match &self.0.name {
             SelectItemPattern::Name(name) => Cow::Borrowed(name),
             SelectItemPattern::JsonPath(json_path) => {

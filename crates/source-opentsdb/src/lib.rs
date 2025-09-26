@@ -344,8 +344,7 @@ async fn validate_source_opentsdb(
         .send()
         .await;
     // 请求成功
-    if result.is_ok() {
-        let response = result.unwrap();
+    if let Ok(response) = result {
         let text = response.text().await.unwrap();
         // 转换为json格式
         let json: serde_json::Value = serde_json::from_str(&text).unwrap();

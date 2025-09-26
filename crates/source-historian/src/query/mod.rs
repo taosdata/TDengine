@@ -44,7 +44,7 @@ impl HistorianQuery {
         Ok(client)
     }
 
-    pub async fn select_from_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream> {
+    pub async fn select_from_live(&mut self, tags: Vec<String>) -> anyhow::Result<QueryStream<'_>> {
         let sql = select_from_live_sql(tags);
         tracing::debug!("sql: {}", sql);
 
@@ -56,14 +56,17 @@ impl HistorianQuery {
         tags: Vec<String>,
         begin: DateTime<Utc>,
         end: DateTime<Utc>,
-    ) -> anyhow::Result<QueryStream> {
+    ) -> anyhow::Result<QueryStream<'_>> {
         let sql = select_from_history_sql(tags, begin, end);
         tracing::debug!("sql: {}", sql);
 
         Ok(self.client.query(sql.as_str(), &[]).await?)
     }
 
-    pub async fn describe_table(&mut self, table: HistorianTable) -> anyhow::Result<QueryStream> {
+    pub async fn describe_table(
+        &mut self,
+        table: HistorianTable,
+    ) -> anyhow::Result<QueryStream<'_>> {
         let sql = describe_table_sql(table);
         tracing::debug!("sql: {}", sql);
 
@@ -74,7 +77,7 @@ impl HistorianQuery {
         &mut self,
         top_n: Option<usize>,
         condition: Vec<String>,
-    ) -> anyhow::Result<QueryStream> {
+    ) -> anyhow::Result<QueryStream<'_>> {
         let sql = select_tags_with_condition_sql(top_n, condition);
         tracing::debug!("sql: {}", sql);
 
@@ -88,7 +91,7 @@ impl HistorianQuery {
         tags_condition: Vec<String>,
         begin_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
-    ) -> anyhow::Result<QueryStream> {
+    ) -> anyhow::Result<QueryStream<'_>> {
         let mut rows = self
             .select_tags_with_condition(Some(top_n), tags_condition)
             .await?

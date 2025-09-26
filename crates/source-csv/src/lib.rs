@@ -121,22 +121,22 @@ pub async fn csv_header(
 
     let mut values = Vec::new();
 
-    if sample > 0 {
-        if let Some(path) = paths.first() {
-            values = CsvSource::sample(
-                path.as_ref(),
-                file_pattern,
-                has_header,
-                skip,
-                delimiter,
-                quote,
-                comment,
-                sample,
-                sort,
-            )
-            .await?;
-        };
-    }
+    if sample > 0
+        && let Some(path) = paths.first()
+    {
+        values = CsvSource::sample(
+            path.as_ref(),
+            file_pattern,
+            has_header,
+            skip,
+            delimiter,
+            quote,
+            comment,
+            sample,
+            sort,
+        )
+        .await?;
+    };
 
     Ok(CsvHeader {
         columns: header.len(),
@@ -662,10 +662,7 @@ impl CsvOption {
         let mut builder = ReaderBuilder::new();
         builder
             .delimiter(self.delimiter)
-            .quote(match self.quote {
-                Some(quote) => quote,
-                _ => b'"',
-            })
+            .quote(self.quote.unwrap_or(b'"'))
             .comment(self.comment)
             .has_headers(true)
             .flexible(self.skip_error);
@@ -878,11 +875,11 @@ impl CsvOption {
                 for i in 0..headers.len() {
                     match record.get(i) {
                         Some(s) => {
-                            if let Some(null_pattern) = &null_pattern {
-                                if null_pattern.iter().any(|p| p == s) {
-                                    records[i].push(None);
-                                    continue;
-                                }
+                            if let Some(null_pattern) = &null_pattern
+                                && null_pattern.iter().any(|p| p == s)
+                            {
+                                records[i].push(None);
+                                continue;
                             }
                             let s = String::from_utf8_lossy(s);
                             let s = s.trim();
@@ -1326,10 +1323,7 @@ impl CsvSource {
             let reader = Box::new(gz) as Box<dyn CsvReaderExt>;
             ReaderBuilder::new()
                 .delimiter(delimiter)
-                .quote(match quote {
-                    Some(quote) => quote,
-                    _ => b'"',
-                })
+                .quote(quote.unwrap_or(b'"'))
                 .comment(comment)
                 .has_headers(true)
                 .flexible(skip_error)
@@ -1339,10 +1333,7 @@ impl CsvSource {
             let reader = Box::new(file) as Box<dyn CsvReaderExt>;
             ReaderBuilder::new()
                 .delimiter(delimiter)
-                .quote(match quote {
-                    Some(quote) => quote,
-                    _ => b'"',
-                })
+                .quote(quote.unwrap_or(b'"'))
                 .comment(comment)
                 .has_headers(true)
                 .flexible(skip_error)
@@ -1360,10 +1351,7 @@ impl CsvSource {
                 let reader = Box::new(gz) as Box<dyn CsvReaderExt>;
                 ReaderBuilder::new()
                     .delimiter(delimiter)
-                    .quote(match quote {
-                        Some(quote) => quote,
-                        _ => b'"',
-                    })
+                    .quote(quote.unwrap_or(b'"'))
                     .comment(comment)
                     .has_headers(true)
                     .flexible(skip_error)
@@ -1373,10 +1361,7 @@ impl CsvSource {
                 let reader = Box::new(file) as Box<dyn CsvReaderExt>;
                 ReaderBuilder::new()
                     .delimiter(delimiter)
-                    .quote(match quote {
-                        Some(quote) => quote,
-                        _ => b'"',
-                    })
+                    .quote(quote.unwrap_or(b'"'))
                     .comment(comment)
                     .has_headers(true)
                     .flexible(skip_error)

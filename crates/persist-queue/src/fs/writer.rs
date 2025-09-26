@@ -14,7 +14,7 @@ use tokio::io::AsyncSeekExt;
 use tokio_util::codec::FramedWrite;
 
 use crate::{
-    DirLockedSnafu, LockFileSnafu, OpenFileSnafu, RawWriter, Result, SeekFileSnafu,
+    DirLockedSnafu, ExclusiveLockFileSnafu, OpenFileSnafu, RawWriter, Result, SeekFileSnafu,
     SyncFileDataSnafu,
 };
 
@@ -47,7 +47,7 @@ impl<B> Writer<B> {
             Ok(_) => {}
             Err(e) if e.kind() == lock_contended_error().kind() => return DirLockedSnafu.fail(),
             Err(e) => {
-                return Err(e).context(LockFileSnafu {
+                return Err(e).context(ExclusiveLockFileSnafu {
                     path: &lock_file_path,
                 })?
             }

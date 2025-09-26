@@ -349,34 +349,10 @@ pub fn check_parser_string_timestamp_precision(parser_string: &str) -> bool {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)] // keep this
 pub(super) enum FromOrTo {
     From(String),
     To(String),
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub(super) struct NewReplicate {
-    /// Cluster username
-    #[schema(example = "root")]
-    username: String,
-    /// Cluster password
-    #[schema(example = "taosdata")]
-    password: String,
-    /// Source or target database name(or database topic name as data source).
-    #[schema(example = "test2")]
-    database: String,
-    /// Replicate database from another TDengine data source to this.
-    #[schema(example = "use from or to")]
-    from: Option<String>,
-    /// Replicate database to another TDengine.
-    to: Option<String>,
-    /// Set if the target database should be cleared before running task.
-    #[schema(example = "false")]
-    #[serde(default)]
-    clear: bool,
-    /// Override if database if not matched.
-    #[serde(default)]
-    force: bool,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -854,14 +830,13 @@ async fn send_all_tasks_activities_ws(
         Ok(activities) => {
             for activity in activities.into_iter() {
                 // only send activities for tasks in the current cluster
-                if task_ids.contains(&activity.id) {
-                    if let Err(err) = session
+                if task_ids.contains(&activity.id)
+                    && let Err(err) = session
                         .text(serde_json::to_string(&activity).unwrap())
                         .await
-                    {
-                        tracing::info!("task-ws session closed: {:#}", err);
-                        break;
-                    }
+                {
+                    tracing::info!("task-ws session closed: {:#}", err);
+                    break;
                 }
             }
         }

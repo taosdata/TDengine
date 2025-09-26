@@ -178,19 +178,17 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
     // dsn addresses
     let host = params_map.remove("host").map(|s| s.to_string());
     let port = params_map.remove("port").map(|s| s.to_string());
-    if host.is_some() && port.is_some() {
-        // unnecessary to check unwrap result, because they are not None
-        let host = host.unwrap();
-        let port = port.unwrap();
-        let port: u16 = port
-            .parse()
-            .context("Invalid data source: 'port' is not a number")?;
-        let address = Address::new(host, port);
-        dsn.addresses.push(address);
-    } else if host.is_some() {
-        let host = host.unwrap();
-        let address = Address::from_host(host);
-        dsn.addresses.push(address);
+    if let Some(host) = host {
+        if let Some(port) = port {
+            let port: u16 = port
+                .parse()
+                .context("Invalid data source: 'port' is not a number")?;
+            let address = Address::new(host, port);
+            dsn.addresses.push(address);
+        } else {
+            let address = Address::from_host(host);
+            dsn.addresses.push(address);
+        }
     }
     // dsn path
     dsn.path = params_map.remove("path").map(|s| s.to_string());
