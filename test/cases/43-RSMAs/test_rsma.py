@@ -223,11 +223,14 @@ class TestCase:
         tdSql.checkData(2, 8, 5)
 
     def s5_0_wait_trim_done(self):
+        i = 0
         while True:
             tdSql.query("show retentions")
             if tdSql.getRows() == 0:
                 break
             time.sleep(1)
+            i += 1
+            tdLog.info(f"wait for trim/rollup done, {i} second(s) elapsed")
 
     def s5_0_trim_db(self, tsdbOpType = 'trim'):
         self.s0_reset_test_env()
@@ -256,6 +259,7 @@ class TestCase:
         tdSql.checkRows(7)
         tdSql.execute("flush database d0")
         # trim again
+        time.sleep(5) # ensure commit is done
         tdSql.execute("trim database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
@@ -273,24 +277,25 @@ class TestCase:
         tdSql.checkRows(7)
         tdSql.execute("flush database d0")
         # rollup again
+        time.sleep(5) # ensure commit is done
         tdSql.execute("rollup database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
         self.s5_0_wait_trim_done()
         # rollup has effect since new commit happen after last rollup
         tdSql.query("select * from d0.stb0")
-        # tdSql.checkRows(6)
+        tdSql.checkRows(6)
         tdSql.query("select * from d0.ctb0")
-        # tdSql.checkRows(3)
+        tdSql.checkRows(3)
         # check rollup result
         tdSql.checkData(0, 0, '2024-10-01 08:00:00.000')
-        # tdSql.checkData(0, 1, 1)
-        # tdSql.checkData(0, 2, 3)
-        # tdSql.checkData(0, 3, 1.5)
-        # tdSql.checkData(0, 4, 7)
-        # tdSql.checkData(0, 5, True)
-        # tdSql.checkData(0, 6, 1)
-        # tdSql.checkData(0, 7, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 3)
+        tdSql.checkData(0, 3, 1.5)
+        tdSql.checkData(0, 4, 7)
+        tdSql.checkData(0, 5, True)
+        tdSql.checkData(0, 6, 1)
+        tdSql.checkData(0, 7, 1)
 
     def test_rsma(self):
         """ Test case for rsma.
