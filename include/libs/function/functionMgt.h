@@ -185,6 +185,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_PLACEHOLDER_TBNAME, // %%tbname
   FUNCTION_TYPE_IMPUTATION_ROWTS,
   FUNCTION_TYPE_IMPUTATION_MARK,
+  FUNCTION_TYPE_ANOMALY_MARK,
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -317,7 +318,7 @@ bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
-bool fmIsForecastPseudoColumnFunc(int32_t funcId);
+bool fmIsAnalysisPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 bool fmIsIgnoreNullFunc(int32_t funcId);

@@ -1157,7 +1157,7 @@ static bool isForecastFunc(const SNode* pNode) {
 }
 
 static bool isForecastPseudoColumnFunc(const SNode* pNode) {
-  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsForecastPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAnalysisPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
 
 static bool isColsFunctionResult(const SNode* pNode) {
@@ -2975,14 +2975,14 @@ static int32_t translateForecastFunc(STranslateContext* pCxt, SFunctionNode* pFu
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateForecastPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
+static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   SSelectStmt*   pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   SNode*         pNode = NULL;
   bool           bFound = false;
   int32_t        funcType = pFunc->funcType;
 
-  if (!fmIsForecastPseudoColumnFunc(pFunc->funcId)) {
+  if (!fmIsAnalysisPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -3012,6 +3012,11 @@ static int32_t translateForecastPseudoColumnFunc(STranslateContext* pCxt, SNode*
       bFound = true;
       break;
     } 
+
+    if (funcType == FUNCTION_TYPE_ANOMALY_MARK) {
+      bFound = true;
+      break;
+    }
   }
 
   if (!bFound) {
@@ -3401,7 +3406,7 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     pSelect->hasForecastFunc = pSelect->hasForecastFunc || (FUNCTION_TYPE_FORECAST == pFunc->funcType);
     pSelect->hasImputationFunc = pSelect->hasImputationFunc || (FUNCTION_TYPE_IMPUTATION == pFunc->funcType);
     pSelect->hasForecastPseudoColFunc =
-        pSelect->hasForecastPseudoColFunc ? true : fmIsForecastPseudoColumnFunc(pFunc->funcId);
+        pSelect->hasForecastPseudoColFunc ? true : fmIsAnalysisPseudoColumnFunc(pFunc->funcId) && (pFunc->funcType != FUNCTION_TYPE_ANOMALY_MARK);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
     pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
@@ -3673,7 +3678,7 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     bool bRewriteToColumn = false;
-    code = translateForecastPseudoColumnFunc(pCxt, ppNode, &bRewriteToColumn);
+    code = translateAnalysisPseudoColumnFunc(pCxt, ppNode, &bRewriteToColumn);
     if (bRewriteToColumn) {
       return code;
     }
@@ -8104,7 +8109,7 @@ static int32_t translateForecast(STranslateContext* pCxt, SSelectStmt* pSelect) 
   if (!(pSelect->hasForecastFunc || pSelect->hasImputationFunc)) {
     if (pSelect->hasForecastPseudoColFunc) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                     "Has Forecast pseudo column(s) but missing forcast function");
+                                     "has analysis pseudo column(s) but missing analysis function");
     }
     return TSDB_CODE_SUCCESS;
   }
