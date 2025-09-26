@@ -4066,6 +4066,25 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void)snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }
+
+#ifdef _MSC_VER
+    // For '%f' (or '%F') in printf, the C99 standard states:
+    //   A double argument representing an infinity is converted in one of the styles [-]inf
+    //   or [-]infinity — which style is implementation-defined. A double argument representing
+    //   a NaN is converted in one of the styles [-]nan or [-]nan(n-char-sequence) — which style,
+    //   and the meaning of any n-char-sequence, is implementation-defined. 
+    //
+    // For NaN, GCC and CLang choose the 'nan' style, while MSVC chooses the 'nan(n-char-sequence)'
+    // style, to make the output consistent, when compile by MSVC, we truncate the 'n-char-sequence'
+    // part here.
+    if (isnan(matrix02)) {
+      (slopBuf[0] == '-') ? (slopBuf[4] = 0) : (slopBuf[3] = 0);
+    }
+    if (isnan(matrix12)) {
+      (interceptBuf[0] == '-') ? (interceptBuf[4] = 0) : (interceptBuf[3] = 0);
+    }
+#endif
+
     size_t len =
         snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
     varDataSetLen(buf, len);
