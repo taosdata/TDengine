@@ -444,7 +444,7 @@ static bool tsdbCheckRetentionTimeRange(STsdb *tsdb, int32_t fid, STimeWindow tw
     }
     return true;
   }
-  return false;
+  return true;
 }
 
 static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType) {
