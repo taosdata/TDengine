@@ -301,7 +301,7 @@ class CompatibilityBase:
             pid_to_kill_for_this_dnode = found_pids[0]
             tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
             os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-            cb.checkProcessPid(pid_to_kill_for_this_dnode)
+            tdCb.checkProcessPid(pid_to_kill_for_this_dnode)
             tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
             tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
             os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
@@ -331,7 +331,7 @@ class CompatibilityBase:
                     os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
                 else:
                     tdLog.info(f"No running taosd PID found to kill for cPaths[{i}] (or fewer PIDs found than cPaths entries).")
-                cb.checkProcessPid(pid_to_kill_for_this_dnode)
+                tdCb.checkProcessPid(pid_to_kill_for_this_dnode)
                 tdLog.info(f"Starting taosd using cPath: {cPaths[i]}")
                 tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
                 os.system(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
@@ -668,4 +668,4 @@ class CompatibilityBase:
 
 
 # Create instance for compatibility
-tdCb = CompatibilityBase() 
+tdtdCb = CompatibilityBase() 
