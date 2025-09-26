@@ -45,9 +45,6 @@ void metaReaderClear(SMetaReader *pReader) {
   }
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
-  if (pReader->me.type == TSDB_SUPER_TABLE && TABLE_IS_ROLLUP(pReader->me.flags)) {
-    metaFreeRsmaParam(&pReader->me.stbEntry.rsmaParam, 0);
-  }
   pReader->pBuf = NULL;
 }
 
@@ -342,9 +339,6 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
     tDecoderClear(&pTbCur->mr.coder);
 
     ret = metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
-    if (pTbCur->mr.me.type == TSDB_SUPER_TABLE && TABLE_IS_ROLLUP(pTbCur->mr.me.flags)) {
-      metaFreeRsmaParam(&pTbCur->mr.me.stbEntry.rsmaParam, 0);
-    }
     if (ret) return ret;
 
     if (pTbCur->mr.me.type == jumpTableType) {
@@ -371,9 +365,6 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
     tDecoderClear(&pTbCur->mr.coder);
 
     ret = metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
-    if (pTbCur->mr.me.type == TSDB_SUPER_TABLE && TABLE_IS_ROLLUP(pTbCur->mr.me.flags)) {
-      metaFreeRsmaParam(&pTbCur->mr.me.stbEntry.rsmaParam, 0);
-    }
     if (ret < 0) {
       return ret;
     }
@@ -419,9 +410,6 @@ _query:
   tDecoderInit(&dc, pData, nData);
   code = metaDecodeEntry(&dc, &me);
   if (code) {
-    if (me.type == TSDB_SUPER_TABLE && TABLE_IS_ROLLUP(me.flags)) {
-      metaFreeRsmaParam(&me.stbEntry.rsmaParam, 0);
-    }
     tDecoderClear(&dc);
     goto _err;
   }
@@ -431,11 +419,9 @@ _query:
       if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
       if (TABLE_IS_ROLLUP(me.flags)) {
         if ((type == 0x01) && (code = metaGetRsmaSchema(&me, &pSchema->pRsma)) != 0) {
-          metaFreeRsmaParam(&me.stbEntry.rsmaParam, 0);
           tDecoderClear(&dc);
           goto _err;
         }
-        metaFreeRsmaParam(&me.stbEntry.rsmaParam, 0);
       }
       tDecoderClear(&dc);
       goto _exit;
@@ -476,7 +462,6 @@ _exit:
     metaULock(pMeta);
   }
   tdbFree(pData);
-  tDestroySchemaWrapper(&schema);
   return pSchema;
 
 _err:
@@ -484,7 +469,6 @@ _err:
     metaULock(pMeta);
   }
   tdbFree(pData);
-  tDestroySchemaWrapper(&schema);
   tDeleteSchemaWrapper(pSchema);
   if (extSchema != NULL) {
     taosMemoryFreeClear(*extSchema);

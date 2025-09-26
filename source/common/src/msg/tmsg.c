@@ -11832,11 +11832,9 @@ int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
   TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->interval[1]));
   TAOS_CHECK_EXIT(tDecodeI16v(pCoder, &pRSmaParam->nFuncs));
   if (pRSmaParam->nFuncs > 0) {
-    pRSmaParam->funcColIds = (col_id_t *)taosMemoryCalloc(pRSmaParam->nFuncs, sizeof(col_id_t));
-    pRSmaParam->funcIds = (func_id_t *)taosMemoryCalloc(pRSmaParam->nFuncs, sizeof(func_id_t));
+    pRSmaParam->funcColIds = (col_id_t *)tDecoderMalloc(pCoder, pRSmaParam->nFuncs * sizeof(col_id_t));
+    pRSmaParam->funcIds = (func_id_t *)tDecoderMalloc(pCoder, pRSmaParam->nFuncs * sizeof(func_id_t));
     if (pRSmaParam->funcColIds == NULL || pRSmaParam->funcIds == NULL) {
-      taosMemFreeClear(pRSmaParam->funcColIds);
-      taosMemFreeClear(pRSmaParam->funcIds);
       TAOS_CHECK_EXIT(terrno);
     }
     for (int16_t i = 0; i < pRSmaParam->nFuncs; ++i) {
