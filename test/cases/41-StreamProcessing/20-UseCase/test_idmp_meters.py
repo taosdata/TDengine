@@ -1574,23 +1574,18 @@ class Test_IDMP_Meters:
                 tdSql.checkData(i, 2, 200)  # avg(voltage)
                 tdSql.checkData(i, 3, cnt * 300)  # sum(power)
             sum += cnt
-
-        # ***** bug2 *****
-        self.verify_stream8_sub2()
-        self.verify_stream8_sub3()
-        self.verify_stream8_sub4()
-        self.verify_stream8_sub6()
-        return
-
         if sum != 30:
             tdLog.exit(
                 f"stream8 not found expected data. expected sum(cnt) == 30, actual: {sum}"
             )
-
         print("verify stream8 ................................. successfully.")
 
         # sub
         self.verify_stream8_sub1()
+        self.verify_stream8_sub2()
+        self.verify_stream8_sub3()
+        self.verify_stream8_sub4()
+        self.verify_stream8_sub6()
 
     # verify stream8_sub1
     def verify_stream8_sub1(self):
@@ -1602,12 +1597,11 @@ class Test_IDMP_Meters:
 
         # check no data windows is zero
         # ***** bug1 *****
-        """
         tdSql.checkResultsByFunc (
-            sql  = f"select * from tdasset.`result_stream8_sub1` where cnt = 0 ",
-            func = lambda: tdSql.getRows() == 0
+            sql  = f"select count(*) from tdasset.`result_stream8_sub1` where cnt = 0 ",
+            func = lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, 0)
         )
-        """
 
         print("verify stream8_sub1 ............................ successfully.")
 
