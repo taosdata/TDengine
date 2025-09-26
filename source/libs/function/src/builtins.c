@@ -16,6 +16,7 @@
 #include "builtins.h"
 #include "builtinsimpl.h"
 #include "cJSON.h"
+#include "functionMgtInt.h"
 #include "geomFunc.h"
 #include "querynodes.h"
 #include "scalar.h"
@@ -1829,6 +1830,10 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     case FUNCTION_TYPE_STD_PARTIAL:
       bytes = getStdInfoSize() + VARSTR_HEADER_SIZE;
       break;
+    case FUNCTION_TYPE_CORR_MERGE:
+    case FUNCTION_TYPE_CORR_PARTIAL:
+      bytes = getCorrInfoSize() + VARSTR_HEADER_SIZE;
+      break;
     case FUNCTION_TYPE_AVG_PARTIAL:
     case FUNCTION_TYPE_AVG_STATE:
       pFunc->srcFuncInputType = ((SExprNode*)pFunc->pParameterList->pHead->pNode)->resType;
@@ -2029,9 +2034,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = countFunction,
     .sprocessFunc = countScalarFunction,
     .finalizeFunc = functionFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = countInvertFunction,
-#endif
     .combineFunc  = combineFunction,
     .pPartialFunc = "count",
     .pStateFunc = "count",
@@ -2059,9 +2061,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = sumFunction,
     .sprocessFunc = sumScalarFunction,
     .finalizeFunc = functionFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = sumInvertFunction,
-#endif
     .combineFunc  = sumCombine,
     .pPartialFunc = "sum",
     .pStateFunc = "sum",
@@ -2142,9 +2141,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stdFunction,
     .sprocessFunc = stdScalarFunction,
     .finalizeFunc = stddevFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-#endif
     .combineFunc  = stdCombine,
     .pPartialFunc = "_std_partial",
     .pStateFunc = "_std_state",
@@ -2170,9 +2166,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = stdFunctionSetup,
     .processFunc  = stdFunction,
     .finalizeFunc = stdPartialFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-#endif
     .combineFunc  = stdCombine,
   },
   {
@@ -2195,9 +2188,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = stdFunctionSetup,
     .processFunc  = stdFunctionMerge,
     .finalizeFunc = stddevFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-#endif
     .combineFunc  = stdCombine,
     .pPartialFunc = "_std_state_merge",
     .pMergeFunc = "_stddev_merge",
@@ -2230,9 +2220,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = leastSQRFunction,
     .sprocessFunc = leastSQRScalarFunction,
     .finalizeFunc = leastSQRFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = leastSQRCombine,
   },
   {
@@ -2257,9 +2244,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = avgFunction,
     .sprocessFunc = avgScalarFunction,
     .finalizeFunc = avgFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = avgInvertFunction,
-#endif
     .combineFunc  = avgCombine,
     .pPartialFunc = "_avg_partial",
     .pMiddleFunc  = "_avg_middle",
@@ -2287,9 +2271,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
     .finalizeFunc = avgPartialFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = avgInvertFunction,
-#endif
     .combineFunc  = avgCombine,
   },
   {
@@ -2312,9 +2293,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunctionMerge,
     .finalizeFunc = avgFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = avgInvertFunction,
-#endif
     .combineFunc  = avgCombine,
     .pPartialFunc = "_avg_state_merge",
     .pMergeFunc = "_avg_merge",
@@ -2350,9 +2328,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = percentileScalarFunction,
     .finalizeFunc = percentileFinalize,
     .cleanupFunc  = percentileFunctionCleanupExt,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = NULL,
   },
   {
@@ -2393,9 +2368,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = apercentileFunction,
     .sprocessFunc = apercentileScalarFunction,
     .finalizeFunc = apercentileFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = apercentileCombine,
     .pPartialFunc = "_apercentile_partial",
     .pMergeFunc   = "_apercentile_merge",
@@ -2438,9 +2410,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
     .finalizeFunc = apercentilePartialFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc = apercentileCombine,
   },
   {
@@ -2480,9 +2449,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunctionMerge,
     .finalizeFunc = apercentileFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc = apercentileCombine,
   },
   {
@@ -2577,9 +2543,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = spreadFunction,
     .sprocessFunc = spreadScalarFunction,
     .finalizeFunc = spreadFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = spreadCombine,
     .pPartialFunc = "_spread_partial",
     .pStateFunc = "_spread_state",
@@ -2606,9 +2569,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
     .finalizeFunc = spreadPartialFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = spreadCombine,
   },
   {
@@ -2632,9 +2592,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunctionMerge,
     .finalizeFunc = spreadFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = spreadCombine,
     .pPartialFunc = "_spread_state_merge",
     .pMergeFunc = "_spread_merge",
@@ -2668,9 +2625,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
     .finalizeFunc = elapsedFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = elapsedCombine,
   },
   {
@@ -2683,9 +2637,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
     .finalizeFunc = elapsedPartialFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = elapsedCombine,
   },
   {
@@ -2698,9 +2649,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunctionMerge,
     .finalizeFunc = elapsedFinalize,
-  #ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-  #endif
     .combineFunc  = elapsedCombine,
   },
   {
@@ -3206,9 +3154,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = histogramFunction,
     .sprocessFunc = histogramScalarFunction,
     .finalizeFunc = histogramFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = histogramCombine,
     .pPartialFunc = "_histogram_partial",
     .pMergeFunc   = "_histogram_merge",
@@ -3258,9 +3203,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunctionPartial,
     .finalizeFunc = histogramPartialFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = histogramCombine,
   },
   {
@@ -3283,9 +3225,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = histogramFunctionMerge,
     .finalizeFunc = histogramFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = histogramCombine,
   },
   {
@@ -3309,9 +3248,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = hllFunction,
     .sprocessFunc = hllScalarFunction,
     .finalizeFunc = hllFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = hllCombine,
     .pPartialFunc = "_hyperloglog_partial",
     .pMergeFunc   = "_hyperloglog_merge",
@@ -3336,9 +3272,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
     .finalizeFunc = hllPartialFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = hllCombine,
   },
   {
@@ -3361,9 +3294,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = hllFunctionMerge,
     .finalizeFunc = hllFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = NULL,
-#endif
     .combineFunc  = hllCombine,
     .pMergeFunc = "_hyperloglog_merge",
   },
@@ -4907,9 +4837,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunctionMerge,
     .finalizeFunc = avgPartialFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = avgInvertFunction,
-#endif
     .combineFunc  = avgCombine,
   },
   {
@@ -5250,9 +5177,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stdFunction,
     .sprocessFunc = stdScalarFunction,
     .finalizeFunc = stddevFinalize,
-  #ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-  #endif
     .combineFunc  = stdCombine,
     .pPartialFunc = "_std_partial",
     .pStateFunc = "_std_state",
@@ -5279,9 +5203,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stdFunction,
     .sprocessFunc = stdScalarFunction,
     .finalizeFunc = stdvarFinalize,
-  #ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-  #endif
     .combineFunc  = stdCombine,
     .pPartialFunc = "_std_partial",
     .pStateFunc = "_std_state",
@@ -5328,9 +5249,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = stdFunctionSetup,
     .processFunc  = stdFunctionMerge,
     .finalizeFunc = stdvarFinalize,
-  #ifdef BUILD_NO_CALL
-    .invertFunc   = stdInvertFunction,
-  #endif
     .combineFunc  = stdCombine,
     .pPartialFunc = "_std_state_merge",
     .pMergeFunc = "_stdvar_merge",
@@ -6370,6 +6288,81 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "corr",
+    .type = FUNCTION_TYPE_CORR,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+
+    .translateFunc = translateOutDouble,
+    .getEnvFunc   = getCorrFuncEnv,
+    .initFunc     = corrFuncSetup,
+    .processFunc  = corrFunction,
+    .sprocessFunc = corrScalarFunction,
+    .finalizeFunc = corrFinalize,
+    .pPartialFunc = "_corr_partial",
+    .pMergeFunc   = "_corr_merge"
+  },
+  {
+    .name = "_corr_partial",
+    .type = FUNCTION_TYPE_CORR_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
+    .getEnvFunc   = getCorrFuncEnv,
+    .initFunc     = corrFuncSetup,
+    .processFunc  = corrFunction,
+    .finalizeFunc = corrPartialFinalize,
+  },
+  {
+    .name = "_corr_merge",
+    .type = FUNCTION_TYPE_CORR_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateOutDouble,
+    .getEnvFunc   = getCorrFuncEnv,
+    .initFunc     = corrFuncSetup,
+    .processFunc  = corrFuncMerge,
+    .finalizeFunc = corrFinalize,
+    .pMergeFunc = "_corr_merge",
   },
 };
 // clang-format on
