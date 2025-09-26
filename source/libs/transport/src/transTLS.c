@@ -80,6 +80,7 @@ void sslBufferRef(SSslBuffer* buf) { sslBufferRefImpl(buf); }
 void sslBufferUnref(SSslBuffer* buf) { sslBufferUnrefImpl(buf);}
 
 
+#if !defined(TD_ENTERPRISE) 
 
 int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; }
 void    transTlsCtxDestroyImpl(SSslCtx* pCtx) { return; }
@@ -109,3 +110,5 @@ int32_t sslBufferGetAvailableImpl(SSslBuffer* buf, int32_t* available) { return 
 
 void sslBufferRefImpl(SSslBuffer* buf) { return; }
 void sslBufferUnrefImpl(SSslBuffer* buf) { return; }
+
+#endif
