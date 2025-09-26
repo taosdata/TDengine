@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "tsdbInt.h"
 #include "vnd.h"
 
 typedef struct SCompState SCompState;

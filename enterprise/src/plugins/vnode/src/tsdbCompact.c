@@ -13,13 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../../../../../source/dnode/vnode/src/tsdb/tsdbDataFileRW.h"
-#include "../../../../../source/dnode/vnode/src/tsdb/tsdbFS2.h"
-#include "../../../../../source/dnode/vnode/src/tsdb/tsdbFSetRW.h"
-#include "../../../../../source/dnode/vnode/src/tsdb/tsdbIter.h"
-#include "../../../../../source/dnode/vnode/src/tsdb/tsdbSttFileRW.h"
+// #include "../../../../../source/dnode/vnode/src/tsdb/tsdbDataFileRW.h"
+// #include "../../../../../source/dnode/vnode/src/tsdb/tsdbFS2.h"
+// #include "../../../../../source/dnode/vnode/src/tsdb/tsdbFSetRW.h"
+// #include "../../../../../source/dnode/vnode/src/tsdb/tsdbIter.h"
+// #include "../../../../../source/dnode/vnode/src/tsdb/tsdbSttFileRW.h"
+// #include "executorInt.h"
 #include "meta.h"
 #include "tsdb.h"
+#include "tsdbInt.h"
 #include "vnd.h"
 
 extern int     vnodeScheduleTask(int (*execute)(void *), void *arg);
@@ -36,51 +38,6 @@ extern void    tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
 static void    tsdbCompactCancel(void *arg);
 
 // new code ====================================================================================
-typedef struct {
-  STsdb  *tsdb;
-  int32_t szPage;
-  int32_t minRow;
-  int32_t maxRow;
-  int8_t  cmprAlg;
-  int64_t cid;
-  int64_t compactVersion;
-
-  STFileSet   *fset;
-  TFileOpArray fopArr[1];
-
-  struct {
-    int32_t expLevel;
-    // reader
-    SDataFileReader    *dataReader;
-    TSttFileReaderArray sttReaderArr[1];
-
-    // iter & merger
-    TTsdbIterArray dataIterArr[1];
-    SIterMerger   *dataIterMerger;
-    TTsdbIterArray tombIterArr[1];
-    SIterMerger   *tombIterMerger;
-
-    // writer
-    SFSetWriter *writer;
-
-    TABLEID tbid[1];
-    SHashObj *pKeepHashObj;  // SHashObj<suid, keep>
-
-    // skyline
-    SArray  *aSkyLine;
-    int32_t  iSkyLine;
-    TSDBKEY *pDKey;
-    TSDBKEY  dKey;
-  } ctx[1];
-} SCompactor2;
-
-typedef struct {
-  STsdb    *tsdb;
-  int32_t   fid;
-  SVATaskID taskid;
-  bool      ssMigrate;
-} SCompactArg;
-
 static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
   int32_t    code = 0;
   int32_t    lino = 0;
@@ -314,7 +271,8 @@ static int32_t tsdbCompactFSetEnd(SCompactor2 *compactor) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (TARRAY2_SIZE(compactor->fopArr) > 0) {
-    code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, TSDB_FEDIT_COMPACT);
+    EFEditT etype = compactor->optrType == TSDB_OPTR_ROLLUP ? TSDB_FEDIT_ROLLUP : TSDB_FEDIT_COMPACT;
+    code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, etype);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     TAOS_UNUSED(taosThreadMutexLock(&compactor->tsdb->mutex));
@@ -333,12 +291,12 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCompactFSetTableDataEnd(SCompactor2 *compactor) {
+int32_t tsdbCompactFSetTableDataEnd(SCompactor2 *compactor) {
   // do nothing
   return 0;
 }
 
-static int32_t tsdbCompactFSetTableDataBegin(SCompactor2 *compactor, const TABLEID *tbid) {
+int32_t tsdbCompactFSetTableDataBegin(SCompactor2 *compactor, const TABLEID *tbid) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -409,7 +367,7 @@ _exit:
   return code;
 }
 
-static bool tsdbRowIsDeleted(SCompactor2 *compactor, TSDBROW *row) {
+bool tsdbRowIsDeleted(SCompactor2 *compactor, TSDBROW *row) {
   TSDBKEY  tKey = TSDBROW_KEY(row);
   TSDBKEY *aKey = (TSDBKEY *)TARRAY_DATA(compactor->ctx->aSkyLine);
   int32_t  nKey = TARRAY_SIZE(compactor->ctx->aSkyLine);
@@ -448,7 +406,7 @@ static bool tsdbRowIsDeleted(SCompactor2 *compactor, TSDBROW *row) {
   return false;
 }
 
-static bool tsdbRowIsExpired(SCompactor2 *compactor, TSDBROW *row, int64_t keep, int64_t expireTs) {
+bool tsdbRowIsExpired(SCompactor2 *compactor, TSDBROW *row, int64_t keep, int64_t expireTs) {
   if (keep <= 0) {
     return false;
   }
@@ -458,7 +416,7 @@ static bool tsdbRowIsExpired(SCompactor2 *compactor, TSDBROW *row, int64_t keep,
   return (tKey.ts < expireTs);
 }
 
-static int32_t tsdbCompactFSetGetKeep(SCompactor2 *compactor, int64_t suid, int64_t *keep) {
+int32_t tsdbCompactFSetGetKeep(SCompactor2 *compactor, int64_t suid, int64_t *keep) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -477,7 +435,7 @@ static int32_t tsdbCompactFSetGetKeep(SCompactor2 *compactor, int64_t suid, int6
   return code;
 }
 
-static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
+static int32_t tsdbCompactFSetNormal(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -537,7 +495,7 @@ _exit:
   return code;
 }
 
-bool tsdbShouldCompact(STFileSet *fset, int32_t vgId) {
+bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, ETsdbOpType type) {
   STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
   if (fobj) {
     tsdbInfo("vgId:%d, fid:%d,lastCompact:%" PRId64 ", lastCommit:%" PRId64 ", lastMigrate:%" PRId64 ", lcn:%d", vgId,
@@ -554,11 +512,31 @@ bool tsdbShouldCompact(STFileSet *fset, int32_t vgId) {
     return false;
   }
 
+  if (type == TSDB_OPTR_ROLLUP) {
+    // Rollup is a special compact, it'd update lastRollup and lastCompact with the same value after finished.
+    if (fset->lastRollup >= fset->lastCommit) {
+      return false;
+    }
+    return true;
+  }
+
   if (fset->lastCompact > fset->lastCommit) {
     return false;
   }
 
   return true;
+}
+
+extern int32_t tsdbCompactFSetRollup(SCompactor2 *compactor);
+static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
+  if (compactor->optrType == TSDB_OPTR_NORMAL) {
+    return tsdbCompactFSetNormal(compactor);
+  } else if (compactor->optrType == TSDB_OPTR_ROLLUP) {
+    return tsdbCompactFSetRollup(compactor);
+  }
+  tsdbWarn("vgId:%d, fid:%d, unsupported optr type: %d", TD_VID(compactor->tsdb->pVnode), compactor->fset->fid,
+           compactor->optrType);
+  return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
 static void tsdbCompactEnd(SCompactor2 *compactor) {
@@ -573,7 +551,7 @@ static void tsdbCompactEnd(SCompactor2 *compactor) {
   taosHashCleanup(compactor->ctx->pKeepHashObj);
 }
 
-static int32_t tsdbDoCompact(SCompactor2 *compactor) {
+int32_t tsdbDoCompact(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -615,6 +593,7 @@ static int32_t tsdbCompact(void *arg) {
        .minRow = tsdb->pVnode->config.tsdbCfg.minRows,
        .maxRow = tsdb->pVnode->config.tsdbCfg.maxRows,
        .cmprAlg = tsdb->pVnode->config.tsdbCfg.compression,
+       .optrType = compactArg->type,
        .cid = tsdbFSAllocEid(tsdb->pFS),
        .compactVersion = INT64_MAX,
   };
@@ -643,7 +622,7 @@ static int32_t tsdbCompact(void *arg) {
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   // do compact
-  if (compactor.fset && tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode))) {
+  if (compactor.fset && tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactArg->type)) {
     code = tsdbDoCompact(&compactor);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -659,7 +638,7 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&compactor.fset);
   TARRAY2_DESTROY(compactor.fopArr, NULL);
-  if (!compactArg->ssMigrate) { 
+  if (compactArg->type == TSDB_OPTR_NORMAL) {
     tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
   }
   taosMemoryFree(arg);
@@ -672,7 +651,7 @@ _exit:
 
 static void tsdbCompactCancel(void *arg) { taosMemoryFree(arg); }
 
-static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool ssMigrate) {
+static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -697,7 +676,7 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool ssMi
 
     arg->tsdb = tsdb;
     arg->fid = fset->fid;
-    arg->ssMigrate = ssMigrate;
+    arg->type = type;
 
     // if the compact task is already running, skip it
     // because the compact task may be running by ss migrate
@@ -712,7 +691,7 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool ssMi
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
       arg->taskid = fset->compactTask;
-      if (!ssMigrate) {
+      if (type != TSDB_OPTR_SSMIGRATE) {
         int64_t compactSize = 0;
         if (fset->farr[TSDB_FTYPE_DATA]) {
           compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
@@ -723,7 +702,11 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool ssMi
           STFileObj *fobj;
           TARRAY2_FOREACH(lvl->fobjArr, fobj) { compactSize += fobj->f->size; }
         }
-        TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
+        if (type == TSDB_OPTR_NORMAL) {
+          TAOS_UNUSED(tsdbAddCompMonitorTask(tsdb, fset->fid, &arg->taskid, compactSize));
+        } else {
+          // should not happen now
+        }
       }
     }
   }
@@ -735,10 +718,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool ssMigrate) {
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type) {
   int32_t code = 0;
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  code = tsdbAsyncCompactImpl(tsdb, tw, ssMigrate);
+  code = tsdbAsyncCompactImpl(tsdb, tw, type);
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return code;
 }
