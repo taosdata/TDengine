@@ -493,10 +493,22 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
 
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
+  int8_t rCacheType = pVnode->config.cacheFormat;
   if (!VND_IS_RSMA(pVnode) &&
       (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
+  }
+  if (rCacheType != pVnode->config.cacheFormat) {
+    info.config.cacheFormat = pVnode->config.cacheFormat;
+    vInfo("vgId:%d, save vnode info since cache format changed to %d", info.config.vgId, info.config.cacheFormat);
+    if (vnodeSaveInfo(dir, &info) < 0) {
+      vError("vgId:%d, failed to save vnode info since %s", info.config.vgId, tstrerror(terrno));
+    }
+
+    if (vnodeCommitInfo(dir) < 0) {
+      vError("vgId:%d, failed to commit vnode info since %s", info.config.vgId, tstrerror(terrno));
+    }
   }
 
   if (TSDB_CACHE_RESET(pVnode->config)) {

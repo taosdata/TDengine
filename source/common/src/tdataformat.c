@@ -90,13 +90,13 @@ static int32_t tGetPrimaryKeyIndex(uint8_t *p, SPrimaryKeyIndex *index) {
 }
 
 static FORCE_INLINE int32_t tRowBuildScanAddNone(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
-  if ((pTColumn->flags & COL_IS_KEY)) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE;
+  if ((pTColumn->flags & COL_IS_KEY) && !sinfo->isCacheRow) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE;
   sinfo->numOfNone++;
   return 0;
 }
 
 static FORCE_INLINE int32_t tRowBuildScanAddNull(SRowBuildScanInfo *sinfo, const STColumn *pTColumn) {
-  if ((pTColumn->flags & COL_IS_KEY)) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+  if ((pTColumn->flags & COL_IS_KEY) && !sinfo->isCacheRow) return TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
   sinfo->numOfNull++;
   sinfo->kvMaxOffset = sinfo->kvPayloadSize;
   sinfo->kvPayloadSize += tPutI16v(NULL, -pTColumn->colId);
@@ -148,13 +148,18 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     return TSDB_CODE_INVALID_PARA;
   }
   if (!(colValArray[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+    uError("colVal: %d, %d", colValArray[0].cid, colValArray[0].value.type);
     return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
   if (!(colValArray[0].value.type == TSDB_DATA_TYPE_TIMESTAMP)) {
+    uError("colVal: %d, %d", colValArray[0].cid, colValArray[0].value.type);
     return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
 
-  *sinfo = (SRowBuildScanInfo){.tupleFixedSize = schema->flen, .hasBlob = sinfo->hasBlob, .scanType = sinfo->scanType};
+  *sinfo = (SRowBuildScanInfo){.tupleFixedSize = schema->flen,
+                               .hasBlob = sinfo->hasBlob,
+                               .scanType = sinfo->scanType,
+                               .isCacheRow = sinfo->isCacheRow};
 
   // loop scan
   for (int32_t i = 1; i < schema->numOfCols; i++) {
@@ -1384,8 +1389,26 @@ _exit:
   return code;
 }
 
+int32_t tRowGetLastColVal(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  int32_t code = tRowGet(pRow, pTSchema, iCol, pColVal);
+  if (code != 0) {
+    return code;
+  }
+  if (iCol == 0 && pRow->ts == 0) {
+    if (pRow->flag == HAS_NONE) {
+      *pColVal = COL_VAL_NONE(pTSchema->columns[iCol].colId, pTSchema->columns[iCol].type);
+    }
+    if (pRow->flag == HAS_NULL) {
+      *pColVal = COL_VAL_NULL(pTSchema->columns[iCol].colId, pTSchema->columns[iCol].type);
+    }
+  }
+  return 0;
+}
+
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  if (!(iCol < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
+  if (!(iCol < pTSchema->numOfCols)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
 
   STColumn *pTColumn = pTSchema->columns + iCol;

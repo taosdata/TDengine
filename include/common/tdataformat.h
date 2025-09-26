@@ -154,6 +154,7 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowB
 int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobSet *pBlobSet,
                           SRowBuildScanInfo *sinfo);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+int32_t tRowGetLastColVal(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 typedef struct {
   uint64_t offset;
@@ -524,6 +525,7 @@ struct SRowBuildScanInfo {
 
   int8_t hasBlob;
   int8_t scanType;
+  int8_t isCacheRow;
 };
 
 int8_t schemaHasBlob(const STSchema *pSchema);

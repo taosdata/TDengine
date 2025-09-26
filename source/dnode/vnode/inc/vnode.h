@@ -365,6 +365,7 @@ struct SVnodeCfg {
   int32_t     ssChunkSize;
   int32_t     ssKeepLocal;
   int8_t      ssCompact;
+  int8_t      cacheFormat;  // 0: colCache (default for old versions), 1: rowCache
 };
 
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)
