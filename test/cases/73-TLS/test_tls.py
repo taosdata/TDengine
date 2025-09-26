@@ -11,8 +11,8 @@ class TestTLSDemo:
         } 
     else:
         clientCfgDict = {
-        "tlsCliKeyPath"         :"/tmp/server.crt", 
-        "tlsCliCertPath"         : "/tmp/server.crt", 
+        "tlsCliKeyPath"         :"/tmp/client.crt", 
+        "tlsCliCertPath"         : "/tmp/client.crt", 
         "tlsSvrKeyPath"         :"/tmp/server.crt", 
         "tlsSvrCertPath"         :"/tmp/server.crt", 
         "tlsCaPath"              :"/tmp/ca.crt"  
