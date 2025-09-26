@@ -3,9 +3,6 @@ title: Data Compression
 slug: /inside-tdengine/data-compression
 ---
 
-import Image from '@theme/IdealImage';
-import imgCompress from '../assets/data-compression-01.png';
-
 Data compression is a technology that reorganizes and processes data using specific algorithms without losing effective information, aiming to reduce the storage space occupied by data and improve data transmission efficiency. TDengine employs this technology in both the storage and transmission processes to optimize the use of storage resources and accelerate data exchange.
 
 ## Storage Compression
@@ -56,7 +53,4 @@ When using RESTful and WebSocket connections to communicate with taosAdapter, ta
 
 The diagram below shows the compression and decompression process of the TDengine engine in the entire transmission and storage process of time-series data, to better understand the entire handling process.
 
-<figure>
-<Image img={imgCompress} alt="Compression and decompression process"/>
-<figcaption>Figure 1. Compression and decompression process</figcaption>
-</figure>
+![Compression and decompression process](../assets/data-compression-01.png)

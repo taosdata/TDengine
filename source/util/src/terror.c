@@ -401,6 +401,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SMA_OPTION,       "Invalid sma option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DROP_TSMA,        "Invalid drop base tsma, drop recursive tsma first")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MAX_TSMA_NUM_EXCEEDED,    "Max tsma num exceeded")
 
+// mnode-rsma
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_RSMA_OPTION,      "Invalid rsma option")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_CREATING,         "Rsma in creating status")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_DROPPING,         "Rsma in dropping status")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_EXIST_IN_TABLE,      "Rsma already exist in the table")
 
 // mnode-view
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_ALREADY_EXIST,       "view already exists in db")
@@ -410,6 +415,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_NOT_EXIST,           "view not exists in db
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn't exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SCAN_ID,          "Invalid scan id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SCAN_DETAIL_NOT_EXIST,    "scan detail doesn't exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SCAN_ALREADY_EXIST,       "scan already exist")
 
 // mnode-mount
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_CLUSTER_EXIST,  "Cluster id identical to the host cluster id")
@@ -428,6 +436,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT,    "Mount object not supp
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SSMIGRATE_ID,     "Invalid ssmigrate id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SSMIGRATE_DETAIL_NOT_EXIST, "ssmigrate detail doesn't exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST,  "ssmigrate already exist")
+
+// mnode-trim
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TRIM_ID,          "Invalid trim id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRIM_ALREADY_EXIST,       "Trim or rollup already exist")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -816,6 +828,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
@@ -897,6 +910,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_OPEN,         "Rsma stream state o
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_COMMIT,       "Rsma stream state commit")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FS_SYNC,                   "Rsma fs sync error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_RESULT,                    "Rsma result error")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_INTERVAL,          "Invalid rsma interval unit: w, n, y not allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_FUNC_PARAM,        "Invalid rsma func param, only one non-tag column allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_UNSUPPORTED_FUNC,          "Rsma func not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_ALREADY_EXISTS,            "Rsma already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_NOT_EXIST,                 "Rsma not exist")
 
 //index
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")

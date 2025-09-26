@@ -332,7 +332,7 @@ static int32_t mOuterJoinMergeSeqCart(SMJoinMergeCtx* pCtx) {
         if (build->rowBitmapSize > 0) {
           MJ_ERR_RET(mJoinFilterAndMarkRows(pCtx->midBlk, pCtx->pJoin->pFPreFilter, build, startGrpIdx, startRowIdx));
         } else {
-          MJ_ERR_RET(doFilter(pCtx->midBlk, pCtx->pJoin->pFPreFilter, NULL));
+          MJ_ERR_RET(doFilter(pCtx->midBlk, pCtx->pJoin->pFPreFilter, NULL, NULL));
         }
 
         if (pCtx->midBlk->info.rows > 0) {
@@ -401,7 +401,7 @@ static int32_t mOuterJoinHashGrpCartFilter(SMJoinMergeCtx* pCtx, bool* contLoop)
       if (build->rowBitmapSize > 0) {
         MJ_ERR_RET(mJoinFilterAndMarkHashRows(pCtx->midBlk, pCtx->pJoin->pPreFilter, build, startRowIdx));
       } else {
-        MJ_ERR_RET(doFilter(pCtx->midBlk, pCtx->pJoin->pPreFilter, NULL));
+        MJ_ERR_RET(doFilter(pCtx->midBlk, pCtx->pJoin->pPreFilter, NULL, NULL));
       }
       if (pCtx->midBlk->info.rows > 0) {
         probeGrp->readMatch = true;

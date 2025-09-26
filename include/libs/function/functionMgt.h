@@ -48,6 +48,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_HISTOGRAM,
   FUNCTION_TYPE_HYPERLOGLOG,
   FUNCTION_TYPE_STDVAR,
+  FUNCTION_TYPE_STDDEV_SAMP,
+  FUNCTION_TYPE_STDVAR_SAMP,
+  FUNCTION_TYPE_GROUP_CONCAT,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -66,6 +69,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STATE_DURATION,
   FUNCTION_TYPE_FORECAST,
   FUNCTION_TYPE_IMPUTATION,
+  FUNCTION_TYPE_CORR,
+
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -235,7 +240,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STD_STATE_MERGE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
-
+  FUNCTION_TYPE_CORR_PARTIAL,
+  FUNCTION_TYPE_CORR_MERGE,
+  FUNCTION_TYPE_STDDEV_SAMP_MERGE,
+  FUNCTION_TYPE_STDVAR_SAMP_MERGE,
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -276,6 +284,7 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 
 bool          fmIsBuiltinFunc(const char* pFunc);
 EFunctionType fmGetFuncType(const char* pFunc);
+EFunctionType fmGetFuncTypeFromId(int32_t funcId);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
@@ -333,7 +342,8 @@ bool fmIsPlaceHolderFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
-int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList, SFunctionNode** pFunc);
+int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFunc, SNodeList* pParameterList,
+                                  SFunctionNode** pFunc);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
                         SFunctionNode** pMergeFunc);
@@ -354,14 +364,13 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
 int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 
 #ifdef BUILD_NO_CALL
-int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
-bool    fmIsInvertible(int32_t funcId);
 #endif
 
-char* fmGetFuncName(int32_t funcId);
+const char* fmGetFuncName(int32_t funcId);
 
 bool    fmIsTSMASupportedFunc(func_id_t funcId);
+bool    fmIsRsmaSupportedFunc(func_id_t funcId);
 int32_t fmCreateStateFuncs(SNodeList* pFuncs);
 int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
 int32_t fmGetFuncId(const char* name);
@@ -381,13 +390,14 @@ bool    fmIsCountLikeFunc(int32_t funcId);
 
 // } SStreamPseudoFuncType;
 
-int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv);
-
-int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv* pEnv);
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 
 void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+
+
 #ifdef __cplusplus
 }
 #endif

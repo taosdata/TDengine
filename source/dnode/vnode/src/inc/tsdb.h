@@ -359,6 +359,7 @@ typedef struct {
 } SCacheFlushState;
 
 typedef struct SCompMonitor SCompMonitor;
+typedef struct SRetentionMonitor SRetentionMonitor;
 typedef struct SSsMigrateMonitor SSsMigrateMonitor;
 struct STsdb {
   char                *path;
@@ -381,11 +382,13 @@ struct STsdb {
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
   SCompMonitor        *pCompMonitor;
+  SRetentionMonitor   *pRetentionMonitor;
   SSsMigrateMonitor   *pSsMigrateMonitor;
   struct {
     SVHashTable *ht;
     SArray      *arr;
   } *commitInfo;
+  struct SScanMonitor *pScanMonitor;
 };
 
 struct TSDBKEY {

@@ -340,10 +340,10 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL) continue;
-    printDataBlock(pBlock, __func__, "fetch");
+    printDataBlock(pBlock, __func__, "streemFetch", ((SStreamTask*)pTask)->streamId);
     if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow && pBlock != NULL) {
-      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
-      printDataBlock(pBlock, __func__, "fetch filter");
+      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo, NULL));
+      printDataBlock(pBlock, __func__, "fetch filter", ((SStreamTask*)pTask)->streamId);
     }
   }
 

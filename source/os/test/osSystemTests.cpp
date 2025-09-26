@@ -43,12 +43,14 @@ TEST(osSystemTest, osSystem1) {
   float   cpu_cores;
   int64_t mem_engine;     // KB
   int64_t mem_system;     // KB
+  int64_t mem_free; // KB
+  int64_t mem_cacheBuffer; // KB
 
   taosGetCpuUsage(&cpu_system, &cpu_engine);
   (void)taosGetCpuCores(&cpu_cores, false);
 
   (void)taosGetProcMemory(&mem_engine);
-  (void)taosGetSysMemory(&mem_system);
+  (void)taosGetSysMemory(&mem_system, &mem_free, &mem_cacheBuffer);
   (void)printf("cpu_engine: %f  cpu_system: %f\n", cpu_engine, cpu_system);
   (void)printf("cpu_cores: %f\n", cpu_cores);
   ASSERT_GT(cpu_cores, 0);

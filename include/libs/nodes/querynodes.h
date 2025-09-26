@@ -358,11 +358,18 @@ typedef struct SLimitNode {
   SValueNode* offset;
 } SLimitNode;
 
+typedef enum EStateWinExtendOption {
+  STATE_WIN_EXTEND_OPTION_DEFAULT  = 0,
+  STATE_WIN_EXTEND_OPTION_BACKWARD = 1,
+  STATE_WIN_EXTEND_OPTION_FORWARD  = 2,
+} EStateWinExtendOption;
+
 typedef struct SStateWindowNode {
   ENodeType type;  // QUERY_NODE_STATE_WINDOW
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
   SNode*    pTrueForLimit;
+  SNode*    pExtend;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -424,6 +431,7 @@ typedef struct SExternalWindowNode {
   SNodeList*  pProjectionList;
   SNodeList*  pAggFuncList;
   STimeWindow timeRange;
+  SNode*      pTimeRange;
   void*       timezone;
 } SExternalWindowNode;
 
@@ -552,7 +560,13 @@ typedef struct STimeRangeNode {
   ENodeType type; // QUERY_NODE_TIME_RANGE
   SNode*    pStart;
   SNode*    pEnd;
+  bool      needCalc;
 } STimeRangeNode;
+
+typedef struct SExtWinTimeWindow {
+  STimeWindow tw;
+  int32_t     winOutIdx;
+} SExtWinTimeWindow;
 
 typedef struct SSelectStmt {
   ENodeType       type;  // QUERY_NODE_SELECT_STMT
@@ -801,6 +815,7 @@ bool nodesIsExprNode(const SNode* pNode);
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
+bool nodesIsBasicArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);

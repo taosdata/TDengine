@@ -1,0 +1,20 @@
+select VAR_SAMP(current) from ts_4893.meters
+select VAR_SAMP(current) from ts_4893.meters interval(1d) order by 1 limit 10
+select VAR_SAMP(id) from ts_4893.meters
+select VAR_SAMP(id) from ts_4893.meters interval(1d) limit 10
+select VAR_SAMP(id) from ts_4893.meters where id > 100
+select VAR_SAMP(id) from ts_4893.meters interval(1d) order by 1 limit 10
+select var_samp(null) from ts_4893.meters
+select var_samp(id) from ts_4893.d0
+select var_samp(current) from ts_4893.d0
+select var_samp(voltage) from ts_4893.meters
+select var_samp(voltage) from ts_4893.meters where voltage is not null
+select var_samp(phase) from ts_4893.meters
+select var_samp(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+select var_samp(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+select round(var_samp(current), 2) from ts_4893.meters
+select pow(var_samp(current), 2) from ts_4893.meters
+select log(var_samp(voltage) + 1) from ts_4893.meters
+select groupid, var_samp(voltage) from ts_4893.meters group by groupid order by groupid
+select location, var_samp(current) from ts_4893.meters group by location order by location
+select location, var_samp(voltage) from ts_4893.meters group by location order by location

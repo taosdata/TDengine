@@ -4,8 +4,6 @@ sidebar_label: taosAdapter
 slug: /tdengine-reference/components/taosadapter
 ---
 
-import Image from '@theme/IdealImage';
-import imgAdapter from '../../assets/taosadapter-01.png';
 import Prometheus from "../../assets/resources/_prometheus.mdx"
 import CollectD from "../../assets/resources/_collectd.mdx"
 import StatsD from "../../assets/resources/_statsd.mdx"
@@ -17,10 +15,7 @@ The connectors of TDengine in various languages communicate with TDengine throug
 
 The architecture diagram is as follows:
 
-<figure>
-<Image img={imgAdapter} alt="taosAdapter architecture"/>
-<figcaption>Figure 1. taosAdapter architecture</figcaption>
-</figure>
+![taosAdapter architecture](../../assets/taosadapter-01.png)
 
 ## Feature List
 
@@ -970,7 +965,7 @@ Original SQL:
  ```sql
    select * from t1
    where c1 = "ab"
-   ```
+ ```
 
 CSV record:
 

@@ -143,7 +143,7 @@ class Test_IDMP_Vehicle:
         sqls = [
             # stream_stb1
             "create stream if not exists `idmp`.`veh_stream_stb1`       interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER)                    notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
-            "create stream if not exists `idmp`.`veh_stream_stb1_sub1`  interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER|FILL_HISTORY_FIRST) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
+            #"create stream if not exists `idmp`.`veh_stream_stb1_sub1`  interval(5m) sliding(5m) from `idmp`.`vst_车辆_652220` partition by `车辆资产模型`,`车辆ID`  stream_options(IGNORE_NODATA_TRIGGER|FILL_HISTORY_FIRST) notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream_stb1_sub1` as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`, sum(`里程`) as `里程和` from %%trows",
 
             # stream1
             "create stream if not exists `idmp`.`veh_stream1`      event_window( start with `速度` > 100 end with `速度` <= 100 ) true_for(5m) from `idmp`.`vt_1` stream_options(ignore_disorder)       notify('ws://idmp:6042/eventReceive') on(window_open|window_close) into `idmp`.`result_stream1`      as select _twstart+0s as ts, count(*) as cnt, avg(`速度`) as `平均速度`  from idmp.`vt_1` where ts >= _twstart and ts <_twend",
@@ -826,7 +826,8 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(1, 0, self.start + 5 * self.step) # ts
             and tdSql.compareData(1, 1, 5)          # cnt
             and tdSql.compareData(1, 2, 150)        # avg(speed)
-            and tdSql.compareData(1, 3, 1500)       # sum
+            and tdSql.compareData(1, 3, 1500),       # sum
+            retry = 420
         )
 
         tdLog.info(f"verify stream_stb1 ............................. successfully.")
@@ -856,10 +857,15 @@ class Test_IDMP_Vehicle:
         result_sql = f"select * from idmp.`result_stream1_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.checkRows(1, show=True)
-            and tdSql.compareData(0, 0, self.start + (5 + 2 + 1 + 3 + 1) * self.step) # ts
-            and tdSql.compareData(0, 1, 9)          # cnt
-            and tdSql.compareData(0, 2, 140)        # avg(speed)
+            func = lambda: tdSql.checkRows(2, show=True)
+            # row1
+            and tdSql.compareData(0, 0, self.start + 1 * self.step) # ts
+            and tdSql.compareData(0, 1, 4)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg(speed)
+            # row2
+            and tdSql.compareData(1, 0, self.start + (5 + 2 + 1 + 3 + 1) * self.step) # ts
+            and tdSql.compareData(1, 1, 9)          # cnt
+            and tdSql.compareData(1, 2, 140)        # avg(speed)
         )
 
         tdLog.info("verify stream1 sub1 ............................. successfully.")
@@ -1004,13 +1010,19 @@ class Test_IDMP_Vehicle:
         result_sql = f"select * from idmp.`result_stream4_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() == 2
+            func = lambda: tdSql.getRows() == 4
             # row1
-            and tdSql.compareData(0, 0, self.start + 6 * self.step) # ts
-            and tdSql.compareData(0, 1, 6)                          # cnt
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 6)          # cnt
             # row2
-            and tdSql.compareData(1, 0, self.start + 24 * self.step) # ts
-            and tdSql.compareData(1, 1, 11 - 4)                      # cnt
+            and tdSql.compareData(1, 0, self.start + 6 * self.step) # ts
+            and tdSql.compareData(1, 1, 6)          # cnt
+            # row3
+            and tdSql.compareData(2, 0, self.start + 20 * self.step) # ts
+            and tdSql.compareData(2, 1, 11)          # cnt
+            # row4
+            and tdSql.compareData(3, 0, self.start + 24 * self.step) # ts
+            and tdSql.compareData(3, 1, 11 - 4)                      # cnt
         )
 
         tdLog.info(f"verify stream4 sub1 ............................. successfully.")

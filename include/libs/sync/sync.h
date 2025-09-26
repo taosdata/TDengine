@@ -304,6 +304,7 @@ SSyncState  syncGetState(int64_t rid);
 int32_t     syncResetTimer(int64_t rid, int32_t electInterval, int32_t heartbeatInterval);
 SSyncMetrics syncGetMetrics(int64_t rid);
 void        syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex);
+int32_t     syncSetElectBaseline(int64_t rid, int32_t ms);
 int32_t     syncGetArbToken(int64_t rid, char* outToken);
 int32_t     syncCheckSynced(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

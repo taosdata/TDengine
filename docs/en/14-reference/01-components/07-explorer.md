@@ -33,13 +33,13 @@ addr = "0.0.0.0"
 # ipv6 = "::1"
 
 # explorer server instance id
-# 
+#
 # The instanceId of each instance is unique on the host
 # instanceId = 1
 
 # Explorer server log level.
 # Default is "info"
-# 
+#
 # Deprecated: use log.level instead
 log_level = "info"
 
@@ -49,7 +49,7 @@ log_level = "info"
 
 # REST API endpoint to connect to the cluster.
 # This configuration is also the target for data migration tasks.
-# 
+#
 # Default is "http://localhost:6041" - the default endpoint for REST API.
 #
 cluster = "http://localhost:6041"
@@ -93,7 +93,7 @@ cors = true
 # log configuration
 [log]
 # All log files are stored in this directory
-# 
+#
 # path = "/var/log/taos" # on linux/macOS
 # path = "C:\\TDengine\\log" # on windows
 
@@ -102,24 +102,33 @@ cors = true
 # level = "info"
 
 # Compress archived log files or not
-# 
+#
 # compress = false
 
 # The number of log files retained by the current explorer server instance in the `path` directory
-# 
+#
 # rotationCount = 30
 
 # Rotate when the log file reaches this size
-# 
+#
 # rotationSize = "1GB"
 
 # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
-# 
+#
 # reservedDiskSize = "1GB"
 
 # The number of days log files are retained
 #
 # keepDays = 30
+
+# Configuration for monitoring with taosKeeper service
+[monitor]
+# FQDN of taosKeeper service
+#fqdn = "localhost"
+# Port of taosKeeper service
+#port = 6043
+# Monitor interval in seconds, minimum is 1, maximum is 10
+#interval = 10
 ```
 
 Description:
@@ -143,6 +152,9 @@ Description:
 - `log.rotationSize`: The file size that triggers log file rolling (in bytes), a new file is generated when the log file exceeds this size, and new logs are written to the new file.
 - `log.reservedDiskSize`: The threshold of remaining disk space to stop writing logs (in bytes), logging stops when the disk space reaches this size.
 - `log.keepDays`: The number of days to keep log files, older log files exceeding this number of days are deleted.
+- `monitor.fqdn`: The address of taosKeeper service.
+- `monitor.port`: The port of taosKeeper service, default is `6043`.
+- `monitor.interval`: The time interval for reporting metrics, default is `10` seconds.
 
 ## Start and Stop
 
@@ -166,57 +178,57 @@ sc.exe stop taos-explorer # Windows
 2. If detailed logs of taosExplorer are needed, use the command `journalctl -u taos-explorer`.
 3. When using Nginx or other tools for forwarding, pay attention to setting CORS or use `cors = true` in the configuration file.
 
-    Here is an example of a CORS setting in an Nginx configuration file:
+   Here is an example of a CORS setting in an Nginx configuration file:
 
-    ```nginx
-    http {
-      server {
-            listen 6060;
-            location ~* {
-                proxy_pass http://explorer;
-    
-                if ($request_method = 'OPTIONS') {
-                    add_header 'Access-Control-Allow-Origin' '*';
-    
-                    add_header 'Access-Control-Allow-Credentials' 'true';
-                    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+   ```nginx
+   http {
+     server {
+           listen 6060;
+           location ~* {
+               proxy_pass http://explorer;
 
-                    add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+               if ($request_method = 'OPTIONS') {
+                   add_header 'Access-Control-Allow-Origin' '*';
 
-                    add_header 'Access-Control-Max-Age' 86400;
-                    add_header 'Content-Type' 'text/plain charset=UTF-8';
-                    add_header 'Content-Length' 0;
-                    return 204; break;
-                }
+                   add_header 'Access-Control-Allow-Credentials' 'true';
+                   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
 
-                if ($request_method = 'POST') {
-                    add_header 'Access-Control-Allow-Origin' '*';
-                    add_header 'Access-Control-Allow-Credentials' 'true';
-                    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                    add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
-                }
-                if ($request_method = 'GET') {
-                    add_header 'Access-Control-Allow-Origin' '*';
-                    add_header 'Access-Control-Allow-Credentials' 'true';
-                    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                    add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
-                }
+                   add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
 
-                proxy_set_header Host      $host:$server_port;
-                proxy_set_header X-Real-IP $remote_addr;
+                   add_header 'Access-Control-Max-Age' 86400;
+                   add_header 'Content-Type' 'text/plain charset=UTF-8';
+                   add_header 'Content-Length' 0;
+                   return 204; break;
+               }
 
-                #proxy_http_version 1.1;
-                proxy_read_timeout 60s;
-                proxy_next_upstream error  http_502 http_500  non_idempotent;
-            }
-        }
-        upstream explorer{
-            ip_hash;
-            server 192.168.1.65:6060 ;
-            server 192.168.1.68:6060 ;
-        }
-    }
-    ```
+               if ($request_method = 'POST') {
+                   add_header 'Access-Control-Allow-Origin' '*';
+                   add_header 'Access-Control-Allow-Credentials' 'true';
+                   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                   add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+               }
+               if ($request_method = 'GET') {
+                   add_header 'Access-Control-Allow-Origin' '*';
+                   add_header 'Access-Control-Allow-Credentials' 'true';
+                   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                   add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+               }
+
+               proxy_set_header Host      $host:$server_port;
+               proxy_set_header X-Real-IP $remote_addr;
+
+               #proxy_http_version 1.1;
+               proxy_read_timeout 60s;
+               proxy_next_upstream error  http_502 http_500  non_idempotent;
+           }
+       }
+       upstream explorer{
+           ip_hash;
+           server 192.168.1.65:6060 ;
+           server 192.168.1.68:6060 ;
+       }
+   }
+   ```
 
 ## Registration and Login
 
@@ -225,3 +237,15 @@ Once installed, open your browser and by default access `http://ip:6060` to visi
 When logging in, please use the database username and password. For first-time use, the default username is `root` and the password is `taosdata`. After a successful login, you will enter the `Data Browser` page, where you can use management functions such as viewing databases, creating databases, and creating supertables/subtables.
 
 Other feature pages, such as `Data Writing - Data Source` and others, are exclusive to the TSDB-Enterprise. You can click to view and have a simple experience, but they cannot be actually used.
+
+Since of network issues, if you cannot complete the registration process, you need to register in an environment with external network access, and then replace the registered `/etc/taos/explorer-register.cfg` file to the internal network environment.
+
+From version 3.3.7.1, you can use the environment variable `EXPLORER_SKIP_REGISTER=true` to skip the registration process and log in directly with your account.
+
+In Linux with systemd, you can add the environment variable in the environment file `/etc/default/taos-explorer` as follows:
+
+```shell
+EXPLORER_SKIP_REGISTER=true
+```
+
+In Windows, you can set the environment variable in the system environment variables.

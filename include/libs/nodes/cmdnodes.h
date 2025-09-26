@@ -55,6 +55,10 @@ extern "C" {
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
 #define COMPACT_DB_RESULT_FIELD3_LEN 128
 
+#define SCAN_DB_RESULT_COLS       3
+#define SCAN_DB_RESULT_FIELD1_LEN 32
+#define SCAN_DB_RESULT_FIELD3_LEN 128
+
 #define SHOW_ALIVE_RESULT_COLS 1
 
 #define BIT_FLAG_MASK(n)               (1 << n)
@@ -75,6 +79,8 @@ extern "C" {
 #define NOTIFY_NONE              0
 #define NOTIFY_HISTORY           BIT_FLAG_MASK(0)
 #define NOTIFY_ON_FAILURE_PAUSE  BIT_FLAG_MASK(1)
+#define NOTIFY_HAS_FILTER        BIT_FLAG_MASK(2)
+#define CALC_SLIDING_OVERLAP     BIT_FLAG_MASK(3)
 
 typedef struct SDatabaseOptions {
   ENodeType   type;
@@ -184,6 +190,20 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
 } SCompactDatabaseStmt;
 
+typedef struct SRollupDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SRollupDatabaseStmt;
+
+typedef struct SScanDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SScanDatabaseStmt;
+
 typedef struct SCreateMountStmt {
   ENodeType type;
   int32_t   dnodeId;
@@ -206,6 +226,14 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pEnd;
   bool       metaOnly;
 } SCompactVgroupsStmt;
+
+typedef struct SScanVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SScanVgroupsStmt;
 
 typedef struct STableOptions {
   ENodeType  type;
@@ -491,6 +519,13 @@ typedef struct SShowCreateViewStmt {
   void*     pViewMeta;
 } SShowCreateViewStmt;
 
+typedef struct SShowCreateRsmaStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      rsmaName[TSDB_VIEW_NAME_LEN];
+  void*     pRsmaMeta;
+} SShowCreateRsmaStmt;
+
 typedef struct SShowTableDistributedStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -525,10 +560,21 @@ typedef struct SShowCompactsStmt {
   ENodeType type;
 } SShowCompactsStmt;
 
+typedef struct SShowScansStmt {
+  ENodeType type;
+} SShowScansStmt;
+
 typedef struct SShowCompactDetailsStmt {
   ENodeType type;
-  SNode*    pCompactId;
+  SNode*    pId;
 } SShowCompactDetailsStmt;
+
+typedef SShowCompactDetailsStmt SShowRetentionDetailsStmt;
+
+typedef struct SShowScanDetailsStmt {
+  ENodeType type;
+  SNode*    pScanId;
+} SShowScanDetailsStmt;
 
 typedef struct SShowSsMigratesStmt {
   ENodeType type;
@@ -804,6 +850,34 @@ typedef struct SDropTSMAStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
+
+typedef struct SCreateRsmaStmt {
+  ENodeType  type;
+  bool       ignoreExists;
+  uint8_t    precision;
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList* pCols;
+  SNodeList* pFuncs;
+  SNodeList* pIntervals;
+} SCreateRsmaStmt;
+
+typedef struct SDropRsmaStmt {
+  ENodeType type;
+  bool      ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+} SDropRsmaStmt;
+
+typedef struct SAlterRsmaStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreNotExists;
+  int8_t     alterType;
+  SNodeList* pFuncs;
+} SAlterRsmaStmt;
 
 #ifdef __cplusplus
 }

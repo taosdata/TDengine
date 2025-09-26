@@ -19,6 +19,8 @@
 
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
 extern void    tsdbCloseCompMonitor(STsdb *tsdb);
+extern int32_t tsdbOpenRetentionMonitor(STsdb *tsdb);
+extern void    tsdbCloseRetentionMonitor(STsdb *tsdb);
 extern int32_t tsdbOpenSsMigrateMonitor(STsdb *tsdb);
 extern void    tsdbCloseSsMigrateMonitor(STsdb *tsdb);
 
@@ -39,6 +41,8 @@ int64_t tsdbGetEarliestTs(STsdb *pTsdb) {
   int64_t ts = now - (tsTickPerMin[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
   return ts;
 }
+
+extern int32_t tsdbScanMonitorOpen(STsdb *tsdb);
 
 int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback, bool force) {
   STsdb  *pTsdb = NULL;
@@ -91,8 +95,11 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_GOTO(tsdbOpenCompMonitor(pTsdb), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbOpenRetentionMonitor(pTsdb), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbOpenSsMigrateMonitor(pTsdb), &lino, _exit);
 #endif
+
+  TAOS_CHECK_GOTO(tsdbScanMonitorOpen(pTsdb), &lino, _exit);
 
 _exit:
   if (code) {
@@ -110,6 +117,8 @@ _exit:
   return code;
 }
 
+extern void tsdbScanMonitorClose(STsdb *tsdb);
+
 void tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
     STsdb *pdb = *pTsdb;
@@ -125,8 +134,10 @@ void tsdbClose(STsdb **pTsdb) {
     tsdbCloseCache(*pTsdb);
 #ifdef TD_ENTERPRISE
     tsdbCloseCompMonitor(*pTsdb);
+    tsdbCloseRetentionMonitor(*pTsdb);
 #endif
     tsdbCloseSsMigrateMonitor(*pTsdb);
+    tsdbScanMonitorClose(*pTsdb);
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }

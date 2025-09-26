@@ -1000,6 +1000,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power
             [1752574200000, 5,  50], # order
             [1752574205000, 5,  50], # disorder
+            [1752574210000, 5,  50], # order
             [1752574215000, 5,  50]  # order
         ]
         result_sql = f"select * from test.result_stream7"
@@ -1095,8 +1096,7 @@ class Test_IDMP_Meters:
         # mem
         data = [
             # ts           cnt  power
-            # ***** bug6 *****
-            #[1752574200000, 5,  50],
+            [1752574200000, 5,  50],
             [1752574205000, 5,  50]
         ]
         result_sql = f"select * from test.result_stream8"
