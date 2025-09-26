@@ -67,7 +67,8 @@ jobs:
       specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_pr_number }}
 
   run-tests-on-windows:
-    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
+    if: ${{ github.event.pull_request.base.ref != '3.0' }}
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@fix/windows-case-error
           # NOTE: temporarily use tomchon-patch-3 branch
     with:
       tdinternal: false
