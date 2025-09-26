@@ -1854,7 +1854,7 @@ async fn sync_specified_tables_with_workers(
         let stable = &item.stable;
         let table = &item.table;
 
-        if item.mtlf {
+        if item.sparse {
             // get breakpoints use breakpoints_get
             if let Some(breakpoints) = breakpoints {
                 const RETRY_LIMIT: usize = 5;
@@ -2442,7 +2442,7 @@ pub struct LegacyTableItem {
     vgroup_id: u32,
     stable: Option<Arc<String>>,
     table: Arc<String>,
-    mtlf: bool,
+    sparse: bool,
 }
 
 impl std::hash::Hash for LegacyTableItem {
@@ -2458,17 +2458,17 @@ impl LegacyTableItem {
             vgroup_id,
             stable,
             table,
-            mtlf: false,
+            sparse: false,
         }
     }
 
-    /// Create a mtlf stable item. The table must be a stable name.
-    pub fn new_mtlf(vgroup_id: u32, table: Arc<String>) -> Self {
+    /// Create a parse stable item. The table must be a stable name.
+    pub fn new_sparse(vgroup_id: u32, table: Arc<String>) -> Self {
         Self {
             vgroup_id,
             stable: Some(table.clone()),
             table,
-            mtlf: true,
+            sparse: true,
         }
     }
 
@@ -2547,16 +2547,20 @@ pub async fn update_todo_list(
 
         let tables = scc::HashSet::new();
         if opts.sparse {
+            if opts.tables.is_some() {
+                tracing::error!("`sparse` option could only support `stables`, not `tables`");
+                bail!("`sparse` option could only support `stables`, not `tables`");
+            }
             // Sparse mode only need to sync the stables.
             for stable in &stables {
                 if !todo.stables.contains_async(stable).await {
                     let _ = todo.stables.insert_async(stable.clone()).await;
                     let _ = todo
                         .tables
-                        .insert_async(LegacyTableItem::new_mtlf(0, stable.clone()))
+                        .insert_async(LegacyTableItem::new_sparse(0, stable.clone()))
                         .await;
                     let _ = tables
-                        .insert_async(LegacyTableItem::new_mtlf(0, stable.clone()))
+                        .insert_async(LegacyTableItem::new_sparse(0, stable.clone()))
                         .await;
                 }
             }
@@ -2615,6 +2619,10 @@ pub async fn update_todo_list(
         // 有 tables 选项情况下，只需初始化一次
         if !todo.tables.is_empty() {
             return Ok(LegacyTodo::new());
+        }
+        if opts.sparse {
+            tracing::error!("`sparse` option could only support `stables`, not `tables`");
+            bail!("`sparse` option could only support `stables`, not `tables`");
         }
         let stables = scc::HashSet::new();
 
@@ -2696,7 +2704,7 @@ pub async fn update_todo_list(
                 // Sparse stables
                 let show = stables
                     .iter()
-                    .map(|stable| LegacyTableItem::new_mtlf(0, stable.clone()))
+                    .map(|stable| LegacyTableItem::new_sparse(0, stable.clone()))
                     .collect_vec();
                 for table in show {
                     if !todo.tables.contains_async(&table).await {
@@ -2816,7 +2824,7 @@ pub async fn update_todo_list(
                 todo.stables
                     .scan_async(|stable| {
                         let stable = stable.clone();
-                        let table = LegacyTableItem::new_mtlf(0, stable);
+                        let table = LegacyTableItem::new_sparse(0, stable);
                         if !todo.tables.contains(&table) {
                             tables.push(table.clone());
                             let _ = todo.tables.insert(table.clone());
@@ -2963,14 +2971,27 @@ async fn realtime(
                     return;
                 }
                 scanned.insert(table.clone());
+                dbg!(&table);
                 // create retro task
+                let LegacyTableItem {
+                    stable,
+                    table,
+                    vgroup_id: _,
+                    sparse,
+                } = table;
+
                 let (tx, rx) = oneshot::channel();
-                let task = scheduler.send(Todo::Data(
-                    table.stable.clone(),
-                    table.table.clone(),
-                    time_range,
-                    Some(tx),
-                ));
+                // 创建任务
+                let task = if *sparse {
+                    scheduler.send(Todo::Sparse(table.clone(), time_range, Some(tx)))
+                } else {
+                    scheduler.send(Todo::Data(
+                        stable.clone(),
+                        table.clone(),
+                        time_range,
+                        Some(tx),
+                    ))
+                };
                 tasks.push(task);
                 receivers.push(rx);
             })
@@ -2985,16 +3006,16 @@ async fn realtime(
             match res {
                 Ok(Ok(_)) => {}
                 Ok(Err(err)) => {
-                    bail!("restro task execution error: {err}");
+                    bail!("retro task execution error: {err}");
                 }
                 Err(err) => {
-                    bail!("restro task channel error: {err}");
+                    bail!("retro task channel error: {err}");
                 }
             }
         }
         info!(
             mode = "retrospect",
-            "restro tasks are all spawned successfully."
+            "retro tasks are all spawned successfully."
         );
     }
 
@@ -3028,12 +3049,12 @@ async fn realtime(
                     stable,
                     table,
                     vgroup_id: _,
-                    mtlf,
+                    sparse,
                 } = item;
 
                 let (tx, rx) = oneshot::channel();
                 // 创建任务
-                let task = if *mtlf {
+                let task = if *sparse {
                     scheduler.send(Todo::Sparse(table.clone(), time_range, Some(tx)))
                 } else {
                     scheduler.send(Todo::Data(
@@ -3045,7 +3066,7 @@ async fn realtime(
                 };
                 tasks.push(task);
 
-                let table = if *mtlf { Some(table.clone()) } else { None };
+                let table = if *sparse { Some(table.clone()) } else { None };
                 receivers.push(rx.map_ok(move |res| (table, time_range, res)));
             })
             .await;
