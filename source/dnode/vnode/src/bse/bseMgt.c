@@ -47,11 +47,11 @@ static int32_t bseBatchMgtRecycle(SBatchMgt *pBatchMgt, SBseBatch *pBatch);
 static void    bseBatchMgtCleanup(SBatchMgt *pBatchMgt);
 
 static int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys);
-void           bseBatchClear(SBseBatch *pBatch);
+static void    bseBatchClear(SBseBatch *pBatch);
 static int32_t bseRecycleBatchImpl(SBatchMgt *pMgt, SBseBatch *pBatch);
 static int32_t bseBatchMayResize(SBseBatch *pBatch, int32_t alen);
 
-static int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
+int32_t bseSerailCommitInfo(SBse *pBse, SArray *fileSet, char **pBuf, int32_t *len) {
   int32_t code = 0;
   // int32_t code = 0;
   int32_t line = 0;
@@ -207,7 +207,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
 
   char *pCurrent = NULL;
 
-  bseBuildCurrentName(pBse, name);
+  bseBuildCurrentFullName(pBse, name);
   if (taosCheckExistFile(name) == 0) {
     bseInfo("vgId:%d, no current meta file found, skip recover", BSE_VGID(pBse));
     return 0;
@@ -219,6 +219,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
   if (fd == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   pCurrent = (char *)taosMemoryCalloc(1, sz + 1);
   if (pCurrent == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
@@ -228,6 +229,7 @@ int32_t bseReadCurrentFile(SBse *pBse, char **p, int64_t *len) {
   if (nread != sz) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   if (taosCloseFile(&fd) != 0) {
     bseError("vgId:%d failed to close file %s since %s", BSE_VGID(pBse), name, tstrerror(terrno));
     TSDB_CHECK_CODE(code = terrno, lino, _error);
@@ -338,6 +340,7 @@ int32_t bseInitStartSeq(SBse *pBse) {
   if (pLastFile != NULL) {
     lastSeq = pLastFile->range.eseq;
   }
+
   pBse->seq = lastSeq + 1;
   return code;
 }
@@ -418,6 +421,7 @@ int32_t bseCreateCommitInfo(SBse *pBse) {
   if (pCommit->pFileList == NULL) {
     return terrno;
   }
+
   pCommit->fmtVer = BSE_FMT_VER;
   return 0;
 }
@@ -707,10 +711,10 @@ int32_t bseBatchCreate(SBseBatch **pBatch, int32_t nKeys) {
   }
 
   p->pSeq = taosArrayInit(nKeys, sizeof(SBlockItemInfo));
-
   if (p->pSeq == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   BSE_QUEUE_INIT(&p->node);
 
   *pBatch = p;
@@ -890,7 +894,7 @@ int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
   code = bseSerailCommitInfo(pBse, pFileSet, &pBuf, &len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  bseBuildTempCurrentName(pBse, buf);
+  bseBuildTempCurrentFullName(pBse, buf);
 
   fd = taosOpenFile(buf, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (fd == NULL) {
@@ -924,8 +928,8 @@ int32_t bseCommitFinish(SBse *pBse) {
   char buf[TSDB_FILENAME_LEN] = {0};
   char tbuf[TSDB_FILENAME_LEN] = {0};
 
-  bseBuildCurrentName(pBse, buf);
-  bseBuildTempCurrentName(pBse, tbuf);
+  bseBuildCurrentFullName(pBse, buf);
+  bseBuildTempCurrentFullName(pBse, tbuf);
 
   code = taosRenameFile(tbuf, buf);
   return code;
@@ -946,22 +950,33 @@ _error:
   return code;
 }
 
-int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo) {
+int32_t bseUpdateCommitInfo(SBse *pBse, SBseLiveFileInfo *pInfo, SArray **ppResult) {
   int32_t code = 0;
   int32_t lino = 0;
 
   (void)taosThreadMutexLock(&pBse->mutex);
+
   SBseCommitInfo *pCommit = &pBse->commitInfo;
-  if (taosArrayGetSize(pCommit->pFileList) == 0) {
+
+  int32_t fileListSize = taosArrayGetSize(pCommit->pFileList);
+  if (fileListSize == 0) {
     if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
       TSDB_CHECK_CODE(code = terrno, lino, _error);
     }
   } else {
     SBseLiveFileInfo *pLast = taosArrayGetLast(pCommit->pFileList);
     if (pLast->timestamp == pInfo->timestamp) {
-      memcpy(pLast, pInfo, sizeof(SBseLiveFileInfo));
+      *pLast = *pInfo;
+    } else {
+      if (taosArrayPush(pCommit->pFileList, pInfo) == NULL) {
+        TSDB_CHECK_CODE(code = terrno, lino, _error);
+      }
     }
   }
+
+  code = bseGetAliveFileList(pBse, ppResult, 0);
+  TSDB_CHECK_CODE(code, lino, _error);
+
 _error:
   if (code != 0) {
     bseError("vgId:%d failed to update commit info since %s", BSE_VGID(pBse), tstrerror(code));
@@ -971,11 +986,19 @@ _error:
   return code;
 }
 
-int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList) {
+int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList, int8_t lock) {
   int32_t code = 0;
   int32_t lino = 0;
+
   SArray *p = taosArrayInit(4, sizeof(SBseLiveFileInfo));
-  (void)taosThreadMutexLock(&pBse->mutex);
+  if (p == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  if (lock) {
+    (void)taosThreadMutexLock(&pBse->mutex);
+  }
+
   if (taosArrayAddAll(p, pBse->commitInfo.pFileList) == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -985,9 +1008,20 @@ _error:
   if (code != 0) {
     bseError("vgId:%d failed to get alive file list since %s", BSE_VGID(pBse), tstrerror(code));
   }
-  (void)taosThreadMutexUnlock(&pBse->mutex);
+  if (lock) {
+    (void)taosThreadMutexUnlock(&pBse->mutex);
+  }
   return code;
 }
+
+int8_t bseSkipCommit(SBse *pBse, SBseLiveFileInfo *info) {
+  if (info->size == 0) {
+    bseInfo("vgId:%d no data to commit", BSE_VGID(pBse));
+    return 1;
+  }
+  return 0;
+}
+
 int32_t bseCommit(SBse *pBse) {
   // Generate static info and footer info;
   int64_t cost = 0;
@@ -1000,22 +1034,12 @@ int32_t bseCommit(SBse *pBse) {
   code = bseTableMgtCommit(pBse->pTableMgt, &info);
   TSDB_CHECK_CODE(code, line, _error);
 
-  if (info.size == 0) {
-    bseInfo("vgId:%d no data to commit", BSE_VGID(pBse));
-    return 0;
+  if (bseSkipCommit(pBse, &info)) {
+    goto _error;
   }
 
-  code = bseUpdateCommitInfo(pBse, &info);
+  code = bseUpdateCommitInfo(pBse, &info, &pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);
-
-  code = bseGetAliveFileList(pBse, &pLiveFile);
-  TSDB_CHECK_CODE(code, line, _error);
-
-  if (taosArrayGetSize(pLiveFile) == 0) {
-    bseInfo("vgId:%d no alive file to commit", BSE_VGID(pBse));
-    taosArrayDestroy(pLiveFile);
-    return 0;
-  }
 
   code = bseCommitDo(pBse, pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);

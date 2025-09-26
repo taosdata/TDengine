@@ -109,8 +109,10 @@ int32_t blockWrapperSize(SBlockWrapper *p, int32_t extra);
 int32_t blockWrapperSeek(SBlockWrapper *p, int64_t tgt, uint8_t **pValue, int32_t *len);
 
 typedef struct {
+  SRWLatch         latch;
   int32_t          ref;
   struct SSeqRange range;
+  struct SSeqRange tableRange;
   SArray          *pMetaHandle;
   SBlockWrapper    pBlockWrapper;
   void            *pBse;
@@ -127,7 +129,7 @@ int32_t bseMemTablePush(STableMemTable *pMemTable, void *pHandle);
 
 int32_t bseMemTablGetMetaBlock(STableMemTable *pMetaTable, SArray **pMetaBlock);
 
-int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList);
+int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList, int8_t lock);
 #ifdef __cplusplus
 }
 #endif
