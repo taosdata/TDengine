@@ -1361,7 +1361,7 @@ class Test_IDMP_Meters:
         self.verify_stream6_sub3()
         self.verify_stream6_sub4()
         # ***** bug19 *****
-        #self.verify_stream6_sub5()
+        self.verify_stream6_sub5()
 
     def verify_stream6_sub2(self):
         # check
