@@ -463,7 +463,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/42-TSMAs/test_tsma.py
 
 ## 43-RSMAs
-,,y,.,./ci/pytest.sh pytest cases/43-RSMAS/test_rsma.py
+,,y,.,./ci/pytest.sh pytest cases/43-RSMAs/test_rsma.py
 
 # 50-Meta
 #,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ins_stables.py
