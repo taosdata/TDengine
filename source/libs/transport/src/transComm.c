@@ -485,6 +485,8 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
   }
 
   taosHashCleanup(src->args);
+  src->args = NULL;
+  src->brokenVal.val = NULL;
 }
 void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
   if (ctx->args == NULL) {
