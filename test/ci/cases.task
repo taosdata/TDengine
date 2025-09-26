@@ -237,6 +237,8 @@
 ## 06-Logical
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_case_when.py
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_if.py
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_if_smoking.py
 
 # 22-Functions
 ## 01-Scalar
