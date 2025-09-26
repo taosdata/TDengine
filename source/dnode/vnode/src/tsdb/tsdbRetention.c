@@ -429,7 +429,7 @@ _exit:
   return code;
 }
 
-static bool tsdbCheckRetentionTimeRange(STsdb *tsdb, int32_t fid, STimeWindow tw, int8_t optrType) {
+static bool tsdbInRetentionTimeRange(STsdb *tsdb, int32_t fid, STimeWindow tw, int8_t optrType) {
   if (optrType == TSDB_OPTR_ROLLUP) {
     TSKEY  minKey, maxKey;
     int8_t precision = tsdb->keepCfg.precision;
@@ -439,7 +439,10 @@ static bool tsdbCheckRetentionTimeRange(STsdb *tsdb, int32_t fid, STimeWindow tw
     }
     tsdbFidKeyRange(fid, tsdb->keepCfg.days, precision, &minKey, &maxKey);
 
-    if (tw.ekey * tsSecTimes[precision] < minKey || tw.skey * tsSecTimes[precision] > maxKey) {
+    if ((tw.ekey != INT64_MAX) && ((double)tw.ekey * (double)tsSecTimes[precision] < (double)minKey)) {
+      return false;
+    }
+    if ((tw.skey != INT64_MIN) && ((double)tw.skey * (double)tsSecTimes[precision] > (double)maxKey)) {
       return false;
     }
     return true;
@@ -459,7 +462,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, STimeWindow tw, int8_t optrTy
 
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
-    if (!tsdbCheckRetentionTimeRange(tsdb, fset->fid, tw, optrType)) {
+    if (!tsdbInRetentionTimeRange(tsdb, fset->fid, tw, optrType)) {
       continue;
     }
     SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
