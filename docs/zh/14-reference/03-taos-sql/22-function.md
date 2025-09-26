@@ -2234,14 +2234,52 @@ taos> select stddev_pop(id) from test_stddev;
          1.414213562373095 |
 ```
 
+#### STD
+
+与 [STDDEV](#stddev)  函数的行为相同，从 v3.3.8.0 版本开始支持。
+
 #### STDDEV_POP
 
 与 [STDDEV](#stddev)  函数的行为相同
 
-#### VAR_POP
+#### STDDEV_SAMP
 
 ```sql
-VAR_POP(expr)
+STDDEV_SAMP
+```
+
+**功能说明**：统计表中某列的样本标准差。
+
+**版本**：v3.3.8.0
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**举例**：
+
+```sql
+taos> select id from test_stddev;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> select stddev_samp(id) from test_stddev;
+      stddev_samp(id)       |
+============================
+         1.58113883008419   |
+```
+
+#### VARIANCE
+
+```sql
+VARIANCE(expr)
 ```
 
 **功能说明**：统计表中某列的总体方差。
@@ -2266,10 +2304,48 @@ taos> select id from test_var;
            4 |
            5 |
 
-taos> select var_pop(id) from test_var;
+taos> select variance(id) from test_var;
         var_pop(id)        |
 ============================
          2.000000000000000 |
+```
+
+#### VAR_POP
+
+与 [VARIANCE](#variance)  函数的行为相同
+
+#### VAR_SAMP
+
+```sql
+VAR_SAMP(expr)
+```
+
+**功能说明**：统计表中某列的样本方差。
+
+**版本**：v3.3.8.0
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**举例**：
+
+```sql
+taos> select id from test_var;
+     id      |
+==============
+           3 |
+           1 |
+           2 |
+           4 |
+           5 |
+
+taos> select var_samp(id) from test_var;
+        var_samp(id)        |
+============================
+         2.500000000000000 |
 ```
 
 #### SPREAD
@@ -2285,6 +2361,38 @@ SPREAD(expr)
 **适用数据类型**：INTEGER、TIMESTAMP。
 
 **适用于**：表和超级表。
+
+#### GROUP_CONCAT
+
+```sql
+GROUP_CONCAT(expr)
+```
+
+**功能说明**：将多个字段值连接为一个字符串。
+
+**版本**：v3.3.8.0
+
+**返回数据类型**：VARCHAR。
+
+**适用数据类型**：字符串类型。
+
+**适用于**：表和超级表。
+
+**举例**：
+
+```sql
+taos> select str1, str2 from test_var;
+     id      |      id      |
+=============================
+          a1 |       b1     |
+          a2 |       b2     |
+          a3 |       b3     |
+
+taos> select group_concat(str1, str2, ':') from test_var;
+         group_concat(str1, str2, ':')   |
+==========================================
+         a1b1:a2b2:a3b3                  |
+```
 
 ### 分位数与近似统计
 
@@ -2407,6 +2515,100 @@ HYPERLOGLOG(expr)
 **适用数据类型**：任何类型。
 
 **适用于**：表和超级表。
+
+## 比较函数
+
+### IF
+
+```sql
+IF(expr1, expr2, expr3)
+```
+
+**功能说明**：如果 expr1 为真，返回 expr2，否则返回 expr3。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**使用说明**：
+
+- 类似于 CASE 表达式。
+
+**举例**：
+
+```sql
+taos> SELECT IF(1>2,2,3);
+      if(1>2,2,3)      |
+========================
+                     3 |
+```
+
+### IFNULL
+
+```sql
+IFNULL(expr1, expr2)
+```
+
+**功能说明**：如果 expr1 非空真，返回 expr1，否则返回 expr2。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**举例**：
+
+```sql
+taos> SELECT IFNULL(1,0); 
+      ifnull(1,0)      |
+========================
+                     1 |
+```
+
+### NVL
+
+与 [IFNULL](#ifnull)  函数的行为相同
+
+### NULLIF
+
+```sql
+NULLIF(expr1, expr2)
+```
+
+**功能说明**：如果 expr1 = expr2，返回 NULL，否则返回 expr1。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**举例**：
+
+```sql
+taos> SELECT NULLIF(1,1);
+      nullif(1,1)      |
+========================
+ NULL                  |
+```
+
+### NVL2
+
+```sql
+NVL2(expr1, expr2, expr3)
+```
+
+**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr1。
+
+**返回结果类型**：依赖于使用的上下文。
+
+**适用于**：表达式。
+
+**举例**：
+
+```sql
+taos> SELECT NVL2(NULL,1,2);
+    nvl2(null,1,2)     |
+========================
+                     2 |
+```
 
 ## 时序函数
 

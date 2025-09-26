@@ -24,7 +24,6 @@ extern "C" {
 #include "functionMgt.h"
 #include "functionResInfoInt.h"
 
-
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems);
 int32_t i8VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
 int32_t i16VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
@@ -75,10 +74,17 @@ int32_t stdFunction(SqlFunctionCtx* pCtx);
 int32_t stdFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stdvarFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stddevsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stdvarsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stdPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 int32_t stdCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getStdInfoSize();
+
+bool    gconcatGetFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t gconcatFunction(SqlFunctionCtx* pCtx);
+int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool    getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
@@ -243,7 +249,6 @@ int32_t groupConstValueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t blockDBUsageSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t blockDBUsageFunction(SqlFunctionCtx* pCtx);
 int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-
 
 #ifdef __cplusplus
 }
