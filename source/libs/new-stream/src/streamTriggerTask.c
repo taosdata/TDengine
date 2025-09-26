@@ -5463,6 +5463,8 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pReq->gid = pTask->isVirtualTable ? 0 : pContext->gid;
       pReq->order = 1;
       pReq->ver = pProgress->version;
+      ST_TASK_DLOG("pull tsdb meta from vgId:%d, gid:%" PRId64 ", time range:[%" PRId64 ", %" PRId64 "]",
+                   pReader->nodeId, pReq->gid, pReq->startTime, pReq->endTime);
       break;
     }
 
@@ -6043,8 +6045,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
       int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-      pContext->stepRange.skey = pContext->scanRange.skey / step * step;
-      pContext->stepRange.ekey = pContext->stepRange.skey + step - 1;
+      pContext->stepRange.ekey = pContext->stepRange.skey / step * step + step - 1;
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
            pContext->curReaderIdx++) {
         code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_TSDB_META);
@@ -6186,9 +6187,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
       int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-      QUERY_CHECK_CONDITION(pContext->stepRange.skey + step - 1 == pContext->stepRange.ekey, code, lino, _end,
+      QUERY_CHECK_CONDITION(pContext->stepRange.skey <= pContext->stepRange.ekey, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
-      finished = (pContext->stepRange.skey + step > pContext->scanRange.ekey);
+      finished = (pContext->stepRange.ekey + 1 > pContext->scanRange.ekey);
     } else if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
       for (int32_t i = 0; i < TARRAY_SIZE(pContext->pTrigDataBlocks); i++) {
         SSDataBlock *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pContext->pTrigDataBlocks, i);
@@ -6297,7 +6298,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
       int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-      pContext->stepRange.skey += step;
+      pContext->stepRange.skey = pContext->stepRange.ekey + 1;
       pContext->stepRange.ekey += step;
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
            pContext->curReaderIdx++) {
@@ -6451,6 +6452,8 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         pContext->scanRange.skey = TMAX(pContext->scanRange.skey, *(int64_t *)px);
         px = tSimpleHashIterate(pContext->pFirstTsMap, px, &iter);
       }
+      ST_TASK_DLOG("update scan range to [%" PRId64 ", %" PRId64 "]", pContext->scanRange.skey,
+                   pContext->scanRange.ekey);
 
       pContext->status = STRIGGER_CONTEXT_IDLE;
       code = stHistoryContextCheck(pContext);
