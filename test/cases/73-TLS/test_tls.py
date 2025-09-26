@@ -5,21 +5,27 @@ import platform
 
 
 class TestTLSDemo:
-    updateCfgDict = {}
-
     if platform.system().lower() != "linux":
         updateCfgDict = {
         "enableTls"        : "0", 
         } 
     else:
-        updateCfgDict = {
-        "enableTls"        : "1", 
-        "tlsCliKeyPath"         : "/tmp/server.crt", 
+        clientCfgDict = {
+        "tlsCliKeyPath"         :"/tmp/server.crt", 
         "tlsCliCertPath"         : "/tmp/server.crt", 
-        "tlsSvrKeyPath"         : "/tmp/server.crt", 
-        "tlsSvrCertPath"         : "/tmp/server.crt", 
-        "tlsCaPath":             "/tmp/ca.crt",  
-        } 
+        "tlsSvrKeyPath"         :"/tmp/server.crt", 
+        "tlsSvrCertPath"         :"/tmp/server.crt", 
+        "tlsCaPath"              :"/tmp/ca.crt"  
+        }
+
+        updateCfgDict = {
+        "enableTls"        :"1", 
+        "tlsCliKeyPath"         :"/tmp/server.crt", 
+        "tlsCliCertPath"         : "/tmp/server.crt", 
+        "tlsSvrKeyPath"         :"/tmp/server.crt", 
+        "tlsSvrCertPath"         :"/tmp/server.crt", 
+        "tlsCaPath"              :"/tmp/ca.crt",  
+        'clientCfg' : clientCfgDict } 
         
 
     def setup_class(cls):
