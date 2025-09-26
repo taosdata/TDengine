@@ -14,7 +14,7 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 import hashlib
 
-initial_hash_resinfoInt = "e6ad237680fe123645e36bab74afc342"
+initial_hash_resinfoInt = "e601788c4434002ca9d641c3c13c64f1"
 initial_hash_resinfo = "172d04aa7af0d8cd2e4d9df284079958"
 
 class TestResinfo:
