@@ -32,11 +32,12 @@
 
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS    1000                    // 1s
 #define STREAM_TRIGGER_WAIT_TIME_NS         1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
-#define STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS 5 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 30s
+#define STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS 5 * NANOSECOND_PER_SEC  // 5s
 #define STREAM_TRIGGER_REALTIME_SESSIONID   1
 #define STREAM_TRIGGER_HISTORY_SESSIONID    2
 
-#define STREAM_TRIGGER_HISTORY_STEP_MS 10 * 24 * 60 * 60 * 1000  // 10d
+#define STREAM_TRIGGER_HISTORY_STEP_MS (10 * MILLISECOND_PER_DAY)     // 10d
+#define STREAM_TRIGGER_RECALC_MERGE_MS (30 * MILLISECOND_PER_MINUTE)  // 30min
 
 #define IS_TRIGGER_GROUP_TO_CHECK(pGroup) \
   (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)
@@ -1168,6 +1169,40 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
 
   taosWLockLatch(&pTask->recalcRequestLock);
   needUnlock = true;
+
+  if (!pReq->isHistory) {
+    // try to merge with existing requests if calc range diff is no more than 1 hour
+    SListNode *pNode = TD_DLIST_HEAD(pTask->pRecalcRequests);
+    while (pNode != NULL) {
+      SSTriggerRecalcRequest *pTmpReq = *(SSTriggerRecalcRequest **)pNode->data;
+      if (!pTmpReq->isHistory && pTmpReq->gid == pReq->gid &&
+          (pTmpReq->calcRange.ekey + STREAM_TRIGGER_RECALC_MERGE_MS) >= pReq->calcRange.skey &&
+          (pReq->calcRange.ekey + STREAM_TRIGGER_RECALC_MERGE_MS >= pTmpReq->calcRange.skey)) {
+        STimeWindow newScanRange = {
+            .skey = TMIN(pTmpReq->scanRange.skey, pReq->scanRange.skey),
+            .ekey = TMAX(pTmpReq->scanRange.ekey, pReq->scanRange.ekey),
+        };
+        STimeWindow newCalcRange = {
+            .skey = TMIN(pTmpReq->calcRange.skey, pReq->calcRange.skey),
+            .ekey = TMAX(pTmpReq->calcRange.ekey, pReq->calcRange.ekey),
+        };
+        ST_TASK_DLOG("merge recalc request, gid: %" PRId64 ", calcRange1: [%" PRId64 ", %" PRId64
+                     "], calcRange2: [%" PRId64 ", %" PRId64 "] to scanRange: [%" PRId64 ", %" PRId64
+                     "], calcRange: [%" PRId64 ", %" PRId64 "]",
+                     pReq->gid, pTmpReq->calcRange.skey, pTmpReq->calcRange.ekey, pReq->calcRange.skey,
+                     pReq->calcRange.ekey, newScanRange.skey, newScanRange.ekey, newCalcRange.skey, newCalcRange.ekey);
+        pTmpReq->scanRange = newScanRange;
+        pTmpReq->calcRange = newCalcRange;
+        TSWAP(pTmpReq->pTsdbVersions, pReq->pTsdbVersions);
+        break;
+      }
+      pNode = TD_DLIST_NODE_NEXT(pNode);
+    }
+    if (pNode != NULL) {
+      // merged
+      goto _end;
+    }
+  }
 
   code = tdListAppend(pTask->pRecalcRequests, &pReq);
   QUERY_CHECK_CODE(code, lino, _end);
