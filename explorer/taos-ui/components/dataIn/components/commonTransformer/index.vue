@@ -865,9 +865,15 @@ async function getMsgBody() {
       }
       result.input.map((item: Recordable) => {
         msgForm.msgbody += item.payload + '\n';
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { payload, ...rest } = item;
-        msgForm.topicbody.push(rest);
+        if (sourceForm.type === 'kafka') {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { value, ...rest } = item;
+          msgForm.topicbody.push(rest);
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { payload, ...rest } = item;
+          msgForm.topicbody.push(rest);
+        }
       });
     } else {
       msgForm.msgbody = JSON.stringify(result);
@@ -1373,9 +1379,15 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
     // 回填解析 mqtt/kafka 的扩展参数值
     if (supportTransform.supportTopicBody) {
       parseData?.input.map(item => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { payload, ...rest } = item;
-        msgForm.topicbody.push(rest);
+        if (sourceForm.type === 'kafka') {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { value, ...rest } = item;
+          msgForm.topicbody.push(rest);
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { payload, ...rest } = item;
+          msgForm.topicbody.push(rest);
+        }
       });
     }
 
