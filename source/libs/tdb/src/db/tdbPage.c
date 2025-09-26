@@ -471,6 +471,8 @@ _alloc_finish:
   pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
   TDB_PAGE_NFREE_SET(pPage, nFree - szCell - TDB_PAGE_OFFSET_SIZE(pPage));
   *ppCell = pCell;
+  assert( pCell - pPage->pData >= 0 && pCell - pPage->pData <= pPage->pageSize );
+  assert( pCell + szCell - pPage->pData > 0 && pCell + szCell - pPage->pData <= pPage->pageSize );
   return 0;
 }
 
