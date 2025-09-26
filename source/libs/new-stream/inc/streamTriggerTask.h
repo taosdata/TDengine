@@ -120,6 +120,7 @@ typedef enum ESTriggerContextStatus {
 typedef struct SSTriggerWalProgress {
   SStreamTaskAddr          *pTaskAddr;    // reader task address
   int64_t                   lastScanVer;  // version of the last committed record in previous scan
+  int64_t                   verTime;      // commit time of the last commit record in previous scan
   SSTriggerPullRequestUnion pullReq;
   SArray                   *reqCids;         // SArray<col_id_t>
   SArray                   *reqCols;         // SArray<OTableInfo>
@@ -386,6 +387,8 @@ typedef struct SStreamTriggerTask {
   volatile int8_t           isCheckpointReady;
   volatile int32_t          checkpointVersion;
   volatile int64_t          mgmtReqId;
+  volatile int8_t           historyFinished;
+  volatile int64_t          latestVersionTime;
   bool                      historyCalcStarted;
   char                     *streamName;
   SSTriggerRealtimeContext *pRealtimeContext;
