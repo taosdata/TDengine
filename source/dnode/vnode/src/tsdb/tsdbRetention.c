@@ -310,24 +310,49 @@ _exit:
 
 void tsdbRetentionCancel(void *arg) { taosMemoryFree(arg); }
 
-static bool tsdbShouldRollup(STsdb *tsdb, SRTNer *rtner) {
+static bool tsdbFSetNeedRetention(STFileSet *fset, int32_t expLevel) {
+  if (expLevel < 0) {
+    return false;
+  }
+  for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (expLevel > fset->farr[ftype]->f->did.level) {
+      return true;
+    }
+  }
+
+  // handle stt file
+  SSttLvl   *lvl = NULL;
+  STFileObj *fobj = NULL;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      if (expLevel > fobj->f->did.level) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+static bool tsdbShouldRollup(STsdb *tsdb, SRTNer *rtner, SRtnArg *rtnArg) {
   SVnode    *pVnode = tsdb->pVnode;
   STFileSet *fset = rtner->fset;
 
-  if (fset == NULL || rtner == NULL) {
+  if (!VND_IS_RSMA(pVnode)) {
     return false;
   }
 
-  int32_t fidLevel = tsdbFidLevel(fset->fid, &tsdb->keepCfg, rtner->tw.ekey);
-  if (fidLevel < 0) {
+  int32_t expLevel = tsdbFidLevel(fset->fid, &tsdb->keepCfg, rtner->tw.ekey);
+  if (expLevel < 0) {
     return false;
   }
 
-  if (VND_IS_RSMA(pVnode)) {
-    return false;
+  if (rtnArg->optrType == TSDB_OPTR_ROLLUP) {
+    return true;
+  } else if (rtnArg->optrType == TSDB_OPTR_NORMAL) {
+    return tsdbFSetNeedRetention(fset, expLevel);
   }
-
-  return true;
+  return false;
 }
 
 int32_t tsdbRetention(void *arg) {
@@ -373,7 +398,7 @@ int32_t tsdbRetention(void *arg) {
       etype = TSDB_FEDIT_SSMIGRATE;
       TAOS_CHECK_GOTO(tsdbDoSsMigrate(&rtner), &lino, _exit);
 #ifdef TD_ENTERPRISE
-    } else if (tsdbShouldRollup(pTsdb, &rtner)) {
+    } else if (tsdbShouldRollup(pTsdb, &rtner, rtnArg)) {
       etype = TSDB_FEDIT_ROLLUP;
       TAOS_CHECK_GOTO(tsdbDoRollup(&rtner), &lino, _exit);
 #endif
