@@ -1,14 +1,29 @@
 from new_test_framework.utils import tdLog, tdSql, etool,cluster
+import os
+
+
 
 
 class TestTLSDemo:
-
+    updateCfgDict = {
+       "enableTls"        : "1", 
+       "tlsCliKeyPath"         : "/tmp/server.crt", 
+       "tlsCliCertPath"         : "/tmp/server.crt", 
+       "tlsSvrKeyPath"         : "/tmp/server.crt", 
+       "tlsSvrCertPath"         : "/tmp/server.crt", 
+       "tlsCaPath":             "/tmp/ca.crt",  
+    }
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
         tdSql.prepare(dbname="test", drop=True, replica=cls.replicaVar)
-        etool.benchMark(command="-n 10 -t 10 -y")
+        
+    def initEnv(self):
+        os.system("")
 
+    def stop_and_restart(self):   
+        dnodes = cluster.dnodes;
+        dnodes[0].stoptaosd() 
     def test_tls_demo(self):
         """测试TLS demo
 
