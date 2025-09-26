@@ -434,7 +434,7 @@ static bool tsdbInRetentionTimeRange(STsdb *tsdb, int32_t fid, STimeWindow tw, i
     TSKEY  minKey, maxKey;
     int8_t precision = tsdb->keepCfg.precision;
     if (precision < TSDB_TIME_PRECISION_MILLI || precision > TSDB_TIME_PRECISION_NANO) {
-      tsdbError("vgId:%d, invalid precision %" PRIi8, TD_VID(tsdb->pVnode), precision);
+      tsdbError("vgId:%d, failed to check retention time range since invalid precision %" PRIi8, TD_VID(tsdb->pVnode), precision);
       return false;
     }
     tsdbFidKeyRange(fid, tsdb->keepCfg.days, precision, &minKey, &maxKey);
