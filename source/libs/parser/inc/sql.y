@@ -733,7 +733,27 @@ db_kind_opt(A) ::= .                                                            
 db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
 db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
 
+/************************************************ rsma ********************************************************/
+cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
+  ON full_table_name(D) rsma_func_list(E)
+  INTERVAL NK_LP signed_duration_list(F) NK_RP.                                   { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, F); }
+cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
+cmd ::= SHOW CREATE RSMA full_table_name(A).                                      { pCxt->pRootNode = createShowCreateRsmaStmt(pCxt, QUERY_NODE_SHOW_CREATE_RSMA_STMT, A); }
+cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) FUNCTION func_list(D).         { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, D, true); }
+cmd ::= SHOW db_name_cond_opt(B) RSMAS.                                           { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_RSMAS_STMT, B, NULL, OP_TYPE_LIKE); }
+cmd ::= SHOW db_name_cond_opt(B) RETENTIONS.                                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_RETENTIONS_STMT, B, NULL, OP_TYPE_LIKE); }
+cmd ::= SHOW RETENTION NK_INTEGER(A).                                             { pCxt->pRootNode = createShowRetentionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
+cmd ::= ROLLUP DATABASE db_name(A) start_opt(B) end_opt(C).                       { pCxt->pRootNode = createRollupStmt(pCxt, &A, B, C); }
+cmd ::= ROLLUP db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D). { pCxt->pRootNode = createRollupVgroupsStmt(pCxt, A, B, C, D); }
 
+full_rsma_name(A) ::= rsma_name(B).                                               { A = createRealTableNode(pCxt, NULL, &B, NULL); }
+full_rsma_name(A) ::= db_name(B) NK_DOT rsma_name(C).                             { A = createRealTableNode(pCxt, &B, &C, NULL); }
+
+%type rsma_func_list                                                              { SNodeList* }
+%destructor rsma_func_list                                                        { }
+rsma_func_list(A) ::= .                                                           { A = NULL; }
+rsma_func_list(A) ::= FUNCTION NK_LP NK_RP.                                       { A = NULL; }
+rsma_func_list(A) ::= FUNCTION NK_LP func_list(B) NK_RP.                          { A = B; }
 /************************************************ tsma ********************************************************/
 cmd ::= CREATE TSMA not_exists_opt(B) tsma_name(C)
   ON full_table_name(E) tsma_func_list(D)
@@ -1043,6 +1063,7 @@ cmd ::= KILL CONNECTION NK_INTEGER(A).                                          
 cmd ::= KILL QUERY NK_STRING(A).                                                  { pCxt->pRootNode = createKillQueryStmt(pCxt, &A); }
 cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
 cmd ::= KILL COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_COMPACT_STMT, &A); }
+cmd ::= KILL RETENTION NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_RETENTION_STMT, &A); }
 cmd ::= KILL SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SCAN_STMT, &A); }
 cmd ::= KILL SSMIGRATE NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_SSMIGRATE_STMT, &A); }
 
@@ -1388,6 +1409,10 @@ index_name(A) ::= NK_ID(B).                                                     
 %type tsma_name                                                                   { SToken }
 %destructor tsma_name                                                             { }
 tsma_name(A) ::= NK_ID(B).                                                        { A = B; }
+
+%type rsma_name                                                                   { SToken }
+%destructor rsma_name                                                             { }
+rsma_name(A) ::= NK_ID(B).                                                        { A = B; }
 
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }

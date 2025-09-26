@@ -283,6 +283,7 @@ static void metaResetStatisInfo(SMeta *pMeta) {
   pMeta->pVnode->config.vndStats.numOfVCTables = 0;
   pMeta->pVnode->config.vndStats.numOfNTimeSeries = 0;
   pMeta->pVnode->config.vndStats.numOfTimeSeries = 0;
+  pMeta->pVnode->config.vndStats.numOfRSMAs = 0;
 }
 
 static int32_t metaGenerateNewMeta(SMeta **ppMeta) {

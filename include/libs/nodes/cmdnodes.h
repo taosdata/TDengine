@@ -190,6 +190,13 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
 } SCompactDatabaseStmt;
 
+typedef struct SRollupDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  SNode*    pStart;
+  SNode*    pEnd;
+} SRollupDatabaseStmt;
+
 typedef struct SScanDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -512,6 +519,13 @@ typedef struct SShowCreateViewStmt {
   void*     pViewMeta;
 } SShowCreateViewStmt;
 
+typedef struct SShowCreateRsmaStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      rsmaName[TSDB_VIEW_NAME_LEN];
+  void*     pRsmaMeta;
+} SShowCreateRsmaStmt;
+
 typedef struct SShowTableDistributedStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -552,8 +566,10 @@ typedef struct SShowScansStmt {
 
 typedef struct SShowCompactDetailsStmt {
   ENodeType type;
-  SNode*    pCompactId;
+  SNode*    pId;
 } SShowCompactDetailsStmt;
+
+typedef SShowCompactDetailsStmt SShowRetentionDetailsStmt;
 
 typedef struct SShowScanDetailsStmt {
   ENodeType type;
@@ -834,6 +850,34 @@ typedef struct SDropTSMAStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tsmaName[TSDB_TABLE_NAME_LEN];
 } SDropTSMAStmt;
+
+typedef struct SCreateRsmaStmt {
+  ENodeType  type;
+  bool       ignoreExists;
+  uint8_t    precision;
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList* pCols;
+  SNodeList* pFuncs;
+  SNodeList* pIntervals;
+} SCreateRsmaStmt;
+
+typedef struct SDropRsmaStmt {
+  ENodeType type;
+  bool      ignoreNotExists;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+} SDropRsmaStmt;
+
+typedef struct SAlterRsmaStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       rsmaName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreNotExists;
+  int8_t     alterType;
+  SNodeList* pFuncs;
+} SAlterRsmaStmt;
 
 #ifdef __cplusplus
 }

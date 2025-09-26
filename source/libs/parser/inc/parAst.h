@@ -416,6 +416,17 @@ SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowSsMigratesStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode);
 
+SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNode* pRealTable,
+                            SNodeList* pFuncs, SNodeList* pIntervals);
+SNode* createDropRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
+SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
+SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, SNodeList* pFuncs, bool add);
+SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds, STokenPair* pLevel);
+SNode* createRollupStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd);
+SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
+                                SNode* pEnd);
+SNode* createShowRetentionDetailsStmt(SAstCreateContext* pCxt, SNode* pId);
+
 SNode*     createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                                 SNode* pRealTable, SNode* pInterval);
 SNode*     createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs);

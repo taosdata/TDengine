@@ -410,6 +410,14 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
   return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER, NULL);
 }
 
+static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
@@ -488,6 +496,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateView(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:
       return authDropView(pCxt, (SDropViewStmt*)pStmt);
+    case QUERY_NODE_CREATE_RSMA_STMT:
+      return authCreateRsma(pCxt, (SCreateRsmaStmt*)pStmt);
+    case QUERY_NODE_DROP_RSMA_STMT:
+      return authDropRsma(pCxt, (SDropRsmaStmt*)pStmt);
     default:
       break;
   }

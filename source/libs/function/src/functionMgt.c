@@ -588,11 +588,11 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
   return code;
 }
 
-char* fmGetFuncName(int32_t funcId) {
+const char* fmGetFuncName(int32_t funcId) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
-    return taosStrdup("invalid function");
+    return "invalid function";
   }
-  return taosStrdup(funcMgtBuiltins[funcId].name);
+  return funcMgtBuiltins[funcId].name;
 }
 
 /// @param [out] pStateFunc, not changed if error occured or no need to create state func
@@ -613,9 +613,9 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
   return TSDB_CODE_SUCCESS;
 }
 
-bool fmIsTSMASupportedFunc(func_id_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC);
-}
+bool fmIsTSMASupportedFunc(func_id_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC); }
+
+bool fmIsRsmaSupportedFunc(func_id_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_RSMA_FUNC); }
 
 int32_t fmCreateStateFuncs(SNodeList* pFuncs) {
   int32_t code;

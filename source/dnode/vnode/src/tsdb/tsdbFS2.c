@@ -722,6 +722,9 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT et
         fset->lastCompact = now;
       } else if (etype == TSDB_FEDIT_SSMIGRATE) {
         fset->lastMigrate = now;
+      } else if (etype == TSDB_FEDIT_ROLLUP) {
+        fset->lastRollup = now;
+        fset->lastCompact = now;  // rollup implies compact
       }
     }
   }
@@ -783,6 +786,7 @@ _exit:
 
 static void tsdbFSSetBlockCommit(STFileSet *fset, bool block);
 extern void tsdbStopAllCompTask(STsdb *tsdb);
+extern void tsdbStopAllRetentionTask(STsdb *tsdb);
 
 int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
   STFileSystem *fs = pTsdb->pFS;
@@ -827,6 +831,7 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
 
 #ifdef TD_ENTERPRISE
   tsdbStopAllCompTask(pTsdb);
+  tsdbStopAllRetentionTask(pTsdb);
 #endif
   return 0;
 }
@@ -922,6 +927,9 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
         fset->numWaitCommit++;
         (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
         fset->numWaitCommit--;
+      }
+      if (fset->numWaitCommit == 0) {
+        (void)taosThreadCondDestroy(&fset->canCommit);
       }
     });
   }
@@ -1312,12 +1320,6 @@ int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader) {
   return TSDB_CODE_SUCCESS;
 }
 
-extern bool tsdbShouldCompact(const STFileSet *pFileSet, int32_t vgId);
-
-#ifndef TD_ENTERPRISE
-bool tsdbShouldCompact(const STFileSet *pFileSet, int32_t vgId) { return false; }
-#endif
-
 static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
   STsdb  *pTsdb = pReader->pTsdb;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1366,6 +1368,7 @@ int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader) {
   return code;
 }
 
+extern bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, ETsdbOpType type);
 int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value) {
   const char *fieldName;
 
@@ -1405,7 +1408,10 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
 
   fieldName = "should_compact";
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
-    *(char *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId);
+    *(bool *)value = false;
+#ifdef TD_ENTERPRISE
+    *(bool *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId, TSDB_OPTR_NORMAL);
+#endif
     return TSDB_CODE_SUCCESS;
   }
 
