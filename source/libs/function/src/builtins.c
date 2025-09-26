@@ -6443,16 +6443,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .pMergeFunc = "_corr_merge",
   },
   {
-    .name = "_anomalymask",
-    .type = FUNCTION_TYPE_ANOMALY_MARK,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateMaskPseudoColumn,
-    .getEnvFunc   = getMaskPseudoFuncEnv,
-    .initFunc     = NULL,
-    .sprocessFunc = anomalyCheckMaskFunction,
-    .finalizeFunc = NULL
-  },
-  {
     .name = "std",
     .type = FUNCTION_TYPE_STDDEV,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
@@ -6657,6 +6647,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .pPartialFunc = "group_concat",
     .pMergeFunc   = "group_concat",
     .createMergeParaFuc = gconcatCreateMergeParam
+  },
+  {
+    .name = "_anomalymask",
+    .type = FUNCTION_TYPE_ANOMALY_MARK,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateMaskPseudoColumn,
+    .getEnvFunc   = getMaskPseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = anomalyCheckMaskFunction,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on
