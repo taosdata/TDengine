@@ -166,6 +166,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ntables", pCfg->vndStats.numOfNTables));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vndStats.rsmas", pCfg->vndStats.numOfRSMAs));
 
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) {
@@ -341,6 +342,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries, code);
   if (code) return code;
   tjsonGetNumberValue(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries, code);
+  if (code) return code;
+  tjsonGetNumberValue(pJson, "vndStats.rsmas", pCfg->vndStats.numOfRSMAs, code);
   if (code) return code;
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");

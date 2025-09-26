@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#if 0
 #include "sma.h"
 #include "tq.h"
 #include "tsdb.h"
@@ -395,3 +395,4 @@ _exit:
   }
   TAOS_RETURN(code);
 }
+#endif

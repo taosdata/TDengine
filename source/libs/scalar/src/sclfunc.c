@@ -4267,7 +4267,6 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t type = GET_PARAM_TYPE(pInput);
-  // int64_t count = 0, sum = 0, qSum = 0;
   bool hasNull = false;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -4275,80 +4274,6 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       hasNull = true;
       break;
     }
-#if 0
-    switch(type) {
-      case TSDB_DATA_TYPE_TINYINT: {
-        int8_t *in  = (int8_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_SMALLINT: {
-        int16_t *in  = (int16_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_INT: {
-        int32_t *in  = (int32_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_BIGINT: {
-        int64_t *in  = (int64_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UTINYINT: {
-        uint8_t *in  = (uint8_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_USMALLINT: {
-        uint16_t *in  = (uint16_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UINT: {
-        uint32_t *in  = (uint32_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UBIGINT: {
-        uint64_t *in  = (uint64_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        float *in  = (float *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE: {
-        double *in  = (double *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-    }
-#endif
   }
 
   double *out = (double *)pOutputData->pData;
@@ -4356,24 +4281,38 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     colDataSetNULL(pOutputData, 0);
   } else {
     *out = 0;
-#if 0
-    double avg = 0;
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      avg = (int64_t)sum / (double)count;
-      *out =  sqrt(fabs((int64_t)qSum / ((double)count) - avg * avg));
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      avg = (uint64_t)sum / (double)count;
-      *out =  sqrt(fabs((uint64_t)qSum / ((double)count) - avg * avg));
-    } else if (IS_FLOAT_TYPE(type)) {
-      avg = (double)sum / (double)count;
-      *out =  sqrt(fabs((double)qSum / ((double)count) - avg * avg));
-    }
-#endif
   }
 
   pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t corrScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData1 = pInput[0].columnData;
+  SColumnInfoData *pInputData2 = pInput[1].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_f(pInputData1, i) || colDataIsNull_f(pInputData2, i)) {
+      hasNull = true;
+      break;
+    }
+  }
+
+  double *out = (double *)pOutputData->pData;
+  if (hasNull) {
+    colDataSetNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
 
 #define LEASTSQR_CAL(p, x, y, index, step) \
   do {                                     \

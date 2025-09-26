@@ -349,38 +349,12 @@ void fmFuncMgtDestroy() {
 }
 
 #ifdef BUILD_NO_CALL
-int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
-  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
-    return TSDB_CODE_FAILED;
-  }
-  pFpSet->process = funcMgtBuiltins[funcId].invertFunc;
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
   pFpSet->process = funcMgtBuiltins[funcId].processFunc;
   return TSDB_CODE_SUCCESS;
-}
-
-bool fmIsInvertible(int32_t funcId) {
-  bool res = false;
-  switch (funcMgtBuiltins[funcId].type) {
-    case FUNCTION_TYPE_COUNT:
-    case FUNCTION_TYPE_SUM:
-    case FUNCTION_TYPE_STDDEV:
-    case FUNCTION_TYPE_AVG:
-    case FUNCTION_TYPE_WSTART:
-    case FUNCTION_TYPE_WEND:
-    case FUNCTION_TYPE_WDURATION:
-      res = true;
-      break;
-    default:
-      break;
-  }
-  return res;
 }
 #endif
 
@@ -614,11 +588,11 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
   return code;
 }
 
-char* fmGetFuncName(int32_t funcId) {
+const char* fmGetFuncName(int32_t funcId) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
-    return taosStrdup("invalid function");
+    return "invalid function";
   }
-  return taosStrdup(funcMgtBuiltins[funcId].name);
+  return funcMgtBuiltins[funcId].name;
 }
 
 /// @param [out] pStateFunc, not changed if error occured or no need to create state func
@@ -639,9 +613,9 @@ static int32_t fmCreateStateFunc(const SFunctionNode* pFunc, SFunctionNode** pSt
   return TSDB_CODE_SUCCESS;
 }
 
-bool fmIsTSMASupportedFunc(func_id_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC);
-}
+bool fmIsTSMASupportedFunc(func_id_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TSMA_FUNC); }
+
+bool fmIsRsmaSupportedFunc(func_id_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_RSMA_FUNC); }
 
 int32_t fmCreateStateFuncs(SNodeList* pFuncs) {
   int32_t code;
