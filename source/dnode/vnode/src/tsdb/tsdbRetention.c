@@ -429,6 +429,24 @@ _exit:
   return code;
 }
 
+static bool tsdbCheckRetentionTimeRange(STsdb *tsdb, int32_t fid, STimeWindow tw, int8_t optrType) {
+  if (optrType == TSDB_OPTR_ROLLUP) {
+    TSKEY  minKey, maxKey;
+    int8_t precision = tsdb->keepCfg.precision;
+    if (precision < TSDB_TIME_PRECISION_MILLI || precision > TSDB_TIME_PRECISION_NANO) {
+      tsdbError("vgId:%d, invalid precision %" PRIi8, TD_VID(tsdb->pVnode), precision);
+      return false;
+    }
+    tsdbFidKeyRange(fid, tsdb->keepCfg.days, precision, &minKey, &maxKey);
+
+    if (tw.ekey * tsSecTimes[precision] < minKey || tw.skey * tsSecTimes[precision] > maxKey) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -441,6 +459,9 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, STimeWindow tw, int8_t optrTy
 
   STFileSet *fset;
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    if (!tsdbCheckRetentionTimeRange(tsdb, fset->fid, tw, optrType)) {
+      continue;
+    }
     SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
     if (arg == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);

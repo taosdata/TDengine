@@ -1408,9 +1408,9 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
 
   fieldName = "should_compact";
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
-    *(char *)value = false;
+    *(bool *)value = false;
 #ifdef TD_ENTERPRISE
-    *(char *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId, TSDB_OPTR_NORMAL);
+    *(bool *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId, TSDB_OPTR_NORMAL);
 #endif
     return TSDB_CODE_SUCCESS;
   }
