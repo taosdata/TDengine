@@ -20,11 +20,13 @@ DNODE_CREATED=0
 MNODE_CREATED=0
 SNODE_CREATED=0
 ANODE_CREATED=0
+TDASSET_DB_CREATED=0
+PUB_TDGPT_URL=${PUB_TDGPT_URL:-""}
 
 # Add for TDgpt
-CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
-TS_SERVER_FILE="/root/taos_ts_server.py"
-TIMER_POE_FILE="/root/timer-moe/timer-moe_server.py"
+#CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
+#TS_SERVER_FILE="/root/taos_ts_server.py"
+#TIMER_POE_FILE="/root/timer-moe/timer-moe_server.py"
 
 
 # set the timezone for the TDengine
@@ -353,7 +355,7 @@ function initDnodeAndMnode {
         # first check dnode created
         DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
         if [[ "$DNODETmp" == "" ]]; then
-            timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0;"
+            timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0 createdb 1;"
             DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$DNODETmp" != "" ]]; then
                 DNODE_CREATED=1
@@ -388,12 +390,32 @@ function initDnodeAndMnode {
             #snode can only be create once;
             SNODE_CREATED=1
         fi
-        if [ $DNODE_CREATED -eq 1 ] && [ "$FQDN" == "$FIRST_EP_HOST" ] && [ -f $TS_SERVER_FILE ]; then
-            #check snode created
-            ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
+#        if [ $DNODE_CREATED -eq 1 ] && [ "$FQDN" == "$FIRST_EP_HOST" ] && [ -f $TS_SERVER_FILE ]; then
+#            #check snode created
+#            ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
+#            if [[ "$ANODETmp" == "" ]]; then
+#                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create anode \"$FQDN:6090\";"
+#                ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
+#                if [[ "$ANODETmp" != "" ]]; then
+#                    ANODE_CREATED=1
+#                    logger "INFO" "Created the anode"
+#                else
+#                    logger "ERROR" "failed to create anode through taos"
+#                fi
+#            else
+#                ANODE_CREATED=1
+#                logger "INFO" "Anode $ANODETmp already created"
+#            fi
+#        else
+#            #anode only be create once;
+#            ANODE_CREATED=1
+#        fi
+        if [ $DNODE_CREATED -eq 1 ] && [ "$FQDN" == "$FIRST_EP_HOST" ] && [ "$PUB_TDGPT_URL" != "" ]; then
+            #check anode created
+            ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT  -w 2000 -s "show anodes;" | grep -E "$PUB_TDGPT_URL" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$ANODETmp" == "" ]]; then
-                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create anode \"$FQDN:6090\";"
-                ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show anodes;" | grep -E "$FQDN" | awk '{split($0,a,"|");print a[1]}')
+                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create anode \"$PUB_TDGPT_URL\";"
+                ANODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show anodes;" | grep -E "$PUB_TDGPT_URL" | awk '{split($0,a,"|");print a[1]}')
                 if [[ "$ANODETmp" != "" ]]; then
                     ANODE_CREATED=1
                     logger "INFO" "Created the anode"
@@ -431,7 +453,7 @@ function initDnodeAndMnode {
             # check admin_user created or not
             ADMINUSER=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "show users;" | grep -E "admin_user" -o)
             if [[ "$ADMINUSER" == "" ]]; then
-                timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"
+                timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0 createdb 1;"
                 logger "INFO" "created admin_user"
             fi
             MNODE_CREATED=1
@@ -440,45 +462,45 @@ function initDnodeAndMnode {
     done
 }
 
-function run_tdtsfm_server() {
-    if [ -f $TS_SERVER_FILE ];then
-        logger "INFO" "Starting tdtsfm server..."
-        python3 $TS_SERVER_FILE --action server &
-        TAOS_TS_PID=$!
-        if ! ps -p $TAOS_TS_PID > /dev/null; then
-            logger "ERROR" "tdtsfm server failed to start!"
-        fi
-    fi
-}
-
-function run_timer_moe_server() {
-    if [ -f $TIMER_POE_FILE ];then
-        logger "INFO" "Starting timer-moe server..."
-        cd $(dirname "$TIMER_POE_FILE")
-        python3 $TIMER_POE_FILE --action server &
-        TIMER_MOE_PID=$!
-        if ! ps -p $TIMER_MOE_PID > /dev/null; then
-            logger "ERROR" "timer-moe server failed to start!"
-        fi
-    fi
-}
-
-function run_tdgpt() {
-    if [ ! -f "$CONFIG_FILE" ]; then
-        logger "ERROR" "Configuration file $CONFIG_FILE not found!"
-    fi
-    TAOSANODE_LOG="/var/log/taos/taosanode"
-    if [ ! -d "$TAOSANODE_LOG" ]; then
-        mkdir -p "$TAOSANODE_LOG"
-    fi
-
-    logger "INFO" "Starting uWSGI with config: $CONFIG_FILE"
-    /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE" &
-    UWSGI_PID=$!
-    if ! ps -p $UWSGI_PID > /dev/null ; then
-        logger "ERROR" "Error: uWSGI failed to start!"
-    fi
-}
+#function run_tdtsfm_server() {
+#    if [ -f $TS_SERVER_FILE ];then
+#        logger "INFO" "Starting tdtsfm server..."
+#        python3 $TS_SERVER_FILE --action server &
+#        TAOS_TS_PID=$!
+#        if ! ps -p $TAOS_TS_PID > /dev/null; then
+#            logger "ERROR" "tdtsfm server failed to start!"
+#        fi
+#    fi
+#}
+#
+#function run_timer_moe_server() {
+#    if [ -f $TIMER_POE_FILE ];then
+#        logger "INFO" "Starting timer-moe server..."
+#        cd $(dirname "$TIMER_POE_FILE")
+#        python3 $TIMER_POE_FILE --action server &
+#        TIMER_MOE_PID=$!
+#        if ! ps -p $TIMER_MOE_PID > /dev/null; then
+#            logger "ERROR" "timer-moe server failed to start!"
+#        fi
+#    fi
+#}
+#
+#function run_tdgpt() {
+#    if [ ! -f "$CONFIG_FILE" ]; then
+#        logger "ERROR" "Configuration file $CONFIG_FILE not found!"
+#    fi
+#    TAOSANODE_LOG="/var/log/taos/taosanode"
+#    if [ ! -d "$TAOSANODE_LOG" ]; then
+#        mkdir -p "$TAOSANODE_LOG"
+#    fi
+#
+#    logger "INFO" "Starting uWSGI with config: $CONFIG_FILE"
+#    /usr/local/taos/taosanode/venv/bin/uwsgi --ini "$CONFIG_FILE" &
+#    UWSGI_PID=$!
+#    if ! ps -p $UWSGI_PID > /dev/null ; then
+#        logger "ERROR" "Error: uWSGI failed to start!"
+#    fi
+#}
 
 taosd_start_time=`date +%s`
 taosadapter_start_time=$taosd_start_time
@@ -522,16 +544,22 @@ do
     fi
     # echo "`date \"+%Y-%m-%d %H:%M:%S.%N\"` run.sh:$status"x "$TAOS_RUN_TAOSBENCHMARK_TEST"x "$TAOS_RUN_TAOSBENCHMARK_TEST_ONCE"x
     if [ "$status"x = "2"x ]; then
-        nc -z localhost 5000
-        if [ $? -ne 0 ];then
-            run_tdtsfm_server
-        fi
-        nc -z localhost 5001
-        if [ $? -ne 0 ];then
-            run_timer_moe_server
-        fi
-        run_tdgpt
+#        nc -z localhost 5000
+#        if [ $? -ne 0 ];then
+#            run_tdtsfm_server
+#        fi
+#        nc -z localhost 5001
+#        if [ $? -ne 0 ];then
+#            run_timer_moe_server
+#        fi
+#        run_tdgpt
         initDnodeAndMnode
+        # create tdasset db if not exist
+        if [ $TDASSET_DB_CREATED  -eq 0 ]; then
+            taos -s "create database if not exists idmp;GRANT ALL on idmp.* to admin_user;"
+            TDASSET_DB_CREATED=1
+        fi
+
         if [ "$clustercheckneeded"x = "0"x ]; then
             td_cluster_check "no"
             if [ $? -eq 0 ]; then

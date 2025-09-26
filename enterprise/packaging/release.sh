@@ -276,19 +276,19 @@ else
   ASSERT_NOT_CORE=true
 fi
   
-
+branch_taosadapter="3.0"
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]] || [[ "$cpuType" == "loongarch64" ]] ; then
   if [ "$verMode" == "edge" ]; then
     # community-version compile
-    cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=${BUILD_WEBSOCKET} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} -DBUILD_KEEPER=${BUILD_KEEPER} ${allocator_macro}
+    cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=${BUILD_WEBSOCKET} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} -DBUILD_KEEPER=${BUILD_KEEPER} ${allocator_macro} -DTAOSADAPTER_GIT_TAG=${branch_taosadapter}
   elif [ "$verMode" == "cloud" ]; then
-    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=false -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=false ${allocator_macro} -DBUILD_KEEPER=${BUILD_KEEPER}
+    cmake ../../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=${ASSERT_NOT_CORE} -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=false -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=false ${allocator_macro} -DBUILD_KEEPER=${BUILD_KEEPER} -DTAOSADAPTER_GIT_TAG=${branch_taosadapter}
   elif [ "$verMode" == "cluster" ]; then
 #    if [[ "$dbName" != "taos" ]]; then
 #      replace_enterprise_$dbName
 #    fi
-    cmake ../../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=${ASSERT_NOT_CORE} -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=${BUILD_TAOSX} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DTD_PRODUCT_NAME="${cusName} Enterprise Edition"  -DBUILD_KEEPER=${BUILD_KEEPER} -DGRANT_VALUE=${grantValue}
+    cmake ../../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=${ASSERT_NOT_CORE} -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_TAOSX=${BUILD_TAOSX} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} -DBUILD_EXPLORER=${BUILD_EXPLORER} ${allocator_macro} -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DTD_PRODUCT_NAME="${cusName} Enterprise Edition"  -DBUILD_KEEPER=${BUILD_KEEPER} -DGRANT_VALUE=${grantValue} -DTAOSADAPTER_GIT_TAG=${branch_taosadapter}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"

@@ -17,6 +17,7 @@
 #include "audit.h"
 #include "mndDb.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndTrans.h"
@@ -110,7 +111,7 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
               pAnotherDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
               mInfo("trans:%d, found another dnode:%d_%s", pTrans->id, pAnotherDnode->id, pAnotherDnode->ep);
             } else {
-              if (pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_OFFLINE) {
+              if (pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_OFFLINE && pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_LEADER && pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_FOLLOWER) {
                 code = TSDB_CODE_MND_VNODE_NOT_OFFLINE;
                 sdbCancelFetch(pSdb, pIter);
                 mndReleaseDb(pMnode, db);
@@ -227,6 +228,12 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) {
   if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
     code = TSDB_CODE_DNODE_OFFLINE;
     mError("dnode:%d, failed to restore since %s", pDnode->id, terrstr());
+    goto _OVER;
+  }
+
+  if (mndHasMountOnDnode(pMnode, restoreReq.dnodeId)) {
+    code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
+    mError("dnode:%d, failed to restore since %s", restoreReq.dnodeId, tstrerror(code));
     goto _OVER;
   }
 

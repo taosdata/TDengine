@@ -137,9 +137,10 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
     if (pUser->createdb) goto _OVER;
   }
 
-  if (operType == MND_OPER_ALTER_DB || operType == MND_OPER_DROP_DB || operType == MND_OPER_COMPACT_DB ||
-      operType == MND_OPER_TRIM_DB) {
+  if (operType == MND_OPER_ALTER_DB || operType == MND_OPER_COMPACT_DB || operType == MND_OPER_TRIM_DB) {
     if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
+  } else if (operType == MND_OPER_DROP_DB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;  // TS-7279
   }
 
   if (operType == MND_OPER_USE_DB || operType == MND_OPER_READ_OR_WRITE_DB) {
@@ -172,11 +173,26 @@ _OVER:
 
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname) {
   int32_t code = 0;
+
+  const char *realDbName = NULL;
+  const char *dot = strchr(dbname, '.');
+  if (dot != NULL && *(dot + 1) != '\0') {
+    realDbName = dot + 1;
+  }
+
+  if ((0 == strcasecmp(realDbName, TSDB_INFORMATION_SCHEMA_DB) ||
+       (0 == strcasecmp(realDbName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
+    if (operType == MND_OPER_READ_DB) {
+      return TSDB_CODE_SUCCESS;
+    } else {
+      return TSDB_CODE_MND_NO_RIGHTS;
+    }
+  }
+
   SDbObj *pDb = mndAcquireDb(pMnode, dbname);
 
   if (pDb == NULL) {
-    code = terrno ? terrno : TSDB_CODE_MND_DB_NOT_EXIST; // TODO: remove this terrno if possible
-    TAOS_RETURN(code);
+    TAOS_RETURN(terrno);
   }
 
   code = mndCheckDbPrivilege(pMnode, user, operType, pDb);
@@ -252,7 +268,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
 
   pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pRsp->createdDbs) {
-    TAOS_RETURN(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);  // TODO: remove this terrno after terrno is removed
+    TAOS_RETURN(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
   }
 
   SSdb *pSdb = pMnode->pSdb;
@@ -265,7 +281,6 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
     if (strcmp(pDb->createUser, pUser->user) == 0) {
       int32_t len = strlen(pDb->name) + 1;
       if ((code = taosHashPut(pRsp->createdDbs, pDb->name, len, pDb->name, len)) != 0) {
-        code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;  // TODO: remove this line after terrno is removed
         sdbRelease(pSdb, pDb);
         sdbCancelFetch(pSdb, pIter);
         TAOS_RETURN(code);

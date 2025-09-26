@@ -76,11 +76,17 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
     if (pIter == NULL) break;
     mDebug("trans:%d, check group for vgId:%d, dbName:%s", pTrans->id, pVgroup->vgId, pVgroup->dbName);
 
-    if (req.vgId != 0 && pVgroup->vgId != req.vgId) continue;
+    if ((req.vgId != 0 && pVgroup->vgId != req.vgId) || (pVgroup->mountVgId > 0)) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     SName name = {0};
     (void)tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
-    if (req.db != NULL && strlen(req.db) > 0 && strcmp(req.db, name.dbname) != 0) continue;
+    if (req.db != NULL && strlen(req.db) > 0 && strcmp(req.db, name.dbname) != 0) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     if (mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0) {
       count++;
@@ -125,6 +131,11 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
 
   pVgroup = mndAcquireVgroup(pMnode, req.vgId);
   if (pVgroup == NULL) goto _OVER;
+  if(pVgroup->mountVgId > 0) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    mError("vgId:%d, split vgroup not allowed for mounted vgroup", pVgroup->vgId);
+    goto _OVER;
+  }
 
   pDb = mndAcquireDb(pMnode, pVgroup->dbName);
   if (pDb == NULL) {
@@ -133,11 +144,18 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  int32_t numOfStreams = 0;
-  code = mndGetNumOfStreams(pMnode, pVgroup->dbName, &numOfStreams);
-  if (numOfStreams > 0) {
-    code = TSDB_CODE_OPS_NOT_SUPPORT;
+  bool dbStream = false;
+  bool vtableStream = false;
+  mstCheckDbInUse(pMnode, pVgroup->dbName, &dbStream, &vtableStream, false);
+  if (dbStream) {
+    code = TSDB_CODE_MND_STREAM_DB_IN_USE;
     mError("vgId:%d, db:%s, stream exists, split vgroup not allowed", req.vgId, pVgroup->dbName);
+    goto _OVER;
+  }
+
+  if (vtableStream && !req.force) {
+    code = TSDB_CODE_MND_STREAM_VTABLE_EXITS;
+    mError("vgId:%d, db:%s, vtable stream exists, split vgroup not allowed", req.vgId, pVgroup->dbName);
     goto _OVER;
   }
 

@@ -274,7 +274,7 @@ def industry_options():
     if industry_name == "Power":
         return (" -DTD_FUNC_STREAM=false "
                 "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
-                "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_SHARED_STORAGE=false "
                 "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
                 "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
                 "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
@@ -283,7 +283,7 @@ def industry_options():
     elif industry_name == "Powerfull":
         return (" -DTD_FUNC_STREAM=true "
                 "-DTD_FUNC_SUBSCRIPTION=true -DTD_FUNC_AUDIT=true -DTD_FUNC_CSV=true -DTD_FUNC_VIEW=true "
-                "-DTD_FUNC_MULTI_TIER_STORAGE=true -DTD_FUNC_DATA_BAK_RESTORE=true -DTD_FUNC_OBJECT_STORAGE=true "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=true -DTD_FUNC_DATA_BAK_RESTORE=true -DTD_FUNC_SHARED_STORAGE=true "
                 "-DTD_FUNC_ACTIVE_ACTIVE=true -DTD_FUNC_DUAL_REPLICA_HA=true -DTD_FUNC_DB_ENCRYPTION=true "
                 "-DTD_DATAIN_OPC_DA=true -DTD_DATAIN_OPC_UA=true -DTD_DATAIN_PI=true -DTD_DATAIN_KAFKA=true "
                 "-DTD_DATAIN_INFLUXDB=true -DTD_DATAIN_MQTT=true -DTD_DATAIN_AVEVAHISTORIAN=true "
@@ -292,7 +292,7 @@ def industry_options():
     elif industry_name == "Powerlite":
         return (" -DTD_FUNC_STREAM=false "
                 "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
-                "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_SHARED_STORAGE=false "
                 "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
                 "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
                 "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "

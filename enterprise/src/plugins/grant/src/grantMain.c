@@ -23,6 +23,7 @@
 #include "mndDnode.h"
 #include "mndGrant.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndUser.h"
@@ -67,13 +68,13 @@
     }                                                                                                              \
   } while (0)
 
-#define GRANT_ITEM_EXPIRE_CHECK(val, now, expired)            \
-  do {                                                        \
-    if (((val) == GRANT_UNIQ_UNLIMITED) || ((val) > (now))) { \
-      if ((expired)) (expired) = 0;                           \
-    } else {                                                  \
-      if (!(expired)) (expired) = 1;                          \
-    }                                                         \
+#define GRANT_ITEM_LIMIT_CHECK(val, now, factor, expired)                  \
+  do {                                                                     \
+    if (((val) == GRANT_UNIQ_UNLIMITED) || (((val) * (factor)) > (now))) { \
+      if ((expired)) (expired) = 0;                                        \
+    } else {                                                               \
+      if (!(expired)) (expired) = 1;                                       \
+    }                                                                      \
   } while (0)
 
 #define GRANT_ITEM_TO_DATAIN(inField, iField, iLimits, iUndef) \
@@ -98,23 +99,31 @@
         src = GRANT_UNIQ_UNLIMITED_S;                          \
       }                                                        \
       STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));          \
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);          \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);    \
     }                                                          \
   } while (0)
 
-#define GRANT_ITEM_SHOW(cur, limit, unit)                                                                          \
-  do {                                                                                                             \
-    if ((++cols) >= nCols) goto _end;                                                                              \
-    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) {                                                     \
-      if ((limit) != GRANT_UNIQ_UNLIMITED) {                                                                       \
-        TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit))); \
-      } else {                                                                                                     \
-        TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S)); \
-      }                                                                                                            \
-      src = tmp1;                                                                                                  \
-      STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                                              \
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                                                              \
-    }                                                                                                              \
+#define GRANT_ITEM_SHOW(cur, limit, unit)                                                                            \
+  do {                                                                                                               \
+    if ((++cols) >= nCols) goto _end;                                                                                \
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) {                                                       \
+      if ((limit) != GRANT_UNIQ_UNLIMITED) {                                                                         \
+        if ((unit) == TSDB_DATA_TYPE_DOUBLE) {                                                                       \
+          TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%.3lf/%" PRIi64, (double)(cur), (int64_t)(limit)));        \
+        } else {                                                                                                     \
+          TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit))); \
+        }                                                                                                            \
+      } else {                                                                                                       \
+        if ((unit) == TSDB_DATA_TYPE_DOUBLE) {                                                                       \
+          TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%.3lf/%s", (double)(cur), GRANT_UNIQ_UNLIMITED_S));        \
+        } else {                                                                                                     \
+          TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S)); \
+        }                                                                                                            \
+      }                                                                                                              \
+      src = tmp1;                                                                                                    \
+      STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                                                \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);                                                          \
+    }                                                                                                                \
   } while (0)
 
 #define GRANT_VALUE_CONVERT(from, to, factor, dft) \
@@ -176,20 +185,20 @@
     }                                                  \
   } while (0)
 
-#define GRANT_TA_OPT_EXPIRE_ASSIGN(ev, idx, val) \
-  do {                                           \
-    if (grantHandle.showTaOpts[(idx)]) {         \
-      (ev) = (val);                              \
-    } else {                                     \
-      (ev) = GRANT_UNIQ_UNDEFINED;               \
-    }                                            \
+#define GRANT_IDMP_OPT_EXPIRE_ASSIGN(ev, idx, val) \
+  do {                                             \
+    if (grantHandle.showIdmpOpts[(idx)]) {         \
+      (ev) = (val);                                \
+    } else {                                       \
+      (ev) = GRANT_UNIQ_UNDEFINED;                 \
+    }                                              \
   } while (0)
 
-#define GRANT_TA_OPT_LIMITS_ASSIGN(lv, idx, dv) \
-  do {                                          \
-    if (grantHandle.showTaOpts[(idx)]) {        \
-      (lv) = (dv);                              \
-    }                                           \
+#define GRANT_IDMP_OPT_LIMITS_ASSIGN(lv, idx, dv) \
+  do {                                            \
+    if (grantHandle.showIdmpOpts[(idx)]) {        \
+      (lv) = (dv);                                \
+    }                                             \
   } while (0)
 
 // make sure the expire_sec is not GRANT_UNIQ_UNDEFINED
@@ -209,23 +218,26 @@
 #define GRANT_EXPIRED(exp) ((exp) ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_SUCCESS)
 #define GRANT_EXPIRED_OPT(expbasic, expopt, erropt) \
   ((expbasic) ? TSDB_CODE_GRANT_BASIC_EXPIRED : ((expopt) ? (erropt) : TSDB_CODE_SUCCESS))
-#define GRANT_EXPIRE_VAL (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0))
+#define GRANT_EXPIRE_VAL \
+  (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0) | gStatus.storageSizeLimited)
 #define GRANT_TS_SEC_LEN 20
 #define GRANT_LOG_MAX_MACHINE 300
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "opc_da", "opc_ua",   "pi",     "kafka", "influxdb", "mqtt", "avevahistorian", "opentsdb", "td2.6", "td3.0",
-    "mysql",  "postgres", "oracle", "mssql", "mongodb",  "csv",  "sparkplugb"};
+    "mysql",  "postgres", "oracle", "mssql", "mongodb",  "csv",  "sparkplugb",     "orc"};
 
 static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
-    "OPC_DA",         "OPC_UA",    "Pi",          "Kafka",       "InfluxDB",  "MQTT",
-    "avevaHistorian", "OpenTSDB",  "TDengine2.6", "TDengine3.0", "MySQL",     "PostgreSQL",
-    "Oracle",         "SqlServer", "MongoDB",     "CSV",         "SparkplugB"};
+    "OPC_DA",         "OPC_UA",    "Pi",          "Kafka",       "InfluxDB",   "MQTT",
+    "avevaHistorian", "OpenTSDB",  "TDengine2.6", "TDengine3.0", "MySQL",      "PostgreSQL",
+    "Oracle",         "SqlServer", "MongoDB",     "CSV",         "SparkplugB", "ORC"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "basic",         "service",      "stream",        "subscription",   "audit",
-    "csv",           "view",         "storage",       "backup_restore", "object_storage",
-    "active_active", "dual_replica", "db_encryption", "data_sync",      "tdgpt"};
+    "basic",         "service",   "stream",         "subscription",   "audit",         "csv",
+    // NOTE: 'object_storage' is actually 'shared storage' now, it should be renamed for consistence,
+    // but was not because of backward compatibility issues.
+    "view",          "storage",   "backup_restore", "object_storage", "active_active", "dual_replica",
+    "db_encryption", "data_sync", "tdgpt",          "mount"};
 
 static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {"Basic",
                                                        "Service Time",
@@ -236,19 +248,22 @@ static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {"Basic",
                                                        "View",
                                                        "Multi-Tier Storage",
                                                        "Data Backup & Restore",
-                                                       "Object Storage",
+                                                       "Shared Storage",
                                                        "Active-Active",
                                                        "Dual-Replica HA",
                                                        "Database Encryption",
                                                        "Data Synchronization",
-                                                       "TDgpt"};
+                                                       "TDgpt",
+                                                       "Mount"};
 
-static const char gGrantTaName[GRANT_OPT_TA_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "ta_basic", "ta_version_ctrl", "ta_data_forecast", "ta_data_detect", "ta_data_quality", "ta_ai_chat_gen"};
+static const char gGrantIdmpName[GRANT_OPT_IDMP_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
+    "idmp_basic",       "idmp_version_ctrl", "idmp_data_forecast",
+    "idmp_data_detect", "idmp_data_quality", "idmp_ai_chat_gen"};
 
-static const char gGrantTaDisplay[GRANT_OPT_TA_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "TDasset Basic",       "TDasset Version Control", "TDasset Data Forecast",
-    "TDasset Data Detect", "TDasset Data Quality",    "TDasset AI Chat/Generate"};
+static const char gGrantIdmpDisplay[GRANT_OPT_IDMP_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
+    "TDengine IDMP Basic",        "TDengine IDMP Version Control",
+    "TDengine IDMP Forecasting",  "TDengine IDMP Anomaly Detection",
+    "TDengine IDMP Data Quality", "TDengine IDMP AI Chat/Generate"};
 
 static const char *gGrantState[GRANT_STATE_MAX] = {"ungranted", "ungranted", "granted", "expired",
                                                    "revoked"};  // keep 0/1 ungranted
@@ -292,8 +307,8 @@ static const char *tGetGrantDisplay(const char *name) {
 }
 
 static int32_t tGetTaGrantIndex(const char *name) {
-  for (int32_t i = GRANT_OPT_TA_MAX; i < GRANT_OPT_TA_DYN_MAX; ++i) {
-    if (strncasecmp(gGrantTaName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
+  for (int32_t i = GRANT_OPT_IDMP_MAX; i < GRANT_OPT_IDMP_DYN_MAX; ++i) {
+    if (strncasecmp(gGrantIdmpName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
       return i;
     }
   }
@@ -301,9 +316,9 @@ static int32_t tGetTaGrantIndex(const char *name) {
 }
 
 static const char *tGetTaGrantDisplay(const char *name) {
-  for (int32_t i = GRANT_OPT_TA_MAX; i < GRANT_OPT_TA_DYN_MAX; ++i) {
-    if (strncasecmp(gGrantTaName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
-      return gGrantTaDisplay[i];
+  for (int32_t i = GRANT_OPT_IDMP_MAX; i < GRANT_OPT_IDMP_DYN_MAX; ++i) {
+    if (strncasecmp(gGrantIdmpName[i], name, GRANT_ITEM_NAME_LEN) == 0) {
+      return gGrantIdmpDisplay[i];
     }
   }
   return name;
@@ -315,6 +330,8 @@ SGrantStatus gStatus = {
     .limitCpuCores = GRANT_UNIQ_UNLIMITED,
     .limitVnodes = GRANT_UNIQ_UNLIMITED,
     .limitStorageSize = GRANT_UNIQ_UNLIMITED,
+    .limitAnodes = GRANT_UNIQ_UNLIMITED,
+    .limitMounts = GRANT_UNIQ_UNLIMITED,
 };
 
 typedef SGrantNotify GrantNotify;
@@ -365,7 +382,7 @@ typedef struct {
   SRWLatch   rwLock;
   int8_t     showOpts[GRANT_OPT_DYN_MAX];
   int8_t     showDataIns[CONN_TYPE_DYN_MAX];
-  int8_t     showTaOpts[GRANT_OPT_TA_DYN_MAX];
+  int8_t     showIdmpOpts[GRANT_OPT_IDMP_DYN_MAX];
 } SGrantHandle;
 
 static bool         recheckClusterTime = true;
@@ -463,8 +480,8 @@ static void grantInitShowFlags() {
 #if !defined(TD_INDUSTRY) || defined(TD_FUNC_DATA_BAK_RESTORE)
   grantHandle.showOpts[GRANT_OPT_DATA_BAK_RST] = 1;
 #endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_OBJECT_STORAGE)
-  grantHandle.showOpts[GRANT_OPT_OBJECT_STORAGE] = 1;
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_SHARED_STORAGE)
+  grantHandle.showOpts[GRANT_OPT_SHARED_STORAGE] = 1;
 #endif
 #if !defined(TD_INDUSTRY) || defined(TD_FUNC_ACTIVE_ACTIVE)
   grantHandle.showOpts[GRANT_OPT_ACTIVE_ACTIVE] = 1;
@@ -480,6 +497,9 @@ static void grantInitShowFlags() {
 #endif
 #if !defined(TD_INDUSTRY) || defined(TD_FUNC_TD_GPT)
   grantHandle.showOpts[GRANT_OPT_TD_GPT] = 1;
+#endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_TD_MOUNT)
+  grantHandle.showOpts[GRANT_OPT_TD_MOUNT] = 1;
 #endif
 
 // DataIns
@@ -534,27 +554,30 @@ static void grantInitShowFlags() {
 #if !defined(TD_INDUSTRY) || defined(TD_DATAIN_SPARKPLUGB)
   grantHandle.showDataIns[CONN_TYPE_SPARKPLUGB] = 1;
 #endif
+#if !defined(TD_INDUSTRY) || defined(TD_DATAIN_ORC)
+  grantHandle.showDataIns[CONN_TYPE_ORC] = 1;
+#endif
 
   // add future datains here ...
 
-  // TDasset
-#if !defined(TD_INDUSTRY) || defined(TA_FUNC_BASIC)
-  grantHandle.showTaOpts[GRANT_OPT_TA_BASIC] = 1;
+  // TDengine IDMP
+#if !defined(TD_INDUSTRY) || defined(IDMP_FUNC_BASIC)
+  grantHandle.showIdmpOpts[GRANT_OPT_IDMP_BASIC] = 1;
 #endif
-#if !defined(TD_INDUSTRY) || defined(TA_FUNC_VERSION_CTRL)
-  grantHandle.showTaOpts[GRANT_OPT_TA_VERSION_CTRL] = 1;
+#if !defined(TD_INDUSTRY) || defined(IDMP_FUNC_VERSION_CTRL)
+  grantHandle.showIdmpOpts[GRANT_OPT_IDMP_VERSION_CTRL] = 1;
 #endif
-#if !defined(TD_INDUSTRY) || defined(TA_FUNC_DATA_FORECAST)
-  grantHandle.showTaOpts[GRANT_OPT_TA_DATA_FORECAST] = 1;
+#if !defined(TD_INDUSTRY) || defined(IDMP_FUNC_DATA_FORECAST)
+  grantHandle.showIdmpOpts[GRANT_OPT_IDMP_DATA_FORECAST] = 1;
 #endif
-#if !defined(TD_INDUSTRY) || defined(TA_FUNC_DATA_DETECT)
-  grantHandle.showTaOpts[GRANT_OPT_TA_DATA_DETECT] = 1;
+#if !defined(TD_INDUSTRY) || defined(IDMP_FUNC_DATA_DETECT)
+  grantHandle.showIdmpOpts[GRANT_OPT_IDMP_DATA_DETECT] = 1;
 #endif
-#if !defined(TD_INDUSTRY) || defined(TA_FUNC_DATA_QUALITY)
-  grantHandle.showTaOpts[GRANT_OPT_TA_DATA_QUALITY] = 1;
+#if !defined(TD_INDUSTRY) || defined(IDMP_FUNC_DATA_QUALITY)
+  grantHandle.showIdmpOpts[GRANT_OPT_IDMP_DATA_QUALITY] = 1;
 #endif
-#if !defined(TD_INDUSTRY) || defined(TA_FUNC_AI_CHAT_GEN)
-  grantHandle.showTaOpts[GRANT_OPT_TA_AI_CHAT_GEN] = 1;
+#if !defined(TD_INDUSTRY) || defined(IDMP_FUNC_AI_CHAT_GEN)
+  grantHandle.showIdmpOpts[GRANT_OPT_IDMP_AI_CHAT_GEN] = 1;
 #endif
 }
 
@@ -572,29 +595,32 @@ static void grantStatusInit(SGrantStatus *pStatus) {
   GRANT_OPT_LIMITS_INIT(pStatus->limitViews, GRANT_OPT_VIEW);
   GRANT_OPT_EXPIRE_INIT(pStatus->multiTierExpireSec, pStatus->multiTierExpired, GRANT_OPT_STORAGE);
   GRANT_OPT_EXPIRE_INIT(pStatus->bakRstExpireSec, pStatus->placeHolder, GRANT_OPT_DATA_BAK_RST);
-  GRANT_OPT_EXPIRE_INIT(pStatus->objectStorageExpireSec, pStatus->objectStorageExpired, GRANT_OPT_OBJECT_STORAGE);
+  GRANT_OPT_EXPIRE_INIT(pStatus->sharedStorageExpireSec, pStatus->sharedStorageExpired, GRANT_OPT_SHARED_STORAGE);
   GRANT_OPT_EXPIRE_INIT(pStatus->activeActiveExpireSec, pStatus->placeHolder, GRANT_OPT_ACTIVE_ACTIVE);
   GRANT_OPT_EXPIRE_INIT(pStatus->dualReplicaHAExpireSec, pStatus->dualReplicaHAExpired, GRANT_OPT_DUAL_REPLICA_HA);
   GRANT_OPT_EXPIRE_INIT(pStatus->dbEncryptionExpireSec, pStatus->dbEncryptionExpired, GRANT_OPT_DB_ENCRYPTION);
   GRANT_OPT_EXPIRE_INIT(pStatus->dataSyncExpireSec, pStatus->placeHolder, GRANT_OPT_DATA_SYNC);
   GRANT_OPT_EXPIRE_INIT(pStatus->tdGptExpireSec, pStatus->tdGptExpired, GRANT_OPT_TD_GPT);
   GRANT_OPT_LIMITS_INIT(pStatus->limitAnodes, GRANT_OPT_TD_GPT);
+  GRANT_OPT_EXPIRE_INIT(pStatus->mountExpireSec, pStatus->mountExpired, GRANT_OPT_TD_MOUNT);
+  GRANT_OPT_LIMITS_INIT(pStatus->limitMounts, GRANT_OPT_TD_MOUNT);
 
   grantDataInsSetDefault(pStatus->dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_UNLIMITED);
 
-  // TDasset
-  GRANT_TA_OPT_EXPIRE_ASSIGN(pStatus->taBasicExpireSec, GRANT_OPT_TA_BASIC, GRANT_UNIQ_UNLIMITED);
-  GRANT_TA_OPT_LIMITS_ASSIGN(pStatus->taLimitTsAttributes, GRANT_OPT_TA_BASIC, GRANT_UNIQ_DFT_TA_TS_ATTRIBURES);
-  GRANT_TA_OPT_LIMITS_ASSIGN(pStatus->taLimitNonTsAttributes, GRANT_OPT_TA_BASIC, GRANT_UNIQ_DFT_TA_NTS_ATTRIBURES);
-  GRANT_TA_OPT_LIMITS_ASSIGN(pStatus->taLimitElements, GRANT_OPT_TA_BASIC, GRANT_UNIQ_DFT_TA_ELEMENTS);
-  GRANT_TA_OPT_LIMITS_ASSIGN(pStatus->taLimitServers, GRANT_OPT_TA_BASIC, GRANT_UNIQ_DFT_TA_SERVERS);
-  GRANT_TA_OPT_LIMITS_ASSIGN(pStatus->taLimitCpuCores, GRANT_OPT_TA_BASIC, GRANT_UNIQ_DFT_TA_CPU_CORES);
-  GRANT_TA_OPT_LIMITS_ASSIGN(pStatus->taLimitUsers, GRANT_OPT_TA_BASIC, GRANT_UNIQ_DFT_TA_USERS);
-  GRANT_TA_OPT_EXPIRE_ASSIGN(pStatus->taVersionCtrlExpireSec, GRANT_OPT_TA_VERSION_CTRL, GRANT_UNIQ_UNLIMITED);
-  GRANT_TA_OPT_EXPIRE_ASSIGN(pStatus->taDataForecastExpireSec, GRANT_OPT_TA_DATA_FORECAST, GRANT_UNIQ_UNLIMITED);
-  GRANT_TA_OPT_EXPIRE_ASSIGN(pStatus->taDataDetectExpireSec, GRANT_OPT_TA_DATA_DETECT, GRANT_UNIQ_UNLIMITED);
-  GRANT_TA_OPT_EXPIRE_ASSIGN(pStatus->taDataQualityExpireSec, GRANT_OPT_TA_DATA_QUALITY, GRANT_UNIQ_UNLIMITED);
-  GRANT_TA_OPT_EXPIRE_ASSIGN(pStatus->taAiChatGenExpireSec, GRANT_OPT_TA_AI_CHAT_GEN, GRANT_UNIQ_UNLIMITED);
+  // TDengine IDMP
+  GRANT_IDMP_OPT_EXPIRE_ASSIGN(pStatus->idmpBasicExpireSec, GRANT_OPT_IDMP_BASIC, GRANT_UNIQ_UNLIMITED);
+  GRANT_IDMP_OPT_LIMITS_ASSIGN(pStatus->idmpLimitTsAttributes, GRANT_OPT_IDMP_BASIC, GRANT_UNIQ_DFT_IDMP_TS_ATTRIBURES);
+  GRANT_IDMP_OPT_LIMITS_ASSIGN(pStatus->idmpLimitNonTsAttributes, GRANT_OPT_IDMP_BASIC,
+                               GRANT_UNIQ_DFT_IDMP_NTS_ATTRIBURES);
+  GRANT_IDMP_OPT_LIMITS_ASSIGN(pStatus->idmpLimitElements, GRANT_OPT_IDMP_BASIC, GRANT_UNIQ_DFT_IDMP_ELEMENTS);
+  GRANT_IDMP_OPT_LIMITS_ASSIGN(pStatus->idmpLimitServers, GRANT_OPT_IDMP_BASIC, GRANT_UNIQ_DFT_IDMP_SERVERS);
+  GRANT_IDMP_OPT_LIMITS_ASSIGN(pStatus->idmpLimitCpuCores, GRANT_OPT_IDMP_BASIC, GRANT_UNIQ_DFT_IDMP_CPU_CORES);
+  GRANT_IDMP_OPT_LIMITS_ASSIGN(pStatus->idmpLimitUsers, GRANT_OPT_IDMP_BASIC, GRANT_UNIQ_DFT_IDMP_USERS);
+  GRANT_IDMP_OPT_EXPIRE_ASSIGN(pStatus->idmpVersionCtrlExpireSec, GRANT_OPT_IDMP_VERSION_CTRL, GRANT_UNIQ_UNLIMITED);
+  GRANT_IDMP_OPT_EXPIRE_ASSIGN(pStatus->idmpDataForecastExpireSec, GRANT_OPT_IDMP_DATA_FORECAST, GRANT_UNIQ_UNLIMITED);
+  GRANT_IDMP_OPT_EXPIRE_ASSIGN(pStatus->idmpDataDetectExpireSec, GRANT_OPT_IDMP_DATA_DETECT, GRANT_UNIQ_UNLIMITED);
+  GRANT_IDMP_OPT_EXPIRE_ASSIGN(pStatus->idmpDataQualityExpireSec, GRANT_OPT_IDMP_DATA_QUALITY, GRANT_UNIQ_UNLIMITED);
+  GRANT_IDMP_OPT_EXPIRE_ASSIGN(pStatus->idmpAiChatGenExpireSec, GRANT_OPT_IDMP_AI_CHAT_GEN, GRANT_UNIQ_UNLIMITED);
 }
 
 static void tDestroyGrantStatus(SGrantStatus *pStatus) {
@@ -638,21 +664,21 @@ static void grantObjInit(SGrantUniqObj *pObj, bool official) {
   for (int32_t i = GRANT_OPT_BASIC; i < GRANT_OPT_MAX; ++i) {
     pObj->expireDays[i] = GRANT_UNIQ_UNDEFINED;
   }
-  for (int32_t i = GRANT_OPT_TA_BASIC; i < GRANT_OPT_TA_MAX; ++i) {
+  for (int32_t i = GRANT_OPT_IDMP_BASIC; i < GRANT_OPT_IDMP_MAX; ++i) {
     pObj->expireDays[i] = GRANT_UNIQ_UNDEFINED;
   }
   for (int32_t i = 0; i < GRANT_UNIQ_KNOWN_DATAIN_VALS; ++i) {
     pObj->dataIns[i] = GRANT_UNIQ_UNDEFINED;
   }
-  for (int32_t i = GRANT_OPT_TA_BASIC; i < GRANT_OPT_TA_MAX; ++i) {
-    pObj->taExpireDays[i] = GRANT_UNIQ_UNDEFINED;
+  for (int32_t i = GRANT_OPT_IDMP_BASIC; i < GRANT_OPT_IDMP_MAX; ++i) {
+    pObj->idmpExpireDays[i] = GRANT_UNIQ_UNDEFINED;
   }
-  pObj->taLimitTsAttributes = GRANT_UNIQ_UNDEFINED;
-  pObj->taLimitNonTsAttributes = GRANT_UNIQ_UNDEFINED;
-  pObj->taLimitElements = GRANT_UNIQ_UNDEFINED;
-  pObj->taLimitServers = GRANT_UNIQ_UNDEFINED;
-  pObj->taLimitCpuCores = GRANT_UNIQ_UNDEFINED;
-  pObj->taLimitUsers = GRANT_UNIQ_UNDEFINED;
+  pObj->idmpLimitTsAttributes = GRANT_UNIQ_UNDEFINED;
+  pObj->idmpLimitNonTsAttributes = GRANT_UNIQ_UNDEFINED;
+  pObj->idmpLimitElements = GRANT_UNIQ_UNDEFINED;
+  pObj->idmpLimitServers = GRANT_UNIQ_UNDEFINED;
+  pObj->idmpLimitCpuCores = GRANT_UNIQ_UNDEFINED;
+  pObj->idmpLimitUsers = GRANT_UNIQ_UNDEFINED;
   taosArrayClear(pObj->pDataIns);
   taosArrayClear(pObj->pItem64);
   taosArrayClear(pObj->pItemI64);
@@ -774,7 +800,13 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
 
   uint32_t grantExpireVal = GRANT_EXPIRE_VAL;
   uint32_t tsGrantVal = 0;
-  if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
+  if (grantExpireVal == 0) {
+    tsGrantVal |= GRANT_FLAG_ALL;
+  } else if (gStatus.multiTierExpired && gStatus.nDiskCfg > 1) {
+    tsGrantVal |= GRANT_FLAG_EX_MULTI_TIER;
+  } else if (gStatus.storageSizeLimited) {
+    tsGrantVal |= GRANT_FLAG_EX_STORAGE;
+  }
   if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
   if (grantCheckViews(false, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
 
@@ -834,7 +866,13 @@ static void mndProcessGrantStatusCheck() {
 
   uint32_t grantExpireVal = GRANT_EXPIRE_VAL;
   uint32_t tsGrantVal = 0;
-  if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
+  if (grantExpireVal == 0) {
+    tsGrantVal |= GRANT_FLAG_ALL;
+  } else if (gStatus.multiTierExpired && gStatus.nDiskCfg > 1) {
+    tsGrantVal |= GRANT_FLAG_EX_MULTI_TIER;
+  } else if (gStatus.storageSizeLimited) {
+    tsGrantVal |= GRANT_FLAG_EX_STORAGE;
+  }
   if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
   if (grantCheckViews(false, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
 
@@ -997,9 +1035,9 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     for (int32_t i = 0; i < nVariantGrantItems; ++i) {
       SGrantItemI64 *pItemI64 = TARRAY_GET_ELEM(pObj->pItemI64, i);
       switch (pItemI64->index) {
-        case GRANT_OPT_OBJECT_STORAGE: {
-          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.objectStorageExpireSec, 86400, dftExpireSec,
-                               grantHandle.showOpts[GRANT_OPT_OBJECT_STORAGE]);
+        case GRANT_OPT_SHARED_STORAGE: {
+          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.sharedStorageExpireSec, 86400, dftExpireSec,
+                               grantHandle.showOpts[GRANT_OPT_SHARED_STORAGE]);
         } break;
         case GRANT_OPT_ACTIVE_ACTIVE: {
           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.activeActiveExpireSec, 86400, dftExpireSec,
@@ -1036,6 +1074,11 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
           GRANT_VALUE_CONVERT(pItemI64->number, gStatus.limitAnodes, 1, GRANT_UNIQ_DFT_TDGPT_ANODE_NUM);
           isTDGptAssign = true;
         } break;
+        case GRANT_OPT_TD_MOUNT: {
+          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.mountExpireSec, 86400, dftExpireSec,
+                               grantHandle.showOpts[GRANT_OPT_TD_MOUNT]);
+          GRANT_VALUE_CONVERT(pItemI64->number, gStatus.limitMounts, 1, GRANT_UNIQ_DFT_MOUNTS);
+        } break;
         default:
           break;
       }
@@ -1066,16 +1109,18 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
   }
 
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.auditExpireSec, grantCurTime, gStatus.auditExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.csvExpireSec, grantCurTime, gStatus.csvExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.streamExpireSec, grantCurTime, gStatus.streamExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.subscriptionExpireSec, grantCurTime, gStatus.subscriptionExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.viewExpireSec, grantCurTime, gStatus.viewExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.multiTierExpireSec, grantCurTime, gStatus.multiTierExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.objectStorageExpireSec, grantCurTime, gStatus.objectStorageExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.dualReplicaHAExpireSec, grantCurTime, gStatus.dualReplicaHAExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.dbEncryptionExpireSec, grantCurTime, gStatus.dbEncryptionExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.tdGptExpireSec, grantCurTime, gStatus.tdGptExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.auditExpireSec, grantCurTime, 1, gStatus.auditExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.csvExpireSec, grantCurTime, 1, gStatus.csvExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.streamExpireSec, grantCurTime, 1, gStatus.streamExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.subscriptionExpireSec, grantCurTime, 1, gStatus.subscriptionExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.viewExpireSec, grantCurTime, 1, gStatus.viewExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.multiTierExpireSec, grantCurTime, 1, gStatus.multiTierExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.sharedStorageExpireSec, grantCurTime, 1, gStatus.sharedStorageExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.dualReplicaHAExpireSec, grantCurTime, 1, gStatus.dualReplicaHAExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.dbEncryptionExpireSec, grantCurTime, 1, gStatus.dbEncryptionExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.tdGptExpireSec, grantCurTime, 1, gStatus.tdGptExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.limitStorageSize, gStatus.curStorageSize, 1024, gStatus.storageSizeLimited);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.mountExpireSec, grantCurTime, 1, gStatus.mountExpired);
 
   // extract known dataIns from grantObj to grantStatus
   int8_t  knownDataInAssigned[CONN_TYPE_DYN_MAX] = {0};
@@ -1106,24 +1151,25 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     }
   }
 
-  // TDasset params
-  GRANT_VALUE_CONVERT(grantObj.taExpireDays[GRANT_OPT_TA_BASIC], gStatus.taBasicExpireSec, 86400, taDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.taLimitTsAttributes, gStatus.taLimitTsAttributes, 1, GRANT_UNIQ_DFT_TA_TS_ATTRIBURES);
-  GRANT_VALUE_CONVERT(grantObj.taLimitNonTsAttributes, gStatus.taLimitNonTsAttributes, 1,
-                      GRANT_UNIQ_DFT_TA_NTS_ATTRIBURES);
-  GRANT_VALUE_CONVERT(grantObj.taLimitElements, gStatus.taLimitElements, 1, GRANT_UNIQ_DFT_TA_ELEMENTS);
-  GRANT_VALUE_CONVERT(grantObj.taLimitServers, gStatus.taLimitServers, 1, GRANT_UNIQ_DFT_TA_SERVERS);
-  GRANT_VALUE_CONVERT(grantObj.taLimitCpuCores, gStatus.taLimitCpuCores, 1, GRANT_UNIQ_DFT_TA_CPU_CORES);
-  GRANT_VALUE_CONVERT(grantObj.taLimitUsers, gStatus.taLimitUsers, 1, GRANT_UNIQ_DFT_TA_USERS);
-  GRANT_VALUE_CONVERT(grantObj.taExpireDays[GRANT_OPT_TA_VERSION_CTRL], gStatus.taVersionCtrlExpireSec, 86400,
+  // TDengine IDMP params
+  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_BASIC], gStatus.idmpBasicExpireSec, 86400, taDftExpireSec);
+  GRANT_VALUE_CONVERT(grantObj.idmpLimitTsAttributes, gStatus.idmpLimitTsAttributes, 1,
+                      GRANT_UNIQ_DFT_IDMP_TS_ATTRIBURES);
+  GRANT_VALUE_CONVERT(grantObj.idmpLimitNonTsAttributes, gStatus.idmpLimitNonTsAttributes, 1,
+                      GRANT_UNIQ_DFT_IDMP_NTS_ATTRIBURES);
+  GRANT_VALUE_CONVERT(grantObj.idmpLimitElements, gStatus.idmpLimitElements, 1, GRANT_UNIQ_DFT_IDMP_ELEMENTS);
+  GRANT_VALUE_CONVERT(grantObj.idmpLimitServers, gStatus.idmpLimitServers, 1, GRANT_UNIQ_DFT_IDMP_SERVERS);
+  GRANT_VALUE_CONVERT(grantObj.idmpLimitCpuCores, gStatus.idmpLimitCpuCores, 1, GRANT_UNIQ_DFT_IDMP_CPU_CORES);
+  GRANT_VALUE_CONVERT(grantObj.idmpLimitUsers, gStatus.idmpLimitUsers, 1, GRANT_UNIQ_DFT_IDMP_USERS);
+  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_VERSION_CTRL], gStatus.idmpVersionCtrlExpireSec, 86400,
                       taDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.taExpireDays[GRANT_OPT_TA_DATA_FORECAST], gStatus.taDataForecastExpireSec, 86400,
+  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_FORECAST], gStatus.idmpDataForecastExpireSec, 86400,
                       taDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.taExpireDays[GRANT_OPT_TA_DATA_DETECT], gStatus.taDataDetectExpireSec, 86400,
+  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_DETECT], gStatus.idmpDataDetectExpireSec, 86400,
                       taDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.taExpireDays[GRANT_OPT_TA_DATA_QUALITY], gStatus.taDataQualityExpireSec, 86400,
+  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_QUALITY], gStatus.idmpDataQualityExpireSec, 86400,
                       taDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.taExpireDays[GRANT_OPT_TA_AI_CHAT_GEN], gStatus.taAiChatGenExpireSec, 86400,
+  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_AI_CHAT_GEN], gStatus.idmpAiChatGenExpireSec, 86400,
                       taDftExpireSec);
 
   // add rwlock since retrieve would access simultaneously
@@ -1543,7 +1589,7 @@ static int64_t grantGetClusterCurTimeSeries(SMnode *pMnode) {
   void   *pIter = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
-    if (!pVgroup->isTsma) {
+    if (!pVgroup->isTsma && pVgroup->mountVgId == 0) {
       numOfPoints += pVgroup->numOfTimeSeries;
     }
     sdbRelease(pSdb, pVgroup);
@@ -1565,7 +1611,7 @@ static uint64_t grantGetClusterCurStorage(SMnode *pMnode) {
   void    *pIter = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
-    if (!pVgroup->isTsma) {
+    if (!pVgroup->isTsma && pVgroup->mountVgId == 0) {
       storage += pVgroup->compStorage;
     }
     sdbRelease(pSdb, pVgroup);
@@ -1633,7 +1679,7 @@ static uint32_t grantGetClusterCurTables(SMnode *pMnode) {
   void    *pIter = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
-    if (!pVgroup->isTsma) {
+    if (!pVgroup->isTsma && pVgroup->mountVgId == 0) {
       numOfPoints += pVgroup->numOfTables;
     }
     sdbRelease(pSdb, pVgroup);
@@ -1666,6 +1712,16 @@ static int32_t grantGetClusterCurAnodes(SMnode *pMnode) {
   return sdbGetSize(pSdb, SDB_ANODE);
 }
 
+static int64_t grantGetClusterCurMountTimes(SMnode *pMnode) {
+  SMountLogObj *pObj = mndAcquireMountLog(pMnode);
+  if (pObj) {
+    int64_t mountTimes = pObj->mountTimes;
+    mndReleaseMountLog(pMnode, pObj);
+    return mountTimes;
+  }
+  return 0;
+}
+
 static int16_t grantGetClusterCurStreams(SMnode *pMnode) {
   SSdb *pSdb = pMnode->pSdb;
   return (int16_t)sdbGetSize(pSdb, SDB_STREAM);
@@ -1695,6 +1751,8 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   gStatus.curViews = grantGetClusterCurViews(pMnode);
   gStatus.curVnodes = grantGetClusterCurVnodes(pMnode);
   gStatus.curAnodes = grantGetClusterCurAnodes(pMnode);
+  gStatus.curStorageSize = (grantGetClusterCurStorage(pMnode) >> 20);  // convert to MB
+  gStatus.curMounts = grantGetClusterCurMountTimes(pMnode);
 }
 
 static int32_t tSerializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNotify, uint32_t *pLen) {
@@ -1878,8 +1936,8 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.csvExpireSec, optExpireSec, gStatus.csvExpired, optExpired, GRANT_OPT_CSV);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.bakRstExpireSec, optExpireSec, gStatus.placeHolder, 0, GRANT_OPT_DATA_BAK_RST);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.viewExpireSec, optExpireSec, gStatus.viewExpired, optExpired, GRANT_OPT_VIEW);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.objectStorageExpireSec, optExpireSec, gStatus.objectStorageExpired, optExpired,
-                            GRANT_OPT_OBJECT_STORAGE);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.sharedStorageExpireSec, optExpireSec, gStatus.sharedStorageExpired, optExpired,
+                            GRANT_OPT_SHARED_STORAGE);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.activeActiveExpireSec, optExpireSec, gStatus.placeHolder, 0,
                             GRANT_OPT_ACTIVE_ACTIVE);
 
@@ -1899,25 +1957,29 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     // #endif
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dataSyncExpireSec, optExpireSec, gStatus.placeHolder, 0, GRANT_OPT_DATA_SYNC);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.tdGptExpireSec, optExpireSec, gStatus.tdGptExpired, optExpired, GRANT_OPT_TD_GPT);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.mountExpireSec, optExpireSec, gStatus.mountExpired, optExpired, GRANT_OPT_TD_MOUNT);
 
     // fixed dataIns
     grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, optExpireSec);
 
-    // TDasset grant items
+    // TDengine IDMP grant items
     {
-      gStatus.taBasicExpireSec = baseSeconds + TA_GRANT_DEFAULT;
-      int64_t taOptExpireSec = gStatus.taBasicExpireSec;
-      GRANT_TA_OPT_EXPIRE_ASSIGN(gStatus.taVersionCtrlExpireSec, GRANT_OPT_TA_VERSION_CTRL, taOptExpireSec);
-      GRANT_TA_OPT_EXPIRE_ASSIGN(gStatus.taDataForecastExpireSec, GRANT_OPT_TA_DATA_FORECAST, taOptExpireSec);
-      GRANT_TA_OPT_EXPIRE_ASSIGN(gStatus.taDataDetectExpireSec, GRANT_OPT_TA_DATA_DETECT, taOptExpireSec);
-      GRANT_TA_OPT_EXPIRE_ASSIGN(gStatus.taDataQualityExpireSec, GRANT_OPT_TA_DATA_QUALITY, taOptExpireSec);
-      GRANT_TA_OPT_EXPIRE_ASSIGN(gStatus.taAiChatGenExpireSec, GRANT_OPT_TA_AI_CHAT_GEN, taOptExpireSec);
+      gStatus.idmpBasicExpireSec = baseSeconds + TA_GRANT_DEFAULT;
+      int64_t idmpOptExpireSec = gStatus.idmpBasicExpireSec;
+      GRANT_IDMP_OPT_EXPIRE_ASSIGN(gStatus.idmpVersionCtrlExpireSec, GRANT_OPT_IDMP_VERSION_CTRL, idmpOptExpireSec);
+      GRANT_IDMP_OPT_EXPIRE_ASSIGN(gStatus.idmpDataForecastExpireSec, GRANT_OPT_IDMP_DATA_FORECAST, idmpOptExpireSec);
+      GRANT_IDMP_OPT_EXPIRE_ASSIGN(gStatus.idmpDataDetectExpireSec, GRANT_OPT_IDMP_DATA_DETECT, idmpOptExpireSec);
+      GRANT_IDMP_OPT_EXPIRE_ASSIGN(gStatus.idmpDataQualityExpireSec, GRANT_OPT_IDMP_DATA_QUALITY, idmpOptExpireSec);
+      GRANT_IDMP_OPT_EXPIRE_ASSIGN(gStatus.idmpAiChatGenExpireSec, GRANT_OPT_IDMP_AI_CHAT_GEN, idmpOptExpireSec);
     }
   }
 #else
   gStatus.serviceExpireSec = GRANT_UNIQ_UNLIMITED;
   grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_DFT_DATAIN_EXPIRE);
 #endif
+  gStatus.limitAnodes = GRANT_UNIQ_DFT_TDGPT_ANODE_NUM;
+  gStatus.limitMounts = GRANT_UNIQ_DFT_MOUNTS;
+  GRANT_ITEM_LIMIT_CHECK(gStatus.limitStorageSize, gStatus.curStorageSize, 1024, gStatus.storageSizeLimited);
 }
 
 void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
@@ -1970,6 +2032,21 @@ static int32_t grantCheckUsers() { return 0; }
 
 static int32_t grantCheckDatabases() { return 0; }
 
+static int32_t grantCheckMounts() {
+  int32_t code = 0;
+  if (gStatus.expired || gStatus.mountExpired) {
+    code = gStatus.expired ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_GRANT_MOUNTS_EXPIRED;
+  } else if (gStatus.limitMounts != GRANT_UNIQ_UNLIMITED) {
+    if (grantHandle.pMnode) gStatus.curMounts = grantGetClusterCurMountTimes(grantHandle.pMnode);
+    if (gStatus.curMounts >= gStatus.limitMounts) code = TSDB_CODE_GRANT_MOUNTS_LIMITED;
+  }
+  if (code < 0) {
+    uError("grant failed to check mount, expire:%" PRIi64 ", num:%d, reason:mounts limited",
+           (int64_t)gStatus.mountExpireSec, (int32_t)gStatus.curMounts);
+  }
+  return code;
+}
+
 static int32_t grantCheckTimeSeries() {
   if (gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED || gStatus.curTimeSeries < gStatus.limitTimeSeries) {
     return 0;
@@ -2000,6 +2077,24 @@ static int32_t grantCheckDnodes() {
   uError("grant failed to create dnode, exist:%d, limit:%d, reason:grant dnode limited", (int32_t)gStatus.curDnodes,
          limitDnodes);
   return TSDB_CODE_GRANT_DNODE_LIMITED;
+}
+
+static int32_t grantCheckVnodes(int32_t nVnodes) {
+  if (gStatus.limitVnodes == GRANT_UNIQ_UNLIMITED) {
+    return 0;
+  }
+  if ((gStatus.curVnodes = grantGetClusterCurVnodes(grantHandle.pMnode) + nVnodes) <= gStatus.limitVnodes) {
+    return 0;
+  }
+  uError("grant failed to create %d vnode(s), exist:%d, limit:%d, reason:grant vnode limited", nVnodes,
+         gStatus.curVnodes, gStatus.limitVnodes);
+  return TSDB_CODE_GRANT_VNODE_LIMITED;
+}
+
+static int32_t grantCheckStorageSize() {
+  return gStatus.limitStorageSize == GRANT_UNIQ_UNLIMITED             ? TSDB_CODE_SUCCESS
+         : gStatus.curStorageSize <= (gStatus.limitStorageSize << 10) ? TSDB_CODE_SUCCESS
+                                                                      : TSDB_CODE_GRANT_STORAGE_LIMITED;
 }
 
 static int32_t grantCheckGrantSpeed() { return TSDB_CODE_SUCCESS; }
@@ -2062,6 +2157,23 @@ static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
   return code;
 }
 
+static int32_t grantCheckTDgpt(bool checkNum) {
+  int32_t code = 0;
+  if (gStatus.expired || gStatus.tdGptExpired) {
+    code = gStatus.expired ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_GRANT_TD_GPT_EXPIRED;
+  } else if (checkNum && gStatus.limitAnodes != GRANT_UNIQ_UNLIMITED) {
+    if (grantHandle.pMnode) gStatus.curAnodes = grantGetClusterCurAnodes(grantHandle.pMnode);
+    if (gStatus.curAnodes >= gStatus.limitAnodes) code = TSDB_CODE_GRANT_ANODE_LIMITED;
+  }
+
+  if (code < 0) {
+    uError("grant failed to check TDgpt, expire:%" PRIi64 ", num:%d, reason:TDgpt limited",
+           (int64_t)gStatus.tdGptExpireSec, (int32_t)gStatus.curAnodes);
+  }
+
+  return code;
+}
+
 static int32_t grantCheckCpuCores() {
   if (gStatus.limitCpuCores == GRANT_UNIQ_UNLIMITED) {
     return 0;
@@ -2083,6 +2195,8 @@ int32_t grantCheckExpire(EGrantType grant) {
       return grantCheckSubscriptions(false);
     case TSDB_GRANT_VIEW:
       return grantCheckViews(false, DEBUG_ERROR);
+    case TSDB_GRANT_TD_GPT:
+      return grantCheckTDgpt(false);
     default:
       uError("undefined grant check expire type:%d", grant);
       break;
@@ -2101,6 +2215,16 @@ int64_t grantRemain(EGrantType grant) {
   return 0;
 }
 
+int32_t grantCheckEx(EGrantType grant, void *param) {
+  switch (grant) {
+    case TSDB_GRANT_VNODE:
+      return grantCheckVnodes(*(int32_t *)param);
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t grantCheck(EGrantType grant) {
   switch (grant) {
     case TSDB_GRANT_TIME:
@@ -2109,14 +2233,18 @@ int32_t grantCheck(EGrantType grant) {
       return grantCheckUsers();
     case TSDB_GRANT_DB:
       return grantCheckDatabases();
+    case TSDB_GRANT_MOUNT:
+      return grantCheckMounts();
     case TSDB_GRANT_TIMESERIES:
       return grantCheckTimeSeries();
     case TSDB_GRANT_DNODE:
       return grantCheckDnodes();
+    case TSDB_GRANT_VNODE:
+      return grantCheckVnodes(1);
     case TSDB_GRANT_ACCT:
       return grantCheckAccts();
     case TSDB_GRANT_STORAGE:
-      return TSDB_CODE_SUCCESS;
+      return grantCheckStorageSize();
     case TSDB_GRANT_SPEED:
       return grantCheckGrantSpeed();
     case TSDB_GRANT_QUERY_TIME:
@@ -2137,14 +2265,14 @@ int32_t grantCheck(EGrantType grant) {
       return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.csvExpired, TSDB_CODE_GRANT_CSV_EXPIRED);
     case TSDB_GRANT_MULTI_TIER:
       return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.multiTierExpired, TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED);
-    case TSDB_GRANT_OBJECT_STORAGE:
-      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.objectStorageExpired, TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED);
+    case TSDB_GRANT_SHARED_STORAGE:
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.sharedStorageExpired, TSDB_CODE_GRANT_SHARED_STROAGE_EXPIRED);
     case TSDB_GRANT_DUAL_REPLICA_HA:
       return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.dualReplicaHAExpired, TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED);
     case TSDB_GRANT_DB_ENCRYPTION:
       return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.dbEncryptionExpired, TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED);
     case TSDB_GRANT_TD_GPT:
-      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.tdGptExpired, TSDB_CODE_GRANT_TD_GPT_EXPIRED);
+      return grantCheckTDgpt(true);
     default:
       break;
   }
@@ -2264,20 +2392,20 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t grantOptTaExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, int64_t upgradeTime) {
+static int32_t grantOptIdmpExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, int64_t upgradeTime) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t basicExpireDay = pObj->taExpireDays[GRANT_OPT_TA_BASIC];
+  int32_t basicExpireDay = pObj->idmpExpireDays[GRANT_OPT_IDMP_BASIC];
   bool    basicLtDefault = false;
 
   if (pObj->granted == 0) goto _exit;
 
-  if (!(pObj->flags & GRANT_ACTIVE_FLG_TDASSET_ASSIGNED)) {
+  if (!(pObj->flags & GRANT_ACTIVE_FLG_IDMP_ASSIGNED)) {
     goto _exit;
   }
 
   if (basicExpireDay == GRANT_UNIQ_UNDEFINED) {
-    code = TSDB_CODE_GRANT_LACK_OF_TA_BASIC;
+    code = TSDB_CODE_GRANT_LACK_OF_IDMP_BASIC;
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (basicExpireDay == GRANT_UNIQ_UNLIMITED) {
     goto _exit;
@@ -2296,8 +2424,8 @@ static int32_t grantOptTaExpireDaysCheck(SMnode *pMnode, SGrantUniqObj *pObj, in
   }
   if (basicExpireSec < defaultExpireSec) basicLtDefault = true;
 
-  for (int32_t i = 1; i < GRANT_OPT_TA_MAX; ++i) {
-    GRANT_OPT_EXPIRE_CHECK(pObj->taExpireDays[i], gGrantTaName[i]);
+  for (int32_t i = 1; i < GRANT_OPT_IDMP_MAX; ++i) {
+    GRANT_OPT_EXPIRE_CHECK(pObj->idmpExpireDays[i], gGrantIdmpName[i]);
   }
 
   int32_t size = taosArrayGetSize(pObj->pItemT64);
@@ -2332,6 +2460,18 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
     return TSDB_CODE_GRANT_CPU_LIMITED;
   }
 
+  if ((pObj->limitVnodes > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curVnodes = grantGetClusterCurVnodes(pMnode)) > pObj->limitVnodes)) {
+    GRANT_CHECK_ERROR_LOG("vnodes", gStatus.curVnodes, pObj->limitVnodes);
+    return TSDB_CODE_GRANT_VNODE_LIMITED;
+  }
+
+  if ((pObj->limitStorageSize > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curStorageSize = (grantGetClusterCurStorage(pMnode) >> 20)) > (pObj->limitStorageSize << 10))) {
+    GRANT_CHECK_ERROR_LOG("storage size", gStatus.curStorageSize, pObj->limitStorageSize << 10);
+    return TSDB_CODE_GRANT_STORAGE_LIMITED;
+  }
+
   // optional
   if ((pObj->limitStreams > GRANT_UNIQ_UNLIMITED) &&
       ((gStatus.curStreams = grantGetClusterCurStreams(pMnode)) > pObj->limitStreams)) {
@@ -2347,6 +2487,29 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
       ((gStatus.curViews = grantGetClusterCurViews(pMnode)) > pObj->limitViews)) {
     GRANT_CHECK_ERROR_LOG("views", gStatus.curViews, pObj->limitViews);
     return TSDB_CODE_GRANT_VIEW_LIMITED;
+  }
+
+  int32_t nVariantGrantItems = taosArrayGetSize(pObj->pItemI64);
+  for (int32_t i = 0; i < nVariantGrantItems; ++i) {
+    SGrantItemI64 *pItemI64 = TARRAY_GET_ELEM(pObj->pItemI64, i);
+    switch (pItemI64->index) {
+      case GRANT_OPT_TD_GPT:
+        if ((pItemI64->number > GRANT_UNIQ_UNLIMITED) &&
+            ((gStatus.curAnodes = grantGetClusterCurAnodes(pMnode)) > pItemI64->number)) {
+          GRANT_CHECK_ERROR_LOG("anodes", gStatus.curAnodes, pItemI64->number);
+          return TSDB_CODE_GRANT_ANODE_LIMITED;
+        }
+        break;
+      case GRANT_OPT_TD_MOUNT:
+        if ((pItemI64->number > GRANT_UNIQ_UNLIMITED) &&
+            ((gStatus.curMounts = grantGetClusterCurMountTimes(pMnode)) > pItemI64->number)) {
+          GRANT_CHECK_ERROR_LOG("mounts", gStatus.curMounts, pItemI64->number);
+          return TSDB_CODE_GRANT_MOUNTS_LIMITED;
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   return 0;
@@ -2428,6 +2591,23 @@ static int32_t grantCheckGrantItemsAfterMerge(SMnode *pMnode, SGrantUniqObj *pOb
     return TSDB_CODE_GRANT_DNODE_LIMITED;
   }
 
+  if (pObj->limitVnodes == GRANT_UNIQ_UNDEFINED) {
+    pObj->limitVnodes = GRANT_UNIQ_DFT_BASIC_VNODES;
+  }
+  if ((pObj->limitVnodes > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curVnodes = grantGetClusterCurVnodes(pMnode)) > pObj->limitVnodes)) {
+    GRANT_CHECK_ERROR_LOG("vnodes", gStatus.curVnodes, pObj->limitVnodes);
+    return TSDB_CODE_GRANT_VNODE_LIMITED;
+  }
+  if (pObj->limitStorageSize == GRANT_UNIQ_UNDEFINED) {
+    pObj->limitStorageSize = GRANT_UNIQ_DFT_BASIC_STORAGE_SIZE;
+  }
+  if ((pObj->limitStorageSize > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curStorageSize = (grantGetClusterCurStorage(pMnode) >> 20)) > (pObj->limitStorageSize << 10))) {
+    GRANT_CHECK_ERROR_LOG("storage size", gStatus.curStorageSize, pObj->limitStorageSize << 10);
+    return TSDB_CODE_GRANT_STORAGE_LIMITED;
+  }
+
   return 0;
 }
 
@@ -2438,11 +2618,12 @@ static bool grantLackOfBasic(SGrantUniqObj *pObj) {
          pObj->limitDnodes == GRANT_UNIQ_UNDEFINED || pObj->limitCpuCores == GRANT_UNIQ_UNDEFINED;
 }
 
-static bool grantLackOfTaBasic(SGrantUniqObj *pObj) {
-  return pObj->taExpireDays[GRANT_OPT_TA_BASIC] == GRANT_UNIQ_UNDEFINED ||
-         pObj->taLimitTsAttributes == GRANT_UNIQ_UNDEFINED || pObj->taLimitNonTsAttributes == GRANT_UNIQ_UNDEFINED ||
-         pObj->taLimitElements == GRANT_UNIQ_UNDEFINED || pObj->taLimitServers == GRANT_UNIQ_UNDEFINED ||
-         pObj->taLimitCpuCores == GRANT_UNIQ_UNDEFINED || pObj->taLimitUsers == GRANT_UNIQ_UNDEFINED;
+static bool grantLackOfIdmpBasic(SGrantUniqObj *pObj) {
+  return pObj->idmpExpireDays[GRANT_OPT_IDMP_BASIC] == GRANT_UNIQ_UNDEFINED ||
+         pObj->idmpLimitTsAttributes == GRANT_UNIQ_UNDEFINED ||
+         pObj->idmpLimitNonTsAttributes == GRANT_UNIQ_UNDEFINED || pObj->idmpLimitElements == GRANT_UNIQ_UNDEFINED ||
+         pObj->idmpLimitServers == GRANT_UNIQ_UNDEFINED || pObj->idmpLimitCpuCores == GRANT_UNIQ_UNDEFINED ||
+         pObj->idmpLimitUsers == GRANT_UNIQ_UNDEFINED;
 }
 
 // mnode-write thread
@@ -2601,10 +2782,10 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
       grantLackOfBasic(&newObj)) {
     TAOS_CHECK_EXIT(TSDB_CODE_GRANT_LACK_OF_BASIC);
   }
-  // check TDasset basic functions
-  if (!(oldObj.flags & GRANT_ACTIVE_FLG_TDASSET_ASSIGNED) && (newObj.flags & GRANT_ACTIVE_FLG_TDASSET_ASSIGNED) &&
-      grantLackOfTaBasic(&newObj)) {
-    TAOS_CHECK_EXIT(TSDB_CODE_GRANT_LACK_OF_TA_BASIC);
+  // check TDengine IDMP basic functions
+  if (!(oldObj.flags & GRANT_ACTIVE_FLG_IDMP_ASSIGNED) && (newObj.flags & GRANT_ACTIVE_FLG_IDMP_ASSIGNED) &&
+      grantLackOfIdmpBasic(&newObj)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_GRANT_LACK_OF_IDMP_BASIC);
   }
 
   // step 4: merge active code
@@ -2612,7 +2793,7 @@ int32_t grantAlterActiveCode(SMnode *pMnode, SGrantLogObj *pObj, const char *old
 
   TAOS_CHECK_EXIT(grantOptExpireDaysCheck(pMnode, mergeObj.granted ? &mergeObj : &newObj, pObj->upgradeTime));
 
-  TAOS_CHECK_EXIT(grantOptTaExpireDaysCheck(pMnode, mergeObj.granted ? &mergeObj : &newObj, pObj->upgradeTime));
+  TAOS_CHECK_EXIT(grantOptIdmpExpireDaysCheck(pMnode, mergeObj.granted ? &mergeObj : &newObj, pObj->upgradeTime));
 
   TAOS_CHECK_EXIT(grantCheckGrantItemsAfterMerge(pMnode, mergeObj.granted ? &mergeObj : &newObj));
 
@@ -2654,7 +2835,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     const char      *src = GRANT_VERSION;
     (void)snprintf(tmp1, GRANTS_COL_MAX_LEN, "%s %s", TD_PRODUCT_NAME, src);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);
 
     if (gStatus.grantState == GRANT_STATE_REVOKED) {
       GRANT_EXPIRE_SHOW(gStatus.revokedExpireSec);
@@ -2667,7 +2848,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
       src = (gStatus.expired || (gStatus.multiTierExpired && gStatus.nDiskCfg > 1)) ? "true" : "false";
       STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);
     }
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
@@ -2677,14 +2858,14 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
         src = gGrantState[gStatus.grantState];
       }
       STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);
     }
 
-    GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, 64);
-    GRANT_ITEM_SHOW(gStatus.curDnodes, gStatus.limitDnodes, 16);
-    GRANT_ITEM_SHOW(gStatus.curCpuCores, gStatus.limitCpuCores, 32);
-    GRANT_ITEM_SHOW(gStatus.curVnodes, gStatus.limitVnodes, 32);
-    GRANT_ITEM_SHOW(gStatus.curStorageSize, gStatus.limitStorageSize, 64);
+    GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, TSDB_DATA_TYPE_BIGINT);
+    GRANT_ITEM_SHOW(gStatus.curDnodes, gStatus.limitDnodes, TSDB_DATA_TYPE_SMALLINT);
+    GRANT_ITEM_SHOW(gStatus.curCpuCores, gStatus.limitCpuCores, TSDB_DATA_TYPE_INT);
+    GRANT_ITEM_SHOW(gStatus.curVnodes, gStatus.limitVnodes, TSDB_DATA_TYPE_INT);
+    GRANT_ITEM_SHOW((double)gStatus.curStorageSize / 1024.0, gStatus.limitStorageSize, TSDB_DATA_TYPE_DOUBLE);
   _end:
     ++numOfRows;
   }
@@ -2701,7 +2882,7 @@ _exit:
 static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {}
 
 /**
- * @param type: 0x01 data-in, 0x02 display current value,
+ * @param type: 0x01 data-in, 0x02 display current value, 0x04 display current value as double pointer
  */
 static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows, const char *name, const char *display,
                                         int64_t expire, int64_t curVal, int64_t limit, int8_t type, bool optional) {
@@ -2752,13 +2933,17 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
                    "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
                    curVal, limit, expire, expire != GRANT_UNIQ_UNLIMITED ? ts : GRANT_UNIQ_UNLIMITED_S);
   } else if (limit == GRANT_UNIQ_UNLIMITED) {
-    if (type & 0x02) {
+    if (type & 0x04) {
+      (void)snprintf(qBuf, colLen, "%.3lf/%s", *(double *)curVal, GRANT_UNIQ_UNLIMITED_S);
+    } else if (type & 0x02) {
       (void)snprintf(qBuf, colLen, "%" PRIi64 "/%s", curVal, GRANT_UNIQ_UNLIMITED_S);
     } else {
       (void)snprintf(qBuf, colLen, "%s", GRANT_UNIQ_UNLIMITED_S);
     }
   } else if (limit != GRANT_UNIQ_UNUTILIZED) {
-    if (type & 0x02) {
+    if (type & 0x04) {
+      (void)snprintf(qBuf, colLen, "%.3lf/%" PRIi64, *(double *)curVal, limit);
+    } else if (type & 0x02) {
       (void)snprintf(qBuf, colLen, "%" PRIi64 "/%" PRIi64, curVal, limit);
     } else {
       (void)snprintf(qBuf, colLen, "%" PRIi64, limit);
@@ -2796,9 +2981,9 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
                                              pStatus->curCpuCores, pStatus->limitCpuCores, 2, false));
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "vnodes", "Vnodes", basicExpireSec, pStatus->curVnodes,
                                              pStatus->limitVnodes, 2, false));
+    double storageSize = (double)pStatus->curStorageSize / 1024.0;
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "storage_size", "Storage Size", basicExpireSec,
-                                             pStatus->curStorageSize, pStatus->limitStorageSize, 2, false));
-
+                                             (int64_t)&storageSize, pStatus->limitStorageSize, 4, false));
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM],
                                              gGrantDisplay[GRANT_OPT_STREAM], pStatus->streamExpireSec,
                                              pStatus->curStreams, pStatus->limitStreams, 2, true));
@@ -2821,8 +3006,8 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DATA_BAK_RST],
                                              gGrantDisplay[GRANT_OPT_DATA_BAK_RST], pStatus->bakRstExpireSec, 0,
                                              GRANT_UNIQ_UNUTILIZED, 0, true));
-    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_OBJECT_STORAGE],
-                                             gGrantDisplay[GRANT_OPT_OBJECT_STORAGE], pStatus->objectStorageExpireSec,
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SHARED_STORAGE],
+                                             gGrantDisplay[GRANT_OPT_SHARED_STORAGE], pStatus->sharedStorageExpireSec,
                                              0, GRANT_UNIQ_UNUTILIZED, 0, true));
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_ACTIVE_ACTIVE],
                                              gGrantDisplay[GRANT_OPT_ACTIVE_ACTIVE], pStatus->activeActiveExpireSec, 0,
@@ -2836,6 +3021,9 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_TD_GPT],
                                              gGrantDisplay[GRANT_OPT_TD_GPT], pStatus->tdGptExpireSec,
                                              pStatus->curAnodes, pStatus->limitAnodes, 2, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_TD_MOUNT],
+                                             gGrantDisplay[GRANT_OPT_TD_MOUNT], pStatus->mountExpireSec,
+                                             pStatus->curMounts, pStatus->limitMounts, 2, true));
     taosRLockLatch(&grantHandle.rwLock);
 
     // dynamic grantItem64
@@ -2872,40 +3060,42 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
     taosRUnLockLatch(&grantHandle.rwLock);
 
-    {  // TDasset grant items
+    {  // TDengine IDMP grant items
        // with expire and limits
-      int64_t taBasicExpireSec = pStatus->taBasicExpireSec;
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "ta_ts_attr", "TDasset Time-Series Attributes",
-                                               taBasicExpireSec, 0, pStatus->taLimitTsAttributes, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "ta_nts_attr", "TDasset Non-Time-Series Attributes",
-                                               taBasicExpireSec, 0, pStatus->taLimitNonTsAttributes, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "ta_element", "TDasset Elements", taBasicExpireSec,
-                                               0, pStatus->taLimitElements, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "ta_server", "TDasset Servers", taBasicExpireSec, 0,
-                                               pStatus->taLimitServers, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "ta_cpu_core", "TDasset CPU Cores", taBasicExpireSec,
-                                               0, pStatus->taLimitCpuCores, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "ta_user", "TDasset Users", taBasicExpireSec, 0,
-                                               pStatus->taLimitUsers, 0, true));
+      int64_t idmpBasicExpireSec = pStatus->idmpBasicExpireSec;
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "idmp_ts_attr",
+                                               "TDengine IDMP Time-Series Attributes", idmpBasicExpireSec, 0,
+                                               pStatus->idmpLimitTsAttributes, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "idmp_nts_attr",
+                                               "TDengine IDMP Non-Time-Series Attributes", idmpBasicExpireSec, 0,
+                                               pStatus->idmpLimitNonTsAttributes, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "idmp_element", "TDengine IDMP Elements",
+                                               idmpBasicExpireSec, 0, pStatus->idmpLimitElements, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "idmp_server", "TDengine IDMP Servers",
+                                               idmpBasicExpireSec, 0, pStatus->idmpLimitServers, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "idmp_cpu_core", "TDengine IDMP CPU Cores",
+                                               idmpBasicExpireSec, 0, pStatus->idmpLimitCpuCores, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "idmp_user", "TDengine IDMP Users",
+                                               idmpBasicExpireSec, 0, pStatus->idmpLimitUsers, 0, true));
       // with expire and no limits
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantTaName[GRANT_OPT_TA_VERSION_CTRL],
-                                               gGrantTaDisplay[GRANT_OPT_TA_VERSION_CTRL],
-                                               pStatus->taVersionCtrlExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantTaName[GRANT_OPT_TA_DATA_FORECAST],
-                                               gGrantTaDisplay[GRANT_OPT_TA_DATA_FORECAST],
-                                               pStatus->taDataForecastExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantTaName[GRANT_OPT_TA_DATA_DETECT],
-                                               gGrantTaDisplay[GRANT_OPT_TA_DATA_DETECT],
-                                               pStatus->taDataDetectExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantTaName[GRANT_OPT_TA_DATA_QUALITY],
-                                               gGrantTaDisplay[GRANT_OPT_TA_DATA_QUALITY],
-                                               pStatus->taDataQualityExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
-      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantTaName[GRANT_OPT_TA_AI_CHAT_GEN],
-                                               gGrantTaDisplay[GRANT_OPT_TA_AI_CHAT_GEN], pStatus->taAiChatGenExpireSec,
-                                               0, GRANT_UNIQ_UNUTILIZED, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantIdmpName[GRANT_OPT_IDMP_VERSION_CTRL],
+                                               gGrantIdmpDisplay[GRANT_OPT_IDMP_VERSION_CTRL],
+                                               pStatus->idmpVersionCtrlExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantIdmpName[GRANT_OPT_IDMP_DATA_FORECAST],
+                                               gGrantIdmpDisplay[GRANT_OPT_IDMP_DATA_FORECAST],
+                                               pStatus->idmpDataForecastExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantIdmpName[GRANT_OPT_IDMP_DATA_DETECT],
+                                               gGrantIdmpDisplay[GRANT_OPT_IDMP_DATA_DETECT],
+                                               pStatus->idmpDataDetectExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantIdmpName[GRANT_OPT_IDMP_DATA_QUALITY],
+                                               gGrantIdmpDisplay[GRANT_OPT_IDMP_DATA_QUALITY],
+                                               pStatus->idmpDataQualityExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
+      TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantIdmpName[GRANT_OPT_IDMP_AI_CHAT_GEN],
+                                               gGrantIdmpDisplay[GRANT_OPT_IDMP_AI_CHAT_GEN],
+                                               pStatus->idmpAiChatGenExpireSec, 0, GRANT_UNIQ_UNUTILIZED, 0, true));
       taosRLockLatch(&grantHandle.rwLock);
 
-      // TDasset future grant items
+      // TDengine IDMP future grant items
       int32_t nFuture = taosArrayGetSize(pStatus->pItemT64);
       for (int32_t i = 0; i < nFuture; ++i) {
         SGrantItem64 *pItem = TARRAY_GET_ELEM(pStatus->pItemT64, i);
@@ -3013,7 +3203,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3030,7 +3220,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3049,7 +3239,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3067,7 +3257,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       qBuf += tmpLen;
       qBuf[0] = 0;
       varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
-      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
     }
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
@@ -3087,7 +3277,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       (void)snprintf(qBuf, GRANT_ACTIVE_SIGN_LEN + 1, "%s", sign ? sign : "");
       taosMemoryFreeClear(sign);
       varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
     }
 
     ++numOfRows;
@@ -3142,7 +3332,7 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     (void)snprintf(qBuf, TSDB_CLUSTER_ID_LEN + 1, "%s", grantObj.clusterId);
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3162,12 +3352,12 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       ++index;
       sdbRelease(pSdb, pDnode);
     }
-    COL_DATA_SET_VAL_GOTO((const char *)&index, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&index, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3175,7 +3365,7 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
       snprintf(qBuf, TSDB_VERSION_LEN, "%s", td_version);
       varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
     }
 
     ++numOfRows;
@@ -3265,6 +3455,9 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->curVnodes));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->limitStorageSize));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->curStorageSize));
+  // since 3.3.7.x
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p16));
+
   // for future grantItems
 
   tEndEncode(&encoder);
@@ -3333,6 +3526,10 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->curVnodes));
     TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->limitStorageSize));
     TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->curStorageSize));
+  }
+  // since 3.3.7.x
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p16));
   }
   // for future grantItems
   // ...
@@ -3442,13 +3639,13 @@ static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pDnode->id, false, pDnode, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDnode->id, false, pDnode, pShow->pIter, _exit);
     ++cols;
 
     const char *keyStr = getEncryptKeyStatStr(online ? pDnode->encryptionKeyStat : ENCRYPT_KEY_STAT_UNKNOWN);
     STR_TO_VARSTR(buf, keyStr)
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO(buf, false, pDnode, _exit);
+    COL_DATA_SET_VAL_GOTO(buf, false, pDnode, pShow->pIter, _exit);
 
     ++numOfRows;
     sdbRelease(pSdb, pDnode);
