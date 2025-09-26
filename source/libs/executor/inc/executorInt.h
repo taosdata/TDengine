@@ -135,6 +135,7 @@ typedef struct SExprSupp {
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
   bool            hasWindowOrGroup;
+  bool            hasIndefRowsFunc;
 } SExprSupp;
 
 typedef enum {
@@ -678,7 +679,18 @@ typedef struct SWindowRowsSup {
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
+  uint32_t    numNullRows;  // number of continuous rows with null state col
 } SWindowRowsSup;
+
+// return true if there are continuous rows with null state col
+static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
+  return pRowSup->numNullRows > 0;
+}
+
+// reset on initialization or found of a row with non-null state col
+static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
+  pRowSup->numNullRows = 0;
+}
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 
@@ -710,6 +722,7 @@ typedef struct SStateWindowOperatorInfo {
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
   int64_t               trueForLimit;
+  EStateWinExtendOption extendOption;
 } SStateWindowOperatorInfo;
 
 
@@ -744,6 +757,7 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void cleanupBasicInfo(SOptrBasicInfo* pInfo);
 
 int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, SFunctionStateStore* pStore);
+void checkIndefRowsFuncs(SExprSupp* pSup);
 void    cleanupExprSupp(SExprSupp* pSup);
 void    cleanupExprSuppWithoutFilter(SExprSupp* pSupp);
 
@@ -792,7 +806,7 @@ int32_t     getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, int64_t* def
 
 extern void doDestroyExchangeOperatorInfo(void* param);
 
-int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 
@@ -809,7 +823,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
                               int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams);
 int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
                                         SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
-                                        const void* pExtraParams, bool doSelectFunc);
+                                        const void* pExtraParams, bool doSelectFunc, bool hasIndefRowsFunc);
 
 int32_t setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                           bool createDummyCol);

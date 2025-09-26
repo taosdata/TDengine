@@ -7630,29 +7630,6 @@ static int32_t tsmaOptRewriteScan(STSMAOptCtx* pTsmaOptCtx, SScanLogicNode* pNew
   return code;
 }
 
-static int32_t tsmaOptCreateWStart(int8_t precision, SFunctionNode** pWStartOut) {
-  SFunctionNode* pWStart = NULL;
-  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pWStart);
-  if (NULL == pWStart) {
-    return code;
-  }
-  tstrncpy(pWStart->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
-  int64_t pointer = (int64_t)pWStart;
-  char    name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-  int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64, pWStart->functionName, pointer);
-  (void)taosHashBinary(name, len);
-  tstrncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN);
-  pWStart->node.resType.precision = precision;
-
-  code = fmGetFuncInfo(pWStart, NULL, 0);
-  if (code) {
-    nodesDestroyNode((SNode*)pWStart);
-  } else {
-    *pWStartOut = pWStart;
-  }
-  return code;
-}
-
 static int32_t tsmaOptRewriteParent(STSMAOptCtx* pTsmaOptCtx, SLogicNode* pParent, SScanLogicNode* pScan,
                                     const STSMAOptUsefulTsma* pTsma) {
   int32_t           code = 0;

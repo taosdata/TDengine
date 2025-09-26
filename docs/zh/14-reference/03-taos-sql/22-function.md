@@ -636,6 +636,50 @@ taos> select truncate(8888.88, -1);
     8880.000000000000000 |
 ```
 
+#### CORR
+
+```sql
+CORR(expr1, expr2)
+```
+
+**功能说明**：获得两列数据之间的线性关系强度和方向，返回结果在 -1 和 1 之间，又即皮尔逊相关系数（Pearson correlation coefficient）。
+
+**版本**：v3.3.8.0
+
+**返回结果类型**：double 类型。
+
+**适用数据类型**：
+
+- `expr1`：数值类型。
+- `expr2`：数值类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 若 `expr1` 或 `expr2` 为 NULL，返回 NULL。
+
+**举例**：
+
+```sql
+taos> select k, j from test_corr;
+      k      |      j      |
+============================
+           1 |           2 |
+           2 |           3 |
+           3 |           5 |
+           4 |           7 |
+           5 |           8 |
+
+
+taos> select corr(k, j) from test_corr;
+         corr(k,j)         |
+============================
+         0.992277876713668 |
+```
+
 ### 位运算函数
 
 #### CRC32
@@ -873,11 +917,11 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 
 #### FIND_IN_SET
 
-```
+```sql
 FIND_IN_SET(expr1, expr2[, expr3])
 ```
 
-**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，返回 expr1 在该列表中的序号，如存在多个，则返回第一个的序号, 不存在则返回0。 expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`，。
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，返回 expr1 在该列表中的序号，如存在多个，则返回第一个的序号, 不存在则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
 
 **返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
 
@@ -905,11 +949,11 @@ LENGTH(expr)
 
 #### LIKE_IN_SET
 
-```
+```sql
 LIKE_IN_SET(expr1, expr2[, expr3])
 ```
 
-**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 使用 `LIKE` 运算符的语义与列表中的字符串进行匹配，返回第一个匹配项的序号，无匹配项则返回0。 expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`，。
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 使用 `LIKE` 运算符的语义与列表中的字符串进行匹配，返回第一个匹配项的序号，无匹配项则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
 
 **返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
 
@@ -1002,11 +1046,11 @@ taos> select position('d' in 'cba');
 
 #### REGEXP_IN_SET
 
-```
+```sql
 REGEXP_IN_SET(expr1, expr2[, expr3])
 ```
 
-**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 作为正则表达式匹配列表中的字符串，返回第一个匹配项的序号，无匹配项则返回0。 expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`，。
+**功能说明**：将 expr2 以 expr3 为分隔符切分为一个字符串列表，将 expr1 作为正则表达式匹配列表中的字符串，返回第一个匹配项的序号，无匹配项则返回 0。expr3 不可以是 NULL 或空串，如未提供该数，其默认值为 `,`。
 
 **返回结果类型**：BIGINT。如果参数 expr1 或 expr2 包含 NULL 值，则输出值为 NULL。
 
@@ -1553,6 +1597,7 @@ DATE(expr)
 **举例**：
 
 (注意：例中语句在UTC+0800时区执行，精度为毫秒)
+
 ```sql
 taos> select date(946656000000);
        date(946656000000)       |
@@ -2392,6 +2437,7 @@ PERCENTILE(expr, p [, p1] ... )
 
 **使用说明**：
 
+- PERCENTILE 函数不支持虚拟表。
 - *P* 值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX;
 - 同时计算针对同一列的多个分位数时，建议使用一个 PERCENTILE 函数和多个参数的方式，能很大程度上降低查询的响应时间。
   比如，使用查询 `SELECT percentile(col, 90, 95, 99) FROM table`，性能会优于 `SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table`。

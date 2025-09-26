@@ -322,6 +322,7 @@ int32_t createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf, c
 int32_t initTableBlockScanInfo(STableBlockScanInfo* pScanInfo, uint64_t uid, SSHashObj* pTableMap,
                                STsdbReader* pReader);
 void    clearBlockScanInfo(STableBlockScanInfo* p);
+void    clearBlockScanInfoLoadInfo(STableBlockScanInfo* p);
 void    destroyAllBlockScanInfo(SSHashObj** pTableMap);
 void    resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
 void    cleanupInfoForNextFileset(SSHashObj* pTableMap);

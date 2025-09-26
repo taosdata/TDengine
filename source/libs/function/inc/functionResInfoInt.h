@@ -150,6 +150,16 @@ typedef struct SGconcatRes {
   bool     nchar;
 } SGconcatRes;
 
+typedef struct SCorrRes {
+  double  result;
+  double  sumLeft;
+  double  sumRight;
+  double  quadLeft;
+  double  quadRight;
+  double  productVal;
+  int64_t count;
+} SCorrRes;
+
 typedef struct SHistBin {
   double  val;
   int64_t num;

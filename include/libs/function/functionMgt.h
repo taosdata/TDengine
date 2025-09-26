@@ -69,6 +69,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STATE_DURATION,
   FUNCTION_TYPE_FORECAST,
   FUNCTION_TYPE_IMPUTATION,
+  FUNCTION_TYPE_CORR,
+
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -240,6 +242,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
   FUNCTION_TYPE_STDDEV_SAMP_MERGE,
   FUNCTION_TYPE_STDVAR_SAMP_MERGE,
+  FUNCTION_TYPE_CORR_PARTIAL,
+  FUNCTION_TYPE_CORR_MERGE,
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -280,6 +284,7 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 
 bool          fmIsBuiltinFunc(const char* pFunc);
 EFunctionType fmGetFuncType(const char* pFunc);
+EFunctionType fmGetFuncTypeFromId(int32_t funcId);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
@@ -359,9 +364,7 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
 int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 
 #ifdef BUILD_NO_CALL
-int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
-bool    fmIsInvertible(int32_t funcId);
 #endif
 
 char* fmGetFuncName(int32_t funcId);
@@ -388,13 +391,12 @@ bool    fmIsCountLikeFunc(int32_t funcId);
 
 int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv* pEnv);
 
-int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes,
-                                      const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
-
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 
-void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data,
-                                    int32_t* dataLen);
+void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -66,6 +66,7 @@ typedef enum {
 #define MERGE_TASK_ASYNC     2
 #define COMPACT_TASK_ASYNC   3
 #define RETENTION_TASK_ASYNC 4
+#define SCAN_TASK_ASYNC      5
 
 int32_t vnodeAsyncOpen();
 void    vnodeAsyncClose();
@@ -153,6 +154,7 @@ void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
+int32_t    vnodeSetElectBaseline(SVnode* pVnode, int32_t ms);
 
 #ifdef __cplusplus
 }

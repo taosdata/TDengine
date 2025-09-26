@@ -62,7 +62,7 @@ class TestIntervalPartition:
 
         # create stream
         tdSql.execute(
-            f"CREATE STREAM `{self.stream}` INTERVAL({interval}s) SLIDING({interval}s) FROM stb PARTITION BY {partition_by} INTO `{self.stream}` AS SELECT _tcurrent_ts as wstart, _tnext_ts as wend, count(val) FROM %%trows;",
+            f"CREATE STREAM `{self.stream}` INTERVAL({interval}s) SLIDING({interval}s) FROM stb PARTITION BY {partition_by} INTO `{self.stream}` AS SELECT _twend as wstart, _twend+{interval}s as wend, count(val) FROM %%trows;",
             queryTimes=1,
         )
         tdStream.checkStreamStatus()

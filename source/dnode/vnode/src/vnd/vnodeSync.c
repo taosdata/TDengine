@@ -211,7 +211,7 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   int32_t code = 0;
   int64_t seq = 0;
 
-  taosThreadMutexLock(&pVnode->lock);
+  (void)taosThreadMutexLock(&pVnode->lock);
   code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
   bool wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
@@ -860,6 +860,15 @@ int32_t vnodeSetSyncTimeout(SVnode *pVnode, int32_t ms) {
   int32_t code = syncResetTimer(pVnode->sync, tsVnodeElectIntervalMs, tsVnodeHeartbeatIntervalMs);
   if (code) {
     vError("vgId:%d, failed to vnode Set SyncTimeout since %s", pVnode->config.vgId, tstrerror(code));
+    return code;
+  }
+  return 0;
+}
+
+int32_t vnodeSetElectBaseline(SVnode* pVnode, int32_t ms){
+  int32_t code = syncSetElectBaseline(pVnode->sync, ms);
+  if (code) {
+    vError("vgId:%d, failed to set electBaseline since %s", pVnode->config.vgId, tstrerror(code));
     return code;
   }
   return 0;

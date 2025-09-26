@@ -114,6 +114,7 @@ SWords shellCommands[] = {
     {"compact database <db_name>", 0, 0, NULL},
     {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
 #endif
+    {"scan database <db_name>", 0, 0, NULL},
     {"desc <all_table>;", 0, 0, NULL},
     {"describe <all_table>;", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
