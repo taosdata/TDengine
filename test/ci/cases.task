@@ -258,6 +258,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stddev.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_sum.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_gconcat.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_smoking.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_first_last.py
