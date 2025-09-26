@@ -98,8 +98,8 @@ static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 
 static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs,
-                                          STimeWindow tw, SArray *vgroupIds, bool metaOnly,
-                                          SCompactDbRsp *pCompactRsp) {
+                                          STimeWindow tw, SArray *vgroupIds, bool metaOnly, ETsdbOpType type,
+                                          ETriggerType triggerType, SCompactDbRsp *pCompactRsp) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -130,7 +130,8 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
       int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
       SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
 
-      if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly)) != 0) {
+      if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly, type,
+                                              triggerType)) != 0) {
         sdbRelease(pSdb, pVgroup);
         TAOS_RETURN(code);
       }
@@ -152,7 +153,8 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
       if (pIter == NULL) break;
 
       if (pVgroup->dbUid == pDb->uid) {
-        if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly)) != 0) {
+        if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly, type,
+                                                triggerType)) != 0) {
           sdbCancelFetch(pSdb, pIter);
           sdbRelease(pSdb, pVgroup);
           TAOS_RETURN(code);
@@ -197,7 +199,8 @@ static int32_t mndBuildCompactDbRsp(SCompactDbRsp *pCompactRsp, int32_t *pRspLen
   TAOS_RETURN(code);
 }
 
-int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds, bool metaOnly) {
+int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds, bool metaOnly,
+                     ETsdbOpType type, ETriggerType triggerType) {
   int32_t       code = 0;
   SCompactDbRsp compactRsp = {0};
 
@@ -239,7 +242,8 @@ int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw,
   TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, vgroupIds, metaOnly, &compactRsp),
+  TAOS_CHECK_GOTO(mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, vgroupIds, metaOnly, type, triggerType,
+                                             &compactRsp),
                   NULL, _OVER);
 
   if (pReq) {
@@ -280,7 +284,13 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB, pDb), NULL, _OVER);
 
-  code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange, compactReq.vgroupIds, compactReq.metaOnly);
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
+  code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange, compactReq.vgroupIds, compactReq.metaOnly,
+                      TSDB_OPTR_NORMAL, TSDB_TRIGGER_MANUAL);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
@@ -290,7 +300,7 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed to process compact db req since %s", compactReq.db, terrstr());
+    mError("db:%s, failed to process compact db req since %s", compactReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
