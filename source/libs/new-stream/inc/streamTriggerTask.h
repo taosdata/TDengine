@@ -82,8 +82,9 @@ typedef struct SSTriggerRealtimeGroup {
   STimeWindow prevWindow;          // the last closed window, for sliding trigger
   SObjList    windows;             // SObjList<SSTriggerWindow>, windows not yet closed
   SObjList    pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
+  SSHashObj  *pDoneVersions;       // SSHashObj<vgId, SObjList<{skey, ver}>>
 
-  int64_t  nextExecTime;  // use for max delay and batch window mode
+  int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
 } SSTriggerRealtimeGroup;
 
@@ -188,6 +189,7 @@ typedef struct SSTriggerRealtimeContext {
   SObjPool              tableUidPool;   // SObjPool<{uid, vgId}>
   SObjPool              windowPool;     // SObjPool<SSTriggerWindow>
   SObjPool              calcParamPool;  // SObjPool<SSTriggerCalcParam>
+  SObjPool              versionPool;    // SObjPool<{skey, ver}>
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
