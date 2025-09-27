@@ -335,7 +335,7 @@ static bool tsdbFSetNeedRetention(STFileSet *fset, int32_t expLevel) {
 
   return false;
 }
-
+#ifdef TD_ENTERPRISE
 static bool tsdbShouldRollup(STsdb *tsdb, SRTNer *rtner, SRtnArg *rtnArg) {
   SVnode    *pVnode = tsdb->pVnode;
   STFileSet *fset = rtner->fset;
@@ -356,7 +356,7 @@ static bool tsdbShouldRollup(STsdb *tsdb, SRTNer *rtner, SRtnArg *rtnArg) {
   }
   return false;
 }
-
+#endif
 int32_t tsdbRetention(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;

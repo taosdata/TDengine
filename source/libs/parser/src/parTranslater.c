@@ -13181,6 +13181,7 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
 }
 
 static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* pStmt) {
+#ifdef TD_ENTERPRISE
   int32_t    code = TSDB_CODE_SUCCESS;
   STrimDbReq req = {.optrType = TSDB_OPTR_ROLLUP, .triggerType = TSDB_TRIGGER_MANUAL};
   SName      name;
@@ -13211,6 +13212,9 @@ static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* p
   }
   tFreeSTrimDbReq(&req);
   return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 static int32_t translateScanDb(STranslateContext* pCxt, SScanDatabaseStmt* pStmt) {
