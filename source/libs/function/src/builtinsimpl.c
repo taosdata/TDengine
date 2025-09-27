@@ -1494,6 +1494,214 @@ int32_t stdCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t stddevsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SStdRes*              pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  double                avg;
+
+  if (pStddevRes->count == 0) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+    return functionFinalize(pCtx, pBlock);
+  }
+
+  if (pStddevRes->count == 1) {
+    pStddevRes->result = 0.0;
+  } else {
+    pStddevRes->result = sqrt(pStddevRes->quadraticDSum / (pStddevRes->count - 1));
+  }
+
+  // check for overflow
+  if (isinf(pStddevRes->result) || isnan(pStddevRes->result)) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+  }
+
+  return functionFinalize(pCtx, pBlock);
+}
+
+int32_t stdvarsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SStdRes*              pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  double                avg;
+
+  if (pStddevRes->count == 0) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+    return functionFinalize(pCtx, pBlock);
+  }
+
+  if (pStddevRes->count == 1) {
+    pStddevRes->result = 0.0;
+  } else {
+    pStddevRes->result = pStddevRes->quadraticDSum / (pStddevRes->count - 1);
+  }
+
+  // check for overflow
+  if (isinf(pStddevRes->result) || isnan(pStddevRes->result)) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+  }
+
+  return functionFinalize(pCtx, pBlock);
+}
+
+bool gconcatGetFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SGconcatRes);
+  return true;
+}
+
+int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+
+  SGconcatRes* pRes = GET_ROWCELL_INTERBUF(pResultInfo);
+  (void)memset(pRes, 0, sizeof(SStdRes));
+
+  // pRes->separator = varDataVal(pCtx->param[0].param.pz);
+
+  int32_t sepParamIdx = pCtx->numOfParams - 1;
+  pRes->separator = pCtx->param[sepParamIdx].param.pz;
+  pRes->type = pCtx->param[sepParamIdx].param.nType;
+
+  /*
+  SInputColumnInfoData* pInput = &pCtx->input;
+  int32_t               type = pInput->pData[0]->info.type;
+
+  pRes->nchar = (type == TSDB_DATA_TYPE_NCHAR);
+  */
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int32_t type, VarDataLenT* dataLen,
+                             void* charsetCxt) {
+  if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
+    TdUcs4* newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
+    if (NULL == newBuf) {
+      return terrno;
+    }
+    int32_t len = varDataLen(input);
+    bool    ret =
+        taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len, charsetCxt);
+    if (!ret) {
+      taosMemoryFree(newBuf);
+      return TSDB_CODE_SCALAR_CONVERT_ERROR;
+    }
+    (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
+    *dataLen += len;
+    taosMemoryFree(newBuf);
+  } else {
+    (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
+    *dataLen += varDataLen(input);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
+  int32_t               code = 0, numOfElem = 0;
+  SInputColumnInfoData* pInput = &pCtx->input;
+  int32_t               rowStart = pInput->startRowIndex;
+  int32_t               numOfRows = pInput->numOfRows;
+  int32_t               numOfCols = pInput->numOfInputCols;
+  SGconcatRes*          pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  char*                 sep = pRes->separator;
+  bool                  hasNchar = pRes->nchar;
+  VarDataLenT           dataLen = 0;
+  bool                  prefixSep = false;
+
+  if (!pRes->result) {
+    pRes->result = taosMemoryCalloc(1, TSDB_MAX_FIELD_LEN);
+    if (!pRes->result) {
+      return terrno;
+    }
+
+    varDataSetLen(pRes->result, 0);
+
+    for (int c = 0; c < numOfCols - 1; ++c) {
+      SColumnInfoData* pCol = pInput->pData[c];
+      int32_t          type = pCol->info.type;
+
+      if (TSDB_DATA_TYPE_NCHAR == type) {
+        pRes->nchar = true;
+      }
+    }
+  } else {
+    dataLen = varDataLen(pRes->result);
+
+    prefixSep = true;
+    /*
+    code = gconcatHelper(sep, pRes->result, hasNchar, pRes->type, &dataLen, NULL);
+    if (code) {
+      goto _over;
+    }
+    */
+  }
+
+  // computing based on the true data block
+  char*            buf = pRes->result;
+  SColumnInfoData* pCol = pInput->pData[numOfCols - 1];
+
+  sep = colDataGetData(pCol, 0);
+  pRes->type = pCol->info.type;
+  for (int r = rowStart; r < rowStart + numOfRows; ++r) {
+    if (prefixSep) {
+      // concat the separator
+      // setup sepatator's charset instead of the default: pRes->charsetCxt
+
+      code = gconcatHelper(sep, buf, hasNchar, pRes->type, &dataLen, NULL);
+      if (code) {
+        goto _over;
+      }
+    }
+
+    for (int c = 0; c < numOfCols - 1; ++c) {
+      SColumnInfoData* pCol = pInput->pData[c];
+      int32_t          type = pCol->info.type;
+
+      if (IS_NULL_TYPE(type) || (pCol->hasNull && colDataIsNull_f(pCol, r))) {
+        continue;
+      }
+
+      // concat this row's all columns
+      code = gconcatHelper(colDataGetData(pCol, r), buf, hasNchar, pInput->pData[c]->info.type, &dataLen, NULL);
+      if (code) {
+        goto _over;
+      }
+    }
+
+    prefixSep = true;
+  }
+
+  varDataSetLen(buf, dataLen);
+  numOfElem += 1;
+
+_over:
+  // data in the check operation are all null, not output
+  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return code;
+}
+
+int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t               code = 0;
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SGconcatRes*          pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t               slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData*      pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  if (NULL == pCol) {
+    taosMemoryFree(pRes->result);
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
+  code = colDataSetVal(pCol, pBlock->info.rows, pRes->result, NULL == pRes->result);
+
+  taosMemoryFree(pRes->result);
+
+  return code;
+}
+
 bool getLeastSQRFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SLeastSQRInfo);
   return true;
