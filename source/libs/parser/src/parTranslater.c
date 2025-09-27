@@ -13183,18 +13183,27 @@ static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* p
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, req.db);
-  if (pStmt->pStart && pStmt->pEnd) {
+  if (pStmt->pStart || pStmt->pEnd) {
     code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &req.tw);
     if (TSDB_CODE_SUCCESS == code) {
       SDbCfgInfo dbCfg = {0};
       code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
       if (TSDB_CODE_SUCCESS == code) {
-        if (dbCfg.precision != TSDB_TIME_PRECISION_MICRO) {
-          req.tw.skey = convertTimePrecision(req.tw.skey, dbCfg.precision, TSDB_TIME_PRECISION_MICRO);
-          req.tw.ekey = convertTimePrecision(req.tw.ekey, dbCfg.precision, TSDB_TIME_PRECISION_MICRO);
+        if (dbCfg.precision != TSDB_TIME_PRECISION_MILLI) {
+          if (pStmt->pStart) {
+            req.tw.skey = convertTimePrecision(req.tw.skey, dbCfg.precision, TSDB_TIME_PRECISION_MILLI);
+          }
+          if (pStmt->pEnd) {
+            req.tw.ekey = convertTimePrecision(req.tw.ekey, dbCfg.precision, TSDB_TIME_PRECISION_MILLI);
+          }
         }
-        req.tw.skey /= 1000;  // convert to second
-        req.tw.ekey /= 1000;
+        // convert to second if specified
+        if (req.tw.skey != INT64_MIN) req.tw.skey /= 1000;  
+        if (req.tw.ekey != INT64_MAX) {
+          req.tw.ekey /= 1000;
+        } else {
+          req.tw.ekey = taosGetTimestampMs() / 1000;
+        }
       }
     }
   } else {
