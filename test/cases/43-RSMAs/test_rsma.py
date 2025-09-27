@@ -412,6 +412,11 @@ class TestCase:
         tdSql.query("show retentions")
         tdSql.checkRows(1)
         self.s5_0_wait_trim_done()
+        # rollup has effect since new commit happen after last rollup
+        tdSql.query("select * from d0.stb0")
+        tdSql.checkRows(6)
+        tdSql.query("select * from d0.ctb0")
+        tdSql.checkRows(3)
         # check rollup result
         tdSql.checkData(0, 0, '2024-10-01 08:00:00.000')
         tdSql.checkData(0, 1, 1)
