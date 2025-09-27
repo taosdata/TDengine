@@ -1128,13 +1128,13 @@ int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* writer, bool rollback) {
     code = tsdbSnapWriteFileSetEnd(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT);
+    code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     code = tsdbSnapWriteFileSetAbort(writer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT);
+    code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

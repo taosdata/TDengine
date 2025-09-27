@@ -350,7 +350,7 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
   tsdbMergeFileSetEndCloseReader(merger);
 
   // edit file system
-  TAOS_CHECK_GOTO(tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE, 0), &lino, _exit);
 
   (void)taosThreadMutexLock(&merger->tsdb->mutex);
   code = tsdbFSEditCommit(merger->tsdb->pFS);

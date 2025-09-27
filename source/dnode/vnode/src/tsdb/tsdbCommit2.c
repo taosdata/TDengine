@@ -619,7 +619,7 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   int32_t lino = 0;
 
   if (eno == 0) {
-    TAOS_CHECK_GOTO(tsdbFSEditBegin(committer->tsdb->pFS, committer->fopArray, TSDB_FEDIT_COMMIT), &lino, _exit);
+    TAOS_CHECK_GOTO(tsdbFSEditBegin(committer->tsdb->pFS, committer->fopArray, TSDB_FEDIT_COMMIT, 0), &lino, _exit);
   } else {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(eno));
