@@ -75,7 +75,7 @@ int32_t tsdbUpdateRetentionMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *task
 }
 
 void tsdbRemoveRetentionMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
 
   for (int32_t i = 0; i < TARRAY2_SIZE(&tsdb->pRetentionMonitor->stateArr); i++) {
     SRetentionState *state = TARRAY2_GET_PTR(&tsdb->pRetentionMonitor->stateArr, i);
@@ -89,16 +89,16 @@ void tsdbRemoveRetentionMonitorTask(STsdb *tsdb, SVATaskID *taskId) {
     }
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
 }
 
 void tsdbStopAllRetentionTask(STsdb *tsdb) {
   int32_t i;
 
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
 
   if (tsdb->pRetentionMonitor == NULL) {
-    TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
     return;
   }
 
@@ -114,12 +114,12 @@ void tsdbStopAllRetentionTask(STsdb *tsdb) {
     }
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return;
 }
 
 int32_t tsdbRetentionMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
+  (void)taosThreadMutexLock(&tsdb->mutex);
   rsp->compactId = 0;  // TODO
   rsp->vgId = TD_VID(tsdb->pVnode);
   rsp->numberFileset = tsdb->pRetentionMonitor->totalTasks;
@@ -137,6 +137,6 @@ int32_t tsdbRetentionMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) 
   } else {
     rsp->remainingTime = tsdb->pRetentionMonitor->totalSize / (20 * 1024 * 1024);  // suppose 20MB/s
   }
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
   return 0;
 }
