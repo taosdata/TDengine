@@ -51,6 +51,8 @@ static int32_t smGetSingleStreamProgress(SBatchMsg *pMsg, SBatchRspMsg *pRsp) {
   int32_t            lino = 0;
   SStreamProgressReq req = {0};
   SStreamProgressRsp rsp = {0};
+  SStreamTask       *pTask = NULL;
+  void              *taskAddr = NULL;
 
   QUERY_CHECK_CONDITION(pMsg->msgType == TDMT_MND_GET_STREAM_PROGRESS, code, lino, _end, TSDB_CODE_INVALID_MSG);
 
@@ -63,6 +65,11 @@ static int32_t smGetSingleStreamProgress(SBatchMsg *pMsg, SBatchRspMsg *pRsp) {
   rsp.fillHisFinished = true;
   rsp.progressDelay = 0;
 
+  code = streamAcquireTask(req.streamId, req.taskId, &pTask, &taskAddr);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = stTriggerTaskGetDelay(pTask, &rsp.progressDelay, &rsp.fillHisFinished);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   // encode response
   pRsp->msgLen = tSerializeStreamProgressRsp(NULL, 0, &rsp);
   QUERY_CHECK_CONDITION(pRsp->msgLen >= 0, code, lino, _end, terrno);
@@ -73,6 +80,9 @@ static int32_t smGetSingleStreamProgress(SBatchMsg *pMsg, SBatchRspMsg *pRsp) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (taskAddr != NULL) {
+    streamReleaseTask(taskAddr);
   }
   pRsp->reqType = pMsg->msgType;
   pRsp->msgIdx = pMsg->msgIdx;

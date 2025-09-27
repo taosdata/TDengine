@@ -168,7 +168,7 @@ class TestStreamDisorderVtable:
                 f"insert into {self.db}.ct4 values ('2025-01-01 00:00:02', 1);", # update
             ]
             tdSql.executes(sqls)
-            time.sleep(3)
+            time.sleep(10)
             sqls = [
                 f"delete from {self.db}.ct1 where cts == '2025-01-01 00:00:06';", # delete 
                 f"delete from {self.db}.ct2 where cts == '2025-01-01 00:00:06';", # delete 
