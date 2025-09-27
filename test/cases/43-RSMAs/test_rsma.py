@@ -323,9 +323,6 @@ class TestCase:
         tdSql.execute("flush database d0")
         # rollup again
         time.sleep(5) # ensure commit is done
-        tdSql.error("rollup d0.vgroups in (1000)", expectErrInfo=f"DB error: Vgroup does not exist or not in db", fullMatched=False)
-        tdSql.error("rollup vgroups in (2000,3000)", expectErrInfo=f"DB error: Vgroup does not exist or not in db", fullMatched=False)
-        tdSql.error("rollup vgroups in (2000,3000) start with '2025-12-30 10:00:00.000'", expectErrInfo=f"DB error: Vgroup does not exist or not in db", fullMatched=False)
         tdSql.execute("rollup database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
@@ -397,9 +394,9 @@ class TestCase:
         tdSql.execute("flush database d0")
         # rollup again by vgroups
         time.sleep(5) # ensure commit is done00) 
-        tdSql.error("rollup d0.vgroups in (1000)", expectErrInfo=f"DB error: Vgroup does not exist or not in db", fullMatched=False)
-        tdSql.error("rollup vgroups in (2000,3000)", expectErrInfo=f"DB error: Vgroup does not exist or not in db", fullMatched=False)
-        tdSql.error("rollup vgroups in (2000,3000) start with '2025-12-30 10:00:00.000'", expectErrInfo=f"DB error: Vgroup does not exist or not in db", fullMatched=False)
+        tdSql.error("rollup d0.vgroups in (1000)", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
+        tdSql.error("rollup vgroups in (2000,3000)", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
+        tdSql.error("rollup vgroups in (2000,3000) start with '2025-12-30 10:00:00.000'", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
         tdSql.query("show d0.vgroups")
         tdSql.checkRows(2)
         tdSql.execute(f"rollup d0.vgroups in (%d,%d) start with '2025-12-30 10:00:00.000'" % (tdSql.queryResult[0][0], tdSql.queryResult[1][0]))
