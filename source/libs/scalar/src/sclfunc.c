@@ -3873,6 +3873,12 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t anomalyCheckMaskFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t p = *(int64_t*) colDataGetData(pInput->columnData, 5);
+  colDataSetInt32(pOutput->columnData, pOutput->numOfRows, (int32_t *)&p);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int8_t data = 0;
   colDataSetInt8(pOutput->columnData, pOutput->numOfRows, &data);

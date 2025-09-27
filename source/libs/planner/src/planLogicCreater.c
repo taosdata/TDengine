@@ -1634,7 +1634,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 }
 
 static bool isForecastFunc(int32_t funcId) {
-  return fmIsForecastFunc(funcId) || fmIsForecastPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId) ||
+  return fmIsForecastFunc(funcId) || fmIsAnalysisPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId) ||
          fmisSelectGroupConstValueFunc(funcId);
 }
 
@@ -1675,7 +1675,7 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
 static bool isImputationFunc(int32_t funcId) {
   return fmIsImputationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId) ||
-         fmIsForecastPseudoColumnFunc(funcId);
+         fmIsAnalysisPseudoColumnFunc(funcId);
 }
 
 static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {

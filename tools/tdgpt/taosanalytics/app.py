@@ -102,8 +102,8 @@ def handle_ad_request():
 
     # 4. do anomaly detection
     try:
-        res_list, ano_window = do_ad_check(payload[data_index], payload[ts_index], algo, params)
-        result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window)}
+        res_list, ano_window, mask_list = do_ad_check(payload[data_index], payload[ts_index], algo, params)
+        result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask":mask_list}
         app_logger.log_inst.debug("anomaly-detection result: %s", str(result))
 
         return result

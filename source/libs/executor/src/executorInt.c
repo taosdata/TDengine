@@ -231,7 +231,7 @@ int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
   pColData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
   pColData->info.bytes = sizeof(int64_t);
 
-  int32_t code = colInfoDataEnsureCapacity(pColData, 5, false);
+  int32_t code = colInfoDataEnsureCapacity(pColData, 6, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -242,6 +242,9 @@ int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
   colDataSetInt64(pColData, 2, &interval);  // this value may be variable in case of 'n' and 'y'.
   colDataSetInt64(pColData, 3, &pQueryWindow->skey);
   colDataSetInt64(pColData, 4, &pQueryWindow->ekey);
+
+  interval = -1;
+  colDataSetInt64(pColData, 5,  &interval);
   return TSDB_CODE_SUCCESS;
 }
 
