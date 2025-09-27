@@ -240,6 +240,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid virtual table's ref column type";
     case TSDB_CODE_PAR_MISMATCH_STABLE_TYPE:
       return "Create child table using virtual super table";
+    case TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR:
+      return "Invalid expr in order by clause: %s";
     default:
       return "Unknown error";
   }

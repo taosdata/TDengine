@@ -2112,7 +2112,7 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    if ((pCxt->currClause == SQL_CLAUSE_ORDER_BY) && !(*pCol)->node.asParam) {
+    if (pCxt->currClause == SQL_CLAUSE_ORDER_BY) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
     if (DEAL_RES_ERROR != res && !found) {
@@ -3259,6 +3259,10 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** 
   if (!fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
+  if (isSetOperator(pCxt->pCurrStmt)) {
+    *pRewriteToColumn = true;
+    return rewriteToColumnAndRetranslate(pCxt, ppNode, TSDB_CODE_PAR_INVALID_WINDOW_PC);
+  }
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC);
   }
@@ -3281,6 +3285,10 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** pp
   if (0 == LIST_LENGTH(pFunc->pParameterList)) {
     if (pFunc->funcType == FUNCTION_TYPE_FORECAST_LOW || pFunc->funcType == FUNCTION_TYPE_FORECAST_HIGH) {
       return TSDB_CODE_SUCCESS;
+    }
+    if (isSetOperator(pCxt->pCurrStmt)) {
+      *pRewriteToColumn = true;
+      return rewriteToColumnAndRetranslate(pCxt, ppNode, TSDB_CODE_PAR_INVALID_TBNAME);
     }
     if (!isSelectStmt(pCxt->pCurrStmt) || NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
@@ -7825,6 +7833,8 @@ static int32_t appendPkParamForPkFunc(STranslateContext* pCxt, SSelectStmt* pSel
 
 typedef struct SReplaceOrderByAliasCxt {
   STranslateContext* pTranslateCxt;
+  int32_t            errCode;
+  SMsgBuf            msgBuf;
   SNodeList*         pProjectionList;
   bool               nameMatch;
   bool               notFound;
@@ -7855,6 +7865,10 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
     }
 
     pCxt->notFound = true;
+    if (pCxt->nameMatch) {
+      // when nameMatch is true, columns MUST be found in projection list!
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, ((SColumnNode*)*pNode)->colName);
+    }
   } else if (QUERY_NODE_ORDER_BY_EXPR == nodeType(*pNode)) {
     STranslateContext* pTransCxt = pCxt->pTranslateCxt;
     SNode*             pExpr = ((SOrderByExprNode*)*pNode)->pExpr;
@@ -7876,22 +7890,6 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
     }
-  } else if (pCxt->nameMatch && QUERY_NODE_VALUE != nodeType(*pNode)) {
-    FOREACH(pProject, pProjectionList) {
-      SExprNode* pExpr = (SExprNode*)pProject;
-      if (nodesEqualNode(*pNode, pProject)) {
-        SNode*  pNew = NULL;
-        int32_t code = nodesCloneNode(pProject, &pNew);
-        if (NULL == pNew) {
-          pCxt->pTranslateCxt->errCode = code;
-          return DEAL_RES_ERROR;
-        }
-        nodesDestroyNode(*pNode);
-        *pNode = pNew;
-        return DEAL_RES_CONTINUE;
-      }
-    }
-    pCxt->notFound = true;
   }
 
   return DEAL_RES_CONTINUE;
@@ -7899,14 +7897,21 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
 
 static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList,
                                    bool checkExists, bool nameMatch) {
+  // TODO(tony zhang): combine checkExists and nameMatch
+  // When comparing columns with projection exprs in this function, 
+  // we ALWAYS and ONLY need to compare their names.
+  // However, we need to check existance where orderByList comes 
+  // from set operator, while need not when it comes from select stmt.
   if (NULL == pOrderByList) {
     return TSDB_CODE_SUCCESS;
   }
   SReplaceOrderByAliasCxt cxt = {
       .pTranslateCxt = pCxt, .pProjectionList = pProjectionList, .nameMatch = nameMatch, .notFound = false};
+  cxt.msgBuf.buf = pCxt->msgBuf.buf;
+  cxt.msgBuf.len = pCxt->msgBuf.len;
   nodesRewriteExprsPostOrder(pOrderByList, replaceOrderByAliasImpl, &cxt);
   if (checkExists && cxt.notFound) {
-    return TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR;
+    pCxt->errCode = TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR;
   }
 
   return pCxt->errCode;
@@ -8497,15 +8502,13 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
 
   bool    other;
   int32_t code = translateClausePosition(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList, &other);
-  /*
-    if (TSDB_CODE_SUCCESS == code) {
-      if (other) {
-        pCxt->currClause = SQL_CLAUSE_ORDER_BY;
-        pCxt->pCurrStmt = (SNode*)pSetOperator;
-        code = translateExprList(pCxt, pSetOperator->pOrderByList);
-      }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (other) {
+      pCxt->currClause = SQL_CLAUSE_ORDER_BY;
+      pCxt->pCurrStmt = (SNode*)pSetOperator;
+      code = translateExprList(pCxt, pSetOperator->pOrderByList);
     }
-  */
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAlias(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList, true, true);
   }
