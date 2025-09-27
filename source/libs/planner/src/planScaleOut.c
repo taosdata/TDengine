@@ -14,6 +14,7 @@
  */
 
 #include "planInt.h"
+#include "plannodes.h"
 
 typedef struct SScaleOutContext {
   SPlanContext* pPlanCxt;
@@ -247,6 +248,7 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
       code = scaleOutForMerge(pCxt, pSubplan, level, pCurrentGroup);
       break;
     case SUBPLAN_TYPE_SCAN:
+    case SUBPLAN_TYPE_HSYSSCAN:
       code = scaleOutForScan(pCxt, pSubplan, level, pCurrentGroup);
       break;
     case SUBPLAN_TYPE_MODIFY:

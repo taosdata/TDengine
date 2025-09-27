@@ -31,6 +31,7 @@ typedef struct SVnodeMgmt {
   const char           *path;
   const char           *name;
   SQueryAutoQWorkerPool queryPool;
+  SQueryAutoQWorkerPool streamReaderPool;
   SWWorkerPool          fetchPool;
   SSingleWorker         mgmtWorker;
   SSingleWorker         mgmtMultiWorker;
@@ -45,7 +46,6 @@ typedef struct SVnodeMgmt {
   TdThread              thread;
   bool                  stop;
   TdThreadMutex         fileLock;
-  SQueryAutoQWorkerPool streamReaderPool;
 } SVnodeMgmt;
 
 typedef struct {
