@@ -948,10 +948,8 @@ _exit:
 }
 
 static int32_t mndProcessQueryRetentionTimer(SRpcMsg *pReq) {
-#ifdef TD_ENTERPRISE
   mTrace("start to process query trim timer");
   mndRetentionPullup(pReq->info.node);
-#endif
   return 0;
 }
 

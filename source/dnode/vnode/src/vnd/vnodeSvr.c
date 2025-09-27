@@ -1123,15 +1123,14 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_QUERY_COMPACT_PROGRESS:
       return vnodeQueryCompactProgress(pVnode, pMsg);
 
-    case TDMT_VND_QUERY_TRIM_PROGRESS:
-      return vnodeQueryRetentionProgress(pVnode, pMsg);
-
     case TDMT_VND_LIST_SSMIGRATE_FILESETS:
       return vnodeListSsMigrateFileSets(pVnode, pMsg);
 
     case TDMT_VND_QUERY_SSMIGRATE_PROGRESS:
       return vnodeQuerySsMigrateProgress(pVnode, pMsg);
 #endif
+    case TDMT_VND_QUERY_TRIM_PROGRESS:
+      return vnodeQueryRetentionProgress(pVnode, pMsg);
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
 #ifdef USE_TQ
