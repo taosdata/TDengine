@@ -20,9 +20,9 @@ class TDTestCase:
         tdSql.execute("insert into td_28068.ct4 using td_28068.st (branch, scenario) tags ('3.1', 'scenario2') values (1717122950000, 'query1', 9,10);")
 
     def run(self):
-        tdSql.query('select last(ts) as ts, last(branch) as branch, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch);')
+        tdSql.query('select last(ts) as ts, last(branch) as branch, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(st.branch);')
         tdSql.checkRows(4)
-        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch), last(scenario); ')
+        tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch), last(st.scenario); ')
         tdSql.checkRows(4)
         tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch); ')
         tdSql.checkRows(4)
