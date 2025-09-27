@@ -137,7 +137,7 @@ static int32_t tdRollupGenerateAggRow(SRollupCtx *pCtx, STSchema *pTSchema, SRow
               TD_VID(((STsdb *)pCtx->pTsdb)->pVnode), __func__, pResBlock->info.rows, aggRow->suid, aggRow->uid);
     TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
   } else {
-    tsdbInfo("vgId:%d %s res block has 1 row with %d cols, suid:%" PRId64 ", uid:%" PRId64,
+    tsdbTrace("vgId:%d %s res block has 1 row with %d cols, suid:%" PRId64 ", uid:%" PRId64,
              TD_VID(((STsdb *)pCtx->pTsdb)->pVnode), __func__, nCols, aggRow->suid, aggRow->uid);
   }
 
