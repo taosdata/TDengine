@@ -438,7 +438,7 @@ int32_t tsdbSnapRAWWriterPrepareClose(STsdbSnapRAWWriter* writer) {
   code = tsdbSnapRAWWriteFileSetEnd(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT, 0);
+  code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

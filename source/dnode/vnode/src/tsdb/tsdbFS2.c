@@ -683,7 +683,7 @@ static int32_t fset_cmpr_fn(const struct STFileSet *pSet1, const struct STFileSe
   return 0;
 }
 
-static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype, int32_t rollupLevel) {
+static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -723,7 +723,7 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT et
       } else if (etype == TSDB_FEDIT_SSMIGRATE) {
         fset->lastMigrate = now;
       } else if (etype == TSDB_FEDIT_ROLLUP) {
-        fset->lastRollupLevel = rollupLevel;
+        fset->lastRollupLevel = fs->rollupLevel;
         fset->lastRollup = now;
         fset->lastCompact = now;  // rollup implies compact
       }
@@ -869,7 +869,7 @@ void tsdbFSUpdateEid(STFileSystem *fs, int64_t cid) {
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 }
 
-int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype, int32_t rollupLevel) {
+int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype) {
   int32_t code = 0;
   int32_t lino;
   char    current_t[TSDB_FILENAME_LEN];
@@ -886,7 +886,7 @@ int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT e
   fs->etype = etype;
 
   // edit
-  code = edit_fs(fs, opArray, etype, rollupLevel);
+  code = edit_fs(fs, opArray, etype);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // save fs

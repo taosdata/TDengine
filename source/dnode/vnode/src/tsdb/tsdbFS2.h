@@ -58,7 +58,7 @@ void    tsdbFSDestroyRefRangedSnapshot(TFileSetRangeArray **fsrArr);
 //  txn
 int64_t tsdbFSAllocEid(STFileSystem *fs);
 void    tsdbFSUpdateEid(STFileSystem *fs, int64_t cid);
-int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype, int32_t rollupLevel);
+int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *fs);
 int32_t tsdbFSEditAbort(STFileSystem *fs);
 // other
@@ -75,6 +75,7 @@ struct STFileSystem {
   STsdb        *tsdb;
   tsem_t        canEdit;
   int32_t       fsstate;
+  int32_t       rollupLevel;
   int64_t       neid;
   EFEditT       etype;
   TFileSetArray fSetArr[1];
