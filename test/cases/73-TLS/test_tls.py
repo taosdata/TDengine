@@ -16,29 +16,34 @@ class TestTLSDemo:
             os.system("sh {os.path.dirname(os.path.realpath(__file__))}/tlsFileGen.sh")
 
     def restartAndupdateCfg(self):
-        clientcfgDict1 = {
+        clientcfgDict = {
         "enableTls"        :"1",  
-        "forreadConfig": "1",   
+        "forceReadConfig": "1",   
         "tlsCliKeyPath"         :"/tmp/client.crt", 
         "tlsCliCertPath"         : "/tmp/client.crt", 
         "tlsSvrKeyPath"         :"/tmp/server.crt", 
         "tlsSvrCertPath"         :"/tmp/server.crt", 
-        "tlsCaPath"              :"/tmp/ca.crt"  
+        "tlsCaPath"              :"/tmp/ca.crt",  
         }
 
-        updatecfgDict1 = {
-        "enableTls"        :"1", 
-        "forceReadConfig": "1",
-        "tlsCliKeyPath"         :"/tmp/server.crt", 
-        "tlsCliCertPath"         : "/tmp/server.crt", 
-        "tlsSvrKeyPath"         :"/tmp/server.crt", 
-        "tlsSvrCertPath"         :"/tmp/server.crt", 
-        "tlsCaPath"              :"/tmp/ca.crt",  
-        'clientCfg' : clientcfgDict1 } 
+        updatecfgDict = {
+            "clientCfg" : clientcfgDict,
+            "enableTls"        :"1", 
+            "forceReadConfig": "1",
+            "tlsCliKeyPath"         :"/tmp/server.crt", 
+            "tlsCliCertPath"         : "/tmp/server.crt", 
+            "tlsSvrKeyPath"         :"/tmp/server.crt", 
+            "tlsSvrCertPath"         :"/tmp/server.crt", 
+            "tlsCaPath"              :"/tmp/ca.crt",  
+        } 
 
 
         tdDnodes.stop(1)
-        tdDnodes.deploy(1, updatecfgDict1)
+        tdDnodes.simDeployed = False
+        tdDnodes.deploy(1, updatecfgDict)
+
+        #print(f"update cfg {updatecfgDict1}")   
+        #print(f"client cfg {clientcfgDict1}")  
         tdDnodes.starttaosd(1)  
           
     def stop_and_restart(self):   
