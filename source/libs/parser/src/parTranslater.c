@@ -16714,11 +16714,6 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
                                      "Invalid func param for rsma, only one non-primary key column allowed: %s",
                                      pFunc->functionName);
     }
-    PAR_ERR_JRET(fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len));
-    if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
-                                     pFunc->functionName);
-    }
 
     SColumnNode* pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
     if (!pCol) {
@@ -16736,13 +16731,18 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
     }
     if (i == columnNum) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
-                                     "Invalid func param for rsma since column not exist: %s(%s)",
-                                     pFunc->functionName, pCol->colName);
+                                     "Invalid func param for rsma since column not exist: %s(%s)", pFunc->functionName,
+                                     pCol->colName);
     }
     if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
                                      "Invalid func param for rsma since column is primary key: %s(%s)",
                                      pFunc->functionName, pCol->colName);
+    }
+    PAR_ERR_JRET(fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len));
+    if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
+                                     pFunc->functionName);
     }
     (void)snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
   }
