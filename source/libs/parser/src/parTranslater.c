@@ -15884,19 +15884,6 @@ static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaS
 #ifdef TD_ENTERPRISE
   int32_t code = 0, lino = 0;
   TAOS_CHECK_EXIT(getRsma(pCxt, pStmt->rsmaName, (SRsmaInfoRsp**)&pStmt->pRsmaMeta));
-
-
-  SName  name = {0};
-  toName(pCxt->pParseCxt->acctId, "d0", "stb1", &name);
-
-  STableCfg *pCfg = NULL;
-  SParseContext *pParCxt = pCxt->pParseCxt;
-  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                           .requestId = pParCxt->requestId,
-                           .requestObjRefId = pParCxt->requestRid,
-                           .mgmtEps = pParCxt->mgmtEpSet};
-  code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, &name, &pCfg);
-
 _exit:
   return code;
 #else
@@ -17383,6 +17370,24 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractShowCreateRsmaResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = 2;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
+  tstrncpy((*pSchema)[0].name, "RSMA", TSDB_COL_NAME_LEN);
+
+  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+  tstrncpy((*pSchema)[1].name, "Create RSMA", TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t extractShowCreateVTableResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -17518,7 +17523,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return extractShowCreateViewResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
-      return TSDB_CODE_OPS_NOT_SUPPORT;
+      return extractShowCreateRsmaResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return extractShowVariablesResultSchema(numOfCols, pSchema);

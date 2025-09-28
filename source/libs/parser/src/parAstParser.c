@@ -1012,9 +1012,7 @@ static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowC
   return code;
 }
 
-static int32_t collectMetaKeyFromShowCreateRsma(SCollectMetaKeyCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
-  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, pCxt->pMetaCache);
-}
+static int32_t collectMetaKeyFromShowCreateRsma(SCollectMetaKeyCxt* pCxt, SShowCreateRsmaStmt* pStmt) { return 0; }
 
 static int32_t collectMetaKeyFromShowApps(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_APPS,
