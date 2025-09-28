@@ -95,10 +95,10 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_GOTO(tsdbOpenCompMonitor(pTsdb), &lino, _exit);
-  TAOS_CHECK_GOTO(tsdbOpenRetentionMonitor(pTsdb), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbOpenSsMigrateMonitor(pTsdb), &lino, _exit);
 #endif
 
+  TAOS_CHECK_GOTO(tsdbOpenRetentionMonitor(pTsdb), &lino, _exit);
   TAOS_CHECK_GOTO(tsdbScanMonitorOpen(pTsdb), &lino, _exit);
 
 _exit:
@@ -134,9 +134,9 @@ void tsdbClose(STsdb **pTsdb) {
     tsdbCloseCache(*pTsdb);
 #ifdef TD_ENTERPRISE
     tsdbCloseCompMonitor(*pTsdb);
-    tsdbCloseRetentionMonitor(*pTsdb);
 #endif
     tsdbCloseSsMigrateMonitor(*pTsdb);
+    tsdbCloseRetentionMonitor(*pTsdb);
     tsdbScanMonitorClose(*pTsdb);
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
