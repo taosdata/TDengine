@@ -68,7 +68,7 @@ jobs:
 
   run-tests-on-windows:
     if: ${{ github.event.pull_request.base.ref == '3.3.6' }} 
-    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@fix/windows-case-error
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
           # NOTE: temporarily use tomchon-patch-3 branch
     with:
       tdinternal: false
