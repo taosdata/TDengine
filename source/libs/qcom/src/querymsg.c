@@ -1147,8 +1147,8 @@ static int32_t queryProcessGetRsmaRsp(void* output, char* msg, int32_t msgSize) 
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  if (tDeserializeSRsmaInfoRsp(msg, msgSize, output) != 0) {
-    qError("tDeserializeSRsmaInfoRsp failed, msgSize:%d", msgSize);
+  if (tDeserializeRsmaInfoRsp(msg, msgSize, output) != 0) {
+    qError("tDeserializeRsmaInfoRsp failed, msgSize:%d", msgSize);
     return TSDB_CODE_INVALID_MSG;
   }
 

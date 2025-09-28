@@ -1463,7 +1463,7 @@ int32_t tDeserializeSVCreateRsmaReq(void *buf, int32_t bufLen, SVCreateRsmaReq *
 
 void tFreeSVCreateRsmaReq(SVCreateRsmaReq *pReq) { tFreeSMCreateRsmaReq((SMCreateRsmaReq *)pReq); }
 
-int32_t tSerializeSRsmaInfoRsp(void *buf, int32_t bufLen, SRsmaInfoRsp *pReq) {
+int32_t tSerializeRsmaInfoRsp(void *buf, int32_t bufLen, SRsmaInfoRsp *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0, lino = 0;
   int32_t  tlen = 0;
@@ -1497,7 +1497,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSRsmaInfoRsp(void *buf, int32_t bufLen, SRsmaInfoRsp *pReq) {
+int32_t tDeserializeRsmaInfoRsp(void *buf, int32_t bufLen, SRsmaInfoRsp *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0, lino = 0;
   tDecoderInit(&decoder, buf, bufLen);
@@ -1531,7 +1531,7 @@ _exit:
   return code;
 }
 
-void tFreeSRsmaInfoRsp(SRsmaInfoRsp *pReq) {
+void tFreeRsmaInfoRsp(SRsmaInfoRsp *pReq) {
   taosMemoryFreeClear(pReq->funcIds);
   taosMemoryFreeClear(pReq->funcColIds);
 }

@@ -4628,9 +4628,9 @@ typedef struct {
   func_id_t* funcIds;
 } SRsmaInfoRsp;
 
-int32_t tSerializeSRsmaInfoRsp(void* buf, int32_t bufLen, SRsmaInfoRsp* pReq);
-int32_t tDeserializeSRsmaInfoRsp(void* buf, int32_t bufLen, SRsmaInfoRsp* pReq);
-void    tFreeSRsmaInfoRsp(SRsmaInfoRsp* pReq);
+int32_t tSerializeRsmaInfoRsp(void* buf, int32_t bufLen, SRsmaInfoRsp* pReq);
+int32_t tDeserializeRsmaInfoRsp(void* buf, int32_t bufLen, SRsmaInfoRsp* pReq);
+void    tFreeRsmaInfoRsp(SRsmaInfoRsp* pReq);
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
