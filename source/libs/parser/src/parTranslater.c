@@ -15874,8 +15874,9 @@ static int32_t getRsma(STranslateContext* pCxt, const char* name, SRsmaInfoRsp**
                            .requestObjRefId = pParCxt->requestRid,
                            .mgmtEps = pParCxt->mgmtEpSet};
   code = catalogGetRsma(pParCxt->pCatalog, &conn, name, pInfo);
-  if (code)
+  if (code) {
     parserError("QID:0x%" PRIx64 ", get rsma %s error, code:%s", pCxt->pParseCxt->requestId, name, tstrerror(code));
+  }
   return code;
 }
 #endif
@@ -15883,6 +15884,7 @@ static int32_t getRsma(STranslateContext* pCxt, const char* name, SRsmaInfoRsp**
 static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaStmt* pStmt) {
 #ifdef TD_ENTERPRISE
   int32_t code = 0, lino = 0;
+  pStmt->pRsmaMeta = NULL;
   TAOS_CHECK_EXIT(getRsma(pCxt, pStmt->rsmaName, (SRsmaInfoRsp**)&pStmt->pRsmaMeta));
 _exit:
   return code;

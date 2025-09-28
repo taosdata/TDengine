@@ -1556,11 +1556,13 @@ _exit:
 }
 
 void tFreeRsmaInfoRsp(SRsmaInfoRsp *pReq, bool deep) {
-  if (deep) {
-    taosMemoryFreeClear(pReq->funcIds);
-    taosMemoryFreeClear(pReq->funcColIds);
+  if (pReq) {
+    if (deep) {
+      taosMemoryFreeClear(pReq->funcIds);
+      taosMemoryFreeClear(pReq->funcColIds);
+    }
+    taosArrayDestroyP(pReq->colNames, NULL);
   }
-  taosArrayDestroyP(pReq->colNames, NULL);
 }
 
 int32_t tSerializeSMDropRsmaReq(void *buf, int32_t bufLen, SMDropRsmaReq *pReq) {

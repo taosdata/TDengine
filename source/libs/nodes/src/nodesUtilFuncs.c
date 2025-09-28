@@ -1875,6 +1875,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_SCAN_STMT:
     case QUERY_NODE_KILL_SSMIGRATE_STMT:          // no pointer field
       break;
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT: {
+      SRsmaInfoRsp* pMeta = ((SShowCreateRsmaStmt*)pNode)->pRsmaMeta;
+      if (pMeta != NULL) {
+        tFreeRsmaInfoRsp(pMeta, true);
+        taosMemFreeClear(((SShowCreateRsmaStmt*)pNode)->pRsmaMeta);
+      }
+      break;
+    }
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
       nodesDestroyNode(pStmt->pFromTable);
