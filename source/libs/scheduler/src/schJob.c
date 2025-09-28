@@ -1277,12 +1277,12 @@ _return:
 
 void schSetJobType(SSchJob *pJob, ESubplanType type) {
   if (type == SUBPLAN_TYPE_MODIFY) {
-    pJob->attr.type = JOB_TYPE_INSERT;
+    pJob->attr.type |= JOB_TYPE_INSERT;
   } else {
     if (type == SUBPLAN_TYPE_HSYSSCAN) {
-      pJob->attr.type = JOB_TYPE_HQUERY;
+      pJob->attr.type |= JOB_TYPE_HQUERY;
     } else {
-      pJob->attr.type = JOB_TYPE_QUERY;
+      pJob->attr.type |= JOB_TYPE_QUERY;
     }
   }
 }

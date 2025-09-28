@@ -262,9 +262,9 @@ typedef struct SSchTask {
 } SSchTask;
 
 typedef enum {
-  JOB_TYPE_INSERT = 1,
-  JOB_TYPE_QUERY,
-  JOB_TYPE_HQUERY,  // high-priority query is also a query.
+  JOB_TYPE_INSERT = 0x01,
+  JOB_TYPE_QUERY  = 0x02,
+  JOB_TYPE_HQUERY = 0x04,  // high-priority query is also a query.
 } EJobType;
 
 typedef struct SSchJobAttr {
@@ -393,8 +393,8 @@ extern SSchedulerMgmt schMgmt;
 
 void schSetJobType(SSchJob* pJob, ESubplanType type);
 
-#define SCH_IS_QUERY_JOB(_job)   (((_job)->attr.type == JOB_TYPE_QUERY) || ((_job)->attr.type == JOB_TYPE_HQUERY))
-#define SCH_IS_INSERT_JOB(_job)  ((_job)->attr.type == JOB_TYPE_INSERT)
+#define SCH_IS_QUERY_JOB(_job)   (((_job)->attr.type & JOB_TYPE_QUERY) != 0 || (((_job)->attr.type & JOB_TYPE_HQUERY) != 0))
+#define SCH_IS_INSERT_JOB(_job)  (((_job)->attr.type & JOB_TYPE_INSERT) != 0)
 #define SCH_JOB_NEED_FETCH(_job) ((_job)->attr.needFetch)
 #define SCH_JOB_NEED_WAIT(_job)  (!SCH_IS_QUERY_JOB(_job))
 #define SCH_JOB_NEED_DROP(_job)  (SCH_IS_QUERY_JOB(_job))
