@@ -209,6 +209,7 @@ typedef struct SUseDbOutput {
   uint64_t   dbId;
   SDBVgInfo* dbVgroup;
 } SUseDbOutput;
+typedef SUseDbOutput** SUseDbOutputPPter;
 
 enum { META_TYPE_NULL_TABLE = 1,
        META_TYPE_CTABLE,
