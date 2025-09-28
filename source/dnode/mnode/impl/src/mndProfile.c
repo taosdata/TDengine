@@ -158,11 +158,23 @@ static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) 
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
   connObj->userIp = userIp;
 }
+static int8_t emptyIpRange(SIpRange *pRange) {
+  int32_t  code = 0;
+  SIpRange node = {0};
+
+  if (memcmp(pRange, &node, sizeof(node)) == 0) {
+    return 1;
+  }
+  return 0;
+}
 static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
   int32_t code = 0;
   if (connObj == NULL) {
     return;
   }
+
+  if (emptyIpRange(pRange)) return;
+
   code = tIpUintToStr(pRange, &connObj->addr);
   if (code != 0) {
     mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
