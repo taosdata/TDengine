@@ -321,7 +321,7 @@
 
 ## 02-Aggregate
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_all.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_spread.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_avg.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_fun_agg_count.py
@@ -336,9 +336,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_first.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_last.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_last_row.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_max.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_min.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_last_as_param.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_last_row.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_max_min.py
+
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_top.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_bottom.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_with_520_cols.py
@@ -931,9 +933,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_diff.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_avg.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_max.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_min.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distribute_agg_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_explain.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_null.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_function_stateduration.py
@@ -942,7 +941,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_irate.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_and_last_row.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last+last_row.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_primary_ts_base_1.py
@@ -959,8 +957,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_limit_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max_min_last_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_last_row_interval.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_max.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_min.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_normal.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_mode.py
