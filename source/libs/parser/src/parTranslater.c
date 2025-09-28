@@ -6127,15 +6127,15 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
     pCxt->stableQuery = true;
   }
-  if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
-    if (isSelectStmt(pCxt->pCurrStmt)) {
-      ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
-      ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
-    } else if (isDeleteStmt(pCxt->pCurrStmt)) {
-      PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
-    }
-  }
   if (!pCxt->refTable) {
+    if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+      if (isSelectStmt(pCxt->pCurrStmt)) {
+        ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
+        ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
+      } else if (isDeleteStmt(pCxt->pCurrStmt)) {
+        PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
+      }
+    }
     PAR_ERR_JRET(addNamespace(pCxt, pRealTable));
   }
   return code;
