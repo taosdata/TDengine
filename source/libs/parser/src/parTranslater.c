@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include "nodes.h"
 #include "parInt.h"
+#include "parUtil.h"
 #include "query.h"
 #include "querynodes.h"
 #include "taoserror.h"
@@ -15881,16 +15882,23 @@ static int32_t getRsma(STranslateContext* pCxt, const char* name, SRsmaInfoRsp**
 
 static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaStmt* pStmt) {
 #ifdef TD_ENTERPRISE
-  PAR_ERR_RET(getRsma(pCxt, pStmt->rsmaName, (SRsmaInfoRsp**)&pStmt->pRsmaMeta));
+  int32_t code = 0, lino = 0;
+  TAOS_CHECK_EXIT(getRsma(pCxt, pStmt->rsmaName, (SRsmaInfoRsp**)&pStmt->pRsmaMeta));
 
-  SRsmaInfoRsp* pInfo = pStmt->pRsmaMeta;
-  SName         name = {0};
-  PAR_ERR_RET(tNameFromString(&name, pInfo->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
 
-  SName reqName = {0};
-  toName(name.acctId, name.dbname, name.tname, &reqName);
-  PAR_ERR_RET(getTableCfg(pCxt, &reqName, (STableCfg**)&pStmt->pTableCfg));
-  return 0;
+  SName  name = {0};
+  toName(pCxt->pParseCxt->acctId, "d0", "stb1", &name);
+
+  STableCfg *pCfg = NULL;
+  SParseContext *pParCxt = pCxt->pParseCxt;
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+  code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, &name, &pCfg);
+
+_exit:
+  return code;
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif

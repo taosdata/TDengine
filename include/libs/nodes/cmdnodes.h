@@ -532,7 +532,6 @@ typedef struct SShowCreateRsmaStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      rsmaName[TSDB_TABLE_NAME_LEN];
   void*     pRsmaMeta;  // SRsmaInfoRsp;
-  void*     pTableCfg;  // STableCfg
 } SShowCreateRsmaStmt;
 
 typedef struct SShowTableDistributedStmt {

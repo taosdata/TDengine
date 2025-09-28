@@ -4623,14 +4623,16 @@ typedef struct {
   int8_t     tbType;
   int8_t     intervalUnit;
   col_id_t   nFuncs;
+  col_id_t   nColNames;
   int64_t    interval[2];
   col_id_t*  funcColIds;
   func_id_t* funcIds;
+  SArray*    colNames;
 } SRsmaInfoRsp;
 
 int32_t tSerializeRsmaInfoRsp(void* buf, int32_t bufLen, SRsmaInfoRsp* pReq);
 int32_t tDeserializeRsmaInfoRsp(void* buf, int32_t bufLen, SRsmaInfoRsp* pReq);
-void    tFreeRsmaInfoRsp(SRsmaInfoRsp* pReq);
+void    tFreeRsmaInfoRsp(SRsmaInfoRsp* pReq, bool deep);
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
@@ -5305,6 +5307,14 @@ int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoRe
 
 typedef struct {
   char name[TSDB_TABLE_NAME_LEN];  // rsmaName
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t withColName : 1;
+      uint8_t reserved : 7;
+    };
+  };
+
 } SRsmaInfoReq;
 
 int32_t tSerializeRsmaInfoReq(void* buf, int32_t bufLen, const SRsmaInfoReq* pReq);

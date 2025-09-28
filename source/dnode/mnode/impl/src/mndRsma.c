@@ -98,6 +98,7 @@ static int32_t tSerializeSRsmaObj(void *buf, int32_t bufLen, const SRsmaObj *pOb
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->interval[0]));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->interval[1]));
   TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pObj->reserved));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->version));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->tbType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->intervalUnit));
   TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pObj->nFuncs));
@@ -138,6 +139,7 @@ static int32_t tDeserializeSRsmaObj(void *buf, int32_t bufLen, SRsmaObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->interval[0]));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->interval[1]));
   TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pObj->reserved));
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->version));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->tbType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->intervalUnit));
   TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pObj->nFuncs));
@@ -779,7 +781,7 @@ _exit:
 }
 
 #ifdef TD_ENTERPRISE
-static int32_t mndFillRsmaInfo(SRsmaObj *pObj, SRsmaInfoRsp *pRsp) {
+static int32_t mndFillRsmaInfo(SRsmaObj *pObj, SStbObj *pStb, SRsmaInfoRsp *pRsp, bool withColName) {
   int32_t code = 0, lino = 0;
   pRsp->id = pObj->uid;
   (void)snprintf(pRsp->name, sizeof(pRsp->name), "%s", pObj->name);
@@ -793,8 +795,45 @@ static int32_t mndFillRsmaInfo(SRsmaObj *pObj, SRsmaInfoRsp *pRsp) {
   if (pRsp->nFuncs > 0) {
     pRsp->funcColIds = pObj->funcColIds;  // shallow copy, no need to free
     pRsp->funcIds = pObj->funcIds;        // shallow copy, no need to free
+    if (withColName) {
+      pRsp->colNames = taosArrayInit(pRsp->nFuncs, sizeof(char *));
+      if (pRsp->colNames == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      pRsp->nColNames = pRsp->nFuncs;
+      int16_t i = 0, j = 0;
+      for (; i < pRsp->nFuncs; ++i) {
+        bool found = false;
+        for (; j < pStb->numOfColumns;) {
+          if (pStb->pColumns[j].colId == pRsp->funcColIds[i]) {
+            found = true;
+            break;
+          } else if (pStb->pColumns[j].colId < pRsp->funcColIds[i]) {
+            ++j;
+          } else {
+            break;
+          }
+        }
+        if (found) {
+          SSchema *pCol = pStb->pColumns + j;
+          char    *colName = taosStrdup(pCol->name);
+          if (colName == NULL) {
+            TAOS_CHECK_EXIT(terrno);
+          }
+          if (!taosArrayPush(pRsp->colNames, &colName)) {
+            taosMemoryFree(colName);
+            TAOS_CHECK_EXIT(terrno);
+          }
+        } else {
+          TAOS_CHECK_EXIT(TSDB_CODE_MND_COLUMN_NOT_EXIST);
+        }
+      }
+    }
   }
 _exit:
+  if (code != 0) {
+    mError("rsma:%s, failed at line %d to get rsma info since %s", pObj->name, lino, tstrerror(code));
+  }
   TAOS_RETURN(code);
 }
 #endif
@@ -806,6 +845,7 @@ static int32_t mndProcessGetRsmaReq(SRpcMsg *pReq) {
   SRsmaInfoReq req = {0};
   SRsmaInfoRsp rsp = {0};
   SRsmaObj    *pObj = NULL;
+  SStbObj     *pStb = NULL;
   void        *pRsp = NULL;
   int32_t      contLen = 0;
 
@@ -815,7 +855,14 @@ static int32_t mndProcessGetRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  TAOS_CHECK_EXIT(mndFillRsmaInfo(pObj, &rsp));
+  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pObj->dbFName, pObj->tbName);
+
+  if( (pStb = mndAcquireStb(pMnode, tbFName)) == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STB_NOT_EXIST);
+  }
+
+  TAOS_CHECK_EXIT(mndFillRsmaInfo(pObj, pStb, &rsp, req.withColName));
 
   if ((contLen = tSerializeRsmaInfoRsp(NULL, 0, &rsp)) < 0) {
     TAOS_CHECK_EXIT(contLen);
@@ -834,6 +881,9 @@ _exit:
   if (code != 0) {
     rpcFreeCont(pRsp);
   }
+  if (pObj) mndReleaseRsma(pMnode, pObj);
+  if (pStb) mndReleaseStb(pMnode, pStb);
+  tFreeRsmaInfoRsp(&rsp, false);
   TAOS_RETURN(code);
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;

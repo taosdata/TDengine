@@ -415,22 +415,21 @@ int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *
 }
 
 static int32_t queryBuildGetRsmaMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                  void *(*mallcFp)(int64_t)) {
+                                    void *(*mallcFp)(int64_t)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
 
-  SRsmaInfoReq req = {0};
+  SRsmaInfoReq req = {.withColName = 1};
   (void)snprintf(req.name, sizeof(req.name), input);
 
   int32_t bufLen = tSerializeRsmaInfoReq(NULL, 0, &req);
-  void *  pBuf = (*mallcFp)(bufLen);
-  if(pBuf == NULL)
-  {
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (pBuf == NULL) {
     return terrno;
   }
   int32_t ret = tSerializeRsmaInfoReq(pBuf, bufLen, &req);
-  if(ret < 0) return ret;
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;

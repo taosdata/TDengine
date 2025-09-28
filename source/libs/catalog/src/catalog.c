@@ -2023,7 +2023,20 @@ int32_t catalogGetRsma(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name
 
   int32_t code = ctgGetRsmaMetaFromMnode(pCtg, pConn, name, &rsp, NULL);
 
+  if (code != 0) goto _return;
+
+  SRsmaInfoRsp* result = taosMemoryMalloc(sizeof(SRsmaInfoRsp));
+  if (!result) {
+    code = terrno;
+    goto _return;
+  }
+  *result = rsp;
+  *pRes = result;
+
 _return:
+  if (code != 0) {
+    tFreeRsmaInfoRsp(&rsp, true);
+  }
 
   CTG_API_LEAVE(code);
 }

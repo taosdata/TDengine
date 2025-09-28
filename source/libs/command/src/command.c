@@ -971,6 +971,38 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   return code;
 }
 
+static int32_t setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt) {
+  int32_t code = 0;
+  // QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
+  // pBlock->info.rows = 1;
+
+  // SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  // char             buf1[SHOW_CREATE_VIEW_RESULT_FIELD1_LEN + 1] = {0};
+  // snprintf(varDataVal(buf1), TSDB_VIEW_FNAME_LEN + 4, "`%s`.`%s`", pStmt->dbName, pStmt->viewName);
+  // varDataSetLen(buf1, strlen(varDataVal(buf1)));
+  // QRY_ERR_RET(colDataSetVal(pCol1, 0, buf1, false));
+
+  // SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  // char*            buf2 = taosMemoryMalloc(SHOW_CREATE_VIEW_RESULT_FIELD2_LEN);
+  // if (NULL == buf2) {
+  //   return terrno;
+  // }
+
+  // SViewMeta* pMeta = pStmt->pViewMeta;
+  // if (NULL == pMeta) {
+  //   qError("exception: view meta is null");
+  //   return TSDB_CODE_APP_ERROR;
+  // }
+  // snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s",
+  //          pStmt->dbName, pStmt->viewName, pMeta->querySql);
+  // int32_t len = strlen(varDataVal(buf2));
+  // varDataLen(buf2) = (len > 65535) ? 65535 : len;
+  // code = colDataSetVal(pCol2, 0, buf2, false);
+  // taosMemoryFree(buf2);
+
+  return code;
+}
+
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp, void* charsetCxt) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildCreateTbResultDataBlock(&pBlock);
@@ -1239,6 +1271,19 @@ static int32_t execShowCreateView(SShowCreateViewStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
+static int32_t execShowCreateRsma(SShowCreateRsmaStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTbResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setCreateRsmaResultIntoDataBlock(pBlock, pStmt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
+  }
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode,
                      void* charsetCxt) {
   switch (nodeType(pStmt)) {
@@ -1257,7 +1302,7 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
-      return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
+      return execShowCreateRsma((SShowCreateRsmaStmt*)pStmt, pRsp);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
