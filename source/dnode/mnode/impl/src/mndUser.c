@@ -1838,7 +1838,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   SUserObj userObj = {0};
 
   if (pCreate->passIsMd5 == 1) {
-    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
+    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
     TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorithm));
   } else {
     if (pCreate->isImport != 1) {
@@ -2994,11 +2994,13 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
-    // mInfo("pUser->pass:%s", pUser->pass);
+    char passwd[TSDB_PASSWORD_LEN + 1] = {0};
+    memcpy(passwd, pUser->pass, TSDB_PASSWORD_LEN);
+    //mInfo("pUser->pass:%s", passwd);
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    char pass[TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(pass, pUser->pass, pShow->pMeta->pSchemas[cols].bytes);
+    char pass[TSDB_PASSWORD_LEN + 1 + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(pass, passwd, pShow->pMeta->pSchemas[cols].bytes);
     COL_DATA_SET_VAL_GOTO((const char *)pass, false, pUser, pShow->pIter, _exit);
 
     cols++;
