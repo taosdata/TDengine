@@ -1013,12 +1013,6 @@ static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowC
 }
 
 static int32_t collectMetaKeyFromShowCreateRsma(SCollectMetaKeyCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
-  SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(name.tname, pStmt->rsmaName, TSDB_TABLE_NAME_LEN);
-  char dbFName[TSDB_DB_FNAME_LEN];
-  (void)tNameGetFullDbName(&name, dbFName);
-
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, pCxt->pMetaCache);
 }
 

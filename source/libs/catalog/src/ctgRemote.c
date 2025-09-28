@@ -423,6 +423,17 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       }
       break;
     }
+    case TDMT_MND_GET_RSMA: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        CTG_ERR_RET(rspCode);
+      }
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process get mnode rsma info rsp failed, err: %s, name: %s", tstrerror(code), target);
+        CTG_ERR_RET(code);
+      }
+      break;
+    }
     default:
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("get error rsp, error:%s", tstrerror(rspCode));
@@ -1013,6 +1024,39 @@ int32_t ctgGetDBVgInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SBuildU
   CTG_ERR_RET(rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp));
 
   CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, input->db));
+
+  rpcFreeCont(rpcRsp.pCont);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgGetRsmaMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaMetaOutput* out,
+                                SCtgTaskReq* tReq) {
+  SCtgTask* pTask = tReq ? tReq->pTask : NULL;
+  char*     msg = NULL;
+  SEpSet*   pVnodeEpSet = NULL;
+  int32_t   msgLen = 0;
+  int32_t   reqType = TDMT_MND_GET_RSMA;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
+
+  ctgDebug("rsma:%s, try to get rsma info from mnode", name);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)]((void*)name, &msg, 0, &msgLen, mallocFp);
+  if (code) {
+    ctgError("rsma:%s, build mnode rsmaInfoReq msg failed, code:%s", name, tstrerror(code));
+    CTG_ERR_RET(code);
+  }
+
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  CTG_ERR_RET(rpcSendRecvWithTimeout(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp, NULL, CATLOG_TIMEOUT));
+
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)name));
 
   rpcFreeCont(rpcRsp.pCont);
 

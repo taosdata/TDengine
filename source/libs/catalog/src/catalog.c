@@ -2012,6 +2012,22 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogGetRsma(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaInfoRsp** pRes) {
+  CTG_API_ENTER();
+
+  if (!pCtg || !pConn || !name) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SRsmaInfoRsp rsp = {0};
+
+  int32_t code = ctgGetRsmaMetaFromMnode(pCtg, pConn, name, &rsp, NULL);
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId) {
   CTG_API_ENTER();
   if (!pCtg || !dbFName) {

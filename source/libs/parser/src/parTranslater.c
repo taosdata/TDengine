@@ -15864,14 +15864,36 @@ static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewS
 #endif
 }
 
+#ifdef TD_ENTERPRISE
+static int32_t getRsma(STranslateContext* pCxt, const char* name, SRsmaInfoRsp** pInfo) {
+  int32_t          code = 0;
+  SParseContext*   pParCxt = pCxt->pParseCxt;
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+  code = catalogGetRsma(pParCxt->pCatalog, &conn, name, pInfo);
+  if (code)
+    parserError("QID:0x%" PRIx64 ", get rsma %s error, code:%s", pCxt->pParseCxt->requestId, name, tstrerror(code));
+  return code;
+}
+#endif
+
 static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaStmt* pStmt) {
-#ifndef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
+  PAR_ERR_RET(getRsma(pCxt, pStmt->rsmaName, (SRsmaInfoRsp**)&pStmt->pRsmaMeta));
+
+  SRsmaInfoRsp* pInfo = pStmt->pRsmaMeta;
+  SName         name = {0};
+  PAR_ERR_RET(tNameFromString(&name, pInfo->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+
+  SName reqName = {0};
+  toName(name.acctId, name.dbname, name.tname, &reqName);
+  PAR_ERR_RET(getTableCfg(pCxt, &reqName, (STableCfg**)&pStmt->pTableCfg));
+  return 0;
+#else
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
-  SName name = {0};
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-  //  getRsmaMetaFromMetaCache(pCxt, &name, (SRsmaMeta**)&pStmt->pRsmaMeta);
 }
 
 static int32_t createColumnNodeWithName(const char* name, SNode** ppCol) {
@@ -17160,7 +17182,7 @@ _return:
       code = translateShowCreateView(pCxt, (SShowCreateViewStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      code = translateShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pNode);
       break;
     case QUERY_NODE_RESTORE_DNODE_STMT:
     case QUERY_NODE_RESTORE_QNODE_STMT:
