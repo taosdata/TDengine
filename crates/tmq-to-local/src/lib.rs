@@ -1,9 +1,8 @@
 use anyhow::{Context as AnyhowContext, Result};
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Utc};
 
 use dashmap::DashMap;
 use scc::HashMap;
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::RwLock;
 use std::sync::atomic::Ordering::SeqCst;
@@ -15,10 +14,7 @@ use taos::*;
 use taos_query::common::RawData;
 use taosx_core::core_metrics::{CoreMetrics, get_metrics};
 use taosx_core::s3::S3Dumper;
-use taosx_core::{
-    taoz::{RawType, ZFile},
-    tmq::*,
-};
+use taosx_core::taoz::{RawType, ZFile};
 use tokio::select;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -174,15 +170,6 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
 
     tracing::info!("tmq_to_local finish");
     Ok(())
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct LocalConfig {
-    pub(crate) created_at: DateTime<Local>,
-    pub(crate) last_modified: DateTime<Local>,
-    pub(crate) group_id: String,
-    pub(crate) client_id: String,
-    pub(crate) topics: Vec<Topic>,
 }
 
 #[derive(Debug)]

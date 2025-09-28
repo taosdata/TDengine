@@ -16,6 +16,8 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use sysinfo::ProcessRefreshKind;
+use sysinfo::ProcessesToUpdate;
 use taos::taos_query::tmq::Assignment;
 use taosx_core::core_metrics::{self, CommonMetrics, TaskMetrics};
 use taosx_core::legacy_metric::LegacyToTaosMetrics;
@@ -144,20 +146,24 @@ impl Monitor {
                 tracing::info!("start update process metrics task");
                 let duration = Duration::from_secs(monitor_interval);
                 let mut interval = tokio::time::interval(duration);
-                let mut sys = System::new_all();
-                let process_id = get_current_pid();
-                if process_id.is_err() {
-                    let err = process_id.unwrap_err();
-                    tracing::error!(
-                        "stop update process metrics task since get process id error: {err}"
-                    );
-                    return;
-                }
-                let process_id = process_id.unwrap();
+                let kind = sysinfo::RefreshKind::nothing()
+                    .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
+                    .with_memory(MemoryRefreshKind::nothing().with_ram());
+                let mut sys = System::new_with_specifics(kind);
+                let process_id = match get_current_pid() {
+                    Ok(pid) => pid,
+                    Err(err) => {
+                        tracing::error!(
+                            "stop update process metrics task since get process id error: {err}"
+                        );
+                        return;
+                    }
+                };
                 loop {
                     interval.tick().await;
                     let _ = process_metrics(
                         &mut sys,
+                        kind,
                         taosx_id,
                         process_id,
                         &controller,
@@ -345,13 +351,23 @@ fn add_task_progress_tables(
 
 pub async fn process_metrics(
     sys: &mut sysinfo::System,
+    kind: sysinfo::RefreshKind,
     taosx_id: &'static str,
     process_id: sysinfo::Pid,
     controller: &TaskController,
     monitor_interval: u64,
     monitor_enabled: bool,
 ) -> anyhow::Result<()> {
-    sys.refresh_all();
+    sys.refresh_specifics(kind);
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[process_id]),
+        false,
+        ProcessRefreshKind::nothing()
+            .with_cpu()
+            .with_memory()
+            .with_disk_usage()
+            .with_tasks(),
+    );
     let labels = [("stable", "taosx_sys"), ("taosx_id", taosx_id)];
     // system metrics
     let cpu_cores = sys.cpus().len() as f64;

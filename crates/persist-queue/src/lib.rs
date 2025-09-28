@@ -20,7 +20,12 @@ pub enum Error {
     #[snafu(display("Frame invalid crc checksum, file damaged"))]
     BadChecksum,
     #[snafu(display("Lock file {} error", path.display()))]
-    LockFile {
+    SharedLockFile {
+        path: PathBuf,
+        source: std::fs::TryLockError,
+    },
+    #[snafu(display("Lock file {} error", path.display()))]
+    ExclusiveLockFile {
         path: PathBuf,
         source: std::io::Error,
     },
@@ -101,7 +106,7 @@ pub struct Entry<P> {
 pub trait RawReader {
     type EntryPosition;
 
-    /// read at most `max_batch_siz` entries and return immediately
+    /// read at most `max_batch_size` entries and return immediately
     fn read(
         &mut self,
         max_batch_size: usize,

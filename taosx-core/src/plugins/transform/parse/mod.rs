@@ -237,7 +237,7 @@ impl TransformExt for ParserImpl {
             .chain(multi_fields.iter().map(|f| f.name().clone()))
             .unique()
             .map(|name| {
-                if multi_indices.is_some() {
+                if let Some(multi_indices) = &multi_indices {
                     if let Some((idx, field)) =
                         multi_fields.iter().find_position(|f| name == *f.name())
                     {
@@ -245,17 +245,11 @@ impl TransformExt for ParserImpl {
                     } else if let Some((idx, field)) =
                         fields.iter().find_position(|f| name == *f.name())
                     {
-                        (
-                            field.clone(),
-                            duplicate_rows(&columns[idx], multi_indices.as_ref().unwrap()),
-                        )
+                        (field.clone(), duplicate_rows(&columns[idx], multi_indices))
                     } else {
                         (
                             schema.fields().find(&name).map(|(_, f)| f.clone()).unwrap(),
-                            duplicate_rows(
-                                records.column_by_name(&name).unwrap(),
-                                multi_indices.as_ref().unwrap(),
-                            ),
+                            duplicate_rows(records.column_by_name(&name).unwrap(), multi_indices),
                         )
                     }
                 } else if let Some((idx, field)) =

@@ -164,12 +164,12 @@ impl BackupConfig {
         dsn.remove("use.topic.name");
 
         // 如果是 ws 协议，则默认启用压缩
-        if let Some(protocol) = dsn.protocol.as_ref() {
-            if protocol == "ws" || protocol == "wss" || protocol == "http" || protocol == "https" {
-                // 默认启用压缩
-                if dsn.get("compression").is_none() {
-                    dsn.set("compression", "true");
-                }
+        if let Some(protocol) = dsn.protocol.as_ref()
+            && (protocol == "ws" || protocol == "wss" || protocol == "http" || protocol == "https")
+        {
+            // 默认启用压缩
+            if dsn.get("compression").is_none() {
+                dsn.set("compression", "true");
             }
         }
 

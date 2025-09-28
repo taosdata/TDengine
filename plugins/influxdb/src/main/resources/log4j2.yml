@@ -1,4 +1,6 @@
 Configuration:
+  # 禁用Log4j2自己的关闭钩子
+  shutdownHook: "disable"
   # 共有8个级别，按照从低到高为：ALL < TRACE < DEBUG < INFO < WARN < ERROR < FATAL < OFF。
   status: warn
   # 监控更改间隔时间
@@ -29,7 +31,14 @@ Configuration:
       # 日志打印格式
       PatternLayout:
         pattern: "%d{YYYY-MM-dd HH:mm:ss.SSS} %pid %-5level %logger{20} - [%method,%line] - %msg%n"
-#    # 输出到文件
+    Async:
+      name: async
+      # 包含需要异步化的Appender引用
+      AppenderRef:
+        - ref: console
+      # 当队列满时，默认会丢弃TRACE, DEBUG, INFO级别的日志，这在生产环境是合理的
+      blocking: false
+  #    # 输出到文件
 #    RollingFile:
 #      # ref=sys-info
 #      - name: sys-info
@@ -116,7 +125,8 @@ Configuration:
       level: debug
       # 关联输出
       AppenderRef:
-        - ref: console
+        #- ref: console
+        - ref: async
 #        - ref: sys-info
 #        - ref: sys-error
     Logger:
@@ -128,5 +138,6 @@ Configuration:
         level: debug
         # 关联输出
         AppenderRef:
-          - ref: console
+          - ref: async
+#          - ref: console
 #          - ref: sys-user

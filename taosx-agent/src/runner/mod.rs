@@ -8,9 +8,8 @@ use std::{
 };
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use dashmap::DashMap;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taosx_core::{
     task_set::prelude::EventLevel, utils::dsn::json_to_dsn, Activity, LevelFilter, RespAction,
@@ -29,15 +28,6 @@ pub enum Action {
     Stop(i64),
     Cancel(i64),
     Interrupt(i64),
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct TaskStatus {
-    id: i64,
-    at: DateTime<Utc>,
-    action: String,
-    message: Option<String>,
-    context: Option<String>,
 }
 
 pub struct Worker {

@@ -694,8 +694,7 @@ fn get_monitor_interval(monitor_config: Option<&HashMap<String, String>>) -> u64
     if monitor_config.is_none() {
         30
     } else {
-        let monitor_config = monitor_config.unwrap();
-        if let Some(interval) = monitor_config.get("interval") {
+        if let Some(interval) = monitor_config.and_then(|c| c.get("interval")) {
             if let Ok(interval) = interval.parse::<u64>() {
                 return interval;
             }
@@ -708,34 +707,29 @@ fn get_monitor_enabled(monitor_config: Option<&HashMap<String, String>>) -> bool
     if monitor_config.is_none() {
         false
     } else {
-        let taosx_config = monitor_config.unwrap();
-        if taosx_config.get("fqdn").is_some() {
-            return true;
-        }
-        false
+        monitor_config.and_then(|c| c.get("fqdn")).is_some()
     }
 }
 
 fn get_taosx_id(monitor_config: Option<&HashMap<String, String>>) -> &'static str {
-    if monitor_config.is_none() || monitor_config.unwrap().get("taosx_id").is_none() {
-        "unknown"
-    } else {
-        let taosx_id = monitor_config.unwrap().get("taosx_id").unwrap();
-        Box::leak(taosx_id.clone().into_boxed_str())
-    }
+    monitor_config
+        .and_then(|map| map.get("taosx_id"))
+        .map_or("unknown", |taosx_id| {
+            Box::leak(taosx_id.clone().into_boxed_str())
+        })
 }
 
 fn start_collect_agent_metrics(monitor_interval: u64, taosx_id: &'static str, agent_id: i64) {
     use sysinfo::*;
     tracing::info!("Start collect agent metrics");
     let mut sys = System::new_all();
-    let process_id = get_current_pid();
-    if process_id.is_err() {
-        let err = process_id.unwrap_err();
-        tracing::error!("Get process id error: {err}");
-        return;
-    }
-    let process_id = process_id.unwrap();
+    let process_id = match get_current_pid() {
+        Ok(pid) => pid,
+        Err(err) => {
+            tracing::error!("Get process id error: {err}");
+            return;
+        }
+    };
     let agent_id = agent_id.to_string();
     let agent_id = Box::leak(agent_id.into_boxed_str());
     tokio::spawn(async move {

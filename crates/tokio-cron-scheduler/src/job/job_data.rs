@@ -47,6 +47,7 @@ pub struct NotificationData {
     pub job_states: Vec<i32>,
     pub extra: Vec<u8>,
 }
+#[allow(dead_code)] // not used
 #[derive(Clone, PartialEq, Debug)]
 pub struct NotificationIdAndState {
     pub notification_id: ::core::option::Option<Uuid>,
@@ -63,11 +64,13 @@ pub struct JobAndNextTick {
 pub struct ListOfUuids {
     pub uuids: Vec<Uuid>,
 }
+#[allow(dead_code)] // not used
 #[derive(Clone, PartialEq, Debug)]
 pub struct JobAndNotifications {
     pub job_id: ::core::option::Option<Uuid>,
     pub notification_ids: Vec<Uuid>,
 }
+#[allow(dead_code)] // not used
 #[derive(Clone, PartialEq, Debug)]
 pub struct ListOfJobsAndNotifications {
     pub job_and_notifications: Vec<JobAndNotifications>,

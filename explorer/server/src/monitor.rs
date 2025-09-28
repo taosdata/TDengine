@@ -7,6 +7,8 @@ use serde::Serialize;
 use serde_json::json;
 use std::collections::HashMap;
 use std::time::Duration;
+use sysinfo::ProcessRefreshKind;
+use sysinfo::ProcessesToUpdate;
 use taosx_metrics::TaosXRecorder;
 use taosx_metrics::TaosXRecorderHandle;
 use tracing::instrument;
@@ -102,19 +104,23 @@ impl Monitor {
                 tracing::info!("start update process metrics task");
                 let duration = Duration::from_secs(monitor_interval);
                 let mut interval = tokio::time::interval(duration);
-                let mut sys = System::new_all();
-                let process_id = get_current_pid();
-                if process_id.is_err() {
-                    let err = process_id.unwrap_err();
-                    tracing::error!(
-                        "stop update process metrics task since get process id error: {err}"
-                    );
-                    return;
-                }
-                let process_id = process_id.unwrap();
+                let kind = RefreshKind::nothing()
+                    .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
+                    .with_memory(MemoryRefreshKind::nothing().with_ram());
+                let mut sys = System::new_with_specifics(kind);
+                let process_id = match get_current_pid() {
+                    Ok(process_id) => process_id,
+                    Err(err) => {
+                        tracing::error!(
+                            "stop update process metrics task since get process id error: {err}"
+                        );
+                        return;
+                    }
+                };
                 loop {
                     interval.tick().await;
-                    let _ = process_metrics(&mut sys, endpoint, process_id, monitor_interval).await;
+                    let _ = process_metrics(&mut sys, kind, endpoint, process_id, monitor_interval)
+                        .await;
                 }
             }
             .in_current_span(),
@@ -161,11 +167,21 @@ impl Monitor {
 
 pub async fn process_metrics(
     sys: &mut sysinfo::System,
+    kind: sysinfo::RefreshKind,
     endpoint: &'static str,
     process_id: sysinfo::Pid,
     monitor_interval: u64,
 ) -> anyhow::Result<()> {
-    sys.refresh_all();
+    sys.refresh_specifics(kind);
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[process_id]),
+        false,
+        ProcessRefreshKind::nothing()
+            .with_cpu()
+            .with_memory()
+            .with_disk_usage()
+            .with_tasks(),
+    );
     let labels = [("stable", "explorer_sys"), ("endpoint", endpoint)];
     // system metrics
     let cpu_cores = sys.cpus().len() as f64;

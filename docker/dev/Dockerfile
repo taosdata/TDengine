@@ -36,7 +36,7 @@ RUN cpanm --force --notest Term::Table Test::Simple Test::More List::Util
 # Rust
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUST_VERSION=1.87.0
+ARG RUST_VERSION=1.90.0
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain $RUST_VERSION
 ENV PATH=/root/.cargo/bin:$PATH
 

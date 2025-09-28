@@ -305,10 +305,7 @@ pub async fn get_metrics_arc_or<F: Fn() -> Arc<CoreMetrics>>(
 }
 
 pub async fn get_metrics_arc_from_i64(task_id: Option<i64>) -> Arc<CoreMetrics> {
-    let task_id = match task_id {
-        Some(id) => id,
-        _ => -1,
-    };
+    let task_id = task_id.unwrap_or(-1);
     get_metrics(task_id).await.expect("metrics not found")
 }
 

@@ -117,10 +117,10 @@ impl Cli {
             None
         };
         // validate parser
-        if let Some(parser) = args.parser.as_ref() {
-            if !check_parser_string_timestamp_precision(parser) {
-                bail!("parser should have same timestamp precision");
-            }
+        if let Some(parser) = args.parser.as_ref()
+            && !check_parser_string_timestamp_precision(parser)
+        {
+            bail!("parser should have same timestamp precision");
         }
         // let span = tracing::info_span!("cli");
         let cancel = CancellationToken::new();

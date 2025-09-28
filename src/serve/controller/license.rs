@@ -71,10 +71,8 @@ impl<'a> LicenseValidator<'a> {
             let pool = match self.pool {
                 Some(pool) => pool,
                 None => {
-                    if !cached {
-                        if let Some(kind) = kind.as_good() {
-                            CACHE.lock().await.cache_set(key, kind.clone());
-                        }
+                    if !cached && let Some(kind) = kind.as_good() {
+                        CACHE.lock().await.cache_set(key, kind.clone());
                     }
                     return Ok(kind);
                 }

@@ -66,10 +66,10 @@ pub async fn notify_by_job_id(
 
                     if to_remove {
                         tracing::info!("Removing task {:?}", job_id);
-                        if let Some(task) = tasks.remove_by_job_id(&job_id) {
-                            if task.task.task.via.is_some() {
-                                global.agent_runtime.remove_task(task_id).await;
-                            }
+                        if let Some(task) = tasks.remove_by_job_id(&job_id)
+                            && task.task.task.via.is_some()
+                        {
+                            global.agent_runtime.remove_task(task_id).await;
                         }
                     }
                 }

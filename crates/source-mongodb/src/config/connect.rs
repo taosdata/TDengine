@@ -135,41 +135,33 @@ impl ConnectConfig {
     }
 
     fn parse_ca_file_path(dsn: &Dsn) -> Option<String> {
-        let ca_file_path = dsn.get("ca_file_path");
-        if ca_file_path.is_none() || ca_file_path.unwrap().is_empty() {
-            None
-        } else {
-            let ca_file_path = ca_file_path.unwrap();
-            if ca_file_path.starts_with('@') {
-                Some(
+        dsn.get("ca_file_path")
+            .and_then(|s| if s.is_empty() { None } else { Some(s) })
+            .map(|ca_file_path| {
+                if ca_file_path.starts_with('@') {
                     get_data_dir()
                         .join(ca_file_path.trim_start_matches("@"))
                         .display()
-                        .to_string(),
-                )
-            } else {
-                Some(ca_file_path.to_string())
-            }
-        }
+                        .to_string()
+                } else {
+                    ca_file_path.to_string()
+                }
+            })
     }
 
     fn parse_cert_key_file_path(dsn: &Dsn) -> Option<String> {
-        let cert_key_file_path = dsn.get("cert_key_file_path");
-        if cert_key_file_path.is_none() || cert_key_file_path.unwrap().is_empty() {
-            None
-        } else {
-            let cert_key_file_path = cert_key_file_path.unwrap();
-            if cert_key_file_path.starts_with('@') {
-                Some(
+        dsn.get("cert_key_file_path")
+            .and_then(|s| if s.is_empty() { None } else { Some(s) })
+            .map(|cert_key_file_path| {
+                if cert_key_file_path.starts_with('@') {
                     get_data_dir()
                         .join(cert_key_file_path.trim_start_matches("@"))
                         .display()
-                        .to_string(),
-                )
-            } else {
-                Some(cert_key_file_path.to_string())
-            }
-        }
+                        .to_string()
+                } else {
+                    cert_key_file_path.to_string()
+                }
+            })
     }
 }
 

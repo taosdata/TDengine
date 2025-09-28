@@ -405,24 +405,24 @@ async fn worker(
                                             time_range = query.time_range,
                                         );
                                         // set breakpoint
-                                        if let Some(breakpoints) = breakpoints.as_ref() {
-                                            if let Some(end) = chunk.end {
-                                                let breakpoint = end.to_string();
-                                                let max_retries = 5;
-                                                let mut retries = 0;
-                                                while let Err(err) =
-                                                    breakpoints.set(&table_inner, &breakpoint).await
-                                                {
-                                                    retries += 1;
-                                                    if retries >= max_retries {
-                                                        tracing::warn!(
-                                                            chunk.id = idx, chunk.range = ?chunk,
-                                                            breakpoints.key = %table_inner,
-                                                            breakpoints.value = breakpoint,
-                                                            "set breakpoint failed, err: {err:#}"
-                                                        );
-                                                        break;
-                                                    }
+                                        if let Some(breakpoints) = breakpoints.as_ref()
+                                            && let Some(end) = chunk.end
+                                        {
+                                            let breakpoint = end.to_string();
+                                            let max_retries = 5;
+                                            let mut retries = 0;
+                                            while let Err(err) =
+                                                breakpoints.set(&table_inner, &breakpoint).await
+                                            {
+                                                retries += 1;
+                                                if retries >= max_retries {
+                                                    tracing::warn!(
+                                                        chunk.id = idx, chunk.range = ?chunk,
+                                                        breakpoints.key = %table_inner,
+                                                        breakpoints.value = breakpoint,
+                                                        "set breakpoint failed, err: {err:#}"
+                                                    );
+                                                    break;
                                                 }
                                             }
                                         }

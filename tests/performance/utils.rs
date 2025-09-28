@@ -5,14 +5,13 @@ use tokio::process::Command;
 /// 优先通过 UdpSocket 根据路由表获取 (不会真正发送数据)。失败时回退到 127.0.0.1。
 pub fn local_ipv4() -> String {
     // 通过与公共地址建立“伪”连接来获取本地出站 IP。
-    if let std::result::Result::Ok(sock) = std::net::UdpSocket::bind("0.0.0.0:0") {
-        if sock.connect("8.8.8.8:80").is_ok() {
-            if let Ok(addr) = sock.local_addr() {
-                let ip = addr.ip();
-                if ip.is_ipv4() {
-                    return ip.to_string();
-                }
-            }
+    if let std::result::Result::Ok(sock) = std::net::UdpSocket::bind("0.0.0.0:0")
+        && sock.connect("8.8.8.8:80").is_ok()
+        && let Ok(addr) = sock.local_addr()
+    {
+        let ip = addr.ip();
+        if ip.is_ipv4() {
+            return ip.to_string();
         }
     }
     // 兜底
@@ -202,12 +201,12 @@ mod tests {
     #[tokio::test]
     async fn test_taosd_version() {
         let output = Command::new("taosd").arg("-V").output().await;
-        if let Ok(out) = output {
-            if out.status.success() {
-                let version = taosd_version().await.unwrap();
-                assert!(!version.is_empty(), "TDengine version should not be empty");
-                println!("{}", version);
-            }
+        if let Ok(out) = output
+            && out.status.success()
+        {
+            let version = taosd_version().await.unwrap();
+            assert!(!version.is_empty(), "TDengine version should not be empty");
+            println!("{}", version);
         }
     }
 

@@ -411,7 +411,7 @@ impl KafkaTaskConfig {
             .add_extra_metric(&METRIC_CONSUMERS, 1);
         for t in subscription.elements() {
             tracing::info!(
-                kafka.consumed.partions = subscription.count(),
+                kafka.consumed.partitions = subscription.count(),
                 "Consumer subscribed to topic: {}:{}:{:?}",
                 t.topic(),
                 t.partition(),
@@ -462,69 +462,68 @@ pub fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientC
     }
 
     // sasl settings
-    if config.use_sasl {
-        if let Some(sasl_mechanism) = config.sasl_mechanism {
-            if sasl_mechanism == "GSSAPI" {
-                client_config.set("sasl.mechanisms", "GSSAPI");
-                // get config or use default
-                let sasl_kerberos_service_name =
-                    if let Some(val) = config.sasl_kerberos_service_name {
-                        val
-                    } else {
-                        "".to_string()
-                    };
-                let sasl_kerberos_principal = if let Some(val) = config.sasl_kerberos_principal {
-                    val
-                } else {
-                    "".to_string()
-                };
-                let sasl_kerberos_kinit_cmd = if let Some(val) = config.sasl_kerberos_kinit_cmd {
-                    val
-                } else {
-                    "kinit -R -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal} || kinit -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal}".to_string()
-                };
-                let sasl_kerberos_keytab = if let Some(val) = config.sasl_kerberos_keytab {
-                    val
-                } else {
-                    "".to_string()
-                };
-                // verify the broker's kinit.cmd, keytab and principal
-                let init_cmd = sasl_kerberos_kinit_cmd
-                    .replace("%{sasl.kerberos.keytab}", sasl_kerberos_keytab.as_str())
-                    .replace(
-                        "%{sasl.kerberos.principal}",
-                        sasl_kerberos_principal.as_str(),
-                    );
-                let output = std::process::Command::new("bash")
-                    .arg("-c")
-                    .arg(init_cmd)
-                    .output();
-                if let Ok(output) = output {
-                    if !output.status.success() {
-                        let stderr = std::str::from_utf8(&output.stderr)
-                            .expect("Output should always be UTF-8");
-                        tracing::error!("{stderr}");
-                        anyhow::bail!("{}", stderr.lines().next().unwrap_or("EMPTY STDERR"));
-                    }
-                }
-                // set to client
-                client_config.set("sasl.kerberos.service.name", sasl_kerberos_service_name);
-                client_config.set("sasl.kerberos.principal", sasl_kerberos_principal);
-                client_config.set("sasl.kerberos.kinit.cmd", sasl_kerberos_kinit_cmd);
-                client_config.set("sasl.kerberos.keytab", sasl_kerberos_keytab);
-                // each entry will be resolved and expanded into a list of canonical names
-                // client_config.set(
-                //     "client.dns.lookup",
-                //     "resolve_canonical_bootstrap_servers_only",
-                // );
+    if config.use_sasl
+        && let Some(sasl_mechanism) = config.sasl_mechanism
+    {
+        if sasl_mechanism == "GSSAPI" {
+            client_config.set("sasl.mechanisms", "GSSAPI");
+            // get config or use default
+            let sasl_kerberos_service_name = if let Some(val) = config.sasl_kerberos_service_name {
+                val
             } else {
-                client_config.set("sasl.mechanisms", sasl_mechanism);
-                if let Some(sasl_username) = config.sasl_username {
-                    client_config.set("sasl.username", sasl_username);
-                }
-                if let Some(sasl_password) = config.sasl_password {
-                    client_config.set("sasl.password", sasl_password);
-                }
+                "".to_string()
+            };
+            let sasl_kerberos_principal = if let Some(val) = config.sasl_kerberos_principal {
+                val
+            } else {
+                "".to_string()
+            };
+            let sasl_kerberos_kinit_cmd = if let Some(val) = config.sasl_kerberos_kinit_cmd {
+                val
+            } else {
+                "kinit -R -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal} || kinit -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal}".to_string()
+            };
+            let sasl_kerberos_keytab = if let Some(val) = config.sasl_kerberos_keytab {
+                val
+            } else {
+                "".to_string()
+            };
+            // verify the broker's kinit.cmd, keytab and principal
+            let init_cmd = sasl_kerberos_kinit_cmd
+                .replace("%{sasl.kerberos.keytab}", sasl_kerberos_keytab.as_str())
+                .replace(
+                    "%{sasl.kerberos.principal}",
+                    sasl_kerberos_principal.as_str(),
+                );
+            let output = std::process::Command::new("bash")
+                .arg("-c")
+                .arg(init_cmd)
+                .output();
+            if let Ok(output) = output
+                && !output.status.success()
+            {
+                let stderr =
+                    std::str::from_utf8(&output.stderr).expect("Output should always be UTF-8");
+                tracing::error!("{stderr}");
+                anyhow::bail!("{}", stderr.lines().next().unwrap_or("EMPTY STDERR"));
+            }
+            // set to client
+            client_config.set("sasl.kerberos.service.name", sasl_kerberos_service_name);
+            client_config.set("sasl.kerberos.principal", sasl_kerberos_principal);
+            client_config.set("sasl.kerberos.kinit.cmd", sasl_kerberos_kinit_cmd);
+            client_config.set("sasl.kerberos.keytab", sasl_kerberos_keytab);
+            // each entry will be resolved and expanded into a list of canonical names
+            // client_config.set(
+            //     "client.dns.lookup",
+            //     "resolve_canonical_bootstrap_servers_only",
+            // );
+        } else {
+            client_config.set("sasl.mechanisms", sasl_mechanism);
+            if let Some(sasl_username) = config.sasl_username {
+                client_config.set("sasl.username", sasl_username);
+            }
+            if let Some(sasl_password) = config.sasl_password {
+                client_config.set("sasl.password", sasl_password);
             }
         }
     }

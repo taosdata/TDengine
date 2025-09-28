@@ -86,8 +86,8 @@ impl MetaDataStorage for SimpleMetadataStore {
         Box::pin(async move {
             let r = data.read().await;
             let ret = r
-                .iter()
-                .map(|(_, v)| (v.id.clone(), v.next_tick, v.last_tick, v.job_type))
+                .values()
+                .map(|v| (v.id.clone(), v.next_tick, v.last_tick, v.job_type))
                 .map(|(id, next_tick, last_tick, job_type)| JobAndNextTick {
                     id,
                     next_tick,

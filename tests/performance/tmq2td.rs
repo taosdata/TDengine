@@ -1,6 +1,6 @@
 use crate::performance::{
     BasicMetrics, DataFactors, Simulation, SysMetrics, TaosdFactorBaseLine, TaosdFactors,
-    recreate_databases, simluate_create_tables, simulate_write_only,
+    recreate_databases, simulate_create_tables, simulate_write_only,
     utils::{taosd_version, taosx_version},
 };
 use anyhow::anyhow;
@@ -283,7 +283,7 @@ async fn run_tmq2td(f: Tmq2TdFactors) -> anyhow::Result<Tmq2TdMetrics> {
     };
 
     // 先创建表结构
-    simluate_create_tables(&pool, &sim).await?;
+    simulate_create_tables(&pool, &sim).await?;
 
     // 采集系统指标期间执行整个同步流程
     let result_holder: Tmq2TdResult = Arc::new(Mutex::new(None));

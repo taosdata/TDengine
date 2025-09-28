@@ -16,8 +16,9 @@ use tokio::{io::AsyncSeekExt, time::timeout_at};
 use tokio_util::{codec::FramedRead, sync::CancellationToken};
 
 use crate::{
-    fs::format_segment_id, AddWatchSnafu, DelWatchSnafu, Entry, FileLockedSnafu, LockFileSnafu,
-    OpenFileSnafu, RawReader, RemoveFileSnafu, Result, SeekFileSnafu,
+    fs::format_segment_id, AddWatchSnafu, DelWatchSnafu, Entry, ExclusiveLockFileSnafu,
+    FileLockedSnafu, OpenFileSnafu, RawReader, RemoveFileSnafu, Result, SeekFileSnafu,
+    SharedLockFileSnafu,
 };
 
 use super::{codec::ReadCodec, EntryPosition, ReadFrom, LOCK_FILE_EXTENSION};
@@ -203,8 +204,8 @@ async fn open_file_with_lock(
             }
             .fail()
         }
-        Err(e) => Err(e).context(LockFileSnafu {
-            path: &lock_file_path,
+        Err(e) => Err(e).context(SharedLockFileSnafu {
+            path: lock_file_path,
         })?,
     }
     let mut file = tokio::fs::File::open(&path)
@@ -564,7 +565,7 @@ impl RawReader for Reader {
                     tracing::warn!("vacuum {} failed, file is locked, ignore", path.display());
                     continue;
                 }
-                Err(e) => Err(e).context(LockFileSnafu {
+                Err(e) => Err(e).context(ExclusiveLockFileSnafu {
                     path: &lock_file_path,
                 })?,
             }

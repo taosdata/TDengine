@@ -99,7 +99,7 @@ pub async fn sparkplugb_to_taos(
                     Ok(_) => {}
                     Err(err) if err.is_cancelled() => {}
                     Err(e) if e.is_panic() => {
-                        tracing::error!("SparkplugB task paniced: {e}");
+                        tracing::error!("SparkplugB task panicked: {e}");
                     }
                     Err(e) => {
                         tracing::error!("SparkplugB task exit with error: {e:#}");
@@ -121,8 +121,8 @@ pub async fn sparkplugb_to_taos(
                     }
                     Some(Err(e)) => {
                         safe_exit!();
-                        tracing::error!("SparkplugB task paniced: {e:#}");
-                        return Err(e).context("MQTT task paniced");
+                        tracing::error!("SparkplugB task panicked: {e:#}");
+                        return Err(e).context("MQTT task panicked");
                     }
                     None => break,
                 }
@@ -161,7 +161,7 @@ async fn execute(
         .context("parse mqtt config error")?;
     let mut tasks = JoinSet::new();
 
-    let parallel = env_parallel("TAOSX_SPARKPLUGB_TASK_PARRALLEL")
+    let parallel = env_parallel("TAOSX_SPARKPLUGB_TASK_PARALLEL")
         .or_else(system_parallel)
         .unwrap_or(10);
     for mqtt_config in mqtt_configs {
@@ -265,7 +265,7 @@ async fn execute_broker(
                         tracing::error!("sparkplugb task exit with error: {e:#}")
                     }
                     Err(e) => {
-                        tracing::error!("sparkplugb task paniced: {e}")
+                        tracing::error!("sparkplugb task panicked: {e}")
                     }
                 }
             }
@@ -275,13 +275,13 @@ async fn execute_broker(
     });
 
     // 如果指定了设备名，先下发 rebirth 命令
-    if config.subscribe.send_rebirth_cmd() {
-        if let Some(topics) = config.subscribe.rebirth_topics() {
-            let payload = pb::rebirth_payload();
-            for topic in topics {
-                if !client.publish(&topic, 1, payload.clone()).await? {
-                    anyhow::bail!("mqtt poller dropped when send rebirth cmd")
-                }
+    if config.subscribe.send_rebirth_cmd()
+        && let Some(topics) = config.subscribe.rebirth_topics()
+    {
+        let payload = pb::rebirth_payload();
+        for topic in topics {
+            if !client.publish(&topic, 1, payload.clone()).await? {
+                anyhow::bail!("mqtt poller dropped when send rebirth cmd")
             }
         }
     }
@@ -348,10 +348,9 @@ async fn process_message(
                 if matches!(
                     metric.message_type,
                     MessageType::NBirth | MessageType::DBirth
-                ) {
-                    if let Some((name, alias)) = metric.name_alias() {
-                        alias_map.insert(alias, name);
-                    }
+                ) && let Some((name, alias)) = metric.name_alias()
+                {
+                    alias_map.insert(alias, name);
                 }
             }
             if select_cancel(schema_tx.send_async((schema, payload)), &cancel)

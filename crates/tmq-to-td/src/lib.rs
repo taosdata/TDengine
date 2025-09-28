@@ -41,17 +41,16 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> anyhow::
     let target_desc_first = target_desc.first();
     // check if the first field is timestamp
     if desc_first.ty() == Ty::Timestamp {
-        if let Some(target_desc_first) = target_desc_first {
-            if !(target_desc_first.ty() == Ty::Timestamp
+        if let Some(target_desc_first) = target_desc_first
+            && !(target_desc_first.ty() == Ty::Timestamp
                 && desc_first.name() == target_desc_first.field())
-            {
-                tracing::error!(
-                    "Mismatch the first field: expect `{:?}`, but got `{:?}`",
-                    target_desc_first,
-                    desc_first
-                );
-                return Ok(false);
-            }
+        {
+            tracing::error!(
+                "Mismatch the first field: expect `{:?}`, but got `{:?}`",
+                target_desc_first,
+                desc_first
+            );
+            return Ok(false);
         }
     } else {
         tracing::error!(
@@ -77,20 +76,19 @@ async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> anyhow::
                     r.sql_repr(),
                     l.sql_repr()
                 );
-            } else if r.length() < l.bytes() as usize {
-                if let Err(err) = to
+            } else if r.length() < l.bytes() as usize
+                && let Err(err) = to
                     .exec(format!(
                         "ALTER TABLE `{}` MODIFY COLUMN {}",
                         table,
                         l.sql_repr(),
                     ))
                     .await
-                {
-                    tracing::warn!(
-                        "Modify column `{}` of table `{table}` error: {err:#}, try continue",
-                        l.name()
-                    );
-                }
+            {
+                tracing::warn!(
+                    "Modify column `{}` of table `{table}` error: {err:#}, try continue",
+                    l.name()
+                );
             }
         } else {
             // field does not exist in right side.
@@ -581,7 +579,7 @@ async fn sync_msg(
     metrics.add_messages(1);
     let total = metrics.messages.load(SeqCst);
     *messages += 1;
-    if *messages % 2000 == 0 {
+    if messages.is_multiple_of(2000) {
         tracing::info!(
             "Received {messages} messages ({:.2})",
             *messages as f64 / total as f64
@@ -678,8 +676,8 @@ async fn sync_msg(
                 tracing::warn!("Ignore error: {}", err);
                 meta_skipped = true;
             }
-            if !actions.is_empty() || meta_skipped {
-                if let Err(err) = write_data(
+            if (!actions.is_empty() || meta_skipped)
+                && let Err(err) = write_data(
                     topic,
                     id,
                     rows,
@@ -694,19 +692,17 @@ async fn sync_msg(
                 )
                 .in_current_span()
                 .await
-                {
-                    let msg = format!("{:#}", err);
-                    if msg.contains("0xE00") && retries < max_retries {
-                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
-                        // 0xE00: connection error
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        *taos = target_pool.get().await.context("Target connection error")?;
-                        retries += 1;
-                        continue;
-                    }
-                    return Err(err)
-                        .with_context(|| format!("[{id}] writing metadata message error"));
+            {
+                let msg = format!("{:#}", err);
+                if msg.contains("0xE00") && retries < max_retries {
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0xE00: connection error
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    *taos = target_pool.get().await.context("Target connection error")?;
+                    retries += 1;
+                    continue;
                 }
+                return Err(err).with_context(|| format!("[{id}] writing metadata message error"));
             }
             retries = 0;
             break;

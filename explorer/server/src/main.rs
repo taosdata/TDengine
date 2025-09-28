@@ -36,7 +36,7 @@ use actix_embed::Embed;
 use actix_web::{
     body::BoxBody,
     dev::{fn_service, ServiceRequest, ServiceResponse},
-    error::{self, JsonPayloadError, PayloadError},
+    error,
     http::header::{ContentType, AUTHORIZATION, X_FORWARDED_FOR},
     middleware::Compress,
     web::{self, Query},
@@ -860,9 +860,9 @@ async fn query_taosd_info_guess(args: &web::Data<Args>) -> Option<(String, Strin
                 let cluster_id = taosd_info.first();
                 let taosd_version = taosd_info.get(1);
 
-                if cluster_id.is_some() && taosd_version.is_some() {
-                    let cluster_id = cluster_id.unwrap().as_i64().unwrap().to_string();
-                    let taosd_version = taosd_version.unwrap().as_str().unwrap().to_string();
+                if let (Some(cluster_id), Some(taosd_version)) = (cluster_id, taosd_version) {
+                    let cluster_id = cluster_id.as_i64().unwrap().to_string();
+                    let taosd_version = taosd_version.as_str().unwrap().to_string();
                     return Some((cluster_id, taosd_version));
                 }
             }
@@ -947,11 +947,15 @@ fn real_ip_forward(req: &HttpRequest, mut builder: RequestBuilder) -> RequestBui
     static X_REAL_IP: &str = "x-real-ip";
     let info = req.connection_info();
     let real_ip = info.realip_remote_addr().or(info.peer_addr());
-    if !req.headers().contains_key(X_FORWARDED_FOR) && real_ip.is_some() {
-        builder = builder.header(X_FORWARDED_FOR, real_ip.unwrap());
+    if !req.headers().contains_key(X_FORWARDED_FOR) {
+        if let Some(real_ip) = real_ip {
+            builder = builder.header(X_FORWARDED_FOR, real_ip);
+        }
     }
-    if !req.headers().contains_key(X_REAL_IP) && real_ip.is_some() {
-        builder = builder.header(X_REAL_IP, real_ip.unwrap());
+    if !req.headers().contains_key(X_REAL_IP) {
+        if let Some(real_ip) = real_ip {
+            builder = builder.header(X_REAL_IP, real_ip);
+        }
     }
     for (key, value) in req.headers() {
         builder = builder.header(key, value);
@@ -1251,7 +1255,7 @@ async fn get_body_from_payload(mut payload: web::Payload) -> Result<String, Rest
         RestErrResponse::new("Error converting body bytes to string")
     })
 }
-
+/*
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)]
@@ -1263,7 +1267,7 @@ enum Error {
 }
 
 impl error::ResponseError for Error {}
-
+*/
 #[derive(Deserialize)]
 struct ImportRequest {
     server: String,

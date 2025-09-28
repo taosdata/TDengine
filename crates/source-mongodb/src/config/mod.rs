@@ -102,13 +102,13 @@ impl TaskConfig {
     fn parse_subtable_fields(dsn: &Dsn) -> BTreeMap<String, String> {
         let subtable_fields = dsn.params.get("subtable_fields");
         // transform "name,sn" to BTreeMap<String, String>
-        if let Some(subtable_fields) = subtable_fields {
-            if !subtable_fields.is_empty() {
-                return subtable_fields
-                    .split(",")
-                    .map(|s| (s.to_string(), format!("\"{}\":${{v}}", s)))
-                    .collect::<BTreeMap<String, String>>();
-            }
+        if let Some(subtable_fields) = subtable_fields
+            && !subtable_fields.is_empty()
+        {
+            return subtable_fields
+                .split(",")
+                .map(|s| (s.to_string(), format!("\"{}\":${{v}}", s)))
+                .collect::<BTreeMap<String, String>>();
         }
         BTreeMap::new()
     }
@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn test_generate_filter() {
-        // with type datatime
+        // with type datetime
         let dsn = Dsn::from_str("mongodb://admin:123456@localhost:27017?load_balanced=true&direct_connection=true&repl_set_name=repl&local_threshold=10ms&mechanism=MongoDbCr&source=admin&app_name=appname&compressors=zstd&tls=true&ca_file_path=@./file/ca.pem&cert_key_file_path=@./file/cert.pem&database=test_taosx&collection=metrics&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
         let config = MongoDBConfig::from_dsn(&dsn).unwrap();

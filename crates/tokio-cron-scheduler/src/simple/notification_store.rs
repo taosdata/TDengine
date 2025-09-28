@@ -177,7 +177,7 @@ impl NotificationStore for SimpleNotificationStore {
             let notifications = notifications.read().await;
             let job = notifications.get(&job_id);
             match job {
-                Some(job) => Ok(job.iter().map(|(k, _v)| *k).collect::<Vec<_>>()),
+                Some(job) => Ok(job.keys().copied().collect::<Vec<_>>()),
                 None => Ok(vec![]),
             }
         })

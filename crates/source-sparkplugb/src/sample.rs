@@ -55,18 +55,16 @@ pub async fn get_sample(
             None,
             cancel.clone(),
         ));
-        if send_rebirth_cmd {
-            if let Some(topics) = spb_config.subscribe.rebirth_topics() {
-                for topic in topics {
-                    let res = select3(
-                        client.publish(&topic, 1, rebirth_payload()),
-                        sleep_until(deadline),
-                        cancel.cancelled(),
-                    )
-                    .await;
-                    if !matches!(res, Select3::T1(_)) {
-                        break;
-                    }
+        if send_rebirth_cmd && let Some(topics) = spb_config.subscribe.rebirth_topics() {
+            for topic in topics {
+                let res = select3(
+                    client.publish(&topic, 1, rebirth_payload()),
+                    sleep_until(deadline),
+                    cancel.cancelled(),
+                )
+                .await;
+                if !matches!(res, Select3::T1(_)) {
+                    break;
                 }
             }
         }
@@ -97,7 +95,7 @@ pub async fn get_sample(
                 anyhow::bail!("run sample task error: {e:#}");
             }
             Err(e) => {
-                anyhow::bail!("sample task paniced: {e}")
+                anyhow::bail!("sample task panicked: {e}")
             }
         }
     }
