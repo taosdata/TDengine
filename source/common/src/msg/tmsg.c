@@ -2960,7 +2960,7 @@ int32_t tDeserializeRetrieveAnalyticAlgoRsp(void *buf, int32_t bufLen, SRetrieve
 
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &url.anode));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &type));
-    url.type = (EAnalAlgoType)type;
+    url.type = (EAnalyAlgoType)type;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &url.urlLen));
     if (url.urlLen > 0) {
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&url.url, NULL) < 0);
