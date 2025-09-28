@@ -66,5 +66,23 @@ class TestTLSDemo:
         cli.query("show databases")
 
     def test_tls_demo(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         self.stop_and_restart()
         
