@@ -41,7 +41,7 @@ class TestTLSDemo:
         self.initEnv1()
         self.basicTest()  
 
-        tdSql.execute("alter all dnodes 'enableTLS 1'")
+        #tdSql.execute("alter all dnodes 'enableTLS 1'")
 
 
         tdSql.close()
