@@ -82,8 +82,9 @@ typedef struct SSTriggerRealtimeGroup {
   STimeWindow prevWindow;          // the last closed window, for sliding trigger
   SObjList    windows;             // SObjList<SSTriggerWindow>, windows not yet closed
   SObjList    pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
+  SSHashObj  *pDoneVersions;       // SSHashObj<vgId, SObjList<{skey, ver}>>
 
-  int64_t  nextExecTime;  // use for max delay and batch window mode
+  int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
 } SSTriggerRealtimeGroup;
 
@@ -120,6 +121,7 @@ typedef enum ESTriggerContextStatus {
 typedef struct SSTriggerWalProgress {
   SStreamTaskAddr          *pTaskAddr;    // reader task address
   int64_t                   lastScanVer;  // version of the last committed record in previous scan
+  int64_t                   verTime;      // commit time of the last commit record in previous scan
   SSTriggerPullRequestUnion pullReq;
   SArray                   *reqCids;         // SArray<col_id_t>
   SArray                   *reqCols;         // SArray<OTableInfo>
@@ -187,6 +189,7 @@ typedef struct SSTriggerRealtimeContext {
   SObjPool              tableUidPool;   // SObjPool<{uid, vgId}>
   SObjPool              windowPool;     // SObjPool<SSTriggerWindow>
   SObjPool              calcParamPool;  // SObjPool<SSTriggerCalcParam>
+  SObjPool              versionPool;    // SObjPool<{skey, ver}>
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
@@ -386,6 +389,8 @@ typedef struct SStreamTriggerTask {
   volatile int8_t           isCheckpointReady;
   volatile int32_t          checkpointVersion;
   volatile int64_t          mgmtReqId;
+  volatile int8_t           historyFinished;
+  volatile int64_t          latestVersionTime;
   bool                      historyCalcStarted;
   char                     *streamName;
   SSTriggerRealtimeContext *pRealtimeContext;
