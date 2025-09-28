@@ -421,7 +421,7 @@ static int32_t queryBuildGetRsmaMsg(void *input, char **msg, int32_t msgSize, in
   QUERY_PARAM_CHECK(msgLen);
 
   SRsmaInfoReq req = {.withColName = 1};
-  (void)snprintf(req.name, sizeof(req.name), input);
+  (void)snprintf(req.name, sizeof(req.name), "%s", (const char *)input);
 
   int32_t bufLen = tSerializeRsmaInfoReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);
