@@ -89,6 +89,7 @@ static void          updateComposedBlockInfo(STsdbReader* pReader, double el, ST
 static int32_t       buildFromPreFilesetBuffer(STsdbReader* pReader);
 
 static void resetPreFilesetMemTableListIndex(SReaderStatus* pStatus);
+int32_t     tsdbReaderSuspend2(STsdbReader* pReader);
 
 FORCE_INLINE int32_t pkCompEx(SRowKey* p1, SRowKey* p2) {
   if (p2 == NULL) {
@@ -714,10 +715,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   *ppReader = NULL;
   pReader = (STsdbReader*)taosMemoryCalloc(1, sizeof(*pReader));
   TSDB_CHECK_NULL(pReader, code, lino, _end, terrno);
-
-  if (VND_IS_TSMA(pVnode)) {
-    tsdbDebug("vgId:%d, tsma is selected to query, %s", TD_VID(pVnode), idstr);
-  }
 
   initReaderStatus(&pReader->status);
   getTsdbByRetentions(pVnode, pCond, pVnode->config.tsdbCfg.retentions, idstr, &level, &pReader->pTsdb);
@@ -1811,7 +1808,7 @@ static FORCE_INLINE STSchema* getTableSchemaImpl(STsdbReader* pReader, uint64_t 
   code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->info.suid, uid, -1, &pReader->info.pSchema);
   if (code != TSDB_CODE_SUCCESS || pReader->info.pSchema == NULL) {
     terrno = code;
-    tsdbError("failed to get table schema, uid:%" PRIu64 ", it may have been dropped, ver:-1, %s", uid, pReader->idStr);
+    tsdbError("failed to get table schema, suid:%"PRIu64",uid:%" PRIu64 ", it may have been dropped, ver:-1, %s", pReader->info.suid, uid, pReader->idStr);
   }
   TSDB_CHECK_CODE(code, lino, _end);
   TSDB_CHECK_NULL(pReader->info.pSchema, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -4567,6 +4564,7 @@ static void getTsdbByRetentions(SVnode* pVnode, SQueryTableDataCond* pCond, SRet
   }
 
   *pTsdb = NULL;
+#if 0
   if (VND_IS_RSMA(pVnode) && !pCond->skipRollup) {
     int8_t  level = 0;
     int8_t  precision = pVnode->config.tsdbCfg.precision;
@@ -4608,7 +4606,7 @@ static void getTsdbByRetentions(SVnode* pVnode, SQueryTableDataCond* pCond, SRet
       return;
     }
   }
-
+#endif
   *pTsdb = VND_TSDB(pVnode);
 }
 
@@ -5804,6 +5802,9 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
             pReader, numOfTables, pReader->info.window.skey, pReader->info.window.ekey, pReader->info.verRange.minVer,
             pReader->info.verRange.maxVer, pReader->idStr);
 
+  // NOTE: simulate the suspend operation after the reader is suspended, ref: TD-38007.
+  // tsdbReaderSuspend2(pReader);
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s, %s", __func__, lino, tstrerror(code), idstr);
@@ -5941,9 +5942,7 @@ static int32_t doSuspendCurrentReader(STsdbReader* pCurrentReader) {
   int32_t iter = 0;
   while ((p = tSimpleHashIterate(pStatus->pTableMap, p, &iter)) != NULL) {
     STableBlockScanInfo* pInfo = *(STableBlockScanInfo**)p;
-    clearBlockScanInfo(pInfo);
-    //    pInfo->sttKeyInfo.nextProcKey = pInfo->lastProcKey.ts + step;
-    //    pInfo->sttKeyInfo.nextProcKey = pInfo->lastProcKey + step;
+    clearBlockScanInfoLoadInfo(pInfo);
   }
 
   pStatus->uidList.currentIndex = 0;

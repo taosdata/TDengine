@@ -1,0 +1,138 @@
+
+taos> select STDDEV_SAMP(current) from ts_4893.meters
+   stddev_samp(current)    |
+============================
+          1.15434543913196 |
+
+taos> select STDDEV_SAMP(current) from ts_4893.meters interval(1d) order by 1 limit 10
+   stddev_samp(current)    |
+============================
+         0.853483815166086 |
+         0.853655892257204 |
+           0.8551160778746 |
+           0.8551160778746 |
+         0.855444290313484 |
+         0.860073179138309 |
+         0.861667493945676 |
+         0.862005049996702 |
+          0.86217835278225 |
+          0.86323741398196 |
+
+taos> select STDDEV_SAMP(id) from ts_4893.meters
+      stddev_samp(id)      |
+============================
+          2886.76576537928 |
+
+taos> select STDDEV_SAMP(id) from ts_4893.meters interval(1d) limit 10
+      stddev_samp(id)      |
+============================
+          4.76095228569523 |
+           8.5146931829632 |
+           8.5146931829632 |
+           8.5146931829632 |
+           8.5146931829632 |
+          8.22597511950204 |
+           8.5146931829632 |
+           8.5146931829632 |
+           8.5146931829632 |
+           8.5146931829632 |
+
+taos> select STDDEV_SAMP(id) from ts_4893.meters where id > 100
+      stddev_samp(id)      |
+============================
+          2857.60957663903 |
+
+taos> select STDDEV_SAMP(id) from ts_4893.meters interval(1d) order by 1 limit 10
+      stddev_samp(id)      |
+============================
+          4.76095228569523 |
+          5.62731433871138 |
+          8.22597511950204 |
+          8.22597511950204 |
+          8.22597511950204 |
+          8.22597511950204 |
+          8.22597511950204 |
+          8.22597511950204 |
+          8.22597511950204 |
+          8.22597511950204 |
+
+taos> select stddev_samp(null) from ts_4893.meters
+     stddev_samp(null)     |
+============================
+ NULL                      |
+
+taos> select stddev_samp(id) from ts_4893.d0
+      stddev_samp(id)      |
+============================
+          2886.76576537928 |
+
+taos> select stddev_samp(id) from ts_4893.meters
+      stddev_samp(id)      |
+============================
+          2886.76576537928 |
+
+taos> select stddev_samp(current) from ts_4893.d0
+   stddev_samp(current)    |
+============================
+          1.15434543913196 |
+
+taos> select stddev_samp(current) from ts_4893.meters
+   stddev_samp(current)    |
+============================
+          1.15434543913196 |
+
+taos> select stddev_samp(voltage) from ts_4893.meters
+   stddev_samp(voltage)    |
+============================
+           2.8764740883644 |
+
+taos> select stddev_samp(voltage) from ts_4893.meters where voltage is not null
+   stddev_samp(voltage)    |
+============================
+           2.8764740883644 |
+
+taos> select stddev_samp(phase) from ts_4893.meters
+    stddev_samp(phase)     |
+============================
+          0.28859690108374 |
+
+taos> select stddev_samp(phase) from ts_4893.meters where ts between '2023-01-01 00:00:00' and '2023-12-31 23:59:59'
+    stddev_samp(phase)     |
+============================
+          0.28808906115611 |
+
+taos> select stddev_samp(total_voltage) from (select sum(voltage) as total_voltage from ts_4893.meters group by location)
+ stddev_samp(total_voltage) |
+=============================
+                          0 |
+
+taos> select round(stddev_samp(current), 2) from ts_4893.meters
+ round(stddev_samp(current), 2) |
+=================================
+                           1.15 |
+
+taos> select pow(stddev_samp(current), 2) from ts_4893.meters
+ pow(stddev_samp(current), 2) |
+===============================
+             1.33251339284475 |
+
+taos> select log(stddev_samp(voltage) + 1) from ts_4893.meters
+ log(stddev_samp(voltage) + 1) |
+================================
+               1.3549260003683 |
+
+taos> select groupid, stddev_samp(voltage) from ts_4893.meters group by groupid order by groupid
+ groupid |   stddev_samp(voltage)    |
+======================================
+       1 |           2.8764740883644 |
+
+taos> select location, stddev_samp(current) from ts_4893.meters group by location order by location
+      location      |   stddev_samp(current)    |
+=================================================
+ beijing            |          1.15434543913196 |
+
+taos> select location, stddev_samp(voltage) from ts_4893.meters group by location order by location
+      location      |   stddev_samp(voltage)    |
+=================================================
+ beijing            |           2.8764740883644 |
+

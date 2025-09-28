@@ -75,9 +75,6 @@ typedef struct SBuiltinFuncDefinition {
   FScalarExecProcess   sprocessFunc;
   FExecFinalize        finalizeFunc;
   FExecCleanUp         cleanupFunc;
-#ifdef BUILD_NO_CALL
-  FExecProcess invertFunc;
-#endif
   FExecCombine               combineFunc;
   const char*                pPartialFunc;
   const char*                pMiddleFunc;

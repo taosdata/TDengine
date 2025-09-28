@@ -786,6 +786,22 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ... )
 
 **Applicable to**: Tables and supertables.
 
+#### FIND_IN_SET
+
+```sql
+FIND_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then return the index of `expr1` in the list, return 0 if not exist.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
 #### LENGTH
 
 ```sql
@@ -797,6 +813,22 @@ LENGTH(expr)
 **Return Result Type**: BIGINT.
 
 **Applicable Data Types**: VARCHAR, NCHAR, VARBINARY.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+#### LIKE_IN_SET
+
+```sql
+LIKE_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then match `expr1` with the items using the semantics of the `LIKE` operator, return the index of the first matched item, return 0 if there's no match.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -829,6 +861,22 @@ LTRIM(expr)
 **Return Result Type**: Same as the original type of the input field.
 
 **Applicable Data Types**: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+#### REGEXP_IN_SET
+
+```sql
+REGEXP_IN_SET(expr1, expr2[, expr3])
+```
+
+**Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then using `expr1` as a regular expression to match the items, return the index of the first matched item, return 0 if there's no match.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
+
+**Return Type**: BIGINT. If `expr1` or `expr2` is NULL, then return NULL.
+
+**Applicable Data Types**: VARCHAR, NCHAR. The function requires a minimum of 2 parameters and a maximum of 3 parameters.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -1772,6 +1820,47 @@ taos> select dayofweek('2000-01-01');
                        7 |
 ```
 
+#### DATE
+
+```sql
+DATE(expr)
+```
+
+**Function Description**: Returns date of the input time expression.
+
+**Version**: ver-3.3.8.0
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The return value is of `yyyy-mm-dd` format.
+- If `expr` is NULL, returns NULL.
+- If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- If no timezone is specified, the default timezone of input and output time is consistent with the client. To avoid using an unintended timezone during conversion, it is recommended to carry timezone information in the input.
+
+**Example**:
+
+(note: the following statements are executed in the UTC+0800 timezone, and the precision is milliseconds)
+```sql
+taos> select date(946656000000);
+       date(946656000000)       |
+=================================
+ 2000-01-01                     |
+
+taos> select date('2000-01-01 12:00:00.000');
+ date('2000-01-01 12:00:00.000') |
+==================================
+ 2000-01-01                      |
+```
+
 ## Aggregate Functions
 
 Aggregate functions return a single result row for each group of the result set of a query. Groups can be specified by a GROUP BY or window partition clause; if none is specified, the entire result set is considered a single group.
@@ -1891,10 +1980,10 @@ SPREAD(expr)
 
 **Applicable to**: Tables and supertables.
 
-### STDDEV/STDDEV_POP
+### STDDEV/STDDEV_POP/STD
 
 ```sql
-STDDEV/STDDEV_POP(expr)
+STDDEV/STDDEV_POP/STD(expr)
 ```
 
 **Function Description**: Calculates the population standard deviation of a column in the table.
@@ -1908,6 +1997,7 @@ STDDEV/STDDEV_POP(expr)
 **Description**:
 
 - Function `STDDEV_POP` equals `STDDEV` and is supported from ver-3.3.3.0.
+- Function `STD` equals `STDDEV` and is supported from ver-3.3.8.0.
 
 **Example**:
 
@@ -1927,15 +2017,87 @@ taos> select stddev_pop(id) from test_stddev;
          1.414213562373095 |
 ```
 
-### VAR_POP
+### STDDEV_SAMP
 
 ```sql
-VAR_POP(expr)
+STDDEV_SAMP
+```
+
+**Function Description**: Calculates the sample standard deviation of a column in the table.
+
+**Version**: ver-3.3.8.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Example**:
+
+```sql
+taos> select id from test_stddev;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+
+taos> select stddev_samp(id) from test_stddev;
+      stddev_samp(id)       |
+============================
+         1.58113883008419   |
+```
+
+### VARIANCE/VAR_POP
+
+```sql
+VARIANCE/VAR_POP(expr)
 ```
 
 **Function Description**: Calculates the population variance of a column in a table.
 
 **Version**: ver-3.3.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Description**:
+
+- Function `VARIANCE` equals `VAR_POP` and is supported from ver-3.3.8.0.
+
+**Example**:
+
+```sql
+taos> select id from test_var;
+     id      |
+==============
+           3 |
+           1 |
+           2 |
+           4 |
+           5 |
+
+taos> select var_pop(id) from test_var;
+        var_pop(id)        |
+============================
+         2.000000000000000 |
+```
+
+### VAR_SAMP
+
+```sql
+VAR_SAMP(expr)
+```
+
+**Function Description**: Calculates the sample variance of a column in a table.
+
+**Version**: ver-3.3.8.0
 
 **Return Data Type**: DOUBLE.
 
@@ -1955,10 +2117,42 @@ taos> select id from test_var;
            4 |
            5 |
 
-taos> select var_pop(id) from test_var;
-        var_pop(id)        |
+taos> select var_samp(id) from test_var;
+        var_samp(id)        |
 ============================
-         2.000000000000000 |
+         2.500000000000000 |
+```
+
+### GROUP_CONCAT
+
+```sql
+GROUP_CONCAT(expr)
+```
+
+**Function Description**: Concatenate the non-null fields of a table.
+
+**Version**: ver-3.3.8.0
+
+**Return Data Type**: VARCHAR.
+
+**Applicable Data Types**: String types.
+
+**Applicable to**: Tables and supertables.
+
+**Example**:
+
+```sql
+taos> select str1, str2 from test_var;
+     id      |      id      |
+=============================
+          a1 |       b1     |
+          a2 |       b2     |
+          a3 |       b3     |
+
+taos> select group_concat(str1, str2, ':') from test_var;
+         group_concat(str1, str2, ':')   |
+==========================================
+         a1b1:a2b2:a3b3                  |
 ```
 
 ### SUM
@@ -2040,9 +2234,103 @@ PERCENTILE(expr, p [, p1] ... )
 
 **Usage Instructions**:
 
+- The PERCENTILE function is not applicable to virtual table.
 - *P* values range from 0≤*P*≤100, where P=0 is equivalent to MIN and P=100 is equivalent to MAX;
 - When calculating multiple percentiles for the same column, it is recommended to use one PERCENTILE function with multiple parameters to significantly reduce the response time of the query.
   For example, using the query SELECT percentile(col, 90, 95, 99) FROM table performs better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
+
+## Control Flow Functions
+
+### IF
+
+```sql
+IF(expr1, expr2, expr3)
+```
+
+**Function Description**: If expr1 is true, return expr2, otherwise return expr3.
+
+**Return Data Type**: Depends on the contexts.
+
+**Applicable Fields**: expressions.
+
+**Usage Instructions**:
+
+- Similar to the CASE expressions.
+
+**Example**:
+
+```sql
+taos> SELECT IF(1>2,2,3);
+      if(1>2,2,3)      |
+========================
+                     3 |
+```
+
+### IFNULL
+
+```sql
+IFNULL(expr1, expr2)
+```
+
+**Function Description**: If expr1 is not null, return expr1, otherwise return expr2.
+
+**Return Data Type**: Depends on the contexts.
+
+**Applicable Fields**: expressions.
+
+**Example**:
+
+```sql
+taos> SELECT IFNULL(1,0);
+      ifnull(1,0)      |
+========================
+                    1 |
+```
+
+### NVL
+
+`NVL` is a synonym for [IFNULL](#ifnull).
+
+### NULLIF
+
+```sql
+NULLIF(expr1, expr2)
+```
+
+**Function Description**: If expr1  = expr2, return NULL, otherwise return expr1.
+
+**Return Data Type**: Depends on the contexts.
+
+**Applicable Fields**: expressions.
+
+**Example**:
+
+```sql
+taos> SELECT NULLIF(1,1);
+      nullif(1,1)      |
+========================
+ NULL                  |
+```
+
+### NVL2
+
+```sql
+NVL2(expr1, expr2, expr3)
+```
+
+**Function Description**: If expr1 is not null, return expr2, otherwise return expr1.
+
+**Return Data Type**: Depends on the contexts.
+
+**Applicable Fields**: expressions.
+
+**Example**:
+
+```sql
+taos> SELECT NVL2(NULL,1,2);
+========================
+                     2 |
+```
 
 ## Selection Functions
 

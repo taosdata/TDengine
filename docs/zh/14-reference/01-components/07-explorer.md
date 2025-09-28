@@ -120,6 +120,15 @@ cors = true
 # The number of days log files are retained
 #
 # keepDays = 30
+# Configuration for monitoring with taosKeeper service
+
+[monitor]
+# FQDN of taosKeeper service
+#fqdn = "localhost"
+# Port of taosKeeper service
+#port = 6043
+# Monitor interval in seconds, minimum is 1, maximum is 10
+#interval = 10
 ```
 
 说明：
@@ -143,6 +152,9 @@ cors = true
 - `log.rotationSize`：触发日志文件滚动的文件大小（单位为字节），当日志文件超出此大小后会生成一个新文件，新的日志会写入新文件。
 - `log.reservedDiskSize`：日志所在磁盘停止写入日志的阈值（单位为字节），当磁盘剩余空间达到此大小后停止写入日志。
 - `log.keepDays`：日志文件保存的天数，超过此天数的旧日志文件会被删除。
+- `monitor.fqdn`：上报指标的 taosKeeper 服务地址。
+- `monitor.port`：上报指标的 taosKeeper 服务端口，类型为整数。默认为：`6043`。
+- `monitor.interval`：上报指标的时间间隔，类型为整数，单位为秒（s）。默认为：`10`。
 
 ## 启动停止
 
@@ -227,3 +239,13 @@ sc.exe stop taos-explorer # Windows
 其他功能页面，如 `数据写入-数据源` 等页面，为企业版特有功能，您可以点击查看和简单体验，并不能实际使用。
 
 如果由于网络原因无法完成注册环节，则需要在有外网的环境注册完毕，然后把注册好的 `/etc/taos/explorer-register.cfg` 替换到内网环境。
+
+3.3.7.1 版本后，可以使用环境变量 `EXPLORER_SKIP_REGISTER=true` 跳过注册环节，直接使用用户名登录。
+
+在采用 systemd 的 Linux 系统中，您可以通过环境变量文件 `/etc/default/taos-explorer` 添加如下环境变量：
+
+```shell
+EXPLORER_SKIP_REGISTER=true
+```
+
+在 Windows 系统中，您可以通过系统环境变量设置界面添加该环境变量。

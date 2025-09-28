@@ -55,7 +55,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, SArray* list, SNode* p
                                         uint64_t suid);
 
 static int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
-                            STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI);
+                            STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI, void* pStreamInfo);
 
 static int64_t getLimit(const SNode* pLimit) {
   return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->limit) ? -1 : ((SLimitNode*)pLimit)->limit->datum.i;
@@ -1019,7 +1019,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
   } 
 
   T_MD5_CTX context = {0};
-  if (tsTagFilterCache) {
+  if (tsTagFilterCache && groupIdMap == NULL) {
     SNodeListNode* listNode = NULL;
     code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&listNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1238,7 +1238,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     }
   }
 
-  if (tsTagFilterCache) {
+  if (tsTagFilterCache && groupIdMap == NULL) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
     QUERY_CHECK_NULL(tableList, code, lino, end, terrno);
 
@@ -1654,7 +1654,7 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
 }
 
 static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded) {
+                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
   *listAdded = false;
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -1739,7 +1739,7 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     QUERY_CHECK_CODE(code, lino, end);
   }
 
-  code = scalarCalculate(pTagCond, pBlockList, &output, NULL, NULL);
+  code = scalarCalculate(pTagCond, pBlockList, &output, pStreamInfo, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to calculate scalar, reason:%s", tstrerror(code));
     terrno = code;
@@ -1767,7 +1767,7 @@ end:
 }
 
 int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
-                     STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI) {
+                     STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI, void* pStreamInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   size_t  numOfTables = 0;
@@ -1786,7 +1786,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
       QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
     }
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false, &listAdded);
+    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false, &listAdded, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
     T_MD5_CTX context = {0};
@@ -1832,7 +1832,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       }
     }
 
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, tsTagFilterCache, &listAdded);
+    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, tsTagFilterCache, &listAdded, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // let's add the filter results into meta-cache
@@ -1877,7 +1877,10 @@ _end:
     }
   }
 
+  qDebug("table list with %d uids built", (int32_t)taosArrayGetSize(pListInfo->pTableList));
+
 _error:
+
   taosArrayDestroy(pUidList);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1898,7 +1901,7 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
   QUERY_CHECK_NULL(pTableListInfo, code, lino, _end, terrno);
   uint8_t digest[17] = {0};
   code = getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL,
-                      pTableListInfo, digest, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+                      pTableListInfo, digest, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
   *tableList = pTableListInfo->pTableList;
   pTableListInfo->pTableList = NULL;
@@ -2958,7 +2961,6 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
   }
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
-
   return pKeyInfo->groupId;
 }
 
@@ -3276,7 +3278,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   }
   uint8_t digest[17] = {0};
   int32_t code = getTableList(pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo, digest, idStr,
-                              &pTaskInfo->storageAPI);
+                              &pTaskInfo->storageAPI, pTaskInfo->pStreamRuntimeInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to getTableList, code:%s", tstrerror(code));
     return code;
@@ -3290,7 +3292,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
          pTaskInfo->cost.extractListTime, idStr);
 
   if (numOfTables == 0) {
-    qDebug("no table qualified for query, %s" PRIx64, idStr);
+    qDebug("no table qualified for query, %s", idStr);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -3317,19 +3319,20 @@ char* getStreamOpName(uint16_t opType) {
   return "error name";
 }
 
-void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {
-  if (!pBlock) {
-    qDebug("%s===stream===%s: Block is Null", taskIdStr, flag);
-    return;
-  } else if (pBlock->info.rows == 0) {
-    qDebug("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
-    return;
-  }
+void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
   if (qDebugFlag & DEBUG_TRACE) {
+    if (!pBlock) {
+      qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
+      return;
+    } else if (pBlock->info.rows == 0) {
+      qDebug("%" PRIx64 " %s %s %s: Block is Empty. block type %d", qId, taskIdStr, flag, __func__, pBlock->info.type);
+      return;
+    }
+    
     char*   pBuf = NULL;
-    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
+    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr, qId);
     if (code == 0) {
-      qDebugL("%s", pBuf);
+      qDebugL("%" PRIx64 " %s %s", qId, __func__, pBuf);
       taosMemoryFree(pBuf);
     }
   }
@@ -3349,7 +3352,7 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     char* pBuf = NULL;
     char  flagBuf[64];
     snprintf(flagBuf, sizeof(flagBuf), "%s %s", flag, opStr);
-    int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr);
+    int32_t code = dumpBlockData(pBlock, flagBuf, &pBuf, taskIdStr, 0);
     if (code == 0) {
       qDebug("%s", pBuf);
       taosMemoryFree(pBuf);

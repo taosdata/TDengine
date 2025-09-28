@@ -364,6 +364,30 @@ typedef struct SResSchame {
   char    name[TSDB_COL_NAME_LEN];
 } SResSchema;
 
+typedef struct SAggSupporter  SAggSupporter;
+typedef struct SExprSupp      SExprSupp;
+typedef struct SGroupResInfo  SGroupResInfo;
+typedef struct SResultRow     SResultRow;
+typedef struct SResultRowInfo SResultRowInfo;
+typedef struct SExecTaskInfo  SExecTaskInfo;
+typedef struct SRollupCtx {
+  void*           pTsdb;     // STsdb*
+  void*           pTargets;  // SNodeList*
+  void*           pBuf;
+  SExprSupp*      exprSup;
+  SAggSupporter*  aggSup;
+  SResultRow*     resultRow;
+  SResultRowInfo* resultRowInfo;
+  SGroupResInfo*  pGroupResInfo;
+  SExecTaskInfo*  pTaskInfo;
+  SSDataBlock*    pInputBlock;  // input data block for rollup
+  SSDataBlock*    pResBlock;    // result data block for rollup
+  SArray*         pColValArr;   // used the generate the aggregate row
+  int32_t         rowSize;
+  int32_t         maxBufRows;    // max buffer rows for aggregation
+  int64_t         winTotalRows;  // number of total rows for current window
+  int64_t         winStartTs;    // start timestamp of current window
+} SRollupCtx;
 
 typedef struct {
   const char* key;

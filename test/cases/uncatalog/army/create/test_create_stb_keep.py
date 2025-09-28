@@ -96,10 +96,10 @@ class TestCreateStbKeep:
         tdSql.execute("USE test")
         tdSql.execute("CREATE STABLE stb (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 10d")
         tdSql.query("SHOW CREATE TABLE stb")
-        tdSql.checkData(0, 1, "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `b` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `c` VARCHAR(10) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`e_id` INT) KEEP 14400m")
+        tdSql.checkData(0, 1, "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `b` FLOAT ENCODE 'bss' COMPRESS 'lz4' LEVEL 'medium', `c` VARCHAR(10) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`e_id` INT) KEEP 14400m")
         tdSql.execute("ALTER TABLE stb KEEP 5d")
         tdSql.query("SHOW CREATE TABLE stb")
-        tdSql.checkData(0, 1, "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `b` FLOAT ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `c` VARCHAR(10) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`e_id` INT) KEEP 7200m")
+        tdSql.checkData(0, 1, "CREATE STABLE `stb` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `a` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `b` FLOAT ENCODE 'bss' COMPRESS 'lz4' LEVEL 'medium', `c` VARCHAR(10) ENCODE 'disabled' COMPRESS 'zstd' LEVEL 'medium') TAGS (`e_id` INT) KEEP 7200m")
 
     def check_stb_keep_ins_table(self):
         tdLog.info(f"check stb keep ins table")

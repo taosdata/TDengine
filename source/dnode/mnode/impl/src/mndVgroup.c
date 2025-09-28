@@ -66,8 +66,11 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_HASHRANGE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_SCAN_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DISABLE_WRITE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_SYNC_FORCE_FOLLOWER_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_ELECTBASELINE_RSP, mndTransProcessRsp);
+  
   mndSetMsgHandle(pMnode, TDMT_DND_ALTER_VNODE_TYPE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_SYNC_CONFIG_CHANGE_RSP, mndTransProcessRsp);
@@ -2738,6 +2741,96 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
 
     code = mndRedistributeVgroup(pMnode, pReq, pDb, pVgroup, pNew1, pOld1, pNew2, pOld2, pNew3, pOld3);
 
+  } else if (pVgroup->replica == 2) {
+    if (req.dnodeId1 <= 0 || req.dnodeId2 <= 0) {
+      code = TSDB_CODE_MND_INVALID_REPLICA;
+      goto _OVER;
+    }
+
+    if (req.dnodeId1 == req.dnodeId2) {
+      code = TSDB_CODE_MND_INVALID_REPLICA;
+      goto _OVER;
+    }
+
+    if (req.dnodeId1 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId1 != pVgroup->vnodeGid[1].dnodeId) {
+      newDnodeId[++newIndex] = req.dnodeId1;
+      mInfo("vgId:%d, dnode:%d will be added, index:%d", pVgroup->vgId, newDnodeId[newIndex], newIndex);
+    }
+
+    if (req.dnodeId2 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[1].dnodeId) {
+      newDnodeId[++newIndex] = req.dnodeId2;
+      mInfo("vgId:%d, dnode:%d will be added, index:%d", pVgroup->vgId, newDnodeId[newIndex], newIndex);
+    }
+
+    if (req.dnodeId1 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[0].dnodeId) {
+      oldDnodeId[++oldIndex] = pVgroup->vnodeGid[0].dnodeId;
+      mInfo("vgId:%d, dnode:%d will be removed, index:%d", pVgroup->vgId, oldDnodeId[oldIndex], oldIndex);
+    }
+
+    if (req.dnodeId1 != pVgroup->vnodeGid[1].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[1].dnodeId) {
+      oldDnodeId[++oldIndex] = pVgroup->vnodeGid[1].dnodeId;
+      mInfo("vgId:%d, dnode:%d will be removed, index:%d", pVgroup->vgId, oldDnodeId[oldIndex], oldIndex);
+    }
+
+    if (newDnodeId[0] != 0) {
+      pNew1 = mndAcquireDnode(pMnode, newDnodeId[0]);
+      if (pNew1 == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        goto _OVER;
+      }
+      if (!mndIsDnodeOnline(pNew1, curMs)) {
+        code = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
+        goto _OVER;
+      }
+    }
+
+    if (newDnodeId[1] != 0) {
+      pNew2 = mndAcquireDnode(pMnode, newDnodeId[1]);
+      if (pNew2 == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        goto _OVER;
+      }
+      if (!mndIsDnodeOnline(pNew2, curMs)) {
+        code = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
+        goto _OVER;
+      }
+    }
+
+    if (oldDnodeId[0] != 0) {
+      pOld1 = mndAcquireDnode(pMnode, oldDnodeId[0]);
+      if (pOld1 == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        goto _OVER;
+      }
+      if (!mndIsDnodeOnline(pOld1, curMs)) {
+        code = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
+        goto _OVER;
+      }
+    }
+
+    if (oldDnodeId[1] != 0) {
+      pOld2 = mndAcquireDnode(pMnode, oldDnodeId[1]);
+      if (pOld2 == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        if (terrno != 0) code = terrno;
+        goto _OVER;
+      }
+      if (!mndIsDnodeOnline(pOld2, curMs)) {
+        code = TSDB_CODE_MND_HAS_OFFLINE_DNODE;
+        goto _OVER;
+      }
+    }
+
+    if (pNew1 == NULL && pOld1 == NULL && pNew2 == NULL && pOld2 == NULL) {
+      // terrno = TSDB_CODE_MND_VGROUP_UN_CHANGED;
+      code = 0;
+      goto _OVER;
+    }
+
+    code = mndRedistributeVgroup(pMnode, pReq, pDb, pVgroup, pNew1, pOld1, pNew2, pOld2, NULL, NULL);
   } else {
     code = TSDB_CODE_MND_REQ_REJECTED;
     goto _OVER;
@@ -2833,7 +2926,95 @@ int32_t mndAddBalanceVgroupLeaderAction(SMnode *pMnode, STrans *pTrans, SVgObj *
   TAOS_RETURN(code);
 }
 
-int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans) {
+static void *mndBuildAlterVnodeElectBaselineReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId,
+                                          int32_t *pContLen, int32_t ms) {
+  SAlterVnodeElectBaselineReq alterReq = {
+      .vgId = pVgroup->vgId,
+      .electBaseLine = ms,
+  };
+
+  int32_t contLen = tSerializeSAlterVnodeReplicaReq(NULL, 0, &alterReq);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  if (tSerializeSAlterVnodeReplicaReq(pReq, contLen, &alterReq) < 0) {
+    mError("vgId:%d, failed to serialize alter vnode req,since %s", alterReq.vgId, terrstr());
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  *pContLen = contLen;
+  return pReq;
+}
+
+static int32_t mndAddAlterVnodeElectionBaselineActionToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId, int32_t ms) {
+  int32_t    code = 0;
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, dnodeId);
+  if (pDnode == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  STransAction action = {0};
+  action.epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildAlterVnodeElectBaselineReq(pMnode, pDb, pVgroup, dnodeId, &contLen, ms);
+  if (pReq == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_VND_ALTER_ELECTBASELINE;
+  action.groupId = pVgroup->vgId;
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t mndAddAlterVgroupElectionBaselineActionToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans, int32_t index){
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  int32_t vgid = pVgroup->vgId;
+  int8_t  replica = pVgroup->replica;
+
+  if (pVgroup->replica <= 1) {
+    mInfo("trans:%d, vgid:%d no need to balance, replica:%d", pTrans->id, vgid, replica);
+    return -1;
+  }
+
+  for(int32_t i = 0; i < 3; i++){
+    if(i == index%3){
+    TAOS_CHECK_RETURN(
+        mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup, pVgroup->vnodeGid[i].dnodeId, 1500));
+    }
+    else{
+    TAOS_CHECK_RETURN(
+        mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup, pVgroup->vnodeGid[i].dnodeId, 5000));
+    }
+  }
+  return code; 
+}
+
+int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans, int32_t index) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -2866,11 +3047,17 @@ int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTra
 
   if (exist && online) {
     mInfo("trans:%d, vgid:%d leader to dnode:%d", pTrans->id, vgid, dnodeId);
+    
+    TAOS_CHECK_RETURN(mndAddAlterVgroupElectionBaselineActionToTrans(pMnode, pVgroup, pTrans, index));
 
     if ((code = mndAddBalanceVgroupLeaderAction(pMnode, pTrans, pVgroup, dnodeId)) != 0) {
       mError("trans:%d, vgid:%d failed to be balanced to dnode:%d", pTrans->id, vgid, dnodeId);
       TAOS_RETURN(code);
     }
+
+    TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, NULL, pVgroup));
+
+    TAOS_CHECK_RETURN(mndAddAlterVgroupElectionBaselineActionToTrans(pMnode, pVgroup, pTrans, -1));
 
     SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
     if (pDb == NULL) {
@@ -3372,11 +3559,13 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   }
 #endif
 
-  if (pDb->cfg.withArbitrator) {
-    code = TSDB_CODE_OPS_NOT_SUPPORT;
-    mError("vgId:%d, db:%s, with arbitrator, split vgroup not allowed", pVgroup->vgId, pVgroup->dbName);
-    goto _OVER;
-  }
+  /*
+    if (pDb->cfg.withArbitrator) {
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      mError("vgId:%d, db:%s, with arbitrator, split vgroup not allowed", pVgroup->vgId, pVgroup->dbName);
+      goto _OVER;
+    }
+  */
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "split-vgroup");
   if (pTrans == NULL) {
@@ -3421,7 +3610,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
     TAOS_CHECK_GOTO(mndAddAlterVnodeReplicaAction(pMnode, pTrans, pDb, &newVg1, newVg1.vnodeGid[1].dnodeId), NULL,
                     _OVER);
   } else {
-    goto _OVER;
+    // goto _OVER;
   }
 
   for (int32_t i = 0; i < newVg1.replica; ++i) {
@@ -3762,12 +3951,14 @@ bool mndVgroupInDnode(SVgObj *pVgroup, int32_t dnodeId) {
 }
 
 static void *mndBuildCompactVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, int64_t compactTs,
-                                     STimeWindow tw, bool metaOnly) {
+                                     STimeWindow tw, bool metaOnly, ETsdbOpType type, ETriggerType triggerType) {
   SCompactVnodeReq compactReq = {0};
   compactReq.dbUid = pDb->uid;
   compactReq.compactStartTime = compactTs;
   compactReq.tw = tw;
   compactReq.metaOnly = metaOnly;
+  compactReq.optrType = type;
+  compactReq.triggerType = triggerType;
   tstrncpy(compactReq.db, pDb->name, TSDB_DB_FNAME_LEN);
 
   mInfo("vgId:%d, build compact vnode config req", pVgroup->vgId);
@@ -3798,13 +3989,13 @@ static void *mndBuildCompactVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgrou
 }
 
 static int32_t mndAddCompactVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
-                                        STimeWindow tw, bool metaOnly) {
+                                        STimeWindow tw, bool metaOnly, ETsdbOpType type, ETriggerType triggerType) {
   int32_t      code = 0;
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, compactTs, tw, metaOnly);
+  void   *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, compactTs, tw, metaOnly, type, triggerType);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -3824,7 +4015,34 @@ static int32_t mndAddCompactVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 }
 
 int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
-                                    STimeWindow tw, bool metaOnly) {
-  TAOS_CHECK_RETURN(mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly));
+                                    STimeWindow tw, bool metaOnly, ETsdbOpType type, ETriggerType triggerType) {
+  TAOS_CHECK_RETURN(mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly, type, triggerType));
   return 0;
+}
+
+int32_t mndBuildTrimVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t startTs,
+                                 STimeWindow tw, ETsdbOpType type, ETriggerType triggerType) {
+  int32_t      code = 0;
+  STransAction action = {0};
+  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+
+  int32_t contLen = 0;
+  // reuse SCompactVnodeReq as SVTrimDbReq
+  void *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, startTs, tw, false, type, triggerType);
+  if (pReq == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_VND_TRIM;
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
 }

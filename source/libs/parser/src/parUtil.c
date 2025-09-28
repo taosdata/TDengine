@@ -86,6 +86,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Not support STATE_WINDOW on tag column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
       return "STATE_WINDOW not support for super table query";
+    case TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND:
+      return "Invalid state window extend option";
     case TSDB_CODE_PAR_INTER_SESSION_GAP:
       return "SESSION gap should be fixed time window, and greater than 0";
     case TSDB_CODE_PAR_INTER_SESSION_COL:
@@ -236,6 +238,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Cannot use 'year' or 'month' as true_for duration";
     case TSDB_CODE_PAR_INVALID_COLUMN_REF:
       return "Invalid column reference";
+    case TSDB_CODE_PAR_INVALID_SLIDING_OFFSET:
+      return "Invalid sliding offset";
+    case TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET:
+      return "Invalid interval offset";
     case TSDB_CODE_PAR_INVALID_REF_COLUMN:
       return "Invalid virtual table's ref column";
     case TSDB_CODE_PAR_INVALID_TABLE_TYPE:

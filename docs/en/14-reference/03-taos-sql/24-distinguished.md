@@ -3,13 +3,6 @@ title: Time-Series Extensions
 slug: /tdengine-reference/sql-manual/time-series-extensions
 ---
 
-import Image from '@theme/IdealImage';
-import imgStep01 from './assets/time-series-extensions-01-time-window.png';
-import imgStep02 from './assets/time-series-extensions-02-state-window.png';
-import imgStep03 from './assets/time-series-extensions-03-session-window.png';
-import imgStep04 from './assets/time-series-extensions-04-event-window.png';
-import imgStep05 from './assets/time-series-extensions-05-count-window.png';
-
 TDengine, in addition to supporting standard SQL, also offers a series of specialized query syntaxes tailored for time-series business scenarios, which greatly facilitate the development of applications in time-series contexts.
 
 TDengine's featured queries include data partitioning queries and time window partitioning queries.
@@ -46,14 +39,14 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## Window Partitioning Queries
 
-TDengine supports aggregation result queries using time window partitioning, such as when a temperature sensor collects data every second, but the average temperature every 10 minutes is needed. In such scenarios, a window clause can be used to obtain the desired query results. The window clause is used to divide the data set being queried into subsets for aggregation based on the window, including time window, status window, session window, event window, and count window. Time windows can further be divided into sliding time windows and tumbling time windows.
+TDengine supports aggregation result queries using time window partitioning, such as when a temperature sensor collects data every second, but the average temperature every 10 minutes is needed. In such scenarios, a window clause can be used to obtain the desired query results. The window clause is used to divide the data set being queried into subsets for aggregation based on the window, including time window, state window, session window, event window, and count window. Time windows can further be divided into sliding time windows and tumbling time windows.
 
 The syntax for the window clause is as follows:
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -114,9 +107,7 @@ Time windows can be divided into sliding time windows and tumbling time windows.
 
 The INTERVAL clause is used to generate windows of equal time periods, and SLIDING is used to specify the time the window slides forward. Each executed query is a time window, and the time window slides forward as time flows. When defining continuous queries, it is necessary to specify the size of the time window (time window) and the forward sliding times for each execution. As shown, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three continuous queries, and the sliding time range is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window. When SLIDING is equal to INTERVAL, the sliding window becomes a tumbling window. By default, windows begin at Unix time 0 (1970-01-01 00:00:00 UTC). If interval_offset is specified, the windows start from "Unix time 0 + interval_offset".
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![](./assets/time-series-extensions-01-time-window.png)
 
 The INTERVAL and SLIDING clauses need to be used in conjunction with aggregation and selection functions. The following SQL statement is illegal:
 
@@ -155,9 +146,7 @@ When using time windows, note:
 
 Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes after the value changes. As shown in the diagram below, the state windows determined by the state value are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![](./assets/time-series-extensions-02-state-window.png)
 
 Use STATE_WINDOW to determine the column that divides the state window. For example:
 
@@ -177,6 +166,59 @@ TDengine also supports using CASE expressions in state quantities, which can exp
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
 
+The `Extend` parameter can set the extension strategy for the start and end of a window, with optional values of 0 (default), 1, and 2. 
+
+- By default, the start and end times of the window are the timestamps corresponding to the first and last piece of data in that state.
+- When the `extend` value is 1, the window start time remains unchanged, and the window end time is extended backward to just before the start of the next window.
+- When the `extend` value is 2, the window start time is extended forward to just after the end of the previous window, while the window end time remains unchanged.
+
+Data with a NULL status value at the start of the entire query result set will be included in the first window. Similarly, data with a NULL status value at the end of the entire query result set will be included in the last window. Take the following data as an example:
+
+```
+taos> select * from state_window_example;
+           ts            |   status    |
+========================================
+ 2025-01-01 00:00:00.000 | NULL        |
+ 2025-01-01 00:00:01.000 |           1 |
+ 2025-01-01 00:00:02.000 | NULL        |
+ 2025-01-01 00:00:03.000 |           1 |
+ 2025-01-01 00:00:04.000 | NULL        |
+ 2025-01-01 00:00:05.000 |           2 |
+ 2025-01-01 00:00:06.000 |           2 |
+ 2025-01-01 00:00:07.000 |           1 |
+ 2025-01-01 00:00:08.000 | NULL        |
+```
+
+When `extend` is 0:
+```
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:05.000 |                  1000 | 2025-01-01 00:00:06.000 |                     2 |
+ 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
+When `extend` is 1:
+```
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 1);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  4999 | 2025-01-01 00:00:04.999 |                     5 |
+ 2025-01-01 00:00:05.000 |                  1999 | 2025-01-01 00:00:06.999 |                     2 |
+ 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
+When `extend` is 2:
+```
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 2);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:03.001 |                  2999 | 2025-01-01 00:00:06.000 |                     3 |
+ 2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
 The state window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
 
 ```sql
@@ -187,9 +229,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 The session window is determined based on the timestamp primary key values of the records. As shown in the diagram below, if the continuous interval of the timestamps is set to be less than or equal to 12 seconds, the following 6 records form 2 session windows, which are: [2019-04-28 14:22:10, 2019-04-28 14:22:30] and [2019-04-28 14:23:10, 2019-04-28 14:23:30]. This is because the interval between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, exceeding the continuous interval (12 seconds).
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![](./assets/time-series-extensions-03-session-window.png)
 
 Results within the tol_value time interval are considered to belong to the same window; if the time between two consecutive records exceeds tol_val, the next window automatically starts.
 
@@ -214,9 +254,7 @@ Take the following SQL statement as an example, the event window segmentation is
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![](./assets/time-series-extensions-04-event-window.png)
 
 The event window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
 
@@ -234,9 +272,7 @@ Take the following SQL statement as an example, the count window segmentation is
 select _wstart, _wend, count(*) from t count_window(4);
 ```
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![](./assets/time-series-extensions-05-count-window.png)
 
 ### Timestamp Pseudo Columns
 

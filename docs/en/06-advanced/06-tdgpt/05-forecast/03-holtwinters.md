@@ -8,7 +8,9 @@ This document describes the usage of the Holt-Winters method for forecasting.
 ## Description
 
 Holt-Winters, or exponential moving average (EMA), is used to forecast non-stationary time series that have linear trends or periodic fluctuations. This method uses exponential smoothing to constantly adapt the model parameters to the changes in the time series and perform short-term forecasting.
+
 If seasonal variation remains mostly consistent within a time series, the additive Holt-Winters model is used, whereas if seasonal variation is proportional to the level of the time series, the multiplicative Holt-Winters model is used.
+
 Holt-Winters does not provide results within a confidence interval. The forecast results are the same as those on the upper and lower thresholds of the confidence interval.
 
 ### Parameters

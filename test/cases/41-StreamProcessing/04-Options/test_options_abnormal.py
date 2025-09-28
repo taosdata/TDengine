@@ -215,7 +215,7 @@ class TestStreamOptionsAbnormal:
                 f"create stream sn6 state_window(cint) from vct1 stream_options(pre_filter(cdouble < 5)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )            
             
-            tdSql.execute(
+            tdSql.error(
                 f"create stream sn7 state_window(cint) from vntb stream_options(pre_filter(cint < 5 and cvarchar like '%abc%')) into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             

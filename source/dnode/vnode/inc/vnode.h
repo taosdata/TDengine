@@ -323,6 +323,7 @@ typedef struct {
   int64_t numOfNTables;
   int64_t numOfVTables;
   int64_t numOfVCTables;
+  int64_t numOfRSMAs;
   int64_t numOfReportedTimeSeries;
   int64_t numOfNTimeSeries;
   int64_t numOfTimeSeries;
@@ -367,9 +368,10 @@ struct SVnodeCfg {
   int8_t      ssCompact;
 };
 
-#define TABLE_ROLLUP_ON       ((int8_t)0x1)
-#define TABLE_IS_ROLLUP(FLG)  (((FLG) & (TABLE_ROLLUP_ON)) != 0)
-#define TABLE_SET_ROLLUP(FLG) ((FLG) |= TABLE_ROLLUP_ON)
+#define TABLE_ROLLUP_ON         ((int8_t)0x1)
+#define TABLE_IS_ROLLUP(FLG)    (((FLG) & (TABLE_ROLLUP_ON)) != 0)
+#define TABLE_SET_ROLLUP(FLG)   ((FLG) |= TABLE_ROLLUP_ON)
+#define TABLE_RESET_ROLLUP(FLG) ((FLG) &= ~TABLE_ROLLUP_ON)
 
 #define TABLE_COL_COMPRESSED          ((int8_t)0x2)
 #define TABLE_IS_COL_COMPRESSED(FLG)  (((FLG) & (TABLE_COL_COMPRESSED)) != 0)

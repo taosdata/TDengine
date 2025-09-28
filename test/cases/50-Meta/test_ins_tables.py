@@ -95,7 +95,7 @@ class TestTableCount:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, 47)
+        tdSql.checkData(0, 1, 53)
 
         tdSql.checkData(1, 1, 10)
 
@@ -110,7 +110,7 @@ class TestTableCount:
 
         tdSql.checkData(1, 1, 5)
 
-        tdSql.checkData(2, 1, 41)
+        tdSql.checkData(2, 1, 47)
 
         tdSql.checkData(3, 1, 5)
 
@@ -129,7 +129,7 @@ class TestTableCount:
 
         tdSql.checkData(4, 2, 3)
 
-        tdSql.checkData(5, 2, 41)
+        tdSql.checkData(5, 2, 47)
 
         tdSql.checkData(6, 2, 5)
 

@@ -15,17 +15,17 @@
 
 #include "vnd.h"
 
-extern int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now);
-extern int32_t tsdbListSsMigrateFileSets(STsdb* tsdb, SArray* fidArr);
+extern int32_t tsdbAsyncRetention(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType);
+extern int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray *fidArr);
 extern int32_t tsdbAsyncSsMigrateFileSet(STsdb *tsdb, SSsMigrateFileSetReq *pReq);
 extern int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, SSsMigrateProgress *pProgress);
-extern int32_t tsdbUpdateSsMigrateProgress(STsdb* tsdb, SSsMigrateProgress* pProgress);
+extern int32_t tsdbUpdateSsMigrateProgress(STsdb *tsdb, SSsMigrateProgress *pProgress);
+extern void    tsdbStopSsMigrateTask(STsdb *tsdb, int32_t ssMigrateId);
+extern int32_t tsdbRetentionMonitorGetInfo(STsdb *tsdb, SQueryRetentionProgressRsp *rsp);
 
-
-
-int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
+int32_t vnodeAsyncRetention(SVnode *pVnode, STimeWindow tw, int8_t optrType, int8_t triggerType) {
   // async retention
-  return tsdbAsyncRetention(pVnode->pTsdb, now);
+  return tsdbAsyncRetention(pVnode->pTsdb, tw, optrType, triggerType);
 }
 
 
@@ -164,4 +164,82 @@ int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SSsMigrateProgress *pReq) {
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
+}
+
+
+
+extern int32_t vnodeKillSsMigrate(SVnode *pVnode, SVnodeKillSsMigrateReq *pReq) {
+#ifdef USE_SHARED_STORAGE
+  tsdbStopSsMigrateTask(pVnode->pTsdb, pReq->ssMigrateId);
+  return TSDB_CODE_SUCCESS;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int32_t vnodeQueryRetentionProgress(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t                    code = 0;
+  SQueryRetentionProgressReq req = {0};
+  int32_t                    rspSize = 0;
+  SRpcMsg                    rspMsg = {0};
+  void                      *pRsp = NULL;
+  SQueryRetentionProgressRsp rsp = {0}; // same as SQueryCompactProgressRsp
+
+  code = tDeserializeSQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  if (code) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  rsp.dnodeId = req.dnodeId;
+  TAOS_UNUSED(tsdbRetentionMonitorGetInfo(pVnode->pTsdb, &rsp));
+  vInfo("update retention progress, id:%d vgId:%d, dnodeId:%d, numberFileset:%d, finished:%d", rsp.id, rsp.vgId,
+        rsp.dnodeId, rsp.numberFileset, rsp.finished);
+  rsp.id = req.id;
+
+  rspSize = tSerializeSQueryCompactProgressRsp(NULL, 0, &rsp);
+  if (rspSize < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  if (!(pRsp = rpcMallocCont(rspSize))) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  if ((code = tSerializeSQueryCompactProgressRsp(pRsp, rspSize, &rsp)) < 0) {
+    goto _exit;
+  }
+  code = 0; // set to 0 since tSerializeSQueryCompactProgressRsp may return the rspSize
+_exit:
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = TDMT_VND_QUERY_TRIM_PROGRESS_RSP;
+  tmsgSendRsp(&rspMsg);
+
+  return 0;
+}
+
+extern void tsdbStopAllRetentionTask(STsdb *tsdb);
+
+int32_t vnodeProcessKillRetentionReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SVKillRetentionReq req = {0};  // same as SVKillCompactReq
+
+  vDebug("vgId:%d, kill retention msg will be processed, pReq:%p, len:%d", TD_VID(pVnode), pReq, len);
+  int32_t code = tDeserializeSVKillCompactReq(pReq, len, &req);
+  if (code) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  vInfo("vgId:%d, kill retention msg will be processed, taskId:%d, dnodeId:%d, vgId:%d", TD_VID(pVnode), req.taskId,
+        req.dnodeId, req.vgId);
+
+  tsdbStopAllRetentionTask(pVnode->pTsdb);
+
+  pRsp->msgType = TDMT_VND_KILL_TRIM_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  return 0;
 }
