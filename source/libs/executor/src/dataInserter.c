@@ -2590,17 +2590,17 @@ _exit:
   return code;
 }
 
-int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** dbVgInfo) {
+int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SUseDbOutputPPter* pUseDbHashInfo) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       line = 0;
   SUseDbOutput* output = NULL;
 
-  SUseDbOutput** find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
+  SUseDbOutputPPter find = (SUseDbOutputPPter)taosHashAcquire(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
 
   if (find == NULL) {
     output = taosMemoryCalloc(1, sizeof(SUseDbOutput));
     if (output == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
 
     code = buildDbVgInfoMap(clientRpc, dbFName, output);
@@ -2611,18 +2611,17 @@ int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** db
       code = TSDB_CODE_SUCCESS;
       // another thread has put the same dbFName, so we need to free the output
       freeUseDbOutput_tmp(&output);
-      find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
-      if (find == NULL) {
-        QUERY_CHECK_CODE(code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, line, _return);
-      }
-      output = *find;
     }
     QUERY_CHECK_CODE(code, line, _return);
+    find = (SUseDbOutputPPter)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
+    if (find == NULL) {
+      QUERY_CHECK_CODE(code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, line, _return);
+    }
   } else {
-    output = *find;
+    // found in cache
   }
 
-  *dbVgInfo = output->dbVgroup;
+  *pUseDbHashInfo = find;
   return code;
 
 _return:
@@ -2632,20 +2631,21 @@ _return:
 }
 
 int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbName, SVgroupInfo* pVgInfo) {
-  SDBVgInfo* dbInfo = NULL;
+  SUseDbOutputPPter dbInfo = NULL;
   int32_t code = 0, lino = 0;
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   snprintf(tbFullName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbFName, tbName);
   
-  taosRLockLatch(&g_dbVgInfoMgr.lock);
-  
   TAOS_CHECK_EXIT(getDbVgInfoByTbName(clientRpc, dbFName, &dbInfo));
 
-  TAOS_CHECK_EXIT(inserterGetVgInfo(dbInfo, tbFullName, pVgInfo));
+  TAOS_CHECK_EXIT(inserterGetVgInfo((*dbInfo)->dbVgroup, tbFullName, pVgInfo));
 
 _exit:
 
-  taosRUnLockLatch(&g_dbVgInfoMgr.lock);
+  if(dbInfo) {
+    taosHashRelease(g_dbVgInfoMgr.dbVgInfoMap, dbInfo);
+    dbInfo = NULL;
+  }
 
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2655,11 +2655,7 @@ _exit:
 }
 
 void rmDbVgInfoFromCache(const char* dbFName) {
-  taosWLockLatch(&g_dbVgInfoMgr.lock);
-
   TAOS_UNUSED(taosHashRemove(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName)));
-
-  taosWUnLockLatch(&g_dbVgInfoMgr.lock);
 }
 
 static int32_t dropTableReqToMsg(int32_t vgId, SVDropTbBatchReq* pReq, void** pData, int32_t* pLen) {
