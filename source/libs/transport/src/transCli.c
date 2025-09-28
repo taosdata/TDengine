@@ -4257,7 +4257,6 @@ int32_t transAllocHandle(int64_t* refId) {
   if (exh == NULL) {
     return terrno;
   }
-
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   if (exh->refId < 0) {
     taosMemoryFree(exh);
