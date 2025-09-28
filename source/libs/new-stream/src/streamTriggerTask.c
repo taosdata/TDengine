@@ -4091,10 +4091,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         QUERY_CHECK_CODE(code, lino, _end);
         if (needColVal) {
           allSent = false;
-        } else {
-          code = stTriggerTaskReleaseDropTableRequest(pTask, &pDropReq);
-          QUERY_CHECK_CODE(code, lino, _end);
         }
+        code = stTriggerTaskReleaseDropTableRequest(pTask, &pDropReq);
+        QUERY_CHECK_CODE(code, lino, _end);
         taosArrayRemove(pContext->groupsToDelete, i);
       }
     }
