@@ -256,7 +256,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/*explorer || :
     ${csudo}rm -f ${bin_link_dir}/start-all.sh || :
     ${csudo}rm -f ${bin_link_dir}/stop-all.sh || :
-    ${csudo}unlink -f ${bin_link_dir}/taosgen || :
+    ${csudo}unlink ${bin_link_dir}/taosgen || :
 
     ${csudo}chmod 0555 ${bin_dir}/*
 
@@ -281,7 +281,7 @@ function install_bin() {
       ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosBenchmark  2>>${install_log_path}
     fi
     if [ -x ${bin_dir}/taosgen ]; then
-      ${csudo}ln -s ${bin_dir}/taosgen ${bin_link_dir}/taosgen               2>>${install_log_path} || return 1
+      ${csudo}ln -sf ${bin_dir}/taosgen ${bin_link_dir}/taosgen               2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/TDinsight.sh ]; then
       ${csudo}ln -sf ${bin_dir}/TDinsight.sh ${bin_link_dir}/TDinsight.sh    2>>${install_log_path} || return 1
