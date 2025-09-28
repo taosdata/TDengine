@@ -148,7 +148,7 @@ The window clause allows you to partition the queried data set by windows and ag
 ![Windowing logic](../assets/data-querying-01-window.png)
 
 - Time Window: Data is divided based on time intervals, supporting sliding and tumbling time windows, suitable for data aggregation over fixed time periods.
-- Status Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
+- State Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
 - Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
 - Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
 - Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
@@ -158,7 +158,7 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
+  | STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
@@ -399,7 +399,7 @@ STATE_WINDOW(
 SLIMIT 2;
 ```
 
-The above SQL queries data from the supertable `meters`, where the timestamp is greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by the subtable name `tbname`. It then divides into status windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
+The above SQL queries data from the supertable `meters`, where the timestamp is greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by the subtable name `tbname`. It then divides into state windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
 
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |    status     |

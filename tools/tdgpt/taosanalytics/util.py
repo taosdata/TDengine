@@ -1,5 +1,6 @@
 # encoding:utf-8
 """utility methods to helper query processing"""
+import math
 
 import numpy as np
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -37,25 +38,35 @@ def validate_pay_load(json_obj):
 def convert_results_to_windows(result, ts_list, valid_code):
     """generate the window according to anomaly detection result"""
     skey, ekey = -1, -1
+    mask = math.nan
+
     wins = []
+    mask_list = []
 
     if ts_list is None or result is None or len(result) != len(ts_list):
         return wins
 
     for index, val in enumerate(result):
         if val != valid_code:
-            ekey = ts_list[index]
-            if skey == -1:
-                skey = ts_list[index]
+            if val == mask or math.isnan(mask):
+                ekey = ts_list[index]
+                if skey == -1:
+                    skey, mask = ts_list[index], val
+            else:
+                wins.append([skey, ekey])
+                mask_list.append(mask)
+                skey, ekey, mask = ts_list[index], ts_list[index], val
         else:
             if ekey != -1:
                 wins.append([skey, ekey])
-                skey, ekey = -1, -1
+                mask_list.append(mask)
+                skey, ekey, mask = -1, -1, math.nan
 
     if ekey != -1:
         wins.append([skey, ekey])
+        mask_list.append(mask)
 
-    return wins
+    return wins, mask_list
 
 
 def is_white_noise(input_list):
