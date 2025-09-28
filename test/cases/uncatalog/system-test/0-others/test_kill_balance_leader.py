@@ -57,8 +57,11 @@ class TestKillBalanceLeader:
             tdLog.info('kill transaction %d'%tranId)
             tdSql.execute('kill transaction %d'%tranId, queryTimes=1 )
 
-        if self.waitTransactionZero() is False:
-            tdLog.exit(f"{sql} transaction not finished")
+            if self.waitTransactionZero() is False:
+                tdLog.exit(f"{sql} transaction not finished")
+                return False
+        else:
+            tdLog.info(f"{sql} no balance transaction exist")
             return False
 
         tdLog.success(f"{__file__} successfully executed")

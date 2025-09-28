@@ -12,7 +12,7 @@ class TestCase:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
-    def test_tmq_ts5466(self):
+    def test_tmq_td37436(self):
         """summary: xxx
 
         description: xxx

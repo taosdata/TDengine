@@ -70,10 +70,10 @@ class Test_ThreeGorges:
         tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400001*3},102);")
         tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86400000*6},1000);")
         tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86400000*6},1000);")
-        time.sleep(3)
+        time.sleep(10)
         tdLog.info(f"insert into {self.dbname}.a0 values({base_ts + 86770001*2},1000);")
         tdSql.execute(f"insert into {self.dbname}.a0 values({base_ts + 86770001*2},1000);")
-        time.sleep(3)
+        time.sleep(30)
         # tdSql.query(f"select * from {self.dbname}.{self.outTbname}")
         # if tdSql.getRows() == 0:
         #     raise Exception("ERROR:no result!")

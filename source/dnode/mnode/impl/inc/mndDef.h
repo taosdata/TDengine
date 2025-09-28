@@ -84,6 +84,9 @@ typedef enum {
   MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_MOUNT,
   MND_OPER_DROP_MOUNT,
+  MND_OPER_SCAN_DB,
+  MND_OPER_CREATE_RSMA,
+  MND_OPER_DROP_RSMA,
 } EOperType;
 
 typedef enum {
@@ -504,6 +507,7 @@ typedef struct {
   int64_t  stateTs;
   int64_t  compactStartTime;
   int32_t  tsmaVersion;
+  int64_t  scanStartTime;
 } SDbObj;
 
 typedef struct {
@@ -610,6 +614,29 @@ typedef struct {
   SSchemaWrapper schemaTag;  // for dstVgroup
   char           baseSmaName[TSDB_TABLE_FNAME_LEN];
 } SSmaObj;
+
+typedef struct {
+  char    name[TSDB_TABLE_NAME_LEN];
+  char    tbName[TSDB_TABLE_NAME_LEN];
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  char    createUser[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t tbUid;
+  int64_t dbUid;
+  int64_t interval[2];
+  union {
+    uint64_t reserved;
+  };
+  int32_t    version;
+  int8_t     tbType;
+  int8_t     intervalUnit;
+  int16_t    nFuncs;
+  col_id_t*  funcColIds;
+  func_id_t* funcIds;
+  SRWLatch   lock;
+} SRsmaObj;
 
 typedef struct {
   char    name[TSDB_INDEX_FNAME_LEN];
@@ -962,8 +989,14 @@ int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
 void    tFreeSViewObj(SViewObj* pObj);
 
 typedef struct {
-  int32_t compactDetailId;
-  int32_t compactId;
+  union {
+    int32_t compactDetailId;
+    int32_t detailId;
+  };
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   int32_t vgId;
   int32_t dnodeId;
   int32_t numberFileset;
@@ -976,12 +1009,46 @@ typedef struct {
 } SCompactDetailObj;
 
 typedef struct {
-  int32_t compactId;
+  int32_t scanDetailId;
+  int32_t scanId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+  int64_t startTime;
+  int32_t newNumberFileset;
+  int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
+} SScanDetailObj;
+
+typedef struct {
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   char    dbname[TSDB_TABLE_FNAME_LEN];
   int64_t startTime;
   SArray* compactDetail;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t optrType : 3;     // ETsdbOpType
+      uint32_t triggerType : 1;  // ETriggerType
+      uint32_t reserve : 28;
+    };
+  };
 } SCompactObj;
 
+typedef struct {
+  int32_t scanId;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t startTime;
+  SArray* scanDetail;
+} SScanObj;
+
+typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention
+typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for retention
 typedef struct {
   int32_t nodeId;    // dnode id of the leader vnode
   int32_t vgId;

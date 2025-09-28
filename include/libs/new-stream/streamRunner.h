@@ -34,6 +34,9 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force);
 int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq);
 int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished);
+int32_t stRunnerTaskDropTable(SStreamRunnerTask* pTask, SSTriggerDropRequest* pReq);
+int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask);
+int32_t stRunnerSetMgmtRsp(SStreamRunnerTask* pTask, SArray* pRspList);
 
 #ifdef __cplusplus
 }

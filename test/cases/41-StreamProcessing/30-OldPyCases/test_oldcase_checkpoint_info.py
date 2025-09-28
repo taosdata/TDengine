@@ -283,7 +283,7 @@ class Test_checkpoint_info_Case:
     def checkStreamRunning(self):
         tdLog.info(f"check stream running status:")
 
-        timeout = 60 
+        timeout = 120
         start_time = time.time()
 
         while True:

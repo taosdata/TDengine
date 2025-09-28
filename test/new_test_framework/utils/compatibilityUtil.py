@@ -24,6 +24,7 @@ from .sql import *
 from .server.dnodes import *
 from .common import *
 from taos.tmq import Consumer
+from new_test_framework.utils import clusterComCheck
 
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
@@ -119,7 +120,6 @@ class CompatibilityBase:
         
         return True
 
-    # Modified installTaosd to accept version parameter
     def installTaosd(self, bPath, cPath, base_version):
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
@@ -204,6 +204,7 @@ class CompatibilityBase:
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
+        time.sleep(5)
         global dbname, stb, first_consumer_rows
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
@@ -297,11 +298,14 @@ class CompatibilityBase:
             if output:
                 found_pids = [pid for pid in output.strip().split('\n') if pid] 
             tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
+            if len(found_pids) == 0:
+                tdLog.info("No taosd process found keep going")
+            else: 
+                pid_to_kill_for_this_dnode = found_pids[0]
+                tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
+                os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
+                self.checkProcessPid(pid_to_kill_for_this_dnode)
 
-            pid_to_kill_for_this_dnode = found_pids[0]
-            tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
-            os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-            tdCb.checkProcessPid(pid_to_kill_for_this_dnode)
             tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
             tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
             os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
@@ -331,7 +335,7 @@ class CompatibilityBase:
                     os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
                 else:
                     tdLog.info(f"No running taosd PID found to kill for cPaths[{i}] (or fewer PIDs found than cPaths entries).")
-                tdCb.checkProcessPid(pid_to_kill_for_this_dnode)
+                self.checkProcessPid(pid_to_kill_for_this_dnode)
                 tdLog.info(f"Starting taosd using cPath: {cPaths[i]}")
                 tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
                 os.system(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")

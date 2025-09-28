@@ -64,7 +64,7 @@ struct STFile {
 
   // last chunk number, also number of chunks, only for data file. compaction resets this
   // field.
-  int32_t      lcn;
+  int32_t      lcn;     // -1 not compact(initial state), 0 compacted, > 0 real chunk number
 
   // migration id. note this id is only be updated after file is downloaded from shared
   // storage, but not after file is uploaded to shared storage. compaction resets this id
