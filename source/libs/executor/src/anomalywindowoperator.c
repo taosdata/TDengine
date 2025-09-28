@@ -21,6 +21,7 @@
 #include "querytask.h"
 #include "tanalytics.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tjson.h"
@@ -703,7 +704,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
       pSupp->curWin = *pWindow;
       pRowSup->win.skey = pSupp->curWin.skey;
       pSupp->curWinIndex = w;
-      if (pSupp->pMaskList != NULL) {
+      if (pSupp->pMaskList != NULL && taosArrayGetSize(pSupp->pMaskList) > 0) {
         void*p = taosArrayGet(pSupp->pMaskList, w);
         if (p != NULL) {
           pSupp->curMask = *(int32_t*) p;
