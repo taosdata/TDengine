@@ -60,7 +60,6 @@ typedef struct SSTriggerAHandle {
   void*   param;
 } SSTriggerAHandle;
 
-
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
   void              *pExecutor;
@@ -70,6 +69,7 @@ typedef struct SStreamRunnerTaskExecution {
   char               tbname[TSDB_TABLE_NAME_LEN];
   void              *pSinkHandle;
   SSDataBlock       *pOutBlock;
+  volatile int32_t   sinkHandleInited;  // 0: Uninitialized, 1: initializing, 2: initialized
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
