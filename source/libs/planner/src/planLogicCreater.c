@@ -380,7 +380,7 @@ static int32_t addVtbPrimaryTsCol(SVirtualTableNode* pTable, SNodeList** pCols) 
 }
 
 static int32_t addInsColumnScanCol(SRealTableNode* pTable, SNodeList** pCols) {
-  for (int i = 1; i <= 7; i++) {
+  for (int32_t i = 1; i <= 8; i++) {
     PLAN_ERR_RET(nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[i])));
   }
   return TSDB_CODE_SUCCESS;
@@ -527,6 +527,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange);
   }
 
+  if (pRealTable->placeholderType == SP_PARTITION_ROWS) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
+                               &pCxt->pPlanCxt->streamTriggerScanList);
+  }
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_COL,
@@ -1042,6 +1046,7 @@ static int32_t createTagScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   *pLogicNode = (SLogicNode*)pScan;
   return code;
 _return:
+  planError("%s faild since %d", __func__ , code);
   nodesDestroyNode((SNode*)pScan);
   return code;
 }
@@ -1051,7 +1056,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
                                                 SLogicNode** pLogicNode) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   SLogicNode*             pRealTableScan = NULL;
-  SLogicNode*             pVtableMetaScan = NULL;
   SLogicNode*             pInsColumnsScan = NULL;
   SDynQueryCtrlLogicNode* pDynCtrl = NULL;
   SNode*                  pNode = NULL;
@@ -1060,6 +1064,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
 
   // Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0), &pRealTableScan));
+
+  if (LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) {
+    scanAllCols = false;
+  }
 
   PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
 
@@ -1116,12 +1124,27 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
   pDynCtrl->qType = DYN_QTYPE_VTB_SCAN;
   pDynCtrl->vtbScan.scanAllCols = pVtableScan->scanAllCols;
-  pDynCtrl->vtbScan.suid = pVtableScan->stableId;
+  if (pVtableScan->tableType == TSDB_SUPER_TABLE) {
+    pDynCtrl->vtbScan.isSuperTable = true;
+    pDynCtrl->vtbScan.suid = pVtableScan->stableId;
+    pDynCtrl->vtbScan.rversion = 0;
+  } else {
+    pDynCtrl->vtbScan.isSuperTable = false;
+    pDynCtrl->vtbScan.uid = pVtableScan->tableId;
+    pDynCtrl->vtbScan.rversion = pVirtualTable->pMeta->rversion;
+  }
+  for (int32_t i = 0; i < ((SScanLogicNode*)pRealTableScan)->pVgroupList->numOfVgroups; i++) {
+    int32_t    vgId = ((SScanLogicNode*)pRealTableScan)->pVgroupList->vgroups[i].vgId;
+    SValueNode *pVal = NULL;
+    PLAN_ERR_JRET(nodesMakeValueNodeFromInt32(vgId, (SNode**)&pVal));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->vtbScan.pOrgVgIds, (SNode*)pVal));
+  }
+
   pDynCtrl->dynTbname = ((SScanLogicNode*)pRealTableScan)->phTbnameScan;
   ((SScanLogicNode*)pRealTableScan)->phTbnameScan = false;  // reset phTbnameQuery, it is only used for vtable scan
 
   tstrncpy(pDynCtrl->vtbScan.dbName, pVtableScan->tableName.dbname, TSDB_DB_NAME_LEN);
-  tstrncpy(pDynCtrl->vtbScan.stbName, pVtableScan->tableName.tname, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pDynCtrl->vtbScan.tbName, pVtableScan->tableName.tname, TSDB_TABLE_NAME_LEN);
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pVtableScan));
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pInsColumnsScan));
   PLAN_ERR_JRET(nodesCloneList(pVtableScan->node.pTargets, &pDynCtrl->node.pTargets));
@@ -1144,7 +1167,6 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
                                                       SLogicNode** pLogicNode) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SNode*    pNode = NULL;
-  int32_t   slotId = 0;
   bool      scanAllCols = true;
   SHashObj* pRefTablesMap = NULL;
   SNode*    pTagScan = NULL;
@@ -1154,7 +1176,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     PLAN_ERR_JRET(terrno);
   }
 
-  if (pCxt->pPlanCxt->withExtWindow && pCxt->pPlanCxt->streamCalcQuery) {
+  if (pCxt->pPlanCxt->streamCalcQuery && pSelect->pTimeRange != NULL) {
     // ts column might be extract from where to time range. So, ts column won't be collected into pVtableScan->pScanCols.
     PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
   }
@@ -1251,9 +1273,14 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       PLAN_ERR_JRET(createVirtualSuperTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
       break;
     case TSDB_VIRTUAL_NORMAL_TABLE:
-    case TSDB_VIRTUAL_CHILD_TABLE:
-      PLAN_ERR_JRET(createVirtualNormalChildTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
+    case TSDB_VIRTUAL_CHILD_TABLE: {
+      if (pCxt->pPlanCxt->streamCalcQuery) {
+        PLAN_ERR_JRET(createVirtualSuperTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
+      } else {
+        PLAN_ERR_JRET(createVirtualNormalChildTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
+      }
       break;
+    }
     default:
       PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_TABLE_TYPE);
   }
@@ -1607,7 +1634,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 }
 
 static bool isForecastFunc(int32_t funcId) {
-  return fmIsForecastFunc(funcId) || fmIsForecastPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId) ||
+  return fmIsForecastFunc(funcId) || fmIsAnalysisPseudoColumnFunc(funcId) || fmIsGroupKeyFunc(funcId) ||
          fmisSelectGroupConstValueFunc(funcId);
 }
 
@@ -1647,7 +1674,8 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 }
 
 static bool isImputationFunc(int32_t funcId) {
-  return fmIsImputationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId);
+  return fmIsImputationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId) ||
+         fmIsAnalysisPseudoColumnFunc(funcId);
 }
 
 static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -1723,6 +1751,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   // no agg func
   if (!pSelect->hasAggFuncs) {
     if (pSelect->hasIndefiniteRowsFunc) {
+      pWindow->node.requireDataOrder = getRequireDataOrder(pSelect->hasTimeLineFunc, pSelect);
+      pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
       nodesDestroyList(pWindow->pFuncs);
       pWindow->pFuncs = NULL;
       PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsStreamVectorFunc, &pWindow->pFuncs));
@@ -1731,12 +1761,16 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
       pWindow->indefRowsFunc = true;
       pSelect->hasIndefiniteRowsFunc = false;
     } else {
+      pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+      pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
       PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
       PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
       PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
     }
   } else {
     // has agg func, collect again with placeholder func
+    pWindow->node.requireDataOrder = getRequireDataOrder(pSelect->hasTimeLineFunc, pSelect);
+    pWindow->node.resultDataOrder = pSelect->onlyHasKeepOrderFunc ? pWindow->node.requireDataOrder : DATA_ORDER_LEVEL_NONE;
     nodesDestroyList(pWindow->pFuncs);
     pWindow->pFuncs = NULL;
     PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsStreamWindowClauseFunc, &pWindow->pFuncs));
@@ -1744,6 +1778,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
     pSelect->hasAggFuncs = false;
   }
+
+  pWindow->inputHasOrder = (pWindow->isSingleTable || pWindow->node.requireDataOrder == DATA_ORDER_LEVEL_GLOBAL);
 
   *pLogicNode = (SLogicNode*)pWindow;
 
@@ -1772,6 +1808,9 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pWindow);
     return code;
+  }
+  if (pState->pExtend) {
+    pWindow->extendOption = ((SValueNode*)pState->pExtend)->datum.i;
   }
   if (pState->pTrueForLimit) {
     pWindow->trueForLimit = ((SValueNode*)pState->pTrueForLimit)->datum.i;
@@ -1890,10 +1929,9 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
 static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindowNode* pCount, SSelectStmt* pSelect,
                                             SLogicNode** pLogicNode) {
   SWindowLogicNode* pWindow = NULL;
-  int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
-  if (NULL == pWindow) {
-    return code;
-  }
+  int32_t           code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow));
 
   pWindow->winType = WINDOW_TYPE_COUNT;
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
@@ -1909,7 +1947,9 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
 
   PLAN_ERR_JRET(createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode));
   return code;
+
 _return:
+  planError("%s failed, code:%d", __func__, code);
   nodesDestroyNode((SNode*)pWindow);
   return code;
 }
@@ -1968,8 +2008,25 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->isPartTb = 0;
-  pWindow->timeRange = pExternal->timeRange;
   pWindow->pTspk = NULL;
+  if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
+    SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
+    if (pTable->pMeta->tableType == TSDB_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_CHILD_TABLE) {
+      pWindow->isSingleTable = true;
+    } else {
+      pWindow->isSingleTable = false;
+    }
+  } else if (nodeType(pSelect->pFromTable) == QUERY_NODE_VIRTUAL_TABLE) {
+    SVirtualTableNode* pTable = (SVirtualTableNode*)pSelect->pFromTable;
+    if (pTable->pMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+      pWindow->isSingleTable = true;
+    } else {
+      pWindow->isSingleTable = false;
+    }
+  } else {
+    pWindow->isSingleTable = false;
+  }
+  PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
 
   SNode* pNode = NULL;
   FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
@@ -2019,18 +2076,161 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return TSDB_CODE_FAILED;
 }
 
+typedef struct SConditionCheckContext {
+  bool    hasNotBasicOp;
+  bool    hasNegativeConst;
+  bool    hasOtherFunc;
+  bool    placeholderAtRight;
+  bool    hasPlaceHolder;
+  int32_t placeholderType;
+} SConditionCheckContext;
+
+static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
+  SConditionCheckContext* pCxt = (SConditionCheckContext*)pContext;
+  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+    SValueNode *pVal = (SValueNode*)pNode;
+    if (pVal->datum.i < 0) {
+      pCxt->hasNegativeConst = true;
+    }
+  } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode *pFunc = (SFunctionNode*)pNode;
+    if(fmIsPlaceHolderFunc(pFunc->funcId)) {
+      pCxt->hasPlaceHolder = true;
+    }
+    if (pFunc->funcType == FUNCTION_TYPE_TWSTART ||
+      pFunc->funcType == FUNCTION_TYPE_TWEND ||
+      pFunc->funcType == FUNCTION_TYPE_TPREV_TS ||
+      pFunc->funcType == FUNCTION_TYPE_TNEXT_TS ||
+      pFunc->funcType == FUNCTION_TYPE_TCURRENT_TS ||
+      pFunc->funcType == FUNCTION_TYPE_TPREV_LOCALTIME ||
+      pFunc->funcType == FUNCTION_TYPE_TNEXT_LOCALTIME ||
+      pFunc->funcType == FUNCTION_TYPE_TLOCALTIME) {
+      pCxt->placeholderType = pFunc->funcType;
+    } else if (pFunc->funcType != FUNCTION_TYPE_NOW &&
+      pFunc->funcType != FUNCTION_TYPE_TODAY &&
+      pFunc->funcType != FUNCTION_TYPE_CAST) {
+      pCxt->hasOtherFunc = true;
+    }
+  } else if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+    SOperatorNode *pOp = (SOperatorNode*)pNode;
+    if (!nodesIsBasicArithmeticOp(pOp)) {
+      pCxt->hasNotBasicOp = true;
+    }
+    if (pOp->opType == OP_TYPE_SUB || pOp->opType == OP_TYPE_DIV) {
+      if (pOp->pRight) {
+        SConditionCheckContext cxt = {.placeholderType = 0};
+        nodesWalkExpr(pOp->pRight, conditionOnlyPhAndConstImpl, &cxt);
+        pCxt->placeholderAtRight = (cxt.placeholderType != 0);
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool placeHolderCanMakeExternalWindow(int32_t startType, int32_t endType) {
+  switch (startType) {
+    case FUNCTION_TYPE_TPREV_TS: {
+      return endType == FUNCTION_TYPE_TCURRENT_TS || endType == FUNCTION_TYPE_TNEXT_TS;
+    }
+    case FUNCTION_TYPE_TCURRENT_TS: {
+      return endType == FUNCTION_TYPE_TNEXT_TS;
+    }
+    case FUNCTION_TYPE_TWSTART: {
+      return endType == FUNCTION_TYPE_TWEND;
+    }
+    case FUNCTION_TYPE_TPREV_LOCALTIME: {
+      return endType == FUNCTION_TYPE_TNEXT_LOCALTIME || endType == FUNCTION_TYPE_TLOCALTIME;
+    }
+    case FUNCTION_TYPE_TLOCALTIME: {
+      return endType == FUNCTION_TYPE_TNEXT_LOCALTIME;
+    }
+    default: {
+      return false;
+    }
+  }
+}
+
+static bool filterHasPlaceHolderRange(SOperatorNode *pStart, SOperatorNode *pEnd) {
+  SNode* pStartLeft = pStart->pLeft;
+  SNode* pStartRight = pStart->pRight;
+  SNode* pEndLeft = pEnd->pLeft;
+  SNode* pEndRight = pEnd->pRight;
+
+  if (pStartLeft == NULL || pStartRight == NULL || pEndLeft == NULL || pEndRight == NULL) {
+    return false;
+  }
+
+  if (nodeType(pStartLeft) == QUERY_NODE_COLUMN && nodeType(pEndLeft) == QUERY_NODE_COLUMN) {
+    SColumnNode* pLeftCol = (SColumnNode*)pStartLeft;
+    SColumnNode* pRightCol = (SColumnNode*)pEndLeft;
+    if (pLeftCol->colType != COLUMN_TYPE_COLUMN || pLeftCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID ||
+        pRightCol->colType != COLUMN_TYPE_COLUMN || pRightCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  SConditionCheckContext startCxt = {.hasNotBasicOp = false,
+                                     .hasNegativeConst = false,
+                                     .hasOtherFunc = false,
+                                     .placeholderAtRight = false,
+                                     .placeholderType = 0};
+
+  SConditionCheckContext endCxt = {.hasNotBasicOp = false,
+                                   .hasNegativeConst = false,
+                                   .hasOtherFunc = false,
+                                   .placeholderAtRight = false,
+                                   .placeholderType = 0};
+
+  nodesWalkExpr(pStartRight, conditionOnlyPhAndConstImpl, &startCxt);
+  nodesWalkExpr(pEndRight, conditionOnlyPhAndConstImpl, &endCxt);
+  if (startCxt.hasNotBasicOp || startCxt.hasNegativeConst || startCxt.hasOtherFunc || startCxt.placeholderAtRight ||
+    endCxt.hasNotBasicOp || endCxt.hasNegativeConst || endCxt.hasOtherFunc || endCxt.placeholderAtRight ||
+    !placeHolderCanMakeExternalWindow(startCxt.placeholderType, endCxt.placeholderType)) {
+    return false;
+  }
+  return true;
+}
+
+static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
+  if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd ||
+      nodeType(pTimeRange->pStart) != QUERY_NODE_OPERATOR ||
+      nodeType(pTimeRange->pEnd) != QUERY_NODE_OPERATOR) {
+    return false;
+  }
+
+  SOperatorNode *pStart = (SOperatorNode *)(pTimeRange->pStart);
+  SOperatorNode *pEnd = (SOperatorNode *)(pTimeRange->pEnd);
+
+  return filterHasPlaceHolderRange(pStart, pEnd);
+}
+
+static bool conditionHasPlaceHolder(SNode* pNode) {
+  if (!pNode) {
+    return false;
+  }
+  SConditionCheckContext cxt = {.hasPlaceHolder = false};
+  nodesWalkExpr(pNode, conditionOnlyPhAndConstImpl, &cxt);
+  return cxt.hasPlaceHolder;
+}
+
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
-      !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
+      !pCxt->pPlanCxt->streamCalcQuery ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
-      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc) {
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange) ||
+      conditionHasPlaceHolder(pSelect->pWhere)) {
+    pCxt->pPlanCxt->withExtWindow = false;
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);
 
-  return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow));
+  pCxt->pPlanCxt->withExtWindow = true;
+  PLAN_RET(createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode));
 }
 
 typedef struct SCollectFillExprsCtx {

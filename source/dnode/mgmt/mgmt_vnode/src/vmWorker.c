@@ -92,6 +92,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_VND_ARB_HEARTBEAT:
       code = vmProcessArbHeartBeatReq(pMgmt, pMsg);
       break;
+    case TDMT_VND_ALTER_ELECTBASELINE:
+      code = vmProcessAlterVnodeElectBaselineReq(pMgmt, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in vnode-mgmt queue", pMsg);
@@ -158,33 +161,28 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
   }
 }
 
-static void vmProcessStreamReaderQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+static void vmProcessStreamReaderQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = pInfo->ahandle;
-  SRpcMsg   *pMsg = NULL;
+  const STraceId *trace = &pMsg->info.traceId;
+  dGTrace("vgId:%d, msg:%p, get from vnode-fetch queue", pVnode->vgId, pMsg);
 
-  for (int32_t i = 0; i < numOfMsgs; ++i) {
-    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
-    const STraceId *trace = &pMsg->info.traceId;
-    dGTrace("vgId:%d, msg:%p, get from vnode-fetch queue", pVnode->vgId, pMsg);
-
-    terrno = 0;
-    int32_t code = vnodeProcessStreamReaderMsg(pVnode->pImpl, pMsg);
-    if (code != 0) {
-      if (code == -1 && terrno != 0) {
-        code = terrno;
-      }
-
-      if (code == 0) {
-        dGDebug("vgId:%d, msg:%p, success to stream reader since %s [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, terrstr());
-      } else {
-        dGError("vgId:%d, msg:%p, failed to stream reader since %s [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, terrstr());
-      }
+  terrno = 0;
+  int32_t code = vnodeProcessStreamReaderMsg(pVnode->pImpl, pMsg);
+  if (code != 0) {
+    if (code == -1 && terrno != 0) {
+      code = terrno;
     }
 
-    dGTrace("vgId:%d, msg:%p, is freed, code:0x%x [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, code);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
+    if (code == 0) {
+      dGDebug("vgId:%d, msg:%p, success to stream reader since %s [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, terrstr());
+    } else {
+      dGError("vgId:%d, msg:%p, failed to stream reader since %s [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, terrstr());
+    }
   }
+
+  dGTrace("vgId:%d, msg:%p, is freed, code:0x%x [vmProcessStreamReaderQueue]", pVnode->vgId, pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
 }
 
 static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
@@ -445,10 +443,8 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   }
 
   pVnode->pQueryQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
+  pVnode->pStreamReaderQ = tQueryAutoQWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, (FItem)vmProcessStreamReaderQueue);
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
-
-  // init stream msg processing queue family
-  pVnode->pStreamReaderQ = tWWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, vmProcessStreamReaderQueue);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
       pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pFetchQ == NULL || !pVnode->pStreamReaderQ) {
@@ -464,17 +460,16 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   dInfo("vgId:%d, apply-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
         taosQueueGetThreadId(pVnode->pApplyW.queue));
   dInfo("vgId:%d, query-queue:%p is alloced", pVnode->vgId, pVnode->pQueryQ);
+  dInfo("vgId:%d, stream-reader-queue:%p is alloced", pVnode->vgId, pVnode->pStreamReaderQ);
   dInfo("vgId:%d, fetch-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
         taosQueueGetThreadId(pVnode->pFetchQ));
-  dInfo("vgId:%d, stream-reader-queue:%p is alloced, thread:%08" PRId64, pVnode->vgId, pVnode->pStreamReaderQ,
-        taosQueueGetThreadId(pVnode->pStreamReaderQ));
   return 0;
 }
 
 void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   tQueryAutoQWorkerFreeQueue(&pMgmt->queryPool, pVnode->pQueryQ);
+  tQueryAutoQWorkerFreeQueue(&pMgmt->streamReaderPool, pVnode->pStreamReaderQ);
   tWWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
-  tWWorkerFreeQueue(&pMgmt->streamReaderPool, pVnode->pStreamReaderQ);
   pVnode->pQueryQ = NULL;
   pVnode->pFetchQ = NULL;
 
@@ -491,6 +486,12 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   pQPool->min = tsNumOfVnodeQueryThreads;
   pQPool->max = tsNumOfVnodeQueryThreads;
   if ((code = tQueryAutoQWorkerInit(pQPool)) != 0) return code;
+
+  SQueryAutoQWorkerPool *pSPool = &pMgmt->streamReaderPool;
+  pSPool->name = "vnode-st-reader";
+  pSPool->min = tsNumOfVnodeStreamReaderThreads;
+  pSPool->max = tsNumOfVnodeStreamReaderThreads;
+  if ((code = tQueryAutoQWorkerInit(pSPool)) != 0) return code;
 
   tsNumOfQueryThreads += tsNumOfVnodeQueryThreads;
 
@@ -517,21 +518,6 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
                                    .param = pMgmt};
 
   if ((code = tSingleWorkerInit(&pMgmt->mgmtMultiWorker, &multiMgmtCfg)) != 0) return code;
-
-  SWWorkerPool *pStreamReaderPool = &pMgmt->streamReaderPool;
-  pStreamReaderPool->name = "vnode-st-reader";
-  pStreamReaderPool->max = tsNumOfVnodeStreamReaderThreads;
-  if ((code = tWWorkerInit(pStreamReaderPool)) != 0) return code;
-
-/*
-  SSingleWorkerCfg runnerWorkerCfg = {.min = tsNumOfStreamRunnerThreads,
-                                      .max = tsNumOfStreamRunnerThreads,
-                                      .name = "vnode-st-runner",
-                                      .fp = (FItem)NULL,
-                                      .param = pMgmt};
-  if ((code = tSingleWorkerInit(&pMgmt->streamRunnerWorker, &runnerWorkerCfg)) != 0) return code;
-*/
-
   dDebug("vnode workers are initialized");
   return 0;
 }
@@ -539,7 +525,6 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 void vmStopWorker(SVnodeMgmt *pMgmt) {
   tQueryAutoQWorkerCleanup(&pMgmt->queryPool);
   tWWorkerCleanup(&pMgmt->fetchPool);
-  tWWorkerCleanup(&pMgmt->streamReaderPool);
-//  tSingleWorkerCleanup(&pMgmt->streamRunnerWorker);
+  tQueryAutoQWorkerCleanup(&pMgmt->streamReaderPool);
   dDebug("vnode workers are closed");
 }

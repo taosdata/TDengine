@@ -41,9 +41,10 @@ extern "C" {
 #define ANALY_DEFAULT_TIMEOUT           60  // 60sec
 #define ANALY_MAX_TIMEOUT               1200
 #define ANALY_MAX_IMPUT_ROWS            2048
+#define ANALY_TDTSFM_FORECAST_MIN_ROWS  96
 
 typedef struct {
-  EAnalAlgoType type;
+  EAnalyAlgoType type;
   int32_t       anode;
   int32_t       urlLen;
   char         *url;
@@ -79,7 +80,7 @@ int32_t taosAnalyticsInit();
 void    taosAnalyticsCleanup();
 SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout, const char* id);
 
-int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
+int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalyAlgoType type, char *url, int32_t urlLen);
 int32_t taosAnalyGetOpts(const char *pOption, SHashObj **pOptHash);
 bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
 int64_t taosAnalyGetVersion();
@@ -103,9 +104,9 @@ int32_t taosAnalysisParseAlgo(const char *pOpt, char *pAlgoName, char *pUrl, int
 int64_t taosAnalysisParseTimout(SHashObj* pHashMap, const char* id);
 int8_t  taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id);
 
-const char   *taosAnalysisAlgoType(EAnalAlgoType algoType);
-EAnalAlgoType taosAnalyAlgoInt(const char *algoName);
-const char   *taosAnalyAlgoUrlStr(EAnalAlgoType algoType);
+const char   *taosAnalysisAlgoType(EAnalyAlgoType algoType);
+EAnalyAlgoType taosAnalyAlgoInt(const char *algoName);
+const char   *taosAnalyAlgoUrlStr(EAnalyAlgoType algoType);
 
 #ifdef __cplusplus
 }

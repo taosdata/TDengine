@@ -26,6 +26,7 @@ RUN pip3 install --upgrade pip && \
                     tensorflow-cpu==2.15.0 \
                     # arm64 use: tensorflow==2.15.0 \
                     uni2ts \
+                    prophet==1.1.7 \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
     find /usr/local/lib/python3.10 -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \

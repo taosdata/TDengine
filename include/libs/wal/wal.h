@@ -142,8 +142,6 @@ typedef struct SWalReader {
   TdFilePtr pIdxFile;
   int64_t   curFileFirstVer;
   int64_t   curVersion;
-  int64_t skipToVersion;  // skip data and jump to destination version, usually used by stream resume ignoring untreated
-                          // data
   int64_t        capacity;
   TdThreadMutex  mutex;
   SWalCkHead    *pHead;
