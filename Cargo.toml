@@ -219,7 +219,7 @@ features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
 version = "1.11.0"
-rust-version = "1.87.0"
+rust-version = "1.90.0"
 
 [workspace.lints.clippy]
 too_many_arguments = "allow"

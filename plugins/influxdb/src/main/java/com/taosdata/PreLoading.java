@@ -47,6 +47,8 @@ import java.time.Instant;
 import java.util.*;
 import java.util.regex.Pattern;
 
+import org.apache.logging.log4j.LogManager;
+
 /**
  * 预加载
  *
@@ -211,8 +213,10 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.noteNetty(this.nettyClientConfig.getHost(), this.nettyClientConfig.getPort());
             // 增加退出信号处理方法
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                logger.info("Receive shutdown signal, system safe exit!");
                 processShutdown();
-                logger.info("receive shutdown signal, The system has safe exited!");
+                LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+                ctx.stop();   // 放弃剩余日志
             }));
             // 状态默认正常，线程内部会再次更新
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());

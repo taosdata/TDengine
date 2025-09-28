@@ -213,7 +213,7 @@ struct LicenseOf<'a> {
 }
 
 #[allow(dead_code)]
-async fn enterprise_edition_of(dsn: &Dsn) -> anyhow::Result<LicenseOf> {
+async fn enterprise_edition_of(dsn: &Dsn) -> anyhow::Result<LicenseOf<'_>> {
     let subject_taken = {
         let mut v = dsn.clone();
         v.subject.take();

@@ -130,10 +130,10 @@ impl<'a> MessagesSender<'a> {
                     });
             }
         }
-        if self.value.is_empty() {
-            if let Some(e) = error {
-                return Err(e);
-            }
+        if self.value.is_empty()
+            && let Some(e) = error
+        {
+            return Err(e);
         }
 
         tracing::debug!(
@@ -249,7 +249,7 @@ impl<'a> MessagesSender<'a> {
             .collect::<Vec<_>>();
         let batch_id = BATCH_ID.fetch_add(1, Ordering::SeqCst);
 
-        let offsets = serde_json::to_string(&offsets).context("seralize kafka offset error")?;
+        let offsets = serde_json::to_string(&offsets).context("serialize kafka offset error")?;
         let metaata = batch.schema_metadata_mut();
         metaata.insert("offsets".into(), offsets);
         metaata.insert("batch_id".into(), batch_id.to_string());

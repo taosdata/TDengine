@@ -130,11 +130,11 @@ pub async fn local_to_taos(
         }
 
         if files_to_send.is_empty() {
-            if let Some(stop_at) = config.stop_at.as_ref() {
-                if stop_at < &chrono::Utc::now() {
-                    tracing::info!("local_to_taos has no files to read");
-                    stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
+            if let Some(stop_at) = config.stop_at.as_ref()
+                && stop_at < &chrono::Utc::now()
+            {
+                tracing::info!("local_to_taos has no files to read");
+                stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
             }
         } else {
             tracing::info!("local_to_taos send files: {:?} to worker", files_to_send);
@@ -374,14 +374,14 @@ async fn restore(
     let reader = match open_file_with_retry(path, retry_max, retry_interval).await {
         Ok(r) => r,
         Err(e) => {
-            if let Some(ioe) = e.downcast_ref::<std::io::Error>() {
-                if ioe.kind() == std::io::ErrorKind::NotFound {
-                    tracing::warn!(
-                        "[{idx}] file vanished during retry, skip: {:?}",
-                        path.display()
-                    );
-                    return Ok(());
-                }
+            if let Some(ioe) = e.downcast_ref::<std::io::Error>()
+                && ioe.kind() == std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(
+                    "[{idx}] file vanished during retry, skip: {:?}",
+                    path.display()
+                );
+                return Ok(());
             }
             tracing::warn!(
                 "[{idx}] failed to open file: {:?}, error: {:#}, skip",

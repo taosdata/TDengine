@@ -2,6 +2,7 @@ use assert_cmd::{Command, prelude::*};
 use chrono::Utc;
 use itertools::Itertools;
 use legacy_to_taos::legacy_to_taos;
+use std::io::BufRead;
 use std::time::Duration;
 use taos::{AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 use taosx_core::utils::sql::connect_taos;
@@ -639,10 +640,10 @@ async fn test_sync_specified_tables_with_taos() -> anyhow::Result<()> {
 /// # description
 /// This case test synchronize database with specified time range
 /// # description_cn
-/// 同步数据库，指定时间区间：[strat, ∞), (∞, end), [start, end)
+/// 同步数据库，指定时间区间：[start, ∞), (∞, end), [start, end)
 /// 1. 创建数据库 DB_SRC 和 DB_DST
 /// 2. 在 DB_SRC 中创建 1 个超级表，写入 30 天的数据，每天 N 条；
-/// 3. 创建数据同步任务，分别指定时间区间为：[strat, ∞), (∞, end), [start, end)
+/// 3. 创建数据同步任务，分别指定时间区间为：[start, ∞), (∞, end), [start, end)
 /// 4. 检查 DB_SRC 和 DB_DST 中的数据是否一致，一致为用例通过，否则用例失败。
 /// # jira
 /// close https://jira.taosdata.com:18080/browse/TD-34842
@@ -1140,6 +1141,170 @@ async fn test_sync_select_from_stable_with_taos() -> anyhow::Result<()> {
         .unwrap();
     assert_eq!(count_src, N);
     assert_eq!(count_dst, 3);
+
+    // clean
+    taos.exec_many(vec![
+        format!("drop database if exists `{DB_SRC}`;"),
+        format!("drop database if exists `{DB_DST}`;"),
+    ])
+    .await?;
+
+    Ok(())
+}
+
+/// # description
+///
+/// Retro + Sparse + Realtime mode cause "No valid epSet for data source node"
+/// # description_cn
+/// 同步指定子表的数据，且从超级表取数据
+/// 1. 创建数据库 DB_SRC 和 DB_DST
+/// 2. 在 DB_SRC 中创建 1 个超级表，向 N 个子表中写入数据；
+/// 3. 创建数据实时同步任务，指定 retro；
+/// 4. 同步 retro 任务时不报错：No valid epSet for data source node；
+/// 5. 检查 DB_SRC 和 DB_DST 中的数据是否一致，一致为用例通过，否则用例失败。
+/// # jira
+/// close https://jira.taosdata.com:18080/browse/TS-7312
+/// # example
+/// ```shell
+/// cargo nextest run test_sync_realtime_sparse_and_retro_with_taos --nocapture --retries 0
+/// ```
+#[tokio::test]
+async fn test_sync_realtime_sparse_and_retro_with_taos() -> anyhow::Result<()> {
+    let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+    let ws_enable = std::env::var("WS_ENABLE")
+        .ok()
+        .map(|ws_enable| ws_enable.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    const DB_SRC: &str = "test_sync_realtime_sparse_and_retro_src";
+    const DB_DST: &str = "test_sync_realtime_sparse_and_retro_dst";
+    const N: i32 = 10;
+
+    let taos = if ws_enable {
+        TaosBuilder::from_dsn(format!("taos+ws://{host}:6041").into_dsn()?)?
+            .build()
+            .await?
+    } else {
+        TaosBuilder::from_dsn(format!("taos://{host}").into_dsn()?)?
+            .build()
+            .await?
+    };
+
+    // create databases and stables
+    taos.exec_many(vec![
+        format!("drop database if exists `{DB_SRC}`;"),
+        format!("drop database if exists `{DB_DST}`;"),
+        format!("create database if not exists `{DB_SRC}`;"),
+        format!("create database if not exists `{DB_DST}`;"),
+        format!("create table `{DB_SRC}`.`Stb`(ts timestamp, val float) tags(id int);"),
+    ])
+    .await?;
+
+    // write some data
+    for i in 0..N {
+        let sql = format!(
+            "insert into `{DB_SRC}`.`Tb{i}` using `{DB_SRC}`.`Stb` tags({i}) values (now - 2m, {i}.{i});"
+        );
+        taos.exec(sql).await?;
+    }
+
+    for i in 0..N {
+        let sql = format!(
+            "insert into `{DB_SRC}`.`Tb{i}` using `{DB_SRC}`.`Stb` tags({i}) values (now, {i}.{i});"
+        );
+        taos.exec(sql).await?;
+    }
+    {
+        let (from, to) = if ws_enable {
+            let from = format!(
+            "taos+ws://{host}:6041/{DB_SRC}?tables=Stb&mode=realtime&sparse=true&retro=5m&excursion=1s"
+        )
+        .into_dsn()?;
+            let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!(
+            "taos://{host}/{DB_SRC}?tables=Stb&mode=realtime&sparse=true&retro=5m&excursion=1m&interval=5s"
+        )
+        .into_dsn()?;
+            let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+
+        Command::cargo_bin("taosx")?
+            .args(["run", "-f"])
+            .arg(from.to_string())
+            .arg("-t")
+            .arg(to.to_string())
+            .timeout(Duration::from_secs(10))
+            .assert()
+            .failure();
+
+        let from = format!("{}?tables=Stb", from);
+
+        Command::cargo_bin("taosx")?
+            .args(["run", "-f"])
+            .arg(&from)
+            .arg("-t")
+            .arg(to.to_string())
+            .timeout(Duration::from_secs(10))
+            .assert()
+            .failure();
+    }
+    // sync
+    let (from, to) = if ws_enable {
+        let from = format!(
+            "taos+ws://{host}:6041/{DB_SRC}?stables=Stb&mode=realtime&sparse=true&retro=10s&excursion=1s"
+        )
+        .into_dsn()?;
+        let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+        (from, to)
+    } else {
+        let from = format!(
+            "taos://{host}/{DB_SRC}?stables=Stb&mode=realtime&sparse=true&retro=5m&excursion=10s&interval=5s"
+        )
+        .into_dsn()?;
+        let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+        (from, to)
+    };
+
+    let instant = std::time::Instant::now();
+    let assert = Command::cargo_bin("taosx")?
+        .args(["run", "-f"])
+        .arg(from.to_string())
+        .arg("-t")
+        .arg(to.to_string())
+        .timeout(Duration::from_secs(30))
+        .assert();
+    let output = assert.get_output();
+    let elapsed = instant.elapsed();
+    eprintln!("elapsed: {:?}", elapsed);
+    // assert!(elapsed.as_secs() > 28, "elapsed: {:?}", elapsed);
+
+    for l in std::io::Cursor::new(&output.stdout)
+        .lines()
+        .map(|l| l.unwrap())
+    {
+        eprintln!("{}", l);
+    }
+
+    for l in std::io::Cursor::new(&output.stderr)
+        .lines()
+        .map(|l| l.unwrap())
+    {
+        eprintln!("{}", l);
+    }
+    let output = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !output.contains("No valid epSet for data source node"),
+        "Expect `No valid epSet for data source node` error fixed, elapsed: {:?}",
+        elapsed
+    );
+
+    let count_dst: i32 = taos
+        .query_one(format!("select count(*) from `{DB_DST}`.`Stb`"))
+        .await?
+        .unwrap();
+    assert_eq!(count_dst, N * 2);
 
     // clean
     taos.exec_many(vec![

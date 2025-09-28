@@ -1333,7 +1333,7 @@ mod tests {
         ]));
         let (batch, _) = json.parse_array(&Field::new("payload", DataType::Utf8, false), &array)?;
         assert_eq!(
-            arrow::util::pretty::pretty_format_batches(&[batch.clone()])?.to_string(),
+            arrow::util::pretty::pretty_format_batches(std::slice::from_ref(&batch))?.to_string(),
             "\
 +-----+-------+
 | ts  | value |

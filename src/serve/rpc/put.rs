@@ -157,11 +157,11 @@ async fn ipc_stream_writer(
     };
 
     let metrics = metrics_arc.ipc();
-    if worker.lush_model_config.get().is_none() {
-        if let Some(sql) = metadata.init_sql_string() {
-            let init = metadata.init().unwrap();
-            handle_lush_message_init(init, &taos, &sql, metrics).await?;
-        }
+    if worker.lush_model_config.get().is_none()
+        && let Some(sql) = metadata.init_sql_string()
+    {
+        let init = metadata.init().unwrap();
+        handle_lush_message_init(init, &taos, &sql, metrics).await?;
     }
     // handle point message init
     if let Some(opc_model_config) = worker.opc_model_config() {

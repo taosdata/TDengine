@@ -45,16 +45,6 @@ pub enum AgentStatus {
     Error,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[derive(sqlx::Type)]
-#[sqlx(rename_all = "snake_case")]
-pub enum AgentActivity {
-    Create,
-    Connect,
-    Disconnected,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct Activity {
     pub id: i64,

@@ -109,10 +109,10 @@ where
 
             self.ts.append_value(message.ts);
         }
-        if self.payload.is_empty() {
-            if let Some(e) = error.take() {
-                return Err(e);
-            }
+        if self.payload.is_empty()
+            && let Some(e) = error.take()
+        {
+            return Err(e);
         }
 
         let mut columns: Vec<ArrayRef> = vec![

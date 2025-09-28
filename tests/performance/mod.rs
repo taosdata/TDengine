@@ -148,7 +148,7 @@ pub struct Writer {
 
 impl Writer {
     /// 根据 Simulation 配置创建 writers, 并均匀分配子表数量
-    pub fn from_simluation(sim: &Simulation) -> Vec<Self> {
+    pub fn from_simulation(sim: &Simulation) -> Vec<Self> {
         assert!(sim.writers > 0, "writers must be > 0");
         let mut writers = Vec::with_capacity(sim.writers);
         let base_per_writer = sim.tables / sim.writers;
@@ -242,15 +242,15 @@ impl Writer {
                     rows_this_sec += 1;
 
                     // 限速控制
-                    if let Some(rate) = rate_limit {
-                        if rows_this_sec >= rate {
-                            let elapsed = last_tick.elapsed();
-                            if elapsed < Duration::from_secs(1) {
-                                sleep(Duration::from_secs(1) - elapsed).await;
-                            }
-                            last_tick = Instant::now();
-                            rows_this_sec = 0;
+                    if let Some(rate) = rate_limit
+                        && rows_this_sec >= rate
+                    {
+                        let elapsed = last_tick.elapsed();
+                        if elapsed < Duration::from_secs(1) {
+                            sleep(Duration::from_secs(1) - elapsed).await;
                         }
+                        last_tick = Instant::now();
+                        rows_this_sec = 0;
                     }
                 }
 
@@ -308,7 +308,7 @@ pub struct Simulation {
 }
 
 // 仅创建超级表与所有子表 schema，不写入数据
-pub async fn simluate_create_tables(
+pub async fn simulate_create_tables(
     pool: &Pool<Manager<TaosBuilder>>,
     sim: &Simulation,
 ) -> anyhow::Result<()> {
@@ -322,7 +322,7 @@ pub async fn simluate_create_tables(
     .await?;
 
     // 创建 writer
-    let writers = Writer::from_simluation(sim);
+    let writers = Writer::from_simulation(sim);
 
     // 创建表
     for writer in &writers {
@@ -337,7 +337,7 @@ pub async fn simulate_write_only(
     pool: &Pool<Manager<TaosBuilder>>,
     sim: &Simulation,
 ) -> anyhow::Result<BasicMetrics> {
-    let writers = Writer::from_simluation(sim);
+    let writers = Writer::from_simulation(sim);
 
     let start = Instant::now();
     let mut handlers = Vec::new();
@@ -377,7 +377,7 @@ pub async fn simulate_write(
     pool: &Pool<Manager<TaosBuilder>>,
     sim: &Simulation,
 ) -> anyhow::Result<BasicMetrics> {
-    simluate_create_tables(pool, sim).await?;
+    simulate_create_tables(pool, sim).await?;
 
     let output = simulate_write_only(pool, sim).await?;
 
@@ -626,7 +626,7 @@ mod test {
             rows_per_sql: 50,
             speed_limit: None,
         };
-        let writers = Writer::from_simluation(&sim);
+        let writers = Writer::from_simulation(&sim);
         assert_eq!(writers.len(), 24);
         let total_tables: usize = writers.iter().map(|w| w.table_size).sum();
         assert_eq!(total_tables, 10000);

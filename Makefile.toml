@@ -77,6 +77,8 @@ UPX_DIR = "./target/deploy/upx/"
 BUILD_PROFILE = { value = "release", condition = { env_not_set = [
   "BUILD_PROFILE",
 ] } }
+RUST_VERSION = "1.90.0"
+ZIG_VERSION = "0.14.1"
 
 [tasks.build]
 command = "cargo"
@@ -489,7 +491,12 @@ rm -rf ./TDengine-enterprise-${VER_NUMBER}
 cwd = "docker/dev/"
 script = """
 echo use manylinux2014 as base image with docker/dev/Dockerfile .
-docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev --load .
+docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev:${RUST_VERSION} --build-arg RUST_VERSION=${RUST_VERSION} --load .
+"""
+[tasks.install-taosx-dev-docker-image]
+install_script = """
+echo "Prepare zigbuilder image for aarch64"
+docker images --format json | jq -e 'select(.Repository == "taosx/dev" and .Tag == "$RUST_VERSION")' || cargo make build-docker-dev
 """
 
 [tasks.check-aarch64]
@@ -512,7 +519,7 @@ docker run --platform $PLATFORM --rm \
   -v $HOME/.cargo/registry:/root/.cargo/registry \
   -v $HOME/.cargo/git:/root/.cargo/git \
   -v $TARGET_DIR:/app/target \
-  taosx/dev \
+  taosx/dev:${RUST_VERSION} \
   cargo check
 """
 
@@ -522,7 +529,7 @@ docker run --platform $PLATFORM --rm \
 # 2. Build aarch64 taosx and agent: cargo make build-centos7-release --platform linux/amd64 -p taosx -p taosx-agent
 #
 [tasks.build-centos7-release]
-# dependencies = ["build-docker-dev"]
+dependencies = ["install-taosx-dev-docker-image"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
 
@@ -541,7 +548,7 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
       -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
-      taosx/dev \
+      taosx/dev:${RUST_VERSION} \
       cargo build --profile ${BUILD_PROFILE} $EXTRAS
     ;;
   "")
@@ -552,7 +559,7 @@ case "${PLATFORM}" in
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
-      taosx/dev \
+      taosx/dev:${RUST_VERSION} \
       cargo build --profile ${BUILD_PROFILE} $@
     ;;
   *)
@@ -564,7 +571,7 @@ esac
 """
 
 [tasks.build-centos7-sani]
-# dependencies = ["build-docker-dev"]
+dependencies = ["install-taosx-dev-docker-image"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
 mkdir -p target/centos7
@@ -573,7 +580,7 @@ docker compose run --remove-orphans --rm build \
 """
 
 [tasks.build-centos7-jemalloc]
-# dependencies = ["build-docker-dev"]
+dependencies = ["install-taosx-dev-docker-image"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
 mkdir -p target/centos7
@@ -582,7 +589,7 @@ docker compose run --remove-orphans --rm build \
 """
 
 [tasks.build-centos7-production]
-# dependencies = ["build-docker-dev"]
+dependencies = ["install-taosx-dev-docker-image"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
 mkdir -p target/centos7
@@ -746,24 +753,23 @@ cp taosx-agent/bin/taosx-agent-srv.exe target/deploy/${CUS_PROMPT}x-agent-srv.ex
 [tasks.zigbuild-aarch64-image]
 cwd = "docker/ci"
 script = """
-ZIG_VERSION=0.14.1
 [ -f zig-x86_64-linux-${ZIG_VERSION}.tar.xz ] || \
   wget -c https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz
-docker build -t taosx/zigbuilder -f build.arm64.Dockerfile --build-arg ZIG_VERSION=${ZIG_VERSION} .
+docker build -t taosx/zigbuilder:${RUST_VERSION} -f build.arm64.Dockerfile \
+  --build-arg ZIG_VERSION=${ZIG_VERSION} --build-arg RUST_VERSION=${RUST_VERSION} .
 """
 
 [tasks.zigbuild-aarch64-taosx]
 install_script = """
-#!/bin/bash
 echo "Prepare zigbuilder image for aarch64"
-docker images --format json | jq 'select(.Repository == "taosx/zigbuilder")' || cargo make zigbuild-aarch64-image
+docker images --format json | jq -e 'select(.Repository == "taosx/zigbuilder" and .Tag == "$RUST_VERSION")' || cargo make zigbuild-aarch64-image
 """
 script = """
 docker run --rm -v .:/app -w /app \
   -v $HOME/.cargo/registry:/root/.cargo/registry \
   -v $HOME/.cargo/git:/root/.cargo/git \
   -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
-  taosx/zigbuilder \
+  taosx/zigbuilder:${RUST_VERSION} \
   cargo zigbuild --target aarch64-unknown-linux-gnu.2.39
 """
 

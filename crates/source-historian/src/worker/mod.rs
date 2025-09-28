@@ -34,8 +34,7 @@ const SYNCHRONIZE_TASK_PREFIX: &str = "syn";
 pub async fn migrate_history(mut config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
     // get break point
     let break_point = get_break_point(config.task_id);
-    if break_point.is_some() {
-        let begin_date_time = break_point.unwrap();
+    if let Some(begin_date_time) = break_point {
         tracing::info!(
             "migrate history start from break point: {}",
             begin_date_time.to_rfc3339()
@@ -83,8 +82,7 @@ pub async fn sync_history(
     // get break point
     let task_id = task_config.task_id;
     let break_pint = get_break_point(task_id);
-    if break_pint.is_some() {
-        let break_point = break_pint.unwrap();
+    if let Some(break_point) = break_pint {
         tracing::info!(
             "sync history start from break point: {}",
             break_point.to_rfc3339()
@@ -309,11 +307,8 @@ fn get_break_point(task_id: Option<i64>) -> Option<DateTime<Utc>> {
                 .map(|dt| Some(dt.with_timezone(&Utc)))
                 .unwrap_or(None);
 
-            if date_time.is_some() {
-                earliest = Some(cmp::min(
-                    earliest.unwrap_or(date_time.unwrap()),
-                    date_time.unwrap(),
-                ));
+            if let Some(date_time) = date_time {
+                earliest = Some(earliest.unwrap_or(date_time).min(date_time));
             }
         }
     }

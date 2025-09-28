@@ -73,59 +73,62 @@ impl KafkaConnectConfig {
     }
 
     fn parse_ssl_ca(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        let ca = dsn.get("ca");
-        if ca.is_none() || ca.unwrap().is_empty() {
-            Ok(None)
-        } else {
-            let ca = ca.unwrap();
-            if ca.starts_with('@') {
-                get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None).map_err(|err| {
-                    anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string())
-                })
-            } else {
-                Ok(Some(ca.to_string()))
-            }
-        }
+        dsn.get("ca")
+            .and_then(|ca| if ca.is_empty() { None } else { Some(ca) })
+            .and_then(|ca| {
+                if ca.starts_with('@') {
+                    get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None)
+                        .map_err(|err| {
+                            anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string())
+                        })
+                        .transpose()
+                } else {
+                    Some(Ok(ca.to_string()))
+                }
+            })
+            .transpose()
     }
 
     fn parse_ssl_cert(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        let cert = dsn.get("cert");
-        if cert.is_none() || cert.unwrap().is_empty() {
-            Ok(None)
-        } else {
-            let cert = cert.unwrap();
-            if cert.starts_with('@') {
-                get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to read client certificate config, cause: {}",
-                        err.to_string()
-                    )
-                })
-            } else {
-                Ok(Some(cert.to_string()))
-            }
-        }
+        dsn.get("cert")
+            .and_then(|cert| {
+                if cert.is_empty() {
+                    None
+                } else if cert.starts_with('@') {
+                    get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None)
+                        .map_err(|err| {
+                            anyhow::anyhow!(
+                                "failed to read client certificate config, cause: {}",
+                                err.to_string()
+                            )
+                        })
+                        .transpose()
+                } else {
+                    Some(Ok(cert.to_string()))
+                }
+            })
+            .transpose()
     }
 
     fn parse_ssl_cert_key(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        let cert_key = dsn.get("cert_key");
-        if cert_key.is_none() || cert_key.unwrap().is_empty() {
-            Ok(None)
-        } else {
-            let cert_key = cert_key.unwrap();
-            if cert_key.starts_with('@') {
-                get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None).map_err(
-                    |err| {
-                        anyhow::anyhow!(
-                            "failed to read client key config, cause: {}",
-                            err.to_string()
-                        )
-                    },
-                )
-            } else {
-                Ok(Some(cert_key.to_string()))
-            }
-        }
+        dsn.get("cert_key")
+            .and_then(|cert_key| {
+                if cert_key.is_empty() {
+                    None
+                } else if cert_key.starts_with('@') {
+                    get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None)
+                        .map_err(|err| {
+                            anyhow::anyhow!(
+                                "failed to read client key config, cause: {}",
+                                err.to_string()
+                            )
+                        })
+                        .transpose()
+                } else {
+                    Some(Ok(cert_key.to_string()))
+                }
+            })
+            .transpose()
     }
 
     /// use `sasl_mechanism` to determine whether to use sasl
@@ -143,22 +146,20 @@ impl KafkaConnectConfig {
     }
 
     fn parse_sasl_kerberos_keytab(dsn: &Dsn) -> anyhow::Result<Option<String>> {
-        let sasl_kerberos_keytab = dsn.get("sasl_kerberos_keytab");
-        if sasl_kerberos_keytab.is_none() || sasl_kerberos_keytab.unwrap().is_empty() {
-            Ok(None)
-        } else {
-            let sasl_kerberos_keytab = sasl_kerberos_keytab.unwrap();
-            if sasl_kerberos_keytab.starts_with('@') {
-                Ok(Some(
-                    get_data_dir()
+        dsn.get("sasl_kerberos_keytab")
+            .and_then(|sasl_kerberos_keytab| {
+                if sasl_kerberos_keytab.is_empty() {
+                    None
+                } else if sasl_kerberos_keytab.starts_with('@') {
+                    Some(Ok(get_data_dir()
                         .join(sasl_kerberos_keytab.trim_start_matches("@"))
                         .display()
-                        .to_string(),
-                ))
-            } else {
-                Ok(Some(sasl_kerberos_keytab.to_string()))
-            }
-        }
+                        .to_string()))
+                } else {
+                    Some(Ok(sasl_kerberos_keytab.to_string()))
+                }
+            })
+            .transpose()
     }
 }
 

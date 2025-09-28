@@ -216,15 +216,15 @@ impl HintType {
                 value, min, max, ..
             } => {
                 if let Ok(v) = v.parse() {
-                    if let Some(min) = min {
-                        if v < *min {
-                            return false;
-                        }
+                    if let Some(min) = min
+                        && v < *min
+                    {
+                        return false;
                     }
-                    if let Some(max) = max {
-                        if v > *max {
-                            return false;
-                        }
+                    if let Some(max) = max
+                        && v > *max
+                    {
+                        return false;
                     }
                     value.replace(v);
                     true
@@ -535,14 +535,14 @@ impl DataSourceDefinition {
         debug_assert!(self.id == dsn.driver);
         let username_value = dsn.username.clone();
         let password_value = dsn.password.clone();
-        if self.protocol.is_some() {
-            if let Some(val) = dsn.protocol.as_deref() {
-                if let Some(proto) = self.protocol.as_mut() {
-                    proto.value.replace(val.to_string());
-                } else {
-                    self.protocol
-                        .replace(Protocol::default().value(val.to_string()));
-                }
+        if self.protocol.is_some()
+            && let Some(val) = dsn.protocol.as_deref()
+        {
+            if let Some(proto) = self.protocol.as_mut() {
+                proto.value.replace(val.to_string());
+            } else {
+                self.protocol
+                    .replace(Protocol::default().value(val.to_string()));
             }
         }
 
@@ -695,26 +695,25 @@ impl DataSourceDefinition {
                 }
             }
         }
-        if password_value.is_some() || username_value.is_some() {
-            if let Some(auth) = self
+        if (password_value.is_some() || username_value.is_some())
+            && let Some(auth) = self
                 .authentication
                 .alternatives
                 .iter_mut()
                 .find(|auth| auth.name == "plain")
-            {
-                self.authentication.value.replace("plain".to_string());
-                if let Some(value) = username_value.as_deref() {
-                    auth.username
-                        .get_or_insert(Default::default())
-                        .value
-                        .replace(value.to_string());
-                }
-                if let Some(value) = password_value {
-                    auth.password
-                        .get_or_insert(Default::default())
-                        .value
-                        .replace(value);
-                }
+        {
+            self.authentication.value.replace("plain".to_string());
+            if let Some(value) = username_value.as_deref() {
+                auth.username
+                    .get_or_insert(Default::default())
+                    .value
+                    .replace(value.to_string());
+            }
+            if let Some(value) = password_value {
+                auth.password
+                    .get_or_insert(Default::default())
+                    .value
+                    .replace(value);
             }
         }
 
@@ -734,10 +733,10 @@ impl DataSourceDefinition {
             if is_current_auth {
                 self.authentication.value.replace(auth_item.name.clone());
                 for param in auth_item.params.iter_mut() {
-                    if let Some(value) = dsn.remove(&param.name) {
-                        if !value.is_empty() {
-                            param.value.replace(value);
-                        }
+                    if let Some(value) = dsn.remove(&param.name)
+                        && !value.is_empty()
+                    {
+                        param.value.replace(value);
                     }
                 }
             }
@@ -759,38 +758,37 @@ impl DataSourceDefinition {
         // }
         if let Some(datasets) = self.datasets.as_mut() {
             for dataset_param in datasets.categories.as_mut_slice() {
-                if let Some(target) = dataset_param.target.as_mut() {
-                    if let Some(value) = dsn.remove(&target.name) {
-                        if !value.is_empty() {
-                            if target.multiple {
-                                target.value = Some(serde_json::Value::Array(
-                                    value
-                                        .split(",")
-                                        .map(|v| serde_json::Value::String(v.to_string()))
-                                        .collect(),
-                                ));
-                            } else {
-                                target.value = Some(serde_json::Value::String(value));
-                            }
-                            datasets.value.replace(target.name.clone());
-                        }
+                if let Some(target) = dataset_param.target.as_mut()
+                    && let Some(value) = dsn.remove(&target.name)
+                    && !value.is_empty()
+                {
+                    if target.multiple {
+                        target.value = Some(serde_json::Value::Array(
+                            value
+                                .split(",")
+                                .map(|v| serde_json::Value::String(v.to_string()))
+                                .collect(),
+                        ));
+                    } else {
+                        target.value = Some(serde_json::Value::String(value));
                     }
+                    datasets.value.replace(target.name.clone());
                 }
                 for param in &mut dataset_param.params {
-                    if let Some(value) = dsn.remove(&param.name) {
-                        if !value.is_empty() {
-                            param.value.replace(value);
-                            // datasets.value.replace(param.name.clone());
-                        }
+                    if let Some(value) = dsn.remove(&param.name)
+                        && !value.is_empty()
+                    {
+                        param.value.replace(value);
+                        // datasets.value.replace(param.name.clone());
                     }
                 }
             }
             datasets.params.iter_mut().for_each(|param| {
-                if let Some(value) = dsn.remove(&param.name) {
-                    if !value.is_empty() {
-                        param.value.replace(value);
-                        datasets.value.replace(param.name.clone());
-                    }
+                if let Some(value) = dsn.remove(&param.name)
+                    && !value.is_empty()
+                {
+                    param.value.replace(value);
+                    datasets.value.replace(param.name.clone());
                 }
             });
         }
@@ -844,10 +842,10 @@ impl DataSourceDefinition {
         }
 
         for param in &mut self.params {
-            if let Some(value) = dsn.remove(&param.name) {
-                if !value.is_empty() {
-                    param.value.replace(value);
-                }
+            if let Some(value) = dsn.remove(&param.name)
+                && !value.is_empty()
+            {
+                param.value.replace(value);
             }
         }
 

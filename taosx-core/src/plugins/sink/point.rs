@@ -834,38 +834,8 @@ pub async fn point_records_to_sql(
         let sql_vec = stable_insert_map.get_mut(&stable_name);
         let mut insert_done = false;
 
-        if sql_vec.is_none() {
-            let sql = format!(
-                "insert into `{}` ({}) VALUES ({})",
-                child_table_name,
-                columns_in_insert.as_str(),
-                values
-            );
-
-            let value_column_type = match &point_config.value_type {
-                // 如果在 CSV 中指定了点位的 type，则使用指定的 type
-                Some(value_type) => value_type.sql_repr(),
-                // 如果在 CSV 中没有指定点位的 type，则使用原始的 type
-                None => value_raw_type.sql_repr(),
-            };
-
-            let sql_vec = vec![SqlInsertion {
-                point_insertion: point_insertion.clone(),
-                sql,
-                overflow: false,
-                value_column_type,
-                modify: ModifyStructForPointMessage {
-                    id: point_id,
-                    point_name,
-                    value_column_name: value_column_name.to_string(),
-                    value_column_length,
-                },
-            }];
-            stable_insert_map.insert(stable_name.clone(), sql_vec);
-        } else {
+        if let Some(sql_vec) = sql_vec {
             // 这部分是拼多个点位的sql，注意：需要合并 columnConfig, 合并modify
-            let sql_vec = sql_vec.unwrap();
-
             for index in 0..sql_vec.len() {
                 let sql_insertion = sql_vec.get_mut(index).unwrap();
                 if sql_insertion.overflow {
@@ -928,6 +898,34 @@ pub async fn point_records_to_sql(
                     },
                 });
             }
+        } else {
+            let sql = format!(
+                "insert into `{}` ({}) VALUES ({})",
+                child_table_name,
+                columns_in_insert.as_str(),
+                values
+            );
+
+            let value_column_type = match &point_config.value_type {
+                // 如果在 CSV 中指定了点位的 type，则使用指定的 type
+                Some(value_type) => value_type.sql_repr(),
+                // 如果在 CSV 中没有指定点位的 type，则使用原始的 type
+                None => value_raw_type.sql_repr(),
+            };
+
+            let sql_vec = vec![SqlInsertion {
+                point_insertion: point_insertion.clone(),
+                sql,
+                overflow: false,
+                value_column_type,
+                modify: ModifyStructForPointMessage {
+                    id: point_id,
+                    point_name,
+                    value_column_name: value_column_name.to_string(),
+                    value_column_length,
+                },
+            }];
+            stable_insert_map.insert(stable_name.clone(), sql_vec);
         }
     }
 

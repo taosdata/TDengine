@@ -776,38 +776,37 @@ async fn sync_single_table_partial(
                 prepare = true;
             }
             let views = block.column_views();
-            if let Some(batch_size) = target_opts.batch_size {
-                if batch_size < block.nrows() {
-                    for i in 0..block.nrows().div_ceil(batch_size) {
-                        let range =
-                            batch_size * i..std::cmp::min(batch_size * (i + 1), block.nrows());
-                        let params: Vec<_> = views
-                            .iter()
-                            .map(|view| view.slice(range.clone()).unwrap())
-                            .collect();
-                        tracing::debug!(
-                            "[{table}] write {}..{} rows with max batch size: {batch_size}",
-                            range.start,
-                            range.end,
-                        );
-                        stmt.bind(&params)
-                            .await
-                            .context(format!("[{new_table_name}] bind by chunk {batch_size}"))?;
-                        stmt.add_batch().await.context(format!(
-                            "[{new_table_name}] add batch by chunk {batch_size}"
-                        ))?;
-                        stmt.execute().await
+            if let Some(batch_size) = target_opts.batch_size
+                && batch_size < block.nrows()
+            {
+                for i in 0..block.nrows().div_ceil(batch_size) {
+                    let range = batch_size * i..std::cmp::min(batch_size * (i + 1), block.nrows());
+                    let params: Vec<_> = views
+                        .iter()
+                        .map(|view| view.slice(range.clone()).unwrap())
+                        .collect();
+                    tracing::debug!(
+                        "[{table}] write {}..{} rows with max batch size: {batch_size}",
+                        range.start,
+                        range.end,
+                    );
+                    stmt.bind(&params)
+                        .await
+                        .context(format!("[{new_table_name}] bind by chunk {batch_size}"))?;
+                    stmt.add_batch().await.context(format!(
+                        "[{new_table_name}] add batch by chunk {batch_size}"
+                    ))?;
+                    stmt.execute().await
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
 
-                        metrics.add_success_blocks(1);
-                        metrics.add_written_rows(params.len() as _);
-                        metrics.add_written_points((params.len() * fields) as _);
-                        if let Some(duration) = target_opts.interval {
-                            tokio::time::sleep(duration).await;
-                        }
+                    metrics.add_success_blocks(1);
+                    metrics.add_written_rows(params.len() as _);
+                    metrics.add_written_points((params.len() * fields) as _);
+                    if let Some(duration) = target_opts.interval {
+                        tokio::time::sleep(duration).await;
                     }
-                    continue;
                 }
+                continue;
             }
             stmt.bind(views)
                 .await
@@ -1015,16 +1014,15 @@ pub async fn sync_super_table_schema(
     let target_desc_first = target_desc.first();
     // check if the first field is timestamp
     if desc_first.ty() == Ty::Timestamp {
-        if let Some(target_desc_first) = target_desc_first {
-            if !(target_desc_first.ty() == Ty::Timestamp
+        if let Some(target_desc_first) = target_desc_first
+            && !(target_desc_first.ty() == Ty::Timestamp
                 && desc_first.field() == target_desc_first.field())
-            {
-                bail!(
-                    "Mismatch the first field: expect `{:?}`, but got `{:?}`",
-                    target_desc_first,
-                    desc_first
-                );
-            }
+        {
+            bail!(
+                "Mismatch the first field: expect `{:?}`, but got `{:?}`",
+                target_desc_first,
+                desc_first
+            );
         }
     } else {
         bail!(
@@ -1499,13 +1497,13 @@ pub async fn sync_normal_table_schema(
         .replace("VARCHAR", "BINARY")
         .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS");
 
-    if let Err(err) = from.exec(&sql).await {
-        if err.code() == 0x2600 || err.code() == 0x2601 {
-            // 0x2600: Syntax error
-            // 0x2601: Incomplete SQL statement
-            let desc = from.describe(name).await?;
-            sql = desc.to_create_table_sql(name);
-        }
+    if let Err(err) = from.exec(&sql).await
+        && (err.code() == 0x2600 || err.code() == 0x2601)
+    {
+        // 0x2600: Syntax error
+        // 0x2601: Incomplete SQL statement
+        let desc = from.describe(name).await?;
+        sql = desc.to_create_table_sql(name);
     }
 
     sql = transform_sql_with_actions(sql, name, actions, false, remap)?;
@@ -1544,11 +1542,11 @@ async fn sync_normal_table_schema_fallback(
     let mut sql = desc.to_create_table_sql(name);
 
     sql = transform_sql_with_actions(sql, name, actions, false, remap)?;
-    if let Err(err) = to.exec(&sql).await {
-        if !err.to_string().contains("[0x000B]") {
-            // 0x000B: Unable to establish connection
-            Err(err).with_context(|| format!("normal table create error, sql: [{sql}]"))?;
-        }
+    if let Err(err) = to.exec(&sql).await
+        && !err.to_string().contains("[0x000B]")
+    {
+        // 0x000B: Unable to establish connection
+        Err(err).with_context(|| format!("normal table create error, sql: [{sql}]"))?;
     }
     Ok(())
 }
@@ -1787,19 +1785,16 @@ async fn sync_specified_tables_with_workers(
                 Ok(_) => {
                     if let Some((table, time_range)) = sparse {
                         // set breakpoint async
-                        if let Some(breakpoints) = breakpoints.as_ref() {
-                            if let Some(end) = time_range.end {
-                                let breakpoint = end.to_string();
-                                debug!(
-                                    task.id = task_id.as_ref(),
-                                    "Set breakpoint, table: {table}, breakpoint: {breakpoint}"
-                                );
-                                if let Err(err) = breakpoints.set(&table, &breakpoint).await {
-                                    warn!(
-                                        task.id = task_id.as_ref(),
-                                        "Set breakpoint error: {err:#}"
-                                    );
-                                }
+                        if let Some(breakpoints) = breakpoints.as_ref()
+                            && let Some(end) = time_range.end
+                        {
+                            let breakpoint = end.to_string();
+                            debug!(
+                                task.id = task_id.as_ref(),
+                                "Set breakpoint, table: {table}, breakpoint: {breakpoint}"
+                            );
+                            if let Err(err) = breakpoints.set(&table, &breakpoint).await {
+                                warn!(task.id = task_id.as_ref(), "Set breakpoint error: {err:#}");
                             }
                         }
                     }
@@ -1859,7 +1854,7 @@ async fn sync_specified_tables_with_workers(
         let stable = &item.stable;
         let table = &item.table;
 
-        if item.mtlf {
+        if item.sparse {
             // get breakpoints use breakpoints_get
             if let Some(breakpoints) = breakpoints {
                 const RETRY_LIMIT: usize = 5;
@@ -2230,12 +2225,12 @@ impl Default for TargetOpts {
 
 impl Drop for TargetOpts {
     fn drop(&mut self) {
-        if let Some(file) = self.fails_to.take() {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                handle.spawn(async move {
-                    let _ = file.lock().await.flush();
-                });
-            }
+        if let Some(file) = self.fails_to.take()
+            && let Ok(handle) = tokio::runtime::Handle::try_current()
+        {
+            handle.spawn(async move {
+                let _ = file.lock().await.flush();
+            });
         }
     }
 }
@@ -2330,10 +2325,10 @@ impl TargetOpts {
             let value = utils::parse_duration(&value)?;
             opts.timeout_per_table.replace(value);
         }
-        if let Some(v) = to_dsn.remove("update-tags") {
-            if v != "false" {
-                opts.update_tags = true;
-            }
+        if let Some(v) = to_dsn.remove("update-tags")
+            && v != "false"
+        {
+            opts.update_tags = true;
         }
 
         if let Some(value) = to_dsn.remove("retry-limit").and_then(|v| v.parse().ok()) {
@@ -2447,7 +2442,7 @@ pub struct LegacyTableItem {
     vgroup_id: u32,
     stable: Option<Arc<String>>,
     table: Arc<String>,
-    mtlf: bool,
+    sparse: bool,
 }
 
 impl std::hash::Hash for LegacyTableItem {
@@ -2463,17 +2458,17 @@ impl LegacyTableItem {
             vgroup_id,
             stable,
             table,
-            mtlf: false,
+            sparse: false,
         }
     }
 
-    /// Create a mtlf stable item. The table must be a stable name.
-    pub fn new_mtlf(vgroup_id: u32, table: Arc<String>) -> Self {
+    /// Create a parse stable item. The table must be a stable name.
+    pub fn new_sparse(vgroup_id: u32, table: Arc<String>) -> Self {
         Self {
             vgroup_id,
             stable: Some(table.clone()),
             table,
-            mtlf: true,
+            sparse: true,
         }
     }
 
@@ -2552,16 +2547,20 @@ pub async fn update_todo_list(
 
         let tables = scc::HashSet::new();
         if opts.sparse {
+            if opts.tables.is_some() {
+                tracing::error!("`sparse` option could only support `stables`, not `tables`");
+                bail!("`sparse` option could only support `stables`, not `tables`");
+            }
             // Sparse mode only need to sync the stables.
             for stable in &stables {
                 if !todo.stables.contains_async(stable).await {
                     let _ = todo.stables.insert_async(stable.clone()).await;
                     let _ = todo
                         .tables
-                        .insert_async(LegacyTableItem::new_mtlf(0, stable.clone()))
+                        .insert_async(LegacyTableItem::new_sparse(0, stable.clone()))
                         .await;
                     let _ = tables
-                        .insert_async(LegacyTableItem::new_mtlf(0, stable.clone()))
+                        .insert_async(LegacyTableItem::new_sparse(0, stable.clone()))
                         .await;
                 }
             }
@@ -2620,6 +2619,10 @@ pub async fn update_todo_list(
         // 有 tables 选项情况下，只需初始化一次
         if !todo.tables.is_empty() {
             return Ok(LegacyTodo::new());
+        }
+        if opts.sparse {
+            tracing::error!("`sparse` option could only support `stables`, not `tables`");
+            bail!("`sparse` option could only support `stables`, not `tables`");
         }
         let stables = scc::HashSet::new();
 
@@ -2701,7 +2704,7 @@ pub async fn update_todo_list(
                 // Sparse stables
                 let show = stables
                     .iter()
-                    .map(|stable| LegacyTableItem::new_mtlf(0, stable.clone()))
+                    .map(|stable| LegacyTableItem::new_sparse(0, stable.clone()))
                     .collect_vec();
                 for table in show {
                     if !todo.tables.contains_async(&table).await {
@@ -2821,7 +2824,7 @@ pub async fn update_todo_list(
                 todo.stables
                     .scan_async(|stable| {
                         let stable = stable.clone();
-                        let table = LegacyTableItem::new_mtlf(0, stable);
+                        let table = LegacyTableItem::new_sparse(0, stable);
                         if !todo.tables.contains(&table) {
                             tables.push(table.clone());
                             let _ = todo.tables.insert(table.clone());
@@ -2968,14 +2971,27 @@ async fn realtime(
                     return;
                 }
                 scanned.insert(table.clone());
+                dbg!(&table);
                 // create retro task
+                let LegacyTableItem {
+                    stable,
+                    table,
+                    vgroup_id: _,
+                    sparse,
+                } = table;
+
                 let (tx, rx) = oneshot::channel();
-                let task = scheduler.send(Todo::Data(
-                    table.stable.clone(),
-                    table.table.clone(),
-                    time_range,
-                    Some(tx),
-                ));
+                // 创建任务
+                let task = if *sparse {
+                    scheduler.send(Todo::Sparse(table.clone(), time_range, Some(tx)))
+                } else {
+                    scheduler.send(Todo::Data(
+                        stable.clone(),
+                        table.clone(),
+                        time_range,
+                        Some(tx),
+                    ))
+                };
                 tasks.push(task);
                 receivers.push(rx);
             })
@@ -2990,16 +3006,16 @@ async fn realtime(
             match res {
                 Ok(Ok(_)) => {}
                 Ok(Err(err)) => {
-                    bail!("restro task execution error: {err}");
+                    bail!("retro task execution error: {err}");
                 }
                 Err(err) => {
-                    bail!("restro task channel error: {err}");
+                    bail!("retro task channel error: {err}");
                 }
             }
         }
         info!(
             mode = "retrospect",
-            "restro tasks are all spawned successfully."
+            "retro tasks are all spawned successfully."
         );
     }
 
@@ -3033,12 +3049,12 @@ async fn realtime(
                     stable,
                     table,
                     vgroup_id: _,
-                    mtlf,
+                    sparse,
                 } = item;
 
                 let (tx, rx) = oneshot::channel();
                 // 创建任务
-                let task = if *mtlf {
+                let task = if *sparse {
                     scheduler.send(Todo::Sparse(table.clone(), time_range, Some(tx)))
                 } else {
                     scheduler.send(Todo::Data(
@@ -3050,7 +3066,7 @@ async fn realtime(
                 };
                 tasks.push(task);
 
-                let table = if *mtlf { Some(table.clone()) } else { None };
+                let table = if *sparse { Some(table.clone()) } else { None };
                 receivers.push(rx.map_ok(move |res| (table, time_range, res)));
             })
             .await;
@@ -3075,19 +3091,19 @@ async fn realtime(
 
                     if let Some(table) = sparse {
                         // set breakpoint async
-                        if let Some(breakpoints) = breakpoints {
-                            if let Some(end) = time_range.end {
-                                let breakpoint = end.to_string();
-                                debug!(
-                                    "Set breakpoint, table: {}, breakpoint: {}",
-                                    &table, &breakpoint
+                        if let Some(breakpoints) = breakpoints
+                            && let Some(end) = time_range.end
+                        {
+                            let breakpoint = end.to_string();
+                            debug!(
+                                "Set breakpoint, table: {}, breakpoint: {}",
+                                &table, &breakpoint
+                            );
+                            if let Err(err) = breakpoints.set(&table, &breakpoint).await {
+                                warn!(
+                                    // task.id = task_id.as_ref(),
+                                    "Set breakpoint error: {err:#}"
                                 );
-                                if let Err(err) = breakpoints.set(&table, &breakpoint).await {
-                                    warn!(
-                                        // task.id = task_id.as_ref(),
-                                        "Set breakpoint error: {err:#}"
-                                    );
-                                }
                             }
                         }
                     }
@@ -3430,16 +3446,15 @@ pub async fn legacy_to_taos(
                 const BREAKPOINT_KEY_SCHEMA: &str = "...schema...";
                 let mut schema_synced = false;
                 // Step A: check breakpoints for schema
-                if let Some(breakpoints) = scheduler.breakpoints_ref() {
-                    if let Some(v) = breakpoints
+                if let Some(breakpoints) = scheduler.breakpoints_ref()
+                    && let Some(v) = breakpoints
                         .get(BREAKPOINT_KEY_SCHEMA)
                         .await
                         .ok()
                         .and_then(|v| v)
-                    {
-                        info!("Schema is synced at {v}, skipped");
-                        schema_synced = true;
-                    }
+                {
+                    info!("Schema is synced at {v}, skipped");
+                    schema_synced = true;
                 }
 
                 if !schema_synced {
@@ -3453,13 +3468,12 @@ pub async fn legacy_to_taos(
                     }
                 }
 
-                if let Some(breakpoints) = scheduler.breakpoints_ref() {
-                    if let Err(err) = breakpoints
+                if let Some(breakpoints) = scheduler.breakpoints_ref()
+                    && let Err(err) = breakpoints
                         .set(BREAKPOINT_KEY_SCHEMA, &chrono::Utc::now().to_string())
                         .await
-                    {
-                        warn!("Set schema breakpoint error: {err:#}");
-                    }
+                {
+                    warn!("Set schema breakpoint error: {err:#}");
                 }
             }
         }
@@ -3664,10 +3678,9 @@ pub async fn legacy_to_taos(
                     if let Ok(Some(bp)) = breakpoints.get(&t).await.and_then(|bp| {
                         bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
                             .transpose()
-                    }) {
-                        if bp < latest_offset_end {
-                            latest_offset_end = bp;
-                        }
+                    }) && bp < latest_offset_end
+                    {
+                        latest_offset_end = bp;
                     }
                 }
             }
@@ -3834,14 +3847,14 @@ fn database_options_2to3(options: &str) -> Option<String> {
             {
                 if "CACHE".eq_ignore_ascii_case(vec[index - 1]) {
                     let cache_result = String::from(vec[index]).parse::<u32>();
-                    if cache_result.is_ok() {
-                        cache = cache_result.unwrap();
+                    if let Ok(cache_parsed) = cache_result {
+                        cache = cache_parsed;
                     }
                 }
                 if "BLOCKS".eq_ignore_ascii_case(vec[index - 1]) {
                     let blocks_result = String::from(vec[index]).parse::<u32>();
-                    if blocks_result.is_ok() {
-                        blocks = blocks_result.unwrap();
+                    if let Ok(blocks_parsed) = blocks_result {
+                        blocks = blocks_parsed;
                     }
                 }
                 result.push_str(&process_option2to3_pair(vec[index - 1], vec[index]));
@@ -3877,8 +3890,7 @@ fn process_option2to3_pair(option: &str, option_value: &str) -> String {
         "CACHELAST" => {
             let mut new_option = String::from(" CACHEMODEL ");
             let parse_result = String::from(option_value).parse::<u32>();
-            if parse_result.is_ok() {
-                let cache_last = parse_result.unwrap();
+            if let Ok(cache_last) = parse_result {
                 match cache_last {
                     0 => new_option.push_str("'none'"),
                     1 => new_option.push_str("'last_row'"),
@@ -3995,9 +4007,8 @@ fn process_option_pair(option: &str, option_value: &str) -> String {
     match option {
         "BUFFER" => {
             let value_result = String::from(option_value).parse::<u32>();
-            if value_result.is_ok() {
+            if let Ok(buffer) = value_result {
                 let mut new_option = String::from(" CACHE ");
-                let buffer = value_result.unwrap();
                 new_option.push_str("16 ");
                 new_option.push_str("BLOCKS ");
                 new_option.push_str((buffer / 16).to_string().as_str());

@@ -51,9 +51,9 @@ pub fn check_phone_email_verified(filename: &Path, current_server: &str) -> io::
             let sign = items.next();
             // println!("server: {}, phone_email: {:?}, sign: {:?}", server, phone_email, sign);
 
-            if phone_email.is_some() && sign.is_some() && server == current_server {
-                let phone_email = phone_email.unwrap();
-                let sign = sign.unwrap();
+            if let (Some(phone_email), Some(sign), true) =
+                (phone_email, sign, server == current_server)
+            {
                 if verify_string(phone_email, sign) {
                     return Ok(());
                 }

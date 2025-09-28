@@ -747,13 +747,13 @@ impl ReplicaConfig {
     }
 
     async fn restart_once(&self, task: &ReplicaTask) -> anyhow::Result<()> {
-        if !task.in_final_state() {
-            if let Err(err) = self.stop_once(task).await {
-                println!(
-                    "* stop task {}:{} failed: {}, try start it once",
-                    task.tid, task.database, err
-                );
-            }
+        if !task.in_final_state()
+            && let Err(err) = self.stop_once(task).await
+        {
+            println!(
+                "* stop task {}:{} failed: {}, try start it once",
+                task.tid, task.database, err
+            );
         }
         self.start_once(task).await?;
         Ok(())

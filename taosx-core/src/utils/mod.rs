@@ -182,10 +182,7 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
         .map(|s| s.to_string())
         .partition(|v| v.starts_with("@"));
     let file = files.first();
-    if file.is_none() {
-        None
-    } else {
-        let file = file.unwrap();
+    file.and_then(|file| {
         let f = std::fs::File::open(&file[1..]);
         if let Err(err) = f {
             tracing::error!("file: {} read error, cause: {}", file, err.to_string());
@@ -200,7 +197,7 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
                 .join("");
             Some(file_data)
         }
-    }
+    })
 }
 
 pub async fn clear_local(local: &Dsn) -> anyhow::Result<()> {

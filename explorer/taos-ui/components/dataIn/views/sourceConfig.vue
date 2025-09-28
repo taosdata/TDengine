@@ -187,6 +187,7 @@ import { t } from 'locales';
 import { TransformerfullparamsType } from '../components/commonTransformer/type';
 import DocsContent from 'components/MdRender.vue';
 import { instance } from 'config';
+import { decrypt } from 'utils/crypto';
 
 const dataInProps = getDataInProps();
 provide('sourceParent', getCurrentInstance());
@@ -234,11 +235,26 @@ const toUrl = computed(() => {
     );
   }
 
-  const base_url = instance.gatewayUrl;
+  const base_url = instance?.gatewayUrl || getBaseUrl();
+  const user = instance?.user || getUser();
+  const password = instance?.password || getPassword();
   const splitArr = base_url?.split('//') || [];
-  const url = splitArr[0] + '//' + instance?.user + ':' + instance?.password + '@' + splitArr[1];
+  const url = splitArr[0] + '//' + user + ':' +password + '@' + splitArr[1];
   return (splitArr[0].startsWith('taos') ? '' : 'taos+') + url + (sourceForm.targetDB ? '/' + sourceForm.targetDB : '');
 });
+
+function getPassword(): string {
+  return encodeURIComponent(decrypt(localStorage.getItem('pwd') || '')) || '';
+}
+
+function getUser(): string {
+  return localStorage.getItem('username') || '';
+}
+
+function getBaseUrl(): string {
+  return localStorage.getItem('native_url') || localStorage.getItem('base_url') || '';
+}
+
 
 const labels = computed(() => {
   if (dataInProps.isCloud) {

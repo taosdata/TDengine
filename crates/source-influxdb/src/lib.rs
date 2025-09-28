@@ -148,12 +148,12 @@ pub async fn influxdb_to_taos(
     } else {
         vec!["-jar".to_string()]
     };
-    if let Some(ref perf) = config.performance {
-        if let Some(ref v) = perf.java_opts {
-            let opts = v.split(' ').filter(|s| !s.is_empty()).collect::<Vec<_>>();
-            for opt in opts.iter().rev() {
-                args.insert(0, opt.to_string());
-            }
+    if let Some(ref perf) = config.performance
+        && let Some(ref v) = perf.java_opts
+    {
+        let opts = v.split(' ').filter(|s| !s.is_empty()).collect::<Vec<_>>();
+        for opt in opts.iter().rev() {
+            args.insert(0, opt.to_string());
         }
     }
     let connector_path = influxdb_jar_path()?;
@@ -377,8 +377,7 @@ async fn validate_source_influxdb(
             .await
     };
     // 请求成功
-    if result.is_ok() {
-        let response = result.unwrap();
+    if let Ok(response) = result {
         let status = response.status().as_u16();
         let headers = response.headers();
         if status == 200 {

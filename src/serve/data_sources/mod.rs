@@ -288,6 +288,7 @@ fn test_sample_flat() {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[allow(dead_code)] // keep this for swagger-ui
 pub(super) struct DataSets {
     id: String,
     name: Option<String>,

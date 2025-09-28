@@ -379,25 +379,23 @@ impl AgentWorker {
 
     pub async fn stop(&self, task_id: TaskId) {
         let agent_tasks = self.agent_tasks_sender.read().await;
-        if let Some(task) = agent_tasks.get_by_task_id(&task_id) {
-            if let Err(err) = self
+        if let Some(task) = agent_tasks.get_by_task_id(&task_id)
+            && let Err(err) = self
                 .agent_activity_sender
                 .send((task.agent_id, AgentAction::Stop(task_id)))
-            {
-                tracing::warn!("Error sending cancel task: {:?}", err);
-            }
+        {
+            tracing::warn!("Error sending cancel task: {:?}", err);
         }
     }
 
     pub async fn suspend(&self, task_id: TaskId) {
         let agent_tasks = self.agent_tasks_sender.read().await;
-        if let Some(task) = agent_tasks.get_by_task_id(&task_id) {
-            if let Err(err) = self
+        if let Some(task) = agent_tasks.get_by_task_id(&task_id)
+            && let Err(err) = self
                 .agent_activity_sender
                 .send((task.agent_id, AgentAction::Cancel(task_id)))
-            {
-                tracing::warn!("Error sending cancel task: {:?}", err);
-            }
+        {
+            tracing::warn!("Error sending cancel task: {:?}", err);
         }
     }
 

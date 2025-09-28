@@ -3195,19 +3195,19 @@ pub mod tests {
                 arrow_schema::TimeUnit::Millisecond => {
                     let now = chrono::Utc::now().timestamp_millis();
                     Arc::new(TimestampMillisecondArray::from_iter(
-                        (0..len).map(|i| (now + i as i64 * 1000)).map(Some),
+                        (0..len).map(|i| now + i as i64 * 1000).map(Some),
                     )) as ArrayRef
                 }
                 arrow_schema::TimeUnit::Microsecond => {
                     let now = chrono::Utc::now().timestamp_micros();
                     Arc::new(TimestampMicrosecondArray::from_iter(
-                        (0..len).map(|i| (now + i as i64 * 1_000_000)).map(Some),
+                        (0..len).map(|i| now + i as i64 * 1_000_000).map(Some),
                     )) as ArrayRef
                 }
                 arrow_schema::TimeUnit::Nanosecond => {
                     let now = chrono::Utc::now().timestamp_nanos_opt().unwrap();
                     Arc::new(TimestampNanosecondArray::from_iter(
-                        (0..len).map(|i| (now + i as i64 * 1_000_000_000)).map(Some),
+                        (0..len).map(|i| now + i as i64 * 1_000_000_000).map(Some),
                     )) as ArrayRef
                 }
             },

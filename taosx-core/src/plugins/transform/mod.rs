@@ -1908,7 +1908,7 @@ fn generate_table_name(
             let data = match json_batch.get() {
                 Some(data) => data[row].clone(),
                 None => {
-                    let json_batches = to_json_valid_batches(&[records.clone()]);
+                    let json_batches = to_json_valid_batches(std::slice::from_ref(records));
                     let data: Vec<_> = json_batches
                         .iter()
                         .map(|batch| batch.to_json_rows::<serde_json::Value>())
@@ -2584,12 +2584,11 @@ impl MessageArrowRecords {
                         | DataType::LargeUtf8,
                         _,
                     ) => {
-                        if cast_to.is_some() {
-                            let cast_to = cast_to.unwrap();
+                        if let Some(cast_to) = cast_to {
                             let length = field.metadata().get("length");
-                            if length.is_some() {
+                            if let Some(length) = length {
                                 // varchar or nchar
-                                let res = length.unwrap().parse::<usize>();
+                                let res = length.parse::<usize>();
                                 match res {
                                     Ok(length) => ColumnMeta::Column(Described::new(
                                         field.name(),
@@ -2659,12 +2658,11 @@ impl MessageArrowRecords {
                                 ))
                             } else {
                                 let cast_to = field.metadata().get("cast_to");
-                                if cast_to.is_some() {
-                                    let cast_to = cast_to.unwrap();
+                                if let Some(cast_to) = cast_to {
                                     let length = field.metadata().get("length");
-                                    if length.is_some() {
+                                    if let Some(length) = length {
                                         // varchar or nchar
-                                        let res = length.unwrap().parse::<usize>();
+                                        let res = length.parse::<usize>();
                                         match res {
                                             Ok(length) => ColumnMeta::Tag(Described::new(
                                                 field.name(),
@@ -3404,11 +3402,11 @@ mod parser_tests {
 
         records.sort_by(|a, b| match a.table_name().cmp(b.table_name()) {
             o @ (Ordering::Less | Ordering::Greater) => o,
-            Ordering::Equal => pretty::pretty_format_batches(&[a.records.clone()])
+            Ordering::Equal => pretty::pretty_format_batches(std::slice::from_ref(&a.records))
                 .unwrap()
                 .to_string()
                 .cmp(
-                    &pretty::pretty_format_batches(&[b.records.clone()])
+                    &pretty::pretty_format_batches(std::slice::from_ref(&b.records))
                         .unwrap()
                         .to_string(),
                 ),
@@ -3578,11 +3576,11 @@ mod parser_tests {
         };
         records.sort_by(|a, b| match a.table_name().cmp(b.table_name()) {
             o @ (Ordering::Less | Ordering::Greater) => o,
-            Ordering::Equal => pretty::pretty_format_batches(&[a.records.clone()])
+            Ordering::Equal => pretty::pretty_format_batches(std::slice::from_ref(&a.records))
                 .unwrap()
                 .to_string()
                 .cmp(
-                    &pretty::pretty_format_batches(&[b.records.clone()])
+                    &pretty::pretty_format_batches(std::slice::from_ref(&b.records))
                         .unwrap()
                         .to_string(),
                 ),
@@ -3841,11 +3839,11 @@ mod parser_tests {
         };
         records.sort_by(|a, b| match a.table_name().cmp(b.table_name()) {
             o @ (Ordering::Less | Ordering::Greater) => o,
-            Ordering::Equal => pretty::pretty_format_batches(&[a.records.clone()])
+            Ordering::Equal => pretty::pretty_format_batches(std::slice::from_ref(&a.records))
                 .unwrap()
                 .to_string()
                 .cmp(
-                    &pretty::pretty_format_batches(&[b.records.clone()])
+                    &pretty::pretty_format_batches(std::slice::from_ref(&b.records))
                         .unwrap()
                         .to_string(),
                 ),
