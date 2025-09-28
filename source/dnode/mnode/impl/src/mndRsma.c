@@ -790,9 +790,9 @@ static int32_t mndFillRsmaInfo(SRsmaObj *pObj, SRsmaInfoRsp *pRsp) {
   pRsp->nFuncs = pObj->nFuncs;
   pRsp->interval[0] = pObj->interval[0];
   pRsp->interval[1] = pObj->interval[1];
-  if (pRsp->nFunc > 0) {
-    pRsp->funcColIds = pObj->funcColIds;  // shallow copy
-    pRsp->funcIds = pObj->funcIds;        // shallow copy
+  if (pRsp->nFuncs > 0) {
+    pRsp->funcColIds = pObj->funcColIds;  // shallow copy, no need to free
+    pRsp->funcIds = pObj->funcIds;        // shallow copy, no need to free
   }
 _exit:
   TAOS_RETURN(code);
@@ -834,8 +834,6 @@ _exit:
   if (code != 0) {
     rpcFreeCont(pRsp);
   }
-  tFreeRsmaInfoReq(&req);
-  // tFreeRsmaInfoRsp(&rsp); // no need since shallow copy
   TAOS_RETURN(code);
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
