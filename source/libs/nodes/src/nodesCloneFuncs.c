@@ -503,6 +503,7 @@ static int32_t timeRangeNodeCopy(const STimeRangeNode* pSrc, STimeRangeNode* pDs
   COPY_SCALAR_FIELD(type);
   CLONE_NODE_FIELD(pStart);
   CLONE_NODE_FIELD(pEnd);
+  COPY_SCALAR_FIELD(needCalc);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -700,6 +701,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
@@ -720,6 +722,9 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
   COPY_SCALAR_FIELD(recalculateInterval);
   CLONE_NODE_LIST_FIELD(pProjs);
+  COPY_SCALAR_FIELD(isSingleTable);
+  COPY_SCALAR_FIELD(inputHasOrder);
+  COPY_SCALAR_FIELD(extendOption);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -803,10 +808,14 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
   COPY_OBJECT_FIELD(stbJoin.srcScan, sizeof(pDst->stbJoin.srcScan));
   COPY_SCALAR_FIELD(vtbScan.scanAllCols);
+  COPY_SCALAR_FIELD(vtbScan.isSuperTable);
+  COPY_SCALAR_FIELD(vtbScan.rversion);
   COPY_SCALAR_FIELD(vtbScan.suid);
+  COPY_SCALAR_FIELD(vtbScan.uid);
   COPY_CHAR_ARRAY_FIELD(vtbScan.dbName);
-  COPY_CHAR_ARRAY_FIELD(vtbScan.stbName);
+  COPY_CHAR_ARRAY_FIELD(vtbScan.tbName);
   CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
+  CLONE_NODE_LIST_FIELD(vtbScan.pOrgVgIds);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1275,6 +1284,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       code = physiTableScanCopy((const STableScanPhysiNode*)pNode, (STableScanPhysiNode*)pDst);
       break;

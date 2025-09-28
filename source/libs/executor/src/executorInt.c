@@ -79,9 +79,6 @@ static void    doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* p
 
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol);
-static void    doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                                  SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup,
-                                  int64_t minWindowSize);
 
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, int32_t interBufSize) {
   SFilePage* pData = NULL;
@@ -577,7 +574,7 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 }
 
-int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
@@ -592,10 +589,10 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
 
   int32_t status = 0;
   code =
-      filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+      filterExecute(pFilterInfo, pBlock, pRet != NULL ? pRet : &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
-  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, pRet != NULL ? *pRet : p, status);
   QUERY_CHECK_CODE(code, lino, _err);
 
   if (pColMatchInfo != NULL) {
@@ -1064,6 +1061,15 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, S
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+void checkIndefRowsFuncs(SExprSupp* pSup) {
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    if (fmIsIndefiniteRowsFunc(pSup->pCtx[i].functionId)) {
+      pSup->hasIndefRowsFunc = true;
+      break;
+    }
+  }
 }
 
 void cleanupExprSupp(SExprSupp* pSupp) {

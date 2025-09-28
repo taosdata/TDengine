@@ -307,6 +307,7 @@ function install_anode_venv() {
     ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
     ${csudo}${venvDir}/bin/pip3 install accelerate
     ${csudo}${venvDir}/bin/pip3 install tensorflow-cpu==2.15.0
+    ${csudo}${venvDir}/bin/pip3 install prophet==1.1.7
 
     echo -e "Install python library for venv completed!"
   else

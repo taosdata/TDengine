@@ -107,6 +107,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | CREATE               | |
 | CREATEDB             | |
 | CURRENT_USER         | |
+| SCAN                 | |
+| SCANS                | |
 
 ### D
 

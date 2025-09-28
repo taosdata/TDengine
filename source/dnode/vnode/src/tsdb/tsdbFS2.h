@@ -29,6 +29,7 @@ typedef enum {
   TSDB_FEDIT_COMPACT,
   TSDB_FEDIT_RETENTION,
   TSDB_FEDIT_SSMIGRATE,
+  TSDB_FEDIT_ROLLUP,
 } EFEditT;
 
 typedef enum {

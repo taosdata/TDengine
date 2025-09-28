@@ -7,7 +7,7 @@ import uuid
 import json
 import tempfile
 import random
-from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil, eos
+from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil, eos, tdStmt2
 
 
 def pytest_addoption(parser):
@@ -226,6 +226,7 @@ def before_test_class(request):
     # 建立连接
     request.cls.conn = request.session.before_test.get_taos_conn(request)
     tdSql.init(request.cls.conn.cursor())
+    tdStmt2.init(request.cls.conn)
     tdSql.replica = request.session.replicaVar
 
     # 为兼容老用例，初始化原框架连接

@@ -114,6 +114,7 @@ SWords shellCommands[] = {
     {"compact database <db_name>", 0, 0, NULL},
     {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
 #endif
+    {"scan database <db_name>", 0, 0, NULL},
     {"desc <all_table>;", 0, 0, NULL},
     {"describe <all_table>;", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
@@ -138,6 +139,7 @@ SWords shellCommands[] = {
     {"grant read on <anyword> to <user_name>;", 0, 0, NULL},
     {"grant write on <anyword> to <user_name>;", 0, 0, NULL},
     {"kill connection <anyword>;", 0, 0, NULL},
+    {"kill retention ", 0, 0, NULL},
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
@@ -177,6 +179,7 @@ SWords shellCommands[] = {
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
+    {"show ssmigrates;", 0, 0, NULL},
 
 #endif
     {"show connections;", 0, 0, NULL},
@@ -194,6 +197,10 @@ SWords shellCommands[] = {
     {"show query <anyword> ;", 0, 0, NULL},
     {"show qnodes;", 0, 0, NULL},
     {"show bnodes;", 0, 0, NULL},
+    {"show retentions;", 0, 0, NULL},
+    {"show retention <retention_id>;", 0, 0, NULL},
+    {"show scans;", 0, 0, NULL},
+    {"show scan <scan_id>;", 0, 0, NULL},
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
@@ -361,7 +368,7 @@ char* udf_language[] = {"\'Python\'", "\'C\'"};
 char* field_options[] = {
     "encode ", "compress ", "level ", 
     "\'lz4\' ", "\'zlib\' ", "\'zstd\' ", "\'xz\' ", "\'tsz\' ", "\'disabled\' ", // compress
-    "\'simple8b\' ", "\'delta-i\' ", "\'delta-d\' ", "\'bit-packing\' ",
+    "\'simple8b\' ", "\'delta-i\' ", "\'delta-d\' ", "\'bit-packing\' ", "\'bss\' ",
     "\'high\' ", "\'medium\' ", "\'low\' ",
     "comment ",
     "primary key "
@@ -567,6 +574,7 @@ void showHelp() {
   ----- K ----- \n\
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
+    kill retention <retention_id>; \n\
     kill transaction <transaction_id>;\n\
   ----- P ----- \n\
     pause stream <stream_name>;\n\
@@ -610,6 +618,10 @@ void showHelp() {
     show query <query_id> ;\n\
     show qnodes;\n\
     show bnodes;\n\
+    show retentions;\n\
+    show retention <retention_id>;\n\
+    show scans;\n\
+    show scan <scan_id>;\n\
     show snodes;\n\
     show stables;\n\
     show stables like \n\
@@ -654,6 +666,7 @@ void showHelp() {
     ssmigrate database <db_name>;\n\
     show compacts;\n\
     show compact \n\
+    show ssmigrates;\n\
     show arbgroups;\n\
     show mounts;\n\
     show views;\n\
