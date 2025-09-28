@@ -523,7 +523,7 @@ _return:
 
 void freeUseDbOutput_tmp(void* ppOutput) {
   SUseDbOutput* pOut = *(SUseDbOutput**)ppOutput;
-  if (NULL == ppOutput) {
+  if (NULL == pOut) {
     return;
   }
 
@@ -2606,7 +2606,7 @@ int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SUseDbOutputPP
       freeUseDbOutput_tmp(&output);
     }
     QUERY_CHECK_CODE(code, line, _return);
-    find = (SUseDbOutputPPter)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
+    find = (SUseDbOutputPPter)taosHashAcquire(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
     if (find == NULL) {
       QUERY_CHECK_CODE(code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, line, _return);
     }
