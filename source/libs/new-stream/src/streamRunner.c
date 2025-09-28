@@ -769,6 +769,53 @@ _exit:
   return code;
 }
 
+static int32_t stRunnerEnsureSinkHandle(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
+                                        SReadHandle* readers, int32_t vgId, int32_t taskId) {
+  int32_t code = 0;
+  if (atomic_load_32(&pExec->sinkHandleInited) == 2) {
+    code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, readers, NULL, vgId, taskId);
+    return code;
+  }
+
+  int32_t expected = 0;
+  if (atomic_val_compare_exchange_32(&pExec->sinkHandleInited, expected, 1) == 0) {
+    ST_TASK_DLOG("initializing shared sink handle, pTask:%p", pTask);
+
+    SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
+                                   .tbname = pExec->tbname,
+                                   .pFields = pTask->output.outCols,
+                                   .pTagFields = pTask->output.outTags,
+                                   .suid = pTask->output.outStbUid,
+                                   .tbType = pTask->output.outTblType,
+                                   .sver = pTask->output.outStbVersion,
+                                   .stbname = pTask->output.outSTbName,
+                                   .pSinkHandle = NULL};
+    code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, readers, &params, vgId, taskId);
+
+    if (code == 0) {
+      atomic_store_32(&pExec->sinkHandleInited, 2);
+      pExec->pSinkHandle = params.pSinkHandle;
+      ST_TASK_DLOG("shared sink handle initialized successfully, pTask:%p", pTask);
+    } else {
+      atomic_store_32(&pExec->sinkHandleInited, 0);
+      ST_TASK_ELOG("failed to create shared sink handle, code:%s", tstrerror(code));
+    }
+    return code;
+  } else {
+    while (atomic_load_32(&pExec->sinkHandleInited) == 1) {
+      taosMsleep(1);
+    }
+
+    if (atomic_load_32(&pExec->sinkHandleInited) == 2) {
+      code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, readers, NULL, vgId, taskId);
+      return code;
+    } else {
+      ST_TASK_ELOG("stRunnerEnsureSinkHandle failed, pTask:%p", pTask);
+      return TSDB_CODE_FAILED;
+    }
+  }
+}
+
 static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
   int32_t vgId = pTask->task.nodeId;
   int64_t st = taosGetTimestampMs();
@@ -780,20 +827,10 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExec
   SReadHandle handle = {0};
   handle.streamRtInfo = &pExec->runtimeInfo;
   handle.pMsgCb = &pTask->msgCb;
-  //handle.pMsgCb = pTask->pMsgCb;
+  // handle.pMsgCb = pTask->pMsgCb;
   handle.pWorkerCb = pTask->pWorkerCb;
   if (pTask->topTask) {
-    SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
-                                   .tbname = pExec->tbname,
-                                   .pFields = pTask->output.outCols,
-                                   .pTagFields = pTask->output.outTags,
-                                   .suid = pTask->output.outStbUid,
-                                   .tbType = pTask->output.outTblType,
-                                   .sver = pTask->output.outStbVersion,
-                                   .stbname = pTask->output.outSTbName,
-                                   .pSinkHandle = NULL};
-    code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, &params, vgId, taskId);
-    pExec->pSinkHandle = params.pSinkHandle;
+    code = stRunnerEnsureSinkHandle(pTask, pExec, &handle, vgId, taskId);
   } else {
     code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, NULL, vgId, taskId);
   }
@@ -945,55 +982,6 @@ end:
     ST_TASK_ILOG("[runner calc]success, gid:%" PRId64 ", but has no data, skip create table.", pReq->gid);
     return TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE;
   }
-  return code;
-}
-
-static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
-  int32_t vgId = pTask->task.nodeId;
-  int64_t st = taosGetTimestampMs();
-  int64_t streamId = pTask->task.streamId;
-  int32_t taskId = pTask->task.taskId;
-  int32_t code = 0;
-
-  ST_TASK_DLOG("vgId:%d start to build stream task", vgId);
-  SReadHandle handle = {0};
-  handle.streamRtInfo = &pExec->runtimeInfo;
-  handle.pMsgCb = &pTask->msgCb;
-  //handle.pMsgCb = pTask->pMsgCb;
-  handle.pWorkerCb = pTask->pWorkerCb;
-  if (pTask->topTask) {
-    SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
-                                   .tbname = pExec->tbname,
-                                   .pFields = pTask->output.outCols,
-                                   .pTagFields = pTask->output.outTags,
-                                   .suid = pTask->output.outStbUid,
-                                   .tbType = pTask->output.outTblType,
-                                   .sver = pTask->output.outStbVersion,
-                                   .stbname = pTask->output.outSTbName,
-                                   .pSinkHandle = NULL};
-    code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, &params, vgId, taskId);
-    pExec->pSinkHandle = params.pSinkHandle;
-  } else {
-    code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, NULL, vgId, taskId);
-  }
-  if (code) {
-    ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));
-    return code;
-  }
-
-  code = qSetTaskId(pExec->pExecutor, taskId, streamId);
-  if (code) {
-    return code;
-  }
-
-  if (code) {
-    ST_TASK_ELOG("failed to set stream notify info, code:%s", tstrerror(code));
-    return code;
-  }
-
-  double el = (taosGetTimestampMs() - st) / 1000.0;
-  ST_TASK_ILOG("The %dth runner exec built completed, elapsed time:%.2fsec", atomic_fetch_add_32(&pTask->execMgr.execBuildNum, 1), el);
-
   return code;
 }
 
