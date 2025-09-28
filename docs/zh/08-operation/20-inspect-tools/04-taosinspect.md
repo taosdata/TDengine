@@ -26,9 +26,11 @@ optional arguments:
                         Full path of test config file
   --result RESULT, -r RESULT
                         Result directory. default: None
+  --lookback LOOKBACK, -l LOOKBACK
+                        Lookback time for load check (in days). default: 30
   --backend, -be        Run process in backend
   --check-nginx, -cn    Whether check nginx's config
-  --log-level {debug,info}, -l {debug,info}
+  --log-level {debug,info}, -L {debug,info}
                         Set log level (options: debug, info). default: info
   --skip {all,dd,stc,none}, -s {all,dd,stc,none}
                         Skip some checks (options: all, dd, stc). default: none. [dd: data distribution, stc: subtable_count]
@@ -41,6 +43,7 @@ optional arguments:
 - `basic`：基础巡检模式。
 - `config`：巡检工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认值为/etc/taos/inspect.cfg。
 - `result`：巡检运行结束后结果文件和相关日志文件的存储目录，默认是用户在 taos.cfg 中配置的 logDir 对应目录。
+- `lookback`：指定系统负载数据统计时间段，默认为过去 30 天
 - `backend`：后台运行巡检工具，默认前台运行。
 - `check-nginx`：是否检测负载均衡 nginx 的配置文件，默认不检查。
 - `log-level`: 输出日志级别，目前支持 debug 和 info，默认模式为 info。
@@ -192,6 +195,22 @@ Fail to get table info
 | 17 | **数据库副本数**   | 集群副本数小于 3 |
 | 18 | **Nginx 配置文件**   | 配置文件中 FQDN 配置信息缺失或错误 |
 
+#### 集群资源负载数据统计
+> **💡 Note:** 
+> 1. 该巡检功能支持版本: TDengine TSDB v3.3.6.25+ 或 v3.3.7.8+
+> 2. 数据统计时间段按天为单位，可通过参数 --lookback 配置，默认为过去 30 天
+
+| **No** | **巡检项目** | **详细说明** |
+|:-------|:------------|:-----------|
+| 1 | **CPU 使用率** | 指定时间段的 CPU 使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
+| 2 | **CPU 每日使用率** | 指定时间段的 每日 CPU 使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
+| 3 | **CPU 使用率分布情况** | 指定时间段的 CPU 使用率按照百分比区间的分布统计, 包括 taosd、taosAdapter、taos-explorer 和 system |
+| 4 | **内存使用率** | 指定时间段的内存使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
+| 5 | **内存每日使用率** | 指定时间段的每日内存使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
+| 6 | **内存使用率分布情况** | 指定时间段的内存使用率按照百分比区间的分布统计, 包括 taosd、taosAdapter、taos-explorer 和 system |
+| 7 | **异常状态统计** | 指定时间段的服务异常时间统计, 包括 taosd、taosAdapter、taos-explorer |
+
+
 #### 磁盘巡检范围
 
 | **No** | **巡检项目** | **详细说明** |
@@ -219,7 +238,7 @@ Fail to get table info
 | 12 | **Coredump 配置** | coredump 路径是否配置 |
 | 13 | **Coredump 文件** | coredump 文件名称、创建时间、文件大小 |
 
-#### 数据库巡检范围
+#### 数据库巡检范围（全局）
 
 | **No** | **巡检项目** | **详细说明** |
 |:-------|:------------|:-----------|
@@ -237,7 +256,7 @@ Fail to get table info
 | 12 | **数据库慢查询**   | 最近 30 天慢查询数量 |
 | 13 | **taosx 数据目录**   | taosx 数据目录 |
 
-#### 数据库巡检范围
+#### 数据库巡检范围（每个数据库）
 
 | **No** | **巡检项目** | **详细说明** |
 |:-------|:------------|:-----------|
