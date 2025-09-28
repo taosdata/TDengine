@@ -1902,3 +1902,5 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 4
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_20582.py
 
+,,y,.,./ci/pytest.sh pytest cases/73-TLS/test_tls.py
+
