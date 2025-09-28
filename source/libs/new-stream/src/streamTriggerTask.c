@@ -1891,7 +1891,13 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     pTask->ignoreDisorder = true;  // count window trigger has no recalculation
   }
   pTask->fillHistory = pMsg->fillHistory;
-  pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
+  if (pMsg->fillHistoryFirst) {
+    if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
+      pTask->fillHistory = true;
+    } else {
+      pTask->fillHistoryFirst = true;
+    }
+  }
   pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
     // always enable low latency calc for period trigger
@@ -2652,7 +2658,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   }
   if (!needTrigData) {
     pContext->walMode = STRIGGER_WAL_META_ONLY;
-  } else if (pTask->watermark > 0 || pTask->isVirtualTable || pTask->isStbPartitionByTag) {
+  } else if (pTask->watermark > 0 || pTask->isVirtualTable) {
     pContext->walMode = STRIGGER_WAL_META_THEN_DATA;
   } else {
     pContext->walMode = STRIGGER_WAL_META_WITH_DATA;
@@ -3325,9 +3331,8 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
 
     if (pContext->calcRange.ekey == INT64_MIN) {
       SSTriggerCalcParam *pFirstParam = TARRAY_DATA(pCalcReq->params);
-      SSTriggerCalcParam *pLastParam = pFirstParam + TARRAY_SIZE(pCalcReq->params) - 1;
       pContext->calcRange.skey = pFirstParam->wstart;
-      pContext->calcRange.ekey = pLastParam->wend;
+      pContext->calcRange.ekey = pGroup->newThreshold;
       STimeWindow metaRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
       int32_t     iter1 = 0;
       SObjList   *pMetas = tSimpleHashIterate(pGroup->pWalMetas, NULL, &iter1);
@@ -7365,8 +7370,23 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
       SSTriggerMetaData *pMeta = NULL;
       SObjListIter       iter2 = {0};
       taosObjListInitIter(pMetas, &iter2, TOBJLIST_ITER_FORWARD);
-      while ((pMeta = taosObjListIterNext(&iter2)) != NULL) {
-        firstTs = TMIN(firstTs, pMeta->skey);
+      if (pTask->ignoreDisorder) {
+        int64_t ts = INT64_MAX;
+        while ((pMeta = taosObjListIterNext(&iter2)) != NULL) {
+          if (ts == INT64_MAX) {
+            ts = pMeta->skey;
+          } else {
+            int64_t skey = TMAX(ts - pTask->watermark, pMeta->skey);
+            if (skey <= pMeta->ekey) {
+              ts = TMIN(ts, skey);
+            }
+          }
+        }
+        firstTs = TMIN(firstTs, ts);
+      } else {
+        while ((pMeta = taosObjListIterNext(&iter2)) != NULL) {
+          firstTs = TMIN(firstTs, pMeta->skey);
+        }
       }
       pMetas = tSimpleHashIterate(pGroup->pWalMetas, pMetas, &iter);
     }
