@@ -23,7 +23,7 @@ class TestTLSDemo:
         "tlsCliCertPath"         : "/tmp/client.crt", 
         "tlsSvrKeyPath"         :"/tmp/server.crt", 
         "tlsSvrCertPath"         :"/tmp/server.crt", 
-        "tlsCaPath"              :"/tmp/ca.crt",  
+        "tlsCaPath"              :"/tmp/ca.crt"  
         }
 
         updatecfgDict = {
@@ -34,7 +34,7 @@ class TestTLSDemo:
             "tlsCliCertPath"         : "/tmp/server.crt", 
             "tlsSvrKeyPath"         :"/tmp/server.crt", 
             "tlsSvrCertPath"         :"/tmp/server.crt", 
-            "tlsCaPath"              :"/tmp/ca.crt",  
+            "tlsCaPath"              :"/tmp/ca.crt"  
         } 
 
 
