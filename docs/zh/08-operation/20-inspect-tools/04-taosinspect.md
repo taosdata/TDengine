@@ -196,6 +196,7 @@ Fail to get table info
 | 18 | **Nginx 配置文件**   | 配置文件中 FQDN 配置信息缺失或错误 |
 
 #### 集群资源负载数据统计
+
 > **💡 Note:** 
 > 1. 该巡检功能支持版本: TDengine TSDB v3.3.6.25+ 或 v3.3.7.8+
 > 2. 数据统计时间段按天为单位，可通过参数 --lookback 配置，默认为过去 30 天
@@ -209,7 +210,6 @@ Fail to get table info
 | 5 | **内存每日使用率** | 指定时间段的每日内存使用率的最大、最小、平均值, 包括 taosd、taosAdapter、taos-explorer 和 system |
 | 6 | **内存使用率分布情况** | 指定时间段的内存使用率按照百分比区间的分布统计, 包括 taosd、taosAdapter、taos-explorer 和 system |
 | 7 | **异常状态统计** | 指定时间段的服务异常时间统计, 包括 taosd、taosAdapter、taos-explorer |
-
 
 #### 磁盘巡检范围
 
