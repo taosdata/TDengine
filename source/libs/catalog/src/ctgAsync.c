@@ -540,6 +540,34 @@ int32_t ctgInitGetViewsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgInitGetRsmaTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
+  char*    rsmaName = (char*)param;
+  SCtgTask task = {0};
+
+  task.type = CTG_TASK_GET_RSMA;
+  task.taskId = taskIdx;
+  task.pJob = pJob;
+
+  task.taskCtx = taosMemoryCalloc(1, sizeof(SCtgDbVgCtx));
+  if (NULL == task.taskCtx) {
+    CTG_ERR_RET(terrno);
+  }
+
+  SCtgRsmaCtx* ctx = task.taskCtx;
+
+  TAOS_MEMCPY(ctx->rsmaName, rsmaName, sizeof(ctx->rsmaName));
+
+  if (NULL == taosArrayPush(pJob->pTasks, &task)) {
+    ctgFreeTask(&task, true);
+    CTG_ERR_RET(terrno);
+  }
+
+  qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", the %dth task type %s initialized, rsma:%s", pJob->queryId, pJob->refId,
+         taskIdx, ctgTaskTypeStr(task.type), rsmaName);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgInitGetTbTSMATask(SCtgJob* pJob, int32_t taskId, void* param) {
   SCtgTask task = {0};
   task.type = CTG_TASK_GET_TB_TSMA;
@@ -3994,6 +4022,130 @@ int32_t ctgLaunchGetViewsTask(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgLaunchGetTSMATask(SCtgTask* pTask) {
+  SCatalog*         pCtg = pTask->pJob->pCtg;
+  SCtgTbTSMACtx*    pCtx = (SCtgTbTSMACtx*)pTask->taskCtx;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
+  SArray*           pRes = NULL;
+  SCtgJob*          pJob = pTask->pJob;
+
+  // currently, only support fetching one tsma
+  STablesReq* pReq = taosArrayGet(pCtx->pNames, 0);
+  if (NULL == pReq) {
+    ctgError("fail to get the 0th STablesReq, totalNum:%d", (int32_t)taosArrayGetSize(pCtx->pNames));
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  SName* pTsmaName = taosArrayGet(pReq->pTables, 0);
+  if (NULL == pReq) {
+    ctgError("fail to get the 0th SName, totalNum:%d", (int32_t)taosArrayGetSize(pReq->pTables));
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  CTG_ERR_RET(ctgGetTSMAFromCache(pCtg, pCtx, pTsmaName));
+
+  if (pCtx->pResList->size == 0) {
+    SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
+    if (NULL == pMsgCtx) {
+      ctgError("fail to get the 0th SCtgMsgCtx, taskType:%d", pTask->type);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    if (!pMsgCtx->pBatchs) {
+      pMsgCtx->pBatchs = pJob->pBatchs;
+    }
+
+    SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = 0};
+    if (NULL == taosArrayPush(pCtx->pResList, &(SMetaRes){0})) {
+      ctgError("taosArrayPush SMetaRes failed, code:%x", terrno);
+      CTG_ERR_RET(terrno);
+    }
+
+    CTG_ERR_RET(ctgGetTbTSMAFromMnode(pCtg, pConn, pTsmaName, NULL, &tReq, TDMT_MND_GET_TSMA));
+  } else {
+    SMetaRes* pRes = taosArrayGet(pCtx->pResList, 0);
+    if (NULL == pRes) {
+      ctgError("fail to get the 0th SMetaRes, totalNum:%d", (int32_t)taosArrayGetSize(pCtx->pResList));
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    STableTSMAInfoRsp* pRsp = (STableTSMAInfoRsp*)pRes->pRes;
+
+    const STSMACache* pTsma = taosArrayGetP(pRsp->pTsmas, 0);
+    if (NULL == pTsma) {
+      ctgError("fail to get the 0th STSMACache, totalNum:%d", (int32_t)taosArrayGetSize(pRsp->pTsmas));
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    TSWAP(pTask->res, pCtx->pResList);
+    // get tsma target stable meta if not existed in cache
+    int32_t exists = false;
+    CTG_ERR_RET(ctgTbMetaExistInCache(pCtg, pTsma->targetDbFName, pTsma->targetTb, &exists));
+    if (!exists) {
+      SCtgTaskReq tReq = {.pTask = pTask, .msgIdx = 0};
+      SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, 0);
+      if (!pMsgCtx->pBatchs) pMsgCtx->pBatchs = pJob->pBatchs;
+      CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pTsma->targetDbFName, pTsma->targetTb, NULL, &tReq));
+    } else {
+      CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgLaunchGetRsmaTask(SCtgTask* pTask) {
+  int32_t           code = 0;
+  SCatalog*         pCtg = pTask->pJob->pCtg;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
+  SCtgRsmaCtx*      pCtx = (SCtgRsmaCtx*)pTask->taskCtx;
+  SCtgJob*          pJob = pTask->pJob;
+  SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
+  if (NULL == pMsgCtx) {
+    ctgError("%s fail at line %d to get the %dth pMsgCtx", __func__, __LINE__, -1);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  if (NULL == pMsgCtx->pBatchs) {
+    pMsgCtx->pBatchs = pJob->pBatchs;
+  }
+
+  // CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, pCtx->dbFName, &dbCache));
+  // if (NULL != dbCache) {
+  //   if (pTask->subTask) {
+  //     pMsgCtx->reqType = TDMT_MND_USE_DB;
+  //     CTG_ERR_JRET(ctgBuildUseDbOutput((SUseDbOutput**)&pMsgCtx->out, dbCache->vgCache.vgInfo));
+  //   }
+
+  //   CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res, pCtx->dbFName));
+
+  //   ctgReleaseVgInfoToCache(pCtg, dbCache);
+  //   dbCache = NULL;
+
+  //   CTG_ERR_JRET(ctgHandleTaskEnd(pTask, 0));
+  // } else {
+    SBuildUseDBInput input = {0};
+
+    tstrncpy(input.db, pCtx->dbFName, tListLen(input.db));
+    input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
+
+    SCtgTaskReq tReq;
+    tReq.pTask = pTask;
+    tReq.msgIdx = -1;
+    CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, &tReq));
+  // }
+
+_return:
+
+  if (dbCache) {
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
+  }
+
+  CTG_RET(code);
+}
+
 int32_t ctgAsyncRefreshTbTsma(SCtgTaskReq* pReq, const SCtgTSMAFetch* pFetch) {
   int32_t           code = 0;
   SCtgTask*         pTask = pReq->pTask;
@@ -4526,6 +4678,7 @@ SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL, 1},
     {ctgInitGetTbNamesTask, ctgLaunchGetTbNamesTask, ctgHandleGetTbNamesRsp, ctgDumpTbNamesRes, NULL, NULL, 1},
     {ctgInitGetVStbRefDbsTask, ctgLaunchGetVStbRefDbsTask, ctgHandleGetVStbRefDbsRsp, ctgDumpVStbRefDbsRes, NULL, NULL, 2},
+    {ctgInitGetRsmaTask, ctgLaunchGetRsmaTask, ctgHandleGetRsmaRsp, ctgDumpRsmaRes, NULL, NULL, 1},
 };
 
 int32_t ctgMakeAsyncRes(SCtgJob* pJob) {

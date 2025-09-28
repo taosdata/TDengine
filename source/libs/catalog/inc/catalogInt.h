@@ -138,6 +138,7 @@ typedef enum {
   CTG_TASK_GET_TSMA,
   CTG_TASK_GET_TB_NAME,
   CTG_TASK_GET_V_STBREFDBS,
+  CTG_TASK_GET_RSMA,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -279,6 +280,10 @@ typedef struct SCtgViewsCtx {
   bool    forceFetch;
 } SCtgViewsCtx;
 
+typedef struct SCtgRsmaCtx {
+  char rsmaName[TSDB_TABLE_NAME_LEN];
+} SCtgRsmaCtx;
+
 typedef enum {
   FETCH_TSMA_SOURCE_TB_META,
   FETCH_TB_TSMA,
@@ -349,6 +354,11 @@ typedef struct SCtgViewCache {
   SRWLatch   viewLock;
   SViewMeta* pMeta;
 } SCtgViewCache;
+
+typedef struct SCtgRsmaCache {
+  SRWLatch   rsmaLock;
+  SRsmaMeta* pMeta;
+} SCtgRsmaCache;
 
 typedef struct SCtgTSMACache {
   SRWLatch tsmaLock;
@@ -452,6 +462,7 @@ typedef struct SCtgJob {
   int32_t          tsmaNum;  // currently, only 1 is possible
   int32_t          tbNameNum;
   int32_t          vstbRefDbNum;
+  int32_t          rsmaNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -1138,6 +1149,7 @@ int32_t ctgGetVStbRefDbsCb(SCtgTask* pTask);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
 void    ctgFreeSViewMeta(SViewMeta* pMeta);
+void    ctgFreeSRsmaMeta(SRsmaMeta* pMeta);
 void    ctgFreeMsgSendParam(void* param);
 void    ctgFreeBatch(SCtgBatch* pBatch);
 void    ctgFreeBatchs(SHashObj* pBatchs);
@@ -1198,6 +1210,7 @@ void    ctgGetGlobalCacheStat(SCtgCacheStat* pStat);
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
 int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx);
 int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta);
+int32_t dupRsmaMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta);
 void    ctgDestroySMetaData(SMetaData* pData);
 void    ctgGetGlobalCacheSize(uint64_t* pSize);
 uint64_t ctgGetTbIndexCacheSize(STableIndex* pIndex);

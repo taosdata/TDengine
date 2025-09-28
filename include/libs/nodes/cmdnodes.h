@@ -530,8 +530,8 @@ typedef struct SShowCreateViewStmt {
 typedef struct SShowCreateRsmaStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
-  char      rsmaName[TSDB_VIEW_NAME_LEN];
-  void*     pRsmaMeta;
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+  void*     pRsmaMeta; // SRsmaMeta
 } SShowCreateRsmaStmt;
 
 typedef struct SShowTableDistributedStmt {

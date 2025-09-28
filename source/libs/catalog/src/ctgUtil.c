@@ -113,6 +113,8 @@ char* ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[get TSMA]";
     case CTG_TASK_GET_TB_NAME:
       return "[bget table name]";
+    case CTG_TASK_GET_RSMA:
+      return "[get RSMA]";
     default:
       return "unknown";
   }
@@ -648,6 +650,13 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     }
     case TDMT_MND_GET_TSMA:
     case TDMT_MND_GET_TABLE_TSMA: {
+      if (pCtx->out) {
+        tFreeTableTSMAInfoRsp(pCtx->out);
+        taosMemoryFreeClear(pCtx->out);
+      }
+      break;
+    }
+    case TDMT_MND_GET_RSMA: {
       if (pCtx->out) {
         tFreeTableTSMAInfoRsp(pCtx->out);
         taosMemoryFreeClear(pCtx->out);

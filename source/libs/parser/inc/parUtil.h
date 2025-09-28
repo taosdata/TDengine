@@ -110,6 +110,7 @@ typedef struct SParseMetaCache {
   SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
   SHashObj* pViews;        // key is viewFName, element is SViewMeta*
+  SHashObj* pRsmas;        // key is rsmaFName, element is SRsmaMeta*
   SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
   SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
   SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)

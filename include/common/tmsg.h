@@ -5287,6 +5287,13 @@ int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAIn
 int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoReq* pReq);
 
 typedef struct {
+  char name[TSDB_TABLE_NAME_LEN];  // rsma name
+} SRsmaInfoReq;
+
+int32_t tSerializeRsmaInfoReq(void* buf, int32_t bufLen, const SRsmaInfoReq* pReq);
+int32_t tDeserializeRsmaInfoReq(void* buf, int32_t bufLen, SRsmaInfoReq* pReq);
+
+typedef struct {
   int32_t  funcId;
   col_id_t colId;
 } STableTSMAFuncInfo;

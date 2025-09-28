@@ -61,6 +61,7 @@ int32_t mndInitRsma(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_RSMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_RSMA, mndProcessDropRsmaReq);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_RSMA_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_RSMA, mndProcessDropRsmaReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndRetrieveRsma);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndCancelRetrieveRsma);
 
@@ -579,7 +580,7 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     if (dropReq.igNotExists) {
-      code = 0;  // mndBuildDropMountRsp(pObj, &pReq->info.rspLen, &pReq->info.rsp, true);
+      code = 0;
     }
     goto _exit;
   }
@@ -610,17 +611,6 @@ _exit:
   mndReleaseRsma(pMnode, pObj);
   TAOS_RETURN(code);
 }
-
-// static int32_t mndRetrieveRsmaTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-//   SMnode   *pMnode = pReq->info.node;
-//   SSdb     *pSdb = pMnode->pSdb;
-//   int32_t   numOfRows = 0;
-//   SRsmaObj *pSma = NULL;
-//   int32_t   cols = 0;
-//   int32_t   code = 0;
-//   pShow->numOfRows += numOfRows;
-//   return numOfRows;
-// }
 
 static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbObj *pDb, SStbObj *pStb,
                              SMCreateRsmaReq *pCreate) {
@@ -938,16 +928,6 @@ static void mndCancelRetrieveRsma(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_RSMA);
 }
 
-// static void mndCancelRetrieveRsmaTask(SMnode *pMnode, void *pIter) {
-// #if 0
-//   SSmaAndTagIter *p = pIter;
-//   if (p != NULL) {
-//     SSdb *pSdb = pMnode->pSdb;
-//     sdbCancelFetchByType(pSdb, p->pSmaIter, SDB_SMA);
-//   }
-//   taosMemoryFree(p);
-// #endif
-// }
 
 int32_t dumpRsmaInfoFromSmaObj(const SRsmaObj *pSma, const SStbObj *pDestStb, STableTSMAInfo *pInfo,
                                const SRsmaObj *pBaseTsma) {

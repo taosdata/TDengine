@@ -15866,11 +15866,15 @@ static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewS
 static int32_t translateShowCreateRsma(STranslateContext* pCxt, SShowCreateRsmaStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
+#else
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->rsmaName, &name);
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-  //  getRsmaMetaFromMetaCache(pCxt, &name, (SRsmaMeta**)&pStmt->pRsmaMeta);
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  TAOS_CHECK_RETURN(tNameExtractFullName(&name, fullName));
+
+  return getMetaDataFromHash(fullName, strlen(fullName), pCxt->pMetaCache->pViews,
+                             (void**)(SRsmaMeta**)&pStmt->pRsmaMeta);
+#endif
 }
 
 static int32_t createColumnNodeWithName(const char* name, SNode** ppCol) {
@@ -17159,7 +17163,7 @@ _return:
       code = translateShowCreateView(pCxt, (SShowCreateViewStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      code = translateShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pNode);
       break;
     case QUERY_NODE_RESTORE_DNODE_STMT:
     case QUERY_NODE_RESTORE_QNODE_STMT:

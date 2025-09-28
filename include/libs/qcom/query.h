@@ -156,19 +156,18 @@ typedef struct SViewMeta {
 } SViewMeta;
 
 typedef struct SRsmaMeta {
-  uint64_t   viewId;
+  int64_t    id;
+  char*      name;
   char*      user;
-  char*      querySql;
-  int8_t     precision;
-  int8_t     type;
   int32_t    version;
-  int32_t    numOfCols;
-  int32_t    numOfFuncs;
+  col_id_t   numOfCols;
+  int8_t     intervalUnit;
   int64_t    interval[2];
-  SSchema*   pSchema;
   col_id_t*  funcColIds;
   func_id_t* funcIds;
 } SRsmaMeta;
+
+typedef SRsmaMeta SRsmaMetaOutput;
 
 typedef struct SDBVgInfo {
   int32_t vgVersion;

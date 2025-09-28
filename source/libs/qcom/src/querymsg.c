@@ -368,6 +368,30 @@ int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetRsmaMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
+                                  void *(*mallcFp)(int64_t)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  STableTSMAInfoReq req = {0};
+  req.fetchingWithTsmaName = true;
+  tstrncpy(req.name, input, TSDB_TABLE_FNAME_LEN);
+
+  int32_t bufLen = tSerializeTableTSMAInfoReq(NULL, 0, &req);
+  void *  pBuf = (*mallcFp)(bufLen);
+  if(pBuf == NULL)
+  {
+    return terrno;
+  }
+  int32_t ret = tSerializeTableTSMAInfoReq(pBuf, bufLen, &req);
+  if(ret < 0) return ret;
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t queryBuildGetTableTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
                                   void *(*mallcFp)(int64_t)) {
   QUERY_PARAM_CHECK(input);
@@ -408,6 +432,28 @@ int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *
   }
   int32_t ret = tSerializeTableTSMAInfoReq(pBuf, bufLen, &req);
   if(ret < 0) return ret;
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t queryBuildGetRsmaMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
+                                    void *(*mallcFp)(int64_t)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SRsmaInfoReq req = {0};
+  tstrncpy(req.name, input, sizeof(req.name));
+
+  int32_t bufLen = tSerializeRsmaInfoReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (pBuf == NULL) {
+    return terrno;
+  }
+  int32_t ret = tSerializeRsmaInfoReq(pBuf, bufLen, &req);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -1118,6 +1164,20 @@ int32_t queryProcessGetTbTSMARsp(void* output, char* msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t queryProcessGetTbRsmaRsp(void* output, char* msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetRsmaRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (tDeserializeTableTSMAInfoRsp(msg, msgSize, output) != 0) {
+    qError("tDeserializeSViewMetaRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t queryProcessStreamProgressRsp(void* output, char* msg, int32_t msgSize) {
   if (!output || !msg || msgSize <= 0) {
     qError("queryProcessStreamProgressRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
@@ -1179,6 +1239,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_CFG)] = queryBuildGetTbCfgMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_SERVER_VERSION)] = queryBuildGetSerVerMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_VIEW_META)] = queryBuildGetViewMetaMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_RSMA)] = queryBuildGetRsmaMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryBuildGetTableTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryBuildGetTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
@@ -1200,6 +1261,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_CFG)] = queryProcessGetTbCfgRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_SERVER_VERSION)] = queryProcessGetSerVerRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_VIEW_META)] = queryProcessGetViewMetaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_RSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;

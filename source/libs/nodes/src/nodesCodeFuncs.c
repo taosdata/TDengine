@@ -9221,6 +9221,30 @@ static int32_t jsonToShowCreateViewStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkShowCreateRsmaStmtRsmaName = "RsmaName";
+
+static int32_t showCreateRsmaStmtToJson(const void* pObj, SJson* pJson) {
+  const SShowCreateRsmaStmt* pNode = (const SShowCreateRsmaStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkShowCreateViewStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkShowCreateRsmaStmtRsmaName, pNode->rsmaName);
+  }
+
+  return code;
+}
+
+static int32_t jsonToShowCreateRsmaStmt(const SJson* pJson, void* pObj) {
+  SShowCreateRsmaStmt* pNode = (SShowCreateRsmaStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkShowCreateViewStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkShowCreateRsmaStmtRsmaName, pNode->rsmaName;
+  }
+
+  return code;
+}
+
 static const char* jkShowTableDistributedStmtDbName = "DbName";
 static const char* jkShowTableDistributedStmtTableName = "TableName";
 
@@ -9774,6 +9798,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showCreateStableStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return showCreateViewStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
+      return showCreateRsmaStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return showTableDistributedStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
@@ -10187,6 +10213,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowCreateStableStmt(pJson, pObj);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return jsonToShowCreateViewStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
+      return jsonToShowCreateRsmaStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return jsonToShowTableDistributedStmt(pJson, pObj);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
