@@ -685,6 +685,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = makeNode(type, sizeof(SCompactVgroupsStmt), &pNode);
       break;
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+      code = makeNode(type, sizeof(SRollupVgroupsStmt), &pNode);
+      break;
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       code = makeNode(type, sizeof(SScanVgroupsStmt), &pNode);
       break;
@@ -1715,6 +1718,14 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_COMPACT_VGROUPS_STMT: {
       SCompactVgroupsStmt* pStmt = (SCompactVgroupsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyList(pStmt->vgidList);
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT: {
+      SRollupVgroupsStmt* pStmt = (SRollupVgroupsStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyList(pStmt->vgidList);
       nodesDestroyNode(pStmt->pStart);

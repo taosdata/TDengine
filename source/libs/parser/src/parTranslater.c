@@ -13175,6 +13175,28 @@ static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt*
   return code;
 }
 
+
+#ifdef TD_ENTERPRISE
+static int32_t translateRollupAdjustTimeRange(STranslateContext* pCxt, const char* dbName, STrimDbReq* req) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SDbCfgInfo dbCfg = {0};
+  code = getDBCfg(pCxt, dbName, &dbCfg);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (req->tw.skey != INT64_MIN) {
+      req->tw.skey = convertTimePrecision(req->tw.skey, dbCfg.precision, TSDB_TIME_PRECISION_MILLI);
+      req->tw.skey /= 1000;  // convert to second if specified
+    }
+    if (req->tw.ekey != INT64_MAX) {
+      req->tw.ekey = convertTimePrecision(req->tw.ekey, dbCfg.precision, TSDB_TIME_PRECISION_MILLI);
+      req->tw.ekey /= 1000;  // convert to second if specified
+    } else {
+      req->tw.ekey = taosGetTimestampMs() / 1000;
+    }
+  }
+  return code;
+}
+#endif
+
 static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* pStmt) {
 #ifdef TD_ENTERPRISE
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -13183,23 +13205,10 @@ static int32_t translateRollupDb(STranslateContext* pCxt, SRollupDatabaseStmt* p
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, req.db);
-  if (pStmt->pStart && pStmt->pEnd) {
-    code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &req.tw);
-    if (TSDB_CODE_SUCCESS == code) {
-      SDbCfgInfo dbCfg = {0};
-      code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
-      if (TSDB_CODE_SUCCESS == code) {
-        if (dbCfg.precision != TSDB_TIME_PRECISION_MICRO) {
-          req.tw.skey = convertTimePrecision(req.tw.skey, dbCfg.precision, TSDB_TIME_PRECISION_MICRO);
-          req.tw.ekey = convertTimePrecision(req.tw.ekey, dbCfg.precision, TSDB_TIME_PRECISION_MICRO);
-        }
-        req.tw.skey /= 1000;  // convert to second
-        req.tw.ekey /= 1000;
-      }
-    }
-  } else {
-    req.tw.skey = INT64_MIN;
-    req.tw.ekey = taosGetTimestampMs() / 1000;
+  code = translateTimeRange(pCxt, pStmt->dbName, pStmt->pStart, pStmt->pEnd, &req.tw);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateRollupAdjustTimeRange(pCxt, pStmt->dbName, &req);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -13309,6 +13318,41 @@ static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsS
 
   tFreeSCompactDbReq(&req);
   return code;
+}
+
+static int32_t translateRollupVgroups(STranslateContext* pCxt, SRollupVgroupsStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SName      name;
+  STrimDbReq req = {.optrType = TSDB_OPTR_ROLLUP, .triggerType = TSDB_TRIGGER_MANUAL};
+
+  code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+                        strlen(((SValueNode*)pStmt->pDbName)->literal));
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)tNameGetFullDbName(&name, req.db);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateTimeRange(pCxt, ((SValueNode*)pStmt->pDbName)->literal, pStmt->pStart, pStmt->pEnd, &req.tw);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateRollupAdjustTimeRange(pCxt, ((SValueNode*)pStmt->pDbName)->literal, &req);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateVgroupList(pCxt, pStmt->vgidList, &req.vgroupIds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
+  }
+
+  tFreeSTrimDbReq(&req);
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 static int32_t translateScanVgroups(STranslateContext* pCxt, SScanVgroupsStmt* pStmt) {
@@ -16671,11 +16715,6 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
                                      "Invalid func param for rsma, only one non-primary key column allowed: %s",
                                      pFunc->functionName);
     }
-    PAR_ERR_JRET(fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len));
-    if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
-                                     pFunc->functionName);
-    }
 
     SColumnNode* pCol = (SColumnNode*)pFunc->pParameterList->pHead->pNode;
     if (!pCol) {
@@ -16700,6 +16739,11 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
                                      "Invalid func param for rsma since column is primary key: %s(%s)",
                                      pFunc->functionName, pCol->colName);
+    }
+    PAR_ERR_JRET(fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len));
+    if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
+                                     pFunc->functionName);
     }
     (void)snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
   }
@@ -17022,6 +17066,9 @@ _return:
       break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = translateCompactVgroups(pCxt, (SCompactVgroupsStmt*)pNode);
+      break;
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+      code = translateRollupVgroups(pCxt, (SRollupVgroupsStmt*)pNode);
       break;
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       code = translateScanVgroups(pCxt, (SScanVgroupsStmt*)pNode);

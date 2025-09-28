@@ -227,6 +227,14 @@ typedef struct SCompactVgroupsStmt {
   bool       metaOnly;
 } SCompactVgroupsStmt;
 
+typedef struct SRollupVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SRollupVgroupsStmt;
+
 typedef struct SScanVgroupsStmt {
   ENodeType  type;
   SNode*     pDbName;
