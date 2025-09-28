@@ -305,7 +305,7 @@ int32_t mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8
     TAOS_RETURN(code);
   }
 
-  tIpRangeSetMask(&range, 32);
+  (void)tIpRangeSetMask(&range, 32);
 
   mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteListDual **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
@@ -668,7 +668,7 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
   for (int i = 0; i < num; i++) {
     SIpRange *pRange = &range[i];
     SIpAddr   addr = {0};
-    tIpUintToStr(pRange, &addr);
+    (void)tIpUintToStr(pRange, &addr);
 
     len += tsnprintf(buf + len, bufLen - len, "%s/%d,", IP_ADDR_STR(&addr), addr.mask);
   }
@@ -1838,7 +1838,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   SUserObj userObj = {0};
 
   if (pCreate->passIsMd5 == 1) {
-    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    (void)memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
     TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorithm));
   } else {
     if (pCreate->isImport != 1) {
@@ -2995,7 +2995,7 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
     char passwd[TSDB_PASSWORD_LEN + 1] = {0};
-    memcpy(passwd, pUser->pass, TSDB_PASSWORD_LEN);
+    (void)memcpy(passwd, pUser->pass, TSDB_PASSWORD_LEN);
     //mInfo("pUser->pass:%s", passwd);
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
