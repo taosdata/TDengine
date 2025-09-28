@@ -1066,7 +1066,7 @@ int32_t stTriggerTaskReleaseDropTableRequest(SStreamTriggerTask *pTask, SSTrigge
 
   pReq = *ppRequest;
   *ppRequest = NULL;
-  taosArrayClearEx(pReq->groupColVals, tDestroySStreamGroupValue);
+  taosArrayDestroyEx(pReq->groupColVals, tDestroySStreamGroupValue);
 
   taosMemoryFree(pReq);
 
