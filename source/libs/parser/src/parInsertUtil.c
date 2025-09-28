@@ -1171,22 +1171,23 @@ int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fiel
     int32_t bytes = *(int32_t*)(fields + sizeof(int8_t));
     extractDecimalTypeInfoFromBytes(&bytes, &precisionData, &scaleData);
     if (precision != precisionData || scale != scaleData) {
-      if (errstr != NULL)
+      if (errstr != NULL) {
         snprintf(errstr, errstrLen,
                  "column decimal type not equal, name:%s, schema type:%s, precision:%d, scale:%d, data type:%s, "
                  "precision:%d, scale:%d",
                  pColSchema->name, tDataTypes[pColSchema->type].name, precision, scale, tDataTypes[*fields].name,
                  precisionData, scaleData);
-      return TSDB_CODE_INVALID_PARA;
-    } else {
-      char buf[512] = {0};
-      snprintf(buf, sizeof(buf),
-               "column decimal type not equal, name:%s, schema type:%s, precision:%d, scale:%d, data type:%s, "
-               "precision:%d, scale:%d",
-               pColSchema->name, tDataTypes[pColSchema->type].name, precision, scale, tDataTypes[*fields].name,
-               precisionData, scaleData);
-      uError("checkSchema %s", buf);
-      return TSDB_CODE_INVALID_PARA;
+        return TSDB_CODE_INVALID_PARA;
+      } else {
+        char buf[512] = {0};
+        snprintf(buf, sizeof(buf),
+                 "column decimal type not equal, name:%s, schema type:%s, precision:%d, scale:%d, data type:%s, "
+                 "precision:%d, scale:%d",
+                 pColSchema->name, tDataTypes[pColSchema->type].name, precision, scale, tDataTypes[*fields].name,
+                 precisionData, scaleData);
+        uError("checkSchema %s", buf);
+        return TSDB_CODE_INVALID_PARA;
+      }
     }
     return 0;
   }
