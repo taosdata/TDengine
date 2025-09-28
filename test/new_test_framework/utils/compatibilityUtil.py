@@ -67,6 +67,26 @@ class CompatibilityBase:
         else:
             tdLog.info(f'this processName is not stopped in 60s')
 
+    def version_compare(self, version1, version2):
+        """
+        Compare two version strings.
+        Returns 1 if version1 > version2, -1 if version1 < version2, 0 if equal
+        """
+        v1_parts = [int(x) for x in version1.split('.')]
+        v2_parts = [int(x) for x in version2.split('.')]
+        
+        # Pad shorter version with zeros
+        max_len = max(len(v1_parts), len(v2_parts))
+        v1_parts.extend([0] * (max_len - len(v1_parts)))
+        v2_parts.extend([0] * (max_len - len(v2_parts)))
+        
+        for v1, v2 in zip(v1_parts, v2_parts):
+            if v1 > v2:
+                return 1
+            elif v1 < v2:
+                return -1
+        return 0
+
     # Modified installTaosd to accept version parameter
     def installTaosdForRollingUpgrade(self, dnodePaths, base_version):
         packagePath = "/usr/local/src/"
@@ -125,16 +145,31 @@ class CompatibilityBase:
         dataPath = cPath + "/../data/"
         packageType = "server"
 
-        if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
-        else:
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+        # Check if version is 3.3.7.0 or later
+        if self.version_compare(base_version, "3.3.7.0") >= 0:
+            # Use new download URL format for 3.3.7.0 and later versions
+            if platform.system() == "Linux" and platform.machine() == "aarch64":
+                packageName = f"tdengine-tsdb-oss-{base_version}-linux-arm64.tar.gz"
+                download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
+            else:
+                packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
+                download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
             
-        # Determine download URL
-        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
+            # Extract package name without extension for installation
+            packageTPath = packageName.replace("-linux-x64.tar.gz", "")
+        else:
+            # Use old download URL format for versions before 3.3.7.0
+            if platform.system() == "Linux" and platform.machine() == "aarch64":
+                packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
+            else:
+                packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+                
+            # Determine download URL
+            download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
+            packageTPath = packageName.split("-Linux-")[0]
+            
         tdLog.info(f"wget {download_url}")
         
-        packageTPath = packageName.split("-Linux-")[0]
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
             print(f"{packageName} is not exists")
@@ -307,7 +342,7 @@ class CompatibilityBase:
                 self.checkProcessPid(pid_to_kill_for_this_dnode)
 
             tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
-            tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
+            tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /root/workspace/output &")
             os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
         # upgrade all dnodes
         elif upgrade == 1:
