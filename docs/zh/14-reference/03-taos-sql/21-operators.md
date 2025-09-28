@@ -47,6 +47,9 @@ TDengine TSDB 支持 `UNION ALL` 和 `UNION` 操作符。`UNION ALL` 将查询�
 | 11  |   MATCH, NMATCH        | BINARY、NCHAR 和 VARCHAR                                            | 正则表达式匹配            |
 | 12  |   REGEXP, NOT REGEXP   | BINARY、NCHAR 和 VARCHAR                                            | 正则表达式匹配            |
 | 13  |     CONTAINS           | JSON                                                                | JSON 中是否存在某键       |
+| 14  |   ISNULL               | 所有类型                                                            | 是否为空值                |
+| 15  |   ISNOTNULL            | 所有类型                                                            | 是否为非空值              |
+| 16  |   COALESCE             | 所有类型                                                            | 返回第一个非空值          |
 
 LIKE 条件使用通配符字符串进行匹配检查，规则如下：
 

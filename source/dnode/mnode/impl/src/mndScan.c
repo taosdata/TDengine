@@ -377,6 +377,7 @@ static void *mndBuildKillScanReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pCont
   mTrace("vgId:%d, build scan vnode config req, contLen:%d", pVgroup->vgId, contLen);
   int32_t ret = 0;
   if ((ret = tSerializeSVKillScanReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
+    taosMemoryFreeClear(pReq);
     terrno = ret;
     return NULL;
   }

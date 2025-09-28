@@ -1256,6 +1256,8 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
       return execShowCreateSTable((SShowCreateTableStmt*)pStmt, pRsp, charsetCxt);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
+      return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:

@@ -64,6 +64,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_1.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_replica_3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_vnode_clean.py -N 4 -C 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance_leader.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance1.py -N 4 -C 1
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance2.py -N 5 -C 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balance3.py -N 6 -C 4
@@ -236,6 +237,8 @@
 ## 06-Logical
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_case_when.py
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_if.py
+,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_if_smoking.py
 
 # 22-Functions
 ## 01-Scalar
@@ -255,6 +258,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_stddev.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_sum.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_gconcat.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_smoking.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_first_last.py
@@ -357,6 +362,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_privileges_systable.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/01-Snode/test_snode_privileges_twodb.py
 ## 02-Stream
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/stream_schema.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/stream_td37724.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/test_stream_check_name.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/test_stream_long_name.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/02-Stream/test_stream_no_snode.py
@@ -460,6 +467,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/42-TSMAs/test_tsma.py
 
 ## 43-RSMAs
+,,y,.,./ci/pytest.sh pytest cases/43-RSMAs/test_rsma.py
 
 # 50-Meta
 #,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ins_stables.py

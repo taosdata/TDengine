@@ -174,6 +174,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_STREAM_FETCH_RSP:
     case TDMT_STREAM_FETCH_FROM_RUNNER_RSP:
     case TDMT_STREAM_FETCH_FROM_CACHE_RSP:
+    case TDMT_VND_SNODE_DROP_TABLE_RSP:
       code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:
@@ -415,7 +416,7 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
 static bool rpcNoDelayMsg(tmsg_t msgType) {
   if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_QUERY_SSMIGRATE_PROGRESS ||
       msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE ||
-      msgType == TDMT_VND_QUERY_SCAN_PROGRESS) {
+      msgType == TDMT_VND_QUERY_SCAN_PROGRESS || msgType == TDMT_VND_QUERY_TRIM_PROGRESS) {
     return true;
   }
   return false;
