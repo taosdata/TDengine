@@ -322,8 +322,8 @@ class TestStreamSlidingTrigger:
             (f"create stream stName interval({self.sliding + 1}s, 1a) sliding({self.sliding}s) from {self.trigTbname} stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#7
             (f"create stream stName interval({self.sliding + 30}s, 1a) sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#8
 
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} stream_options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),#9
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname stream_options(delete_recalc|fill_history('2025-01-01 00:01:30')) into outTbname as querySql ;", (1, True)),#10
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} stream_options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_output_table) into outTbname as querySql;", (3, True)),#9
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname stream_options(fill_history('2025-01-01 00:01:30')) into outTbname as querySql ;", (1, True)),#10
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname stream_options(watermark(3s)|fill_history('2025-01-01 00:01:30')) into outTbname as querySql;", (1, True)),#11
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname stream_options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#12
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname stream_options(calc_notify_only|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#13

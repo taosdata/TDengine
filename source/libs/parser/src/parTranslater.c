@@ -13343,6 +13343,14 @@ static int32_t translateKillSsMigrate(STranslateContext* pCxt, SKillStmt* pStmt)
   return buildCmdMsg(pCxt, TDMT_MND_KILL_SSMIGRATE, (FSerializeFunc)tSerializeSKillSsMigrateReq, &killReq);
 }
 
+static bool isSlidingWindow(SNode* pWindow) {
+  if (nodeType(pWindow) != QUERY_NODE_INTERVAL_WINDOW) {
+    return false;
+  }
+  SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pWindow;
+  return pInterval->pInterval == NULL;
+}
+
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
@@ -13436,6 +13444,15 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     if (pTriggerOptions && pTriggerOptions->ignoreNoDataTrigger) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
           "ignore_nodata_trigger is not supported when trigger is not interval, sliding or period"));
+    }
+  }
+
+  if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_COUNT_WINDOW ||
+      nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_PERIOD_WINDOW ||
+      isSlidingWindow(pTrigger->pTriggerWindow)) {
+    if (pTriggerOptions && pTriggerOptions->deleteRecalc) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "delete recalc is not supported when trigger is count window"));
     }
   }
 
