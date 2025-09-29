@@ -74,7 +74,7 @@ echo "branch_name_id = $branch_name_id"
 docker run \
     --privileged=true \
     --name "$CONTAINER_NAME" \
-    -v "$INTERNAL_REPDIR:$CONTAINER_TDINTERNAL_DIR" \
+    -v "$TDINTERNAL_DIR:$CONTAINER_TDINTERNAL_DIR" \
     -v "$DEBUG_DIR:$CONTAINER_DEBUG_DIR" \
     --rm \
     --ulimit core=-1 \
