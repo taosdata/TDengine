@@ -72,7 +72,7 @@ The `DECIMAL` data type is used for high-precision numeric storage and is suppor
 
 When the `precision` value is less than or equal to 18, 8 bytes of storage (DECIMAL64) are used internally. When the `precision` is in the range `(18, 38]`, 16 bytes of storage (DECIMAL) are used. When writing `DECIMAL` type data in SQL, numeric values can be written directly. If the value exceeds the maximum representable value for the type, a `DECIMAL_OVERFLOW` error will be reported. If the value does not exceed the maximum representable value but the number of decimal places exceeds the `scale`, it will be automatically rounded. For example, if the type is defined as `DECIMAL(10, 2)` and the value `10.987` is written, the actual stored value will be `10.99`.
 
-The `DECIMAL` type only supports regular columns and does not currently support tag columns. The `DECIMAL` type supports SQL-based writes only and does not currently support `stmt` or schemaless writes.
+The `DECIMAL` type only supports regular columns and does not currently support tag columns. the `decimal` type supports sql-based and `stmt2` writes ,does not schemaless writes.
 
 When performing operations between integer types and the `DECIMAL` type, the integer type is converted to the `DECIMAL` type before the calculation. When the `DECIMAL` type is involved in calculations with `DOUBLE`, `FLOAT`, `VARCHAR`, or `NCHAR` types, it is converted to `DOUBLE` type for computation.
 

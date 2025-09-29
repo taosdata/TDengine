@@ -44,6 +44,7 @@ int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **f
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 void    tsdbTFileSetClear(STFileSet **fset);
 void    tsdbTFileSetRemove(STFileSet *fset);
+int64_t tsdbTFileSetGetDataSize(const STFileSet *fset);
 
 int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_t ever, STFileSet **fset,
                                     TFileOpArray *fopArr);
@@ -95,15 +96,20 @@ struct STFileSet {
   TSKEY        lastCompact;
   TSKEY        lastCommit;
   TSKEY        lastMigrate;
+  TSKEY        lastRollup;  // rollup only if lastRollup > lastCommit or expLevel increased
 
   SVATaskID mergeTask;
   SVATaskID compactTask;
   SVATaskID retentionTask;
+  SVATaskID migrateTask;
 
   // block commit variables
   TdThreadCond canCommit;
   int32_t      numWaitCommit;
   bool         blockCommit;
+
+  // rollup
+  int8_t lastRollupLevel;  // 1 or 2
 
   // conditions
   struct STFileSetCond conds[2];

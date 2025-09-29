@@ -24,6 +24,7 @@ from .sql import *
 from .server.dnodes import *
 from .common import *
 from taos.tmq import Consumer
+from new_test_framework.utils import clusterComCheck
 
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
@@ -69,18 +70,19 @@ class CompatibilityBase:
     # Modified installTaosd to accept version parameter
     def installTaosdForRollingUpgrade(self, dnodePaths, base_version):
         packagePath = "/usr/local/src/"
-        packageType = "server"
-            
+        
+        # New download URL format
         if platform.system() == "Linux" and platform.machine() == "aarch64":
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-arm64.tar.gz"
+            packageName = f"tdengine-tsdb-oss-{base_version}-linux-arm64.tar.gz"
+            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
         else:
-            packageName = "TDengine-"+ packageType + "-" + base_version + "-Linux-x64.tar.gz"
+            packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
+            download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
             
-        # Determine download URL
-        download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
         tdLog.info(f"wget {download_url}")
         
-        packageTPath = packageName.split("-Linux-")[0]
+        # Extract package name without extension for installation
+        packageTPath = packageName.replace("-linux-x64.tar.gz", "")
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
             print(f"{packageName} is not exists")
@@ -118,7 +120,6 @@ class CompatibilityBase:
         
         return True
 
-    # Modified installTaosd to accept version parameter
     def installTaosd(self, bPath, cPath, base_version):
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
@@ -203,6 +204,7 @@ class CompatibilityBase:
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
+        time.sleep(5)
         global dbname, stb, first_consumer_rows
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
@@ -297,10 +299,14 @@ class CompatibilityBase:
                 found_pids = [pid for pid in output.strip().split('\n') if pid] 
             tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
 
-            pid_to_kill_for_this_dnode = found_pids[0]
-            tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
-            os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-            cb.checkProcessPid(pid_to_kill_for_this_dnode)
+            if len(found_pids) == 0:
+                tdLog.info("No taosd process found keep going")
+            else: 
+                pid_to_kill_for_this_dnode = found_pids[0]
+                tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
+                os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
+                self.checkProcessPid(pid_to_kill_for_this_dnode)
+
             tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
             tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
             os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
@@ -330,7 +336,7 @@ class CompatibilityBase:
                     os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
                 else:
                     tdLog.info(f"No running taosd PID found to kill for cPaths[{i}] (or fewer PIDs found than cPaths entries).")
-                cb.checkProcessPid(pid_to_kill_for_this_dnode)
+                self.checkProcessPid(pid_to_kill_for_this_dnode)
                 tdLog.info(f"Starting taosd using cPath: {cPaths[i]}")
                 tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
                 os.system(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
@@ -606,6 +612,61 @@ class CompatibilityBase:
         os.system(f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
+
+    def checkstatus(self,tdsql,retry_times=30):
+        dnodes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show dnodes;")
+            dnode_nums = tdsql.queryRows
+            ready_nums = 0
+
+            for j in range(tdsql.queryRows):
+                if tdsql.queryResult[j][4] == "ready":
+                    ready_nums += 1
+            if ready_nums == dnode_nums:
+                dnodes_ready = True
+                break
+
+            time.sleep(1)
+
+        if not dnodes_ready:
+            tdLog.exit(f"dnodes are not ready in {retry_times}s")
+        tdLog.info(f"dnodes are ready in {retry_times}s")
+
+        modes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show mnodes;")
+            mnode_nums = tdsql.queryRows
+            ready_nums = 0
+            for j in range(tdsql.queryRows):
+                if tdsql.queryResult[j][3] == "ready":
+                    ready_nums += 1
+            if ready_nums == mnode_nums:
+                modes_ready = True
+                break
+            time.sleep(1)
+
+        if not modes_ready:
+            tdLog.exit(f"mnodes are not ready in {retry_times}s")
+        tdLog.info(f"mnodes are ready in {retry_times}s")
+
+    
+        vnodes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show vnodes;")
+            vnode_nums = tdsql.queryRows
+            ready_nums = 0
+            for j in range(tdsql.queryRows):
+                if str(tdsql.queryResult[j][6]).lower() == "true":
+                    ready_nums += 1
+            if ready_nums == vnode_nums:
+                vnodes_ready = True
+                break
+            time.sleep(1)
+    
+        if not vnodes_ready:
+            tdLog.exit(f"vnodes are not ready in {retry_times}s") 
+        tdLog.info(f"vnodes are ready in {retry_times}s")
 
 
 # Create instance for compatibility

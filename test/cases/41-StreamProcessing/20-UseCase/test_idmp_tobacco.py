@@ -202,8 +202,8 @@ class IdmpScene:
                 # check streams created
                 # tdStream.checkStreamStatus(stream_name)
 
-            # check streams created
-            tdStream.checkStreamStatus()
+        # check streams created
+        tdStream.checkStreamStatus()
 
         tdLog.info(f"create {stream_count} streams in {self.vdb}")
 
@@ -248,7 +248,7 @@ class IdmpScene:
 
             # check the output table
             sql = f"select stable_name as name from information_schema.ins_stables where stable_name = '{name}' UNION select table_name as name from information_schema.ins_tables where table_name = '{name}';"
-            tdLog.info(f"check output table SQL: {sql}")
+            tdLog.info(f"streamid: {id} check output table SQL: {sql}")
             tdSql.checkResultsByFunc(
                 sql,
                 func=lambda: tdSql.getRows() > 0,

@@ -2415,7 +2415,7 @@ taos> select spread(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 
 taos> select stddev(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
       stddev(int_col)      |
 ============================
-          146175.418363512 |
+          617825137.523305 |
 
 taos> select sum(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
      sum(int_col)      |
@@ -2425,7 +2425,7 @@ taos> select sum(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 taos> select var_pop(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
      var_pop(int_col)      |
 ============================
-          21367252933.7476 |
+       3.8170790055569e+17 |
 
 taos> select hyperloglog(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
  hyperloglog(int_col)  |

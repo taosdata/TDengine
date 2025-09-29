@@ -19,18 +19,26 @@ class UtilTest(unittest.TestCase):
 
     def test_generate_anomaly_window(self):
         # Test case 1: Normal input
-        wins = convert_results_to_windows([1, 1, 1, 1, 1, 1, -1, -1, -1, 1, 1, -1],
+        wins, mask = convert_results_to_windows([1, -1, -2, 1, 1, 1, -1, -1, -1, 1, 1, -1],
                                           [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 1)
         print(f"The result window is:{wins}")
 
         # Assert the number of windows
-        self.assertEqual(len(wins), 2)
+        self.assertEqual(len(wins), 4)
 
         # Assert the first window
-        self.assertListEqual(wins[0], [7, 9])
+        self.assertListEqual(wins[0], [2, 2])
+        self.assertListEqual(wins[1], [3, 3])
+
+        self.assertListEqual(wins[2], [7, 9])
 
         # Assert the second window
-        self.assertListEqual(wins[1], [12, 12])
+        self.assertListEqual(wins[3], [12, 12])
+
+        self.assertEqual(mask[0], -1)
+        self.assertEqual(mask[1], -2)
+        self.assertEqual(mask[2], -1)
+        self.assertEqual(mask[3], -1)
 
         # Test case 2: Anomaly input list is empty
         wins = convert_results_to_windows([], [1, 2], 1)
