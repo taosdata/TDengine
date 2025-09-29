@@ -157,8 +157,8 @@ taosgen -h 127.0.0.1 -c config.yaml
     - concurrency（整数）：表示生成数据的线程数量，默认值为写入线程数量。
     - rows_per_table（整数），每个数据表写入的行数，默认值为 10000，-1 表示无限数据。
     - rows_per_batch（整数），表示每次批量请求写入的最大行数，默认值为 10000。
-    - num_cached_batches（整数），表示提前生成数据并缓存批量请求的数量，默认值为 0，表示不启用缓存。
-    - tables_reuse_data（布尔）：默认为 false，多表是否复用相同数据。
+    - num_cached_batches（整数），表示提前生成数据并缓存批量请求的数量，0 表示关闭数据缓存，默认值为 10000。
+    - tables_reuse_data（布尔）：多表是否复用相同数据，默认为 true。
 
 ##### 列配置包含属性
 每列包含以下属性：
