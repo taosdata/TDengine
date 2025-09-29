@@ -23,7 +23,7 @@ extern bool    tsdbRowIsExpired(SCompactor2 *compactor, TSDBROW *row, int64_t ke
 extern int32_t tsdbCompactFSetGetKeep(SCompactor2 *compactor, int64_t suid, int64_t *keep);
 extern int32_t tsdbCompactFSetTableDataEnd(SCompactor2 *compactor);
 extern int32_t tsdbCompactFSetTableDataBegin(SCompactor2 *compactor, const TABLEID *tbid);
-extern bool    tsdbShouldCompact(STFileSet *fset, int32_t vgId, ETsdbOpType type);
+extern bool    tsdbShouldCompact(STFileSet *fset, int32_t vgId, int32_t expLevel, ETsdbOpType type);
 extern int32_t tsdbDoCompact(SCompactor2 *compactor);
 
 extern int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, const char *dbName);
@@ -374,7 +374,8 @@ int32_t tsdbCompactFSetRollup(SCompactor2 *compactor) {
           if (update) {
             TAOS_CHECK_EXIT(tdRollupStashRow(&ctx, &stashBlock, row, true));
           } else {
-            if (stashBlock.nRow >= 4096) {  // when the number of stashed rows accumulates to 4096, do aggregate
+            // when the number of stashed rows accumulates to maxBufRows, do aggregate
+            if (stashBlock.nRow >= ctx.maxBufRows) {
               if (tsdbRetentionTaskKilled(pTsdb)) {
                 tsdbInfo("vgId:%d fid:%d rollup killed during data processing", TD_VID(pVnode), compactor->fset->fid);
                 TAOS_CHECK_EXIT(TSDB_CODE_TSC_QUERY_KILLED);
@@ -438,9 +439,12 @@ static int32_t tsdbRollup(SRTNer *rtner, void *arg) {
   };
 
   // do compact
-  if (compactor.fset && (rollup = tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactArg->type))) {
-    code = tsdbDoCompact(&compactor);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  if (compactor.fset) {
+    compactor.ctx->expLevel = tsdbFidLevel(compactor.fset->fid, &compactor.tsdb->keepCfg, taosGetTimestampSec());
+    if (tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactor.ctx->expLevel, compactArg->type)) {
+      code = tsdbDoCompact(&compactor);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
 _exit:
