@@ -228,19 +228,19 @@ static int32_t vmAcquireVnodeWrapper(SVnodeMgmt *pMgt, int32_t vgId, SVnodeObj *
 }
 static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
   int32_t         code = 0;
+  SMsgHead *      pHead = pMsg->pCont;
+  SVnodeObj *     pVnode = NULL;
   const STraceId *trace = &pMsg->info.traceId;
+
   if (pMsg->contLen < sizeof(SMsgHead)) {
     dGError("invalid rpc msg with no msg head at pCont. pMsg:%p, type:%s, contLen:%d", pMsg, TMSG_INFO(pMsg->msgType),
             pMsg->contLen);
     return TSDB_CODE_INVALID_MSG;
   }
 
-  SMsgHead *pHead = pMsg->pCont;
-
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
-
-  SVnodeObj *pVnode = NULL;
+  
   code = vmAcquireVnodeWrapper(pMgmt, pHead->vgId, &pVnode);
   if (code != 0) {
     dGDebug("vgId:%d, msg:%p, failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
@@ -250,6 +250,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
+      // let's put into different query processing queue. The query type is extracted during preprocessing procedure,
+      // mquery-queue for meta info query, and query-queue for ordinary users' queries.
       code = vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
       if (code) {
         dError("vgId:%d, msg:%p, preprocess query msg failed since %s", pVnode->vgId, pMsg, tstrerror(code));
@@ -470,9 +472,8 @@ void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   tQueryAutoQWorkerFreeQueue(&pMgmt->queryPool, pVnode->pQueryQ);
   tQueryAutoQWorkerFreeQueue(&pMgmt->streamReaderPool, pVnode->pStreamReaderQ);
   tWWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
-  pVnode->pQueryQ = NULL;
-  pVnode->pFetchQ = NULL;
 
+  pVnode->pQueryQ = NULL;
   pVnode->pFetchQ = NULL;
   pVnode->pStreamReaderQ = NULL;
   dDebug("vgId:%d, queue is freed", pVnode->vgId);
