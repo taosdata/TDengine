@@ -2464,6 +2464,8 @@ enum {
   PHY_TABLE_SCAN_CODE_TAGS,
   PHY_TABLE_SCAN_CODE_SUBTABLE,
   PHY_TABLE_SCAN_CODE_TIME_RANGE_EXPR,
+  PHY_TABLE_SCAN_CODE_EXT_SCAN_RANGE,
+  PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2541,6 +2543,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
     code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_INLINE_ATTRS, physiTableScanNodeInlineToMsg, pNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_EXT_SCAN_RANGE, timeWindowToMsg, pNode->pExtScanRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_DYN_SCAN_FUNCS, nodeListToMsg, pNode->pDynamicScanFuncs);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -2554,6 +2559,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_TIME_RANGE_EXPR, nodeToMsg, pNode->pTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR, nodeToMsg, pNode->pExtTimeRange);
   }
 
   return code;
@@ -2653,6 +2661,17 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_TABLE_SCAN_CODE_TIME_RANGE_EXPR:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeRange);
+        break;
+      case PHY_TABLE_SCAN_CODE_EXT_SCAN_RANGE:
+        pNode->pExtScanRange = taosMemoryMalloc(sizeof(*pNode->pExtScanRange));
+        if (NULL == pNode->pExtScanRange) {
+          code = terrno;
+          break;
+        }
+        code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, pNode->pExtScanRange);
+        break;
+      case PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pExtTimeRange);
         break;
       default:
         break;
