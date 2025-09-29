@@ -36,6 +36,9 @@
 #include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndQuery.h"
+#include "mndRetention.h"
+#include "mndRetentionDetail.h"
+#include "mndRsma.h"
 #include "mndScan.h"
 #include "mndScanDetail.h"
 #include "mndShow.h"
@@ -155,6 +158,16 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
   // TODO check return value
+  if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+    mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+  }
+}
+
+static void mndPullupQueryTrimDb(SMnode *pMnode) {
+  mTrace("pullup trim query");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_QUERY_TRIM_TIMER, .pCont = pReq, .contLen = contLen};
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
   }
@@ -377,6 +390,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 
   if (sec % tsTrimVDbIntervalSec == 0) {
     mndPullupTrimDb(pMnode);
+  }
+
+  if (sec % tsQueryTrimIntervalSec == 0) {
+    mndPullupQueryTrimDb(pMnode);
   }
 #endif
 #ifdef USE_SHARED_STORAGE
@@ -680,12 +697,15 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mount", mndInitMount, mndCleanupMount));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mount-log", mndInitMountLog, mndCleanupMountLog));
 #endif
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-rsma", mndInitRsma, mndCleanupRsma));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan", mndInitScan, mndCleanupScan));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention", mndInitRetention, mndCleanupRetention));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact-detail", mndInitCompactDetail, mndCleanupCompactDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan-detail", mndInitScanDetail, mndCleanupScanDetail));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention-detail", mndInitRetentionDetail, mndCleanupRetentionDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ssmigrate", mndInitSsMigrate, mndCleanupSsMigrate));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile));
@@ -952,7 +972,8 @@ _OVER:
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
       pMsg->msgType == TDMT_MND_SSMIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
-      pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || pMsg->msgType == TDMT_MND_SCAN_TIMER) {
+      pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || pMsg->msgType == TDMT_MND_SCAN_TIMER ||
+      pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);

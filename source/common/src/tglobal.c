@@ -330,6 +330,8 @@ int64_t tsTickPerMin[] = {60000L, 60000000L, 60000000000L};
  */
 int64_t tsTickPerHour[] = {3600000L, 3600000000L, 3600000000000L};
 
+int64_t tsSecTimes[] = {1e3L, 1e6L, 1e9L};  // for milli, micro, nano
+
 // lossy compress 7
 char tsLossyColumns[32] = "float|double";  // "float|double" means all float and double columns can be lossy compressed.
                                            // set empty can close lossy compress.
@@ -368,6 +370,7 @@ int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;  // interval of trimming db in all vgroups
+int32_t tsQueryTrimIntervalSec = 10;     // interval of query trim in all vgroups
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits

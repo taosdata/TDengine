@@ -344,6 +344,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries, code);
   if (code) return code;
+  tjsonGetNumberValue(pJson, "vndStats.rsmas", pCfg->vndStats.numOfRSMAs, code);
+  if (code) return code;
 
   // Load cache format, default to 0 (colCache) if not present (for backward compatibility)
   tjsonGetNumberValue(pJson, "cacheFormat", pCfg->cacheFormat, code);

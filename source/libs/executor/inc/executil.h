@@ -39,7 +39,7 @@
 
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
-typedef struct SGroupResInfo {
+struct SGroupResInfo {
   int32_t index;    // rows consumed in func:doCopyToSDataBlockXX
   int32_t iter;     // relate to index-1, last consumed data's slot id in hash table
   void*   dataPos;  // relate to index-1, last consumed data's position, in the nodelist of cur slot
@@ -47,9 +47,9 @@ typedef struct SGroupResInfo {
   SArray* pRows;    // SArray<SResKeyPos>
   char*   pBuf;
   bool    freeItem;
-} SGroupResInfo;
+};
 
-typedef struct SResultRow {
+struct SResultRow {
   int32_t                    version;
   int32_t                    pageId;  // pageId & rowId is the position of current result in disk-based output buffer
   int32_t                    offset : 29;  // row index in buffer page
@@ -60,7 +60,7 @@ typedef struct SResultRow {
   STimeWindow                win;
   int32_t                    winIdx;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
-} SResultRow;
+};
 
 typedef struct SResultRowPosition {
   int32_t pageId;
@@ -73,11 +73,11 @@ typedef struct SResKeyPos {
   char               key[];
 } SResKeyPos;
 
-typedef struct SResultRowInfo {
+struct SResultRowInfo {
   int32_t            size;  // number of result set
   SResultRowPosition cur;
   SList*             openWindow;
-} SResultRowInfo;
+};
 
 typedef struct SColMatchItem {
   int32_t   colId;
@@ -93,8 +93,6 @@ typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
-
-typedef struct SExecTaskInfo SExecTaskInfo;
 
 typedef struct STableListIdInfo {
   uint64_t suid;

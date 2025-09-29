@@ -1364,6 +1364,187 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0, lino = 0;
+  int32_t  tlen = 0;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbFName));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->tbUid));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->uid));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->tbType));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igExists));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->intervalUnit));
+  TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pReq->nFuncs));
+  for (int32_t i = 0; i < pReq->nFuncs; ++i) {
+    TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pReq->funcColIds[i]));
+  }
+  for (int32_t i = 0; i < pReq->nFuncs; ++i) {
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->funcIds[i]));
+  }
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->interval[0]));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->interval[1]));
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sqlLen));
+  if (pReq->sqlLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->sql, pReq->sqlLen));
+  }
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMCreateRsmaReq(void *buf, int32_t bufLen, SMCreateRsmaReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0, lino = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbFName));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->tbUid));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->uid));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->tbType));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igExists));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->intervalUnit));
+  TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pReq->nFuncs));
+  if (pReq->nFuncs > 0) {
+    pReq->funcColIds = taosMemoryMalloc(pReq->nFuncs * sizeof(col_id_t));
+    pReq->funcIds = taosMemoryMalloc(pReq->nFuncs * sizeof(func_id_t));
+    if (!pReq->funcColIds || !pReq->funcIds) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < pReq->nFuncs; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pReq->funcColIds[i]));
+    }
+    for (int32_t i = 0; i < pReq->nFuncs; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->funcIds[i]));
+    }
+  }
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->interval[0]));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->interval[1]));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sqlLen));
+  if (pReq->sqlLen > 0) {
+    pReq->sql = taosMemoryMalloc(pReq->sqlLen);
+    if (pReq->sql == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->sql));
+  }
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSMCreateRsmaReq(SMCreateRsmaReq *pReq) {
+  taosMemoryFreeClear(pReq->funcIds);
+  taosMemoryFreeClear(pReq->funcColIds);
+  taosMemoryFreeClear(pReq->sql);
+}
+
+int32_t tSerializeSVCreateRsmaReq(void *buf, int32_t bufLen, SVCreateRsmaReq *pReq) {
+  return tSerializeSMCreateRsmaReq(buf, bufLen, (SMCreateRsmaReq *)pReq);
+}
+
+int32_t tDeserializeSVCreateRsmaReq(void *buf, int32_t bufLen, SVCreateRsmaReq *pReq) {
+  return tDeserializeSMCreateRsmaReq(buf, bufLen, (SMCreateRsmaReq *)pReq);
+}
+
+void tFreeSVCreateRsmaReq(SVCreateRsmaReq *pReq) { tFreeSMCreateRsmaReq((SMCreateRsmaReq *)pReq); }
+
+int32_t tSerializeSMDropRsmaReq(void *buf, int32_t bufLen, SMDropRsmaReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
+
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMDropRsmaReq(void *buf, int32_t bufLen, SMDropRsmaReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVDropRsmaReq(void* buf, int32_t bufLen, SVDropRsmaReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbName));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->uid));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->tbUid));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->tbType));
+
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVDropRsmaReq(void *buf, int32_t bufLen, SVDropRsmaReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbName));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->uid));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->tbUid));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->tbType));
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 void tFreeSMDropSmaReq(SMDropSmaReq *pReq) {
   taosMemoryFreeClear(pReq->dropStreamReq);
 }
@@ -6266,6 +6447,18 @@ int32_t tSerializeSTrimDbReq(void *buf, int32_t bufLen, STrimDbReq *pReq) {
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->db));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->maxSpeed));
+  ENCODESQL();
+  int32_t numOfVgroups = taosArrayGetSize(pReq->vgroupIds);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, numOfVgroups));
+  if (numOfVgroups > 0) {
+    for (int32_t i = 0; i < numOfVgroups; ++i) {
+      int64_t vgid = *(int64_t *)taosArrayGet(pReq->vgroupIds, i);
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, vgid));
+    }
+  }
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->tw.skey));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->tw.ekey));
+  TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pReq->flags));
   tEndEncode(&encoder);
 
 _exit:
@@ -6280,55 +6473,53 @@ _exit:
 
 int32_t tDeserializeSTrimDbReq(void *buf, int32_t bufLen, STrimDbReq *pReq) {
   SDecoder decoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
+  int32_t  code = 0, lino = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->db));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->maxSpeed));
+  DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t numOfVgroups = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfVgroups));
+    if (numOfVgroups > 0) {
+      pReq->vgroupIds = taosArrayInit(numOfVgroups, sizeof(int64_t));
+      if (NULL == pReq->vgroupIds) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      for (int32_t i = 0; i < numOfVgroups; ++i) {
+        int64_t vgid;
+        TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &vgid));
+        if (taosArrayPush(pReq->vgroupIds, &vgid) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->tw.skey));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->tw.ekey));
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pReq->flags));
+  }
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+void tFreeSTrimDbReq(STrimDbReq *pReq) {
+  FREESQL();
+  taosArrayDestroy(pReq->vgroupIds);
+  pReq->vgroupIds = NULL;
 }
 
 int32_t tSerializeSVTrimDbReq(void *buf, int32_t bufLen, SVTrimDbReq *pReq) {
-  SEncoder encoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  int32_t  tlen;
-  tEncoderInit(&encoder, buf, bufLen);
-
-  TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->timestamp));
-  tEndEncode(&encoder);
-
-_exit:
-  if (code) {
-    tlen = code;
-  } else {
-    tlen = encoder.pos;
-  }
-  tEncoderClear(&encoder);
-  return tlen;
+  return tSerializeSCompactVnodeReq(buf, bufLen, (SCompactVnodeReq*)pReq);
 }
 
 int32_t tDeserializeSVTrimDbReq(void *buf, int32_t bufLen, SVTrimDbReq *pReq) {
-  SDecoder decoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
-  tDecoderInit(&decoder, buf, bufLen);
-
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->timestamp));
-
-  tEndDecode(&decoder);
-
-_exit:
-  tDecoderClear(&decoder);
-  return code;
+  return tDeserializeSCompactVnodeReq(buf, bufLen, (SCompactVnodeReq*)pReq);
 }
 
 int32_t tSerializeSSsMigrateDbReq(void *buf, int32_t bufLen, SSsMigrateDbReq *pReq) {
@@ -8654,6 +8845,8 @@ int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->compactId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->metaOnly));
 
+  TAOS_CHECK_EXIT(tEncodeU16v(&encoder, pReq->flags));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -8694,6 +8887,13 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->metaOnly));
   } else {
     pReq->metaOnly = false;
+  }
+
+  if(!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU16v(&decoder, &pReq->flags));
+  } else {
+    pReq->optrType = TSDB_OPTR_NORMAL;
+    pReq->triggerType = TSDB_TRIGGER_MANUAL;
   }
 
   tEndDecode(&decoder);
@@ -11596,32 +11796,50 @@ int32_t tDecodeSVDeleteRsp(SDecoder *pCoder, SVDeleteRsp *pReq) {
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {
-  int32_t code = 0;
-  int32_t lino;
-  for (int32_t i = 0; i < 2; ++i) {
-    TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pRSmaParam->maxdelay[i]));
-    TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pRSmaParam->watermark[i]));
-    TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pRSmaParam->qmsgLen[i]));
-    if (pRSmaParam->qmsgLen[i] > 0) {
-      TAOS_CHECK_EXIT(tEncodeBinary(pCoder, pRSmaParam->qmsg[i], (uint64_t)pRSmaParam->qmsgLen[i]));
+  int32_t code = 0, lino = 0;
+  if (pRSmaParam->name && pRSmaParam->name[0] != '\0') {
+    TAOS_CHECK_EXIT(tEncodeCStr(pCoder, pRSmaParam->name));
+  } else {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
+  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pRSmaParam->uid));
+  TAOS_CHECK_EXIT(tEncodeI8(pCoder, pRSmaParam->intervalUnit));
+  TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pRSmaParam->interval[0]));
+  TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pRSmaParam->interval[1]));
+  TAOS_CHECK_EXIT(tEncodeI16v(pCoder, pRSmaParam->nFuncs));
+  if (pRSmaParam->nFuncs > 0) {
+    if (pRSmaParam->funcColIds == NULL || pRSmaParam->funcIds == NULL) {
+      TAOS_CHECK_EXIT(terrno = EINVAL);
+    }
+    for (int16_t i = 0; i < pRSmaParam->nFuncs; ++i) {
+      TAOS_CHECK_EXIT(tEncodeI16v(pCoder, pRSmaParam->funcColIds[i]));
+      TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pRSmaParam->funcIds[i]));
     }
   }
-
 _exit:
   return code;
 }
 
 int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
-  int32_t code = 0;
-  int32_t lino;
-  for (int32_t i = 0; i < 2; ++i) {
-    TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->maxdelay[i]));
-    TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->watermark[i]));
-    TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pRSmaParam->qmsgLen[i]));
-    if (pRSmaParam->qmsgLen[i] > 0) {
-      TAOS_CHECK_EXIT(tDecodeBinary(pCoder, (uint8_t **)&pRSmaParam->qmsg[i], NULL));  // qmsgLen contains len of '\0'
-    } else {
-      pRSmaParam->qmsg[i] = NULL;
+  int32_t code = 0, lino = 0;
+  TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pRSmaParam->name));
+  if (pRSmaParam->name[0] == '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
+  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pRSmaParam->uid));
+  TAOS_CHECK_EXIT(tDecodeI8(pCoder, (int8_t *)&pRSmaParam->intervalUnit));
+  TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->interval[0]));
+  TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->interval[1]));
+  TAOS_CHECK_EXIT(tDecodeI16v(pCoder, &pRSmaParam->nFuncs));
+  if (pRSmaParam->nFuncs > 0) {
+    pRSmaParam->funcColIds = (col_id_t *)tDecoderMalloc(pCoder, pRSmaParam->nFuncs * sizeof(col_id_t));
+    pRSmaParam->funcIds = (func_id_t *)tDecoderMalloc(pCoder, pRSmaParam->nFuncs * sizeof(func_id_t));
+    if (pRSmaParam->funcColIds == NULL || pRSmaParam->funcIds == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int16_t i = 0; i < pRSmaParam->nFuncs; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI16v(pCoder, &pRSmaParam->funcColIds[i]));
+      TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pRSmaParam->funcIds[i]));
     }
   }
 
