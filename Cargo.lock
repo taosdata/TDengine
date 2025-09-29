@@ -4424,7 +4424,9 @@ dependencies = [
  "itertools 0.14.0",
  "semver",
  "serde",
+ "serde_json",
  "taos",
+ "taos-to-local",
  "taosx-core",
  "taosx-ipc",
  "tempfile",
@@ -8902,6 +8904,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "taos-to-local"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "async-compression",
+ "bytes",
+ "chrono",
+ "deadpool",
+ "flume",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "tempfile",
+ "tokio",
+ "tokio-process-terminate",
+ "tokio-util",
+ "toml 0.9.2",
+ "tracing",
+]
+
+[[package]]
 name = "taos-ws"
 version = "0.12.4"
 source = "git+https://github.com/taosdata/taos-connector-rust.git?rev=0e47990#0e479909c050f12f592186cc4111086bf652c01c"
@@ -9283,6 +9307,7 @@ dependencies = [
  "source-postgres",
  "source-sparkplugb",
  "taos",
+ "taos-to-local",
  "taoslog",
  "taosx-core",
  "tmq-to-local",

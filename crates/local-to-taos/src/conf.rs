@@ -1,5 +1,6 @@
 use anyhow::{Context, bail};
 use chrono::{DateTime, Utc};
+use std::fmt::Debug;
 use std::path::PathBuf;
 use std::time::Duration;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, TaosPool};
