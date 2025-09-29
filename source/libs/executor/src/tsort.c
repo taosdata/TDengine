@@ -877,68 +877,53 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
     return ret;
   } else {
     bool isVarType;
+    int32_t ret_acc = 0;  // 累积比较结果
     for (int32_t i = 0; i < pInfo->size; ++i) {
       SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
-      SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
-      SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
-      isVarType = IS_VAR_DATA_TYPE(pLeftColInfoData->info.type);
+      SColumnInfoData* pLeftCol = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
+      SColumnInfoData* pRightCol = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+      isVarType = IS_VAR_DATA_TYPE(pLeftCol->info.type);
 
-      if (pLeftColInfoData->hasNull || pRightColInfoData->hasNull) {
-        bool leftNull = false;
-        if (pLeftColInfoData->hasNull) {
-          if (pLeftBlock->pBlockAgg == NULL) {
-            leftNull = colDataIsNull_t(pLeftColInfoData, pLeftSource->src.rowIndex, isVarType);
-          } else {
-            leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex,
-                                     &pLeftBlock->pBlockAgg[i]);
-          }
-        }
+      // ==== Null 处理（branchless-friendly） ====
+      bool leftNull = pLeftCol->hasNull &&
+                      ((pLeftBlock->pBlockAgg == NULL)
+                           ? colDataIsNull_t(pLeftCol, pLeftSource->src.rowIndex, isVarType)
+                           : colDataIsNull(pLeftCol, pLeftBlock->info.rows,
+                                           pLeftSource->src.rowIndex, &pLeftBlock->pBlockAgg[i]));
 
-        bool rightNull = false;
-        if (pRightColInfoData->hasNull) {
-          if (pRightBlock->pBlockAgg == NULL) {
-            rightNull = colDataIsNull_t(pRightColInfoData, pRightSource->src.rowIndex, isVarType);
-          } else {
-            rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
-                                      &pRightBlock->pBlockAgg[i]);
-          }
-        }
+      bool rightNull = pRightCol->hasNull &&
+                       ((pRightBlock->pBlockAgg == NULL)
+                            ? colDataIsNull_t(pRightCol, pRightSource->src.rowIndex, isVarType)
+                            : colDataIsNull(pRightCol, pRightBlock->info.rows,
+                                            pRightSource->src.rowIndex, &pRightBlock->pBlockAgg[i]));
 
-        if (leftNull && rightNull) {
-          continue;  // continue to next slot
-        }
+      // null 优先逻辑
+      int32_t null_ret = (leftNull && !rightNull) ? (pOrder->nullFirst ? -1 : 1)
+                         : (!leftNull && rightNull) ? (pOrder->nullFirst ? 1 : -1)
+                                                    : 0;
 
-        if (rightNull) {
-          return pOrder->nullFirst ? 1 : -1;
-        }
+      if (null_ret != 0) return null_ret;
+      if (leftNull && rightNull) continue;  // 两边都 null，跳过
 
-        if (leftNull) {
-          return pOrder->nullFirst ? -1 : 1;
-        }
-      }
+      // ==== 获取数据指针 ====
+      void* left1  = isVarType ? colDataGetVarData(pLeftCol,  pLeftSource->src.rowIndex)
+                              : colDataGetNumData(pLeftCol,  pLeftSource->src.rowIndex);
+      void* right1 = isVarType ? colDataGetVarData(pRightCol, pRightSource->src.rowIndex)
+                               : colDataGetNumData(pRightCol, pRightSource->src.rowIndex);
 
-      void *left1, *right1;
-      if (isVarType) {
-        left1 = colDataGetVarData(pLeftColInfoData, pLeftSource->src.rowIndex);
-        right1 = colDataGetVarData(pRightColInfoData, pRightSource->src.rowIndex);
-      } else {
-        left1 = colDataGetNumData(pLeftColInfoData, pLeftSource->src.rowIndex);
-        right1 = colDataGetNumData(pRightColInfoData, pRightSource->src.rowIndex);
-      }
-
+      // ==== 获取比较函数（缓存） ====
       __compar_fn_t fn = pOrder->compFn;
       if (!fn) {
-        fn = getKeyComparFunc(pLeftColInfoData->info.type, pOrder->order);
+        fn = getKeyComparFunc(pLeftCol->info.type, pOrder->order);
         pOrder->compFn = fn;
       }
 
-      int32_t ret = fn(left1, right1);
-      if (ret == 0) {
-        continue;
-      } else {
-        return ret;
-      }
+      // ==== 比较（branchless-friendly） ====
+      int32_t cmp_ret = fn(left1, right1);
+      if (cmp_ret != 0) return cmp_ret;
     }
+
+    return 0;  // 所有列都相等
   }
 
   return 0;
