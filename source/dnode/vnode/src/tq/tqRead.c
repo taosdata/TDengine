@@ -25,6 +25,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
   if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__TABLE) {
     return true;
   }
+  STqExecHandle* pExec = &pHandle->execHandle;
+  STqReader* pReader = pExec->pTqReader;
 
   int16_t msgType = pHead->msgType;
   char*   body = pHead->body;
@@ -59,8 +61,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     SVCreateTbReq* pCreateReq = NULL;
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
-      if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid) {
-        needRebuild++;
+      if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
+          taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  needRebuild++;
       }
     }
     if (needRebuild == 0) {
@@ -77,7 +79,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       }
       for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
         pCreateReq = req.pReqs + iReq;
-        if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid) {
+        if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
+            taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {
           reqNew.nReqs++;
           if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL) {
             taosArrayDestroy(reqNew.pArray);
@@ -127,7 +130,9 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       metaReaderClear(&mr);
       goto end;
     }
-    realTbSuid = mr.me.ctbEntry.suid;
+    if (taosHashGet(pReader->tbIdHash, &mr.me.uid, sizeof(int64_t)) != NULL) {
+      realTbSuid = mr.me.ctbEntry.suid;
+    }
     metaReaderClear(&mr);
   } else if (msgType == TDMT_VND_DROP_TABLE) {
     SVDropTbBatchReq req = {0};
@@ -141,7 +146,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pDropReq = req.pReqs + iReq;
 
-      if (pDropReq->suid == tbSuid) {
+      if (pDropReq->suid == tbSuid &&
+          taosHashGet(pReader->tbIdHash, &pDropReq->uid, sizeof(int64_t)) != NULL) {
         needRebuild++;
       }
     }
@@ -158,7 +164,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
       }
       for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
         pDropReq = req.pReqs + iReq;
-        if (pDropReq->suid == tbSuid) {
+        if (pDropReq->suid == tbSuid &&
+            taosHashGet(pReader->tbIdHash, &pDropReq->uid, sizeof(int64_t)) != NULL) {
           reqNew.nReqs++;
           if (taosArrayPush(reqNew.pArray, pDropReq) == NULL) {
             taosArrayDestroy(reqNew.pArray);
