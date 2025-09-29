@@ -18,10 +18,13 @@
 #include "mndMnode.h"
 #include "qworker.h"
 
-int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
-  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return 0;
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg, int32_t* qType) {
   SMnode *pMnode = pMsg->info.node;
-  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false);
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
+    return 0;
+  }
+
+  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false, qType);
 }
 
 void mndPostProcessQueryMsg(SRpcMsg *pMsg) {

@@ -2396,15 +2396,26 @@ int32_t initCb(void* thrd, SCliReq* pReq, STransMsg* pResp) {
   }
   return cliMayCvtFqdnToIp(pReq->ctx->epSet, pThrd->pCvtAddr);
 }
+
+static void freeUserCtx(SCliReq* pReq) {
+  if (!pReq || !pReq->ctx) {
+    return;
+  }
+  transCtxCleanup(&pReq->ctx->userCtx);
+}
+
 int32_t notifyExceptCb(void* thrd, SCliReq* pReq, STransMsg* pResp) {
   SCliThrd* pThrd = thrd;
   STrans*   pInst = pThrd->pInst;
   int32_t   code = cliBuildExceptResp(pThrd, pReq, pResp);
   if (code != 0) {
+    freeUserCtx(pReq);
     destroyReq(pReq);
     return code;
   }
   pInst->cfp(pInst->parent, pResp, NULL);
+
+  freeUserCtx(pReq);
   destroyReq(pReq);
   return code;
 }
@@ -4246,7 +4257,6 @@ int32_t transAllocHandle(int64_t* refId) {
   if (exh == NULL) {
     return terrno;
   }
-
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   if (exh->refId < 0) {
     taosMemoryFree(exh);

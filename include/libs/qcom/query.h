@@ -42,8 +42,8 @@ typedef enum {
 } EJobTaskType;
 
 typedef enum {
-  TASK_TYPE_PERSISTENT = 1,
-  TASK_TYPE_TEMP,
+  TASK_TYPE_HQUERY = 1,
+  TASK_TYPE_QUERY,
 } ETaskType;
 
 typedef enum {

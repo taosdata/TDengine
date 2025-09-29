@@ -56,7 +56,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
   ctx->queryExecDone = true;
 
-  if (TASK_TYPE_TEMP == ctx->taskType && taskHandle) {
+  if ((TASK_TYPE_QUERY == ctx->taskType || TASK_TYPE_HQUERY == ctx->taskType) && taskHandle) {
     if (ctx->explain && !ctx->explainRsped) {
       QW_ERR_JRET(qwSendExplainResponse(QW_FPARAMS(), ctx));
     }

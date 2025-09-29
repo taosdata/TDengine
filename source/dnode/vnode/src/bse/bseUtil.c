@@ -128,11 +128,11 @@ void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf) {
   TAOS_UNUSED(snprintf(buf, BSE_FILE_FULL_LEN, "%s/%020" PRId64 "." BSE_LOG_SUFFIX, pBse->path, ver));
 }
 
-void bseBuildCurrentName(SBse *pBse, char *name) {
+void bseBuildCurrentFullName(SBse *pBse, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT", pBse->path, TD_DIRSEP);
 }
 
-void bseBuildTempCurrentName(SBse *pBse, char *name) {
+void bseBuildTempCurrentFullName(SBse *pBse, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%s%sCURRENT-temp", pBse->path, TD_DIRSEP);
 }
 
@@ -162,10 +162,16 @@ void bseBuildDataName(int64_t ts, char *name) {
 
 int32_t bseGetTableIdBySeq(SBse *pBse, int64_t seq, int64_t *timestamp) {
   int32_t code = 0;
-  int64_t tts = 0;
+  int32_t lino = 0;
 
-  if (pBse == NULL || pBse->commitInfo.pFileList == NULL) {
+  int64_t tts = 0;
+  if (pBse == NULL) {
     return TSDB_CODE_INVALID_CFG;
+  }
+
+  (void)taosThreadMutexLock(&pBse->mutex);
+  if (pBse->commitInfo.pFileList == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_CFG, &lino, _error);
   }
 
   SBseCommitInfo *pCommitInfo = &pBse->commitInfo;
@@ -178,5 +184,7 @@ int32_t bseGetTableIdBySeq(SBse *pBse, int64_t seq, int64_t *timestamp) {
   }
 
   *timestamp = tts;
+_error:
+  (void)taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
