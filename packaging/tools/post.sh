@@ -256,7 +256,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/*explorer || :
     ${csudo}rm -f ${bin_link_dir}/start-all.sh || :
     ${csudo}rm -f ${bin_link_dir}/stop-all.sh || :
-    ${csudo}unlink ${bin_link_dir}/taosgen || :
+    [ -L "${bin_link_dir}/taosgen" ] && ${csudo}unlink ${bin_link_dir}/taosgen || :
 
     ${csudo}chmod 0555 ${bin_dir}/*
 
