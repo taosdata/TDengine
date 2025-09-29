@@ -185,26 +185,25 @@ class TestMode:
         tdSql.checkData(0, 3, -9.99)
         tdSql.checkData(0, 4, 'binary9')
 
-    def test_mode(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_select_mode(self):
+        """ Function MODE()
+        1. Query with basic params
+        2. Query on super/child/normal table
+        3. Support types
+        4. Check null value
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-29 Alex  Duan Migrated from uncatalog/system-test/2-query/test_mode.py
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")

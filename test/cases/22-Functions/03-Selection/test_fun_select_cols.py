@@ -1,9 +1,7 @@
 from new_test_framework.utils import tdLog, tdSql, tdStream, StreamItem
 import time
 
-
-
-class TestColsFunction:
+class TestFunCols:
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
@@ -1377,19 +1375,30 @@ class TestColsFunction:
         self.window_test2()
         self.stream_cols_test()
 
-    def test_cols_function(self):
-        """ Test the functionality of the cols function.
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_select_cols(self):
+        """ Function COLS()
+        1. Basic query for input different params
+        2. Query on super/child/normal/empty table
+        3. Support types
+        4. Error cases
+        5. Query with filter conditions
+        6. Query with group/partition by/having/order by
+        7. Query with tags
+        8. Query with join/union/nest/interval/window
+        9. Check null value
+        10. Check single/multi output
 
-        This test covers:
-        1. test cols function in various scenarios
-        2. test last/last_row function with different cache models
+        Since: v3.0.0.0
 
-        Since: v3.3.6.0
+        Labels: common,ci
 
-        Labels: cols, last, last_row, cachemodel
+        Jira: None
 
         History:
-            - 2025-09-10 modifiedy by Tony Zhang, add cachemodel
+            - 2025-9-29 Alex  Duan Migrated from uncatalog/system-test/2-query/test_cols_function.py
         """
         tdStream.createSnode()
         self.run_basic('none')

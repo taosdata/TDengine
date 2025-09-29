@@ -476,26 +476,31 @@ class TestUnique:
         tdSql.checkRows(5)
         tdSql.checkData(0,0,9223372036854775807)
 
-    def test_unique(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_select_unique(self):
+        """ Function UNIQUE()
+        1. Basic query for input different params
+        2. Query on super/child/normal table
+        3. Support types
+        4. Error cases
+        5. Query with filter conditions
+        6. Query with group/partition/order by
+        7. Query with tags
+        8. Query with join/union/nest/interval/window
+        9. Check null value
+        10. Check boundary values
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-29 Alex  Duan Migrated from uncatalog/system-test/2-query/test_unique.py
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")

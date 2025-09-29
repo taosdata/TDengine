@@ -3,7 +3,7 @@ from new_test_framework.utils import tdLog, tdSql
 from random import randint, random
 from numpy import equal
 
-class TestTail:
+class TestFunTail:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -27,21 +27,24 @@ class TestTail:
         for i in range(4):
             tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
 
+        values = "values"
         for i in range(9):
-            tdSql.execute(
-                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
-            )
-            tdSql.execute(
-                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
-            )
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+            values += f" (now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+        sql = f"insert into {dbname}.ct1 {values} {dbname}.ct4 {values}"
+        tdSql.execute(sql)
 
-        tdSql.execute(f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+        sql = f"insert into {dbname}.ct1 values"
+        sql += " (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )"
+        sql += " (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )"
+        sql += " (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )"
+        sql += " (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )"
+
+        sql += f" {dbname}.ct4 values"
+        sql += " (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
+        sql += " (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
+        sql += " (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) "
+
+        tdSql.execute(sql)
 
         tdSql.execute(
             f'''insert into {dbname}.t1 values
@@ -312,13 +315,11 @@ class TestTail:
 
         start_ts = 1622369635000 # 2021-05-30 18:13:55
 
+        values = "values"
         for i in range(10):
             ts_value = start_ts+i*1000
-            tdSql.execute(f" insert into {dbname}.tb1 values({ts_value} , {i})")
-            tdSql.execute(f" insert into {dbname}.tb2 values({ts_value} , {i})")
-
-            tdSql.execute(f" insert into {dbname}.ttb1 values({ts_value} , {i})")
-            tdSql.execute(f" insert into {dbname}.ttb2 values({ts_value} , {i})")
+            values += f" ({ts_value} , {i})"
+        tdSql.execute(f"insert into {dbname}.tb1 {values} {dbname}.tb2 {values} {dbname}.ttb1 {values} {dbname}.ttb2 {values}")
 
         tdSql.query(f"select tail(tb2.num,3,2)   from {dbname}.tb1 tb1, {dbname}.tb2 tb2 where tb1.ts=tb2.ts order by 1 desc")
         tdSql.checkRows(3)
@@ -420,24 +421,14 @@ class TestTail:
             f"create table {dbname}.stb_bound (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp) tags (t1 int);"
         )
         tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()-5s, 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()+5s, 2147483643, 9223372036854775803, 32763, 123, 3.39E+38, 1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
-
-        tdSql.execute(
-                f"insert into {dbname}.sub1_bound values ( now()+10s, -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
-            )
+        
+        sql = f"insert into {dbname}.sub1_bound values"
+        sql += f" ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        sql += f" ( now()-5s, 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        sql += f" ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        sql += f" ( now()+5s, 2147483643, 9223372036854775803, 32763, 123, 3.39E+38, 1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        sql += f" ( now()+10s, -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        tdSql.execute(sql)
 
         tdSql.error(
                 f"insert into {dbname}.sub1_bound values ( now()+15s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
@@ -447,26 +438,30 @@ class TestTail:
         tdSql.checkRows(1)
         tdSql.checkData(0,0,-9223372036854775803)
 
-    def test_tail(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_select_tail(self):
+        """ Function TAIL()
+        1. Basic query for input different params
+        2. Query on super/child/normal/empty table
+        3. Support types
+        4. Error cases
+        5. Query with filter conditions
+        6. Query with group/partition by
+        7. Query with tags
+        8. Query with join/union/nest
+        9. Boundary values
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-29 Alex  Duan Migrated from uncatalog/system-test/2-query/test_tail.py
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
