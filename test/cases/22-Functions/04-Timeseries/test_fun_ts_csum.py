@@ -495,24 +495,31 @@ class TestCsum:
         # tdSql.query("select csum(c1) from db.stb1 partition by st1 slimit 1")
         # tdSql.checkRows(4)
 
-    def test_csum(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_ts_csum(self):
+        """ Function CSUM()
+        1. Basic query for input different params
+        2. Query on super/child/normal table
+        3. Support types
+        4. Error cases
+        5. Query with where condition
+        6. Query with group/partition/order by
+        7. Query with tags
+        8. Query with join/union/nest/interval
+        9. Query with limit/slimit/offset/soffset
+        10. Check null value
+        11. Check boundary values
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-9-29 Alex Duan Migrated from uncatalog/system-test/2-query/test_csum.py
         """
 
         import traceback

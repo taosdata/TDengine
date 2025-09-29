@@ -4,7 +4,7 @@ from math import floor
 from random import randint, random
 from numpy import equal
 
-class TestStatecount:
+class TestFunStatecount:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -471,26 +471,33 @@ class TestStatecount:
         tdSql.query(f"select statecount(c1,'GT',1) from {dbname}.sub1_bound")
         tdSql.checkRows(5)
 
-    def test_statecount(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_ts_statedcount(self):
+        """ Function STATECOUNT()
+        1. Basic query for different params
+        2. Query on super/child/normal table
+        3. Support data types
+        4. Error cases
+        5. Query with where condition
+        6. Query with partition/group/order by
+        7. Query with sub query
+        8. Query with union/join
+        9. Query with unit time
+        10. Check null value
+        11. Boundary values
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
+        Jira: None
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
+        History:     
+            - 2025-9-29 Alex Duan Migrated from uncatalog/system-test/2-query/test_statecount.py
 
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")

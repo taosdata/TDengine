@@ -24,7 +24,7 @@ from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 dbname = 'db'
 msec_per_min = 60 * 1000
-class TestMavg:
+class TestFunMavg:
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
@@ -564,25 +564,20 @@ class TestMavg:
 
     def mavg_test_data(self, tbnum:int, data_row:int, basetime:int) -> None :
         for i in range(tbnum):
+            sql1 = f"insert into {dbname}.t{i} values"
+            sql2 = f"insert into {dbname}.tt{i} values"
             for j in range(data_row):
-                tdSql.execute(
-                    f"insert into {dbname}.t{i} values ("
-                    f"{basetime + (j+1)*10 + i * msec_per_min}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
-                    f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
-                    f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
-                )
+                sql1 += f" ({basetime + (j+1)*10 + i * msec_per_min}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
+                sql1 += f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
+                sql1 += f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
 
-                tdSql.execute(
-                    f"insert into {dbname}.t{i} values ("
-                    f"{basetime - (j+1) * 10 + i * msec_per_min}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
-                    f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
-                    f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
-                )
-                tdSql.execute(
-                    f"insert into {dbname}.tt{i} values ( {basetime-(j+1) * 10 + i * msec_per_min}, {random.randint(1, 200)} )"
-                )
-
-        pass
+                sql1 += f" ({basetime - (j+1) * 10 + i * msec_per_min}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
+                sql1 += f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
+                sql1 += f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
+                
+                sql2 += f" ( {basetime-(j+1) * 10 + i * msec_per_min}, {random.randint(1, 200)} )"
+            tdSql.execute(sql1)
+            tdSql.execute(sql2)                
 
     def mavg_test_table(self,tbnum: int) -> None :
         tdSql.execute(f"drop database if exists {dbname}")
@@ -617,9 +612,12 @@ class TestMavg:
         self.mavg_error_query()
 
         tdLog.printNoPrefix("######## insert only NULL test:")
+        sql = "insert into"
         for i in range(tbnum):
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime - 5 + i * msec_per_min})")
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime + 5 + i * msec_per_min})")
+            sql += f" {dbname}.t{i}(ts) values ({nowtime - 5 + i * msec_per_min})"
+            sql += f" {dbname}.t{i}(ts) values ({nowtime + 5 + i * msec_per_min})"
+        tdSql.execute(sql)
+
         self.mavg_current_query()
         self.mavg_error_query()
 
@@ -648,10 +646,13 @@ class TestMavg:
         self.mavg_error_query()
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
+        sql = "insert into"
         for i in range(tbnum):
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime + i * msec_per_min})")
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime-(per_table_rows+3)*10 + i * msec_per_min})")
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime+(per_table_rows+3)*10 + i * msec_per_min})")
+            sql += f" {dbname}.t{i}(ts) values ({nowtime + i * msec_per_min})"
+            sql += f" {dbname}.t{i}(ts) values ({nowtime-(per_table_rows+3)*10 + i * msec_per_min})"
+            sql += f" {dbname}.t{i}(ts) values ({nowtime+(per_table_rows+3)*10 + i * msec_per_min})"
+        tdSql.execute(sql)
+    
         self.mavg_current_query()
         self.mavg_error_query()
 
@@ -716,23 +717,31 @@ class TestMavg:
         tdSql.query(f"select c1, c2, c3, c4, mavg(123,3) from {dbname}.stb1 partition by tbname ")
         tdSql.checkRows(50)
 
-    def test_mavg(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_ts_mavg(self):
+        """ Function MAVG()
+        1. Basic query for different params
+        2. Query on super/child/normal table
+        3. Support data types
+        4. Error cases
+        5. Query with where condition
+        6. Query with partition/group/order by
+        7. Query with sub query
+        8. Query with function nested
+        9. Query with limit/slimit/offset/soffset
+        10. Check null value
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+        History:
+            - 2025-9-29 Alex Duan Migrated from uncatalog/system-test/2-query/test_mavg.py
 
         """
 
@@ -741,10 +750,8 @@ class TestMavg:
             # run in  develop branch
             self.mavg_test_run()
             self.mavg_support_stable()
-            pass
         except Exception as e:
             traceback.print_exc()
             raise e
 
-        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

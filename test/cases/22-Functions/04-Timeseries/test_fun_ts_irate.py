@@ -1,7 +1,7 @@
 from new_test_framework.utils import tdLog, tdSql
 import random
 
-class TestIrate:
+class TestFunIrate:
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -86,32 +86,30 @@ class TestIrate:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
+        sql = "create table "
         for i in range(4):
-            tdSql.execute(
-                f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+            sql += f' {dbname}.ct{i+1} using {dbname}.stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )'
+        tdSql.execute(sql)        
 
+        sql1 = f"insert into {dbname}.ct1 values"
+        sql2 = f"insert into {dbname}.ct4 values"
         for i in range(1,10):
-            tdSql.execute(
-                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
-            )
-            tdSql.execute(
-                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
-            )
-        tdSql.execute(
-            f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
-        tdSql.execute(
-            f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
-        tdSql.execute(
-            f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
-        tdSql.execute(
-            f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+            sql1 += f" ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            sql2 += f" ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+        tdSql.execute(sql1)
+        tdSql.execute(sql2)
 
-        tdSql.execute(
-            f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(
-            f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(
-            f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+        sql = "insert into"
+        sql += f" {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )"
+        sql += " (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )"
+        sql += " (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )"
+        sql += " (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )"
+
+        sql += f" {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
+        sql += " (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
+        sql += " (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) "
+
+        tdSql.execute(sql)
 
         tdSql.execute(
             f'''insert into {dbname}.t1 values
@@ -223,26 +221,32 @@ class TestIrate:
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0.000000000)
 
-    def test_irate(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_ts_irate(self):
+        """ Function IRATE()
+        1. Basic query for input different params
+        2. Query on super/child table
+        3. Support data types
+        4. Error cases
+        5. Query with where condition
+        6. Query with partition/order by
+        7. Query with sub query
+        8. Query with function nested
+        9. Check null value
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+        History:
+            - 2025-9-29 Alex Duan Migrated from uncatalog/system-test/2-query/test_irate.py
 
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")

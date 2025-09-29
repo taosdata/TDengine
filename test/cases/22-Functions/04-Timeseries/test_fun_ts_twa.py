@@ -29,11 +29,11 @@ class TestTwa:
         for i in range(self.tb_nums):
             tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
             ts = self.ts
+            sql = f"insert into {dbname}.ct{i+1} values"
             for j in range(self.row_nums):
                 ts+=j*self.time_step
-                tdSql.execute(
-                    f"insert into {dbname}.ct{i+1} values({ts}, 1, 11111, 111, 1, 1.11, 11.11, 2, 'binary{j}', 'nchar{j}', now()+{1*j}a, 1, 11111, 111, 1 )"
-                )
+                sql += f" ({ts}, 1, 11111, 111, 1, 1.11, 11.11, 2, 'binary{j}', 'nchar{j}', now()+{1*j}a, 1, 11111, 111, 1 )"
+            tdSql.execute(sql)
 
         tdSql.execute(f"insert into {dbname}.ct1 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
         tdSql.execute(f"insert into {dbname}.ct1 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
@@ -154,10 +154,11 @@ class TestTwa:
         tdSql.execute(" create table db.tb1 using db.st tags(1) ")
         tdSql.execute(" create table db.tb2 using db.st tags(2) ")
 
+        values = "values"
         for i in range(10):
             ts = i*10 + self.ts
-            tdSql.execute(f" insert into db.tb1 values({ts},{i},{i}.0)")
-            tdSql.execute(f" insert into db.tb2 values({ts},{i},{i}.0)")
+            values += f" ({ts},{i},{i}.0)"
+        tdSql.execute(f"insert into db.tb1 {values} db.tb2 {values}")
 
         tdSql.query(f"select twa(tb1.c1), twa(tb2.c2) from db.tb1 tb1, db.tb2 tb2 where tb1.ts=tb2.ts ")
         tdSql.checkRows(1)
@@ -170,23 +171,29 @@ class TestTwa:
         tdSql.checkData(0,1,11111.000000000)
         tdSql.checkData(0,2,1)
 
-    def test_twa(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_ts_twa(self):
+        """ Function TWA()
+        1. Basic query for different params
+        2. Query on super/child table
+        3. Support data types
+        4. Error cases
+        5. Query with where condition
+        6. Query with partition/group by
+        7. Query with sub query
+        8. Query with union
+        9. Check null value
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
+        Jira: None
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
+        History:     
+            - 2025-9-29 Alex Duan Migrated from uncatalog/system-test/2-query/test_twa.py
 
         """
 
