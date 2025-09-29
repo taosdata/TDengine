@@ -704,7 +704,5 @@ class CompatibilityBase:
             tdLog.exit(f"vnodes are not ready in {retry_times}s") 
         tdLog.info(f"vnodes are ready in {retry_times}s")
 
-
-
 # Create instance for compatibility
 tdCb = CompatibilityBase() 
