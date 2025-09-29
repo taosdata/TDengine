@@ -464,7 +464,7 @@ TEST_F(ParserSelectTest, setOperator) {
 TEST_F(ParserSelectTest, setOperatorSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1, c2 FROM t1 ORDER BY ts", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1, c2 FROM t1 ORDER BY ts", TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR);
 }
 
 TEST_F(ParserSelectTest, informationSchema) {

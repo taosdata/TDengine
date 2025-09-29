@@ -2113,12 +2113,18 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   } else {
     bool found = false;
     if (pCxt->currClause == SQL_CLAUSE_ORDER_BY) {
-      res = translateColumnUseAlias(pCxt, pCol, &found);
+      if ((isSelectStmt(pCxt->pCurrStmt) && !(*pCol)->node.asParam) ||
+          isSetOperator(pCxt->pCurrStmt)) {
+        // match column in alias first if column is 'bare' in select stmt
+        // or it is in set operator
+        res = translateColumnUseAlias(pCxt, pCol, &found);
+      }
     }
     if (DEAL_RES_ERROR != res && !found) {
       if (isSetOperator(pCxt->pCurrStmt)) {
-        res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
+        res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, (*pCol)->colName);
       } else {
+        // match column in table if not found or column is part of an expression in select stmt
         res = translateColumnWithoutPrefix(pCxt, pCol);
       }
     }
