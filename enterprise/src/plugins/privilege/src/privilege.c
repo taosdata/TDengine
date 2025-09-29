@@ -185,6 +185,37 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType op
   TAOS_RETURN(code);
 }
 
+int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, EOperType operType, SStbObj *pStb) {
+  int32_t code = 0, lino = 0;
+  SDbObj *pDb = NULL;
+
+  if (pUser->superUser) goto _exit;
+
+  if (!pUser->enable) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_DISABLED);
+  }
+
+  if (!(pDb = mndAcquireDb(pMnode, pStb->db))) {
+    code = terrno ? terrno : TSDB_CODE_MND_DB_NOT_EXIST;
+    TAOS_CHECK_EXIT(code);
+  }
+
+  if (operType == MND_OPER_SHOW_STB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0) goto _exit;
+    if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _exit;
+    if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _exit;
+    if (taosHashGet(pUser->readTbs, pStb->name, strlen(pStb->name) + 1) != NULL) goto _exit;
+    if (taosHashGet(pUser->writeTbs, pStb->name, strlen(pStb->name) + 1) != NULL) goto _exit;
+    if (taosHashGet(pUser->alterTbs, pStb->name, strlen(pStb->name) + 1) != NULL) goto _exit;
+  }
+
+  code = TSDB_CODE_MND_NO_RIGHTS;
+
+_exit:
+  if (pDb) mndReleaseDb(pMnode, pDb);
+  TAOS_RETURN(code);
+}
+
 int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, EOperType operType, const char *pViewFName) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
