@@ -1451,7 +1451,6 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
   void (*freeFp)(void*) = pTask ? taosMemFree : rpcFreeCont;
 
-
   SEp* pEp = &vgroupInfo->epSet.eps[vgroupInfo->epSet.inUse];
   ctgDebug("tb:%s, try to get table meta from vnode, vgId:%d, ep num:%d, ep:%s:%u", tbFName, vgroupInfo->vgId,
            vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port);
