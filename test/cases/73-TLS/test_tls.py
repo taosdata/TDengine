@@ -25,9 +25,9 @@ class TestTLSDemo:
             clientcfgDict = {
                 "enableTls"        :"1",  
                 "forceReadConfig": "1",   
-                "tlsCliKeyPath"         :"/tmp/client.crt", 
+                "tlsCliKeyPath"         :"/tmp/client.key", 
                 "tlsCliCertPath"         : "/tmp/client.crt", 
-                "tlsSvrKeyPath"         :"/tmp/server.crt", 
+                "tlsSvrKeyPath"         :"/tmp/server.key", 
                 "tlsSvrCertPath"         :"/tmp/server.crt", 
                 "tlsCaPath"              :"/tmp/ca.crt"  
             }
@@ -35,9 +35,9 @@ class TestTLSDemo:
                 "clientCfg" : clientcfgDict,
                 "enableTls"        :"1", 
                 "forceReadConfig": "1",
-                "tlsCliKeyPath"         :"/tmp/server.crt", 
-                "tlsCliCertPath"         : "/tmp/server.crt", 
-                "tlsSvrKeyPath"         :"/tmp/server.crt", 
+                "tlsCliKeyPath"         :"/tmp/client.key", 
+                "tlsCliCertPath"         : "/tmp/client.crt", 
+                "tlsSvrKeyPath"         :"/tmp/server.key", 
                 "tlsSvrCertPath"         :"/tmp/server.crt", 
                 "tlsCaPath"              :"/tmp/ca.crt"  
             } 
