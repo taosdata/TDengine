@@ -262,8 +262,8 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin || :
+    ${csudo}cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin || :
     ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
