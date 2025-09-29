@@ -2981,7 +2981,7 @@ static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode*
       break;
     } 
 
-    if (funcType == FUNCTION_TYPE_ANOMALY_MARK) {
+    if (funcType == FUNCTION_TYPE_ANOMALY_MARK && pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW) {
       bFound = true;
       break;
     }
