@@ -249,6 +249,7 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${bin_link_dir}/taosdump       || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark       || :
     ${csudo}rm -f ${bin_link_dir}/taosmqtt    || :
+    ${csudo}rm -f ${bin_link_dir}/taosgen    || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :
