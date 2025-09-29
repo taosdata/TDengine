@@ -62,7 +62,7 @@ DEBUG_DIR=$WORKDIR/debugNoSan/
 
 CONTAINER_TDINTERNAL_DIR="/home/TDinternal"
 CONTAINER_DEBUG_DIR="$CONTAINER_TDINTERNAL_DIR/debug"
-CONTAINER_TESTDIR="$CONTAINER_INTERNAL_DIR/community"
+CONTAINER_TESTDIR="$CONTAINER_TDINTERNAL_DIR/community"
 
 ulimit -c unlimited
 
@@ -74,7 +74,7 @@ echo "branch_name_id = $branch_name_id"
 docker run \
     --privileged=true \
     --name "$CONTAINER_NAME" \
-    -v "$INTERNAL_REPDIR:$CONTAINER_INTERNAL_DIR" \
+    -v "$INTERNAL_REPDIR:$CONTAINER_TDINTERNAL_DIR" \
     -v "$DEBUG_DIR:$CONTAINER_DEBUG_DIR" \
     --rm \
     --ulimit core=-1 \
