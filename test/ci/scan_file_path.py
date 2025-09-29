@@ -1,11 +1,12 @@
-import os
-import sys
-import subprocess
-import csv
-from datetime import datetime
-from loguru import logger
-import getopt
 import concurrent.futures
+import csv
+import getopt
+import os
+import subprocess
+import sys
+from datetime import datetime
+
+from loguru import logger
 
 change_file_list = ""
 scan_dir = ""
