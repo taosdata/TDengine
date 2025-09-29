@@ -7839,8 +7839,6 @@ static int32_t appendPkParamForPkFunc(STranslateContext* pCxt, SSelectStmt* pSel
 
 typedef struct SReplaceOrderByAliasCxt {
   STranslateContext* pTranslateCxt;
-  int32_t            errCode;
-  SMsgBuf            msgBuf;
   SNodeList*         pProjectionList;
   bool               nameMatch;
   bool               notFound;
@@ -7873,7 +7871,7 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
     pCxt->notFound = true;
     if (pCxt->nameMatch) {
       // when nameMatch is true, columns MUST be found in projection list!
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, ((SColumnNode*)*pNode)->colName);
+      return generateDealNodeErrMsg(pCxt->pTranslateCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, ((SColumnNode*)*pNode)->colName);
     }
   } else if (QUERY_NODE_ORDER_BY_EXPR == nodeType(*pNode)) {
     STranslateContext* pTransCxt = pCxt->pTranslateCxt;
@@ -7903,21 +7901,14 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
 
 static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList,
                                    bool checkExists, bool nameMatch) {
-  // TODO(tony zhang): combine checkExists and nameMatch
-  // When comparing columns with projection exprs in this function, 
-  // we ALWAYS and ONLY need to compare their names.
-  // However, we need to check existance where orderByList comes 
-  // from set operator, while need not when it comes from select stmt.
   if (NULL == pOrderByList) {
     return TSDB_CODE_SUCCESS;
   }
   SReplaceOrderByAliasCxt cxt = {
       .pTranslateCxt = pCxt, .pProjectionList = pProjectionList, .nameMatch = nameMatch, .notFound = false};
-  cxt.msgBuf.buf = pCxt->msgBuf.buf;
-  cxt.msgBuf.len = pCxt->msgBuf.len;
   nodesRewriteExprsPostOrder(pOrderByList, replaceOrderByAliasImpl, &cxt);
   if (checkExists && cxt.notFound) {
-    pCxt->errCode = TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR;
+    return TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR;
   }
 
   return pCxt->errCode;
