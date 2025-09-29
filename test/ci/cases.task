@@ -971,7 +971,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml-TD19291.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_varbinary.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tail.py
