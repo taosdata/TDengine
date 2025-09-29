@@ -29,19 +29,21 @@
 extern "C" {
 #endif
 
-typedef struct SSchema    SSchema;
-typedef struct SSchema2   SSchema2;
-typedef struct SSchemaExt SSchemaExt;
-typedef struct STColumn   STColumn;
-typedef struct STSchema   STSchema;
-typedef struct SValue     SValue;
-typedef struct SColVal    SColVal;
-typedef struct SRow       SRow;
-typedef struct SRowIter   SRowIter;
-typedef struct STagVal    STagVal;
-typedef struct STag       STag;
-typedef struct SColData   SColData;
-typedef struct SBlobSet   SBlobSet;
+typedef struct SSchema     SSchema;
+typedef struct SSchema2    SSchema2;
+typedef struct SSchemaExt  SSchemaExt;
+typedef struct SSchemaRsma SSchemaRsma;
+typedef struct STColumn    STColumn;
+typedef struct STSchema    STSchema;
+typedef struct SRSchema    SRSchema;
+typedef struct SValue      SValue;
+typedef struct SColVal     SColVal;
+typedef struct SRow        SRow;
+typedef struct SRowIter    SRowIter;
+typedef struct STagVal     STagVal;
+typedef struct STag        STag;
+typedef struct SColData    SColData;
+typedef struct SBlobSet    SBlobSet;
 
 typedef struct SRowKey           SRowKey;
 typedef struct SValueColumn      SValueColumn;
@@ -279,6 +281,25 @@ struct STSchema {
   int32_t  tlen;
   STColumn columns[];
 };
+
+struct SRSchema {
+  char       tbName[TSDB_TABLE_NAME_LEN];
+  int8_t     tbType;
+  int32_t    rowSize;
+  int32_t    maxBufRows;
+  tb_uid_t   tbUid;
+  int64_t    interval[2];
+  func_id_t *funcIds;
+  STSchema  *tSchema;
+};
+
+static FORCE_INLINE void tFreeSRSchema(SRSchema **rSchema) {
+  if (rSchema && *rSchema) {
+    taosMemoryFreeClear((*rSchema)->funcIds);
+    taosMemoryFreeClear((*rSchema)->tSchema);
+    taosMemoryFreeClear(*rSchema);
+  }
+}
 
 /*
  * 1. Tuple format:

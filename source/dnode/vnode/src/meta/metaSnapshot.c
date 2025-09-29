@@ -607,7 +607,7 @@ int32_t setForSnapShot(SSnapContext* ctx, int64_t uid) {
 
 void taosXSetTablePrimaryKey(SSnapContext* ctx, int64_t uid) {
   bool            ret = false;
-  SSchemaWrapper* schema = metaGetTableSchema(ctx->pMeta, uid, -1, 1, NULL);
+  SSchemaWrapper* schema = metaGetTableSchema(ctx->pMeta, uid, -1, 1, NULL, 0);
   if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     ret = true;
   }

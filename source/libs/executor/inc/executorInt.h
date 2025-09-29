@@ -128,7 +128,7 @@ typedef struct SGcNotifyOperatorParam {
   int64_t tbUid;
 } SGcNotifyOperatorParam;
 
-typedef struct SExprSupp {
+struct SExprSupp {
   SExprInfo*      pExprInfo;
   int32_t         numOfExprs;  // the number of scalar expression in group operator
   SqlFunctionCtx* pCtx;
@@ -136,7 +136,7 @@ typedef struct SExprSupp {
   SFilterInfo*    pFilterInfo;
   bool            hasWindowOrGroup;
   bool            hasIndefRowsFunc;
-} SExprSupp;
+};
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
@@ -243,13 +243,13 @@ typedef enum ETableCountState {
   TABLE_COUNT_STATE_END = 3,        // finish or noneed to process
 } ETableCountState;
 
-typedef struct SAggSupporter {
+struct SAggSupporter {
   SSHashObj*     pResultRowHashTable;  // quick locate the window object for each result
   char*          keyBuf;               // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;  // the result buffer size for each result row, with the meta data size for each row
   int32_t        currentPageId;  // current write page id
-} SAggSupporter;
+};
 
 typedef struct {
   // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if
@@ -784,6 +784,8 @@ void doBuildResultDatablock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbI
  */
 void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                               SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t threshold, bool ignoreGroup);
+void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, int64_t minWindowSize);
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo);
@@ -954,6 +956,8 @@ int64_t getMinWindowSize(struct SOperatorInfo* pOperator);
 void    destroyTmqScanOperatorInfo(void* param);
 int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);
 void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
+
+int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
 #ifdef __cplusplus
 }

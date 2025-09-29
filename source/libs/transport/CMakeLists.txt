@@ -1,8 +1,8 @@
 aux_source_directory(src TRANSPORT_SRC)
 
-#IF(TD_ENTERPRISE)
-#	LIST(APPEND TRANSPORT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/trans/src/transTLSImpl.c)
-#ENDIF()
+IF(TD_ENTERPRISE)
+	LIST(APPEND TRANSPORT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/trans/src/transTLSImpl.c)
+ENDIF()
 
 add_library(transport STATIC ${TRANSPORT_SRC})
 target_include_directories(
