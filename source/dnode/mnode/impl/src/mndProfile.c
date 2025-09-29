@@ -968,7 +968,12 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char addr[IP_RESERVE_CAP] = {0};
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
+    if (tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port) >= sizeof(addr)) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      mError("failed to set endpoint since %s", tstrerror(code));
+      return code;
+    }
+
     STR_TO_VARSTR(endpoint, addr);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
