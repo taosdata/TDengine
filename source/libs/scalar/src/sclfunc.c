@@ -3873,6 +3873,12 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t anomalyCheckMaskFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t p = *(int64_t*) colDataGetData(pInput->columnData, 5);
+  colDataSetInt32(pOutput->columnData, pOutput->numOfRows, (int32_t *)&p);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int8_t data = 0;
   colDataSetInt8(pOutput->columnData, pOutput->numOfRows, &data);
@@ -4478,6 +4484,22 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void)snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }
+
+    // For '%f' (or '%F') in 'printf' functions, the C99 standard states:
+    //   A double argument representing an infinity is converted in one of the styles [-]inf
+    //   or [-]infinity — which style is implementation-defined. A double argument representing
+    //   a NaN is converted in one of the styles [-]nan or [-]nan(n-char-sequence) — which style,
+    //   and the meaning of any n-char-sequence, is implementation-defined.
+    //
+    // To make the behavior consistent across different compilers and avoid issues like TD-37674,
+    // we truncate the output when necessary.
+    if (isinf(matrix02) || isnan(matrix02)) {
+      slopBuf[(slopBuf[0] == '-') ? 4 : 3] = 0;
+    }
+    if (isinf(matrix12) || isnan(matrix12)) {
+      interceptBuf[(interceptBuf[0] == '-') ? 4 : 3] = 0;
+    }
+
     size_t len =
         snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
     varDataSetLen(buf, len);

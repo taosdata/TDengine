@@ -613,6 +613,61 @@ class CompatibilityBase:
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
+    def checkstatus(self,tdsql,retry_times=30):
+        dnodes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show dnodes;")
+            dnode_nums = tdsql.queryRows
+            ready_nums = 0
+
+            for j in range(tdsql.queryRows):
+                if tdsql.queryResult[j][4] == "ready":
+                    ready_nums += 1
+            if ready_nums == dnode_nums:
+                dnodes_ready = True
+                break
+
+            time.sleep(1)
+
+        if not dnodes_ready:
+            tdLog.exit(f"dnodes are not ready in {retry_times}s")
+        tdLog.info(f"dnodes are ready in {retry_times}s")
+
+        modes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show mnodes;")
+            mnode_nums = tdsql.queryRows
+            ready_nums = 0
+            for j in range(tdsql.queryRows):
+                if tdsql.queryResult[j][3] == "ready":
+                    ready_nums += 1
+            if ready_nums == mnode_nums:
+                modes_ready = True
+                break
+            time.sleep(1)
+
+        if not modes_ready:
+            tdLog.exit(f"mnodes are not ready in {retry_times}s")
+        tdLog.info(f"mnodes are ready in {retry_times}s")
+
+    
+        vnodes_ready = False
+        for i in range(retry_times):
+            tdsql.query("show vnodes;")
+            vnode_nums = tdsql.queryRows
+            ready_nums = 0
+            for j in range(tdsql.queryRows):
+                if str(tdsql.queryResult[j][6]).lower() == "true":
+                    ready_nums += 1
+            if ready_nums == vnode_nums:
+                vnodes_ready = True
+                break
+            time.sleep(1)
+    
+        if not vnodes_ready:
+            tdLog.exit(f"vnodes are not ready in {retry_times}s") 
+        tdLog.info(f"vnodes are ready in {retry_times}s")
+
 
 # Create instance for compatibility
 tdCb = CompatibilityBase() 
