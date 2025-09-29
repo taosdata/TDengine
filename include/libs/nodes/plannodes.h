@@ -412,7 +412,8 @@ typedef enum ESubplanType {
   SUBPLAN_TYPE_PARTIAL,
   SUBPLAN_TYPE_SCAN,
   SUBPLAN_TYPE_MODIFY,
-  SUBPLAN_TYPE_COMPUTE
+  SUBPLAN_TYPE_COMPUTE,
+  SUBPLAN_TYPE_HSYSSCAN,   // high priority systable scan
 } ESubplanType;
 
 typedef struct SSubplanId {
