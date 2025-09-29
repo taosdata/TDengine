@@ -130,6 +130,7 @@ class TestCase:
         tdSql.checkRows(2)
         tdSql.query("select * from information_schema.ins_rsmas where db_name='d0'")
         tdSql.checkRows(2)
+        tdSql.error("show create rsma d0.rsma_not_exist", expectErrInfo=f"Rsma not exist", fullMatched=False)
         tdSql.query("show create rsma d0.rsma1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '`rsma1`')
