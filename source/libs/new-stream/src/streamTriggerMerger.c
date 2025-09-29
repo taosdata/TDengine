@@ -1493,14 +1493,16 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   SObjListIter       iter;
   taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
   while ((i < pSlice->endIdx) && (pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
-    while (pTask->ignoreDisorder && i < pSlice->endIdx && pTsData[i] < lastTs) {
-      i++;
-    }
     while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
+      lastTs = TMAX(lastTs, pTsData[i]);
       i++;
     }
     if (i < pSlice->endIdx && pVerData[i] > pMeta->ver) {
       continue;
+    }
+    while (pTask->ignoreDisorder && i < pSlice->endIdx && lastTs != INT64_MIN &&
+           pTsData[i] <= lastTs - pTask->watermark) {
+      i++;
     }
     int64_t skey = TMAX(pMeta->skey, pReadRange->skey);
     while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] < skey) {
@@ -1513,7 +1515,6 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
     }
     slice.endIdx = i;
     if (slice.startIdx < slice.endIdx) {
-      lastTs = pTsData[slice.endIdx - 1];
       SNewTimestampSorterSlice *pLastSlice = NULL;
       if (TARRAY_SIZE(pSorter->pSliceBuf) > 0) {
         pLastSlice = TARRAY_GET_ELEM(pSorter->pSliceBuf, TARRAY_SIZE(pSorter->pSliceBuf) - 1);
@@ -1526,6 +1527,9 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
         void *px = taosArrayPush(pSorter->pSliceBuf, &slice);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
+    }
+    if (i > 0) {
+      lastTs = TMAX(lastTs, pTsData[i - 1]);
     }
   }
 

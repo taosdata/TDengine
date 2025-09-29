@@ -106,9 +106,14 @@ int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
   }
 
   pTask->succeedAddr = *addr;
-  epsetToStr(&addr->epSet, buf, tListLen(buf));
+  int32_t code = epsetToStr(&addr->epSet, buf, tListLen(buf));
+  if (code == TSDB_CODE_SUCCESS) {
+    SCH_TASK_DLOG("recode the success addr:%s", buf);
+  } else {
+    SCH_TASK_ELOG("failed to print epset due to convert to string failed, code:%s, ignore and continue", 
+      tstrerror(code));
+  }
 
-  SCH_TASK_DLOG("recode the success addr, %s", buf);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -321,7 +326,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       // TODO refactor optimize: update the candidate address
       // set the address from the pTask->succeedAddr, the vnode that successfully executed subquery already
       if (pParent->redirectCtx.inRedirect && (!SCH_IS_DATA_BIND_TASK(pParent))) {
-        schSwitchTaskCandidateAddr(pJob, pParent);
+        code = schSwitchTaskCandidateAddr(pJob, pParent);
       }
 
       SCH_TASK_DLOG("all %d children task done, start to launch parent task, TID:0x%" PRIx64, readyNum, pParent->taskId);
@@ -1152,7 +1157,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   SArray *explainRes = NULL;
   int32_t code = 0;
   SQWMsg  qwMsg = {0};
-  qwMsg.msgInfo.taskType = TASK_TYPE_TEMP;
+  qwMsg.msgInfo.taskType = (pJob->attr.type == JOB_TYPE_HQUERY)? TASK_TYPE_HQUERY:TASK_TYPE_QUERY;
   qwMsg.msgInfo.explain = SCH_IS_EXPLAIN_JOB(pJob);
   qwMsg.msgInfo.needFetch = SCH_TASK_NEED_FETCH(pTask);
   qwMsg.msg = pTask->plan;

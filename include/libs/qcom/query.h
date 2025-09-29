@@ -42,8 +42,8 @@ typedef enum {
 } EJobTaskType;
 
 typedef enum {
-  TASK_TYPE_PERSISTENT = 1,
-  TASK_TYPE_TEMP,
+  TASK_TYPE_HQUERY = 1,
+  TASK_TYPE_QUERY,
 } ETaskType;
 
 typedef enum {
@@ -154,6 +154,21 @@ typedef struct SViewMeta {
   int32_t  numOfCols;
   SSchema* pSchema;
 } SViewMeta;
+
+typedef struct SRsmaMeta {
+  uint64_t   viewId;
+  char*      user;
+  char*      querySql;
+  int8_t     precision;
+  int8_t     type;
+  int32_t    version;
+  int32_t    numOfCols;
+  int32_t    numOfFuncs;
+  int64_t    interval[2];
+  SSchema*   pSchema;
+  col_id_t*  funcColIds;
+  func_id_t* funcIds;
+} SRsmaMeta;
 
 typedef struct SDBVgInfo {
   int32_t vgVersion;
