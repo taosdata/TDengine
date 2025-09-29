@@ -2205,60 +2205,10 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
   return res;
 }
 
-static EDealRes translateCreateStreamOutTableColumn(STranslateContext* pCxt, SColumnNode** pCol) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  SNodeList* pPartitionList = getStreamTriggerPartition(pCxt);
-  if (!pPartitionList) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName));
-  }
-
-  SNode *pNode = NULL;
-  int32_t index = 1;
-  FOREACH(pNode, pPartitionList) {
-    switch(nodeType(pNode)) {
-      case QUERY_NODE_COLUMN: {
-        SColumnNode* pColNode = (SColumnNode*)pNode;
-        if (0 == strcmp(pColNode->colName, (*pCol)->colName)) {
-          SNodeList*     pParamList = NULL;
-          SFunctionNode* pFunc = NULL;
-          SValueNode*    pVal = NULL;
-
-          PAR_ERR_JRET(nodesMakeValueNodeFromInt32(index, (SNode**)&pVal));
-          PAR_ERR_JRET(nodesListMakeStrictAppend(&pParamList, (SNode*)pVal));
-          PAR_ERR_JRET(createFunction("_placeholder_column", pParamList, &pFunc));
-          nodesDestroyNode((SNode*)*pCol);
-          *pCol = (SColumnNode*)pFunc;
-          return translateFunction(pCxt, (SFunctionNode**)pCol);
-        }
-        break;
-      }
-      case QUERY_NODE_FUNCTION:
-        if (0 == strcmp((*pCol)->colName, ((SFunctionNode*)pNode)->functionName) &&
-            0 ==  strcmp((*pCol)->colName, "tbname")) {
-          return translateFunction(pCxt, (SFunctionNode**)&pNode);
-        }
-        break;
-      default:
-        break;
-    }
-
-    index++;
-  }
-  pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
-  return DEAL_RES_ERROR;
-_return:
-  pCxt->errCode = code;
-  return DEAL_RES_ERROR;
-}
-
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   if (NULL == pCxt->pCurrStmt ||
       (isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
-  }
-
-  if (inStreamOutTableClause(pCxt)) {
-    return translateCreateStreamOutTableColumn(pCxt, pCol);
   }
 
   // count(*)/first(*)/last(*) and so on
@@ -3786,45 +3736,8 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
   return translateNormalFunction(pCxt, (SNode**)pFunc);
 }
 
-static EDealRes translateCreateStreamOutTableFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  int32_t    index = 1;
-  SNode*     pNode = NULL;
-  SNodeList* pPartitionList = getStreamTriggerPartition(pCxt);
-
-  if (!pPartitionList) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, (*pFunc)->functionName);
-    return DEAL_RES_ERROR;
-  }
-
-  FOREACH(pNode, pPartitionList) {
-    SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
-    if (0 == strcmp(pFuncNode->functionName, (*pFunc)->functionName)) {
-      SNodeList*     pParamList = NULL;
-      SFunctionNode* ppFunc = NULL;
-      SValueNode*    pVal = NULL;
-
-      PAR_ERR_JRET(nodesMakeValueNodeFromInt32(index, (SNode**)&pVal));
-      PAR_ERR_JRET(nodesListMakeStrictAppend(&pParamList, (SNode*)pVal));
-      PAR_ERR_JRET(createFunction("_placeholder_column", pParamList, &ppFunc));
-      nodesDestroyNode((SNode*)*pFunc);
-      *pFunc = ppFunc;
-      return translateFunction(pCxt, (SFunctionNode**)&ppFunc);
-    }
-    index++;
-  }
-
-  pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, (*pFunc)->functionName);
-  return DEAL_RES_ERROR;
-_return:
-  pCxt->errCode = code;
-  return DEAL_RES_ERROR;
-}
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
-  if (inStreamOutTableClause(pCxt) && strcmp((*pFunc)->functionName, "tbname") == 0) {
-    return translateCreateStreamOutTableFunction(pCxt, pFunc);
-  }
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
     pParam = nodesListGetNode((*pFunc)->pParameterList, 0);
     if (pParam && nodeType(pParam) == QUERY_NODE_VALUE) {
@@ -6127,15 +6040,15 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
     pCxt->stableQuery = true;
   }
-  if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
-    if (isSelectStmt(pCxt->pCurrStmt)) {
-      ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
-      ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
-    } else if (isDeleteStmt(pCxt->pCurrStmt)) {
-      PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
-    }
-  }
   if (!pCxt->refTable) {
+    if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+      if (isSelectStmt(pCxt->pCurrStmt)) {
+        ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
+        ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
+      } else if (isDeleteStmt(pCxt->pCurrStmt)) {
+        PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
+      }
+    }
     PAR_ERR_JRET(addNamespace(pCxt, pRealTable));
   }
   return code;
@@ -13617,17 +13530,82 @@ static int32_t createStreamSetListSlotId(SNodeList* pNodeList, SHashObj* slotHas
   PAR_RET(slotCxt.errCode);
 }
 
+typedef struct SRewriteTagSubtableExprCxt {
+  int32_t            code;
+  bool               found;
+  bool               onlyValue;
+  SNodeList*         pPartitionByList;
+  STranslateContext* pCxt;
+} SRewriteTagSubtableExprCxt;
+
+static EDealRes rewriteTagSubtableExpr(SNode** pNode, void* pContext) {
+  SRewriteTagSubtableExprCxt* pCxt = (SRewriteTagSubtableExprCxt*)pContext;
+  SNode*                      pPar = NULL;
+  int32_t                     index = 1;
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  FOREACH(pPar, pCxt->pPartitionByList) {
+    if (nodeType(*pNode) == QUERY_NODE_VALUE) {
+      pCxt->onlyValue &= true;
+      return DEAL_RES_CONTINUE;
+    }
+    if (nodeType(*pNode) == QUERY_NODE_FUNCTION) {
+      SFunctionNode *pFunc = (SFunctionNode*)*pNode;
+      if (pFunc->funcType == FUNCTION_TYPE_GROUP_ID) {
+        pCxt->onlyValue &= true;
+        return DEAL_RES_CONTINUE;
+      }
+      if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
+        pCxt->onlyValue &= false;
+      }
+    }
+    if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
+      pCxt->onlyValue &= false;
+    }
+    if (nodesEqualNode(*pNode, pPar)) {
+      SNodeList*     pParamList = NULL;
+      SFunctionNode* pFunc = NULL;
+      SValueNode*    pVal = NULL;
+
+      PAR_ERR_JRET(nodesMakeValueNodeFromInt32(index, (SNode**)&pVal));
+      PAR_ERR_JRET(nodesListMakeStrictAppend(&pParamList, (SNode*)pVal));
+      PAR_ERR_JRET(createFunction("_placeholder_column", pParamList, &pFunc));
+      nodesDestroyNode((SNode*)*pNode);
+      *pNode = (SNode*)pFunc;
+
+      EDealRes res = translateFunction(pCxt->pCxt, (SFunctionNode**)pNode);
+      if (res == DEAL_RES_ERROR) {
+        PAR_ERR_JRET(pCxt->pCxt->errCode);
+      }
+      pCxt->found = true;
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    index++;
+  }
+  return DEAL_RES_CONTINUE;
+_return:
+  pCxt->code = code;
+  return DEAL_RES_ERROR;
+}
+
 static int32_t translateCreateStreamTagSubtableExpr(STranslateContext* pCxt, SNodeList *pPartitionByList, SNode** pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   pCxt->streamInfo.outTableClause = true;
   pCxt->streamInfo.triggerPartitionList = pPartitionByList;
   pCxt->currClause = SQL_CLAUSE_SELECT;
-  code = translateExpr(pCxt, pNode);
+  PAR_ERR_JRET(translateExpr(pCxt, pNode));
+
+  SRewriteTagSubtableExprCxt cxt = {.code = TSDB_CODE_SUCCESS, .pCxt = pCxt, .pPartitionByList = pPartitionByList, .found = false, .onlyValue = true};
+  nodesRewriteExpr(pNode, rewriteTagSubtableExpr, &cxt);
   pCxt->streamInfo.outTableClause = false;
   pCxt->streamInfo.triggerPartitionList = NULL;
-  if (code) {
-    parserError("translateCreateStreamTagSubtableExpr failed, code:%d, errmsg:%s", code, pCxt->msgBuf.buf);
+  PAR_ERR_JRET(cxt.code);
+
+  if (!cxt.found && !cxt.onlyValue) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SUBTABLE, "output_subtable/tag_expr must use expr from partition list."));
   }
+  return code;
+_return:
+  parserError("createStreamReqBuildOutSubtable failed, code:%d, errmsg:%s", code, pCxt->msgBuf.buf);
   return code;
 }
 
@@ -14259,6 +14237,7 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   SNodeList*          pFilterCols = NULL;
   int32_t             pTriggerColsLen = 0;
   int32_t             pPartitionColsLen = 0;
+  int32_t             pPartitionListLen = 0;
   int32_t             pFilterColsLen = 0;
 
   PAR_ERR_JRET(qCreateQueryPlan(&cxt, &pTriggerPlan, NULL));
@@ -14309,8 +14288,11 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
 
   PAR_ERR_JRET(nodesNodeToString(cxt.streamTriggerScanSubplan, false, (char**)&pReq->triggerScanPlan, NULL));
   PAR_ERR_JRET(nodesListToString(pTriggerCols, false, (char**)&pReq->triggerCols, &pTriggerColsLen));
-  PAR_ERR_JRET(nodesListToString(pPartitionCols, false, (char**)&pReq->partitionCols, &pPartitionColsLen));
   PAR_ERR_JRET(nodesListToString(pFilterCols, false, (char**)&pReq->triggerFilterCols, &pFilterColsLen));
+  if (pTriggerPartition) {
+    PAR_ERR_JRET(nodesListToString(pTriggerPartition, false, (char**)&pReq->partitionCols, &pPartitionListLen));
+  }
+
   if ((pReq->triggerTblType == TSDB_VIRTUAL_NORMAL_TABLE ||
        pReq->triggerTblType == TSDB_VIRTUAL_CHILD_TABLE ||
        BIT_FLAG_TEST_MASK(pReq->flags, CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB)) &&
@@ -14354,19 +14336,21 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
     switch (nodeType(pNode)) {
       case QUERY_NODE_FUNCTION: {
         SFunctionNode *pFunc = (SFunctionNode*)pNode;
-        // func has been checked before, it must be tbname function
-        tstrncpy(pTagDef->tagName, "tag_tbname", TSDB_COL_NAME_LEN);
-        pTagDef->dataType = pFunc->node.resType;
-        break;
-      }
-      case QUERY_NODE_COLUMN: {
-        SExprNode* pExpr = (SExprNode*)pNode;
-        tstrncpy(pTagDef->tagName, pExpr->aliasName, TSDB_COL_NAME_LEN);
-        pTagDef->dataType = pExpr->resType;
-        break;
+        if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
+          tstrncpy(pTagDef->tagName, "tag_tbname", TSDB_COL_NAME_LEN);
+          pTagDef->dataType = pFunc->node.resType;
+          break;
+        } else {
+          tstrncpy(pTagDef->tagName, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
+          pTagDef->dataType = pFunc->node.resType;
+          break;
+        }
       }
       default: {
-        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "partition must be tbname or tag"));
+        SExprNode* pExpr = (SExprNode*)pNode;
+        tstrncpy(pTagDef->tagName, pExpr->userAlias, TSDB_COL_NAME_LEN);
+        pTagDef->dataType = pExpr->resType;
+        break;
       }
     }
 
@@ -14661,30 +14645,44 @@ _return:
   return code;
 }
 
+typedef struct SCheckPartitionCxt {
+  int32_t            code;
+  STranslateContext* pCxt;
+} SCheckPartitionCxt;
+
+
+static EDealRes createStreamReqBuildTriggerCheckPartitionWalker(SNode* pNode, void* pContext) {
+  SCheckPartitionCxt *pCxt = (SCheckPartitionCxt*)pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN: {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      if (pCol->colType != COLUMN_TYPE_TAG) {
+        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag can be used in partition");
+        return DEAL_RES_ERROR;
+      }
+      break;
+    }
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode *pFunction = (SFunctionNode*)pNode;
+      if (!fmIsScalarFunc(pFunction->funcId) && pFunction->funcType != FUNCTION_TYPE_TBNAME) {
+        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only scalar function and tbname can be used in partition");
+        return DEAL_RES_ERROR;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t createStreamReqBuildTriggerCheckPartition(STranslateContext* pCxt, SNodeList* pTriggerPartition, STableMeta* pTriggerTableMeta, SNode* pTriggerWindow) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
 
-  FOREACH(pNode, pTriggerPartition) {
-    switch (nodeType(pNode)) {
-      case QUERY_NODE_COLUMN: {
-        SColumnNode* pCol = (SColumnNode*)pNode;
-        if (pCol->colType != COLUMN_TYPE_TAG) {
-          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
-        }
-        break;
-      }
-      case QUERY_NODE_FUNCTION: {
-        SFunctionNode *pFunction = (SFunctionNode*)pNode;
-        if (pFunction->funcType != FUNCTION_TYPE_TBNAME) {
-          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
-        }
-        break;
-      }
-      default:
-        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
-    }
-  }
+  SCheckPartitionCxt cxt = {.code = TSDB_CODE_SUCCESS, .pCxt = pCxt};
+  nodesWalkExprs(pTriggerPartition, createStreamReqBuildTriggerCheckPartitionWalker, &cxt);
+  PAR_ERR_JRET(cxt.code);
 
   if (pTriggerTableMeta->tableType == TSDB_SUPER_TABLE && nodeType(pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
       nodeType(pTriggerWindow) != QUERY_NODE_SESSION_WINDOW && nodeType(pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&

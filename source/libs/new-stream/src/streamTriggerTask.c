@@ -1061,46 +1061,15 @@ int32_t stTriggerTaskReleaseDropTableRequest(SStreamTriggerTask *pTask, SSTrigge
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SSTriggerDropRequest *pReq = NULL;
-  SSTriggerCalcNode    *pNode = NULL;
   bool                 *pRunningFlag = NULL;
-  bool                  needUnlock = false;
   bool                  hasSent = false;
 
   pReq = *ppRequest;
   *ppRequest = NULL;
-  taosArrayClearEx(pReq->groupColVals, tDestroySStreamGroupValue);
+  taosArrayDestroyEx(pReq->groupColVals, tDestroySStreamGroupValue);
 
-  int32_t idx = 0;
-  int32_t nRunners = taosArrayGetSize(pTask->runnerList);
-  while (idx < nRunners) {
-    SStreamRunnerTarget *pRunner = TARRAY_GET_ELEM(pTask->runnerList, idx);
-    if (pRunner->addr.taskId == pReq->runnerTaskId) {
-      break;
-    }
-    idx++;
-  }
-  QUERY_CHECK_CONDITION(idx < nRunners, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  taosMemoryFree(pReq);
 
-  taosWLockLatch(&pTask->calcPoolLock);
-  needUnlock = true;
-
-  int64_t p[] = {pReq->sessionId, pReq->gid};
-  pRunningFlag = tSimpleHashGet(pTask->pGroupRunning, p, sizeof(p));
-  QUERY_CHECK_NULL(pRunningFlag, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  pRunningFlag[0] = false;
-  pRunningFlag[idx + 1] = hasSent;
-
-  pNode = taosArrayGet(pTask->pCalcNodes, idx);
-  QUERY_CHECK_NULL(pNode, code, lino, _end, terrno);
-  SSTriggerCalcSlot *pSlot = (SSTriggerCalcSlot *)pReq;
-  int32_t            eIdx = TARRAY_ELEM_IDX(pNode->pSlots, pSlot);
-  QUERY_CHECK_CONDITION(eIdx >= 0 && eIdx < TARRAY_SIZE(pNode->pSlots), code, lino, _end, TSDB_CODE_INVALID_PARA);
-  TD_DLIST_APPEND(&pNode->idleSlots, pSlot);
-
-_end:
-  if (needUnlock) {
-    taosWUnLockLatch(&pTask->calcPoolLock);
-  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1891,7 +1860,13 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     pTask->ignoreDisorder = true;  // count window trigger has no recalculation
   }
   pTask->fillHistory = pMsg->fillHistory;
-  pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
+  if (pMsg->fillHistoryFirst) {
+    if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
+      pTask->fillHistory = true;
+    } else {
+      pTask->fillHistoryFirst = true;
+    }
+  }
   pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
     // always enable low latency calc for period trigger
@@ -2652,7 +2627,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   }
   if (!needTrigData) {
     pContext->walMode = STRIGGER_WAL_META_ONLY;
-  } else if (pTask->watermark > 0 || pTask->isVirtualTable || pTask->isStbPartitionByTag) {
+  } else if (pTask->watermark > 0 || pTask->isVirtualTable) {
     pContext->walMode = STRIGGER_WAL_META_THEN_DATA;
   } else {
     pContext->walMode = STRIGGER_WAL_META_WITH_DATA;
@@ -3325,9 +3300,8 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
 
     if (pContext->calcRange.ekey == INT64_MIN) {
       SSTriggerCalcParam *pFirstParam = TARRAY_DATA(pCalcReq->params);
-      SSTriggerCalcParam *pLastParam = pFirstParam + TARRAY_SIZE(pCalcReq->params) - 1;
       pContext->calcRange.skey = pFirstParam->wstart;
-      pContext->calcRange.ekey = pLastParam->wend;
+      pContext->calcRange.ekey = pGroup->newThreshold;
       STimeWindow metaRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
       int32_t     iter1 = 0;
       SObjList   *pMetas = tSimpleHashIterate(pGroup->pWalMetas, NULL, &iter1);
@@ -5291,6 +5265,7 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
   pContext->status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
     pContext->needTsdbMeta = (pTask->histTriggerFilter != NULL) || pTask->hasTriggerFilter ||
+                             (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) ||
                              (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
   } else if (pTask->isVirtualTable || (pTask->triggerType == STREAM_TRIGGER_SESSION) ||
              (pTask->triggerType == STREAM_TRIGGER_COUNT)) {
@@ -7365,8 +7340,23 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
       SSTriggerMetaData *pMeta = NULL;
       SObjListIter       iter2 = {0};
       taosObjListInitIter(pMetas, &iter2, TOBJLIST_ITER_FORWARD);
-      while ((pMeta = taosObjListIterNext(&iter2)) != NULL) {
-        firstTs = TMIN(firstTs, pMeta->skey);
+      if (pTask->ignoreDisorder) {
+        int64_t ts = INT64_MAX;
+        while ((pMeta = taosObjListIterNext(&iter2)) != NULL) {
+          if (ts == INT64_MAX) {
+            ts = pMeta->skey;
+          } else {
+            int64_t skey = TMAX(ts - pTask->watermark, pMeta->skey);
+            if (skey <= pMeta->ekey) {
+              ts = TMIN(ts, skey);
+            }
+          }
+        }
+        firstTs = TMIN(firstTs, ts);
+      } else {
+        while ((pMeta = taosObjListIterNext(&iter2)) != NULL) {
+          firstTs = TMIN(firstTs, pMeta->skey);
+        }
       }
       pMetas = tSimpleHashIterate(pGroup->pWalMetas, pMetas, &iter);
     }
