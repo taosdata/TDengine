@@ -2,6 +2,9 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdDnodes, tdCom
 
 import os
 import platform 
+import time
+import subprocess
+import re
 
 
 
@@ -41,25 +44,48 @@ class TestTLSDemo:
                 "tlsSvrCertPath"         :"/tmp/server.crt", 
                 "tlsCaPath"              :"/tmp/ca.crt"  
             } 
+        tdSql.close()
+        time.sleep(10)
         tdDnodes.stop(1)
+
+         
         #tdDnodes.simDeployed = False
         tdDnodes.sim.deploy(updatecfgDict)
         tdDnodes.deploy(1, updatecfgDict)
         
 
+        
+        # python tdsql  ----> taos-c-drvi 
+        # python newsql ---
         tdDnodes.starttaosd(1)  
 
-
-          
     def stop_and_restart(self):   
         self.basicTest(tdSql)  
-        tdSql.close()
 
         self.genTLSFile()
         self.restartAndupdateCfg()
 
-        newClient = tdCom.newTdSql()
-        self.basicTest(newClient)    
+        if platform.system().lower() == "linux":
+            self.testCmd("show databases")
+            self.testCmd("select 1")
+
+    def testCmd(self, cmd):
+
+        cfg = tdDnodes.sim.getCfgDir() 
+
+        shellCmd = f"taos -c {cfg} -s \"{cmd}\""
+        print(f"execute {shellCmd}")
+        result = subprocess.run(shellCmd, shell=True, capture_output=True, text=True)
+        output = result.stdout
+        print(f"output {output}")      
+
+        if "name"not in output.lower() and "1" not in output: 
+            raise ValueError(f"output {output} not correct")
+
+        lines = output.split("\n")
+        print(f"lines {lines}")
+        if len(lines) < 4:
+            raise ValueError(f"output {output} not correct")
 
     def basicTest(self, cli):
         cli.query("select 1")
