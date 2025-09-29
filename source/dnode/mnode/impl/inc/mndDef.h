@@ -87,6 +87,8 @@ typedef enum {
   MND_OPER_SCAN_DB,
   MND_OPER_CREATE_RSMA,
   MND_OPER_DROP_RSMA,
+  MND_OPER_ROLLUP_DB,
+  MND_OPER_SHOW_STB,
 } EOperType;
 
 typedef enum {
