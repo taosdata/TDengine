@@ -530,7 +530,7 @@ static void prepareForDescendingScan(STableScanBase* pTableScanInfo, SqlFunction
   switchCtxOrder(pCtx, numOfOutput);
   pTableScanInfo->cond.order = TSDB_ORDER_DESC;
   STimeWindow* pTWindow = &pTableScanInfo->cond.twindows;
-  TSWAP(pTWindow->skey, pTWindow->ekey);
+  // TSWAP(pTWindow->skey, pTWindow->ekey);
 }
 
 typedef struct STableCachedVal {
