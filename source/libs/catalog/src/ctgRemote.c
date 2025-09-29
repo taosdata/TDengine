@@ -1056,11 +1056,11 @@ int32_t ctgGetRsmaMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const c
   SRpcMsg rpcRsp = {0};
   CTG_ERR_RET(rpcSendRecvWithTimeout(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp, NULL, CATLOG_TIMEOUT));
 
-  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)name));
+  code = ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)name);
 
   rpcFreeCont(rpcRsp.pCont);
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t ctgGetDBCfgFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* out,
