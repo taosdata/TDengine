@@ -22,14 +22,14 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
   // 4, and update when writing if !updateCacheBatch
   // 5, merge cache & mem if updateCacheBatch
 
-  if (tsUpdateCacheBatch) {
-    code = tsdbCacheUpdateFromIMem(pTsdb);
-    if (code) {
-      tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
+#ifdef UPDATE_CACHE_BATCH
+  code = tsdbCacheUpdateFromIMem(pTsdb);
+  if (code) {
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, tstrerror(code));
 
-      TAOS_RETURN(code);
-    }
+    TAOS_RETURN(code);
   }
+#endif
 
   char      *err = NULL;
   SLRUCache *pCache = pTsdb->lruCache;
@@ -410,6 +410,7 @@ static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus ca
   pLastCol->cacheStatus = cacheStatus;
 }
 
+#ifndef UPDATE_CACHE_BATCH
 int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow,
                                  SRow **aRow) {
 #if TSDB_CACHE_ROW_BASED
@@ -435,6 +436,7 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   return tsdbColCacheRowFormatUpdate(pTsdb, suid, uid, pBlockData);
 #endif
 }
+#endif
 
 int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCacheRowsReader *pr, int8_t ltype) {
   int32_t code = 0;
@@ -452,9 +454,9 @@ int32_t tsdbCacheGetBatch(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SCache
 
   TAOS_CHECK_EXIT(tsdbCacheGetBatchFromLru(pTsdb, uid, pLastArray, pr, ltype, keyArray));
 
-  if (tsUpdateCacheBatch) {
-    TAOS_CHECK_EXIT(tsdbCacheGetBatchFromMem(pTsdb, uid, pLastArray, pr, keyArray));
-  }
+#ifdef UPDATE_CACHE_BATCH
+  TAOS_CHECK_EXIT(tsdbCacheGetBatchFromMem(pTsdb, uid, pLastArray, pr, keyArray));
+#endif
 
   if (keyArray) {
     taosArrayDestroy(keyArray);

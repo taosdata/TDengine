@@ -928,6 +928,7 @@ typedef enum {
 #define LAST_COL_VERSION_1 (0x1)  // add primary key, version
 #define LAST_COL_VERSION_2 (0x2)  // add cache status
 #define LAST_COL_VERSION   LAST_COL_VERSION_2
+#define UPDATE_CACHE_BATCH 1
 
 typedef enum {
   TSDB_LAST_CACHE_VALID = 0,  // last_cache has valid data

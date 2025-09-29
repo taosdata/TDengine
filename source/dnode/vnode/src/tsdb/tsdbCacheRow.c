@@ -383,7 +383,7 @@ int32_t tsdbRowCacheCreateTable(STsdb *pTsdb, int64_t uid, STSchema *pTSchema) {
 
     taosArrayDestroy(colVals);
 
-    if (code == 0 && pRow) {
+    if (pRow) {
       // Create row cache entry with the built row
       SRowKey     emptyRowKey = {.ts = TSKEY_MIN, .numOfPKs = 0};
       STsdbRowKey rowKey = {.key = emptyRowKey};
@@ -449,6 +449,10 @@ int32_t tsdbRowCacheDeleteTable(STsdb *pTsdb, int64_t uid) {
 int32_t tsdbRowCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, STsdbRowKey *pRowKey, SRow *pRow, int8_t lflag) {
   int32_t    code = 0, lino = 0;
   SLRUCache *pCache = pTsdb->lruCache;
+  STSchema  *pTSchema = NULL;
+
+  code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pTSchema);
+  TAOS_CHECK_RETURN(code);
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
@@ -461,20 +465,13 @@ int32_t tsdbRowCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, STsdbRowKe
     int32_t cmp_res = tRowKeyCompare(&pLastRow->rowKey.key, &pRowKey->key);
     if (cmp_res < 0 || (cmp_res == 0 && pRow != NULL)) {
       SLastRow newLastRow = {.rowKey = *pRowKey, .pRow = pRow, .dirty = 1, .numCols = 0, .colStatus = NULL};
-
       // Initialize column status array for the new row
-      STSchema *pTSchema = NULL;
-      if (metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pTSchema) == 0 && pTSchema) {
-        code = tsdbLastRowInitColStatus(&newLastRow, pTSchema);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFree(pTSchema);
-          return code;
+      code = tsdbLastRowInitColStatus(&newLastRow, pTSchema);
+      if (code == TSDB_CODE_SUCCESS) {
+        code = tsdbRowCachePutToLRU(pTsdb, &key, &newLastRow, 1);
+        if (newLastRow.colStatus) {
+          taosMemoryFree(newLastRow.colStatus);
         }
-        taosMemoryFree(pTSchema);
-      }
-      code = tsdbRowCachePutToLRU(pTsdb, &key, &newLastRow, 1);
-      if (newLastRow.colStatus) {
-        taosMemoryFree(newLastRow.colStatus);
       }
     }
     tsdbLRUCacheRelease(pCache, h, false);
@@ -500,21 +497,12 @@ int32_t tsdbRowCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, STsdbRowKe
         int32_t cmp_res = tRowKeyCompare(&pLastRow->rowKey.key, &pRowKey->key);
         if (cmp_res < 0 || (cmp_res == 0 && pRow != NULL)) {
           SLastRow lastRowTmp = {.rowKey = *pRowKey, .pRow = pRow, .dirty = 0, .numCols = 0, .colStatus = NULL};
-
-          // Initialize column status array for the new row
-          STSchema *pTSchema = NULL;
-          if (metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, uid, -1, &pTSchema) == 0 && pTSchema) {
-            code = tsdbLastRowInitColStatus(&lastRowTmp, pTSchema);
-            if (code != TSDB_CODE_SUCCESS) {
-              tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-                        tstrerror(code));
-            }
-            taosMemoryFree(pTSchema);
-          }
-
-          code = tsdbRowCachePutToRocksdb(pTsdb, &key, &lastRowTmp);
+          code = tsdbLastRowInitColStatus(&lastRowTmp, pTSchema);
           if (code == TSDB_CODE_SUCCESS) {
-            code = tsdbRowCachePutToLRU(pTsdb, &key, &lastRowTmp, 0);
+            code = tsdbRowCachePutToRocksdb(pTsdb, &key, &lastRowTmp);
+            if (code == TSDB_CODE_SUCCESS) {
+              code = tsdbRowCachePutToLRU(pTsdb, &key, &lastRowTmp, 0);
+            }
           }
           if (lastRowTmp.colStatus) {
             taosMemoryFree(lastRowTmp.colStatus);
@@ -555,6 +543,7 @@ int32_t tsdbRowCacheUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, STsdbRowKe
   TAOS_RETURN(code);
 }
 
+#ifndef UPDATE_CACHE_BATCH
 int32_t tsdbRowCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow,
                                     SRow **aRow) {
   int32_t code = 0, lino = 0;
@@ -637,6 +626,7 @@ _exit:
 
   TAOS_RETURN(code);
 }
+#endif
 
 // Update LAST cache with proper column-level timestamp tracking
 static int32_t tsdbRowCacheUpdateLastCols(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SArray *updCtxArray,
@@ -1644,7 +1634,7 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
 
     if (h && pLastRow && pLastRow->pRow) {
       // Re-check each column in remainCols
-      for (int i = 0; i < TARRAY_SIZE(remainCols); ) {
+      for (int i = 0; i < TARRAY_SIZE(remainCols);) {
         SIdxKey  *idxKey = (SIdxKey *)taosArrayGet(remainCols, i);
         int16_t   cid = idxKey->key.cid;
         STColumn *pCol = NULL;
@@ -1928,45 +1918,39 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArr
     taosArrayDestroy(colVals);
   }
 
-  // Add memory query logic if tsUpdateCacheBatch is enabled
-  if (tsUpdateCacheBatch) {
-    // Create and populate keyArray for compatibility with tsdbCacheGetBatchFromMem
-    SArray *keyArray = taosArrayInit(16, sizeof(SLastKey));
-    if (!keyArray) {
+#ifdef UPDATE_CACHE_BATCH
+  // Create and populate keyArray for compatibility with tsdbCacheGetBatchFromMem
+  SArray *keyArray = taosArrayInit(16, sizeof(SLastKey));
+  if (!keyArray) {
+    TAOS_CHECK_GOTO(terrno, &lino, _exit);
+  }
+  for (int i = 0; i < numKeys; ++i) {
+    int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
+
+    SLastKey key = {.lflag = ltype, .uid = uid, .cid = cid};
+    // Handle function type for last_row vs last
+    int32_t funcType = FUNCTION_TYPE_CACHE_LAST;
+    if (pr->pFuncTypeList != NULL && taosArrayGetSize(pr->pFuncTypeList) > i) {
+      funcType = ((int32_t *)TARRAY_DATA(pr->pFuncTypeList))[i];
+    }
+    if (((pr->type & CACHESCAN_RETRIEVE_LAST) == CACHESCAN_RETRIEVE_LAST) && FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
+      int8_t tempType = CACHESCAN_RETRIEVE_LAST_ROW | (pr->type ^ CACHESCAN_RETRIEVE_LAST);
+      key.lflag = (tempType & CACHESCAN_RETRIEVE_LAST) >> 3;
+    }
+
+    if (!taosArrayPush(keyArray, &key)) {
+      taosArrayDestroy(keyArray);
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
-
-    // Fill keyArray with keys for all columns being queried
-    SArray *pCidList = pr->pCidList;
-    int     numKeys = TARRAY_SIZE(pCidList);
-    for (int i = 0; i < numKeys; ++i) {
-      int16_t cid = ((int16_t *)TARRAY_DATA(pCidList))[i];
-
-      SLastKey key = {.lflag = ltype, .uid = uid, .cid = cid};
-      // Handle function type for last_row vs last
-      int32_t funcType = FUNCTION_TYPE_CACHE_LAST;
-      if (pr->pFuncTypeList != NULL && taosArrayGetSize(pr->pFuncTypeList) > i) {
-        funcType = ((int32_t *)TARRAY_DATA(pr->pFuncTypeList))[i];
-      }
-      if (((pr->type & CACHESCAN_RETRIEVE_LAST) == CACHESCAN_RETRIEVE_LAST) &&
-          FUNCTION_TYPE_CACHE_LAST_ROW == funcType) {
-        int8_t tempType = CACHESCAN_RETRIEVE_LAST_ROW | (pr->type ^ CACHESCAN_RETRIEVE_LAST);
-        key.lflag = (tempType & CACHESCAN_RETRIEVE_LAST) >> 3;
-      }
-
-      if (!taosArrayPush(keyArray, &key)) {
-        taosArrayDestroy(keyArray);
-        TAOS_CHECK_GOTO(terrno, &lino, _exit);
-      }
-    }
-
-    // Use the existing tsdbCacheGetBatchFromMem function which works for both row and col cache
-    code = tsdbCacheGetBatchFromMem(pTsdb, uid, pLastArray, pr, keyArray);
-    taosArrayDestroy(keyArray);
-    if (code) {
-      TAOS_CHECK_GOTO(code, &lino, _exit);
-    }
   }
+
+  // Use the existing tsdbCacheGetBatchFromMem function which works for both row and col cache
+  code = tsdbCacheGetBatchFromMem(pTsdb, uid, pLastArray, pr, keyArray);
+  taosArrayDestroy(keyArray);
+  if (code) {
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+#endif
 
 _exit:
   // Clean up remainCols if it exists

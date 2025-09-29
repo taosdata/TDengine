@@ -738,6 +738,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
+#ifndef UPDATE_CACHE_BATCH
 int32_t tsdbColCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow,
                                     SRow **aRow) {
   int32_t code = 0, lino = 0;
@@ -825,6 +826,7 @@ int32_t tsdbColCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, i
 _exit:
   TAOS_RETURN(code);
 }
+#endif
 
 int32_t tsdbCacheLoadFromRocks(STsdb *pTsdb, tb_uid_t uid, SArray *pLastArray, SArray *remainCols,
                                SArray *ignoreFromRocks, SCacheRowsReader *pr, int8_t ltype) {
