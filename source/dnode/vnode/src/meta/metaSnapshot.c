@@ -256,6 +256,7 @@ typedef struct STableInfoForChildTable {
   char*           tableName;
   SSchemaWrapper* schemaRow;
   SSchemaWrapper* tagRow;
+  SExtSchema*     pExtSchemas;
 } STableInfoForChildTable;
 
 static void destroySTableInfoForChildTable(void* data) {
@@ -263,6 +264,7 @@ static void destroySTableInfoForChildTable(void* data) {
   taosMemoryFree(pData->tableName);
   tDeleteSchemaWrapper(pData->schemaRow);
   tDeleteSchemaWrapper(pData->tagRow);
+  taosMemoryFreeClear(pData->pExtSchemas);
 }
 
 static int32_t MoveToSnapShotVersion(SSnapContext* ctx) {
@@ -336,6 +338,12 @@ static int32_t saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInf
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
+  dataTmp.pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * me->stbEntry.schemaRow.nCols);
+  if (dataTmp.pExtSchemas == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto END;
+  }
+  memcpy(dataTmp.pExtSchemas, me->pExtSchemas, sizeof(SExtSchema) * me->stbEntry.schemaRow.nCols);
   code = taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
   if (code != 0) {
     goto END;
@@ -676,6 +684,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.schemaRow.version = 1;
     req.schemaTag.version = 1;
     req.colCmpr = me.colCmpr;
+    req.pExtSchemas = me.pExtSchemas;
 
     ret = buildSuperTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_STB;
@@ -754,6 +763,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.commentLen = -1;
     req.ntb.schemaRow = me.ntbEntry.schemaRow;
     req.colCmpr = me.colCmpr;
+    req.pExtSchemas = me.pExtSchemas;
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
   } else {
@@ -818,9 +828,17 @@ int32_t getMetaTableInfoFromSnapshot(SSnapContext* ctx, SMetaTableInfo* result) 
       }
       result->suid = me.ctbEntry.suid;
       result->schema = tCloneSSchemaWrapper(data->schemaRow);
+      result->pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * data->schemaRow->nCols);
+      if (result->pExtSchemas != NULL) {
+        memcpy(result->pExtSchemas, data->pExtSchemas, sizeof(SExtSchema) * data->schemaRow->nCols);
+      }
     } else if (ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_NORMAL_TABLE) {
       result->suid = 0;
       result->schema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
+      result->pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * me.ntbEntry.schemaRow.nCols);
+      if (result->pExtSchemas != NULL) {
+        memcpy(result->pExtSchemas, me.pExtSchemas, sizeof(SExtSchema) * me.ntbEntry.schemaRow.nCols);
+      }
     } else {
       metaDebug("tmqsnap get uid continue");
       tDecoderClear(&dc);
@@ -829,7 +847,7 @@ int32_t getMetaTableInfoFromSnapshot(SSnapContext* ctx, SMetaTableInfo* result) 
     result->uid = me.uid;
     tstrncpy(result->tbName, me.name, TSDB_TABLE_NAME_LEN);
     tDecoderClear(&dc);
-    if (result->schema == NULL) {
+    if (result->schema == NULL || result->pExtSchemas == NULL) {
       return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
     }
     break;
