@@ -43,6 +43,7 @@ pub enum IpcDataType {
     Json,
     VarBinary(u32),
     Decimal(u8, u8),
+    Blob,
 }
 
 impl IpcDataType {
@@ -66,6 +67,7 @@ impl IpcDataType {
             IpcDataType::Json => "json".to_string(),
             IpcDataType::VarBinary(len) => format!("varbinary({len})"),
             IpcDataType::Decimal(precision, scale) => format!("decimal({precision},{scale})"),
+            IpcDataType::Blob => "blob".to_string(),
         }
     }
     pub fn sql_repr(&self) -> String {
@@ -88,6 +90,7 @@ impl IpcDataType {
             IpcDataType::Json => "json".to_string(),
             IpcDataType::VarBinary(len) => format!("varbinary({len})"),
             IpcDataType::Decimal(precision, scale) => format!("decimal({precision},{scale})"),
+            IpcDataType::Blob => "blob".to_string(),
         }
     }
 
@@ -114,6 +117,7 @@ impl IpcDataType {
             IpcDataType::Json => "json".to_string(),
             IpcDataType::VarBinary(len) => format!("varbinary({len})"),
             IpcDataType::Decimal(precision, scale) => format!("decimal({precision},{scale})"),
+            IpcDataType::Blob => "blob".to_string(),
         }
     }
 
@@ -144,6 +148,7 @@ impl IpcDataType {
                     Ty::Decimal
                 }
             }
+            IpcDataType::Blob => Ty::Blob,
         }
     }
 
@@ -167,6 +172,7 @@ impl IpcDataType {
             IpcDataType::Json => DataType::Utf8,
             IpcDataType::VarBinary(_) => DataType::Binary,
             IpcDataType::Decimal(precision, scale) => DataType::Decimal128(*precision, *scale as _),
+            IpcDataType::Blob => DataType::LargeBinary,
         }
     }
 
@@ -222,6 +228,7 @@ impl FromStr for IpcDataType {
             "timestamp(ms)" => Ok(Self::Timestamp(TimeUnit::Millisecond)),
             "timestamp(us)" => Ok(Self::Timestamp(TimeUnit::Microsecond)),
             "timestamp(ns)" => Ok(Self::Timestamp(TimeUnit::Nanosecond)),
+            "blob" => Ok(Self::Blob),
             "json" => Ok(Self::Json),
             s => {
                 let items: Vec<_> = s.split_terminator(['(', ')']).collect();
@@ -297,7 +304,7 @@ impl From<&ArrowDataType> for IpcDataType {
             ArrowDataType::Binary => IpcDataType::VarBinary(128),
             ArrowDataType::Utf8 => IpcDataType::VarChar(128),
             ArrowDataType::FixedSizeBinary(len) => IpcDataType::VarBinary(*len as _),
-            ArrowDataType::LargeBinary => IpcDataType::VarChar(4096),
+            ArrowDataType::LargeBinary => IpcDataType::Blob,
             ArrowDataType::LargeUtf8 => IpcDataType::VarChar(4096),
             ArrowDataType::Null => IpcDataType::Null,
             ArrowDataType::List(_) => IpcDataType::VarChar(4096),

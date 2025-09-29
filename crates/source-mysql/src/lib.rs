@@ -355,7 +355,7 @@ fn generate_json_value(
             let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(format!("{:?}", val))),
+                Some(val) => Ok(json!(val)),
             }
         }
         // 字节数组

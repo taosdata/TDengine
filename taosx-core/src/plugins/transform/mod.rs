@@ -27,7 +27,7 @@ use arrow::{
         TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
         TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
-    compute::concat_batches,
+    compute::{and, concat_batches},
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -2321,6 +2321,77 @@ impl MessageArrowRecords {
             None
         }
     }
+
+    pub fn drop_above_blob_limit(mut self, size_limit: usize) -> Option<Self> {
+        let schema = self.records.schema();
+        let blob_arr = schema
+            .fields()
+            .iter()
+            .filter(|f| *f.data_type() == DataType::LargeBinary)
+            .collect::<Vec<_>>();
+        if blob_arr.is_empty() {
+            return Some(self);
+        }
+        let mut keep_filter =
+            BooleanArray::from_iter((0..self.records.num_rows()).map(|_| Some(true)));
+        blob_arr.into_iter().try_for_each(|field| -> Option<()> {
+            let array = self.records.column_by_name(field.name())?;
+            let array = array.as_any().downcast_ref::<LargeBinaryArray>()?;
+            let f = BooleanArray::from_iter((0..array.len()).map(|idx| {
+                if array.is_null(idx) {
+                    // 2025-07-12 10:35:22: current td allow null blob
+                    Some(true)
+                } else {
+                    Some(array.value(idx).len() < size_limit)
+                }
+            }));
+            keep_filter = and(&keep_filter, &f).ok()?;
+            None
+        });
+        let records = arrow::compute::filter_record_batch(&self.records, &keep_filter).ok()?;
+        if records.num_rows() > 0 {
+            self.records = records;
+            return Some(self);
+        }
+        None
+    }
+
+    pub fn has_large_record(&self, size_limit: usize) -> bool {
+        let mut flag = false;
+        macro_rules! check {
+            ($array:expr) => {
+                $array.iter().for_each(|x| {
+                    if let Some(x) = x {
+                        if x.len() >= size_limit {
+                            flag = true;
+                            return;
+                        }
+                    }
+                });
+            };
+        }
+        for arr in self.records.columns().iter() {
+            match arr.data_type() {
+                DataType::LargeBinary => {
+                    let Some(array) = arr.as_any().downcast_ref::<LargeBinaryArray>() else {
+                        continue;
+                    };
+                    check!(array);
+                }
+                DataType::Binary => {
+                    let Some(array) = arr.as_any().downcast_ref::<BinaryArray>() else {
+                        continue;
+                    };
+                    check!(array);
+                }
+                _ => {}
+            }
+            if flag {
+                return flag;
+            }
+        }
+        flag
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq, Eq)]
@@ -2535,7 +2606,7 @@ impl ArrowFieldExt for Field {
             arrow::datatypes::DataType::Interval(_) => taos::Ty::BigInt,
             arrow::datatypes::DataType::Binary => taos::Ty::VarChar,
             arrow::datatypes::DataType::FixedSizeBinary(_) => taos::Ty::VarChar,
-            arrow::datatypes::DataType::LargeBinary => taos::Ty::VarChar,
+            arrow::datatypes::DataType::LargeBinary => taos::Ty::Blob,
             arrow::datatypes::DataType::Utf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::LargeUtf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::Decimal128(p, _) => {
@@ -4748,6 +4819,8 @@ mod parser_tests {
 #[cfg(test)]
 mod test {
     use super::Parser;
+    use crate::plugins::transform::{MessageArrowRecords, MessageTableMeta, TableOptions};
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_sql_insert_part() {
@@ -4816,5 +4889,61 @@ mod test {
                 dbg!(&sql);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_drop_above_blob_limit() -> anyhow::Result<()> {
+        let batch = arrow::array::record_batch!(
+            (
+                "test1",
+                LargeBinary,
+                [b"1234567890", &b"1234567890".repeat(1024)]
+            ),
+            ("test2", Binary, [b"1234567890", &b"12345".repeat(10)]),
+            ("name", Utf8, ["r1", "r2"])
+        )?;
+
+        let stable_meta = MessageTableMeta {
+            name: Arc::new("meters".into()),
+            using: None,
+            tags: None,
+        };
+        let opts = Arc::new(TableOptions::default());
+
+        let message = MessageArrowRecords {
+            table: stable_meta,
+            records: batch,
+            opts,
+        };
+        let filter_m = message.drop_above_blob_limit(9 * 1024).unwrap();
+        dbg!(&filter_m.records);
+        assert_eq!(filter_m.records.num_rows(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_has_large_record() -> anyhow::Result<()> {
+        let batch = arrow::array::record_batch!((
+            "test1",
+            LargeBinary,
+            [b"1234567890", &b"1234567890".repeat(1024)]
+        ))?;
+        let stable_meta = MessageTableMeta {
+            name: Arc::new("meters".into()),
+            using: None,
+            tags: None,
+        };
+        let opts = Arc::new(TableOptions::default());
+
+        let message = MessageArrowRecords {
+            table: stable_meta,
+            records: batch,
+            opts,
+        };
+        let has_large_record = message.has_large_record(400 * 1024);
+        assert!(!has_large_record);
+        let has_large_record = message.has_large_record(9 * 1024);
+        assert!(has_large_record);
+        Ok(())
     }
 }

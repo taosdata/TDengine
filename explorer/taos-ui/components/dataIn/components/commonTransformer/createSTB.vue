@@ -232,7 +232,7 @@ const props = defineProps<{
 
 const state = reactive({
   dataType: TDengineDataType,
-  tagType: TDengineDataType.concat(['JSON']),
+  tagType: TDengineDataType.concat(['JSON']).filter(item => item != 'BLOB'),
   storageCompression: storageCompression,
   levelList: levelList,
   column_item: {

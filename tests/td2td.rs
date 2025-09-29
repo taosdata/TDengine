@@ -49,13 +49,14 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
     let output = Command::new("taos")
         .args(["-h", host.as_str(), "-s"])
         .arg(format!("\
-        drop stream if exists `{STREAM}`;\
         drop database if exists `{DB_SRC}`;\
         drop database if exists `{DB_DST}`;\
         create database if not exists `{DB_SRC}`;\
         create database if not exists `{DB_DST}`;\
-        create table `{DB_SRC}`.`meters`(ts timestamp, val float) tags(id int);\
-        create stream `{STREAM}` into `{DB_SRC}`.`{STREAM}` as select tbname,_wstart,avg(val) from `{DB_SRC}`.meters partition by tbname state_window(cast(val as int));\
+        use `{DB_SRC}`;\
+        drop stream if exists `{STREAM}`;\
+        create table `{DB_SRC}`.`meters`(ts timestamp, val int) tags(id int);\
+        create stream `{STREAM}` state_window(val) from `{DB_SRC}`.meters partition by tbname into `{DB_SRC}`.`{STREAM}` as select _twstart,tbname,avg(val) from %%trows;\
         "
         ))
         .output()?;
@@ -68,11 +69,11 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
         .args(["-h", host.as_str(), "-s"])
         .arg(format!("\
             use {DB_SRC};\
-            insert into t1 using meters tags(1) values(now, 11.1),(now+1s,11.2),(now+2s,11.3),(now+3s,10.1),(now+4s,10.2),(now+5s,10.3);\
-            insert into t2 using meters tags(2) values(now, 22.1),(now+1s,22.2),(now+2s,22.3),(now+3s,21.1),(now+4s,21.2),(now+5s,21.3);\
-            insert into t3 using meters tags(3) values(now, 33.1),(now+1s,33.2),(now+2s,33.3),(now+3s,32.1),(now+4s,32.2),(now+5s,32.3);\
-            insert into t4 using meters tags(4) values(now, 44.1),(now+1s,44.2),(now+2s,44.3),(now+3s,43.1),(now+4s,43.2),(now+5s,43.3);\
-            insert into t5 using meters tags(5) values(now, 55.1),(now+1s,55.2),(now+2s,55.3),(now+3s,54.1),(now+4s,54.2),(now+5s,55.3);\
+            insert into t1 using meters tags(1) values(now, 11),(now+1s,11),(now+2s,11),(now+3s,10),(now+4s,10),(now+5s,10);\
+            insert into t2 using meters tags(2) values(now, 22),(now+1s,22),(now+2s,22),(now+3s,21),(now+4s,21),(now+5s,21);\
+            insert into t3 using meters tags(3) values(now, 33),(now+1s,33),(now+2s,33),(now+3s,32),(now+4s,32),(now+5s,32);\
+            insert into t4 using meters tags(4) values(now, 44),(now+1s,44),(now+2s,44),(now+3s,43),(now+4s,43),(now+5s,43);\
+            insert into t5 using meters tags(5) values(now, 55),(now+1s,55),(now+2s,55),(now+3s,54),(now+4s,54),(now+5s,55);\
             "))
         .output()?;
     let err = String::from_utf8_lossy(&output.stderr);
@@ -100,11 +101,11 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
         .args(["-h", host.as_str(), "-s"])
         .arg(format!("\
             use {DB_SRC};\
-            insert into t6 using meters tags(6) values(now, 11.1),(now+1s,11.2),(now+2s,11.3),(now+3s,10.1),(now+4s,10.2),(now+5s,10.3);\
-            insert into t7 using meters tags(7) values(now, 22.1),(now+1s,22.2),(now+2s,22.3),(now+3s,21.1),(now+4s,21.2),(now+5s,21.3);\
-            insert into t8 using meters tags(8) values(now, 33.1),(now+1s,33.2),(now+2s,33.3),(now+3s,32.1),(now+4s,32.2),(now+5s,32.3);\
-            insert into t9 using meters tags(9) values(now, 44.1),(now+1s,44.2),(now+2s,44.3),(now+3s,43.1),(now+4s,43.2),(now+5s,43.3);\
-            insert into t10 using meters tags(10) values(now, 55.1),(now+1s,55.2),(now+2s,55.3),(now+3s,54.1),(now+4s,54.2),(now+5s,55.3);\
+            insert into t6 using meters tags(6) values(now, 11),(now+1s,11),(now+2s,11),(now+3s,10),(now+4s,10),(now+5s,10);\
+            insert into t7 using meters tags(7) values(now, 22),(now+1s,22),(now+2s,22),(now+3s,21),(now+4s,21),(now+5s,21);\
+            insert into t8 using meters tags(8) values(now, 33),(now+1s,33),(now+2s,33),(now+3s,32),(now+4s,32),(now+5s,32);\
+            insert into t9 using meters tags(9) values(now, 44),(now+1s,44),(now+2s,44),(now+3s,43),(now+4s,43),(now+5s,43);\
+            insert into t10 using meters tags(10) values(now, 55),(now+1s,55),(now+2s,55),(now+3s,54),(now+4s,54),(now+5s,55);\
             "))
         .output()?;
     let err = String::from_utf8_lossy(&output.stderr);
@@ -159,6 +160,7 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
         .args(["-h", host.as_str(), "-s"])
         .arg(format!(
             "\
+        use `{DB_SRC}`;\
         drop stream if exists `{STREAM}`;\
         drop database if exists `{DB_SRC}`;\
         drop database if exists `{DB_DST}`;\
