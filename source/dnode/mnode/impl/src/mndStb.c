@@ -3477,8 +3477,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   goto _OVER;
 
 _ERROR:
-  mError("show:0x%" PRIx64 ", failed to retrieve data at %s:%d since %s", pShow->id, __FUNCTION__, lino,
-         tstrerror(code));
+  mError("show:0x%" PRIx64 ", failed to retrieve data at %s:%d since %s", pShow->id, __func__, lino, tstrerror(code));
 
 _OVER:
   pShow->numOfRows += numOfRows;
