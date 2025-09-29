@@ -60,9 +60,15 @@ typedef struct SLoadNextCtx {
 int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        line = 0;
 
   VTS_ERR_JRET(pOperator->fpSet.getNextFn(pOperator, ppBlock));
   VTS_ERR_JRET(blockDataCheck(*ppBlock));
+  if (*ppBlock) {
+    SColumnInfoData* p = taosArrayGet((*ppBlock)->pDataBlock, 0);
+    QUERY_CHECK_NULL(p, code, line, _return, terrno);
+    p->hasNull = false;
+  }
 
   return code;
 _return:
