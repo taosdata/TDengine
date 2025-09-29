@@ -155,20 +155,8 @@ typedef struct SViewMeta {
   SSchema* pSchema;
 } SViewMeta;
 
-typedef struct SRsmaMeta {
-  uint64_t   viewId;
-  char*      user;
-  char*      querySql;
-  int8_t     precision;
-  int8_t     type;
-  int32_t    version;
-  int32_t    numOfCols;
-  int32_t    numOfFuncs;
-  int64_t    interval[2];
-  SSchema*   pSchema;
-  col_id_t*  funcColIds;
-  func_id_t* funcIds;
-} SRsmaMeta;
+typedef SRsmaInfoRsp SRsmaMeta;
+typedef SRsmaMeta SRsmaMetaOutput;
 
 typedef struct SDBVgInfo {
   int32_t vgVersion;
@@ -444,7 +432,7 @@ void tFreeStreamVtbVtbInfo(void* param);
 void tFreeStreamVtbDbVgInfo(void* param);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
-                                          void* (*mallocFp)(int64_t));
+                                          void* (*mallocFp)(int64_t), void (*freeFp)(void*));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
 
 void* getTaskPoolWorkerCb();
