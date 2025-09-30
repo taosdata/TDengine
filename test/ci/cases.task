@@ -932,7 +932,6 @@
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_large_data.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_and_or_for_byte.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_avg.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_between.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py
