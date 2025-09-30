@@ -64,9 +64,9 @@ class TestCase:
         tdSql.execute(f"insert into t2 values ('2025-01-01 00:00:06', 0)")
         tdLog.info("write data done, wait tmq process exit")
         
-        # buildPath = tdCom.getBuildPath()
-        # cmdStr = '%s/build/bin/tmq_ts7402'%(buildPath)
-        cmdStr = '/Users/mingming/code/TDengine2/debug/build/bin/tmq_ts7402'
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_ts7402'%(buildPath)
+        # cmdStr = '/Users/mingming/code/TDengine2/debug/build/bin/tmq_ts7402'
         tdLog.info(cmdStr)
         ret = os.system(cmdStr)
         if ret != 0:
