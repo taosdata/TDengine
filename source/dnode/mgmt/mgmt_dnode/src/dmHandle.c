@@ -194,6 +194,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
   tstrncpy(req.machineId, tsDnodeData.machineId, TSDB_MACHINE_ID_LEN + 1);
 
+  req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.statusIntervalMs = tsStatusIntervalMs;
   req.clusterCfg.checkTime = 0;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
@@ -516,7 +517,9 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
     char value[10] = {0};
-    sscanf(cfgReq.value, "%d", &tsSyncTimeout);
+    if (sscanf(cfgReq.value, "%d", &tsSyncTimeout) != 1) {
+      tsSyncTimeout = 0;
+    }
 
     if (tsSyncTimeout > 0) {
       SConfigItem *pItemTmp = NULL;
