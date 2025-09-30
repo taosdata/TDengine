@@ -16787,6 +16787,7 @@ _return:
   return code;
 }
 
+#ifdef TD_ENTERPRISE
 static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStmt, SMCreateRsmaReq* pReq,
                                   SName* useTbName) {
   SName       name = {0};
@@ -16808,8 +16809,6 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   pReq->igExists = pStmt->ignoreExists;
   PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
 
-  pStmt->precision = pDbInfo.precision;
-
   if (LIST_LENGTH(pStmt->pIntervals) < 1 || LIST_LENGTH(pStmt->pIntervals) > 2) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Invalid interval count for rsma, should be in range [1, 2]");
@@ -16830,16 +16829,15 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
                                      pVal->unit);
     }
     pReq->interval[idx] = pVal->datum.i;
-    // checkTableRangeOption(pCxt, pName, interval, minVal, maxVal);
     // TODO check relationship of interval/keep, min/max check
     if (pReq->interval[idx] < 1 || pReq->interval[idx] > durationInPrecision) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OUT_OF_RANGE, "Invalid interval value for rsma: %lld",
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OUT_OF_RANGE, "Invalid interval value for rsma: %"PRId64,
                                      pReq->interval[idx]);
     }
     if (durationInPrecision % pReq->interval[idx]) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                     "Interval value for rsma should be a divisor of DB duration: %lld",
-                                     durationInPrecision);
+                                     "Interval value for rsma, should be a divisor of DB duration: %"PRId64"%c, %"PRId64,
+                                     pVal->datum.i, pVal->unit, durationInPrecision);
     }
     ++idx;
   }
@@ -16858,8 +16856,76 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     }
   }
 
-  int32_t  numOfCols = 0, numOfTags = 0;
-  SSchema *pCols = NULL, *pTags = NULL;
+  int32_t  numOfCols = 0;
+  SSchema *pCols = NULL;
+  int32_t  nFuncs = LIST_LENGTH(pStmt->pFuncs);
+  PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
+  numOfCols = pTableMeta->tableInfo.numOfColumns;
+  pCols = pTableMeta->schema;
+  if (nFuncs < 0 || nFuncs > (numOfCols - 1)) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                         "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1));
+  }
+  if (pTableMeta->tableType != TSDB_SUPER_TABLE) {
+    PAR_ERR_JRET(
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Rsma must be created on super table"));
+  }
+
+  for (int32_t c = 1; c < numOfCols; ++c) {
+    int8_t type = pCols[c].type;
+    if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64 || type == TSDB_DATA_TYPE_BLOB ||
+        type == TSDB_DATA_TYPE_MEDIUMBLOB) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                           "Rsma does not support column type %" PRIi8 " currently",
+                                           type));  // TODO: support later
+    }
+    if (((pCols[c].flags) & COL_IS_KEY)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                           "Rsma does not support composite primary key column currently: %s",
+                                           pCols[c].name));
+    }
+  }
+
+  pReq->tbUid = pTableMeta->uid;
+
+  if (nFuncs > 0) {
+    PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));
+    pReq->funcColIds = taosMemoryCalloc(nFuncs, sizeof(col_id_t));
+    pReq->funcIds = taosMemoryCalloc(nFuncs, sizeof(int32_t));
+    if (!pReq->funcColIds || !pReq->funcIds) {
+      PAR_ERR_JRET(terrno);
+    }
+
+    int32_t        idx = 0;
+    SFunctionNode* pFunc = NULL;
+    FOREACH(pNode, pStmt->pFuncs) {
+      pFunc = (SFunctionNode*)pNode;
+      pReq->funcColIds[idx] = ((SColumnNode*)pFunc->pParameterList->pHead->pNode)->colId;
+      pReq->funcIds[idx] = pFunc->funcId;
+      ++idx;
+    }
+    pReq->nFuncs = nFuncs;
+  }
+
+_return:
+  taosMemoryFreeClear(pTableMeta);
+  TAOS_RETURN(code);
+}
+static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt, SMAlterRsmaReq* pReq) {
+#if 0
+  SName       name = {0};
+  SDbCfgInfo  pDbInfo = {0};
+  int32_t     code = 0, lino = 0;
+  SNode*      pNode = NULL;
+  STableMeta* pTableMeta = NULL;
+
+  (void)snprintf(pReq->name, TSDB_TABLE_NAME_LEN, "%s", pStmt->rsmaName);
+  pReq->tbType = TSDB_SUPER_TABLE;
+  pReq->igExists = pStmt->ignoreNotExists;
+  PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
+
+  int32_t  numOfCols = 0;
+  SSchema *pCols = NULL;
   int32_t  nFuncs = LIST_LENGTH(pStmt->pFuncs);
   PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
   numOfCols = pTableMeta->tableInfo.numOfColumns;
@@ -16913,7 +16979,11 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
 _return:
   taosMemoryFreeClear(pTableMeta);
   TAOS_RETURN(code);
+#endif
+  return 0;
 }
+
+#endif
 
 static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pStmt) {
 #ifdef TD_ENTERPRISE
@@ -16921,13 +16991,13 @@ static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pSt
   pCxt->pCurrStmt = (SNode*)pStmt;
 
   SName           useTbName = {0};
-  SMCreateRsmaReq pReq = {0};
+  SMCreateRsmaReq req = {0};
 
-  PAR_ERR_JRET(buildCreateRsmaReq(pCxt, pStmt, &pReq, &useTbName));
+  PAR_ERR_JRET(buildCreateRsmaReq(pCxt, pStmt, &req, &useTbName));
   PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
-  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &pReq));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &req));
 _return:
-  tFreeSMCreateRsmaReq(&pReq);
+  tFreeSMCreateRsmaReq(&req);
   return code;
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -16948,6 +17018,22 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_RSMA, (FSerializeFunc)tSerializeSMDropRsmaReq, &dropReq));
   return code;
 _return:
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+static int32_t translateAlterRsma(STranslateContext* pCxt, SAlterRsmaStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  int32_t        code = 0;
+  SMAlterRsmaReq req = {0};
+  req.alterType = pStmt->alterType;
+  // PAR_ERR_JRET(buildCreateRsmaReq(pCxt, pStmt, &req, &useTbName));
+  // PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &req));
+_return:
+  tFreeSMAlterRsmaReq(&req);
   return code;
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -17211,7 +17297,7 @@ _return:
       code = translateDropRsma(pCxt, (SDropRsmaStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_RSMA_STMT:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      code = translateAlterRsma(pCxt, (SAlterRsmaStmt*)pNode);
       break;
     default:
       break;

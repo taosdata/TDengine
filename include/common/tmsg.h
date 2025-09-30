@@ -4616,6 +4616,22 @@ int32_t tDeserializeSVCreateRsmaReq(void* buf, int32_t bufLen, SVCreateRsmaReq* 
 void    tFreeSVCreateRsmaReq(SVCreateRsmaReq* pReq);
 
 typedef struct {
+  char       name[TSDB_TABLE_NAME_LEN];
+  int8_t     alterType;
+  int8_t     tbType;  // ETableType: 1 stable, 3 normal table
+  int8_t     igExists;
+  int16_t    nFuncs;      // number of functions specified by user
+  col_id_t*  funcColIds;  // column ids specified by user
+  func_id_t* funcIds;     // function ids specified by user
+  int32_t    sqlLen;      // strlen + 1
+  char*      sql;
+} SMAlterRsmaReq;
+
+int32_t tSerializeSMAlterRsmaReq(void* buf, int32_t bufLen, SMAlterRsmaReq* pReq);
+int32_t tDeserializeSMAlterRsmaReq(void* buf, int32_t bufLen, SMAlterRsmaReq* pReq);
+void    tFreeSMAlterRsmaReq(SMAlterRsmaReq* pReq);
+
+typedef struct {
   int64_t    id;
   char       name[TSDB_TABLE_NAME_LEN];
   char       tbFName[TSDB_TABLE_FNAME_LEN];
