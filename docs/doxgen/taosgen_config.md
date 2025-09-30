@@ -47,8 +47,8 @@ schema:
         - Austin
   generation:
     interlace: 1
-    per_table_rows: 10000
-    per_batch_rows: 10000
+    rows_per_table: 10000
+    rows_per_batch: 10000
 
 jobs:
   # TDengine insert job
@@ -138,8 +138,8 @@ schema:
       type: binary(24)
   generation:
     interlace: 1
-    per_table_rows: 10000
-    per_batch_rows: 10000
+    rows_per_table: 10000
+    rows_per_batch: 10000
 
 jobs:
   # TDengine insert job
@@ -199,8 +199,8 @@ schema:
   generation:
     interlace: 1
     concurrency: 1
-    per_table_rows: 10000
-    per_batch_rows: 1000
+    rows_per_table: 10000
+    rows_per_batch: 1000
 
 jobs:
   # MQTT publish job

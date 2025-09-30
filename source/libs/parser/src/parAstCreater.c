@@ -187,7 +187,7 @@ static bool checkImportPassword(SAstCreateContext* pCxt, const SToken* pPassword
   } else {
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     (void)strdequote(pPassword);
-    if (strtrim(pPassword) < 32) {
+    if (strtrim(pPassword) < TSDB_PASSWORD_LEN - 1) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
     }
   }
