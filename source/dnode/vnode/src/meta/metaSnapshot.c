@@ -338,12 +338,15 @@ static int32_t saveSuperTableInfoForChildTable(SMetaEntry* me, SHashObj* suidInf
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto END;
   }
-  dataTmp.pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * me->stbEntry.schemaRow.nCols);
-  if (dataTmp.pExtSchemas == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto END;
+  if (me->pExtSchemas != NULL) {
+    dataTmp.pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * me->stbEntry.schemaRow.nCols);
+    if (dataTmp.pExtSchemas == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto END;
+    }
+    memcpy(dataTmp.pExtSchemas, me->pExtSchemas, sizeof(SExtSchema) * me->stbEntry.schemaRow.nCols);
   }
-  memcpy(dataTmp.pExtSchemas, me->pExtSchemas, sizeof(SExtSchema) * me->stbEntry.schemaRow.nCols);
+  
   code = taosHashPut(suidInfo, &me->uid, sizeof(tb_uid_t), &dataTmp, sizeof(STableInfoForChildTable));
   if (code != 0) {
     goto END;
@@ -828,15 +831,26 @@ int32_t getMetaTableInfoFromSnapshot(SSnapContext* ctx, SMetaTableInfo* result) 
       }
       result->suid = me.ctbEntry.suid;
       result->schema = tCloneSSchemaWrapper(data->schemaRow);
-      result->pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * data->schemaRow->nCols);
-      if (result->pExtSchemas != NULL) {
+      if (data->pExtSchemas != NULL) {
+        result->pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * data->schemaRow->nCols);
+        if (result->pExtSchemas == NULL) {
+          tDecoderClear(&dc);
+          metaError("result->pExtSchemas malloc failed");
+          return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+        }
         memcpy(result->pExtSchemas, data->pExtSchemas, sizeof(SExtSchema) * data->schemaRow->nCols);
       }
+      
     } else if (ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_NORMAL_TABLE) {
       result->suid = 0;
       result->schema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
-      result->pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * me.ntbEntry.schemaRow.nCols);
-      if (result->pExtSchemas != NULL) {
+      if (me.pExtSchemas != NULL) {
+        result->pExtSchemas = taosMemoryMalloc(sizeof(SExtSchema) * me.ntbEntry.schemaRow.nCols);
+        if (result->pExtSchemas == NULL) {
+          tDecoderClear(&dc);
+          metaError("result->pExtSchemas malloc failed");
+          return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
+        }
         memcpy(result->pExtSchemas, me.pExtSchemas, sizeof(SExtSchema) * me.ntbEntry.schemaRow.nCols);
       }
     } else {
@@ -847,7 +861,7 @@ int32_t getMetaTableInfoFromSnapshot(SSnapContext* ctx, SMetaTableInfo* result) 
     result->uid = me.uid;
     tstrncpy(result->tbName, me.name, TSDB_TABLE_NAME_LEN);
     tDecoderClear(&dc);
-    if (result->schema == NULL || result->pExtSchemas == NULL) {
+    if (result->schema == NULL) {
       return TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);
     }
     break;
