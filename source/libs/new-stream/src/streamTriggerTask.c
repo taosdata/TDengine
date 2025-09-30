@@ -1061,46 +1061,15 @@ int32_t stTriggerTaskReleaseDropTableRequest(SStreamTriggerTask *pTask, SSTrigge
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SSTriggerDropRequest *pReq = NULL;
-  SSTriggerCalcNode    *pNode = NULL;
   bool                 *pRunningFlag = NULL;
-  bool                  needUnlock = false;
   bool                  hasSent = false;
 
   pReq = *ppRequest;
   *ppRequest = NULL;
-  taosArrayClearEx(pReq->groupColVals, tDestroySStreamGroupValue);
+  taosArrayDestroyEx(pReq->groupColVals, tDestroySStreamGroupValue);
 
-  int32_t idx = 0;
-  int32_t nRunners = taosArrayGetSize(pTask->runnerList);
-  while (idx < nRunners) {
-    SStreamRunnerTarget *pRunner = TARRAY_GET_ELEM(pTask->runnerList, idx);
-    if (pRunner->addr.taskId == pReq->runnerTaskId) {
-      break;
-    }
-    idx++;
-  }
-  QUERY_CHECK_CONDITION(idx < nRunners, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  taosMemoryFree(pReq);
 
-  taosWLockLatch(&pTask->calcPoolLock);
-  needUnlock = true;
-
-  int64_t p[] = {pReq->sessionId, pReq->gid};
-  pRunningFlag = tSimpleHashGet(pTask->pGroupRunning, p, sizeof(p));
-  QUERY_CHECK_NULL(pRunningFlag, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  pRunningFlag[0] = false;
-  pRunningFlag[idx + 1] = hasSent;
-
-  pNode = taosArrayGet(pTask->pCalcNodes, idx);
-  QUERY_CHECK_NULL(pNode, code, lino, _end, terrno);
-  SSTriggerCalcSlot *pSlot = (SSTriggerCalcSlot *)pReq;
-  int32_t            eIdx = TARRAY_ELEM_IDX(pNode->pSlots, pSlot);
-  QUERY_CHECK_CONDITION(eIdx >= 0 && eIdx < TARRAY_SIZE(pNode->pSlots), code, lino, _end, TSDB_CODE_INVALID_PARA);
-  TD_DLIST_APPEND(&pNode->idleSlots, pSlot);
-
-_end:
-  if (needUnlock) {
-    taosWUnLockLatch(&pTask->calcPoolLock);
-  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

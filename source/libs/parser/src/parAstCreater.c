@@ -187,7 +187,7 @@ static bool checkImportPassword(SAstCreateContext* pCxt, const SToken* pPassword
   } else {
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     (void)strdequote(pPassword);
-    if (strtrim(pPassword) < 32) {
+    if (strtrim(pPassword) < TSDB_PASSWORD_LEN - 1) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
     }
   }
@@ -5288,8 +5288,8 @@ SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* 
   SShowCreateRsmaStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->rsmaName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
+  tstrncpy(pStmt->rsmaName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->rsmaName));
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
@@ -5321,8 +5321,8 @@ SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLis
     pCxt->errCode = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     CHECK_PARSER_STATUS(pCxt);
   }
-  SCompactVgroupsStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_COMPACT_VGROUPS_STMT, (SNode**)&pStmt);
+  SRollupVgroupsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ROLLUP_VGROUPS_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->pDbName = pDbName;
   pStmt->vgidList = vgidList;

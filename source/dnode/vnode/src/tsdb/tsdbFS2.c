@@ -723,6 +723,7 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT et
       } else if (etype == TSDB_FEDIT_SSMIGRATE) {
         fset->lastMigrate = now;
       } else if (etype == TSDB_FEDIT_ROLLUP) {
+        fset->lastRollupLevel = fs->rollupLevel;
         fset->lastRollup = now;
         fset->lastCompact = now;  // rollup implies compact
       }
@@ -831,8 +832,8 @@ int32_t tsdbDisableAndCancelAllBgTask(STsdb *pTsdb) {
 
 #ifdef TD_ENTERPRISE
   tsdbStopAllCompTask(pTsdb);
-  tsdbStopAllRetentionTask(pTsdb);
 #endif
+  tsdbStopAllRetentionTask(pTsdb);
   return 0;
 }
 
@@ -1368,7 +1369,7 @@ int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader) {
   return code;
 }
 
-extern bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, ETsdbOpType type);
+extern bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, int32_t expLevel, ETsdbOpType type);
 int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value) {
   const char *fieldName;
 
@@ -1410,7 +1411,7 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
     *(bool *)value = false;
 #ifdef TD_ENTERPRISE
-    *(bool *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId, TSDB_OPTR_NORMAL);
+    *(bool *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId, 0, TSDB_OPTR_NORMAL);
 #endif
     return TSDB_CODE_SUCCESS;
   }
