@@ -33,7 +33,7 @@ dumpName2="${clientName2}dump"
 demoName2="${clientName2}demo"
 uninstallScript2="rm${clientName2}"
 inspect_name="${clientName2}inspect"
-
+taosgen_name="${clientName2}taosgen"
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -112,6 +112,7 @@ function install_bin() {
   if [ "$osType" != "Darwin" ]; then
       ${csudo}rm -f ${bin_link_dir}/taosdemo || :
       ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+      ${csudo}rm -f ${bin_link_dir}/${taosgen_name} || :    
   fi
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
@@ -125,6 +126,7 @@ function install_bin() {
   if [ "$osType" != "Darwin" ]; then
       [ -x ${install_main_dir}/bin/${demoName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName2} ${bin_link_dir}/${demoName2}  || :
       [ -x ${install_main_dir}/bin/${inspect_name} ] && ${csudo}ln -s ${install_main_dir}/bin/${inspect_name} ${bin_link_dir}/${inspect_name} || :
+      [ -x ${install_main_dir}/bin/${taosgen_name} ] && ${csudo}ln -s ${install_main_dir}/bin/${taosgen_name} ${bin_link_dir}/${taosgen_name} || :
   fi
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :  

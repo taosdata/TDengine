@@ -42,6 +42,7 @@ keeperName="${PREFIX}keeper"
 inspect_name="${PREFIX}inspect"
 set_malloc_bin="set_taos_malloc.sh"
 mqtt_name="${PREFIX}mqtt"
+taosgen_name="${PREFIX}gen"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -185,7 +186,7 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh ${taosgen_name})
 if [ "${verMode}" == "cluster" ]; then
   if [ "${entMode}" == "lite" ]; then
     services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
@@ -195,7 +196,7 @@ if [ "${verMode}" == "cluster" ]; then
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pkgMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh ${taosgen_name})
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -261,7 +262,8 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin || :
+    ${csudo}cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin || :
     ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
