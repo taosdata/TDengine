@@ -1028,9 +1028,7 @@ int32_t tsdbRowCacheNewTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, int8_
 
   // Schema wrappers are required for column operations
   if (pOldSchemaWrapper == NULL || pNewSchemaWrapper == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
-    lino = __LINE__;
-    goto _exit;
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &lino, _exit);
   }
 
   // Build new row with the added column
