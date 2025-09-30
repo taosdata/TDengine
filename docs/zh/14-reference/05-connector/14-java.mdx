@@ -1409,7 +1409,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
   2. 如果使用 Native 连接，则为 TDengine TSDB 服务端所在的`ip:port`，Native 连接不支持多个端点。
 - enable.auto.commit：是否允许自动提交。
 - group.id：consumer：所在的 group。
-- value.deserializer：结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。
+- value.deserializer：结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。如果订阅数据库，需要在创建消费者时设置 `value.deserializer` 为 `com.taosdata.jdbc.tmq.MapEnhanceDeserializer`，然后创建 `TaosConsumer<TMQEnhMap>` 类型的消费者。这样每行数据就可以反序列化为表名和一个 `Map`。
 - httpConnectTimeout：创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
 - messageWaitTimeout：数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
 - httpPoolSize：同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。  

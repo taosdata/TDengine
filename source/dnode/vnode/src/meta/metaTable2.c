@@ -2391,14 +2391,7 @@ int metaCreateRsma(SMeta *pMeta, int64_t version, SVCreateRsmaReq *pReq) {
   }
 
   if (TABLE_IS_ROLLUP(pEntry->flags)) {
-    if (pEntry->stbEntry.rsmaParam.uid == pReq->uid &&
-        strncmp(pEntry->stbEntry.rsmaParam.name, pReq->name, TSDB_TABLE_NAME_LEN) == 0) {
-      metaInfo("vgId:%d, %s no need at %d since table %s is rollup table with same rsma name:%s and uid:%" PRIi64
-               ", version:%" PRId64,
-               TD_VID(pMeta->pVnode), __func__, __LINE__, pReq->tbName, pReq->name, pReq->uid, version);
-      metaFetchEntryFree(&pEntry);
-      TAOS_RETURN(TSDB_CODE_RSMA_ALREADY_EXISTS);
-    }
+    // overwrite the old rsma definition if exists
     taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcColIds);
     taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcIds);
   } else {
