@@ -999,6 +999,15 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
       break;
     }
 
+    if (pBlock->info.rows > 0) {
+      qInfo(
+          ""
+          "%s loaded data block, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64 ", uid:0x%" PRIx64
+          ", groupId: %" PRIu64,
+          GET_TASKID(pTaskInfo), pBlock->info.window.skey, pBlock->info.window.ekey, pBlock->info.rows,
+          pBlock->info.id.uid, pBlock->info.id.groupId);
+    }
+
     // current block is filter out according to filter condition, continue load the next block
     if (status == FUNC_DATA_REQUIRED_FILTEROUT || pBlock->info.rows == 0) {
       continue;
