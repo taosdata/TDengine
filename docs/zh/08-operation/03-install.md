@@ -59,7 +59,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 
 <TabItem label="deb 安装" value="debinst">
 1. 从列表中下载获得 deb 安装包：
-    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.0" platform="Linux-Ubuntu" arch="x64" pkgType="Server" jsonPath="assets/data/product-data.json"/>
+    <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.0" platform="Linux-Ubuntu" arch="x64" pkgType="Server"/>
 2. 进入到安装包所在目录，执行如下的安装命令：
     ```bash
     sudo dpkg -i tdengine-tsdb-oss-3.3.8.0-linux-x64.deb
