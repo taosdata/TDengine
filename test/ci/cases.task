@@ -349,11 +349,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_with_520_cols.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_with_json.py
 ## 04-Timeseries
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_ts_csum.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_ts_diff.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_ts_interp.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_ts_irate.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_ts_mavg.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_csum.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_diff.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_interp.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_irate.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_mavg.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_sample.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_stateduration.py
