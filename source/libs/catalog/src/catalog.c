@@ -904,8 +904,8 @@ int32_t catalogInit(SCatalogCfg* cfg) {
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  if (tsem_init(&gCtgMgmt.queue.reqSem, 0, 0)) {
-    qError("tsem_init failed, terror:%s", tstrerror(terrno));
+  if (tdsem_init(&gCtgMgmt.queue.reqSem, 0, 0, __func__, __LINE__)) {
+    qError("tdsem_init failed, terror:%s", tstrerror(terrno));
     CTG_ERR_RET(TSDB_CODE_CTG_SYS_ERROR);
   }
 

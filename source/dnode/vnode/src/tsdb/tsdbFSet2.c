@@ -51,7 +51,7 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
     code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
     if (code) {
       tsdbSttLvlClear(lvl);
-      // (void)taosThreadMutexDestroy(&fobj->mutex);
+      // (void)tThreadMutexDestroy(&fobj->mutex, __func__, __LINE__);
       taosMemoryFree(fobj);
       return code;
     }

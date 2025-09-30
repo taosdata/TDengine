@@ -50,7 +50,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }
@@ -182,7 +182,7 @@ End:
   if (code != 0) {
     setErrno(pRequest, code);
   }
-  if (tsem_post(&pRequest->body.rspSem) != 0) {
+  if (tasem_post(&pRequest->body.rspSem) != 0) {
     tscError("failed to post semaphore");
   }
 
@@ -243,7 +243,7 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp) {
     doRequestCallback(pRequest, code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }
@@ -285,7 +285,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       doRequestCallback(pRequest, pRequest->code);
 
     } else {
-      if (tsem_post(&pRequest->body.rspSem) != 0) {
+      if (tasem_post(&pRequest->body.rspSem) != 0) {
         tscError("failed to post semaphore");
       }
     }
@@ -365,7 +365,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, pRequest->code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }
@@ -424,7 +424,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
     doRequestCallback(pRequest, code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }
@@ -470,7 +470,7 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }
@@ -517,7 +517,7 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
     doRequestCallback(pRequest, code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }
@@ -697,7 +697,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     doRequestCallback(pRequest, code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }
@@ -851,7 +851,7 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }
@@ -965,7 +965,7 @@ int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t co
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   } else {
-    if (tsem_post(&pRequest->body.rspSem) != 0) {
+    if (tasem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
     }
   }

@@ -140,7 +140,7 @@ int32_t indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   if (taosThreadMutexInit(&idx->mtx, NULL) != 0) {
     TAOS_CHECK_GOTO(terrno, NULL, END);
   }
-  if (tsem_init(&idx->sem, 0, 0) != 0) {
+  if (tdsem_init(&idx->sem, 0, 0, __func__, __LINE__) != 0) {
     TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
@@ -163,7 +163,7 @@ void indexDestroy(void* handle) {
   if (handle == NULL) return;
   SIndex* idx = handle;
   TAOS_UNUSED(taosThreadMutexDestroy(&idx->mtx));
-  TAOS_UNUSED(tsem_destroy(&idx->sem));
+  TAOS_UNUSED(tdsem_destroy(&idx->sem, __func__, __LINE__));
   idxTFileDestroy(idx->tindex);
   taosMemoryFree(idx->path);
 

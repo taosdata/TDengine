@@ -775,7 +775,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   code = tsdbInitReaderLock(pReader);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  code = tsem_init(&pReader->resumeAfterSuspend, 0, 0);
+  code = tdsem_init(&pReader->resumeAfterSuspend, 0, 0, __func__, __LINE__);
   TSDB_CHECK_CODE(code, lino, _end);
 
   *ppReader = pReader;
@@ -5726,7 +5726,7 @@ void tsdbReaderClose2(STsdbReader* pReader) {
     pReader->pReadSnap = NULL;
   }
 
-  (void) tsem_destroy(&pReader->resumeAfterSuspend);
+  (void)tdsem_destroy(&pReader->resumeAfterSuspend, __func__, __LINE__);
   (void) tsdbReleaseReader(pReader);
   (void) tsdbUninitReaderLock(pReader);
 

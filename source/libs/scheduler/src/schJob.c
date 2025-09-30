@@ -558,7 +558,7 @@ void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
 
   if (SCH_JOB_IN_SYNC_OP(pJob)) {
     SCH_UNLOCK(SCH_WRITE, &pJob->opStatus.lock);
-    code = tsem_post(&pJob->rspSem);
+    code = tasem_post(&pJob->rspSem);
     if (code) {
       SCH_JOB_ELOG("tsem_post failed for syncOp, error:%s", tstrerror(code));
     }
@@ -806,7 +806,7 @@ void schFreeJobImpl(void *job) {
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
   taosMemoryFreeClear(pJob->sql);
-  int32_t code = tsem_destroy(&pJob->rspSem);
+  int32_t code = tasem_destroy(&pJob->rspSem);
   if (code) {
     qError("tsem_destroy failed, error:%s", tstrerror(code));
   }
@@ -830,7 +830,7 @@ int32_t schJobFetchRows(SSchJob *pJob) {
 
     if (schChkCurrentOp(pJob, SCH_OP_FETCH, true)) {
       SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-      code = tsem_wait(&pJob->rspSem);
+      code = tasem_wait(&pJob->rspSem);
       if (code) {
         qError("tsem_wait for fetch rspSem failed, error:%s", tstrerror(code));
         SCH_RET(code);
@@ -914,8 +914,8 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     SCH_ERR_JRET(terrno);
   }
 
-  if (tsem_init(&pJob->rspSem, 0, 0)) {
-    SCH_JOB_ELOG("tsem_init failed, errno:%d", ERRNO);
+  if (tasem_init(&pJob->rspSem, "schedulerRsp", 0)) {
+    SCH_JOB_ELOG("tdsem_init failed, errno:%d", ERRNO);
     SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
@@ -957,7 +957,7 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
 
   if (pReq->syncReq) {
     SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-    code = tsem_wait(&pJob->rspSem);
+    code = tasem_wait(&pJob->rspSem);
     if (code) {
       qError("QID:0x%" PRIx64 ", tsem_wait sync rspSem failed, error:%s", pReq->pDag->queryId, tstrerror(code));
       SCH_ERR_RET(code);

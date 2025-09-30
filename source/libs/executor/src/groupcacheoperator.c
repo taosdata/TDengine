@@ -95,7 +95,7 @@ static void logGroupCacheExecInfo(SGroupCacheOperatorInfo* pGrpCacheOperator) {
 static void freeSGcSessionCtx(void* p) {
   SGcSessionCtx* pSession = p;
   if (pSession->semInit) {
-    if (tsem_destroy(&pSession->waitSem) < 0) {
+    if (tdsem_destroy(&pSession->waitSem, __func__, __LINE__) < 0) {
       qError("tsem_destroy session waitSem failed, error:%s", tstrerror(terrno));
     }
   }
@@ -1157,7 +1157,7 @@ static int32_t groupCacheSessionWait(struct SOperatorInfo* pOperator, SGcDownstr
   }
 
   if (!pSession->semInit) {
-    QRY_ERR_JRET(tsem_init(&pSession->waitSem, 0, 0));
+    QRY_ERR_JRET(tdsem_init(&pSession->waitSem, 0, 0));
     pSession->semInit = true;
   }
 

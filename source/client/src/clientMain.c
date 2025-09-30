@@ -1852,7 +1852,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   }
 
   SSyncQueryParam *pParam = pRequest->body.interParam;
-  code = tsem_wait(&pParam->sem);
+  code = tasem_wait(&pParam->sem);
   if (code) {
     tscError("tsem wait failed, code:%d - %s", code, tstrerror(code));
     goto _return;

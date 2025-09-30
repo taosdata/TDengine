@@ -98,7 +98,7 @@ static void *dmNotifyThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-notify");
 
-  if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
+  if (tdsem_init(&dmNotifyHdl.sem, 0, 0, __func__, __LINE__) != 0) {
     return NULL;
   }
 
@@ -438,7 +438,7 @@ void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
     (void)taosThreadJoin(pMgmt->notifyThread, NULL);
     taosThreadClear(&pMgmt->notifyThread);
   }
-  if (tsem_destroy(&dmNotifyHdl.sem) != 0) {
+  if (tdsem_destroy(&dmNotifyHdl.sem, __func__, __LINE__) != 0) {
     dError("failed to destroy notify sem");
   }
 }

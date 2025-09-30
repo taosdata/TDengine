@@ -434,7 +434,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->blocked = false;
   pVnode->disableWrite = false;
 
-  if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
+  if (tdsem_init(&pVnode->syncSem, 0, 0, __func__, __LINE__) != 0) {
     vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
     goto _err;
   }
@@ -577,7 +577,7 @@ void vnodeClose(SVnode *pVnode) {
     vnodeCloseBufPool(pVnode);
 
     // destroy handle
-    if (tsem_destroy(&pVnode->syncSem) != 0) {
+    if (tdsem_destroy(&pVnode->syncSem, __func__, __LINE__) != 0) {
       vError("vgId:%d, failed to destroy semaphore", TD_VID(pVnode));
     }
     (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);

@@ -857,7 +857,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
 
   pStmt->sql.siInfo.tableColsReady = true;
   if (pStmt->options.asyncExecFn) {
-    if (tsem_init(&pStmt->asyncExecSem, 0, 1) != 0) {
+    if (tdsem_init(&pStmt->asyncExecSem, 0, 1, __func__, __LINE__) != 0) {
       terrno = TAOS_SYSTEM_ERROR(ERRNO);
       (void)stmtClose2(pStmt);
       return NULL;
@@ -2004,7 +2004,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 
   if (pStmt->options.asyncExecFn) {
-    if (tsem_destroy(&pStmt->asyncExecSem) != 0) {
+    if (tdsem_destroy(&pStmt->asyncExecSem, __func__, __LINE__) != 0) {
       tscError("failed to destroy asyncExecSem");
     }
   }

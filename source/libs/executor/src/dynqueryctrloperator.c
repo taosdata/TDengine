@@ -1505,7 +1505,7 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      line = 0;
 
-  code = tsem_init(&pInfo->vtbScan.ready, 0, 0);
+  code = tdsem_init(&pInfo->vtbScan.ready, 0, 0, __func__, __LINE__);
   QUERY_CHECK_CODE(code, line, _return);
 
   pInfo->vtbScan.scanAllCols = pPhyciNode->vtbScan.scanAllCols;

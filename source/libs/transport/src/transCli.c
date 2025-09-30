@@ -3212,7 +3212,7 @@ int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STr
     TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
 
-  code = tsem_init(sem, 0, 0);
+  code = tdsem_init(sem, 0, 0, __func__, __LINE__);
   if (code != 0) {
     taosMemoryFree(sem);
     TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
@@ -3222,21 +3222,21 @@ int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STr
 
   pCtx = taosMemoryCalloc(1, sizeof(SReqCtx));
   if (pCtx == NULL) {
-    TAOS_UNUSED(tsem_destroy(sem));
+    TAOS_UNUSED(tdsem_destroy(sem, __func__, __LINE__));
     taosMemoryFree(sem);
     TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
 
   code = transCreateReqEpsetFromUserEpset(pEpSet, &pCtx->epSet);
   if (code != 0) {
-    (TAOS_UNUSED(tsem_destroy(sem)));
+    (TAOS_UNUSED(tdsem_destroy(sem, __func__, __LINE__)));
     taosMemoryFree(sem);
     TAOS_CHECK_GOTO(code, NULL, _RETURN1);
   }
 
   code = transCreateReqEpsetFromUserEpset(pEpSet, &pCtx->origEpSet);
   if (code != 0) {
-    (TAOS_UNUSED(tsem_destroy(sem)));
+    (TAOS_UNUSED(tdsem_destroy(sem, __func__, __LINE__)));
     taosMemoryFree(sem);
     TAOS_CHECK_GOTO(code, NULL, _RETURN1);
   }
@@ -3248,7 +3248,7 @@ int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STr
 
   pCliReq = taosMemoryCalloc(1, sizeof(SCliReq));
   if (pCliReq == NULL) {
-    (TAOS_UNUSED(tsem_destroy(sem)));
+    (TAOS_UNUSED(tdsem_destroy(sem, __func__, __LINE__)));
     taosMemoryFree(sem);
     TAOS_CHECK_GOTO(terrno, NULL, _RETURN1);
   }
@@ -3272,7 +3272,7 @@ int32_t transSendRecv(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STr
   memcpy(pRsp, pTransRsp, sizeof(STransMsg));
 
 _RETURN:
-  tsem_destroy(sem);
+  tdsem_destroy(sem, __func__, __LINE__);
   taosMemoryFree(sem);
   transReleaseExHandle(transGetInstMgt(), (int64_t)pInstRef);
   taosMemoryFree(pTransRsp);
@@ -4081,15 +4081,15 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
 
   STransReqWithSem* tmsg = taosMemoryCalloc(1, sizeof(STransReqWithSem));
   tmsg->sem = taosMemoryCalloc(1, sizeof(tsem_t));
-  code = tsem_init(tmsg->sem, 0, 0);
+  code = tasem_init(tmsg->sem, "transSendRecvTO", 0);
   if (code != 0) {
     taosMemoryFree(tmsg->sem);
     return code;
   }
   pReq->info.reqWithSem = tmsg;
   transSendRequest(shandle, NULL, pReq, NULL);
-  TAOS_UNUSED(tsem_wait(tmsg->sem));
-  tsem_destroy(tmsg->sem);
+  TAOS_UNUSED(tasem_wait(tmsg->sem));
+  tasem_destroy(tmsg->sem);
   taosMemFree(tmsg->sem);
 
   memcpy(pRsp, &tmsg->pMsg, sizeof(STransMsg));

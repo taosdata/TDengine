@@ -419,7 +419,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   code = initExchangeOperator(pExNode, pInfo, GET_TASKID(pTaskInfo));
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = tsem_init(&pInfo->ready, 0, 0);
+  code = tdsem_init(&pInfo->ready, 0, 0, __func__, __LINE__);
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->pDummyBlock = createDataBlockFromDescNode(pExNode->node.pOutputDataBlockDesc);
@@ -511,7 +511,7 @@ void doDestroyExchangeOperatorInfo(void* param) {
   blockDataDestroy(pExInfo->pDummyBlock);
   tSimpleHashCleanup(pExInfo->pHashSources);
 
-  int32_t code = tsem_destroy(&pExInfo->ready);
+  int32_t code = tdsem_destroy(&pExInfo->ready, __func__, __LINE__);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }

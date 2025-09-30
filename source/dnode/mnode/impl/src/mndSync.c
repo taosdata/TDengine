@@ -515,8 +515,8 @@ int32_t mndInitSync(SMnode *pMnode) {
   }
 
   int32_t code = 0;
-  if ((code = tsem_init(&pMgmt->syncSem, 0, 0)) < 0) {
-    mError("failed to open sync, tsem_init, since %s", tstrerror(code));
+  if ((code = tdsem_init(&pMgmt->syncSem, 0, 0, __func__, __LINE__)) < 0) {
+    mError("failed to open sync, tdsem_init, since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
   pMgmt->sync = syncOpen(&syncInfo, 1);  // always check
@@ -536,7 +536,7 @@ void mndCleanupSync(SMnode *pMnode) {
   syncStop(pMgmt->sync);
   mInfo("mnode-sync is stopped, id:%" PRId64, pMgmt->sync);
 
-  if (tsem_destroy(&pMgmt->syncSem) < 0) {
+  if (tdsem_destroy(&pMgmt->syncSem, __func__, __LINE__) < 0) {
     mError("failed to destroy sem");
   }
   (void)taosThreadMutexDestroy(&pMgmt->lock);

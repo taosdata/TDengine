@@ -44,7 +44,7 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   }
 
   fs[0]->tsdb = pTsdb;
-  int32_t code = tsem_init(&fs[0]->canEdit, 0, 1);
+  int32_t code = tdsem_init(&fs[0]->canEdit, 0, 1, __func__, __LINE__);
   if (code) {
     taosMemoryFree(fs[0]);
     return code;
@@ -63,7 +63,7 @@ static void destroy_fs(STFileSystem **fs) {
 
   TARRAY2_DESTROY(fs[0]->fSetArr, NULL);
   TARRAY2_DESTROY(fs[0]->fSetArrTmp, NULL);
-  if (tsem_destroy(&fs[0]->canEdit) != 0) {
+  if (tdsem_destroy(&fs[0]->canEdit, __func__, __LINE__) != 0) {
     tsdbError("failed to destroy semaphore");
   }
   taosMemoryFree(fs[0]);

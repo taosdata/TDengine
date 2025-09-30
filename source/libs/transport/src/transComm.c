@@ -1236,7 +1236,7 @@ void* processSvrMsg(void* arg) {
           } else {
             STransReqWithSem* reqWithSem = pRpcMsg->info.reqWithSem;
             memcpy(&reqWithSem->pMsg, pRpcMsg, sizeof(SRpcMsg));
-            tsem_post(reqWithSem->sem);
+            tasem_post(reqWithSem->sem);
           }
         } else {
           tDebug("taosd %s received from taosd, ignore", TMSG_INFO(pRpcMsg->msgType));

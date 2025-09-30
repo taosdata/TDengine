@@ -356,7 +356,7 @@ int32_t taosOpenQset(STaosQset **qset) {
   }
 
   (void)taosThreadMutexInit(&(*qset)->mutex, NULL);
-  if (tsem_init(&(*qset)->sem, 0, 0) != 0) {
+  if (tdsem_init(&(*qset)->sem, 0, 0, __func__, __LINE__) != 0) {
     taosMemoryFree(*qset);
     return terrno;
   }
@@ -380,7 +380,7 @@ void taosCloseQset(STaosQset *qset) {
   (void)taosThreadMutexUnlock(&qset->mutex);
 
   (void)taosThreadMutexDestroy(&qset->mutex);
-  if (tsem_destroy(&qset->sem) != 0) {
+  if (tdsem_destroy(&qset->sem, __func__, __LINE__) != 0) {
     uError("failed to destroy semaphore for qset:%p", qset);
   }
   taosMemoryFree(qset);

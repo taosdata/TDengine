@@ -66,6 +66,13 @@ int32_t tsem_wait(tsem_t *sem);
 int32_t tsem_timewait(tsem_t *sim, int64_t milis);
 int32_t tsem_post(tsem_t *sem);
 int32_t tsem_destroy(tsem_t *sem);
+int32_t tdsem_init(tsem_t *sem, int pshared, unsigned int value, const char* func, int line);
+int32_t tdsem_destroy(tsem_t* sem, const char* func, int line);
+
+int32_t tasem_init(tsem_t *psem, const char* name, unsigned int count);
+int32_t tasem_destroy(tsem_t *psem);
+int32_t tasem_wait(tsem_t *psem);
+int32_t tasem_post(tsem_t *psem);
 
 typedef struct tsem2_t {
   TdThreadMutex    mutex;

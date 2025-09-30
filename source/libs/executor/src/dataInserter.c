@@ -520,7 +520,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, SDataSinkNode** ppDataSin
     ++i;
   }
 
-  QRY_ERR_JRET(tsem_init(&inserter->ready, 0, 0));
+  QRY_ERR_JRET(tdsem_init(&inserter->ready, 0, 0, __func__, __LINE__));
 
   *pHandle = inserter;
   return TSDB_CODE_SUCCESS;

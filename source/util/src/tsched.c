@@ -76,7 +76,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
     return NULL;
   }
 
-  if (tsem_init(&pSched->emptySem, 0, (uint32_t)pSched->queueSize) != 0) {
+  if (tdsem_init(&pSched->emptySem, 0, (uint32_t)pSched->queueSize, __func__, __LINE__) != 0) {
     uError("init %s:empty semaphore failed(%s)", label, strerror(ERRNO));
     taosCleanUpScheduler(pSched);
     if (schedMalloced) {
@@ -85,7 +85,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
     return NULL;
   }
 
-  if (tsem_init(&pSched->fullSem, 0, 0) != 0) {
+  if (tdsem_init(&pSched->fullSem, 0, 0, __func__, __LINE__) != 0) {
     uError("init %s:full semaphore failed(%s)", label, strerror(ERRNO));
     taosCleanUpScheduler(pSched);
     if (schedMalloced) {
@@ -246,10 +246,10 @@ void taosCleanUpScheduler(void *param) {
     }
   }
 
-  if (tsem_destroy(&pSched->emptySem) != 0) {
+  if (tdsem_destroy(&pSched->emptySem, __func__, __LINE__) != 0) {
     uError("failed to destroy %s emptySem", pSched->label);
   }
-  if (tsem_destroy(&pSched->fullSem) != 0) {
+  if (tdsem_destroy(&pSched->fullSem, __func__, __LINE__) != 0) {
     uError("failed to destroy %s fullSem", pSched->label);
   }
   (void)taosThreadMutexDestroy(&pSched->queueMutex);

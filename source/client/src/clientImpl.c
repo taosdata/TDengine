@@ -213,7 +213,7 @@ _return:
 
 void freeQueryParam(SSyncQueryParam* param) {
   if (param == NULL) return;
-  if (TSDB_CODE_SUCCESS != tsem_destroy(&param->sem)) {
+  if (TSDB_CODE_SUCCESS != tasem_destroy(&param->sem)) {
     tscError("failed to destroy semaphore in freeQueryParam");
   }
   taosMemoryFree(param);
@@ -359,7 +359,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   // int64_t transporterId = 0;
   TSC_ERR_RET(asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, NULL, pSendMsg));
-  TSC_ERR_RET(tsem_wait(&pRequest->body.rspSem));
+  TSC_ERR_RET(tasem_wait(&pRequest->body.rspSem));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1643,7 +1643,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));
     return code;
   }
-  if (TSDB_CODE_SUCCESS != tsem_wait(&pRequest->body.rspSem)) {
+  if (TSDB_CODE_SUCCESS != tasem_wait(&pRequest->body.rspSem)) {
     destroyTscObj(*pTscObj);
     tscError("failed to wait sem, code:%s", terrstr());
     return terrno;
@@ -2047,14 +2047,14 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     // convert ucs4 to native multi-bytes string
     pResultInfo->convertUcs4 = convertUcs4;
     tsem_t sem;
-    if (TSDB_CODE_SUCCESS != tsem_init(&sem, 0, 0)) {
+    if (TSDB_CODE_SUCCESS != tdsem_init(&sem, 0, 0, __func__, __LINE__)) {
       tscError("failed to init sem, code:%s", terrstr());
     }
     taos_fetch_rows_a(pRequest, syncFetchFn, &sem);
     if (TSDB_CODE_SUCCESS != tsem_wait(&sem)) {
       tscError("failed to wait sem, code:%s", terrstr());
     }
-    if (TSDB_CODE_SUCCESS != tsem_destroy(&sem)) {
+    if (TSDB_CODE_SUCCESS != tdsem_destroy(&sem, __func__, __LINE__)) {
       tscError("failed to destroy sem, code:%s", terrstr());
     }
     pRequest->inCallback = false;
@@ -2911,7 +2911,7 @@ void syncCatalogFn(SMetaData* pResult, void* param, int32_t code) {
   SSyncQueryParam* pParam = param;
   pParam->pRequest->code = code;
 
-  if (TSDB_CODE_SUCCESS != tsem_post(&pParam->sem)) {
+  if (TSDB_CODE_SUCCESS != tasem_post(&pParam->sem)) {
     tscError("failed to post semaphore since %s", tstrerror(terrno));
   }
 }
@@ -2925,7 +2925,7 @@ void syncQueryFn(void* param, void* res, int32_t code) {
     clientOperateReport(pParam->pRequest);
   }
 
-  if (TSDB_CODE_SUCCESS != tsem_post(&pParam->sem)) {
+  if (TSDB_CODE_SUCCESS != tasem_post(&pParam->sem)) {
     tscError("failed to post semaphore since %s", tstrerror(terrno));
   }
 }
@@ -3008,19 +3008,19 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   if (NULL == param) {
     return NULL;
   }
-  int32_t code = tsem_init(&param->sem, 0, 0);
+  int32_t code = tasem_init(&param->sem, "", 0);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
     return NULL;
   }
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
-  code = tsem_wait(&param->sem);
+  code = tasem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
     return NULL;
   }
-  code = tsem_destroy(&param->sem);
+  code = tasem_destroy(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to destroy semaphore since %s", tstrerror(code));
   }
@@ -3049,14 +3049,14 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
   if (param == NULL) {
     return NULL;
   }
-  int32_t code = tsem_init(&param->sem, 0, 0);
+  int32_t code = tasem_init(&param->sem, "query", 0);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
     return NULL;
   }
 
   taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
-  code = tsem_wait(&param->sem);
+  code = tasem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
     return NULL;

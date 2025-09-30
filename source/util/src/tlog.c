@@ -1392,7 +1392,7 @@ void checkAndPrepareCrashInfo() {
 }
 
 int32_t initCrashLogWriter() {
-  int32_t code = tsem_init(&gCrashBasicInfo.sem, 0, 0);
+  int32_t code = tdsem_init(&gCrashBasicInfo.sem, 0, 0, __func__, __LINE__);
   if (code != 0) {
     uError("failed to init sem for crashLogWriter, code:%d", code);
     return code;

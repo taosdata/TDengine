@@ -3063,13 +3063,13 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
       strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
     pInfo->readHandle = *(SReadHandle*)readHandle;
-    // TODO: check if it is necessary to call tsem_init TD_ASTRA_TODO
-    if (tsem_init(&pInfo->ready, 0, 0) != TSDB_CODE_SUCCESS) {
+    // TODO: check if it is necessary to call tdsem_init TD_ASTRA_TODO
+    if (tdsem_init(&pInfo->ready, 0, 0, __func__, __LINE__) != TSDB_CODE_SUCCESS) {
       code = TSDB_CODE_FAILED;
       goto _error;
-    } 
+    }
   } else {
-    if (tsem_init(&pInfo->ready, 0, 0) != TSDB_CODE_SUCCESS) {
+    if (tdsem_init(&pInfo->ready, 0, 0, __func__, __LINE__) != TSDB_CODE_SUCCESS) {
       code = TSDB_CODE_FAILED;
       goto _error;
     }
@@ -3122,7 +3122,7 @@ void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNo
 
 void destroySysScanOperator(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
-  int32_t            code = tsem_destroy(&pInfo->ready);
+  int32_t            code = tdsem_destroy(&pInfo->ready, __func__, __LINE__);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }

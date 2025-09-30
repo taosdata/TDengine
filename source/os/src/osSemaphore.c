@@ -19,6 +19,11 @@
 #include "pthread.h"
 #include "tdef.h"
 
+// int64_t nSemCount = 0;
+// int64_t nSem2Count = 0;
+// int64_t nSemSum = 0;
+int64_t nSemCnt = 0;
+
 #ifdef WINDOWS
 
 /*
@@ -330,10 +335,84 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
 
 int32_t tsem_init(tsem_t* psem, int flags, unsigned int count) {
   if (sem_init(psem, flags, count) == 0) {
+    // printf("sem_init nSemCount:%" PRIi64 "\n", atomic_add_fetch_64(&nSemCount, 1));
     return 0;
   } else {
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
+}
+
+int32_t tdsem_init(tsem_t* psem, int flags, unsigned int count, const char* func, int line) {
+  if (sem_init(psem, flags, count) == 0) {
+    // int64_t sum = atomic_add_fetch_64(&nSemSum, 1);
+    // if (sum > 200) {
+    //   printf("%" PRIi64 " %s:%d tdsem_init nSemSum:%" PRIi64 "\n", taosGetTimestampMs(), func, line, sum);
+    // }
+    return 0;
+  } else {
+    return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  }
+}
+
+/**
+ * attributeSet:銆�COREOS_COUNTING_SEMAPHORE(璁℃暟) 銆丄COREOS_BINARY_SEMAPHORE锛堜簩鍊硷級銆丄COREOS_MUTEX_SEMAPHORE锛堜簰鏂ワ級
+ * priorityCeiling锛欰COREOS_FIFO锛堝厛杩涘厛鍑猴級銆丄COREOS_PRIORITY锛堜紭鍏堢骇鎺掗槦锛夈�ACOREOS_INHERIT_PRIORITY锛堜紭鍏堢骇缁ф壙锛夈�ACOREOS_PRIORITY_CEILING锛堜紭鍏堢骇澶╄姳鏉匡級
+ */
+int32_t tasem_init(tsem_t *psem, const char* name, unsigned int count) {
+#if 1  
+  int64_t nCnt = atomic_add_fetch_64(&nSemCnt, 1);
+  char sName[40] = "\0";
+  snprintf(sName, 40, "%" PRIi64, nCnt);
+  Sem_ID pSem = ACoreOsMP_semaphore_create((ACoreOs_name)sName, count, ACOREOS_COUNTING_SEMAPHORE, ACOREOS_FIFO);
+  if(pSem == NULL) {
+    // __asm("bkpt #0");
+    return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  }
+  *psem = (tsem_t)pSem;
+  return terrno = 0;
+#else
+  return tsem_init(psem, 0, count);
+#endif
+}
+
+int32_t tasem_destroy(tsem_t *psem) {
+#if 1
+  if(psem == NULL || *psem == NULL) return terrno = 0;
+  if(ACoreOs_semaphore_delete((Sem_ID)*psem) != 0) {
+    // __asm("bkpt #0");
+    return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  }
+  *psem = NULL;
+  return terrno = 0;
+#else
+  return tsem_destroy(psem);
+#endif
+}
+
+int32_t tasem_wait(tsem_t *psem) {
+#if 1
+  if(psem == NULL || *psem == NULL) return terrno = TSDB_CODE_INVALID_PARA;
+  if(ACoreOs_semaphore_obtain((Sem_ID)*psem, ACOREOS_WAIT, ACOREOS_FOREVER) != 0) {
+    // __asm("bkpt #0");
+    return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  }
+  return terrno = 0;
+#else
+  return tsem_wait(psem); 
+#endif
+}
+
+int32_t tasem_post(tsem_t *psem) {
+#if 1
+  if(psem == NULL || *psem == NULL) return terrno = TSDB_CODE_INVALID_PARA;
+  if(ACoreOs_semaphore_release((Sem_ID)*psem) != 0) {
+    // __asm("bkpt #0");
+    return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  }
+  return terrno = 0;
+#else
+  return tsem_post(psem);
+#endif
 }
 
 int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
@@ -406,6 +485,7 @@ int tsem2_init(tsem2_t* sem, int pshared, unsigned int value) {
   }
 
   sem->count = value;
+  // printf("tsem2_init nSem2Count:%" PRIi64 "\n", atomic_add_fetch_64(&nSem2Count, 1));
 
   return 0;
 }
@@ -422,6 +502,20 @@ int32_t tsem_post(tsem_t* psem) {
 int32_t tsem_destroy(tsem_t* sem) {
   OS_PARAM_CHECK(sem);
   if (sem_destroy(sem) == 0) {
+    // printf("sem_destroy nSemCount:%" PRIi64 "\n", atomic_add_fetch_64(&nSemCount, -1));
+    return 0;
+  } else {
+    return TAOS_SYSTEM_ERROR(ERRNO);
+  }
+}
+
+int32_t tdsem_destroy(tsem_t* sem, const char* func, int line) {
+  OS_PARAM_CHECK(sem);
+  if (sem_destroy(sem) == 0) {
+    // int64_t sum = atomic_add_fetch_64(&nSemSum, -1);
+    // if (sum > 200) {
+    //   printf("%" PRIi64 " %s:%d tdsem_destroy nSemSum:%" PRIi64 "\n", taosGetTimestampMs(), func, line, sum);
+    // }
     return 0;
   } else {
     return TAOS_SYSTEM_ERROR(ERRNO);
@@ -454,6 +548,7 @@ int tsem2_destroy(tsem2_t* sem) {
   (void)taosThreadMutexDestroy(&sem->mutex);
   (void)taosThreadCondDestroy(&sem->cond);
   (void)taosThreadCondAttrDestroy(&sem->attr);
+  // printf("tsem2_destroy nSem2Count:%" PRIi64 "\n", atomic_add_fetch_64(&nSem2Count, -1));
   return 0;
 }
 

@@ -954,9 +954,9 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   bool  syncOp = operation->syncOp;
   char *opName = gCtgCacheOperation[operation->opId].name;
   if (operation->syncOp) {
-    code = tsem_init(&operation->rspSem, 0, 0);
+    code = tdsem_init(&operation->rspSem, 0, 0, __func__, __LINE__);
     if (TSDB_CODE_SUCCESS != code) {
-      qError("tsem_init failed, code:%x", code);
+      qError("tdsem_init failed, code:%x", code);
       ctgFreeQNode(node);
       CTG_RET(code);
     }
@@ -997,14 +997,14 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
     if (!operation->unLocked) {
       CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
     }
-    TAOS_UNUSED(tsem_destroy(&operation->rspSem));
+    TAOS_UNUSED(tdsem_destroy(&operation->rspSem, __func__, __LINE__));
     taosMemoryFreeClear(operation);
   }
   return code;
 
 _return:
   if (syncOp && operation) {
-    TAOS_UNUSED(tsem_destroy(&operation->rspSem));
+    TAOS_UNUSED(tdsem_destroy(&operation->rspSem, __func__, __LINE__));
   }
   return code;
 }

@@ -17,13 +17,18 @@
 #include <pthread.h>
 #include "os.h"
 
+// int64_t nMutexCount = 0;
+// int64_t nMutex1Count = 0;
+// int64_t nCondCount = 0;
+// int64_t nCondTCount = 0;
+
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg) {
   OS_PARAM_CHECK(tid);
   OS_PARAM_CHECK(start);
 #ifdef TD_ASTRA
   int32_t code = 0;
   if (!attr) {
-    __asm("bkpt #0");
+    // __asm("bkpt #0");
     pthread_attr_t threadAttr;
     pthread_attr_init(&threadAttr);
     pthread_attr_setstacksize(&threadAttr, STACK_SIZE_DEFAULT);
@@ -39,10 +44,10 @@ int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)
     char *name = NULL;
     if(0 == pthread_attr_getname(attr, &name)) {
       if (name == NULL || name[0] == 0) {
-        __asm("bkpt #0");
+        // __asm("bkpt #0");
       }
     } else {
-      __asm("bkpt #0");
+      // __asm("bkpt #0");
     }
     if(name) free(name);
   #endif
@@ -221,6 +226,7 @@ int32_t taosThreadCondDestroy(TdThreadCond *cond) {
   if (code) {
     return (terrno = TAOS_SYSTEM_ERROR(code));
   }
+  // printf("taosThreadCondDestroy nCondCount:%" PRIi64 "\n", atomic_add_fetch_64(&nCondCount, -1));
   return code;
 #endif
 }
@@ -235,6 +241,7 @@ int32_t taosThreadCondInit(TdThreadCond *cond, const TdThreadCondAttr *attr) {
   if (code) {
     return (terrno = TAOS_SYSTEM_ERROR(code));
   }
+  // printf("taosThreadCondInit nCondCount:%" PRIi64 "\n", atomic_add_fetch_64(&nCondCount, 1));
   return code;
 #endif
 }
@@ -333,6 +340,7 @@ int32_t tThreadCheckInit(TThreadCond *cond) {
 int32_t tThreadCondDestroy(TThreadCond *cond) {
   OS_PARAM_CHECK(cond);
   if (atomic_load_8(&cond->inited) == 0) {
+    // printf("taosThreadCondDestroy inited = 0, not decease and nCondTCount:%" PRIi64 "\n", atomic_load_64(&nCondTCount));
     return 0;
   }
   int32_t code = 0;
@@ -341,6 +349,8 @@ int32_t tThreadCondDestroy(TThreadCond *cond) {
     if (code) {
       return (terrno = TAOS_SYSTEM_ERROR(code));
     }
+    // printf("taosThreadCondDestroy inited = 1, decease and nCondTCount:%" PRIi64 "\n",
+    //        atomic_add_fetch_64(&nCondTCount, -1));
   } else {
     code = TSDB_CODE_INTERNAL_ERROR;
   }
@@ -353,6 +363,7 @@ int32_t tThreadCondInit(TThreadCond *cond, const TdThreadCondAttr *attr) {
   if (code) {
     return (terrno = TAOS_SYSTEM_ERROR(code));
   }
+  // printf("taosThreadCondInit nCondTCount:%" PRIi64 "\n", atomic_add_fetch_64(&nCondTCount, 1));
   return code;
 }
 
@@ -522,6 +533,22 @@ int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) {
   if (code) {
     return (terrno = TAOS_SYSTEM_ERROR(code));
   }
+  // printf("taosThreadMutexDestroy nMutexCount:%" PRIi64 "\n", atomic_add_fetch_64(&nMutexCount, -1));
+  return code;
+#endif
+}
+
+int32_t tThreadMutexDestroy(TdThreadMutex *mutex, const char *func, int32_t line) {
+  OS_PARAM_CHECK(mutex);
+#ifdef __USE_WIN_THREAD
+  DeleteCriticalSection(mutex);
+  return 0;
+#else
+  int32_t code = pthread_mutex_destroy(mutex);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  // printf("tThreadMutexDestroy nMutex1Count:%" PRIi64 ", %s:%d\n", atomic_add_fetch_64(&nMutex1Count, -1), func, line);
   return code;
 #endif
 }
@@ -541,6 +568,27 @@ int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr)
   if (code) {
     return (terrno = TAOS_SYSTEM_ERROR(code));
   }
+  // printf("taosThreadMutexInit nMutexCount:%" PRIi64 "\n", atomic_add_fetch_64(&nMutexCount, 1));
+  return code;
+#endif
+}
+
+int32_t tThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr, const char *func, int32_t line) {
+  OS_PARAM_CHECK(mutex);
+#ifdef __USE_WIN_THREAD
+  /**
+   * Windows Server 2003 and Windows XP:  In low memory situations, InitializeCriticalSection can raise a
+   * STATUS_NO_MEMORY exception. Starting with Windows Vista, this exception was eliminated and
+   * InitializeCriticalSection always succeeds, even in low memory situations.
+   */
+  InitializeCriticalSection(mutex);
+  return 0;
+#else
+  int32_t code = pthread_mutex_init(mutex, attr);
+  if (code) {
+    return (terrno = TAOS_SYSTEM_ERROR(code));
+  }
+  // printf("tThreadMutexInit nMutex1Count:%" PRIi64 ", %s:%d\n", atomic_add_fetch_64(&nMutex1Count, 1), func, line);
   return code;
 #endif
 }

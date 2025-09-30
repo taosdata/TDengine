@@ -549,7 +549,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
     releaseTscObj(connId);
     TSC_ERR_JRET(terrno);
   }
-  TSC_ERR_JRET(tsem_init(&interParam->sem, 0, 0));
+  TSC_ERR_JRET(tasem_init(&interParam->sem, "syncQueryParam", 0));
   interParam->pRequest = *pRequest;
   (*pRequest)->body.interParam = interParam;
 
@@ -574,7 +574,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
     goto _return;
   }
   (*pRequest)->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
-  TSC_ERR_JRET(tsem_init(&(*pRequest)->body.rspSem, 0, 0));
+  TSC_ERR_JRET(tasem_init(&(*pRequest)->body.rspSem, "reqSendRecvRsp", 0));
   TSC_ERR_JRET(registerRequest(*pRequest, pTscObj));
 
   return TSDB_CODE_SUCCESS;
@@ -701,7 +701,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->msgBuf);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
-  if (TSDB_CODE_SUCCESS != tsem_destroy(&pRequest->body.rspSem)) {
+  if (TSDB_CODE_SUCCESS != tasem_destroy(&pRequest->body.rspSem)) {
     tscError("failed to destroy semaphore");
   }
 
@@ -716,7 +716,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->pDb);
   taosArrayDestroy(pRequest->dbList);
   if (pRequest->body.interParam) {
-    if (TSDB_CODE_SUCCESS != tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem)) {
+    if (TSDB_CODE_SUCCESS != tasem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem)) {
       tscError("failed to destroy semaphore in pRequest");
     }
   }
