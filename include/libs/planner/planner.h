@@ -21,7 +21,15 @@ extern "C" {
 #endif
 
 #include "plannodes.h"
-#include "taos.h"
+
+#define SYS_SCAN_FLAG  0x01  
+#define HSYS_SCAN_FLAG 0x03
+
+#define IS_SYS_SCAN(_flag)  (((_flag) & (SYS_SCAN_FLAG)) != 0)
+#define IS_HSYS_SCAN(_flag) (((_flag) & (HSYS_SCAN_FLAG)) != 0)
+
+#define SET_SYS_SCAN_FLAG(_f) (_f) = SYS_SCAN_FLAG
+#define SET_HSYS_SCAN_FLAG(_f) (_f) = HSYS_SCAN_FLAG
 
 typedef struct SPlanContext {
   uint64_t    queryId;
@@ -29,11 +37,15 @@ typedef struct SPlanContext {
   SEpSet      mgmtEpSet;
   SNode*      pAstRoot;
   bool        topicQuery;
-  bool        streamQuery;
+  bool        streamCalcQuery;
+  bool        streamTriggerQuery;
   bool        rSmaQuery;
   bool        showRewrite;
   bool        isView;
   bool        isAudit;
+  bool        withExtWindow;
+  bool        hasScan;
+  int32_t     sysScanFlag;
   int8_t      triggerType;
   int64_t     watermark;
   int64_t     deleteMark;
@@ -44,16 +56,13 @@ typedef struct SPlanContext {
   const char* pUser;
   bool        sysInfo;
   int64_t     allocatorId;
-  bool        destHasPrimaryKey;
-  bool        sourceHasPrimaryKey;
   void*       timezone;
   int64_t     recalculateInterval;
-  char        pStbFullName[TSDB_TABLE_FNAME_LEN];
-  char        pWstartName[TSDB_COL_NAME_LEN];
-  char        pWendName[TSDB_COL_NAME_LEN];
-  char        pGroupIdName[TSDB_COL_NAME_LEN];
-  char        pIsWindowFilledName[TSDB_COL_NAME_LEN];
-  bool        virtualStableQuery;
+  bool        streamVtableCalc;
+  SNode*      streamTriggerScanSubplan;
+  SArray*     pStreamCalcVgArray;
+  ENodeType  streamTriggerWinType;
+  SNodeList*  streamTriggerScanList;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

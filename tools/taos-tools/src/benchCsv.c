@@ -425,11 +425,9 @@ int csvGenCreateStbSql(SDataBase* db, SSuperTable* stb, char* buf, int size) {
     for (size_t i = 0; i < stb->cols->size; ++i) {
         Field* col = benchArrayGet(stb->cols, i);
 
-        if (col->type == TSDB_DATA_TYPE_BINARY
-            || col->type == TSDB_DATA_TYPE_NCHAR
-            || col->type == TSDB_DATA_TYPE_VARBINARY
-            || col->type == TSDB_DATA_TYPE_GEOMETRY) {
-
+        if (col->type == TSDB_DATA_TYPE_BINARY || col->type == TSDB_DATA_TYPE_NCHAR ||
+            col->type == TSDB_DATA_TYPE_VARBINARY || col->type == TSDB_DATA_TYPE_BLOB ||
+            col->type == TSDB_DATA_TYPE_GEOMETRY) {
             if (col->type == TSDB_DATA_TYPE_GEOMETRY && col->length < 21) {
                 errorPrint("%s() LN%d, geometry filed len must be greater than 21 on %zu.\n", __func__, __LINE__, i);
                 return -1;
@@ -837,9 +835,10 @@ static int csvGenRowFields(char* buf, int size, SSuperTable* stb, int fields_cat
     for (uint16_t i = 0; i < field_count; ++i) {
         Field* field = benchArrayGet(fields, i);
         char* prefix = "";
-        if(field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_VARBINARY) {
+        if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_VARBINARY ||
+            field->type == TSDB_DATA_TYPE_BLOB) {
             prefix = binanry_prefix;
-        } else if(field->type == TSDB_DATA_TYPE_NCHAR) {
+        } else if (field->type == TSDB_DATA_TYPE_NCHAR) {
             prefix = nchar_prefix;
         }
         pos += dataGenByField(field, buf, pos, prefix, k, "");

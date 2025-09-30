@@ -66,7 +66,7 @@ void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) 
   TAOS_UDF_CHECK_PTR_RVOID(process);
   fnInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SUdfdData *pData = process->data;
-  if(pData == NULL) {
+  if (pData == NULL) {
     fnError("udfd process data is NULL");
     return;
   }
@@ -412,7 +412,7 @@ typedef void *QUEUE[2];
 #define QUEUE_NEXT_PREV(q) (QUEUE_PREV(QUEUE_NEXT(q)))
 
 /* Public macros. */
-#define QUEUE_DATA(ptr, type, field) ((type *)((char *)(ptr) - offsetof(type, field)))
+#define QUEUE_DATA(ptr, type, field) ((type *)((char *)(ptr)-offsetof(type, field)))
 
 /* Important note: mutating the list while QUEUE_FOREACH is
  * iterating over its elements results in undefined behavior.
@@ -963,6 +963,8 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
           int32_t colSize = 0;
           if (col->info.type == TSDB_DATA_TYPE_JSON) {
             colSize = getJsonValueLen(pColData);
+          } else if (IS_STR_DATA_BLOB(col->info.type)) {
+            colSize = blobDataTLen(pColData);
           } else {
             colSize = varDataTLen(pColData);
           }

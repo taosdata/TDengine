@@ -23,7 +23,7 @@ SELECT _wstart, count(*)
 FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
 ```
 
- Note that this model works well only when it is pretrained. Using it with datasets on which it has not been trained will likely produce poor results.
+Note that this model works well only when it is pretrained. Using it with datasets on which it has not been trained will likely produce poor results.
 
 The following algorithms are in development:
 

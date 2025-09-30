@@ -39,6 +39,8 @@ RUN tar -zxf /root/${pkgFile} && \
     rm -rf /var/lib/apt/lists/* && \
     locale-gen en_US.UTF-8
 
+RUN sed -i '/^#*\s*queryUseMemoryPool/d' /etc/taos/taos.cfg && echo "queryUseMemoryPool 0" >> /etc/taos/taos.cfg
+
 ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/lib" \
     LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
@@ -47,5 +49,11 @@ ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/lib" \
 COPY ./bin/* /usr/bin/
 
 VOLUME [ "/var/lib/taos", "/var/log/taos", "/corefile" ]
+
+# 6030 taosd
+# 6041 taosAdapter
+# 6043 taosKeeper
+# 6060 taosExplorer
+EXPOSE 6030 6041 6043 6060
 
 ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]

@@ -74,21 +74,41 @@ typedef struct SStbJoinDynCtrlInfo {
   SDataBlockDescNode*   pOutputDataBlockDesc;
 } SStbJoinDynCtrlInfo;
 
+typedef struct {
+  char*    colName;
+  char*    colrefName;
+  tb_uid_t uid;
+  col_id_t colId;
+  int32_t  vgId;
+  int32_t  rversion;
+} SColRefInfo;
+
 typedef struct SVtbScanDynCtrlInfo {
   bool             scanAllCols;
+  bool             isSuperTable;
+  bool             needRedeploy;
   char*            dbName;
+  char*            tbName;
   tsem_t           ready;
   SEpSet           epSet;
   SUseDbRsp*       pRsp;
   uint64_t         suid;
+  uint64_t         uid;
+  uint64_t         dynTbUid;
+  int32_t          rversion;
   int32_t          acctId;
   int32_t          curTableIdx;
   int32_t          lastTableIdx;
   SArray*          readColList;
-  SArray*          childTableList;
+  SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
+  SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table
+  SHashObj*        newAddedVgInfo;
+  SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
-  SHashObj*        orgTbVgColMap;
-  SReadHandle      readHandle;
+  SHashObj*        orgTbVgColMap; // key: orgTbFName, value: SOrgTbInfo
+  SHashObj*        existOrgTbVg; // key: vgId, value: NULL
+  SHashObj*        curOrgTbVg; // key: vgId, value: NULL
+  SMsgCb*          pMsgCb;
   SOperatorParam*  vtbScanParam;
 } SVtbScanDynCtrlInfo;
 

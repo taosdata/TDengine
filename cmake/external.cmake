@@ -39,7 +39,7 @@ macro(INIT_EXT name)               # {
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
     set(${name}_have_dev          FALSE)
-    set(${name}_build_contrib     FALsE)
+    set(${name}_build_contrib     FALSE)
 
     set(options)
     set(oneValueArgs INC_DIR)

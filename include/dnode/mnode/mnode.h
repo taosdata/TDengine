@@ -21,6 +21,7 @@
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "trpc.h"
+#include "tqueue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -111,7 +112,7 @@ int64_t mndGetRoleTimeMs(SMnode *pMnode);
  */
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
-int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg);
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg, int32_t* qType);
 void    mndPostProcessQueryMsg(SRpcMsg *pMsg);
 
 /**

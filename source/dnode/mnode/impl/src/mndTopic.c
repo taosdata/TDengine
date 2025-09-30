@@ -332,7 +332,7 @@ int32_t mndAcquireTopic(SMnode *pMnode, const char *topicName, SMqTopicObj **pTo
   if (*pTopic == NULL) {
     return TSDB_CODE_MND_TOPIC_NOT_EXIST;
   }
-  return TDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
 }
 
 void mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic) {
@@ -398,6 +398,10 @@ static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj 
     // iterate vg
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
     if (!mndVgroupInDb(pVgroup, topicObj->dbUid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
@@ -540,7 +544,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     return TSDB_CODE_INVALID_MSG;
   }
   SMnode           *pMnode = pReq->info.node;
-  int32_t           code = TDB_CODE_SUCCESS;
+  int32_t           code = TSDB_CODE_SUCCESS;
   SMqTopicObj      *pTopic = NULL;
   SDbObj           *pDb = NULL;
   SCMCreateTopicReq createTopicReq = {0};
@@ -556,7 +560,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   MND_TMQ_RETURN_CHECK(mndCheckCreateTopicReq(&createTopicReq));
 
   code = mndAcquireTopic(pMnode, createTopicReq.name, &pTopic);
-  if (code == TDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     if (createTopicReq.igExists) {
       mInfo("topic:%s already exist, ignore exist is set", createTopicReq.name);
       goto END;
@@ -667,8 +671,10 @@ static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *top
       break;
     }
 
-    bool found = checkTopic(pConsumer->assignedTopics, topicName);
-    if (found) {
+    bool found1 = checkTopic(pConsumer->assignedTopics, topicName);
+    bool found2 = checkTopic(pConsumer->rebRemovedTopics, topicName);
+    bool found3 = checkTopic(pConsumer->rebNewTopics, topicName);
+    if (found1 || found2 || found3) {
       if (deleteConsumer) {
         MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
         MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
@@ -705,6 +711,10 @@ static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicO
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
     if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
@@ -768,7 +778,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   mndTransSetDbName(pTrans, pTopic->db, NULL);
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
-  mInfo("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
+  mInfo("trans:%d, used to drop topic:%s, force:%d", pTrans->id, pTopic->name, dropReq.force);
 
   MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
   MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));

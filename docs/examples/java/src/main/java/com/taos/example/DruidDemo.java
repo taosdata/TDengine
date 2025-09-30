@@ -21,7 +21,6 @@ public class DruidDemo {
         dataSource.setMinIdle(10);
         dataSource.setMaxActive(10);
         dataSource.setMaxWait(30000);
-        dataSource.setValidationQuery("SELECT SERVER_VERSION()");
 
         Connection connection = dataSource.getConnection(); // get connection
         Statement statement = connection.createStatement(); // get statement

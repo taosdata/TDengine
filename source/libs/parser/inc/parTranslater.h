@@ -40,7 +40,6 @@ typedef struct STranslateContext {
   SHashObj*        pTargetTables;
   SExplainOptions* pExplainOpt;
   SParseMetaCache* pMetaCache;
-  bool             createStream;
   bool             stableQuery;
   bool             showRewrite;
   bool             withOpt;
@@ -49,6 +48,7 @@ typedef struct STranslateContext {
   bool             dual;  // whether select stmt without from stmt, true for without.
   bool             skipCheck;
   bool             refTable;
+  SParseStreamInfo streamInfo;
 } STranslateContext;
 
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet);

@@ -1,0 +1,1 @@
+{"version":1,"name":"metering_pipe","cols": [{"name":"ts", "type":9},{"name":"fault_alarm", "type":1},{"name":"control_setpoint", "type":6},{"name":"equipment_status", "type":1},{"name":"measured_value", "type":6}],"tags": [{"name":"tobacco_asset", "type":10},{"name":"process_stage", "type":10},{"name":"process_step", "type":10},{"name":"equipment_type", "type":10}]}

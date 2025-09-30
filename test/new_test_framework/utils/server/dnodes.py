@@ -49,6 +49,7 @@ class TDDnodes:
         self.asan = False
         self.killValgrind = 0
         self.model = "single"
+        self.binPath = ""
 
     def init(self, path, binPath, remoteIP=""):
         self.binPath = binPath
@@ -56,9 +57,8 @@ class TDDnodes:
         # tdLog.debug("binPath %s" % (binPath))
         # binPath = os.path.realpath(binPath)
         # tdLog.debug("binPath real path %s" % (binPath))
-
         if path == "":
-            self.path = os.path.abspath(self.binPath + "../../")
+            self.path = os.path.abspath(self.binPath + "/../../../../sim")
         else:
             self.path = os.path.realpath(path)
 
@@ -317,6 +317,10 @@ class TDDnodes:
     def getDnodeCfgPath(self, index):
         self.check(index)
         return self.dnodes[index - 1].cfgPath
+
+    def getDnodeLogPath(self, index):
+        self.check(index)
+        return self.dnodes[index - 1].logDir
 
     def setLevelDisk(self, level, disk):
         for i in range(len(self.dnodes)):

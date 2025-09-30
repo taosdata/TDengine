@@ -25,6 +25,7 @@ extern "C" {
 SMgmtFunc dmGetMgmtFunc();
 SMgmtFunc qmGetMgmtFunc();
 SMgmtFunc smGetMgmtFunc();
+SMgmtFunc bmGetMgmtFunc();
 SMgmtFunc vmGetMgmtFunc();
 SMgmtFunc mmGetMgmtFunc();
 
@@ -41,7 +42,10 @@ void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
 void mmSetMnodeSyncTimeout(void *pMgmt);
 void vmSetVnodeSyncTimeout(void *pMgmt);
 
+void vmUpdateMetricsInfo(void *pMgmt, int64_t clusterId);
+
 void vmCleanExpriedSamples(void *pMgmt);
+void vmCleanExpiredMetrics(void *pMgmt);
 
 #ifdef __cplusplus
 }

@@ -14,12 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndProfile.h"
 #include "audit.h"
+#include "crypt.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
-#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -158,11 +159,23 @@ static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) 
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
   connObj->userIp = userIp;
 }
+static int8_t emptyIpRange(SIpRange *pRange) {
+  int32_t  code = 0;
+  SIpRange node = {0};
+
+  if (memcmp(pRange, &node, sizeof(node)) == 0) {
+    return 1;
+  }
+  return 0;
+}
 static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
   int32_t code = 0;
   if (connObj == NULL) {
     return;
   }
+
+  if (emptyIpRange(pRange)) return;
+
   code = tIpUintToStr(pRange, &connObj->addr);
   if (code != 0) {
     mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
@@ -294,8 +307,20 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
-    mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
+  char tmpPass[TSDB_PASSWORD_LEN] = {0};
+  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+
+  if (pUser->passEncryptAlgorithm != 0) {
+    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      goto _OVER;
+    }
+    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
+  }
+
+  if (strncmp(tmpPass, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
+    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip,
+            connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
   }
@@ -943,7 +968,12 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char addr[IP_RESERVE_CAP] = {0};
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
+    if (tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port) >= sizeof(addr)) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      mError("failed to set endpoint since %s", tstrerror(code));
+      return code;
+    }
+
     STR_TO_VARSTR(endpoint, addr);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

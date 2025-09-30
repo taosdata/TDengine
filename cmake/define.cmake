@@ -130,7 +130,7 @@ IF(TD_WINDOWS)
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
-        # SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
+        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
@@ -156,7 +156,7 @@ IF(TD_WINDOWS)
 
     # ref: https://learn.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-level-1-c4819?view=msvc-170
     set(_c_cxx_flags_list
-        /W3 /WX
+        /WX
         /wd4311      # 'variable' : pointer truncation from 'type' to 'type'
         /wd4312      # 'operation' : conversion from 'type1' to 'type2' of greater size
         /wd4022      # 'function' : pointer mismatch for actual parameter 'number'

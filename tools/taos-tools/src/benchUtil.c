@@ -477,6 +477,8 @@ char *convertDatatypeToString(int type) {
         case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_DECIMAL64:
             return "decimal";
+        case TSDB_DATA_TYPE_BLOB:
+            return "blob";
         default:
             break;
     }
@@ -766,6 +768,8 @@ int convertStringToDatatype(char *type, int length, void* ctx) {
             return TSDB_DATA_TYPE_DECIMAL;
         else
             return TSDB_DATA_TYPE_DECIMAL64;
+    } else if (0 == strCompareN(type, "blob", length)) {
+        return TSDB_DATA_TYPE_BLOB;
     } else {
         errorPrint("unknown data type: %s\n", type);
         exit(EXIT_FAILURE);

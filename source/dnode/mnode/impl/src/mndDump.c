@@ -50,7 +50,7 @@ void dumpFunc(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "funcs");
+  SJson  *items = tjsonAddArrayToObject(json, "funcs");
 
   while (1) {
     SFuncObj *pObj = NULL;
@@ -427,32 +427,17 @@ void dumpStream(SSdb *pSdb, SJson *json) {
 
     SJson *item = tjsonCreateObject();
     RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "mainSnodeId", i642str(pObj->mainSnodeId)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "userStopped", i642str(pObj->userStopped)), pObj, &lino, _OVER);
 
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "name", mndGetDbStr(pObj->name)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createTime", i642str(pObj->createTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "version", i642str(pObj->version)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "totalLevel", i642str(pObj->totalLevel)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "smaId", i642str(pObj->smaId)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "uid", i642str(pObj->uid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(pObj->status)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "igExpired", i642str(pObj->conf.igExpired)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "trigger", i642str(pObj->conf.trigger)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "triggerParam", i642str(pObj->conf.triggerParam)), pObj, &lino,
-                        _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "watermark", i642str(pObj->conf.watermark)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sourceDbUid", i642str(pObj->sourceDbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetDbUid", i642str(pObj->targetDbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sourceDb", mndGetDbStr(pObj->sourceDb)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetDb", mndGetDbStr(pObj->targetDb)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetSTbName", mndGetStbStr(pObj->targetSTbName)), pObj, &lino,
-                        _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "targetStbUid", i642str(pObj->targetStbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "fixedSinkVgId", i642str(pObj->fixedSinkVgId)), pObj, &lino,
-                        _OVER);
+
+    //STREAMTODO
+
     sdbRelease(pSdb, pObj);
   }
+  
 _OVER:
   if (code != 0) mError("failed to dump stream info at line:%d since %s", lino, tstrerror(code));
 }
@@ -564,12 +549,37 @@ void dumpSnode(SSdb *pSdb, SJson *json) {
 
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "replicaId", i642str(pObj->replicaId)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "leaderId0", i642str(pObj->leadersId[0])), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "leaderId1", i642str(pObj->leadersId[1])), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
     sdbRelease(pSdb, pObj);
   }
 _OVER:
   if (code != 0) mError("failed to dump snode info at line:%d since %s", lino, tstrerror(code));
+}
+
+void dumpBnode(SSdb *pSdb, SJson *json) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "bnodes");
+
+  while (1) {
+    SBnodeObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_BNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
+    sdbRelease(pSdb, pObj);
+  }
+_OVER:
+  if (code != 0) mError("failed to dump bnode info at line:%d since %s", lino, tstrerror(code));
 }
 
 void dumpQnode(SSdb *pSdb, SJson *json) {
@@ -700,7 +710,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   SJson *maxIdsJson = tjsonCreateObject();
   TAOS_CHECK_GOTO(tjsonAddItemToObject(json, "maxIds", maxIdsJson), &lino, _OVER);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
-    if(i == 5) continue;
+    if (i == 5) continue;
     int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
@@ -761,6 +771,7 @@ int32_t mndDumpSdb() {
   dumpUser(pSdb, json);
   dumpDnode(pSdb, json);
   dumpSnode(pSdb, json);
+  dumpBnode(pSdb, json);
   dumpQnode(pSdb, json);
   dumpMnode(pSdb, json);
   dumpCluster(pSdb, json);

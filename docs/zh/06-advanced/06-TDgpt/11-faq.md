@@ -12,12 +12,12 @@ TDgpt 安装过程中需要在本地编译 uWSGI，某些环境的 Python（例�
 ### 2. 创建 anode 失败，返回指定服务无法访问
 
 ```bash
-taos> create anode '127.0.0.1:6090';
+taos> create anode '127.0.0.1:6035';
 
 DB error: Analysis service can't access[0x80000441] (0.117446s)
 ```
 
-请务必使用 `curl` 命令检查 anode 服务是否正常。执行 `curl '127.0.0.1:6090'` 后，正常的 anode 服务会返回以下结果。
+请务必使用 `curl` 命令检查 anode 服务是否正常。执行 `curl '127.0.0.1:6035'` 后，正常的 anode 服务会返回以下结果。
 
 ```bash
 TDgpt - TDengine© Time Series Data Analytics Platform (ver x.x.x)
@@ -26,7 +26,7 @@ TDgpt - TDengine© Time Series Data Analytics Platform (ver x.x.x)
 如果出现下面的结果，表示 anode 服务不正常。
 
 ```bash
-curl: (7) Failed to connect to 127.0.0.1 port 6090: Connection refused
+curl: (7) Failed to connect to 127.0.0.1 port 6035: Connection refused
 ```
 
 如果 anode 服务启动/运行不正常，请检查 uWSGI 的运行日志 `/var/log/taos/taosanode/taosanode.log`，检查其中的错误信息，根据错误信息解决响应的问题。
@@ -57,4 +57,4 @@ http-timeout = 1200
 
 ### 4. 返回结果出现非法 JSON 格式错误 (Invalid json format)
 
-从 anode 返回到 TDengine 的分析结果有误，请检查 anode 运行日志 `/var/log/taos/taosanode/taosanode.app.log` 获得具体的错误信息。
+从 anode 返回到 TDengine TSDB 的分析结果有误，请检查 anode 运行日志 `/var/log/taos/taosanode/taosanode.app.log` 获得具体的错误信息。

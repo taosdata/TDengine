@@ -283,6 +283,18 @@ int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (cJSON_AddNumberToObject(json, "last migrate", fset->lastMigrate) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (cJSON_AddNumberToObject(json, "last rollup", fset->lastRollup) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (cJSON_AddNumberToObject(json, "rlevel", fset->lastRollupLevel) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   return 0;
 }
 
@@ -349,10 +361,31 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
     (*fset)->lastCommit = 0;
   }
 
+  item1 = cJSON_GetObjectItem(json, "last migrate");
+  if (cJSON_IsNumber(item1)) {
+    (*fset)->lastMigrate = item1->valuedouble;
+  } else {
+    (*fset)->lastMigrate = 0;
+  }
+
+  item1 = cJSON_GetObjectItem(json, "last rollup");
+  if (cJSON_IsNumber(item1)) {
+    (*fset)->lastRollup = item1->valuedouble;
+  } else {
+    (*fset)->lastRollup = 0;
+  }
+
+  item1 = cJSON_GetObjectItem(json, "rlevel");
+  if (cJSON_IsNumber(item1)) {
+    (*fset)->lastRollupLevel = item1->valuedouble;
+  } else {
+    (*fset)->lastRollupLevel = 0;
+  }
+
   return 0;
 }
 
-// NOTE: the api does not remove file, only do memory operation
+// NOTE: the api does not remove file (seems this is not true?), only do memory operation
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
   int32_t code = 0;
 
@@ -493,6 +526,9 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
 
   fset2->lastCompact = fset1->lastCompact;
   fset2->lastCommit = fset1->lastCommit;
+  fset2->lastMigrate = fset1->lastMigrate;
+  fset2->lastRollup = fset1->lastRollup;
+  fset2->lastRollupLevel = fset1->lastRollupLevel;
 
   return 0;
 }
@@ -546,11 +582,17 @@ int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **f
     }
 
     code = TARRAY2_APPEND(fset[0]->lvlArr, lvl);
-    if (code) return code;
+    if (code) {
+      tsdbTFileSetClear(fset);
+      return code;
+    }
   }
 
   (*fset)->lastCompact = fset1->lastCompact;
   (*fset)->lastCommit = fset1->lastCommit;
+  (*fset)->lastMigrate = fset1->lastMigrate;
+  (*fset)->lastRollup = fset1->lastRollup;
+  (*fset)->lastRollupLevel = fset1->lastRollupLevel;
 
   return 0;
 }
@@ -649,6 +691,9 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
 
   (*fset)->lastCompact = fset1->lastCompact;
   (*fset)->lastCommit = fset1->lastCommit;
+  (*fset)->lastMigrate = fset1->lastMigrate;
+  (*fset)->lastRollup = fset1->lastRollup;
+  (*fset)->lastRollupLevel = fset1->lastRollupLevel;
 
   return 0;
 }
@@ -705,6 +750,20 @@ void tsdbTFileSetRemove(STFileSet *fset) {
   }
 
   TARRAY2_DESTROY(fset->lvlArr, tsdbSttLvlRemove);
+}
+
+int64_t tsdbTFileSetGetDataSize(const STFileSet *fset) {
+  int64_t size = 0;
+  if (fset->farr[TSDB_FTYPE_DATA]) {
+    size += fset->farr[TSDB_FTYPE_DATA]->f->size;
+  }
+
+  SSttLvl *lvl;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    STFileObj *fobj;
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) { size += fobj->f->size; }
+  }
+  return size;
 }
 
 SSttLvl *tsdbTFileSetGetSttLvl(STFileSet *fset, int32_t level) {

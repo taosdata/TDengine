@@ -6,16 +6,16 @@ class TestVtableInsert:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_vtable_insert(self):
-        """Vtable Insert Test
+        """Insert: virtual table
 
-        1.Create db
-        2.Create supper table and sub table
-        3.Create virtual supper table and sub table
-        4.Create normal virtual table and normal table
-        5.Insert data into virtual super table or virtual sub table or virtual normal table, it should be return error
+        1. Create db
+        2. Create supper table and sub table
+        3. Create virtual supper table and sub table
+        4. Create normal virtual table and normal table
+        5. Insert data into virtual super table or virtual sub table or virtual normal table, it should be return error
 
         Catalog:
-            - Insert
+            - VirtualTable
 
         Since: v3.0.0.0
 

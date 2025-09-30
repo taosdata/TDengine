@@ -3,12 +3,11 @@ title: Deploy a Time-Series Foundation Model
 sidebar_label: Deploy a Time-Series Foundation Model
 ---
 
-A number of research institutions and enterprises have released open-source time-series foundation models (TSFMs), greatly simplifying time-series data analysis. Beyond traditional data analysis algorithms, machine learning, and deep learning models,
-TSFMs offer a new and powerful option for advanced time-series analytics. This chapter introduces how to deploy and use open-source TSFMs.
+A number of research institutions and enterprises have released open-source time-series foundation models (TSFMs), greatly simplifying time-series data analysis. Beyond traditional data analysis algorithms, machine learning, and deep learning models, TSFMs offer a new and powerful option for advanced time-series analytics.
 
 TDgpt includes two TSFMs, TDtsfm and Time-MoE, but you can add more open-source or proprietary TSFMs to TDgpt as needed.
-This document describes how to integrate an independent TSFM service into TDengine, using [Time-MoE](https://github.com/Time-MoE/Time-MoE) as an example,
-and how to use the model in SQL statements for time-series forecasting.
+
+This document describes how to integrate an independent TSFM service into TDengine, using [Time-MoE](https://github.com/Time-MoE/Time-MoE) as an example, and how to use the model in SQL statements for time-series forecasting.
 
 ## Prepare Your Environment
 
@@ -173,4 +172,5 @@ You can add more open-source or proprietary TSFMs to TDgpt by following the proc
 
 ### References
 
-- Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts. [[paper](https://arxiv.org/abs/2409.16040)] [[GitHub Repo](https://github.com/Time-MoE/Time-MoE)]
+1. Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts  
+   [Paper](https://arxiv.org/abs/2409.16040) | [GitHub Repo](https://github.com/Time-MoE/Time-MoE)

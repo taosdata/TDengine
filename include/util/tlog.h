@@ -64,6 +64,7 @@ extern int32_t qDebugFlag;
 extern int32_t stDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t azDebugFlag;
+extern int32_t tssDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
@@ -74,15 +75,17 @@ extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 extern int32_t tdbDebugFlag;
 extern int32_t sndDebugFlag;
+extern int32_t bndDebugFlag;
 extern int32_t simDebugFlag;
+extern int32_t bseDebugFlag;
 
 extern int32_t tqClientDebugFlag;
-int32_t taosInitLogOutput(const char **ppLogName);
-int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
-void    taosCloseLog();
-void    taosResetLog();
-void    taosDumpData(uint8_t *msg, int32_t len);
-void    taosSetNoNewFile();
+int32_t        taosInitLogOutput(const char **ppLogName);
+int32_t        taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
+void           taosCloseLog();
+void           taosResetLog();
+void           taosDumpData(uint8_t *msg, int32_t len);
+void           taosSetNoNewFile();
 
 // Fast uint64_t to string conversion, equivalent to sprintf(buf, "%lu", val) but with 10x better performance.
 char *u64toaFastLut(uint64_t val, char *buf);

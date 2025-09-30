@@ -271,30 +271,27 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
     }
 
     char   *key = argv[i];
-    int32_t keyLen = strlen(key);
-    if (keyLen != 2) {
-      fprintf(stderr, "invalid option %s\r\n", key);
-      return -1;
-    }
     if (key[0] != '-') {
       fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
     }
+    int32_t keyLen = strlen(key);
 
     if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
         key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N' ||
         key[1] == 'E' || key[1] == 'T' || key[1] == 'X' || key[1] == 'Z') {
-      if (i + 1 >= argc) {
+      if (keyLen > 2) {
+        ret = shellParseSingleOpt(key[1], key + 2);
+      } else if ((i + 1 >= argc) || (argv[i + 1][0] == '-')) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
+      } else {
+        ret = shellParseSingleOpt(key[1], argv[i + 1]);
+        i++;
       }
-      char *val = argv[i + 1];
-      if (val[0] == '-') {
-        fprintf(stderr, "option %s requires an argument\r\n", key);
-        return -1;
-      }
-      ret = shellParseSingleOpt(key[1], val);
-      i++;
+    } else if (keyLen != 2) {
+      fprintf(stderr, "invalid option %s\r\n", key);
+      return -1;
     } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
                key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R'|| key[1] == 'B') {
       ret = shellParseSingleOpt(key[1], NULL);
@@ -440,7 +437,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #ifdef CUS_NAME
   strcpy(shell.info.cusName, CUS_NAME);
 #else
-  strcpy(shell.info.cusName, "TDengine");
+  strcpy(shell.info.cusName, "TDengine TSDB");
 #endif
   char promptContinueFormat[32] = {0};
 #ifdef CUS_PROMPT

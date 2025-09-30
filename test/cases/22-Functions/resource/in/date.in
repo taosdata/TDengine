@@ -1,0 +1,24 @@
+select date(0)
+select date(00100)
+select date(-1000)
+select date(1000.0)
+select date(cast(timestamp"2025-08-11 23:03:39" as bigint))
+select date(timestamp\"2025-08-11 23:03:39\")
+select date("2025-08-11 12:00:02.000")
+select date("9999-12-31")
+select cast(date(timestamp\"2025-08-11 23:03:39\") as bigint)
+select to_timestamp(date("2025-08-21T12:00:00+0800"), "yyyy-mm-dd")
+select to_unixtimestamp(date("2025-08-21T12:00:00+0800"))
+select date(ts) from msdb.mstb;
+select date(ts) from (select timediff(ts, 1d) ts from msdb.mstb);
+select date(ts) from usdb.ustb;
+select to_unixtimestamp(ts) from (select date(ts) ts from usdb.ustb);
+select date(ts) from nsdb.nstb;
+select date(NULL)
+select date(date("2025-08-08"))
+select date("01/01/2026")
+select date("01-JAN-25")
+select date("abcd")
+select date("#$@!+-*/")
+select groupid, date(last(ts)) from ts_4893.meters group by groupid
+select groupid, date(ts - 1d) from ts_4893.meters group by groupid

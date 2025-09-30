@@ -3,6 +3,8 @@
 """configuration model definition"""
 import configparser
 import logging
+import os.path
+from pathlib import Path
 
 _ANODE_SECTION_NAME = "taosanode"
 
@@ -69,7 +71,13 @@ class Configure:
             self._model_directory = self.conf.get(_ANODE_SECTION_NAME, 'model-dir')
 
         if self.conf.has_option(_ANODE_SECTION_NAME, 'draw-result'):
-            self._draw_result = self.conf.get(_ANODE_SECTION_NAME, 'draw-result')
+            draw_result = self.conf.get(_ANODE_SECTION_NAME, 'draw-result').lower()
+            if draw_result not in ('true', 'false'):
+                draw_result = int(draw_result)
+                self._draw_result = bool(draw_result)
+            else:
+                self._draw_result = False if draw_result=='false' else True
+
 
 
 class AppLogger():
@@ -82,6 +90,11 @@ class AppLogger():
 
     def set_handler(self, file_path: str):
         """ set the log_inst handler """
+        path = Path(file_path)
+
+        # create directory if not exists
+        if not os.path.exists(path.parent):
+            os.mkdir(path.parent)
 
         handler = logging.FileHandler(file_path)
         handler.setFormatter(logging.Formatter(self.LOG_STR_FORMAT))

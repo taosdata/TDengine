@@ -6,5 +6,5 @@ target_include_directories(
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-    node_util mnode vnode qnode snode wal sync ${TAOS_NATIVE_LIB_STATIC} tfs monitor monitorfw
+    node_util mnode vnode qnode snode bnode wal sync ${TAOS_NATIVE_LIB_STATIC} tfs monitor monitorfw metrics
 )

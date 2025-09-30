@@ -67,7 +67,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   }
 
   (void)taosThreadMutexInit(&(pData->mutex), NULL);
-  pData->pWalHandle = walOpenReader(pData->pWal, NULL, 0);
+  pData->pWalHandle = walOpenReader(pData->pWal, 0);
   if (!pData->pWalHandle) {
     taosMemoryFree(pLogStore);
     taosLRUCacheCleanup(pLogStore->pCache);
@@ -221,6 +221,37 @@ SyncTerm raftLogLastTerm(struct SSyncLogStore* pLogStore) {
   return SYNC_TERM_INVALID;
 }
 
+static int32_t rafeLogReBuildEntry(SSyncRaftEntry* pEntry) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t flags = 0;
+  if (pEntry == NULL) {
+    TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
+  }
+  uint64_t nSubmitTbData = 0;
+
+  if (pEntry->originalRpcType != TDMT_VND_SUBMIT) {
+    return code;
+  }
+  int32_t len = pEntry->dataLen;
+
+  SSubmitReq2Msg* pMsg = (SSubmitReq2Msg*)pEntry->data;
+
+  void* pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
+  len -= sizeof(SSubmitReq2Msg);
+
+  SSubmitReq2* pSubmitReq = &(SSubmitReq2){0};
+  SDecoder     dc = {0};
+  tDecoderInit(&dc, pReq, len);
+  if (tStartDecode(&dc) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+_exit:
+
+  return code;
+}
 static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, bool forceSync) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -230,13 +261,14 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
 
-  int64_t tsWriteBegin = taosGetTimestampNs();
-  int32_t code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
-                              &pEntry->originRpcTraceId);
-  int64_t tsWriteEnd = taosGetTimestampNs();
-  int64_t tsElapsed = tsWriteEnd - tsWriteBegin;
+  int32_t code = 0;
+  METRICS_TIMING_BLOCK(pData->pSyncNode->wal_write_time, METRIC_LEVEL_HIGH, {
+    code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
+                        &pEntry->originRpcTraceId);
+  });
+  METRICS_UPDATE(pData->pSyncNode->wal_write_bytes, METRIC_LEVEL_LOW, (int64_t)pEntry->bytes);
 
-  if (TSDB_CODE_SUCCESS != code) {
+  if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
     int32_t     sysErr = ERRNO;
@@ -254,10 +286,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     TAOS_RETURN(code);
   }
 
-  sGDebug(&pEntry->originRpcTraceId,
-          "vgId:%d, index:%" PRId64 ", persist raft entry, type:%s origin type:%s elapsed:%" PRId64,
-          pData->pSyncNode->vgId, pEntry->index, TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType),
-          tsElapsed);
+  sGDebug(&pEntry->originRpcTraceId, "vgId:%d, index:%" PRId64 ", persist raft entry, type:%s origin type:%s",
+          pData->pSyncNode->vgId, pEntry->index, TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 

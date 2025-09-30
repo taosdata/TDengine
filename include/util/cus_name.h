@@ -28,7 +28,9 @@
 #endif
 
 #ifndef CUS_NAME
-#define CUS_NAME "TDengine"
+// CUS_NAME should only be defined by the build system, define it here results in
+// bugs like TD-37744.
+// #define CUS_NAME "TDengine TSDB"
 #endif
 
 #ifndef CUS_PROMPT

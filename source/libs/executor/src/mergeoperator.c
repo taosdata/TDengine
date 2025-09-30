@@ -570,6 +570,49 @@ int32_t getMultiwayMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplai
   return code;
 }
 
+static int32_t resetMultiwayMergeOperState(SOperatorInfo* pOper) {
+  SMultiwayMergeOperatorInfo* pInfo = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SMergePhysiNode* pPhynode = (SMergePhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
+
+  resetBasicOperatorState(&pInfo->binfo);
+  pInfo->groupId = 0;
+
+  OPTR_CLR_OPENED(pOper);
+
+  switch (pInfo->type) {
+    case MERGE_TYPE_SORT: {
+
+      SSortMergeInfo* pSortMergeInfo = &pInfo->sortMergeInfo;
+
+      blockDataCleanup(pSortMergeInfo->pInputBlock);
+
+      blockDataDestroy(pSortMergeInfo->pIntermediateBlock);
+      pSortMergeInfo->pIntermediateBlock = NULL;
+
+      tsortDestroySortHandle(pSortMergeInfo->pSortHandle);
+      pSortMergeInfo->pSortHandle = NULL;
+      pSortMergeInfo->prefetchedTuple = NULL;
+
+      pInfo->limitInfo = (SLimitInfo){0};
+      initLimitInfo(pPhynode->node.pLimit, pPhynode->node.pSlimit, &pInfo->limitInfo);
+      break;
+    }
+    case MERGE_TYPE_NON_SORT: {
+      pInfo->nsortMergeInfo = (SNonSortMergeInfo){0};
+      break;
+    }
+    case MERGE_TYPE_COLUMNS: {
+      break;
+    }
+    default:
+      qError("Invalid merge type: %d", pInfo->type);
+  }
+
+  return 0;
+}
+
 int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numStreams, SMergePhysiNode* pMergePhyNode,
                                         SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -585,6 +628,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
     goto _error;
   }
 
+  pOperator->pPhyNode = pPhyNode;
   pInfo->groupMerge = pMergePhyNode->groupSort;
   pInfo->ignoreGroupId = pMergePhyNode->ignoreGroupId;
   pInfo->binfo.inputTsOrder = pMergePhyNode->node.inputTsOrder;
@@ -662,6 +706,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       createOperatorFpSet(openMultiwayMergeOperator, doMultiwayMerge, NULL, destroyMultiwayMergeOperatorInfo,
                           optrDefaultBufFn, getMultiwayMergeExplainExecInfo, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetMultiwayMergeOperState);
   code = appendDownstream(pOperator, downStreams, numStreams);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

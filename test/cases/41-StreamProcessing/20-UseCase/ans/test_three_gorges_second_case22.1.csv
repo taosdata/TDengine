@@ -1,0 +1,9 @@
+
+taos> select val,tablename,ps_code,ps_name,province_name,area_name,company_name,ps_type,index_seq from test1.stb_dwi_cjdl_rtems_power order by tablename;
+            val            |           tablename            |            ps_code             |            ps_name             |         province_name          |           area_name            |          company_name          |            ps_type             |           index_seq            |
+====================================================================================================================================================================================================================================================================================================
+                       114 | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             |
+                     115.5 | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             | a0                             |
+                       114 | a2                             | a2                             | a2                             | a2                             | a2                             | a2                             | a2                             | a2                             |
+                     115.5 | a2                             | a2                             | a2                             | a2                             | a2                             | a2                             | a2                             | a2                             |
+

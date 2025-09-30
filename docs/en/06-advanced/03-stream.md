@@ -3,302 +3,223 @@ title: Stream Processing
 slug: /advanced-features/stream-processing
 ---
 
-import Image from '@theme/IdealImage';
-import watermarkImg from '../assets/stream-processing-01-watermark.webp';
+In time-series data processing, there are many common stream processing requirements, such as:
 
-In the processing of time-series data, it is often necessary to clean and preprocess the raw data before using a time-series database for long-term storage. Moreover, it is common to use the original time-series data to generate new time-series data through calculations. In traditional time-series data solutions, it is often necessary to deploy systems like Kafka, Flink, etc., for stream processing. However, the complexity of stream processing systems brings high development and operational costs.
+- Tiered storage and intelligent downsampling: Industrial equipment may generate tens of thousands of raw data points per second. Storing everything in full causes storage costs to surge, query efficiency to drop, and historical trend analysis to respond slowly.
+- Precomputation to accelerate real-time decisions: When users query full datasets, the system may need to scan tens of billions of records, making it nearly impossible to return results in real time. This leads to lag in dashboards and reports.
+- Anomaly detection and low-latency alerts: Monitoring and alerting require retrieving specific data with very low latency based on predefined rules. Traditional batch processing often has delays on the order of minutes.
 
-TDengine's stream computing engine provides the capability to process data streams in real-time as they are written. It uses SQL to define real-time stream transformations. Once data is written into the stream's source table, it is automatically processed in the defined manner and pushed to the destination table according to the defined trigger mode. It offers a lightweight solution that replaces complex stream processing systems and can provide millisecond-level computational result latency under high-throughput data writing scenarios.
+In traditional time-series solutions, Kafka, Flink, and other stream processing systems are often deployed. However, the complexity of these systems brings high development and operations costs. The stream processing engine in TDengine TSDB provides the capability to process incoming data streams in real time. Using SQL, users can define real-time transformations. Once data is written into the source table of a stream, it is automatically processed as defined, and results are pushed to target tables according to the trigger mode. This offers a lightweight alternative to complex stream processing systems, while still delivering millisecond-level result latency even under high-throughput data ingestion. Unlike traditional stream processing, TDengine TSDB adopts a trigger–compute decoupling strategy, still operating on continuous unbounded data streams, but with the following enhancements:
 
-Stream computing can include data filtering, scalar function computations (including UDFs), and window aggregation (supporting sliding windows, session windows, and state windows). It can use supertables, subtables, and basic tables as source tables, writing into destination supertables. When creating a stream, the destination supertable is automatically created, and newly inserted data is processed and written into it as defined by the stream. Using the `partition by` clause, partitions can be divided by table name or tags, and different partitions will be written into different subtables of the destination supertable.
+- **Extended processing targets:** In traditional stream processing, the event trigger source and the computation target are usually the same — events and computations are both generated from the same dataset. TDengine TSDB's stream processing allows the trigger source (event driver) and the computation source to be separated. The trigger table and the computation source table can be different, and a trigger table may not be required at all. The processed dataset can vary in terms of columns and time ranges.
+- **Extended triggering mechanisms: In addition to the standard “data write” trigger, TDengine TSDB's stream processing supports more trigger modes. With window-based triggers, users can flexibly define and use various windowing strategies to generate trigger events, choosing to trigger on window open, window close, or both. Beyond event-time-driven triggers linked to a trigger table, time-independent triggers are also supported, such as scheduled triggers. Before an event is triggered, TDengine can pre-filter trigger data so that only data meeting certain conditions proceeds to trigger evaluation.
+- **Extended computation scope:** Computations can be performed on the trigger table or on other databases and tables. The computation type is unrestricted — any query statement is supported. The application of computation results is flexible: results can be sent as notifications, written to output tables, or both.
 
-TDengine's stream computing can support aggregation of supertables distributed across multiple nodes and can handle out-of-order data writing. It provides a watermark mechanism to measure the degree of tolerance for data disorder and offers an `ignore expired` configuration option to decide the handling strategy for out-of-order data — either discard or recalculate.
+TDengine TSDB’s stream processing engine also offers additional usability benefits. For varying requirements on result latency, it allows users to balance between result timeliness and resource load. For different needs in out-of-order write scenarios, it enables users to flexibly choose appropriate handling methods and strategies. This offers a lightweight alternative to complex stream processing systems, while still delivering millisecond-level result latency even under high-throughput data ingestion.
 
-Tips: Stream computing does not supported in windows platform.
+For detailed usage instructions, see [SQL Manual](../14-reference/03-taos-sql/41-stream.md).
 
-Below is a detailed introduction to the specific methods used in stream computing.
-
-## Creating Stream Computing
-
-The syntax is as follows:
+## Create a Stream
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name
-[(field1_name, ...)] [TAGS (column_definition [, column_definition] ...)] 
-SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
-stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE | CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
- WATERMARK      time
- IGNORE EXPIRED [0|1]
- DELETE_MARK    time
- FILL_HISTORY   [0|1] [ASYNC]
- IGNORE UPDATE  [0|1]
+options: {
+    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
-
-column_definition:
-    col_name col_type [COMMENT 'string_value']
-```
-
-The subquery is a subset of the regular query syntax.
-
-```sql
-subquery: SELECT select_list
-    from_clause
-    [WHERE condition]
-    [PARTITION BY tag_list]
-    [window_clause]
     
-window_clause: {
-    SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
-  | COUNT_WINDOW(count_val[, sliding_val])
+trigger_type: {
+    PERIOD(period_time[, offset_time])
+  | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+  | SESSION(ts_col, session_val)
+  | STATE_WINDOW(col[, extend]) [TRUE_FOR(duration_time)] 
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
+
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+
+notification_definition:
+    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+
+notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
+    
+event_types:
+    event_type [|event_type]    
+    
+event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+
+tag_definition:
+    tag_name type_name [COMMENT 'string_value'] AS expr
 ```
 
-The subquery supports session windows, state windows, time windows, event windows, and count windows. When used with supertables, state windows, event windows, and count windows must be used together with `partition by tbname`.
+### Trigger Methods
 
-1. SESSION is a session window, where tol_val is the maximum range of the time interval. All data within the tol_val time interval belong to the same window. If the time interval between two consecutive data points exceeds tol_val, the next window automatically starts.
+- Periodic trigger: drives execution by fixed intervals of system time. The baseline is midnight of the day the stream is created, and subsequent trigger times are determined by the specified interval. A time offset can be applied to adjust the baseline.
+- Sliding trigger: drives execution based on a fixed interval of event time for data written to the trigger table. An INTERVAL window can be specified if desired.
+- Session window trigger: divides the incoming data written to the trigger table into windows based on session boundaries, and triggers when a window starts and/or closes.
+- State window trigger: divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed.
+- Event window trigger: partitions the incoming data of the trigger table into windows based on defined event start and end conditions, and triggers when the window opens and/or closes.
+- Count window trigger: partitions the written data from the trigger table based on a counting window, and triggers when the window starts and/or closes. It supports column-based triggering, where the trigger occurs when the specified columns receive data writes.
 
-1. STATE_WINDOW is a state window. The col is used to identify the state value. Values with the same state value belong to the same state window. When the value of col changes, the current window ends and the next window is automatically opened.
+### Trigger Actions
 
-1. INTERVAL is a time window, which can be further divided into sliding time windows and tumbling time windows.The INTERVAL clause is used to specify the equal time period of the window, and the SLIDING clause is used to specify the time by which the window slides forward. When the value of interval_val is equal to the value of sliding_val, the time window is a tumbling time window; otherwise, it is a sliding time window. Note: The value of sliding_val must be less than or equal to the value of interval_val.
+After a trigger occurs, different actions can be performed as needed, for example, sending an event notification, executing a computation, or both.
 
-1. EVENT_WINDOW is an event window, defined by start and end conditions. The window starts when the start_trigger_condition is met and closes when the end_trigger_condition is met. start_trigger_condition and end_trigger_condition can be any condition expressions supported by TDengine and can include different columns.
+- Notify only, no computation: Send an event notification to an external application via WebSocket.
+- Compute only, no notification: Execute any query and store the results in the stream computing output table.
+- Both notify and compute: Execute any query and send the computation results or event notifications to an external application at the same time.
 
-1. COUNT_WINDOW is a counting window, divided by a fixed number of data rows. count_val is a constant, a positive integer, and must be at least 2 and less than 2147483648. count_val represents the maximum number of data rows in each COUNT_WINDOW. If the total number of data rows cannot be evenly divided by count_val, the last window will have fewer rows than count_val. sliding_val is a constant, representing the number of rows the window slides, similar to the SLIDING in INTERVAL.
+### Trigger Table and Grouping
 
-The definition of a window is exactly the same as in the time-series data window query, for details refer to the TDengine window functions section.
+In general, one stream computing task corresponds to a single computation — for example, triggering a computation based on one subtable and storing the result in one output table. Following TDengine’s “one device, one table” design philosophy, if you need to compute results separately for all devices, you would traditionally need to create a separate stream computing task for each subtable. This can be inconvenient to manage and inefficient to process. To address this, TDengine TSDB's stream computing supports trigger grouping. A group is the smallest execution unit in stream computing. Logically, you can think of each group as an independent stream computing task, with its own output table and its own event notifications.
 
-The following SQL will create a stream computation. After execution, TDengine will automatically create a supertable named avg_vol. This stream computation uses a 1min time window and a 30s forward increment to calculate the average voltage of these smart meters, and writes the results from the meters data into avg_vol. Data from different partitions will be written into separate subtables.
+In summary, the number of output tables (subtables or regular tables) produced by a stream computing task equals the number of groups in the trigger table. If no grouping is specified, only one output table (a regular table) is created.
+
+### Stream Tasks
+
+A computation task is the calculation executed by the stream after an event is triggered. It can be any type of query statement, and can operate on the trigger table or on other databases and tables. When performing calculations, you may need to use contextual information from the trigger event. In SQL statements, these are represented as placeholders, which are replaced with constant values at execution time for each calculation. The available options include:
+
+- `_tprev_ts`: event time of previous trigger
+- `_tcurrent_ts`: event time of current trigger
+- `_tnext_ts`: event time of next trigger
+- `_twstart`: start timestamp of current window
+- `_twend`: end timestamp of current window
+- `_twduration`: duration of current window
+- `_twrownum`: number of rows in current window
+- `_tprev_localtime`: system time of previous trigger
+- `_tnext_localtime`: system time of next trigger
+- `_tgrpid`: ID of trigger group
+- `_tlocaltime`: system time of current trigger
+- `%%n`: reference to the trigger grouping column, where n is the index of the grouping column
+- `%%tbname`: reference to trigger table; can be used in queries as `FROM %%tbname`.
+- `%%trows`: reference to the trigger dataset for each group in the trigger table (i.e., the set of rows that meet the current trigger condition)
+
+### Control Options
+
+Control options are used to manage trigger and computation behavior. Multiple options can be specified, but the same option cannot be specified more than once. The available options include:
+
+- WATERMARK(duration_time) specifies the tolerance duration for out-of-order data.
+- EXPIRED_TIME(exp_time) specifies an expiration interval after which data is ignored.
+- IGNORE_DISORDER ignores out-of-order data in the trigger table.
+- DELETE_OUTPUT_TABLE ensures that when a subtable in the trigger table is deleted, its corresponding output subtable is also deleted.
+- FILL_HISTORY[(start_time)] triggers historical data computation starting from the earliest record.
+- FILL_HISTORY_FIRST[(start_time)] triggers historical data computation with priority, starting from start_time (event time).
+- CALC_NOTIFY_ONLY sends computation results as notifications only, without saving them to the output table.
+- LOW_LATENCY_CALC ensures low-latency computation or notification after each trigger. Processing starts immediately.
+- PRE_FILTER(expr) specifies data filtering on the trigger table before evaluation. Only rows that meet the condition will be considered for triggering.
+- FORCE_OUTPUT forces an output row even when a trigger produces no computation result.
+- MAX_DELAY(delay_time) defines the maximum waiting time (processing time) before a window is forcibly triggered if it has not yet closed.
+- EVENT_TYPE(event_types) specifies the types of events that can trigger (open or close) a window.
+- IGNORE_NODATA_TRIGGER ignores triggers when the trigger table has no input data.
+
+### Notification Mechanism
+
+Event notifications are optional actions executed after a stream is triggered. Notifications can be sent to applications over the WebSocket protocol. Users specify the events to be notified and the target address for receiving messages. The notification content may include the computation results, or, when no result is produced, only the event-related information.
+
+## Examples
+
+### Count Window Trigger
+
+- Each time one row is written into table tb1, compute the average value of column col1 in table tb2 over the past 5 minutes up to that moment, and write the result into table tb3.
+
+```SQL
+CREATE STREAM sm1 COUNT_WINDOW(1) FROM tb1 
+  INTO tb3 AS
+    SELECT _twstart, avg(col1) FROM tb2 
+    WHERE _c0 >= _twend - 5m AND _c0 <= _twend;
+```
+
+- Each time 10 rows are written into table tb1 where column col1 is greater than 0, compute the average of column col1 for those 10 rows. The result does not need to be saved but must be sent as a notification to ws://localhost:8080/notify.
+
+```SQL
+CREATE STREAM sm2 COUNT_WINDOW(10, 1, col1) FROM tb1 
+  STREAM_OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
+  NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
+  AS 
+    SELECT avg(col1) FROM %%trows;
+```
+
+### Event Window Trigger
+
+- When the ambient temperature exceeds 80° and remains above that threshold for more than 10 minutes, compute the average ambient temperature.
+
+```SQL
+CREATE STREAM `idmp`.`ana_temp` EVENT_WINDOW(start with `temp` > 80 end with `temp` <= 80 ) TRUE_FOR(10m) FROM `idmp`.`vt_envsens02_471544` 
+  STREAM_OPTIONS( IGNORE_DISORDER)
+  INTO `idmp`.`ana_temp` 
+  AS 
+    SELECT _twstart+0s as output_timestamp, avg(`temp`) as `avgtemp` FROM idmp.`vt_engsens02_471544` where ts >= _twstart and ts <= _twend;
+```
+
+### Sliding Trigger
+
+- For each subtable of supertable stb1, at the end of every 5-minute time window, compute the average of column col1 over that interval. The results for each subtable are written separately into different subtables of supertable stb2.
+
+```SQL
+CREATE STREAM sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
+  INTO stb2 
+  AS 
+    SELECT _twstart, avg(col1) FROM %%tbname 
+    WHERE _c0 >= _twstart AND _c0 <= _twend;
+```
+
+In the SQL above, `FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend` and `FROM %%trows` are not equivalent. The former means the computation uses data from the trigger group’s corresponding table within the window’s time range; those in-window rows may differ from what `%%trows` saw at trigger time. The latter means the computation uses only the window data captured at the moment of triggering.
+
+- For each subtable of supertable stb1, starting from the earliest data, compute the average of col1 for each 5-minute time window either when the window closes or when 1 minute has elapsed since the window opened and it is still not closed. Write each subtable’s result to a separate subtable under supertable stb2.
+
+```SQL
+CREATE STREAM sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
+  STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
+  INTO stb2 
+  AS 
+    SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
+```
+
+- Compute the per-minute average of the meter current, and send notifications to two target addresses when the window opens and closes. Do not send notifications during historical computation, and do not allow notifications to be dropped on delivery failure (pause and retry until delivered).
 
 ```sql
-CREATE STREAM avg_vol_s INTO avg_vol AS
-SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
+  NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON ('WINDOW_OPEN', 'WINDOW_CLOSE') NOTIFY_OPTIONS(NOTIFY_HISTORY | ON_FAILURE_PAUSE)
+  INTO avg_stb
+  AS 
+    SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
-The explanations of the relevant parameters involved in this section are as follows.
+### Scheduled Trigger
 
-- stb_name is the table name of the supertable where the computation results are saved. If this supertable does not exist, it will be automatically created; if it already exists, the column schema information will be checked. See section 6.3.8.
-- The tags clause defines the rules for creating tags in the stream computation. Through the tags field, custom tag values can be generated for each partition's corresponding subtable.
+- Every hour, compute the total number of rows in table tb1 and write the result to table tb2 (in a millisecond-precision database).
 
-## Rules and Strategies for Stream Computation
-
-### Partitioning in Stream Computation
-
-In TDengine, we can use the partition by clause combined with tbname, tag columns, ordinary columns, or expressions to perform multi-partition computations on a stream. Each partition has its own timeline and time window, and they will aggregate data separately and write the results into different subtables of the destination table. If the partition by clause is not used, all data will be written into the same subtable by default.
-
-Specifically, partition by + tbname is a very practical operation, which means performing stream computation for each subtable. The advantage of this is that it allows for customized processing based on the characteristics of each subtable, thereby improving computational efficiency.
-
-When creating a stream, if the substable clause is not used, the supertable created by the stream computation will contain a unique tag column groupId. Each partition will be assigned a unique groupId, and the corresponding subtable name will be calculated using the MD5 algorithm. TDengine will automatically create these subtables to store the computation results of each partition. This mechanism makes data management more flexible and efficient, and also facilitates subsequent data querying and analysis.
-
-If the statement for creating the stream contains a substable clause, users can generate custom table names for each partition's corresponding subtable. Example as follows.
-
-```sql
-CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
+```SQL
+CREATE STREAM sm1 PERIOD(1h) 
+  INTO tb2 
+  AS
+    SELECT cast(_tlocaltime/1000000 AS TIMESTAMP), count(*) FROM tb1;
 ```
 
-In the PARTITION clause, an alias tname is defined for tbname, and the alias in the PARTITION clause can be used for expression calculation in the SUBTABLE clause. In the example above, the rule for newly created subtables is new- + subtable name + _supertable name +_groupId.
+- Every hour, send a notification with the current system time to `ws://localhost:8080/notify`.
 
-**Note**: If the length of the subtable name exceeds the limit of TDengine, it will be truncated. If the subtable name to be generated already exists in another supertable, since TDengine's subtable names are unique, the creation of the corresponding new subtable and the writing of data will fail.
-
-### Stream Computation Processing Historical Data
-
-Under normal circumstances, stream computation tasks will not process data that was written to the source table before the stream was created. This is because the trigger for stream computation is based on newly written data, not existing data. However, if we need to process these existing historical data, we can set the fill_history option to 1 when creating the stream.
-
-By enabling the fill_history option, the created stream computation task will be capable of processing data written before, during, and after the creation of the stream. This means that data written either before or after the creation of the stream will be included in the scope of stream computation, thus ensuring data integrity and consistency. This setting provides users with greater flexibility, allowing them to flexibly handle historical and new data according to actual needs.
-
-Tips:
-
-- When enabling fill_history, creating a stream requires finding the boundary point of historical data. If there is a lot of historical data, it may cause the task of creating a stream to take a long time. In this case, you can use fill_history 1 async (supported since version 3.3.6.0) , then the task of creating a stream can be processed in the background. The statement of creating a stream can be returned immediately without blocking subsequent operations. async only takes effect when fill_history 1 is used, and creating a stream with fill_history 0 is very fast and does not require asynchronous processing.
-
-- Show streams can be used to view the progress of background stream creation (ready status indicates success, init status indicates stream creation in progress, failed status indicates that the stream creation has failed, and the message column can be used to view the reason for the failure. In the case of failed stream creation, the stream can be deleted and rebuilt).
-
-- Besides, do not create multiple streams asynchronously at the same time, as transaction conflicts may cause subsequent streams to fail.
-
-For example, create a stream to count the number of data entries generated by all smart meters every 10s, and also calculate historical data. SQL as follows:
-
-```sql
-create stream if not exists count_history_s fill_history 1 into count_history as select count(*) from power.meters interval(10s)
+```SQL
+CREATE STREAM sm1 PERIOD(1h) 
+  NOTIFY("ws://localhost:8080/notify");
 ```
 
-Combined with the fill_history 1 option, it is possible to process data only within a specific historical time range, such as data after a historical moment (January 30, 2020).
+## Other Features
 
-```sql
-create stream if not exists count_history_s fill_history 1 into count_history  as select count(*) from power.meters where ts > '2020-01-30' interval(10s)
-```
+### High Availability
 
-For instance, to process data within a specific time period, the end time can be a future date.
+Stream processing in TDengine is architected with a separation of compute and storage, which requires that at least one snode be deployed in the system. Except for data reads, all stream processing functions run exclusively on snodes.
 
-```sql
-create stream if not exists count_history_s fill_history 1 into count_history as select count(*) from power.meters where ts > '2020-01-30' and ts < '2023-01-01' interval(10s)
-```
+- snode: The node responsible for executing stream processing tasks. A cluster can have one or more snodes.
+- Deploying snodes on dedicated dnodes ensures resource separation so that stream processing does not interfere significantly with writes, queries, or other operations.
+- To ensure high availability for stream processing, deploy multiple snodes across different physical nodes in the cluster:
+  - Stream tasks are load-balanced across multiple snodes.
+  - Each pair of snodes acts as replicas, storing stream state and progress information.
 
-If the stream task has completely expired and you no longer want it to monitor or process data, you can manually delete it, and the computed data will still be retained.
+### Recomputation
 
-### Trigger Modes for Stream Computing
+TDengine supports the use of WATERMARK to mitigate issues caused by out-of-order data, updates, and deletions. A WATERMARK is a user-defined duration based on event time that represents the system’s progress in stream processing, reflecting the user’s tolerance for out-of-order data. The current watermark is defined as `latest processed event time – WATERMARK interval`. Only data with event times earlier than the current watermark are eligible for trigger evaluation. Likewise, only windows or other trigger conditions whose time boundaries are earlier than the current watermark will be triggered.
 
-When creating a stream, you can specify the trigger mode of stream computing through the TRIGGER command. For non-window computations, the trigger is real-time; for window computations, there are currently 4 trigger modes, with WINDOW_CLOSE as the default.
+For out-of-order, update, or delete scenarios that exceed the WATERMARK, recalculation is used to ensure the correctness of results. Recalculation means re-triggering and re-executing computations for the data range affected by out-of-order, updated, or deleted records. To make this approach effective, users must ensure that their computation statements and source tables are independent of processing time—that is, the same trigger should produce valid results even if executed multiple times.
 
-1. AT_ONCE: Triggered immediately upon writing.
-1. WINDOW_CLOSE: Triggered when the window closes (the closing of the window is determined by the event time, can be used in conjunction with watermark).
-1. MAX_DELAY time: If the window closes, computation is triggered. If the window has not closed, and the duration since it has not closed exceeds the time specified by max delay, computation is triggered.
-1. FORCE_WINDOW_CLOSE: Based on the current time of the operating system, only the results of the currently closed window are calculated and pushed out. The window is only calculated once at the moment of closure, and will not be recalculated subsequently. This mode currently only supports INTERVAL windows (does support sliding); In this mode, FILL_HISTORY is automatically set to 0, IGNORE EXPIRED is automatically set to 1 and IGNORE UPDATE is automatically set to 1; FILL only supports PREV, NULL, NONE, VALUE.
-   - This mode can be used to implement continuous queries, such as creating a stream that queries the number of data entries in the past 10 seconds window every 1 second. SQL as follows:
-
-   ```sql
-   create stream if not exists continuous_query_s trigger force_window_close into continuous_query as select count(*) from power.meters interval(10s) sliding(1s)
-   ```
-
-1. CONTINUOUS_WINDOW_CLOSE: Results are output when the window is closed. Modifying or deleting data does not immediately trigger a recalculation. Instead, periodic recalculations are performed every rec_time_val duration. If rec_time_val is not specified, the recalculation period is 60 minutes. If the recalculation time exceeds rec_time_val, the next recalculation will be automatically initiated after the current one is completed. Currently, this mode only supports INTERVAL windows. If the FILL clause is used, relevant information of the adapter needs to be configured, including adapterFqdn, adapterPort, and adapterToken. The adapterToken is a string obtained by Base64-encoding `{username}:{password}`. For example, after encoding `root:taosdata`, the result is `cm9vdDp0YW9zZGF0YQ==`.
-The closing of the window is determined by the event time, such as when the event stream is interrupted or continuously delayed, at which point the event time cannot be updated, possibly leading to outdated computation results.
-
-Therefore, stream computing provides the MAX_DELAY trigger mode that combines event time with processing time: MAX_DELAY mode triggers computation immediately when the window closes, and its unit can be specified, specific units: a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). Additionally, when data is written, if the time that triggers computation exceeds the time specified by MAX_DELAY, computation is triggered immediately.
-
-### Window Closure in Stream Computing
-
-The core of stream computing lies in using the event time (i.e., the timestamp primary key in the written record) as the basis for calculating the window closure time, rather than relying on the TDengine server's time. Using event time as the basis effectively avoids issues caused by discrepancies between client and server times and can properly address challenges such as out-of-order data writing.
-
-To further control the tolerance level for out-of-order data, stream computing introduces the watermark mechanism. When creating a stream, users can specify the value of watermark through the stream_option parameter, which defines the upper bound of tolerance for out-of-order data, defaulting to 0.
-
-Assuming T = Latest event time - watermark, each time new data is written, the system updates the window closure time based on this formula. Specifically, the system closes all open windows whose end time is less than T. If the trigger mode is set to window_close or max_delay, the aggregated results of the window are pushed. The diagram below illustrates the window closure process in stream computing.
-
-<figure>
-<Image img={watermarkImg} alt="Window closure in stream processing"/>
-<figcaption>Figure 1. Window closure diagram</figcaption>
-</figure>
-
-In the diagram above, the vertical axis represents moments, and the dots on the horizontal axis represent the data received. The related process is described as follows.
-
-1. At moment T1, the 7th data point arrives, and based on T = Latest event - watermark, the calculated time falls within the second window, so the second window does not close.
-1. At moment T2, the 6th and 8th data points arrive late to TDengine, and since the Latest event has not changed, T also remains unchanged, and the out-of-order data entering the second window has not yet been closed, thus it can be correctly processed.
-1. At moment T3, the 10th data point arrives, T moves forward beyond the closure time of the second window, which is then closed, and the out-of-order data is correctly processed.
-
-In window_close or max_delay modes, window closure directly affects the push results. In at_once mode, window closure only relates to memory usage.
-
-### Expired Data Handling Strategy
-
-For windows that have closed, data that falls into such windows again is marked as expired data. TDengine offers two ways to handle expired data, specified by the IGNORE EXPIRED option.
-
-1. Recalculate, i.e., IGNORE EXPIRED 0: Re-find all data corresponding to the window from the TSDB and recalculate to get the latest result.
-1. Directly discard, i.e., IGNORE EXPIRED 1: Default configuration, ignore expired data.
-
-Regardless of the mode, the watermark should be properly set to obtain correct results (direct discard mode) or avoid frequent re-triggering of recalculations that lead to performance overhead (recalculation mode).
-
-### Data Update Handling Strategy
-
-TDengine offers two ways to handle modified data, specified by the IGNORE UPDATE option.
-
-1. Check whether the data has been modified, i.e., IGNORE UPDATE 0: Default configuration, if modified, recalculate the corresponding window.
-1. Do not check whether the data has been modified, calculate all as incremental data, i.e., IGNORE UPDATE 1.
-
-## Other Strategies for Stream Computing
-
-### Writing to an Existing Supertable
-
-When the result of stream computing needs to be written into an existing supertable, ensure that the `stb_name` column corresponds correctly with the subquery output results. If the position and number of the `stb_name` column match exactly with the subquery output results, there is no need to explicitly specify the correspondence; if the data types do not match, the system will automatically convert the subquery output results to the corresponding `stb_name` column type.
-
-For already existing supertables, the system will check the schema information of the columns to ensure they match the subquery output results. Here are some key points:
-
-1. Check if the schema information of the columns matches; if not, automatically perform type conversion. Currently, an error is reported only if the data length exceeds 4096 bytes; otherwise, type conversion can be performed.
-1. Check if the number of columns is the same; if different, explicitly specify the correspondence between the supertable and the subquery columns, otherwise, an error is reported. If the same, you can specify the correspondence or not; if not specified, they correspond by position order.
-
-**Note** Although stream computing can write results to an existing supertable, it cannot allow two existing stream computations to write result data to the same (super) table. This is to avoid data conflicts and inconsistencies, ensuring data integrity and accuracy. In practice, set the column correspondence according to actual needs and data structure to achieve efficient and accurate data processing.
-
-### Customizing Tags for Target Tables
-
-Users can generate custom tag values for each partition's subtable, as shown in the stream creation statement below:
-
-```sql
-CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varchar(100)) as select _wstart, count(*) from power.meters partition by concat("tag-", tbname) as alias_tag interval(10s));
-```
-
-In the PARTITION clause, an alias `alias_tag` is defined for `concat("tag-", tbname)`, corresponding to the custom tag name of the supertable `output_tag_s`. In the example above, the tag of the newly created subtable by the stream will use the prefix 'tag-' connected to the original table name as the tag value. The following checks will be performed on the tag information:
-
-1. Check if the schema information of the tag matches; if not, automatically perform data type conversion. Currently, an error is reported only if the data length exceeds 4096 bytes; otherwise, type conversion can be performed.
-1. Check if the number of tags is the same; if different, explicitly specify the correspondence between the supertable and the subquery tags, otherwise, an error is reported. If the same, you can specify the correspondence or not; if not specified, they correspond by position order.
-
-### Cleaning Up Intermediate States of Stream Computing
-
-```sql
-DELETE_MARK time
-```
-
-DELETE_MARK is used to delete cached window states, i.e., deleting the intermediate results of stream computing. Cached window states are mainly used for window result updates caused by expired data. If not set, the default value is 10 years.
-
-## Specific Operations of Stream Computing
-
-### Deleting Stream Computing
-
-Only deletes the stream computing task; data written by stream computing will not be deleted, SQL as follows:
-
-```sql
-DROP STREAM [IF EXISTS] stream_name;
-```
-
-### Displaying Stream Computing
-
-View the SQL of stream computing tasks as follows:
-
-```sql
-SHOW STREAMS;
-```
-
-To display more detailed information, you can use:
-
-```sql
-SELECT * from information_schema.`ins_streams`;
-```
-
-### Pausing Stream Computing Tasks
-
-The SQL to pause stream computing tasks is as follows:
-
-```sql
-PAUSE STREAM [IF EXISTS] stream_name; 
-```
-
-If IF EXISTS is not specified, an error is reported if the stream does not exist. If it exists, the stream computing is paused. If IF EXISTS is specified, it returns success if the stream does not exist. If it exists, the stream computing is paused.
-
-### Resuming Stream Computing Tasks
-
-The SQL to resume stream computing tasks is as follows. If IGNORE UNTREATED is specified, it ignores the data written during the pause period of the stream computing task when resuming.
-
-```sql
-RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name; 
-```
-
-If IF EXISTS is not specified, an error is reported if the stream does not exist. If it exists, the stream computing is resumed. If IF EXISTS is specified, it returns success if the stream does not exist. If it exists, the stream computing is resumed. If IGNORE UNTREATED is specified, it ignores the data written during the pause period of the stream computing task when resuming.
-
-### Stream Computing Upgrade Fault Recovery
-
-After upgrading TDengine, if the stream computing is not compatible, you need to delete the stream computing and then recreate it. The steps are as follows:
-
-1. Modify taos.cfg, add `disableStream 1`
-
-1. Restart taosd. If the startup fails, change the name of the stream directory to avoid taosd trying to load the stream computing data information during startup. Avoid using the delete operation to prevent risks caused by misoperations. The folders that need to be modified: `$dataDir/vnode/vnode*/tq/stream`, where `$dataDir` refers to the directory where TDengine stores data. In the `$dataDir/vnode/` directory, there will be multiple directories like vnode1, vnode2...vnode*, all need to change the name of the tq/stream directory to tq/stream.bk
-
-1. Start taos
-
-```sql
-drop stream xxxx;                ---- xxx refers to the stream name
-flush database stream_source_db; ---- The database where the supertable for stream computing data reading is located
-flush database stream_dest_db;   ---- The database where the supertable for stream computing data writing is located
-```
-
-Example:
-
-```sql
-create stream streams1 into test1.streamst as select  _wstart, count(a) c1  from test.st interval(1s) ;
-drop stream streams1;
-flush database test;
-flush database test1;
-```
-
-1. Close taosd
-
-1. Modify taos.cfg, remove `disableStream 1`, or change `disableStream` to 0
-
-1. Start taosd
+Recalculation can be either automatic or manual. If automatic recalculation is not needed, it can be disabled via configuration options.

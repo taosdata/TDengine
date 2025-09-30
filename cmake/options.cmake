@@ -35,7 +35,7 @@ endif()
 #       otherwise you might encounter the error like:
 #       error: pathspec 'xxx' did not match any file(s) known to git
 if(NOT DEFINED TAOSADAPTER_GIT_TAG)
-  set(TAOSADAPTER_GIT_TAG "3.3.6" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosadapter.git" FORCE)
+  set(TAOSADAPTER_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosadapter.git" FORCE)
 endif()
 
 # preprocess TAOSADAPTER_GIT_TAG
@@ -52,7 +52,7 @@ endif()
 # TAOSWS_GIT_TAG
 # eg.: main
 if(NOT DEFINED TAOSWS_GIT_TAG)
-    set(TAOSWS_GIT_TAG "3.3.6" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosws(rust connector)" FORCE)
+    set(TAOSWS_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosws(rust connector)" FORCE)
 endif()
 
 # preprocess TAOSWS_GIT_TAG
@@ -229,8 +229,8 @@ ENDIF()
 IF(${TD_LINUX})
 
 option(
-    BUILD_S3
-    "If build with s3"
+    BUILD_SHARED_STORAGE
+    "If build with shared storage"
     ON
 )
 
@@ -263,8 +263,8 @@ option(
 
 # NOTE: set option variable in this ways is not a good practice
 IF(NOT TD_ENTERPRISE)
-  MESSAGE("switch s3 off with community version")
-  set(BUILD_S3 OFF)
+  MESSAGE("switch shared storage off with community version")
+  set(BUILD_SHARED_STORAGE OFF)
   set(BUILD_WITH_S3 OFF)
   set(BUILD_WITH_COS OFF)
   set(BUILD_WITH_ANALYSIS OFF)
@@ -273,7 +273,7 @@ ENDIF ()
 # NOTE: set option variable in this ways is not a good practice
 IF(${BUILD_WITH_ANALYSIS})
     message("build with analysis")
-    set(BUILD_S3 ON)
+    set(BUILD_SHARED_STORAGE ON)
     set(BUILD_WITH_S3 ON)
 ENDIF()
 
@@ -282,21 +282,18 @@ IF(${TD_LINUX})
     set(BUILD_WITH_ANALYSIS ON)
 ENDIF()
 
-IF(${BUILD_S3})
+IF(${BUILD_SHARED_STORAGE})
+  add_definitions(-DUSE_SHARED_STORAGE)
 
   IF(${BUILD_WITH_S3})
-
     add_definitions(-DUSE_S3)
     # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
     option(BUILD_WITH_COS "If build with cos" OFF)
-
   ELSE ()
-
-    # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
-    option(BUILD_WITH_COS "If build with cos" ON)
-
+    # NOTE1: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
+    # option(BUILD_WITH_COS "If build with cos" ON)
+    MESSAGE("shared storage does not support COS at present, please use s3 instead")
   ENDIF ()
-
 ELSE ()
 
   option(BUILD_WITH_S3 "If build with s3" OFF)
@@ -386,7 +383,7 @@ option(
    OFF
 )
 
-message(STATUS "BUILD_S3:${BUILD_S3}")
+message(STATUS "BUILD_SHARED_STORAGE:${BUILD_SHARED_STORAGE}")
 message(STATUS "BUILD_WITH_S3:${BUILD_WITH_S3}")
 message(STATUS "BUILD_WITH_COS:${BUILD_WITH_COS}")
 
