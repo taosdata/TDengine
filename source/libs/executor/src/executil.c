@@ -2757,6 +2757,9 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   if (NULL != pTableScanNode->pExtScanRange) {
     pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
     code = getQueryExtWindow(&pCond->twindows, pTableScanNode->pExtScanRange, &pCond->twindows, pCond->extTwindows);
+  } else if (readHandle->extWinRangeValid) {
+    pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
+    code = getQueryExtWindow(&pCond->twindows, &readHandle->extWinRange, &pCond->twindows, pCond->extTwindows);
   }
   
   return code;
