@@ -116,6 +116,7 @@ done
 
 function prepare_cases() {
     cat "$t_file" >>"$task_file"
+    echo "" >>"$task_file"
     local i=0
     while [ $i -lt "$1" ]; do
         echo "%%FINISHED%%" >>"$task_file"
