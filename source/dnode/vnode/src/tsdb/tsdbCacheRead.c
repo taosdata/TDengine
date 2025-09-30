@@ -68,13 +68,15 @@ static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock,
   const int32_t* dstSlotIds, const char* idStr) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int32_t* nextRowIndex = NULL;
+  SArray* pRowWithDstSlotId = NULL;
 
   TSDB_CHECK_NULL(pResBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
   if (pRow->size > 0) {
     TSDB_CHECK_NULL(dstSlotIds, code, lino, _end, TSDB_CODE_INVALID_PARA);
   }
 
-  SArray* pRowWithDstSlotId = taosArrayInit(pRow->size, sizeof(SLastColWithDstSlotId));
+  pRowWithDstSlotId = taosArrayInit(pRow->size, sizeof(SLastColWithDstSlotId));
   TSDB_CHECK_NULL(pRowWithDstSlotId, code, lino, _end, terrno);
 
   // sort pRow by ts and pk in descending order
@@ -91,7 +93,7 @@ static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock,
 
   int32_t blockSize = taosArrayGetSize(pResBlock->pDataBlock);
   // row index of next row to fill value
-  int32_t* nextRowIndex = taosMemCalloc(blockSize, sizeof(int32_t));
+  nextRowIndex = taosMemCalloc(blockSize, sizeof(int32_t));
   if (NULL == nextRowIndex) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _end);
