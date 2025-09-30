@@ -765,7 +765,7 @@ int32_t taosSetGlobalTimezone(const char *tz) {
         keyValue[4] = (keyValue[4] == '+' ? '-' : '+');
         keyValue[10] = 0;
         snprintf(winStr, sizeof(winStr), "TZ=%s:00", &(keyValue[1]));
-        if (taosStrcasecmp(tz, "UTC") == 0) {
+        if (strcasecmp(tz, "UTC") == 0) {
           snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, +0000)", tz);
         } else {
           snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%c%c%c%c)", tz, keyValue[4], keyValue[5],
