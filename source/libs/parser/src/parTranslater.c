@@ -13452,7 +13452,8 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
       isSlidingWindow(pTrigger->pTriggerWindow)) {
     if (pTriggerOptions && pTriggerOptions->deleteRecalc) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                           "delete recalc is not supported when trigger is count window"));
+                                           "delete recalc is not supported when trigger is count window, "
+                                           "period window or sliding window"));
     }
   }
 
