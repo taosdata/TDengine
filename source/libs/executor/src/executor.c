@@ -1843,10 +1843,20 @@ end:
   return code;
 }
 
-int32_t  qStreamSetTableList(void* pTableListInfo, uint64_t uid, uint64_t gid, TdThreadRwlock* lock){
+int32_t  qStreamSetTableList(void** pTableListInfo, uint64_t uid, uint64_t gid, TdThreadRwlock* lock){
+  int32_t code = 0;
   (void)taosThreadRwlockWrlock(lock);
-  int32_t code = tableListAddTableInfo(pTableListInfo, uid, gid);
+  if (*pTableListInfo == NULL) {
+    *pTableListInfo = tableListCreate();
+    if (*pTableListInfo == NULL) {
+      code = terrno;
+      goto end;
+    }
+  }
+  code = tableListAddTableInfo(*pTableListInfo, uid, gid);
   (void)taosThreadRwlockUnlock(lock);
+
+end:
   return code;
 }
 

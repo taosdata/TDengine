@@ -269,7 +269,7 @@ int32_t  qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
                                         SStorageAPI* storageAPI, void* pTableListInfo, void* pTableListInfoHistory, 
                                         SHashObj* groupIdMap, bool isAdd, TdThreadRwlock* lock);
 
-int32_t  qStreamSetTableList(void* pTableListInfo, uint64_t uid, uint64_t gid, TdThreadRwlock* lock);
+int32_t  qStreamSetTableList(void** pTableListInfo, uint64_t uid, uint64_t gid, TdThreadRwlock* lock);
 int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size, TdThreadRwlock* lock);
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid, TdThreadRwlock* lock);
 void     qStreamDestroyTableList(void* pTableListInfo, TdThreadRwlock* lock);

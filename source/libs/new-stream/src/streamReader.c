@@ -158,7 +158,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       void*   px = tSimpleHashIterate(options->mapInfo, NULL, &iter);
       while (px != NULL) {
         int64_t* id = tSimpleHashGetKey(px, NULL);
-        STREAM_CHECK_RET_GOTO(qStreamSetTableList(pTaskInner->pTableList, *(id+1), *id, &options->sStreamReaderInfo->lock));
+        STREAM_CHECK_RET_GOTO(qStreamSetTableList(&pTaskInner->pTableList, *(id+1), *id, &options->sStreamReaderInfo->lock));
         px = tSimpleHashIterate(options->mapInfo, px, &iter);
         ST_TASK_DLOG("%s build tablelist for vtable, suid:%"PRId64" uid:%"PRId64, __func__, *id, *(id+1));
       }
