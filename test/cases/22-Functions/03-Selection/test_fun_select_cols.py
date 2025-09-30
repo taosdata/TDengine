@@ -1380,6 +1380,7 @@ class TestFunCols:
     #
     def test_func_select_cols(self):
         """ Function COLS()
+
         1. Basic query for input different params
         2. Query on super/child/normal/empty table
         3. Support types
@@ -1399,6 +1400,7 @@ class TestFunCols:
 
         History:
             - 2025-9-29 Alex  Duan Migrated from uncatalog/system-test/2-query/test_cols_function.py
+
         """
         tdStream.createSnode()
         self.run_basic('none')

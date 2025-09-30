@@ -481,6 +481,7 @@ class TestUnique:
     #
     def test_func_select_unique(self):
         """ Function UNIQUE()
+
         1. Basic query for input different params
         2. Query on super/child/normal table
         3. Support types
@@ -500,6 +501,7 @@ class TestUnique:
 
         History:
             - 2025-9-29 Alex  Duan Migrated from uncatalog/system-test/2-query/test_unique.py
+
         """
         tdSql.prepare()
 

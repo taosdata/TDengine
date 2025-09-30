@@ -722,6 +722,7 @@ class TestFunMavg:
     #
     def test_func_ts_mavg(self):
         """ Function MAVG()
+
         1. Basic query for different params
         2. Query on super/child/normal table
         3. Support data types

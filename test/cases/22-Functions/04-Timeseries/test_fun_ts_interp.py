@@ -6884,6 +6884,7 @@ class TestInterp:
     #
     def test_func_ts_interp(self):
         """ Function INTERP()
+
         1. Basic query for different params
         2. Query on super/child/normal/empty table
         3. Support data types
@@ -6907,6 +6908,7 @@ class TestInterp:
             - 2025-9-29 Alex Duan Migrated from uncatalog/system-test/2-query/test_interp.py
             - 2025-9-29 Alex Duan Migrated from uncatalog/system-test/2-query/test_interp_extension.py
             - 2025-9-29 Alex Duan Migrated from 20-DataQuerying/12-Interp/test_interp_basic.py
+
         """
         self.do_interp()
         self.do_interp_extension()

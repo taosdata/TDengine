@@ -190,6 +190,7 @@ class TestMode:
     #
     def test_func_select_mode(self):
         """ Function MODE()
+
         1. Query with basic params
         2. Query on super/child/normal table
         3. Support types
@@ -203,6 +204,7 @@ class TestMode:
 
         History:
             - 2025-9-29 Alex  Duan Migrated from uncatalog/system-test/2-query/test_mode.py
+
         """
         tdSql.prepare()
 

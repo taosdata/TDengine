@@ -500,6 +500,7 @@ class TestCsum:
     #
     def test_func_ts_csum(self):
         """ Function CSUM()
+
         1. Basic query for input different params
         2. Query on super/child/normal table
         3. Support types
@@ -520,6 +521,7 @@ class TestCsum:
 
         History:
             - 2025-9-29 Alex Duan Migrated from uncatalog/system-test/2-query/test_csum.py
+
         """
 
         import traceback

@@ -569,6 +569,7 @@ class TestFunMin:
             - 2025-4-28 Simon Guan Migrated from tsim/compute/m.sim
             - 2025-9-28 Alex  Duan Migrated from uncatalog/system-test/2-query/test_min.py
             - 2025-9-28 Alex  Duan Migrated from uncatalog/system-test/2-query/test_distribute_agg_min.py
+
         """
 
         self.do_sim_min()

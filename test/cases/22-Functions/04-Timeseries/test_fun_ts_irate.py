@@ -226,6 +226,7 @@ class TestFunIrate:
     #
     def test_func_ts_irate(self):
         """ Function IRATE()
+
         1. Basic query for input different params
         2. Query on super/child table
         3. Support data types

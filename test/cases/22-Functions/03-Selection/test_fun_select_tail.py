@@ -443,6 +443,7 @@ class TestFunTail:
     #
     def test_func_select_tail(self):
         """ Function TAIL()
+
         1. Basic query for input different params
         2. Query on super/child/normal/empty table
         3. Support types
@@ -461,6 +462,7 @@ class TestFunTail:
 
         History:
             - 2025-9-29 Alex  Duan Migrated from uncatalog/system-test/2-query/test_tail.py
+
         """
         tdSql.prepare()
 
