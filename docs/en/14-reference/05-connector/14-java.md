@@ -1420,7 +1420,7 @@ Consumer support property list:
   2. If using a Native connection, it is the `ip:port` where the TDengine TSDB server is located. Native connections do not support multiple endpoints.
 - enable.auto.commit: Whether to allow automatic commit.
 - group.id: The group where the consumer belongs.
-- value.deserializer: Result set deserialization method, you can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer`, specify the result set bean, and implement deserialization. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and customize the deserialization method based on the SQL resultSet.
+- value.deserializer: Result set deserialization method, you can inherit `com.taosdata.jdbc.tmq.ReferenceDeserializer`, specify the result set bean, and implement deserialization. You can also inherit `com.taosdata.jdbc.tmq.Deserializer` and customize the deserialization method based on the SQL resultSet. When subscribing to a database, you need to set `value.deserializer` to `com.taosdata.jdbc.tmq.MapEnhanceDeserializer` when creating a consumer, and then create a consumer of type `TaosConsumer<TMQEnhMap>`. This way, each row of data can be deserialized into a table name and a `Map`.
 - httpConnectTimeout: Connection creation timeout parameter, in ms, default is 5000 ms. Only valid under WebSocket connection.
 - messageWaitTimeout: Data transfer timeout parameter, in ms, default is 10000 ms. Only valid under WebSocket connection.
 - httpPoolSize: Maximum number of parallel requests under the same connection. Only valid under WebSocket connection.
