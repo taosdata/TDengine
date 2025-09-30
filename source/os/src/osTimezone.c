@@ -765,6 +765,8 @@ int32_t taosSetGlobalTimezone(const char *tz) {
         keyValue[4] = (keyValue[4] == '+' ? '-' : '+');
         keyValue[10] = 0;
         snprintf(winStr, sizeof(winStr), "TZ=%s:00", &(keyValue[1]));
+        snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%c%c%c%c)", tz, keyValue[4], keyValue[5],
+                   keyValue[6], keyValue[8], keyValue[9]);
       }
       break;
     }
@@ -772,6 +774,7 @@ int32_t taosSetGlobalTimezone(const char *tz) {
 
   _putenv(winStr);
   _tzset();
+  return 0;
 #else
       code = setenv("TZ", tz, 1);
   if (-1 == code) {
@@ -780,10 +783,9 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   }
 
   tzset();
-#endif
-
   time_t tx1 = taosGetTimestampSec();
   return taosFormatTimezoneStr(tx1, tz, NULL, tsTimezoneStr);
+#endif
 }
 
 int32_t taosGetLocalTimezoneOffset() {
