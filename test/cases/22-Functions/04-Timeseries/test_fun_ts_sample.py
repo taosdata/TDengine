@@ -53,7 +53,7 @@ class TestSample:
         line = sys._getframe().f_back.f_lineno
 
         if not all([sel , func , col , m_comm , k , r_comm , fr , table_expr]):
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
@@ -63,14 +63,14 @@ class TestSample:
         collist =  tdSql.getColNameList(sql)
 
         if not isinstance(col, str):
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
             ))
 
         if len([x for x in col.split(",") if x.strip()]) != 1:
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
@@ -79,7 +79,7 @@ class TestSample:
         col = col.replace(",", "").replace(" ","")
 
         if any([re.compile('^[a-zA-Z]{1}.*$').match(col) is None , not col.replace(".","").isalnum()]):
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
@@ -87,7 +87,7 @@ class TestSample:
 
         if '.' in col:
             if any([col.split(".")[0] not in table_expr, col.split(".")[1] not in collist]):
-                print(f"case in {line}: ", end='')
+                #print(f"case in {line}: ", end='')
                 return tdSql.error(self.sample_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                     table_expr=table_expr, condition=condition
@@ -96,7 +96,7 @@ class TestSample:
 
         if "." not in col:
             if col not in  collist:
-                print(f"case in {line}: ", end='')
+                #print(f"case in {line}: ", end='')
                 return tdSql.error(self.sample_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                     table_expr=table_expr, condition=condition
@@ -120,21 +120,21 @@ class TestSample:
         #     ))
 
         if any( [func != "sample(" , r_comm != ")" , fr != "from",  sel != f"select"]):
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
             ))
 
         if all(["(" not in table_expr, "stb" in table_expr, "group" not in condition.lower()]):
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
             ))
 
         if all(["group" in condition.lower(), "tbname" not in condition.lower()]):
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
@@ -144,7 +144,7 @@ class TestSample:
         if all([alias, "," not in alias]):
             if any([ not alias.isalnum(), re.compile('^[a-zA-Z]{1}.*$').match(col) is None ]):
                 # actually， column alias also support "_"， but in this case，forbidden that。
-                print(f"case in {line}: ", end='')
+                #print(f"case in {line}: ", end='')
                 return tdSql.error(self.sample_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                     table_expr=table_expr, condition=condition
@@ -152,7 +152,7 @@ class TestSample:
 
         if all([alias, "," in alias]):
             if  all(parm != alias.lower().split(",")[1].strip() for parm in alias_list):
-                print(f"case in {line}: ", end='')
+                #print(f"case in {line}: ", end='')
                 return tdSql.error(self.sample_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                     table_expr=table_expr, condition=condition
@@ -167,8 +167,8 @@ class TestSample:
         if "union" not in condition.lower():
             if any(parm in condition.lower().strip() for parm in condition_exception):
 
-                print(f"case in {line}: ", end='')
-                print(f"condition : {condition}: ", end='')
+                #print(f"case in {line}: ", end='')
+                #print(f"condition : {condition}: ", end='')
                 return tdSql.error(self.sample_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                     table_expr=table_expr, condition=condition
@@ -176,13 +176,13 @@ class TestSample:
             pass
 
         if not any([isinstance(k, int) ,  isinstance(k, float)])  :
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 col=col, k=k, alias=alias, table_expr=table_expr, condition=condition
             ))
 
         if not(1 <= k < 1001):
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             return tdSql.error(self.sample_query_form(
                 col=col, k=k, alias=alias, table_expr=table_expr, condition=condition
             ))
@@ -197,7 +197,7 @@ class TestSample:
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
             ))
-            print(f"case in {line}: ", end='')
+            #print(f"case in {line}: ", end='')
             tdSql.checkRows(0)
             return
 
@@ -549,25 +549,20 @@ class TestSample:
 
     def sample_test_data(self, tbnum:int, data_row:int, basetime:int, dbname="db") -> None :
         for i in range(tbnum):
+            sql  = f"insert into {dbname}.t{i} values"
+            sql1 = f"insert into {dbname}.tt{i} values"
             for j in range(data_row):
-                tdSql.execute(
-                    f"insert into {dbname}.t{i} values ("
-                    f"{basetime + (j+1)*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
-                    f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
-                    f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
-                )
+                    sql += f" ({basetime + (j+1)*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
+                    sql += f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
+                    sql += f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
 
-                tdSql.execute(
-                    f"insert into {dbname}.t{i} values ("
-                    f"{basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
-                    f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
-                    f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
-                )
-                tdSql.execute(
-                    f"insert into {dbname}.tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
-                )
+                    sql += f" ({basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
+                    sql += f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
+                    sql += f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
 
-        pass
+                    sql1 += f" ({basetime-(j+1) * 10}, {random.randint(1, 200)})"
+            tdSql.execute(sql)
+            tdSql.execute(sql1)
 
     def sample_test_table(self,tbnum: int, dbname="db") -> None :
         tdSql.execute(f"drop database if exists {dbname}")
@@ -622,24 +617,28 @@ class TestSample:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
+        sql = "create table"
         for i in range(4):
-            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
+            sql += f' {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )'
+        tdSql.execute(sql)  
 
+        values1 = "values"
+        values2 = "values" 
         for i in range(9):
-            tdSql.execute(
-                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
-            )
-            tdSql.execute(
-                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
-            )
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
-        tdSql.execute(f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+                values1 += f" ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+                values2 += f" ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+        tdSql.execute(f"insert into {dbname}.ct1 {values1} {dbname}.ct4 {values2} ")
 
-        tdSql.execute(f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute(f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+        sql = "insert into"
+        sql += f" {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )"
+        sql += f" (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )"
+        sql += f" (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )"
+        sql += f" (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )"
+
+        sql += f" {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
+        sql += f" (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) "
+        sql += f" (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) "
+        tdSql.execute(sql)
 
         tdSql.execute(
             f'''insert into {dbname}.t1 values
@@ -782,27 +781,35 @@ class TestSample:
         self.sample_error_query()
 
         tdLog.printNoPrefix("######## insert only NULL test:")
+        sql = "insert into"
         for i in range(tbnum):
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime - 5})")
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime + 5})")
+            sql += f" {dbname}.t{i}(ts) values ({nowtime - 5})"
+            sql += f" {dbname}.t{i}(ts) values ({nowtime + 5})"
+        tdSql.execute(sql)
+    
         self.sample_current_query()
         self.sample_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         self.sample_test_table(tbnum)
-        tdSql.execute(f"insert into {dbname}.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
-        tdSql.execute(f"insert into {dbname}.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
+
+        sql = "insert into"
+        sql += f" {dbname}.t1(ts, c1,c2,c5,c7) values ({nowtime - (per_table_rows + 1) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})"
+        sql += f" {dbname}.t1(ts, c1,c2,c5,c7) values ({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})"
+        tdSql.execute(sql)
+
         self.sample_current_query()
         self.sample_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
         self.sample_test_table(tbnum)
-        tdSql.execute(f"insert into {dbname}.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
-        tdSql.execute(f"insert into {dbname}.t1(ts, c1,c2,c5,c7) values "
-                      f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
+
+        sql = "insert into"
+        sql += f" {dbname}.t1(ts, c1,c2,c5,c7) values "
+        sql += f" ({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})"
+        sql += f" ({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})"
+        tdSql.execute(sql)
+
         self.sample_current_query()
         self.sample_error_query()
 
@@ -813,10 +820,13 @@ class TestSample:
         self.sample_error_query()
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
+        sql = "insert into"
         for i in range(tbnum):
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime})")
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
-            tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
+            sql += f" {dbname}.t{i}(ts) values ({nowtime})"
+            sql += f" {dbname}.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})"
+            sql += f" {dbname}.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})"
+        tdSql.execute(sql)
+
         self.sample_current_query()
         self.sample_error_query()
 
@@ -836,9 +846,11 @@ class TestSample:
         tdSql.execute(f"create stable {dbname}.st (ts timestamp ,c1 int ) tags(ind int)" )
         tdSql.execute(f"create table {dbname}.sub_tb using {dbname}.st tags(1)")
 
+        sql = f"insert into {dbname}.sub_tb values"
         for i in range(2000):
             ts = self.ts+i*10
-            tdSql.execute(f"insert into {dbname}.sub_tb values({ts} ,{i})")
+            sql += f" ({ts} ,{i})"
+        tdSql.execute(sql)
 
         tdSql.query(f"select count(*) from {dbname}.st")
         tdSql.checkData(0,0,2000)
@@ -850,26 +862,32 @@ class TestSample:
         tdSql.query("select sample(c1,2) from db.stb1 partition by c1 ")
         tdSql.query("select c1 ,ind, sample(c1,2) from sample_db.st partition by c1 ")
 
-    def test_sample(self):
-        """summary: xxx
+    #
+    # ------------------ main ------------------
+    #
+    def test_func_ts_sample(self):
+        """ Function INTERP()
 
-        description: xxx
+        1. Basic query for different params
+        2. Query on super/child/normal table
+        3. Support data types
+        4. Error cases
+        5. Query with where condition
+        6. Query with partition/group/order by
+        8. Query with union/join/range/interval
+        9. Query with null value
+        10. Query with big data
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-9-30 Alex Duan Migrated from uncatalog/system-test/2-query/test_sample.py
 
         """
-
         import traceback
         try:
             # run in  develop branch

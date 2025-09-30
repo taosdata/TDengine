@@ -354,6 +354,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_ts_interp.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_ts_irate.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_ts_mavg.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_sample.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_twa.py
@@ -969,7 +970,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_orderBy.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sample.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaBasic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_sml_TS-3724.py
