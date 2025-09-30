@@ -1653,7 +1653,7 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
   return code;
 }
 
-static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
+int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
                                  SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
   *listAdded = false;
   if (pTagCond == NULL) {
@@ -2965,6 +2965,29 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
 }
 
 // TODO handle the group offset info, fix it, the rule of group output will be broken by this function
+int32_t tableListRemoveTableInfo(STableListInfo* pTableList, uint64_t uid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  int32_t* slot = taosHashGet(pTableList->map, &uid, sizeof(uid));
+  if (slot == NULL) {
+    qDebug("table:%" PRIu64 " not found in table list", uid);
+    return 0;
+  }
+
+  taosArrayRemove(pTableList->pTableList, *slot);
+  code = taosHashRemove(pTableList->map, &uid, sizeof(uid));
+
+  _end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  } else {
+    qDebug("uid:%" PRIu64 ", remove from table list", uid);
+  }
+
+  return code;
+}
+
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
