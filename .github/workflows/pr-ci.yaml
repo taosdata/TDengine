@@ -63,7 +63,7 @@ jobs:
       - name: Typos check
         run: |
           typos --version || cargo install typos-cli
-          typos src taosx-* README.md
+          typos src explorer/taos-ui taosx-* README.md
       - name: Clippy check
         run: |
           cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings

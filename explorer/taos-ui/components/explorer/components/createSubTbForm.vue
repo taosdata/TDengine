@@ -137,7 +137,7 @@
         </el-collapse>
 
         <div class="flex-center">
-          <!-- Comfirm Btn -->
+          <!-- Confirm Btn -->
           <el-button
             v-if="!isEdit"
             class="submit-btn"

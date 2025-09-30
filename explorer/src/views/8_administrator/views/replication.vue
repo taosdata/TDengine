@@ -159,7 +159,7 @@
 </template>
 <script setup lang="ts">
 import CopyText from '@/components/CopyText.vue';
-import { excuteStart, excuteStop, excuteDel } from '@/api/common';
+import { executeStart, executeStop, executeDel } from '@/api/common';
 import { getReplicationList, addReplicationData } from '@/api/replication';
 import { get, has } from 'lodash-es';
 import { getDBListReq } from '@/api/database';
@@ -249,7 +249,7 @@ function del(data: { id: string }) {
     cancelButtonText: t('cancel'),
     type: 'warning'
   }).then(async () => {
-    await excuteDel(data.id).then(res => {
+    await executeDel(data.id).then(res => {
       if (res && Object.hasOwnProperty.call(res, 'id')) {
         ElMessage({
           type: 'success',
@@ -299,7 +299,7 @@ async function addReplication() {
 
 async function start(data: { id: string | number }) {
   try {
-    await excuteStart(data.id).then(res => {
+    await executeStart(data.id).then(res => {
       if (res && Object.hasOwnProperty.call(res, 'code')) {
         ElMessage({
           type: 'error',
@@ -316,7 +316,7 @@ async function start(data: { id: string | number }) {
 }
 async function stop(data: { id: string | number }) {
   try {
-    await excuteStop(data.id).then(res => {
+    await executeStop(data.id).then(res => {
       if (res && Object.hasOwnProperty.call(res, 'code')) {
         ElMessage({
           type: 'error',

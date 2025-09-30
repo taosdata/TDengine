@@ -325,9 +325,9 @@ export default {
     jsontip: 'Please enter the correct JSON format',
     jsonDemoError: 'The json string at pos {0} is not a valid json string: {1}',
     texttip: 'Please enter correct text format',
-    mappingvaildtip: 'Please fill in the correct primary key column',
+    mappingvalidtip: 'Please fill in the correct primary key column',
     nonsupportTypetip: 'The {0} data type is not supported for the time being',
-    mappingvaildColtip: 'Enter at least one mapping rule for the common column and the tag column',
+    mappingvalidColtip: 'Enter at least one mapping rule for the common column and the tag column',
     extractdesc: `<strong style='paddingRight: 20px'>taosX supports three kinds of extractor currently</strong>:<br/>
       1. <strong>JSON</strong>: Use a visual editor to edit the extract expressions; If left blank, only non nested attributes will be parsed.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
@@ -520,8 +520,8 @@ export default {
   msg: 'Please enter',
   starttip: `Are you sure to start the {0} task?`,
   stoptip: `Are you sure to stop the {0} task?`,
-  excutestart: 'Start',
-  excutestop: 'Stop',
+  executestart: 'Start',
+  executestop: 'Stop',
   viewconfig: 'View the data source configuration',
   editconfig: 'Modify',
   agenttip: 'Please select the agent.',

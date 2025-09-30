@@ -1,5 +1,5 @@
 <template>
-  <el-table :data="data" size="default" class="tabel-expand" row-key="at">
+  <el-table :data="data" size="default" class="table-expand" row-key="at">
     <el-table-column prop="level" :label="t('dataIn.level')" width="100">
       <template #default="scope">
         <span :style="getLevelStyle(scope.row.level)">

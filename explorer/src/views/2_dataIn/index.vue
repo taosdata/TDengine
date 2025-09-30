@@ -21,7 +21,7 @@ import {
   getCsvEmptyTemplate,
   getTicket,
   checkReadyFile,
-  downlaodOpcPointFile,
+  downloadOpcPointFile,
   getOpcCsvHeader,
   addOpcPoint,
   getDatasets,
@@ -38,7 +38,7 @@ import {
   loadTaskDetail
 } from '@/api/datain';
 import { getAgentsData, addNewAgent, deleteAgent, editAgent } from '@/api/agent';
-import { excuteStart, excuteStop, excuteDel } from '@/api/common';
+import { executeStart, executeStop, executeDel } from '@/api/common';
 import { getDBListReq, createDB } from '@/api/database';
 import { getLocalTimezone } from '@/utils';
 const taoxAddress = localStorage.getItem('local_endpoint') ?? '';
@@ -67,14 +67,14 @@ type Props = InstanceType<typeof DataIn>['$props'];
 const props: Props = {
   isCommunity: $IS_COMMUNITY,
   isOem: $IS_OEM,
-  isIndusty: !!$INDUSTRY,
+  isIndustry: !!$INDUSTRY,
   taoxAddress,
   timeZone: getLocalTimezone(),
   downloadFileUrl: import.meta.env.VITE_APP_X_API + `/download?file_path=`,
   uploadFileUrl: import.meta.env.VITE_APP_X_API + `/upload`,
   hover: false,
   task: {
-    webSoketUrl: getUrl(`/activities/tasks/${clusterId}`),
+    webSocketUrl: getUrl(`/activities/tasks/${clusterId}`),
     api: {
       getTask,
       refreshTask,
@@ -84,13 +84,13 @@ const props: Props = {
       batchDelTask,
       batchExportTask,
       importTask,
-      start: excuteStart,
-      stop: excuteStop,
-      delete: excuteDel
+      start: executeStart,
+      stop: executeStop,
+      delete: executeDel
     }
   },
   metrics: {
-    webSoketUrl: getUrl('/metrics/task/'),
+    webSocketUrl: getUrl('/metrics/task/'),
     api: {
       getMetrics,
       getMetricsDesc,
@@ -99,7 +99,7 @@ const props: Props = {
     }
   },
   agent: {
-    webSoketUrl: getUrl(`/activities/agents/${clusterId}`),
+    webSocketUrl: getUrl(`/activities/agents/${clusterId}`),
     api: {
       getAgentsData,
       addNewAgent,
@@ -115,7 +115,7 @@ const props: Props = {
       fechCsvEmptyTemplateApi: getCsvEmptyTemplate,
       fechTicketApi: getTicket,
       checkReadyFile,
-      fechOpcPointFileApi: downlaodOpcPointFile,
+      fechOpcPointFileApi: downloadOpcPointFile,
       fechOpcCsvHeaderApi: getOpcCsvHeader,
       addOpcPointApi: addOpcPoint,
       getDatasets,

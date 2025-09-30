@@ -2,6 +2,7 @@
 avaliable = "avaliable"
 optin = "optin"
 ba = "ba"
+testng = "testng"
 
 [type.csv]
 extend-glob = ["*.csv"]
@@ -19,5 +20,12 @@ check-file = true
 extend-glob = ["*.sql"]
 check-file = false
 
+[type.svg]
+extend-glob = ["*.svg"]
+check-file = false
+
 [files]
 extend-exclude = ["taosx-ipc/tests/**", "taosx-core/tests/str-slice.rs", "plugins/", "packaging/**", "CHANGELOG.md"]
+
+[default]
+extend-ignore-re = ["(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on"]

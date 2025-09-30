@@ -1670,7 +1670,7 @@ async function calculateMappingResult() {
     // 主键列不能为空
     if (item['PrimaryKey'] && !item['Expression']) {
       ElMessage.closeAll();
-      ElMessage.warning(t('dataIn.transformer.mappingvaildtip'));
+      ElMessage.warning(t('dataIn.transformer.mappingvalidtip'));
       isbreak.value = true;
     }
     // 不支持 GEOMETRY
@@ -1803,7 +1803,7 @@ async function calculateMappingResult() {
   // 至少必须配置一个tag和一个column
   if (tags.length == 0 || commonColumns.length == 0) {
     ElMessage.closeAll();
-    ElMessage.warning(t('dataIn.transformer.mappingvaildColtip'));
+    ElMessage.warning(t('dataIn.transformer.mappingvalidColtip'));
     isbreak.value = true;
     return;
   }

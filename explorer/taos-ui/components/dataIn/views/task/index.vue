@@ -221,13 +221,13 @@
                   <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
                     <el-dropdown-item @click="start(scope.row)">
                       <el-icon><VideoPlay /></el-icon>
-                      {{ t('dataIn.excutestart').replace('{name}', scope.row.name) }}
+                      {{ t('dataIn.executestart').replace('{name}', scope.row.name) }}
                     </el-dropdown-item>
                   </template>
                   <template v-if="permitStopStatus.includes(scope.row.status.toLowerCase())">
                     <el-dropdown-item @click="stop(scope.row)">
                       <el-icon><VideoPause /></el-icon>
-                      {{ t('dataIn.excutestop').replace('{name}', scope.row.name) }}
+                      {{ t('dataIn.executestop').replace('{name}', scope.row.name) }}
                     </el-dropdown-item>
                   </template>
                   <el-dropdown-item @click="refreshCurrentTask(scope.row)">

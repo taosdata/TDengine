@@ -70,11 +70,11 @@ function handleScroll() {
 }
 function getExecTimeText(record: Recordable) {
   // eslint-disable-next-line prefer-const
-  let { executTime = 0, networkTime = 0, totalTime = 0 } = record;
+  let { executeTime = 0, networkTime = 0, totalTime = 0 } = record;
   if (!totalTime) {
     totalTime = record.time;
   }
-  return `(${t('common.execute')}: ${executTime} ms; ${t('common.network')}: ${networkTime} ms; ${t('common.total')}: ${totalTime} ms)`;
+  return `(${t('common.execute')}: ${executeTime} ms; ${t('common.network')}: ${networkTime} ms; ${t('common.total')}: ${totalTime} ms)`;
 }
 
 function addSql(sql: string) {
