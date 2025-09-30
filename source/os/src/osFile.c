@@ -935,12 +935,12 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
     goto _exit1;
   }
   int64_t ret = -1;
-  int64_t cur = lseek(pFile->fd, 0, SEEK_CUR);
+  int64_t cur = lseek64(pFile->fd, 0, SEEK_CUR);
   if (cur < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _exit;
   }
-  if (lseek(pFile->fd, offset, SEEK_SET) < 0) {
+  if (lseek64(pFile->fd, offset, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _exit;
   }
@@ -949,7 +949,7 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
     goto _exit;
   }
 _exit:
-  if (cur >= 0 && lseek(pFile->fd, cur, SEEK_SET) < 0) {
+  if (cur >= 0 && lseek64(pFile->fd, cur, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
   if ((code = taosThreadMutexUnlock(&(pFile->mutex))) != 0) {
@@ -979,7 +979,7 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 
   int32_t code = 0;
 
-  int64_t ret = lseek(pFile->fd, offset, whence);
+  int64_t ret = lseek64(pFile->fd, offset, whence);
   if (-1 == ret) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
@@ -1102,7 +1102,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   }
 
 #if defined(_TD_DARWIN_64) || defined(TD_ASTRA)  // TD_ASTRA_TODO
-  if (lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
+  if (lseek64(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return -1;
   }
@@ -1334,12 +1334,12 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     goto _exit1;
   }
   int64_t ret = -1;
-  int64_t cur = lseek(pFile->fd, 0, SEEK_CUR);
+  int64_t cur = lseek64(pFile->fd, 0, SEEK_CUR);
   if (cur < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _exit;
   }
-  if (lseek(pFile->fd, offset, SEEK_SET) < 0) {
+  if (lseek64(pFile->fd, offset, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _exit;
   }
@@ -1348,7 +1348,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     goto _exit;
   }
 _exit:
-  if (cur >= 0 && lseek(pFile->fd, cur, SEEK_SET) < 0) {
+  if (cur >= 0 && lseek64(pFile->fd, cur, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
   if ((code = taosThreadMutexUnlock(&(pFile->mutex))) != 0) {
