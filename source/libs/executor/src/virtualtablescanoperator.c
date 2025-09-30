@@ -203,7 +203,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
   nodesDestroyList(pMergeKeys);
 
-  VTS_ERR_JRET(tsortCreateSortHandle(pVirtualScanInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pVirtualScanInfo->bufPageSize,
+  VTS_ERR_JRET(tsortCreateSortHandle(pVirtualScanInfo->pSortInfo, SORT_MULTISOURCE_TS_MERGE, pVirtualScanInfo->bufPageSize,
                                      numOfBufPage, pVirtualScanInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pVirtualScanInfo->pSortHandle));
 
   tsortSetForceUsePQSort(pVirtualScanInfo->pSortHandle);
@@ -276,7 +276,7 @@ int32_t createSortHandle(SOperatorInfo* pOperator) {
   int32_t                         code = 0;
   int32_t                         lino = 0;
 
-  VTS_ERR_JRET(tsortCreateSortHandle(pVirtualScanInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pVirtualScanInfo->bufPageSize,
+  VTS_ERR_JRET(tsortCreateSortHandle(pVirtualScanInfo->pSortInfo, SORT_MULTISOURCE_TS_MERGE, pVirtualScanInfo->bufPageSize,
                                      numOfBufPage, pVirtualScanInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pVirtualScanInfo->pSortHandle));
 
   tsortSetForceUsePQSort(pVirtualScanInfo->pSortHandle);
@@ -844,7 +844,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
     TSDB_CHECK_NULL(pSup->pCtx, code, lino, _return, terrno)
   }
 
-  initResultSizeInfo(&pOperator->resultInfo, 1024);
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
   TSDB_CHECK_CODE(blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity), lino, _return);
 
   size_t  numOfCols = taosArrayGetSize(pInfo->binfo.pRes->pDataBlock);

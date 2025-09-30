@@ -875,6 +875,21 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
                                  (SBlockOrderInfo*)pParam->pPkOrder);
     }
     return ret;
+  } else if (pParam->sortType == SORT_MULTISOURCE_TS_MERGE) {
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, 0);
+    SColumnInfoData* pLeftTsCol = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
+    SColumnInfoData* pRightTsCol = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+    int64_t*         leftTs = (int64_t*)(pLeftTsCol->pData) + pLeftSource->src.rowIndex;
+    int64_t*         rightTs = (int64_t*)(pRightTsCol->pData) + pRightSource->src.rowIndex;
+
+
+    __compar_fn_t fn = pOrder->compFn;
+    if (!fn) {
+      fn = getKeyComparFunc(pLeftTsCol->info.type, pOrder->order);
+      pOrder->compFn = fn;
+    }
+
+    return fn(leftTs, rightTs);
   } else {
     bool isVarType;
     for (int32_t i = 0; i < pInfo->size; ++i) {
