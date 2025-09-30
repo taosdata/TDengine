@@ -11,3 +11,4 @@
 ,,n,cases,bash 83-DocsExamplesTest/rust.sh
 ,,n,cases,bash 83-DocsExamplesTest/go.sh
 ,,n,cases,bash 83-DocsExamplesTest/test_R.sh
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blo.py
