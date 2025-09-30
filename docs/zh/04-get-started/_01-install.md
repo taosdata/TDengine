@@ -85,7 +85,7 @@ TDengine 的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下
 
 ## TDengine TSDB 支持的网络环境
 
-目前 TSDB 的FQDN 支持 ipv4 和ipv6, ipv6的配置见     
+目前 TSDB 通讯方式 支持 ipv4 和ipv6, 其中ipv6 内容参见 (../08-operation/13-ipv6.md)
 
 
 
