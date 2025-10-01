@@ -133,7 +133,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
       - has_header (bool): Whether the file contains a header row, default: true.
       - repeat_read (bool): Whether to read data repeatedly, default: false.
       - tbname_index (int): Column index for child table name (starting from 0), default: -1 (inactive).
-      - timestamp_index (int): Column index for timestamp (starting from 0), default: 0.
+      - timestamp_index (int): Column index for timestamp (starting from 0), default: -1 (inactive).
       - timestamp_precision (string): Timestamp precision, options: "s", "ms", "us", "ns".
       - timestamp_offset: Timestamp offset configuration.
         - offset_type (string): Offset type, options: "relative", "absolute".
@@ -245,7 +245,7 @@ The `tdengine/insert-data` action writes data to specified child tables. Support
   - retry_interval_ms (int): Retry interval in ms, default: 1000 (effective if max_retries > 0).
   - on_failure (string): Default: exit. Options:
     - exit: Exit program on failure
-    - continue: Warn and continue on failure
+    - skip: Warn and skip to continue execution on failure
 - time_interval: Controls time interval distribution during writing.
   - enabled (bool): Whether to enable interval control, default: false.
   - interval_strategy (string): Interval strategy type, default: fixed. Options:
