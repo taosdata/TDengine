@@ -18,6 +18,7 @@
 
 #include "function.h"
 #include "index.h"
+#include "osMemory.h"
 #include "taosdef.h"
 #include "tcommon.h"
 #include "tmsg.h"
@@ -136,12 +137,14 @@ typedef struct SMetaTableInfo {
   int64_t         suid;
   int64_t         uid;
   SSchemaWrapper* schema;
+  SExtSchema*     pExtSchemas;
   char            tbName[TSDB_TABLE_NAME_LEN];
 } SMetaTableInfo;
 
 static FORCE_INLINE void destroyMetaTableInfo(SMetaTableInfo* mtInfo){
   if (mtInfo == NULL) return;
   tDeleteSchemaWrapper(mtInfo->schema);
+  taosMemoryFreeClear(mtInfo->pExtSchemas);
 }
 
 typedef struct SSnapContext {
