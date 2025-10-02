@@ -112,6 +112,7 @@ cp ${compile_dir}/build/bin/taosudf                 ${pkg_dir}${install_home_pat
 cp ${compile_dir}/build/bin/taosBenchmark           ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosmqtt                ${pkg_dir}${install_home_path}/bin
+cp "${compile_dir}/build/bin/taosgen"               "${pkg_dir}${install_home_path}/bin"
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:

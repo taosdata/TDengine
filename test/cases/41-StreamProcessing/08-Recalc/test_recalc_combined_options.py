@@ -293,7 +293,7 @@ class TestStreamRecalcCombinedOptions:
         # Test 6: COUNT_WINDOW with IGNORE_DISORDER + DELETE_RECALC - test option interaction
         stream = StreamItem(
             id=6,
-            stream="create stream rdb.s_count_combined count_window(3) from tdb.trigger_count_combined partition by tbname stream_options(ignore_disorder |  delete_recalc) into rdb.r_count_combined as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_count_combined count_window(3) from tdb.trigger_count_combined partition by tbname stream_options(ignore_disorder) into rdb.r_count_combined as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check06,
         )
         self.streams.append(stream)

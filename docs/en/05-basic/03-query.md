@@ -596,7 +596,11 @@ TDengine's nested queries follow these rules:
 
 ## UNION Clause
 
-TDengine supports the UNION operator. That is, if multiple SELECT clauses return result sets with the exact same structure (column names, types, number, and order), these result sets can be combined using the UNION clause.
+In TDengine, the UNION [ALL] operator is used to combine the results of multiple SELECT clauses. When using this operator, the multiple SELECT clauses must satisfy the following two conditions:
+1. Each SELECT clause must return results with the same number of columns;
+2. Columns in corresponding positions must be in the same order and have the same or compatible data types.
+
+After combination, the column names of the result set are determined by those defined in the first SELECT clause.
 
 Example:
 

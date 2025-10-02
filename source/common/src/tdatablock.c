@@ -3290,6 +3290,14 @@ _end:
   return code;
 }
 
+static int32_t blockCheckSize(int64_t blockSize) {
+  int32_t code = 0;
+  if (blockSize <= 0 || blockSize >= INT32_MAX) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    uError("block size:%" PRId64 ", limit %d since %s", blockSize, INT32_MAX, tstrerror(code));
+  }
+  return code;
+}
 // return length of encoded data, return -1 if failed
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols) {
   int32_t code = blockDataCheck(pBlock);
@@ -3297,6 +3305,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     terrno = code;
     return -1;
   }
+  int64_t blockSize = 0;
 
   int32_t dataLen = 0;
 
@@ -3353,6 +3362,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   data += numOfCols * sizeof(int32_t);
 
   dataLen = blockDataGetSerialMetaSize(numOfCols);
+  blockSize = dataLen;
 
   int32_t numOfRows = pBlock->info.rows;
   for (int32_t col = 0; col < numOfCols; ++col) {
@@ -3381,6 +3391,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
 
     data += metaSize;
     dataLen += metaSize;
+    blockSize += metaSize;
+    TAOS_CHECK_GOTO(blockCheckSize(blockSize), NULL, _exit);
 
     if (pColRes->reassigned && IS_VAR_DATA_TYPE(pColRes->info.type)) {
       colSizes[col] = 0;
@@ -3391,6 +3403,10 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
         colSizes[col] += colSize;
         dataLen += colSize;
         if (dataLen > dataBuflen) goto _exit;
+
+        blockSize += colSize;
+        TAOS_CHECK_GOTO(blockCheckSize(blockSize), NULL, _exit);
+
         (void)memmove(data, pColData, colSize);
         data += colSize;
       }
@@ -3398,6 +3414,10 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
       colSizes[col] = colDataGetLength(pColRes, numOfRows);
       dataLen += colSizes[col];
       if (dataLen > dataBuflen) goto _exit;
+
+      blockSize += colSizes[col];
+      TAOS_CHECK_GOTO(blockCheckSize(blockSize), NULL, _exit);
+
       if (pColRes->pData != NULL) {
         (void)memmove(data, pColRes->pData, colSizes[col]);
       }

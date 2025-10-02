@@ -98,7 +98,7 @@ class TestOthersOldCaseAtonce:
             tdSql.execute(
                 f"create stream s0 count_window(1, 1, cint) from {self.db}.ct1"
                 f" stream_options(pre_filter(cint > 4 and cint < 7) | watermark(10s) | expired_time(60s) | max_delay(5s)"
-                f" | delete_recalc | fill_history('2025-03-01 00:00:00') | force_output)"
+                f" | fill_history('2025-03-01 00:00:00') | force_output)"
                 f" into res_ct1 (lastts, firstts, cnt_v, sum_v, ysum_v, tws, twe)"
                 f" as select last_row(_c0), first(_c0), count(cint), sum(cint), sum(ctiny), _twstart, _twend from %%trows;"
             )
@@ -106,7 +106,7 @@ class TestOthersOldCaseAtonce:
             tdSql.execute(
                 f"create stream sg0 count_window(1, 1, cint) from {self.db}.{self.stbName} partition by tbname, tint"
                 f" stream_options(pre_filter(cint > 4 and cint < 7) | watermark(10s) | expired_time(60s) | max_delay(5s)"
-                f" | delete_recalc | fill_history('2025-03-01 00:00:00') | force_output)"
+                f" | fill_history('2025-03-01 00:00:00') | force_output)"
                 f" into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (lastts, firstts, cnt_v, sum_v, ysum_v, tws, twe)"
                 f" as select last_row(_c0), first(_c0), count(cint), sum(cint), sum(ctiny), _twstart, _twend from %%trows;"
             )

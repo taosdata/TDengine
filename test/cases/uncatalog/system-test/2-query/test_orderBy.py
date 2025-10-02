@@ -132,7 +132,7 @@ class TestOrderby:
         self.c2Sum = None
 
         # create database  db
-        sql = f"create database db vgroups 2 precision 'us' "
+        sql = f"create database db keep 36500d vgroups 2 precision 'us' "
         tdLog.info(sql)
         tdSql.execute(sql)
         sql = f"use db"
@@ -344,6 +344,35 @@ class TestOrderby:
         tdSql.checkData(2, 0, 2)
         tdSql.checkData(2, 1, 1)
 
+    def queryOrderByPriority(self):
+        tdLog.info("query OrderBy priority ....")
+        tdSql.execute("use db;")
+        tdSql.execute("create table if not exists priority (ts timestamp, c1 int, c2 varchar(4));")
+        tdSql.execute("insert into priority values ('2025-09-29 08:00:00',  1, 'A');")
+        tdSql.execute("insert into priority values ('2025-09-29 09:00:00', -3, 'B');")
+        tdSql.execute("insert into priority values ('2025-09-29 10:00:00',  5, 'C');")
+        tdSql.execute("insert into priority values ('2025-09-29 11:00:00',  1, 'Z');")
+
+        tdSql.query("select ts, c1, c2 from priority order by c1, ts desc;")
+        tdSql.checkData(0, 0, '2025-09-29 09:00:00.000')
+        tdSql.checkData(1, 0, '2025-09-29 11:00:00.000')
+        tdSql.checkData(2, 0, '2025-09-29 08:00:00.000')
+        tdSql.checkData(3, 0, '2025-09-29 10:00:00.000')
+
+        # use column c1 in select list
+        tdSql.query("select ts, 2 as c1, c2 from priority order by c1, ts desc;")
+        tdSql.checkData(0, 0, '2025-09-29 11:00:00.000')
+        tdSql.checkData(1, 0, '2025-09-29 10:00:00.000')
+        tdSql.checkData(2, 0, '2025-09-29 09:00:00.000')
+        tdSql.checkData(3, 0, '2025-09-29 08:00:00.000')
+
+        # use column c1 in table 
+        tdSql.query("select ts, 2 as c1, c2 from priority order by abs(c1), ts desc;")
+        tdSql.checkData(0, 0, '2025-09-29 11:00:00.000')
+        tdSql.checkData(1, 0, '2025-09-29 08:00:00.000')
+        tdSql.checkData(2, 0, '2025-09-29 09:00:00.000')
+        tdSql.checkData(3, 0, '2025-09-29 10:00:00.000')
+
     # run
     def test_orderBy(self):
         """summary: xxx
@@ -381,6 +410,8 @@ class TestOrderby:
         self.queryOrderByAmbiguousName()
 
         self.queryOrderBySameCol()
+
+        self.queryOrderByPriority()
 
     # stop
         #tdSql.close()

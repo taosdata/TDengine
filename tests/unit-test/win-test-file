@@ -1,1 +1,0 @@
-bash test.sh

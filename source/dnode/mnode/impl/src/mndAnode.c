@@ -780,8 +780,11 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 
     code = tjsonGetStringValue2(detail, "type", buf, sizeof(buf));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-    EAnalAlgoType type = taosAnalyAlgoInt(buf);
-    if (type < 0 || type >= ANALY_ALGO_TYPE_END) return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
+    EAnalyAlgoType type = taosAnalyAlgoInt(buf);
+
+    if (type < ANALY_ALGO_TYPE_ANOMALY_DETECT || type >= ANALY_ALGO_TYPE_END) {
+      return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
+    }
 
     SJson *algos = tjsonGetObjectItem(detail, "algo");
     if (algos == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;

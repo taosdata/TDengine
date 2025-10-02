@@ -21,6 +21,7 @@
 #include "querytask.h"
 #include "tanalytics.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tjson.h"
@@ -424,13 +425,24 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, SArray* pMasks, 
     return TSDB_CODE_INVALID_JSON_FORMAT;
   }
 
-  if (rows < 0) {
+  if (rows < 0 && code == 0) {
+    code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+
     char pMsg[1024] = {0};
-    code = tjsonGetStringValue(pJson, "msg", pMsg);
-    if (code) {
+    int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg);
+    if (ret != 0) {
       qError("%s failed to get error msg from rsp, unknown error", pId);
     } else {
-      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+      qError("%s failed to exec anomaly detection, msg:%s", pId, pMsg);
+      void* p = strstr(pMsg, "white noise");
+      if (p != NULL) {
+        code = TSDB_CODE_ANA_WN_DATA;
+      } else {
+        p = strstr(pMsg, "[Errno 111] Connection refused");
+        if (p != NULL) {  // the specified forecast model not loaded yet
+          code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
+        }
+      }
     }
 
     return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
@@ -515,6 +527,12 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   int64_t                     ts = taosGetTimestampNs();
   int32_t                     lino = 0;
   const char*                 pId = GET_TASKID(pOperator->pTaskInfo);
+
+  if(pSupp->cachedRows < ANALY_ANOMALY_WINDOW_MIN_ROWS) {
+    qError("%s input rows for anomaly check not enough, min required:%d, current:%" PRId64, pId, ANALY_ANOMALY_WINDOW_MIN_ROWS,
+           pSupp->cachedRows);
+    return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
+  }
 
   snprintf(analyBuf.fileName, sizeof(analyBuf.fileName), "%s/tdengine-anomaly-%" PRId64 "-%p-%" PRId64, tsTempDir, ts,
            pSupp, pSupp->groupId);
@@ -686,7 +704,7 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
       pSupp->curWin = *pWindow;
       pRowSup->win.skey = pSupp->curWin.skey;
       pSupp->curWinIndex = w;
-      if (pSupp->pMaskList != NULL) {
+      if (pSupp->pMaskList != NULL && taosArrayGetSize(pSupp->pMaskList) > 0) {
         void*p = taosArrayGet(pSupp->pMaskList, w);
         if (p != NULL) {
           pSupp->curMask = *(int32_t*) p;

@@ -20,6 +20,7 @@ benchmarkName2="${clientName2}Benchmark"
 demoName2="${clientName2}demo"
 dumpName2="${clientName2}dump"
 inspect_name="${clientName2}inspect"
+taosgen_name="${PREFIX}gen"
 uninstallScript2="rm${clientName2}"
 
 installDir="/usr/local/${clientName2}"
@@ -49,7 +50,7 @@ function kill_client() {
 }
 
 function clean_bin() {
-    # Remove link
+    # Remove links
     ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
     ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
     ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
@@ -57,6 +58,7 @@ function clean_bin() {
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
     [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+    [ -L ${bin_link_dir}/${taosgen_name} ] && ${csudo}unlink ${bin_link_dir}/${taosgen_name} || :
 
     if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
@@ -65,6 +67,7 @@ function clean_bin() {
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
         ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
         [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+        [ -L ${bin_link_dir}/${taosgen_name} ] && ${csudo}unlink ${bin_link_dir}/${taosgen_name} || :
     fi
 }
 

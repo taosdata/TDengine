@@ -113,6 +113,8 @@ char* ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[get TSMA]";
     case CTG_TASK_GET_TB_NAME:
       return "[bget table name]";
+    case CTG_TASK_GET_RSMA:
+      return "[get rsma]";
     default:
       return "unknown";
   }

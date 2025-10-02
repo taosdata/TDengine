@@ -2692,6 +2692,7 @@ int32_t dropTbCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
   pCtx->code = code;
   code = tsem_post(&pCtx->ready);
+  taosMemoryFree(pMsg->pData);
 
   return TSDB_CODE_SUCCESS;
 }

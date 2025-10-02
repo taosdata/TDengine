@@ -2216,13 +2216,27 @@ static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
   return filterHasPlaceHolderRange(pStart, pEnd);
 }
 
-static bool conditionHasPlaceHolder(SNode* pNode) {
+static int32_t conditionHasPlaceHolder(SNode* pNode, bool* pHasPlaceHolder) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pCond = NULL;
+  SNode*  pOtherCond = NULL;
+
   if (!pNode) {
-    return false;
+    *pHasPlaceHolder = false;
+    return code;
   }
+
+  PAR_ERR_JRET(nodesCloneNode(pNode, &pCond));
+
+  PAR_ERR_JRET(filterPartitionCond(&pCond, NULL, NULL, NULL, &pOtherCond));
+
   SConditionCheckContext cxt = {.hasPlaceHolder = false};
-  nodesWalkExpr(pNode, conditionOnlyPhAndConstImpl, &cxt);
-  return cxt.hasPlaceHolder;
+  nodesWalkExpr(pOtherCond, conditionOnlyPhAndConstImpl, &cxt);
+  *pHasPlaceHolder = cxt.hasPlaceHolder;
+_return:
+  nodesDestroyNode(pOtherCond);
+  nodesDestroyNode(pCond);
+  return code;
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -2232,8 +2246,14 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
-      !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange) ||
-      conditionHasPlaceHolder(pSelect->pWhere)) {
+      !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
+    pCxt->pPlanCxt->withExtWindow = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool hasPlaceHolderCond = false;
+  PAR_ERR_RET(conditionHasPlaceHolder(pSelect->pWhere, &hasPlaceHolderCond));
+  if (hasPlaceHolderCond) {
     pCxt->pPlanCxt->withExtWindow = false;
     return TSDB_CODE_SUCCESS;
   }
