@@ -40,6 +40,7 @@ static int32_t  mndRsmaActionDelete(SSdb *pSdb, SRsmaObj *pSpSmatb);
 static int32_t  mndRsmaActionUpdate(SSdb *pSdb, SRsmaObj *pOld, SRsmaObj *pNew);
 static int32_t  mndProcessCreateRsmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropRsmaReq(SRpcMsg *pReq);
+static int32_t  mndProcessAlterRsmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetRsmaReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -62,6 +63,8 @@ int32_t mndInitRsma(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_RSMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_RSMA, mndProcessDropRsmaReq);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_RSMA_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_RSMA, mndProcessAlterRsmaReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_RSMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_RSMA, mndProcessGetRsmaReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndRetrieveRsma);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RSMA, mndCancelRetrieveRsma);
@@ -309,7 +312,7 @@ void mndReleaseRsma(SMnode *pMnode, SRsmaObj *pSma) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pSma);
 }
-
+#ifdef TD_ENTERPRISE
 static int32_t mndSetCreateRsmaRedoLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndRsmaActionEncode(pSma);
@@ -684,8 +687,9 @@ static int32_t mndCheckCreateRsmaReq(SMCreateRsmaReq *pCreate) {
   if (pCreate->tbFName[0] == 0) goto _exit;
   if (pCreate->igExists < 0 || pCreate->igExists > 1) goto _exit;
   if (pCreate->intervalUnit < 0) goto _exit;
-  if (pCreate->interval[0] <= 0) goto _exit;
+  if (pCreate->interval[0] < 0) goto _exit;
   if (pCreate->interval[1] < 0) goto _exit;
+  if (pCreate->interval[0] == 0 && pCreate->interval[1] == 0) goto _exit;
 
   SName fname = {0};
   if ((code = tNameFromString(&fname, pCreate->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
@@ -780,7 +784,80 @@ _exit:
   TAOS_RETURN(code);
 }
 
-#ifdef TD_ENTERPRISE
+static int32_t mndCheckAlterRsmaReq(SMAlterRsmaReq *pReq) {
+  int32_t code = TSDB_CODE_MND_INVALID_RSMA_OPTION;
+  if (pReq->name[0] == 0) goto _exit;
+  if (pReq->tbFName[0] == 0) goto _exit;
+  if (pCreate->igExists < 0 || pCreate->igExists > 1) goto _exit;
+
+  SName fname = {0};
+  if ((code = tNameFromString(&fname, pCreate->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
+  if (*(char *)tNameGetTableName(&fname) == 0) goto _exit;
+  code = 0;
+_exit:
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
+  int32_t         code = 0, lino = 0;
+  SMnode         *pMnode = pReq->info.node;
+  SDbObj         *pDb = NULL;
+  SStbObj        *pStb = NULL;
+  SRsmaObj       *pObj = NULL;
+  SUserObj       *pUser = NULL;
+  int64_t         mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
+  SMAlterRsmaReq req = {0};
+
+  TAOS_CHECK_EXIT(tDeserializeSMAlterRsmaReq(pReq->pCont, pReq->contLen, &req));
+
+  mInfo("start to alter rsma: %s", req.name);
+  TAOS_CHECK_EXIT(mndCheckAlterRsmaReq(&createReq));
+
+  pObj = mndAcquireRsma(pMnode, req.name);
+  if (pObj == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    if (req.igNotExists) {
+      code = 0;
+    }
+    goto _exit;
+  }
+
+  SName name = {0};
+  TAOS_CHECK_EXIT(tNameFromString(&name, req.tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  (void)tNameGetFullDbName(&name, db);
+
+  if (!(pDb = mndAcquireDb(pMnode, db))) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
+  }
+
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+
+  pStb = mndAcquireStb(pMnode, req.tbFName);
+  if (pStb == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STB_NOT_EXIST);
+  }
+
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  // TAOS_CHECK_EXIT(mndCreateRsma(pMnode, pReq, pUser, pDb, pStb, &createReq));
+
+  // if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  auditRecord(pReq, pMnode->clusterId, "alterRsma", req.name, req.tbFName, "", 0);
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("rsma:%s, failed at line %d to alter since %s", createReq.name, lino, tstrerror(code));
+  }
+  if (pSma) mndReleaseRsma(pMnode, pSma);
+  if (pStb) mndReleaseStb(pMnode, pStb);
+  if (pDb) mndReleaseDb(pMnode, pDb);
+  tFreeSMAlterRsmaReq(&createReq);
+  TAOS_RETURN(code);
+}
+
+
 static int32_t mndFillRsmaInfo(SRsmaObj *pObj, SStbObj *pStb, SRsmaInfoRsp *pRsp, bool withColName) {
   int32_t code = 0, lino = 0;
   pRsp->id = pObj->uid;

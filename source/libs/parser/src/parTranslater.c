@@ -16940,7 +16940,7 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
 
   (void)snprintf(pReq->name, TSDB_TABLE_NAME_LEN, "%s", pStmt->rsmaName);
   pReq->tbType = TSDB_SUPER_TABLE;
-  pReq->igExists = pStmt->ignoreNotExists;
+  pReq->igNotExists = pStmt->ignoreNotExists;
   TAOS_CHECK_EXIT(tNameFromString(&name, pRsmaInfo->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, name.tname, useTbName);
   TAOS_CHECK_EXIT(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
@@ -17051,7 +17051,7 @@ static int32_t translateAlterRsma(STranslateContext* pCxt, SAlterRsmaStmt* pStmt
   PAR_ERR_JRET(getRsma(pCxt, pStmt->rsmaName, &pRsmaInfo));
   PAR_ERR_JRET(buildAlterRsmaReq(pCxt, pStmt, pRsmaInfo, &req, &useTbName));
   PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
-  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &req));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_ALTER_RSMA, (FSerializeFunc)tSerializeSMAlterRsmaReq, &req));
 _return:
   if (pRsmaInfo) {
     tFreeRsmaInfoRsp(pRsmaInfo, true);

@@ -5279,7 +5279,7 @@ SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode*
 
   pStmt->alterType = alterType;
   switch (alterType) {
-    case TSDB_ALTER_USER_PASSWD: {
+    case TSDB_ALTER_RSMA_FUNCTION: {
       pStmt->pFuncs = (SNodeList*)alterInfo;
       break;
     }

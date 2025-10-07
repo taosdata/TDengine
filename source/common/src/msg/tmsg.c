@@ -1473,7 +1473,7 @@ int32_t tSerializeSMAlterRsmaReq(void *buf, int32_t bufLen, SMAlterRsmaReq *pReq
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->alterType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->tbType));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igExists));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
   TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pReq->nFuncs));
   for (int32_t i = 0; i < pReq->nFuncs; ++i) {
     TAOS_CHECK_EXIT(tEncodeI16v(&encoder, pReq->funcColIds[i]));
@@ -1505,7 +1505,7 @@ int32_t tDeserializeSMAlterRsmaReq(void *buf, int32_t bufLen, SMAlterRsmaReq *pR
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->alterType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->tbType));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igExists));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
   TAOS_CHECK_EXIT(tDecodeI16v(&decoder, &pReq->nFuncs));
   if (pReq->nFuncs > 0) {
     pReq->funcColIds = taosMemoryMalloc(pReq->nFuncs * sizeof(col_id_t));

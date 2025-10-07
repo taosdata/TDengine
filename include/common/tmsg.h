@@ -4619,7 +4619,7 @@ typedef struct {
   char       name[TSDB_TABLE_NAME_LEN];
   int8_t     alterType;
   int8_t     tbType;  // ETableType: 1 stable, 3 normal table
-  int8_t     igExists;
+  int8_t     igNotExists;
   int16_t    nFuncs;      // number of functions specified by user
   col_id_t*  funcColIds;  // column ids specified by user
   func_id_t* funcIds;     // function ids specified by user
