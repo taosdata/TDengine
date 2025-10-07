@@ -622,9 +622,6 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
                              SMCreateRsmaReq *pCreate) {
   int32_t  code = 0, lino = 0;
   SRsmaObj obj = {0};
-  int32_t  nDbs = 0, nVgs = 0, nStbs = 0;
-  SDbObj  *pDbs = NULL;
-  SStbObj *pStbs = NULL;
   STrans  *pTrans = NULL;
 
   (void)snprintf(obj.name, TSDB_TABLE_NAME_LEN, "%s", pCreate->name);
@@ -672,12 +669,6 @@ _exit:
   }
   mndTransDrop(pTrans);
   mndRsmaFreeObj(&obj);
-  if (pStbs) {
-    for (int32_t i = 0; i < nStbs; ++i) {
-      mndFreeStb(pStbs + i);
-    }
-    taosMemFreeClear(pStbs);
-  }
   TAOS_RETURN(code);
 }
 
@@ -787,34 +778,77 @@ _exit:
 static int32_t mndCheckAlterRsmaReq(SMAlterRsmaReq *pReq) {
   int32_t code = TSDB_CODE_MND_INVALID_RSMA_OPTION;
   if (pReq->name[0] == 0) goto _exit;
-  if (pReq->tbFName[0] == 0) goto _exit;
-  if (pCreate->igExists < 0 || pCreate->igExists > 1) goto _exit;
+  if (pReq->igNotExists < 0 || pReq->igNotExists > 1) goto _exit;
 
-  SName fname = {0};
-  if ((code = tNameFromString(&fname, pCreate->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) < 0) goto _exit;
-  if (*(char *)tNameGetTableName(&fname) == 0) goto _exit;
   code = 0;
 _exit:
   TAOS_RETURN(code);
 }
 
+static int32_t mndAlterRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbObj *pDb, SStbObj *pStb,
+                             SMAlterRsmaReq *pAlter, SRsmaObj *pOld) {
+  int32_t  code = 0, lino = 0;
+  STrans  *pTrans = NULL;
+  SRsmaObj obj = *pOld;
+
+  obj.updateTime = taosGetTimestampMs();
+  ++obj.version;
+  obj.nFuncs = pAlter->nFuncs;
+  obj.funcColIds = NULL;
+  obj.funcIds = NULL;
+
+  if (pAlter->alterType == TSDB_ALTER_RSMA_FUNCTION) {
+    if (obj.nFuncs > 0) {
+      TSDB_CHECK_NULL((obj.funcColIds = taosMemoryCalloc(obj.nFuncs, sizeof(col_id_t))), code, lino, _exit, terrno);
+      TSDB_CHECK_NULL((obj.funcIds = taosMemoryCalloc(obj.nFuncs, sizeof(func_id_t))), code, lino, _exit, terrno);
+      for (int16_t i = 0; i < obj.nFuncs; ++i) {
+        obj.funcColIds[i] = pAlter->funcColIds[i];
+        obj.funcIds[i] = pAlter->funcIds[i];
+      }
+    }
+  } else {
+    TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+  }
+
+  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "create-rsma")),
+                  code, lino, _exit, terrno);
+  mInfo("trans:%d, used to create rsma %s on tb %s.%s", pTrans->id, obj.name, obj.dbFName, obj.tbName);
+
+  mndTransSetDbName(pTrans, obj.dbFName, obj.name);
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
+  TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
+
+  mndTransSetOper(pTrans, MND_OPER_CREATE_RSMA);
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaPrepareActions(pMnode, pTrans, &obj));
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaRedoActions(pMnode, pTrans, pDb, pStb, &obj, pAlter));
+  // TAOS_CHECK_EXIT(mndSetCreateRsmaCommitLogs(pMnode, pTrans, &obj));
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("rsma:%s, failed at line %d to create rsma, since %s", obj.name, lino, tstrerror(code));
+  }
+  mndTransDrop(pTrans);
+  mndRsmaFreeObj(&obj);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
-  int32_t         code = 0, lino = 0;
-  SMnode         *pMnode = pReq->info.node;
-  SDbObj         *pDb = NULL;
-  SStbObj        *pStb = NULL;
-  SRsmaObj       *pObj = NULL;
-  SUserObj       *pUser = NULL;
-  int64_t         mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
+  int32_t        code = 0, lino = 0;
+  SMnode        *pMnode = pReq->info.node;
+  SDbObj        *pDb = NULL;
+  SStbObj       *pStb = NULL;
+  SRsmaObj      *pObj = NULL;
+  SUserObj      *pUser = NULL;
+  int64_t        mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMAlterRsmaReq req = {0};
+  char           tbFName[TSDB_TABLE_FNAME_LEN] = "\0";
 
   TAOS_CHECK_EXIT(tDeserializeSMAlterRsmaReq(pReq->pCont, pReq->contLen, &req));
 
   mInfo("start to alter rsma: %s", req.name);
-  TAOS_CHECK_EXIT(mndCheckAlterRsmaReq(&createReq));
+  TAOS_CHECK_EXIT(mndCheckAlterRsmaReq(&req));
 
-  pObj = mndAcquireRsma(pMnode, req.name);
-  if (pObj == NULL) {
+  if (!(pObj = mndAcquireRsma(pMnode, req.name))) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     if (req.igNotExists) {
@@ -823,40 +857,36 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
     goto _exit;
   }
 
-  SName name = {0};
-  TAOS_CHECK_EXIT(tNameFromString(&name, req.tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
-  char db[TSDB_TABLE_FNAME_LEN] = {0};
-  (void)tNameGetFullDbName(&name, db);
-
-  if (!(pDb = mndAcquireDb(pMnode, db))) {
+  if (!(pDb = mndAcquireDb(pMnode, pObj->dbFName))) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
   }
 
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
 
-  pStb = mndAcquireStb(pMnode, req.tbFName);
+  (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pObj->dbFName, pObj->tbName);
+
+  pStb = mndAcquireStb(pMnode, tbFName);
   if (pStb == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STB_NOT_EXIST);
   }
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
-  // TAOS_CHECK_EXIT(mndCreateRsma(pMnode, pReq, pUser, pDb, pStb, &createReq));
+  TAOS_CHECK_EXIT(mndAlterRsma(pMnode, pReq, pUser, pDb, pStb, &req, pObj));
 
-  // if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "alterRsma", req.name, req.tbFName, "", 0);
+  auditRecord(pReq, pMnode->clusterId, "alterRsma", req.name, tbFName, "", 0);
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("rsma:%s, failed at line %d to alter since %s", createReq.name, lino, tstrerror(code));
+    mError("rsma:%s, failed at line %d to alter since %s", req.name, lino, tstrerror(code));
   }
-  if (pSma) mndReleaseRsma(pMnode, pSma);
+  if (pObj) mndReleaseRsma(pMnode, pObj);
   if (pStb) mndReleaseStb(pMnode, pStb);
   if (pDb) mndReleaseDb(pMnode, pDb);
-  tFreeSMAlterRsmaReq(&createReq);
+  tFreeSMAlterRsmaReq(&req);
   TAOS_RETURN(code);
 }
-
 
 static int32_t mndFillRsmaInfo(SRsmaObj *pObj, SStbObj *pStb, SRsmaInfoRsp *pRsp, bool withColName) {
   int32_t code = 0, lino = 0;

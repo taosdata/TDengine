@@ -16930,7 +16930,8 @@ _return:
   taosMemoryFreeClear(pTableMeta);
   TAOS_RETURN(code);
 }
-static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt, SRsmaInfoRsp *pRsmaInfo,
+
+static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt, SRsmaInfoRsp* pRsmaInfo,
                                  SMAlterRsmaReq* pReq, SName* useTbName) {
   SName       name = {0};
   SDbCfgInfo  pDbInfo = {0};
@@ -16951,12 +16952,14 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
   TAOS_CHECK_EXIT(getTableMeta(pCxt, pStmt->dbName, name.tname, &pTableMeta));
   numOfCols = pTableMeta->tableInfo.numOfColumns;
   pCols = pTableMeta->schema;
-  if (nFuncs < 0 || nFuncs > (numOfCols - 1)) {
-    TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                            "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1));
-  }
 
-  if (nFuncs > 0) {
+  if (pReq->alterType == TSDB_ALTER_RSMA_FUNCTION) {
+    if (nFuncs <= 0 || nFuncs > (numOfCols - 1)) {
+      TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                              "Invalid func count for rsma, should be in range [1, %d]",
+                                              numOfCols - 1));
+    }
+
     TAOS_CHECK_EXIT(rewriteRsmaFuncs(pCxt, &pStmt->pFuncs, numOfCols, pCols));
 
     if (pRsmaInfo->nFuncs > 0) {
@@ -16966,8 +16969,8 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
         SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
         while (i < pRsmaInfo->nFuncs) {
           if (pColNode->colId == pRsmaInfo->funcColIds[i]) {
-            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                           "Rsma func already specified for column: %s", pColNode->colName);
+            TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                                    "Rsma func already specified for column: %s", pColNode->colName));
           } else if (pColNode->colId > pRsmaInfo->funcColIds[i]) {
             ++i;
           }
@@ -16991,6 +16994,9 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
       ++idx;
     }
     pReq->nFuncs = nFuncs;
+  } else {
+    TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                            "Invalid alter type for rsma: %" PRIi8, pReq->alterType));
   }
 
 _exit:
