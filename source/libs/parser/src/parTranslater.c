@@ -16740,14 +16740,14 @@ static int32_t compareRsmaFuncWithColId(SNode* pNode1, SNode* pNode2) {
   return compareTsmaColWithColId(pCol1, pCol2);
 }
 
-static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt, int32_t columnNum,
+static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SNodeList** ppFuncs, int32_t columnNum,
                                 const SSchema* pCols) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t nFuncs = LIST_LENGTH(pStmt->pFuncs);
+  int32_t nFuncs = LIST_LENGTH(*ppFuncs);
 
   SNode*         pNode;
   SFunctionNode* pFunc = NULL;
-  FOREACH(pNode, pStmt->pFuncs) {
+  FOREACH(pNode, *ppFuncs) {
     pFunc = (SFunctionNode*)pNode;
     if (!pFunc->pParameterList || LIST_LENGTH(pFunc->pParameterList) != 1 ||
         nodeType(pFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
@@ -16791,9 +16791,9 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
   }
 
   if (nFuncs > 1) {
-    nodesSortList(&pStmt->pFuncs, compareRsmaFuncWithColId);
+    nodesSortList(ppFuncs, compareRsmaFuncWithColId);
     col_id_t lastColId = -1;
-    FOREACH(pNode, pStmt->pFuncs) {
+    FOREACH(pNode, *ppFuncs) {
       SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
       SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
       if (pColNode->colId == lastColId) {
@@ -16908,7 +16908,7 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   pReq->tbUid = pTableMeta->uid;
 
   if (nFuncs > 0) {
-    PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));
+    PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, &pStmt->pFuncs, numOfCols, pCols));
     pReq->funcColIds = taosMemoryCalloc(nFuncs, sizeof(col_id_t));
     pReq->funcIds = taosMemoryCalloc(nFuncs, sizeof(int32_t));
     if (!pReq->funcColIds || !pReq->funcIds) {
@@ -16930,8 +16930,8 @@ _return:
   taosMemoryFreeClear(pTableMeta);
   TAOS_RETURN(code);
 }
-static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt, SMAlterRsmaReq* pReq) {
-#if 0
+static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt, SRsmaInfoRsp *pRsmaInfo,
+                                 SMAlterRsmaReq* pReq, SName* useTbName) {
   SName       name = {0};
   SDbCfgInfo  pDbInfo = {0};
   int32_t     code = 0, lino = 0;
@@ -16941,47 +16941,45 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
   (void)snprintf(pReq->name, TSDB_TABLE_NAME_LEN, "%s", pStmt->rsmaName);
   pReq->tbType = TSDB_SUPER_TABLE;
   pReq->igExists = pStmt->ignoreNotExists;
-  PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
+  TAOS_CHECK_EXIT(tNameFromString(&name, pRsmaInfo->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, name.tname, useTbName);
+  TAOS_CHECK_EXIT(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
 
   int32_t  numOfCols = 0;
-  SSchema *pCols = NULL;
+  SSchema* pCols = NULL;
   int32_t  nFuncs = LIST_LENGTH(pStmt->pFuncs);
-  PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
+  TAOS_CHECK_EXIT(getTableMeta(pCxt, pStmt->dbName, name.tname, &pTableMeta));
   numOfCols = pTableMeta->tableInfo.numOfColumns;
-  numOfTags = pTableMeta->tableInfo.numOfTags;
   pCols = pTableMeta->schema;
   if (nFuncs < 0 || nFuncs > (numOfCols - 1)) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1));
+    TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                            "Invalid func count for rsma, should be in range [0, %d]", numOfCols - 1));
   }
-  if (pTableMeta->tableType != TSDB_SUPER_TABLE) {
-    PAR_ERR_JRET(
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Rsma must be created on super table"));
-  }
-
-  for (int32_t c = 1; c < numOfCols; ++c) {
-    int8_t type = pCols[c].type;
-    if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64 || type == TSDB_DATA_TYPE_BLOB ||
-        type == TSDB_DATA_TYPE_MEDIUMBLOB) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                           "Rsma does not support column type %" PRIi8 " currently",
-                                           type));  // TODO: support later
-    }
-    if (((pCols[c].flags) & COL_IS_KEY)) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                           "Rsma does not support composite primary key column currently: %s",
-                                           pCols[c].name));
-    }
-  }
-
-  pReq->tbUid = pTableMeta->uid;
 
   if (nFuncs > 0) {
-    PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));
+    TAOS_CHECK_EXIT(rewriteRsmaFuncs(pCxt, &pStmt->pFuncs, numOfCols, pCols));
+
+    if (pRsmaInfo->nFuncs > 0) {
+      int32_t i = 0;
+      FOREACH(pNode, pStmt->pFuncs) {
+        SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
+        SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
+        while (i < pRsmaInfo->nFuncs) {
+          if (pColNode->colId == pRsmaInfo->funcColIds[i]) {
+            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                           "Rsma func already specified for column: %s", pColNode->colName);
+          } else if (pColNode->colId > pRsmaInfo->funcColIds[i]) {
+            ++i;
+          }
+        }
+        if (i >= pRsmaInfo->nFuncs) break;
+      }
+    }
+
     pReq->funcColIds = taosMemoryCalloc(nFuncs, sizeof(col_id_t));
     pReq->funcIds = taosMemoryCalloc(nFuncs, sizeof(int32_t));
     if (!pReq->funcColIds || !pReq->funcIds) {
-      PAR_ERR_JRET(terrno);
+      TAOS_CHECK_EXIT(terrno);
     }
 
     int32_t        idx = 0;
@@ -16995,10 +16993,9 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
     pReq->nFuncs = nFuncs;
   }
 
-_return:
+_exit:
   taosMemoryFreeClear(pTableMeta);
   TAOS_RETURN(code);
-#endif
   return 0;
 }
 
@@ -17048,10 +17045,18 @@ static int32_t translateAlterRsma(STranslateContext* pCxt, SAlterRsmaStmt* pStmt
   int32_t        code = 0;
   SMAlterRsmaReq req = {0};
   req.alterType = pStmt->alterType;
-  // PAR_ERR_JRET(buildCreateRsmaReq(pCxt, pStmt, &req, &useTbName));
-  // PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
+  SRsmaInfoRsp* pRsmaInfo = NULL;
+  SName         useTbName = {0};
+
+  PAR_ERR_JRET(getRsma(pCxt, pStmt->rsmaName, &pRsmaInfo));
+  PAR_ERR_JRET(buildAlterRsmaReq(pCxt, pStmt, pRsmaInfo, &req, &useTbName));
+  PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &req));
 _return:
+  if (pRsmaInfo) {
+    tFreeRsmaInfoRsp(pRsmaInfo, true);
+    taosMemoryFreeClear(pRsmaInfo);
+  }
   tFreeSMAlterRsmaReq(&req);
   return code;
 #else
