@@ -785,8 +785,70 @@ _exit:
   TAOS_RETURN(code);
 }
 
+static int32_t mndSetAlterRsmaPrepareActions(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
+  SSdbRaw *pDbRaw = mndRsmaActionEncode(pSma);
+  if (pDbRaw == NULL) return -1;
+
+  if (mndTransAppendPrepareLog(pTrans, pDbRaw) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_READY) != 0) return -1;
+  return 0;
+}
+
+static int32_t mndSetAlterRsmaCommitLogs(SMnode *pMnode, STrans *pTrans, SRsmaObj *pSma) {
+  return mndSetCreateRsmaCommitLogs(pMnode, pTrans, pSma);
+}
+#if 0
+static int32_t mndSetAlterRsmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb, SRsmaObj *pObj,
+                                           SMAlterRsmaReq *pAlter) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+
+  SName name = {0};
+  if ((code = tNameFromString(&name, pCreate->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
+    return code;
+  }
+  tstrncpy(pCreate->tbFName, (char *)tNameGetTableName(&name), sizeof(pCreate->tbFName)); // convert tbFName to tbName
+
+  while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
+    if (!mndVgroupInDb(pVgroup, pDb->uid)) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
+    int32_t contLen = 0;
+    void   *pReq = mndBuildVCreateRsmaReq(pMnode, pVgroup, pStb, pObj, pCreate, &contLen);
+    if (pReq == NULL) {
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      code = terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL;
+      TAOS_RETURN(code);
+    }
+
+    STransAction action = {0};
+    action.mTraceId = pTrans->mTraceId;
+    action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    action.pCont = pReq;
+    action.contLen = contLen;
+    action.msgType = TDMT_VND_CREATE_RSMA;
+    action.acceptableCode = TSDB_CODE_RSMA_ALREADY_EXISTS;  // check whether the rsma uid exist
+    action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;         // retry if relative table not exist
+    if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+      taosMemoryFree(pReq);
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      TAOS_RETURN(code);
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  TAOS_RETURN(code);
+}
+#endif
+
 static int32_t mndAlterRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbObj *pDb, SStbObj *pStb,
-                             SMAlterRsmaReq *pAlter, SRsmaObj *pOld) {
+                            SMAlterRsmaReq *pAlter, SRsmaObj *pOld) {
   int32_t  code = 0, lino = 0;
   STrans  *pTrans = NULL;
   SRsmaObj obj = *pOld;
@@ -810,8 +872,8 @@ static int32_t mndAlterRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbO
     TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
   }
 
-  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "alter-rsma")),
-                  code, lino, _exit, terrno);
+  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "alter-rsma")), code,
+                  lino, _exit, terrno);
   mInfo("trans:%d, used to alter rsma %s on tb %s.%s", pTrans->id, obj.name, obj.dbFName, obj.tbName);
 
   mndTransSetDbName(pTrans, obj.dbFName, obj.name);
@@ -819,13 +881,14 @@ static int32_t mndAlterRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbO
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
   mndTransSetOper(pTrans, MND_OPER_ALTER_RSMA);
-  // TAOS_CHECK_EXIT(mndSetCreateRsmaPrepareActions(pMnode, pTrans, &obj));
-  // TAOS_CHECK_EXIT(mndSetCreateRsmaRedoActions(pMnode, pTrans, pDb, pStb, &obj, pAlter));
-  // TAOS_CHECK_EXIT(mndSetCreateRsmaCommitLogs(pMnode, pTrans, &obj));
+  TAOS_CHECK_EXIT(mndSetAlterRsmaPrepareActions(pMnode, pTrans, &obj));
+  TAOS_CHECK_EXIT(mndSetAlterRsmaCommitLogs(pMnode, pTrans, &obj));
+  // TAOS_CHECK_EXIT(mndSetAlterRsmaRedoActions(pMnode, pTrans, pDb, pStb, &obj, pAlter));
+
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("rsma:%s, failed at line %d to create rsma, since %s", obj.name, lino, tstrerror(code));
+    mError("rsma:%s, failed at line %d to alter rsma, since %s", obj.name, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
   mndRsmaFreeObj(&obj);

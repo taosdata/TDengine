@@ -1281,6 +1281,44 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
   TAOS_RETURN(code);
 }
 
+int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans) {
+  int32_t        code = 0;
+  void          *pIter = NULL;
+  bool           conflict = false;
+  SRetentionObj *pRetention = NULL;
+
+  while (1) {
+    bool thisConflict = false;
+    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION, pIter, (void **)&pRetention);
+    if (pIter == NULL) break;
+
+    if (pTrans->conflict == TRN_CONFLICT_GLOBAL) {
+      thisConflict = true;
+    }
+    if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+      if (taosStrcasecmp(pTrans->dbname, pRetention->dbname) == 0) thisConflict = true;
+    }
+
+    if (thisConflict) {
+      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with retention:%d db:%s", pTrans->id,
+             pTrans->dbname, pTrans->stbname, pTrans->conflict, pRetention->id, pRetention->dbname);
+      conflict = true;
+    } else {
+      mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with retention:%d db:%s", pTrans->id, pTrans->dbname,
+            pTrans->stbname, pTrans->conflict, pRetention->id, pRetention->dbname);
+    }
+    sdbRelease(pMnode->pSdb, pRetention);
+  }
+
+  if (conflict) {
+    code = TSDB_CODE_MND_TRANS_CONFLICT_RETENTION;
+    mError("trans:%d, failed to check tran conflict with retention since %s", pTrans->id, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
 static bool mndTransActionsOfSameType(SArray *pActions) {
   int32_t size = taosArrayGetSize(pActions);
   ETrnAct lastActType = TRANS_ACTION_NULL;
