@@ -2232,13 +2232,19 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    if ((pCxt->currClause == SQL_CLAUSE_ORDER_BY) && !(*pCol)->node.asParam) {
-      res = translateColumnUseAlias(pCxt, pCol, &found);
+    if (pCxt->currClause == SQL_CLAUSE_ORDER_BY) {
+      if ((isSelectStmt(pCxt->pCurrStmt) && !(*pCol)->node.asParam) ||
+          isSetOperator(pCxt->pCurrStmt)) {
+        // match column in alias first if column is 'bare' in select stmt
+        // or it is in set operator
+        res = translateColumnUseAlias(pCxt, pCol, &found);
+      }
     }
     if (DEAL_RES_ERROR != res && !found) {
       if (isSetOperator(pCxt->pCurrStmt)) {
-        res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
+        res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, (*pCol)->colName);
       } else {
+        // match column in table if not found or column is part of an expression in select stmt
         res = translateColumnWithoutPrefix(pCxt, pCol);
       }
     }
@@ -3551,6 +3557,10 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** 
   if (!fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
+  if (isSetOperator(pCxt->pCurrStmt)) {
+    *pRewriteToColumn = true;
+    return rewriteToColumnAndRetranslate(pCxt, ppNode, TSDB_CODE_PAR_INVALID_WINDOW_PC);
+  }
   if (!isSelectStmt(pCxt->pCurrStmt)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC);
   }
@@ -3573,6 +3583,10 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** pp
   if (0 == LIST_LENGTH(pFunc->pParameterList)) {
     if (pFunc->funcType == FUNCTION_TYPE_FORECAST_LOW || pFunc->funcType == FUNCTION_TYPE_FORECAST_HIGH) {
       return TSDB_CODE_SUCCESS;
+    }
+    if (isSetOperator(pCxt->pCurrStmt)) {
+      *pRewriteToColumn = true;
+      return rewriteToColumnAndRetranslate(pCxt, ppNode, TSDB_CODE_PAR_INVALID_TBNAME);
     }
     if (!isSelectStmt(pCxt->pCurrStmt) || NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
@@ -8776,6 +8790,10 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
     }
 
     pCxt->notFound = true;
+    if (pCxt->nameMatch) {
+      // when nameMatch is true, columns MUST be found in projection list!
+      return generateDealNodeErrMsg(pCxt->pTranslateCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, ((SColumnNode*)*pNode)->colName);
+    }
   } else if (QUERY_NODE_ORDER_BY_EXPR == nodeType(*pNode)) {
     STranslateContext* pTransCxt = pCxt->pTranslateCxt;
     SNode*             pExpr = ((SOrderByExprNode*)*pNode)->pExpr;
@@ -8797,22 +8815,6 @@ static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
     }
-  } else if (pCxt->nameMatch && QUERY_NODE_VALUE != nodeType(*pNode)) {
-    FOREACH(pProject, pProjectionList) {
-      SExprNode* pExpr = (SExprNode*)pProject;
-      if (nodesEqualNode(*pNode, pProject)) {
-        SNode*  pNew = NULL;
-        int32_t code = nodesCloneNode(pProject, &pNew);
-        if (NULL == pNew) {
-          pCxt->pTranslateCxt->errCode = code;
-          return DEAL_RES_ERROR;
-        }
-        nodesDestroyNode(*pNode);
-        *pNode = pNew;
-        return DEAL_RES_CONTINUE;
-      }
-    }
-    pCxt->notFound = true;
   }
 
   return DEAL_RES_CONTINUE;
@@ -9422,15 +9424,13 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
 
   bool    other;
   int32_t code = translateClausePosition(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList, &other);
-  /*
-    if (TSDB_CODE_SUCCESS == code) {
-      if (other) {
-        pCxt->currClause = SQL_CLAUSE_ORDER_BY;
-        pCxt->pCurrStmt = (SNode*)pSetOperator;
-        code = translateExprList(pCxt, pSetOperator->pOrderByList);
-      }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (other) {
+      pCxt->currClause = SQL_CLAUSE_ORDER_BY;
+      pCxt->pCurrStmt = (SNode*)pSetOperator;
+      code = translateExprList(pCxt, pSetOperator->pOrderByList);
     }
-  */
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAlias(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList, true, true);
   }
@@ -13343,6 +13343,14 @@ static int32_t translateKillSsMigrate(STranslateContext* pCxt, SKillStmt* pStmt)
   return buildCmdMsg(pCxt, TDMT_MND_KILL_SSMIGRATE, (FSerializeFunc)tSerializeSKillSsMigrateReq, &killReq);
 }
 
+static bool isSlidingWindow(SNode* pWindow) {
+  if (nodeType(pWindow) != QUERY_NODE_INTERVAL_WINDOW) {
+    return false;
+  }
+  SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pWindow;
+  return pInterval->pInterval == NULL;
+}
+
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pTriggerOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
@@ -13436,6 +13444,16 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     if (pTriggerOptions && pTriggerOptions->ignoreNoDataTrigger) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
           "ignore_nodata_trigger is not supported when trigger is not interval, sliding or period"));
+    }
+  }
+
+  if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_COUNT_WINDOW ||
+      nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_PERIOD_WINDOW ||
+      isSlidingWindow(pTrigger->pTriggerWindow)) {
+    if (pTriggerOptions && pTriggerOptions->deleteRecalc) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "delete recalc is not supported when trigger is count window, "
+                                           "period window or sliding window"));
     }
   }
 

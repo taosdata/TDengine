@@ -342,7 +342,7 @@ class CompatibilityBase:
                 self.checkProcessPid(pid_to_kill_for_this_dnode)
 
             tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
-            tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &"))
+            tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
             os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
         # upgrade all dnodes
         elif upgrade == 1:
