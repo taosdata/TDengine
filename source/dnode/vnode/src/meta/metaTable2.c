@@ -2302,6 +2302,10 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
   if (pReq->virtualStb) {
     TABLE_SET_VIRTUAL(entry.flags);
   }
+  if(TABLE_IS_ROLLUP(pEntry->flags)) {
+    TABLE_SET_ROLLUP(entry.flags);
+    entry.stbEntry.rsmaParam = pEntry->stbEntry.rsmaParam;
+  }
 
   // do handle the entry
   code = metaHandleEntry2(pMeta, &entry);

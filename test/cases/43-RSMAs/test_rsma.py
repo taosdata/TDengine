@@ -110,14 +110,14 @@ class TestCase:
         tdSql.error("create rsma rsma12 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(1m,1m)", expectErrInfo=f"Second interval value for rsma should be greater than first interval: 60000,60000", fullMatched=False)
         tdSql.error("create rsma rsma13 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(1m,1a)", expectErrInfo=f"Second interval value for rsma should be greater than first interval: 60000,1", fullMatched=False)
         tdSql.error("create rsma rsma14 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(2m,3m)", expectErrInfo=f"Second interval value for rsma should be a multiple of first interval: 120000,180000", fullMatched=False)
-        tdSql.error("create rsma rsma15 on d0.stb0 function(min(c4)) interval(1m,5m)", expectErrInfo=f"Invalid parameter data type : min", fullMatched=False)
-        tdSql.error("create rsma rsma16 on d0.stb0 function(max(c4)) interval(1m,5m)", expectErrInfo=f"Invalid parameter data type : max", fullMatched=False)
-        tdSql.error("create rsma rsma17 on d0.stb0 function(avg(c4)) interval(1m,5m)", expectErrInfo=f"Invalid parameter data type : avg", fullMatched=False)
-        tdSql.error("create rsma rsma18 on d0.stb0 function(avg(c5)) interval(1m,5m)", expectErrInfo=f"Invalid parameter data type : avg", fullMatched=False)
-        tdSql.error("create rsma rsma19 on d0.stb0 function(avg(c6)) interval(1m,5m)", expectErrInfo=f"Invalid parameter data type : avg", fullMatched=False)
-        tdSql.error("create rsma rsma20 on d0.stb0 function(sum(c4)) interval(1m,5m)", expectErrInfo=f"Invalid parameter data type : sum", fullMatched=False)
-        tdSql.error("create rsma rsma21 on d0.stb0 function(sum(c5)) interval(1m,5m)", expectErrInfo=f"Invalid parameter data type : sum", fullMatched=False)
-        tdSql.error("create rsma rsma22 on d0.stb0 function(sum(c6)) interval(1m,5m)", expectErrInfo=f"Invalid parameter data type : sum", fullMatched=False)
+        tdSql.error("create rsma rsma15 on d0.stb0 function(min(c4)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: min(c4)", fullMatched=False)
+        tdSql.error("create rsma rsma16 on d0.stb0 function(max(c4)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: max(c4)", fullMatched=False)
+        tdSql.error("create rsma rsma17 on d0.stb0 function(avg(c4)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: avg(c4)", fullMatched=False)
+        tdSql.error("create rsma rsma18 on d0.stb0 function(avg(c5)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: avg(c5)", fullMatched=False)
+        tdSql.error("create rsma rsma19 on d0.stb0 function(avg(c6)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: avg(c6)", fullMatched=False)
+        tdSql.error("create rsma rsma20 on d0.stb0 function(sum(c4)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: sum(c4)", fullMatched=False)
+        tdSql.error("create rsma rsma21 on d0.stb0 function(sum(c5)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: sum(c5)", fullMatched=False)
+        tdSql.error("create rsma rsma22 on d0.stb0 function(sum(c6)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: sum(c6)", fullMatched=False)
 
     def s3_show_rsma(self):
         tdSql.query("show rsmas")
@@ -501,6 +501,9 @@ class TestCase:
         tdSql.checkData(0, 7, 5)
         tdSql.checkData(0, 8, 1)
 
+    def s8_rollup_alter_columns(self):
+        tdLog.info("add/drop columns")
+
     def test_rsma(self):
         """ Test case for rsma.
 
@@ -528,5 +531,7 @@ class TestCase:
         self.s5_trim_db()
         self.s6_rollup_db()
         self.s7_rollup_vgroups()
+        self.s8_rollup_alter_columns()
+
 
         tdLog.success("%s successfully executed" % __file__)

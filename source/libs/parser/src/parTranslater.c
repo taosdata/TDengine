@@ -16780,7 +16780,9 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
                                      "Invalid func param for rsma since column is primary key: %s(%s)",
                                      pFunc->functionName, pCol->colName);
     }
-    PAR_ERR_JRET(fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len));
+    if ((code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len)) != TSDB_CODE_SUCCESS) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: %s(%s)", tstrerror(code),  pFunc->functionName, pCol->colName);
+    }
     if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
                                      pFunc->functionName);
@@ -16891,8 +16893,7 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
 
   for (int32_t c = 1; c < numOfCols; ++c) {
     int8_t type = pCols[c].type;
-    if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64 || type == TSDB_DATA_TYPE_BLOB ||
-        type == TSDB_DATA_TYPE_MEDIUMBLOB) {
+    if (type == TSDB_DATA_TYPE_BLOB || type == TSDB_DATA_TYPE_MEDIUMBLOB) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                            "Rsma does not support column type %" PRIi8 " currently",
                                            type));  // TODO: support later
