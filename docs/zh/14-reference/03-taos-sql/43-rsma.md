@@ -13,6 +13,7 @@ Rollup SMA（Small Materialized Aggregation），简称 RSMA，是一种按时�
 - RSMA 不影响任何查询行为。
 
 ## 详细说明及使用限制
+
 - RSMA 降采样存储完成后删除原始数据文件，降采样数据与原始数据时间范围不存在重叠。
 - 1/2/3 存储层级的数据均支持更新和删除，但是更新和删除不会触发重算。因此，2/3 存储层级存在乱序数据写入时，已经聚合过的窗口内可能存在多条数据；此时进行手动重算会基于聚合数据和乱序数据，对于 avg/first/last 等函数再次聚合的结果可能不准确，对于 min/max/sum 等函数无影响。
 - 存在 RSMA 时，可以进行表结构修改、表的创建删除，这些操作在计算和重算时延迟生效。
@@ -23,18 +24,13 @@ Rollup SMA（Small Materialized Aggregation），简称 RSMA，是一种按时�
 ```sql
 CREATE RSMA [IF NOT EXISTS] rsma_name ON [dbname.]table_name FUNCTION([func_name(col_name)[,...]]) INTERVAL(interval1[,interval2]; 
 ```
+
 - 创建 RSMA 时需要指定 RSMA 名字，表名字，函数列表以及窗口大小。其中 RSMA 命名规则与表名字相同，最大长度限制为 193。
-
 - RSMA 只能基于超级表创建。
-
-- 函数列表支持 min, max, sum, avg, first, last，函数参数必须为 1 个，函数参数必须为非主键普通列，不能为标签列。非数值类型的列不能指定 sum/avg 等数值计数函数。FUNCTION 参数可为空，未显式指定 func_name 的列默认函数为 last。
-
+- 函数列表支持 min, max, sum, avg, first, last，函数参数必须为 1 个，函数参数必须为非主键普通列，不能为标签列。非数值类型的列不能指定 sum/avg 等数值计数函数。FUNCTION 参数可为空，未显式指定 func_name 的列默认函数为 last。非 Primary Key 复合主键列，func_name 仅支持 first/last，未显式指定默认函数为 last。
 - RSMA interval 至少指定 1 个，至多指定 2 个。取值范围为 [0, DB duration] 之间的整数，至少一个 非 0。Interval 1 取 0，表示 level 2 存储层级的数据不进行降采样存储；interval 2  取 0，表示 level 3 存储层级的数据不进行降采样存储。本文后续对 interval 的描述，如果没有特别说明，均为正整数。
-
 - RSMA 表的 interval 满足 interval1 < interval2 <= duration， 且必须指定单位，单位取值范围：a(毫秒)、b(纳秒)、h(小时)、m(分钟)、s(秒)、u(微秒)、d(天)。
-
 - 跨文件边界的 interval 计算会增加系统的复杂性、资源消耗和文件碎片化，降低查询读取效率，并且带来的收益较低。因此，约定 DB duration 参数必须能够被 RSMA 表的 interval 整除。
-
 - 为保证 interval 1/2 窗口聚合结果相对于原始数据的正确性，约定 interval 2 必须为 interval 1 的整数倍。这可以保证 min/max/sum/first/last 结果的正确性，但无法保证 avg 结果的正确性，还可能有误差。
 
 ## 修改 RSMA
@@ -42,7 +38,8 @@ CREATE RSMA [IF NOT EXISTS] rsma_name ON [dbname.]table_name FUNCTION([func_name
 ```sql
 ALTER RSMA [IF EXISTS] [db_name.]rsma_name FUNCTION ([func_name(col_name)[,...]]);
 ```
-- 修改列的聚合函数，主要用于新增列的场景。只允许修改未指定 func_name 的列。注意：因为未指定聚合函数时，默认聚合函数为 last，修改会造成聚合函数前后不一致，在操作时，要仔细确认业务的实际需求。
+
+- 修改列的聚合函数，主要用于新增列的场景。只允许修改未显式指定 func_name 的列。注意：未指定聚合函数时，默认聚合函数为 last。因此，修改可能会造成聚合函数前后不一致，在操作时，要仔细确认业务的实际需求。
 
 ## 删除 RSMA
 
@@ -97,8 +94,8 @@ end_opt ::= END WITH timestamp_literal
 end_opt ::= END WITH unix_timestamp
 end_opt ::= END WITH TIMESTAMP timestamp_literal
 ```
-- 手动重算主要用于对不满足多级存储迁移条件的 level 2/3 存储层级的文件组进行降采样计算存储。
 
+- 手动重算主要用于对不满足多级存储迁移条件的 level 2/3 存储层级的文件组进行降采样计算存储。
 - 可指定时间范围，可指定 database 或 vgroups。1）未指定时间范围时，计算 keep 在 [INT64_MIN, now] 之间的所有文件组；2）指定时间范围时，则计算时间范围内的文件组。3）rollup 后未写入新的数据，不会重复计算。4）如果 rollup 指定时间范围的文件组在 level 1 存储层级但是不满足向高存储层级迁移的条件，则不进行计算。5）rollup 针对 level 2/3 存储层级的文件组，如果满足上次 rollup 后有新数据写入或更新，或满足 level 2 向 level 3 存储层级迁移条件时，则进行计算。
 需要注意的是：如果需要重算的文件组已经在 s3 上，则重算生成的文件组会重新保存到本地，参照 7.1 节的说明。
 
