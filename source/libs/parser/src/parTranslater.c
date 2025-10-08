@@ -16967,7 +16967,12 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
   int32_t  numOfCols = 0;
   SSchema* pCols = NULL;
   int32_t  nFuncs = LIST_LENGTH(pStmt->pFuncs);
-  TAOS_CHECK_EXIT(getTableMeta(pCxt, pStmt->dbName, name.tname, &pTableMeta));
+  bool     async = pCxt->pParseCxt->async;
+  pCxt->pParseCxt->async = false;
+  // get table meta in sync since tbName is unknown during parser phase
+  code = getTableMeta(pCxt, pStmt->dbName, name.tname, &pTableMeta);
+  pCxt->pParseCxt->async = async;
+  TAOS_CHECK_EXIT(code);
   numOfCols = pTableMeta->tableInfo.numOfColumns;
   pCols = pTableMeta->schema;
 
