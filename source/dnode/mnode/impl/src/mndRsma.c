@@ -812,39 +812,9 @@ static void *mndBuildVAlterRsmaReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.interval[1] = pObj->interval[1];
   req.tbUid = pObj->tbUid;
   req.uid = pObj->uid;
-
-  if (req.alterType == TSDB_ALTER_RSMA_FUNCTION) {
-    req.nFuncs = pObj->nFuncs + pAlter->nFuncs;
-    req.funcColIds = taosMemoryMalloc(req.nFuncs * sizeof(col_id_t));
-    req.funcIds = taosMemoryMalloc(req.nFuncs * sizeof(func_id_t));
-    if (req.funcColIds == NULL || req.funcIds == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    int32_t n = 0, i = 0, j = 0;
-    while (i < pObj->nFuncs && j < pAlter->nFuncs) {
-      if (pObj->funcColIds[i] < pAlter->funcColIds[j]) {
-        req.funcColIds[n] = pObj->funcColIds[i];
-        req.funcIds[n++] = pObj->funcIds[i++];
-      } else if (pObj->funcColIds[i] > pAlter->funcColIds[j]) {
-        req.funcColIds[n] = pAlter->funcColIds[j];
-        req.funcIds[n++] = pAlter->funcIds[j++];
-      } else {
-        mError("rsma:%s, conflict function on column id:%d", pObj->name, pAlter->funcColIds[j]);
-        TAOS_CHECK_EXIT(TSDB_CODE_MND_RSMA_FUNC_CONFLICT);
-      }
-    }
-    if (i < pObj->nFuncs) {
-      while (i < pObj->nFuncs) {
-        req.funcColIds[n] = pObj->funcColIds[i];
-        req.funcIds[n++] = pObj->funcIds[i++];
-      }
-    } else if (j < pAlter->nFuncs) {
-      while (j < pAlter->nFuncs) {
-        req.funcColIds[n] = pAlter->funcColIds[j];
-        req.funcIds[n++] = pAlter->funcIds[j++];
-      }
-    }
-  }
+  req.nFuncs = pObj->nFuncs;
+  req.funcColIds = pObj->funcColIds;
+  req.funcIds = pObj->funcIds;
 
   int32_t contLen = tSerializeSVAlterRsmaReq(NULL, 0, &req);
   TAOS_CHECK_EXIT(contLen);
@@ -855,7 +825,6 @@ static void *mndBuildVAlterRsmaReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
   TAOS_CHECK_EXIT(tSerializeSVAlterRsmaReq(pBuf, contLen, &req));
 _exit:
-  tFreeSVAlterRsmaReq(&req);
   if (code < 0) {
     taosMemoryFreeClear(pHead);
     terrno = code;
@@ -914,17 +883,35 @@ static int32_t mndAlterRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbO
 
   obj.updateTime = taosGetTimestampMs();
   ++obj.version;
-  obj.nFuncs = pAlter->nFuncs;
-  obj.funcColIds = NULL;
-  obj.funcIds = NULL;
-
   if (pAlter->alterType == TSDB_ALTER_RSMA_FUNCTION) {
-    if (obj.nFuncs > 0) {
-      TSDB_CHECK_NULL((obj.funcColIds = taosMemoryCalloc(obj.nFuncs, sizeof(col_id_t))), code, lino, _exit, terrno);
-      TSDB_CHECK_NULL((obj.funcIds = taosMemoryCalloc(obj.nFuncs, sizeof(func_id_t))), code, lino, _exit, terrno);
-      for (int16_t i = 0; i < obj.nFuncs; ++i) {
-        obj.funcColIds[i] = pAlter->funcColIds[i];
-        obj.funcIds[i] = pAlter->funcIds[i];
+    obj.nFuncs = pOld->nFuncs + pAlter->nFuncs;
+    obj.funcColIds = taosMemoryMalloc(obj.nFuncs * sizeof(col_id_t));
+    obj.funcIds = taosMemoryMalloc(obj.nFuncs * sizeof(func_id_t));
+    if (obj.funcColIds == NULL || obj.funcIds == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    int32_t n = 0, i = 0, j = 0;
+    while (i < pOld->nFuncs && j < pAlter->nFuncs) {
+      if (pOld->funcColIds[i] < pAlter->funcColIds[j]) {
+        obj.funcColIds[n] = pOld->funcColIds[i];
+        obj.funcIds[n++] = pOld->funcIds[i++];
+      } else if (pOld->funcColIds[i] > pAlter->funcColIds[j]) {
+        obj.funcColIds[n] = pAlter->funcColIds[j];
+        obj.funcIds[n++] = pAlter->funcIds[j++];
+      } else {
+        mError("rsma:%s, conflict function on column id:%d", pOld->name, pAlter->funcColIds[j]);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_RSMA_FUNC_CONFLICT);
+      }
+    }
+    if (i < pOld->nFuncs) {
+      while (i < pOld->nFuncs) {
+        obj.funcColIds[n] = pOld->funcColIds[i];
+        obj.funcIds[n++] = pOld->funcIds[i++];
+      }
+    } else if (j < pAlter->nFuncs) {
+      while (j < pAlter->nFuncs) {
+        obj.funcColIds[n] = pAlter->funcColIds[j];
+        obj.funcIds[n++] = pAlter->funcIds[j++];
       }
     }
   } else {
@@ -942,7 +929,7 @@ static int32_t mndAlterRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbO
   mndTransSetOper(pTrans, MND_OPER_ALTER_RSMA);
   TAOS_CHECK_EXIT(mndSetAlterRsmaPrepareActions(pMnode, pTrans, &obj));
   TAOS_CHECK_EXIT(mndSetAlterRsmaCommitLogs(pMnode, pTrans, &obj));
-  // TAOS_CHECK_EXIT(mndSetAlterRsmaRedoActions(pMnode, pTrans, pDb, pStb, &obj, pAlter));
+  TAOS_CHECK_EXIT(mndSetAlterRsmaRedoActions(pMnode, pTrans, pDb, pStb, &obj, pAlter));
 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
