@@ -93,13 +93,25 @@ class TestCase:
         tdSql.execute("select * from stb0")
 
     def s2_create_rsma(self):
-        tdSql.execute("create rsma rsma1 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)")
+        tdSql.execute("create rsma rsma1 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),last(c5)) interval(1m,5m)")
+        
+        tdSql.error("alter rsma rsma1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5))")
+        tdSql.error("alter rsma rsma1_ function(min(c0)) interval(1m,5m)", expectErrInfo=f"Rsma not exist", fullMatched=False)
+        tdSql.error("alter rsma rsma1 function(max(c0)) interval(1m,5m)", expectErrInfo=f"Rsma func already specified for column: c0", fullMatched=False)
+
+        tdSql.execute("alter rsma rsma1 function(first(c4))")
 
         tdSql.error("create rsma rsma1 on d0.stb0 function(min(c0)) interval(1m,5m)", expectErrInfo=f"Rsma already exists", fullMatched=False)
         tdSql.error("create rsma rsma2 on d0.ntb0 interval(1m)", expectErrInfo=f"Rsma must be created on super table", fullMatched=False)
         tdSql.error("create rsma rsma3 on d0.ctb0 interval(1m)", expectErrInfo=f"Rsma must be created on super table", fullMatched=False)
         tdSql.error("create rsma rsma4 on information_schema.ins_users interval(1m)", expectErrInfo=f"Cannot create rsma on system table: `information_schema`.`ins_users`", fullMatched=False)
         tdSql.error("create rsma rsma6 on d0.stb0 interval(1m)", expectErrInfo=f"Rsma already exists in the table", fullMatched=False)
+        tdSql.error("create rsma rsma6 on d0.stb0 interval(0m,0m)", expectErrInfo=f"At least one interval value for rsma should be greater than 0", fullMatched=False)
+        tdSql.error("create rsma rsma6 on d0.stb0 interval(0m)", expectErrInfo=f"At least one interval value for rsma should be greater than 0", fullMatched=False)
+        tdSql.error("create rsma rsma6 on d0.stb0 interval(0)", expectErrInfo=f"Invalid interval unit for rsma:", fullMatched=False)
+        tdSql.error("create rsma rsma6 on d0.stb0 interval(-1m)", expectErrInfo=f"Invalid interval value for rsma: -60000, valid range [0, 864000000]", fullMatched=False)
+        tdSql.error("create rsma rsma6 on d0.stb0 interval(11d)", expectErrInfo=f"Invalid interval value for rsma: 950400000, valid range [0, 864000000]", fullMatched=False)
+        tdSql.error("create rsma rsma6 on d0.stb0 interval(864000001a)", expectErrInfo=f" Invalid interval value for rsma: 864000001, valid range [0, 864000000]", fullMatched=False)
 
         tdSql.execute("create rsma rsma7 on d0.stb1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5),first(c6)) interval(1m,5m)")
 
@@ -501,8 +513,36 @@ class TestCase:
         tdSql.checkData(0, 7, 5)
         tdSql.checkData(0, 8, 1)
 
-    def s8_rollup_alter_columns(self):
-        tdLog.info("add/drop columns")
+    def s8_decimal_composite_key(self):
+        tdLog.info("decimal and composite key")
+        tdSql.execute("drop database if exists d0")
+        tdSql.execute("create database if not exists d0 replica 1 keep 36500d stt_trigger 1")
+        tdSql.execute("drop database if exists d1")
+        tdSql.execute("create database if not exists d1 replica 1 keep 36500d stt_trigger 1")
+        tdSql.execute("use d0")
+        tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int composite key, c1 decimal(10,2), c2 decimal(30,5), c3 geometry(100, c4 double) tags(t0 int)")
+        tdSql.execute("create stable if not exists stb1 (ts timestamp, c0 int composite key, c1 decimal(10,2), c2 decimal(30,5), c3 geometry(100)) tags(t0 int)")
+        tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
+        tdSql.execute("create table if not exists ctb1 using stb0 tags(1)")
+        tdSql.execute("create table if not exists ctb11 using stb1 tags(11)")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:00:01.001',1,1,1,1,true, '1','1')")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:00:01.001',2,2,2,2,false, '2','2')")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:00:03.003',3,3,3,3,true, '3','3')")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:01:00.001',4,5,4,7,false, '44','4')")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:01:00.001',4,4,6,4,false, '4','444')")
+        tdSql.execute("insert  into ctb0 values('2024-10-01 08:02:00.002',5,5,5,5,true, '5','5')")
+        tdSql.execute("insert  into ctb1 values('2024-10-01 08:00:01.001',111,11,1,1,true, '91','1')")
+        tdSql.execute("insert  into ctb1 values('2024-10-01 08:00:02.002',22,2,2,2,false, '23','2')")
+        tdSql.execute("insert  into ctb1 values('2024-10-01 08:00:03.003',33,333,3,3,true, '3','33')")
+        tdSql.execute("insert  into ctb1 values('2024-10-01 08:01:00.001',14,4,4,4,false, '40','4')")
+        tdSql.execute("insert  into ctb1 values('2024-10-01 08:02:00.002',5,555,5,5,true, '5','5')")
+        tdSql.execute("insert  into ctb11 values('2024-10-01 08:00:01.001','111',111,11,1,1,true, '91','1')")
+        tdSql.execute("insert  into ctb11 values('2024-10-01 08:00:02.002','22',22,2,2,2,false, '23','2')")
+        tdSql.execute("insert  into ctb11 values('2024-10-01 08:00:02.002','33',33,333,3,3,true, '3','33')")
+        tdSql.execute("insert  into ctb11 values('2024-10-01 08:01:00.001','14',14,4,4,4,false, '40','4')")
+        tdSql.execute("insert  into ctb11 values('2024-10-01 08:02:00.002','55',5,555,5,5,true, '5','5')")
+        tdSql.execute("flush database d0")
+        tdSql.execute("select * from stb0")
 
     def test_rsma(self):
         """ Test case for rsma.
@@ -531,7 +571,7 @@ class TestCase:
         self.s5_trim_db()
         self.s6_rollup_db()
         self.s7_rollup_vgroups()
-        self.s8_rollup_alter_columns()
+        self.s8_decimal_composite_key()
 
 
         tdLog.success("%s successfully executed" % __file__)

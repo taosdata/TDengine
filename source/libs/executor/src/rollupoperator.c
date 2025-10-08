@@ -47,7 +47,7 @@ static int32_t createDataBlockForSchema(SRSchema *pRSchema, SSDataBlock **ppData
   for (int32_t i = 0; i < numOfCols; ++i) {
     STColumn       *pCol = pTSchema->columns + i;
     SColumnInfoData colInfoData = createColumnInfoData(pCol->type, pCol->bytes, pCol->colId);
-    if (IS_DECIMAL_TYPE(pCol->type) && pExtSchema) {
+    if (pExtSchema && IS_DECIMAL_TYPE(pCol->type)) {
       decimalFromTypeMod(pExtSchema[i].typeMod, &colInfoData.info.precision, &colInfoData.info.scale);
     }
     TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
@@ -94,7 +94,7 @@ static int32_t createDataBlockForTargets(SRSchema *pRSchema, SNodeList *pTargets
 
     SColumnInfoData colInfoData =
         createColumnInfoData(pFuncNode->node.resType.type, pFuncNode->node.resType.bytes, pColNode->colId);
-    if (IS_DECIMAL_TYPE(pColNode->node.resType.type) && pExtSchema) {
+    if (pExtSchema && IS_DECIMAL_TYPE(pColNode->node.resType.type)) {
       decimalFromTypeMod(pExtSchema[i].typeMod, &colInfoData.info.precision, &colInfoData.info.scale);
     }
     TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));

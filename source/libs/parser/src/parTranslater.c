@@ -16866,17 +16866,17 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
       return pCxt->errCode;
     }
-    if (pVal->unit == TIME_UNIT_WEEK || pVal->unit == TIME_UNIT_MONTH || pVal->unit == TIME_UNIT_YEAR) {
+    if (pVal->unit == 0 || pVal->unit == TIME_UNIT_WEEK || pVal->unit == TIME_UNIT_MONTH || pVal->unit == TIME_UNIT_YEAR) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Invalid interval unit for rsma: %c",
                                      pVal->unit);
     }
     pReq->interval[idx] = pVal->datum.i;
-    // TODO check relationship of interval/keep, min/max check
-    if (pReq->interval[idx] < 1 || pReq->interval[idx] > durationInPrecision) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OUT_OF_RANGE, "Invalid interval value for rsma: %" PRId64,
-                                     pReq->interval[idx]);
+
+    if (pReq->interval[idx] < 0 || pReq->interval[idx] > durationInPrecision) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OUT_OF_RANGE, "Invalid interval value for rsma: %" PRId64 ", valid range [0, %" PRId64 "]",
+                                     pReq->interval[idx], durationInPrecision);
     }
-    if (durationInPrecision % pReq->interval[idx]) {
+    if ((pReq->interval[idx] > 0) && (durationInPrecision % pReq->interval[idx])) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                      "Interval value for rsma, should be a divisor of DB duration: %" PRId64
                                      "%c, %" PRId64,
@@ -16884,14 +16884,18 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     }
     ++idx;
   }
-  if (pReq->interval[1] > 0) {
+  if (pReq->interval[0] == 0 && pReq->interval[1] == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "At least one interval value for rsma should be greater than 0");
+  }
+  if (pReq->interval[0] > 0 && pReq->interval[1] > 0) {
     if (pReq->interval[1] <= pReq->interval[0]) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                      "Second interval value for rsma should be greater than first interval: %" PRId64
                                      ",%" PRId64,
                                      pReq->interval[0], pReq->interval[1]);
     }
-    if (pReq->interval[1] % pReq->interval[0]) {
+    if ((pReq->interval[1] % pReq->interval[0]) != 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                      "Second interval value for rsma should be a multiple of first interval: %" PRId64
                                      ",%" PRId64,
