@@ -103,6 +103,7 @@ _exit:
 int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, const char *dbName) {
   int32_t         code = 0, lino = 0;
   STSchema       *pTSchema = pRSchema->tSchema;
+  SExtSchema     *pExtSchema = pRSchema->extSchema;
   SSDataBlock    *pInputBlock = NULL;
   SSDataBlock    *pResBlock = NULL;
   SExprSupp      *pExprSup = NULL;
@@ -176,9 +177,12 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
 
     // build the column node
     pColNode->node.resType.type = pCol->type;
-    pColNode->node.resType.precision = precision;
     pColNode->node.resType.bytes = pCol->bytes;
-    pColNode->node.resType.scale = 0;  // TODO: use the real scale for decimal
+    pColNode->node.resType.precision = 0;
+    pColNode->node.resType.scale = 0;
+    if (pExtSchema && IS_DECIMAL_TYPE(pCol->type)) {
+      decimalFromTypeMod(pExtSchema[i].typeMod, &pColNode->node.resType.precision, &pColNode->node.resType.scale);
+    }
 
     pColNode->colId = pCol->colId;
     pColNode->colType = COLUMN_TYPE_COLUMN;
