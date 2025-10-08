@@ -2543,7 +2543,6 @@ int metaAlterRsma(SMeta *pMeta, int64_t version, SVAlterRsmaReq *pReq) {
   }
 
   if (TABLE_IS_ROLLUP(pEntry->flags)) {
-    // overwrite the old rsma definition if exists
     taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcColIds);
     taosMemoryFreeClear(pEntry->stbEntry.rsmaParam.funcIds);
   } else {

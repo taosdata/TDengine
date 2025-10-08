@@ -406,6 +406,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_RSMA_OPTION,      "Invalid rsma option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_CREATING,         "Rsma in creating status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_DROPPING,         "Rsma in dropping status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_EXIST_IN_TABLE,      "Rsma already exists in the table")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_FUNC_CONFLICT,       "Rsma func already specified for some column")
 
 // mnode-view
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_ALREADY_EXIST,       "view already exists in db")
