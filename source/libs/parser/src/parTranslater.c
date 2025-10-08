@@ -16791,14 +16791,6 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SNodeList** ppFuncs, in
                                      "Invalid func param for rsma since column is primary key: %s(%s)",
                                      pFunc->functionName, pCol->colName);
     }
-    if (((pSchema->flags) & COL_IS_KEY)) {
-      if (pFunc->funcType != FUNCTION_TYPE_FIRST && pFunc->funcType != FUNCTION_TYPE_LAST) {
-        return generateSyntaxErrMsgExt(
-            &pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
-            "Invalid func param for rsma since composite key column can only be first/last: %s(%s)",
-            pFunc->functionName, pCol->colName);
-      }
-    }
     pCol->colId = pSchema->colId;
     pCol->node.resType.type = pSchema->type;
     pCol->node.resType.bytes = pSchema->bytes;
@@ -16809,6 +16801,14 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SNodeList** ppFuncs, in
     if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
                                      pFunc->functionName);
+    }
+    if (((pSchema->flags) & COL_IS_KEY)) {
+      if (pFunc->funcType != FUNCTION_TYPE_FIRST && pFunc->funcType != FUNCTION_TYPE_LAST) {
+        return generateSyntaxErrMsgExt(
+            &pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
+            "Invalid func param for rsma since composite key column can only be first/last: %s(%s)",
+            pFunc->functionName, pCol->colName);
+      }
     }
     (void)snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
   }

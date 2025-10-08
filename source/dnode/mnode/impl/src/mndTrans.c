@@ -1283,31 +1283,32 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
 
 int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans) {
   int32_t        code = 0;
+  SSdb          *pSdb = pMnode->pSdb;
   void          *pIter = NULL;
   bool           conflict = false;
   SRetentionObj *pRetention = NULL;
 
-  while (1) {
-    bool thisConflict = false;
-    pIter = sdbFetch(pMnode->pSdb, SDB_RETENTION, pIter, (void **)&pRetention);
-    if (pIter == NULL) break;
+  while ((pIter = sdbFetch(pSdb, SDB_RETENTION, pIter, (void **)&pRetention)) != NULL) {
+    conflict = false;
 
     if (pTrans->conflict == TRN_CONFLICT_GLOBAL) {
-      thisConflict = true;
+      conflict = true;
     }
     if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-      if (taosStrcasecmp(pTrans->dbname, pRetention->dbname) == 0) thisConflict = true;
+      if (taosStrcasecmp(pTrans->dbname, pRetention->dbname) == 0) conflict = true;
     }
 
-    if (thisConflict) {
+    if (conflict) {
       mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with retention:%d db:%s", pTrans->id,
              pTrans->dbname, pTrans->stbname, pTrans->conflict, pRetention->id, pRetention->dbname);
-      conflict = true;
+      sdbRelease(pSdb, pRetention);
+      sdbCancelFetch(pSdb, pIter);
+      break;
     } else {
       mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with retention:%d db:%s", pTrans->id, pTrans->dbname,
             pTrans->stbname, pTrans->conflict, pRetention->id, pRetention->dbname);
     }
-    sdbRelease(pMnode->pSdb, pRetention);
+    sdbRelease(pSdb, pRetention);
   }
 
   if (conflict) {
