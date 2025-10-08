@@ -31,8 +31,10 @@
 #include "tname.h"
 #include "ttypes.h"
 
-static int32_t createDataBlockForSchema(STSchema *pTSchema, SSDataBlock **ppDataBlock, int32_t maxBufRows) {
+static int32_t createDataBlockForSchema(SRSchema *pRSchema, SSDataBlock **ppDataBlock, int32_t maxBufRows) {
   int32_t      code = 0, lino = 0;
+  STSchema    *pTSchema = pRSchema->tSchema;
+  SExtSchema  *pExtSchema = (SExtSchema *)pRSchema->extSchema;
   int32_t      numOfCols = pTSchema->numOfCols;
   SSDataBlock *pBlock = NULL;
 
@@ -45,6 +47,9 @@ static int32_t createDataBlockForSchema(STSchema *pTSchema, SSDataBlock **ppData
   for (int32_t i = 0; i < numOfCols; ++i) {
     STColumn       *pCol = pTSchema->columns + i;
     SColumnInfoData colInfoData = createColumnInfoData(pCol->type, pCol->bytes, pCol->colId);
+    if (IS_DECIMAL_TYPE(pCol->type) && pExtSchema) {
+      decimalFromTypeMod(pExtSchema[i].typeMod, &colInfoData.info.precision, &colInfoData.info.scale);
+    }
     TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
   }
   TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, maxBufRows));
@@ -58,15 +63,18 @@ _exit:
   return code;
 }
 
-static int32_t createDataBlockForTargets(SNodeList *pTargets, SSDataBlock **ppDataBlock, int32_t maxBufRows) {
+static int32_t createDataBlockForTargets(SRSchema *pRSchema, SNodeList *pTargets, SSDataBlock **ppDataBlock,
+                                         int32_t maxBufRows) {
   int32_t      code = 0, lino = 0;
   int32_t      numOfCols = LIST_LENGTH(pTargets);
+  SExtSchema  *pExtSchema = (SExtSchema *)pRSchema->extSchema;
   SSDataBlock *pBlock = NULL;
 
   if (numOfCols < 1) {
     TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
   }
   TAOS_CHECK_EXIT(createDataBlock(&pBlock));
+  if (pExtSchema) ++pExtSchema;
   for (int32_t i = 0; i < numOfCols; ++i) {  // the first timestamp column is not included in targets
     STargetNode *pTargetNode = (STargetNode *)nodesListGetNode(pTargets, i);
     if (!pTargetNode) {
@@ -86,6 +94,9 @@ static int32_t createDataBlockForTargets(SNodeList *pTargets, SSDataBlock **ppDa
 
     SColumnInfoData colInfoData =
         createColumnInfoData(pFuncNode->node.resType.type, pFuncNode->node.resType.bytes, pColNode->colId);
+    if (IS_DECIMAL_TYPE(pColNode->node.resType.type) && pExtSchema) {
+      decimalFromTypeMod(pExtSchema[i].typeMod, &colInfoData.info.precision, &colInfoData.info.scale);
+    }
     TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
   }
   TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, maxBufRows));
@@ -208,7 +219,6 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     if (fmIsImplicitTsFunc(pFuncNode->funcId)) {
       TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pPrimaryKeyColNode));
       pPrimaryKeyColNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-      pPrimaryKeyColNode->node.resType.precision = precision;
       pPrimaryKeyColNode->node.resType.bytes = sizeof(int64_t);
       pPrimaryKeyColNode->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pPrimaryKeyColNode->colType = COLUMN_TYPE_COLUMN;
@@ -239,8 +249,8 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     pCtx->maxBufRows = 1024;
   }
 
-  TAOS_CHECK_EXIT(createDataBlockForSchema(pRSchema->tSchema, &pCtx->pInputBlock, pCtx->maxBufRows));
-  TAOS_CHECK_EXIT(createDataBlockForTargets(pCtx->pTargets, &pCtx->pResBlock, pCtx->maxBufRows));
+  TAOS_CHECK_EXIT(createDataBlockForSchema(pRSchema, &pCtx->pInputBlock, pCtx->maxBufRows));
+  TAOS_CHECK_EXIT(createDataBlockForTargets(pRSchema, pCtx->pTargets, &pCtx->pResBlock, pCtx->maxBufRows));
 
   initResultRowInfo(pResultRowInfo);
 
