@@ -4592,8 +4592,11 @@ typedef struct {
     char tbFName[TSDB_TABLE_FNAME_LEN];  // used by mnode
     char tbName[TSDB_TABLE_NAME_LEN];    // used by vnode
   };
-  int8_t     tbType;  // ETableType: 1 stable, 3 normal table
-  int8_t     igExists;
+  int8_t tbType;  // ETableType: 1 stable, 3 normal table
+  union {
+    int8_t igExists;   // used by mnode
+    int8_t alterType;  // used by vnode
+  };
   int8_t     intervalUnit;
   int16_t    nFuncs;       // number of functions specified by user
   col_id_t*  funcColIds;   // column ids specified by user
@@ -4614,6 +4617,12 @@ typedef SMCreateRsmaReq SVCreateRsmaReq;
 int32_t tSerializeSVCreateRsmaReq(void* buf, int32_t bufLen, SVCreateRsmaReq* pReq);
 int32_t tDeserializeSVCreateRsmaReq(void* buf, int32_t bufLen, SVCreateRsmaReq* pReq);
 void    tFreeSVCreateRsmaReq(SVCreateRsmaReq* pReq);
+
+typedef SMCreateRsmaReq SVAlterRsmaReq;
+
+int32_t tSerializeSVAlterRsmaReq(void* buf, int32_t bufLen, SVAlterRsmaReq* pReq);
+int32_t tDeserializeSVAlterRsmaReq(void* buf, int32_t bufLen, SVAlterRsmaReq* pReq);
+void    tFreeSVAlterRsmaReq(SVAlterRsmaReq* pReq);
 
 typedef struct {
   char       name[TSDB_TABLE_NAME_LEN];

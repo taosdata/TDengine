@@ -1463,6 +1463,16 @@ int32_t tDeserializeSVCreateRsmaReq(void *buf, int32_t bufLen, SVCreateRsmaReq *
 
 void tFreeSVCreateRsmaReq(SVCreateRsmaReq *pReq) { tFreeSMCreateRsmaReq((SMCreateRsmaReq *)pReq); }
 
+int32_t tSerializeSVAlterRsmaReq(void *buf, int32_t bufLen, SVAlterRsmaReq *pReq) {
+  return tSerializeSMCreateRsmaReq(buf, bufLen, (SMCreateRsmaReq *)pReq);
+}
+
+int32_t tDeserializeSVAlterRsmaReq(void *buf, int32_t bufLen, SVAlterRsmaReq *pReq) {
+  return tDeserializeSMCreateRsmaReq(buf, bufLen, (SMCreateRsmaReq *)pReq);
+}
+
+void tFreeSVAlterRsmaReq(SVAlterRsmaReq *pReq) { tFreeSMCreateRsmaReq((SVAlterRsmaReq *)pReq); }
+
 int32_t tSerializeSMAlterRsmaReq(void *buf, int32_t bufLen, SMAlterRsmaReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0, lino = 0;
