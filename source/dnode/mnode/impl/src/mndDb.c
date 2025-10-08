@@ -2350,11 +2350,11 @@ static int32_t mndCheckRsmaInDb(SMnode *pMnode, SDbObj *pDb) {
     if (pRsma->dbUid == pDb->uid) {
       sdbRelease(pMnode->pSdb, pRsma);
       sdbCancelFetch(pMnode->pSdb, pIter);
-      TAOS_RETURN(TSDB_CODE_RSMA_NOT_EXIST);
+      TAOS_RETURN(code);
     }
     sdbRelease(pMnode->pSdb, pRsma);
   }
-  TAOS_RETURN(code);
+  TAOS_RETURN(TSDB_CODE_RSMA_NOT_EXIST);
 }
 #endif
 
