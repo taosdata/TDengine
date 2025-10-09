@@ -75,7 +75,7 @@ static tb_uid_t processSuid(tb_uid_t suid, char* db) {
   }
   return suid + MurmurHash3_32(db, strlen(db));
 }
-static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, char* name, int64_t id, int8_t t,
+static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, SExtSchema* pExtSchemas, char* name, int64_t id, int8_t t,
                                  SColCmprWrapper* pColCmprRow, cJSON** pJson) {
   if (schemaRow == NULL || name == NULL || pColCmprRow == NULL || pJson == NULL) {
     uError("invalid parameter, schemaRow:%p, name:%p, pColCmprRow:%p, pJson:%p", schemaRow, name, pColCmprRow, pJson);
@@ -123,6 +123,11 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
     } else if (s->type == TSDB_DATA_TYPE_NCHAR) {
       int32_t length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+      cJSON*  cbytes = cJSON_CreateNumber(length);
+      RAW_NULL_CHECK(cbytes);
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
+    } else if (s->type == TSDB_DATA_TYPE_DECIMAL || s->type == TSDB_DATA_TYPE_DECIMAL64) {
+      int32_t length = pExtSchemas[i].typeMod;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
@@ -394,7 +399,7 @@ static void processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
     goto end;
   }
-  buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.name, req.suid, TSDB_SUPER_TABLE, &req.colCmpr, pJson);
+  buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.pExtSchemas, req.name, req.suid, TSDB_SUPER_TABLE, &req.colCmpr, pJson);
 
 end:
   uDebug("create stable return");
@@ -585,7 +590,7 @@ static void processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       buildCreateCTableJson(req.pReqs, req.nReqs, pJson);
     } else if (pCreateReq->type == TSDB_NORMAL_TABLE) {
-      buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE,
+      buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->pExtSchemas, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE,
                            &pCreateReq->colCmpr, pJson);
     }
   }
