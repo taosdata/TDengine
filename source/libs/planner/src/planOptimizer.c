@@ -4572,7 +4572,9 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
     } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType) {
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode* pCol = (SColumnNode*)pParam;
-        if (COLUMN_TYPE_COLUMN == pCol->colType && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+        if (COLUMN_TYPE_COLUMN == pCol->colType 
+          && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId
+          && !pCol->isPk) {
           if (selectNonPKColId != pCol->colId) {
             selectNonPKColId = pCol->colId;
             selectNonPKColNum++;
@@ -4583,13 +4585,16 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
       } else if (lastColNum > 0) {
         return false;
       }
-      if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId)) return false;
+      if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId)) {
+        return false;
+      }
     } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
       if (!lastRowScanOptLastParaIsTag(pParam)) {
         return false;
       }
     } else if (FUNCTION_TYPE_GROUP_CONST_VALUE == pAggFunc->funcType) {
       // check nothing, just ignore
+      continue;
     } else if (FUNCTION_TYPE_LAST_ROW != pAggFunc->funcType) {
       *hasOtherFunc = true;
       needSplitFuncCount++;
