@@ -4583,9 +4583,7 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
     } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType) {
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode* pCol = (SColumnNode*)pParam;
-        if (COLUMN_TYPE_COLUMN == pCol->colType 
-          && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId
-          && !pCol->isPk) {
+        if (COLUMN_TYPE_COLUMN == pCol->colType && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
           if (selectNonPKColId != pCol->colId) {
             selectNonPKColId = pCol->colId;
             selectNonPKColNum++;
