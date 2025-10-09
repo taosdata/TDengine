@@ -118,7 +118,7 @@ class Test_IDMP_Meters:
 
         sqls = [
             # stream10 sliding
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream10_sub4` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vt_em-10` STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`电压`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub4` AS SELECT _twstart AS ts,                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows;"
+            "CREATE STREAM `tdasset`.`ana_stream10_sub4` INTERVAL(10s) SLIDING(10s) FROM `asset01`.`em-10`                                        STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`voltage`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub4` AS SELECT _twstart AS ts,                                             COUNT(*) AS cnt, AVG(`voltage`) AS `平均电压`, SUM(`power`) AS `功率和` FROM %%trows",
         ]
 
         tdSql.executes(sqls)
