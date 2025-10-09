@@ -589,6 +589,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_MOUNT_STMT:
       code = makeNode(type, sizeof(SDropMountStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_RSMA_STMT:
+      code = makeNode(type, sizeof(SCreateRsmaStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_RSMA_STMT:
+      code = makeNode(type, sizeof(SDropRsmaStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
@@ -670,11 +676,17 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       code = makeNode(type, sizeof(SCompactDatabaseStmt), &pNode);
       break;
+    case QUERY_NODE_ROLLUP_DATABASE_STMT:
+      code = makeNode(type, sizeof(SRollupDatabaseStmt), &pNode);
+      break;
     case QUERY_NODE_SCAN_DATABASE_STMT:
       code = makeNode(type, sizeof(SScanDatabaseStmt), &pNode);
       break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = makeNode(type, sizeof(SCompactVgroupsStmt), &pNode);
+      break;
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+      code = makeNode(type, sizeof(SRollupVgroupsStmt), &pNode);
       break;
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       code = makeNode(type, sizeof(SScanVgroupsStmt), &pNode);
@@ -775,6 +787,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
+    case QUERY_NODE_SHOW_RSMAS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -798,6 +812,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       code = makeNode(type, sizeof(SShowCreateViewStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
+      code = makeNode(type, sizeof(SShowCreateRsmaStmt), &pNode);
+      break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = makeNode(type, sizeof(SShowTableDistributedStmt), &pNode);
       break;
@@ -809,6 +826,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowCompactDetailsStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
+      code = makeNode(type, sizeof(SShowRetentionDetailsStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_SCAN_DETAILS_STMT:
       code = makeNode(type, sizeof(SShowScanDetailsStmt), &pNode);
@@ -825,6 +845,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_KILL_TRANSACTION_STMT:
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_COMPACT_STMT:
+    case QUERY_NODE_KILL_RETENTION_STMT:
     case QUERY_NODE_KILL_SCAN_STMT:
     case QUERY_NODE_KILL_SSMIGRATE_STMT:
       code = makeNode(type, sizeof(SKillStmt), &pNode);
@@ -1416,6 +1437,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
       nodesDestroyList(pExternal->pAggFuncList);
       nodesDestroyList(pExternal->pProjectionList);
+      nodesDestroyNode(pExternal->pTimeRange);
       taosMemoryFreeClear(pExternal->timezone);
     }
     case QUERY_NODE_HINT: {
@@ -1598,6 +1620,18 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_DROP_MOUNT_STMT:  // no pointer field
       break;
+    case QUERY_NODE_CREATE_RSMA_STMT: {
+      SCreateRsmaStmt* pStmt = (SCreateRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pCols);
+      nodesDestroyList(pStmt->pFuncs);
+      nodesDestroyList(pStmt->pIntervals);
+      break;
+    }
+    case QUERY_NODE_ALTER_RSMA_STMT: {
+      SAlterRsmaStmt* pStmt = (SAlterRsmaStmt*)pNode;
+      nodesDestroyList(pStmt->pFuncs);
+      break;
+    }
     case QUERY_NODE_CREATE_USER_STMT: {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
@@ -1670,6 +1704,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pEnd);
       break;
     }
+    case QUERY_NODE_ROLLUP_DATABASE_STMT: {
+      SRollupDatabaseStmt* pStmt = (SRollupDatabaseStmt*)pNode;
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
     case QUERY_NODE_SCAN_DATABASE_STMT: {
       SScanDatabaseStmt* pStmt = (SScanDatabaseStmt*)pNode;
       nodesDestroyNode(pStmt->pStart);
@@ -1678,6 +1718,14 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_COMPACT_VGROUPS_STMT: {
       SCompactVgroupsStmt* pStmt = (SCompactVgroupsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyList(pStmt->vgidList);
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT: {
+      SRollupVgroupsStmt* pStmt = (SRollupVgroupsStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyList(pStmt->vgidList);
       nodesDestroyNode(pStmt->pStart);
@@ -1768,7 +1816,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
-    case QUERY_NODE_SHOW_MOUNTS_STMT: {
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+    case QUERY_NODE_SHOW_RSMAS_STMT:
+    case QUERY_NODE_SHOW_RETENTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -1788,9 +1838,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_COMPACTS_STMT:
     case QUERY_NODE_SHOW_SCANS_STMT:
       break;
-    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT: {
+    case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
+    case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT: {
       SShowCompactDetailsStmt* pStmt = (SShowCompactDetailsStmt*)pNode;
-      nodesDestroyNode(pStmt->pCompactId);
+      nodesDestroyNode(pStmt->pId);
       break;
     }
     case QUERY_NODE_SHOW_SCAN_DETAILS_STMT: {
@@ -1820,9 +1871,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field
     case QUERY_NODE_KILL_TRANSACTION_STMT:        // no pointer field
     case QUERY_NODE_KILL_COMPACT_STMT:            // no pointer field
+    case QUERY_NODE_KILL_RETENTION_STMT:          // no pointer field
     case QUERY_NODE_KILL_SCAN_STMT:
     case QUERY_NODE_KILL_SSMIGRATE_STMT:          // no pointer field
       break;
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT: {
+      SRsmaInfoRsp* pMeta = ((SShowCreateRsmaStmt*)pNode)->pRsmaMeta;
+      if (pMeta != NULL) {
+        tFreeRsmaInfoRsp(pMeta, true);
+        taosMemFreeClear(((SShowCreateRsmaStmt*)pNode)->pRsmaMeta);
+      }
+      break;
+    }
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
       nodesDestroyNode(pStmt->pFromTable);
@@ -1965,6 +2025,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
       nodesDestroyNode(pLogicNode->pTspk);
+      nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pTsEnd);
       nodesDestroyNode(pLogicNode->pStateExpr);
       nodesDestroyNode(pLogicNode->pStartCond);
@@ -2069,6 +2130,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {
       SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
+      nodesDestroyNode(pPhyNode->pTimeRange);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
@@ -2752,6 +2814,19 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
     case OP_TYPE_MULTI:
     case OP_TYPE_DIV:
     case OP_TYPE_REM:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool nodesIsBasicArithmeticOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
       return true;
     default:
       break;

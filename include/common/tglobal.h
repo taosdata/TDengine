@@ -77,12 +77,20 @@ extern int8_t tsEnableStrongPassword;
 extern char          tsEncryptPassAlgorithm[];
 extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
+extern char tsTLSCaPath[];
+extern char tsTLSSvrCertPath[];
+extern char tsTLSSvrKeyPath[];
+extern char tsTLSCliCertPath[];
+extern char tsTLSCliKeyPath[];
+extern int8_t tsEnableTLS;
+
 // common
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsCompressMsgSize;
 extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
+extern int64_t tsSecTimes[3];
 extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
@@ -308,6 +316,7 @@ extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
+extern int32_t tsQueryTrimIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;

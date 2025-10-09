@@ -241,3 +241,11 @@ sc.exe stop taos-explorer # Windows
 如果由于网络原因无法完成注册环节，则需要在有外网的环境注册完毕，然后把注册好的 `/etc/taos/explorer-register.cfg` 替换到内网环境。
 
 3.3.7.1 版本后，可以使用环境变量 `EXPLORER_SKIP_REGISTER=true` 跳过注册环节，直接使用用户名登录。
+
+在采用 systemd 的 Linux 系统中，您可以通过环境变量文件 `/etc/default/taos-explorer` 添加如下环境变量：
+
+```shell
+EXPLORER_SKIP_REGISTER=true
+```
+
+在 Windows 系统中，您可以通过系统环境变量设置界面添加该环境变量。

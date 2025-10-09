@@ -368,7 +368,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 | taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                          |
 | taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                          |
 | taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s）                                        |
-| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                    |
+| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 读取速率（单位 Byte/s）                                    |
 | taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s）                                        |
 | taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                    |
 | taos_dnodes_info_masters       | counter | 主节点数量                                                                            |

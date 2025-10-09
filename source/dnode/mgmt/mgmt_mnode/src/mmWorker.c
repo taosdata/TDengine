@@ -161,21 +161,33 @@ int32_t mmPutMsgToStatusQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t code = 0;
+  int32_t         code = 0;
+  int32_t         qType = 0;
+  const STraceId *trace = &pMsg->info.traceId;
+
   if (NULL == pMgmt->pMnode) {
-    const STraceId *trace = &pMsg->info.traceId;
     code = TSDB_CODE_MNODE_NOT_FOUND;
     dGError("msg:%p, stop to pre-process in mnode since %s, type:%s", pMsg, tstrerror(code), TMSG_INFO(pMsg->msgType));
     return code;
   }
+
   pMsg->info.node = pMgmt->pMnode;
-  if ((code = mndPreProcessQueryMsg(pMsg)) != 0) {
-    const STraceId *trace = &pMsg->info.traceId;
+  if ((code = mndPreProcessQueryMsg(pMsg, &qType)) != 0) {
     dGError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, tstrerror(code),
             TMSG_INFO(pMsg->msgType));
     return code;
   }
-  return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
+
+  if (qType == TASK_TYPE_QUERY) {
+    return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
+  } else if (qType == TASK_TYPE_HQUERY) {
+    return mmPutMsgToWorker(pMgmt, &pMgmt->mqueryWorker, pMsg);
+  } else {
+    code = TSDB_CODE_INVALID_PARA;
+    dGError("msg:%p, invalid task qType:%d, not put into (m)query queue, type:%s", pMsg, qType,
+            TMSG_INFO(pMsg->msgType));
+    return code;
+  }
 }
 
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -328,10 +340,10 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL) continue;
-    printDataBlock(pBlock, __func__, "fetch");
+    printDataBlock(pBlock, __func__, "streemFetch", ((SStreamTask*)pTask)->streamId);
     if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow && pBlock != NULL) {
-      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
-      printDataBlock(pBlock, __func__, "fetch filter");
+      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo, NULL));
+      printDataBlock(pBlock, __func__, "fetch filter", ((SStreamTask*)pTask)->streamId);
     }
   }
 
@@ -409,6 +421,21 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   }
 
   tsNumOfQueryThreads += tsNumOfMnodeQueryThreads;
+
+  SSingleWorkerCfg mqCfg = {
+      .min = 4,
+      .max = 4,
+      .name = "mnode-mquery",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+      .poolType = QUERY_AUTO_QWORKER_POOL,
+  };
+  if ((code = tSingleWorkerInit(&pMgmt->mqueryWorker, &mqCfg)) != 0) {
+    dError("failed to start mnode-mquery worker since %s", tstrerror(code));
+    return code;
+  }
+
+  tsNumOfQueryThreads += 4;
 
   SSingleWorkerCfg fCfg = {
       .min = tsNumOfMnodeFetchThreads,
@@ -523,6 +550,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   while (pMgmt->refCount > 0) taosMsleep(10);
 
   tSingleWorkerCleanup(&pMgmt->queryWorker);
+  tSingleWorkerCleanup(&pMgmt->mqueryWorker);
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->statusWorker);

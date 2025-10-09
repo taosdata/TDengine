@@ -431,6 +431,7 @@ typedef struct SExternalWindowNode {
   SNodeList*  pProjectionList;
   SNodeList*  pAggFuncList;
   STimeWindow timeRange;
+  SNode*      pTimeRange;
   void*       timezone;
 } SExternalWindowNode;
 
@@ -559,7 +560,13 @@ typedef struct STimeRangeNode {
   ENodeType type; // QUERY_NODE_TIME_RANGE
   SNode*    pStart;
   SNode*    pEnd;
+  bool      needCalc;
 } STimeRangeNode;
+
+typedef struct SExtWinTimeWindow {
+  STimeWindow tw;
+  int32_t     winOutIdx;
+} SExtWinTimeWindow;
 
 typedef struct SSelectStmt {
   ENodeType       type;  // QUERY_NODE_SELECT_STMT
@@ -808,6 +815,7 @@ bool nodesIsExprNode(const SNode* pNode);
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
+bool nodesIsBasicArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);

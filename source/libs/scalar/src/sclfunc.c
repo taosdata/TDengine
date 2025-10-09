@@ -3873,6 +3873,12 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t anomalyCheckMaskFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t p = *(int64_t*) colDataGetData(pInput->columnData, 5);
+  colDataSetInt32(pOutput->columnData, pOutput->numOfRows, (int32_t *)&p);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int8_t data = 0;
   colDataSetInt8(pOutput->columnData, pOutput->numOfRows, &data);
@@ -3881,7 +3887,7 @@ int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char   *p = colDataGetData(pInput->columnData, 0);
-  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, true);
+  int32_t code = colDataSetNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows, 1, true);
   if (code) {
     return code;
   }
@@ -4261,7 +4267,6 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t type = GET_PARAM_TYPE(pInput);
-  // int64_t count = 0, sum = 0, qSum = 0;
   bool hasNull = false;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -4269,80 +4274,6 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       hasNull = true;
       break;
     }
-#if 0
-    switch(type) {
-      case TSDB_DATA_TYPE_TINYINT: {
-        int8_t *in  = (int8_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_SMALLINT: {
-        int16_t *in  = (int16_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_INT: {
-        int32_t *in  = (int32_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_BIGINT: {
-        int64_t *in  = (int64_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UTINYINT: {
-        uint8_t *in  = (uint8_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_USMALLINT: {
-        uint16_t *in  = (uint16_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UINT: {
-        uint32_t *in  = (uint32_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_UBIGINT: {
-        uint64_t *in  = (uint64_t *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        float *in  = (float *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE: {
-        double *in  = (double *)pInputData->pData;
-        sum += in[i];
-        qSum += in[i] * in[i];
-        count++;
-        break;
-      }
-    }
-#endif
   }
 
   double *out = (double *)pOutputData->pData;
@@ -4350,24 +4281,38 @@ int32_t stdScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     colDataSetNULL(pOutputData, 0);
   } else {
     *out = 0;
-#if 0
-    double avg = 0;
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      avg = (int64_t)sum / (double)count;
-      *out =  sqrt(fabs((int64_t)qSum / ((double)count) - avg * avg));
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      avg = (uint64_t)sum / (double)count;
-      *out =  sqrt(fabs((uint64_t)qSum / ((double)count) - avg * avg));
-    } else if (IS_FLOAT_TYPE(type)) {
-      avg = (double)sum / (double)count;
-      *out =  sqrt(fabs((double)qSum / ((double)count) - avg * avg));
-    }
-#endif
   }
 
   pOutput->numOfRows = 1;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t corrScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData1 = pInput[0].columnData;
+  SColumnInfoData *pInputData2 = pInput[1].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  int32_t type = GET_PARAM_TYPE(pInput);
+  bool hasNull = false;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_f(pInputData1, i) || colDataIsNull_f(pInputData2, i)) {
+      hasNull = true;
+      break;
+    }
+  }
+
+  double *out = (double *)pOutputData->pData;
+  if (hasNull) {
+    colDataSetNULL(pOutputData, 0);
+  } else {
+    *out = 0;
+  }
+
+  pOutput->numOfRows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
 
 #define LEASTSQR_CAL(p, x, y, index, step) \
   do {                                     \
@@ -4539,6 +4484,22 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void)snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }
+
+    // For '%f' (or '%F') in 'printf' functions, the C99 standard states:
+    //   A double argument representing an infinity is converted in one of the styles [-]inf
+    //   or [-]infinity — which style is implementation-defined. A double argument representing
+    //   a NaN is converted in one of the styles [-]nan or [-]nan(n-char-sequence) — which style,
+    //   and the meaning of any n-char-sequence, is implementation-defined.
+    //
+    // To make the behavior consistent across different compilers and avoid issues like TD-37674,
+    // we truncate the output when necessary.
+    if (isinf(matrix02) || isnan(matrix02)) {
+      slopBuf[(slopBuf[0] == '-') ? 4 : 3] = 0;
+    }
+    if (isinf(matrix12) || isnan(matrix12)) {
+      interceptBuf[(interceptBuf[0] == '-') ? 4 : 3] = 0;
+    }
+
     size_t len =
         snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%s, intercept:%s}", slopBuf, interceptBuf);
     varDataSetLen(buf, len);
@@ -5373,34 +5334,51 @@ int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScal
   return 0;
 }
 
-void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid) {
+int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid, int32_t type) {
   SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
   SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
-  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
-    if (timeStartParas.opType == OP_TYPE_GREATER_THAN || timeStartParas.opType == OP_TYPE_LOWER_THAN) {
+  int32_t code = 0, lino = 0;
+  if ((type & 0x1) && node->pStart) {
+    TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas));
+    
+    if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       // For greater than or lower than, used different param, rigth or left. 
       pWinRange->skey = timeStartParas.timeValue + 1;
-    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL || OP_TYPE_LOWER_EQUAL) {
+    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
       pWinRange->skey = timeStartParas.timeValue;
     } else {
       qError("start time range error, opType:%d", timeStartParas.opType);
-      return;
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
   } else {
-    pWinRange->skey = 0;
+    pWinRange->skey = INT64_MIN;
   }
-  if (scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
-    if (timeEndParas.opType == OP_TYPE_LOWER_THAN || timeEndParas.opType == OP_TYPE_GREATER_THAN) {
-      pWinRange->ekey = timeEndParas.timeValue - 1;
-    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL || timeEndParas.opType == OP_TYPE_GREATER_EQUAL) {
+  
+  if ((type & 0x2) && node->pEnd) {
+    TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas));
+    
+    if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue;
+    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
+      pWinRange->ekey = timeEndParas.timeValue + 1;
     } else {
       qError("end time range error, opType:%d", timeEndParas.opType);
-      return;
+      TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
   } else {
     pWinRange->ekey = INT64_MAX;
   }
-  qDebug("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
+  
+  qDebug("%s, stream curr win calc range, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
   *winRangeValid = true;
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
+
+

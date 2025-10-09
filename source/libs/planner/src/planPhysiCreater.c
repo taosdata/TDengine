@@ -18,6 +18,8 @@
 
 #include "catalog.h"
 #include "functionMgt.h"
+#include "planner.h"
+#include "plannodes.h"
 #include "systable.h"
 #include "tglobal.h"
 
@@ -933,7 +935,6 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   }
   (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
-  pCxt->hasSysScan = true;
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
 
@@ -949,7 +950,6 @@ static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
 
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                    SPhysiNode** pPhyNode) {
-  pCxt->hasScan = true;
 
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
@@ -2874,19 +2874,22 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 
 static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                              SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SExternalWindowPhysiNode* pExternal = (SExternalWindowPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode, getExternalOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pExternal) {
     return terrno;
   }
+  pExternal->isSingleTable = pWindowLogicNode->isSingleTable;
+  pExternal->inputHasOrder = pWindowLogicNode->inputHasOrder;
+  PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pTimeRange, &pExternal->pTimeRange));
 
-  int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode);
-  if (TSDB_CODE_SUCCESS == code) {
-    *pPhyNode = (SPhysiNode*)pExternal;
-  } else {
-    nodesDestroyNode((SNode*)pExternal);
-  }
+  PLAN_ERR_JRET(createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode));
+  *pPhyNode = (SPhysiNode*)pExternal;
 
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pExternal);
   return code;
 }
 
@@ -3444,7 +3447,7 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
   if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType) {
     code = buildVnodeModifySubplan(pCxt, pLogicSubplan, pSubplan);
   } else {
-    if (SUBPLAN_TYPE_SCAN == pSubplan->subplanType) {
+    if (SUBPLAN_TYPE_SCAN == pSubplan->subplanType || SUBPLAN_TYPE_HSYSSCAN == pSubplan->subplanType) {
       pSubplan->msgType = TDMT_SCH_QUERY;
     } else {
       pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
@@ -3594,7 +3597,8 @@ static int32_t setExecNodeList(SPhysiPlanContext* pCxt, SArray* pExecNodeList) {
   if (NULL == pExecNodeList) {
     return code;
   }
-  if (pCxt->hasSysScan || !pCxt->hasScan) {
+
+  if (IS_SYS_SCAN(pCxt->pPlanCxt->sysScanFlag) || !pCxt->pPlanCxt->hasScan) {
     SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
     if (NULL == taosArrayPush(pExecNodeList, &node)) code = terrno;
   }
@@ -3607,8 +3611,7 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
                            .nextDataBlockId = 0,
                            .pLocationHelper = taosArrayInit(32, POINTER_BYTES),
                            .pProjIdxLocHelper = taosArrayInit(32, POINTER_BYTES),
-                           .hasScan = false,
-                           .hasSysScan = false};
+                           };
   if (NULL == cxt.pLocationHelper || !cxt.pProjIdxLocHelper) {
     taosArrayDestroy(cxt.pLocationHelper);
     taosArrayDestroy(cxt.pProjIdxLocHelper);
