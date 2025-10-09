@@ -6739,6 +6739,12 @@ static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t num
   return bucketIndex;
 }
 
+int32_t tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  *pBlock = pReader->resBlockInfo.pResBlock;
+  return code;
+}
+
 int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pTableBlockInfo) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
