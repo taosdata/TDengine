@@ -1511,6 +1511,20 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         (*ppRes) = result;
         return code;
       }
+
+      code = doGroupedTableScan(pOperator, &result);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      if (result) {
+        SSDataBlock* res = NULL;
+        code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, &res);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pInfo->pResBlock = res;
+        blockDataDestroy(result);
+        (*ppRes) = res;
+        return code;
+      }
+
       while (true) {
         code = startNextGroupScan(pOperator, &result);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -1527,6 +1541,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
           return code;
         }
       }
+
     } else {
       code = createTableListInfoFromParam(pOperator);
       freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
