@@ -387,7 +387,7 @@ static int32_t mndSetCreateRsmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbOb
   if ((code = tNameFromString(&name, pCreate->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
     return code;
   }
-  tstrncpy(pCreate->tbFName, (char *)tNameGetTableName(&name), sizeof(pCreate->tbFName)); // convert tbFName to tbName
+  tstrncpy(pCreate->tbFName, (char *)tNameGetTableName(&name), sizeof(pCreate->tbFName));  // convert tbFName to tbName
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
     if (!mndVgroupInDb(pVgroup, pDb->uid)) {
@@ -471,7 +471,7 @@ static void *mndBuildVDropRsmaReq(SMnode *pMnode, SVgObj *pVgroup, SRsmaObj *pOb
   SMsgHead     *pHead = NULL;
   SVDropRsmaReq req = {0};
 
-  (void)snprintf(req.tbName, sizeof(req.tbName), "%s",  pObj->tbName);
+  (void)snprintf(req.tbName, sizeof(req.tbName), "%s", pObj->tbName);
   (void)snprintf(req.name, sizeof(req.name), "%s", pObj->name);
   req.tbType = pObj->tbType;
   req.uid = pObj->uid;
@@ -569,10 +569,11 @@ _exit:
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
-
+#endif
 static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
-  SMnode       *pMnode = pReq->info.node;
-  int32_t       code = 0, lino = 0;
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = 0, lino = 0;
+#ifdef TD_ENTERPRISE
   SDbObj       *pDb = NULL;
   SRsmaObj     *pObj = NULL;
   SMDropRsmaReq dropReq = {0};
@@ -615,9 +616,10 @@ _exit:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseRsma(pMnode, pObj);
+#endif
   TAOS_RETURN(code);
 }
-
+#ifdef TD_ENTERPRISE
 static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDbObj *pDb, SStbObj *pStb,
                              SMCreateRsmaReq *pCreate) {
   int32_t  code = 0, lino = 0;
@@ -706,9 +708,10 @@ static int32_t mndCheckRsmaConflicts(SMnode *pMnode, SDbObj *pDbObj, SMCreateRsm
   }
   return 0;
 }
-
+#endif
 static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
-  int32_t         code = 0, lino = 0;
+  int32_t code = 0, lino = 0;
+#ifdef TD_ENTERPRISE
   SMnode         *pMnode = pReq->info.node;
   SDbObj         *pDb = NULL;
   SStbObj        *pStb = NULL;
@@ -772,9 +775,11 @@ _exit:
   if (pStb) mndReleaseStb(pMnode, pStb);
   if (pDb) mndReleaseDb(pMnode, pDb);
   tFreeSMCreateRsmaReq(&createReq);
+#endif
   TAOS_RETURN(code);
 }
 
+#ifdef TD_ENTERPRISE
 static int32_t mndCheckAlterRsmaReq(SMAlterRsmaReq *pReq) {
   int32_t code = TSDB_CODE_MND_INVALID_RSMA_OPTION;
   if (pReq->name[0] == 0) goto _exit;
@@ -836,7 +841,7 @@ _exit:
 }
 
 static int32_t mndSetAlterRsmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb, SRsmaObj *pObj,
-                                           SMAlterRsmaReq *pAlter) {
+                                          SMAlterRsmaReq *pAlter) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
@@ -940,9 +945,10 @@ _exit:
   mndRsmaFreeObj(&obj);
   TAOS_RETURN(code);
 }
-
+#endif
 static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
-  int32_t        code = 0, lino = 0;
+  int32_t code = 0, lino = 0;
+#ifdef TD_ENTERPRISE
   SMnode        *pMnode = pReq->info.node;
   SDbObj        *pDb = NULL;
   SStbObj       *pStb = NULL;
@@ -996,9 +1002,10 @@ _exit:
   if (pStb) mndReleaseStb(pMnode, pStb);
   if (pDb) mndReleaseDb(pMnode, pDb);
   tFreeSMAlterRsmaReq(&req);
+#endif
   TAOS_RETURN(code);
 }
-
+#ifdef TD_ENTERPRISE
 static int32_t mndFillRsmaInfo(SRsmaObj *pObj, SStbObj *pStb, SRsmaInfoRsp *pRsp, bool withColName) {
   int32_t code = 0, lino = 0;
   pRsp->id = pObj->uid;
@@ -1055,7 +1062,6 @@ _exit:
   TAOS_RETURN(code);
 }
 #endif
-
 static int32_t mndProcessGetRsmaReq(SRpcMsg *pReq) {
 #ifdef TD_ENTERPRISE
   int32_t      code = 0, lino = 0;
@@ -1076,7 +1082,7 @@ static int32_t mndProcessGetRsmaReq(SRpcMsg *pReq) {
   char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pObj->dbFName, pObj->tbName);
 
-  if( (pStb = mndAcquireStb(pMnode, tbFName)) == NULL) {
+  if ((pStb = mndAcquireStb(pMnode, tbFName)) == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STB_NOT_EXIST);
   }
 
@@ -1107,7 +1113,7 @@ _exit:
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
-
+#ifdef TD_ENTERPRISE
 static void mndRetrieveRsmaFuncList(SMnode *pMnode, SRsmaObj *pObj, char *buf, int32_t bufLen) {
   SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
@@ -1130,8 +1136,8 @@ static void mndRetrieveRsmaFuncList(SMnode *pMnode, SRsmaObj *pObj, char *buf, i
 
   SSchema *pColumns = pStb->pColumns;
 
-  int32_t  len = 0, j = 0;
-  char     colFunc[TSDB_COL_NAME_LEN + TSDB_FUNC_NAME_LEN + 2] = {0};
+  int32_t len = 0, j = 0;
+  char    colFunc[TSDB_COL_NAME_LEN + TSDB_FUNC_NAME_LEN + 2] = {0};
   for (int32_t i = 0; i < pObj->nFuncs; ++i) {
     col_id_t colId = pObj->funcColIds[i];
     for (; j < pStb->numOfColumns;) {
@@ -1156,7 +1162,7 @@ _exit:
   varDataSetLen(buf, len > 0 ? len - 1 : 0);
   mndReleaseStb(pMnode, pStb);
 }
-
+#endif
 static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = 0, lino = 0;
@@ -1170,7 +1176,7 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   void            *pIter = NULL;
   SSdb            *pSdb = pMnode->pSdb;
   SColumnInfoData *pColInfo = NULL;
-
+#ifdef TD_ENTERPRISE
   pBuf = tmp;
   bufLen = sizeof(tmp) - VARSTR_HEADER_SIZE;
   if (pShow->numOfRows < 1) {
@@ -1251,6 +1257,7 @@ _exit:
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
+#endif
   return numOfRows;
 }
 
@@ -1260,7 +1267,8 @@ static void mndCancelRetrieveRsma(SMnode *pMnode, void *pIter) {
 }
 
 int32_t mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t   code = 0;
+  int32_t code = 0;
+#ifdef TD_ENTERPRISE
   SSdb     *pSdb = pMnode->pSdb;
   SRsmaObj *pObj = NULL;
   void     *pIter = NULL;
@@ -1275,12 +1283,13 @@ int32_t mndDropRsmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     }
     sdbRelease(pSdb, pObj);
   }
-
+#endif
   TAOS_RETURN(code);
 }
 
 int32_t mndDropRsmaByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
-  int32_t   code = 0;
+  int32_t code = 0;
+#ifdef TD_ENTERPRISE
   SSdb     *pSdb = pMnode->pSdb;
   SRsmaObj *pObj = NULL;
   void     *pIter = NULL;
@@ -1295,6 +1304,6 @@ int32_t mndDropRsmaByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
     }
     sdbRelease(pSdb, pObj);
   }
-
+#endif
   TAOS_RETURN(code);
 }
