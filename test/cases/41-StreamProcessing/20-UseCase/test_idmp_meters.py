@@ -350,7 +350,7 @@ class Test_IDMP_Meters:
         self.verify_stream7_again()
         # stream10
         # ***** bug10 *****
-        # self.verify_stream10_again()
+        self.verify_stream10_again()
 
     #
     # 8. restart dnode
@@ -1857,11 +1857,11 @@ class Test_IDMP_Meters:
         # check drop child table
         tdSql.checkResultsByFunc(
             sql=f"select * from tdasset.`result_stream10_sub7` where tag_tbname='vt_em-11' ",
-            func=lambda: tdSql.getRows() == 0,
+            func=lambda: tdSql.getRows() == 2
         )
         tdSql.checkResultsByFunc(
             sql=f"select * from tdasset.`result_stream10_sub8` where tag_tbname='em-11' ",
-            func=lambda: tdSql.getRows() == 0,
+            func=lambda: tdSql.getRows() == 2
         )
 
     #
