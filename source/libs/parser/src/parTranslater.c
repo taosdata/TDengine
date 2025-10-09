@@ -16767,14 +16767,14 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SNodeList** ppFuncs, in
     j = i;
     pSchema = NULL;
     for (; i < columnNum; ++i) {
-      if (strcmp(pCols[i].name, pCol->colName) == 0) {
+      if (strcasecmp(pCols[i].name, pCol->colName) == 0) {
         pSchema = pCols + i;
         break;
       }
     }
     if (!pSchema) {
       for (k = 0; k < j; ++k) {
-        if (strcmp(pCols[k].name, pCol->colName) == 0) {
+        if (strcasecmp(pCols[k].name, pCol->colName) == 0) {
           pSchema = pCols + k;
           break;
         }
