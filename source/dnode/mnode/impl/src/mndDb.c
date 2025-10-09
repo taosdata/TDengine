@@ -2221,6 +2221,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
         sdbRelease(pSdb, pVgroup);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_VGROUP_NOT_EXIST);
       }
+      sdbRelease(pSdb, pVgroup);
     }
 
     for (int32_t i = 0; i < numOfVgroups; i++) {
