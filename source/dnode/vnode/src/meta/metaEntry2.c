@@ -2289,37 +2289,58 @@ static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntr
   }
 
   // do other stuff
-  if (!TSDB_CACHE_NO(pMeta->pVnode->config) &&
-      pEntry->ntbEntry.schemaRow.version != pOldEntry->ntbEntry.schemaRow.version) {
-#if 0
-    {  // for add column
-      int16_t cid = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId;
-      int8_t  col_type = pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].type;
-      int32_t ret = tsdbCacheNewNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, col_type);
-      if (ret < 0) {
-        terrno = ret;
-        goto _err;
+  int32_t deltaCol = pEntry->ntbEntry.schemaRow.nCols - pOldEntry->ntbEntry.schemaRow.nCols;
+  int32_t nCols = pEntry->ntbEntry.schemaRow.nCols;
+  int32_t onCols = pOldEntry->ntbEntry.schemaRow.nCols;
+
+  if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
+    STsdb *pTsdb = pMeta->pVnode->pTsdb;
+
+    if (deltaCol == 1) {
+      int16_t cid = pEntry->ntbEntry.schemaRow.pSchema[nCols - 1].colId;
+      int8_t  col_type = pEntry->ntbEntry.schemaRow.pSchema[nCols - 1].type;
+
+      if (pTsdb) {
+        metaInfo("vgId:%d, old schema version: %d, new schema version: %d", TD_VID(pMeta->pVnode),
+                 pOldEntry->ntbEntry.schemaRow.version, pEntry->ntbEntry.schemaRow.version);
+        TAOS_CHECK_RETURN(tsdbCacheNewNTableColumn(pTsdb, pEntry->uid, cid, col_type,
+                                                   (SSchemaWrapper *)&pOldEntry->ntbEntry.schemaRow,
+                                                   (SSchemaWrapper *)&pEntry->ntbEntry.schemaRow));
       }
-    }
-    {  // for drop column
-
-      if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
-        int16_t cid = pColumn->colId;
-
-        if (tsdbCacheDropNTableColumn(pMeta->pVnode->pTsdb, entry.uid, cid, hasPrimayKey) != 0) {
-          metaError("vgId:%d, failed to drop ntable column:%s uid:%" PRId64, TD_VID(pMeta->pVnode), entry.name,
-                    entry.uid);
+    } else if (deltaCol == -1) {
+      int16_t cid = -1;
+      bool    hasPrimaryKey = false;
+      if (onCols >= 2) {
+        hasPrimaryKey = (pOldEntry->ntbEntry.schemaRow.pSchema[1].flags & COL_IS_KEY) ? true : false;
+      }
+      for (int i = 0, j = 0; j < onCols; ++j) {
+        // If we've gone through all new columns, the remaining old column is the deleted one
+        if (i >= nCols) {
+          cid = pOldEntry->ntbEntry.schemaRow.pSchema[j].colId;
+          break;
         }
-        tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, entry.uid, pSchema->version);
+
+        if (pEntry->ntbEntry.schemaRow.pSchema[i].colId != pOldEntry->ntbEntry.schemaRow.pSchema[j].colId) {
+          cid = pOldEntry->ntbEntry.schemaRow.pSchema[j].colId;
+          break;
+        }
+        ++i;
+      }
+
+      if (cid != -1) {
+        if (pTsdb) {
+          TAOS_CHECK_RETURN(tsdbCacheDropNTableColumn(pTsdb, pEntry->uid, cid,
+                                                      (SSchemaWrapper *)&pOldEntry->ntbEntry.schemaRow,
+                                                      (SSchemaWrapper *)&pEntry->ntbEntry.schemaRow, hasPrimaryKey));
+        }
       }
     }
-    }
-#endif
-    if (pMeta->pVnode->pTsdb) {
-      tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
+
+    if (pTsdb) {
+      tsdbCacheInvalidateSchema(pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
     }
   }
-  int32_t deltaCol = pEntry->ntbEntry.schemaRow.nCols - pOldEntry->ntbEntry.schemaRow.nCols;
+
   pMeta->pVnode->config.vndStats.numOfNTimeSeries += deltaCol;
   if (deltaCol > 0) metaTimeSeriesNotifyCheck(pMeta);
   metaFetchEntryFree(&pOldEntry);
