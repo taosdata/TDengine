@@ -63,6 +63,7 @@ class TestCase:
         self.s2_create_rsma()
 
     def s1_create_db_table(self):
+        tdSql.execute("alter all dnodes 'queryTrimIntervalSec 1'")
         tdSql.execute("drop database if exists d0")
         tdSql.execute("create database if not exists d0 replica 1 keep 36500d")
         tdSql.execute("drop database if exists d1")
@@ -516,6 +517,7 @@ class TestCase:
 
     def s8_decimal_composite_key(self):
         tdLog.info("decimal and composite key")
+        tdSql.execute("alter all dnodes 'queryTrimIntervalSec 1'")
         tdSql.execute("drop database if exists d0")
         tdSql.execute("create database if not exists d0 replica 1 keep 36500d stt_trigger 1")
         tdSql.execute("drop database if exists d1")
