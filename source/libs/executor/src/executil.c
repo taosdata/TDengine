@@ -2702,7 +2702,7 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
 }
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode,
-                               const SReadHandle* readHandle) {
+                               const SReadHandle* readHandle, bool applyExtWin) {
   int32_t code = 0;                             
   pCond->order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   pCond->numOfCols = LIST_LENGTH(pTableScanNode->scan.pScanCols);
@@ -2754,12 +2754,14 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
 
   pCond->numOfCols = j;
 
-  if (NULL != pTableScanNode->pExtScanRange) {
-    pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
-    code = getQueryExtWindow(&pCond->twindows, pTableScanNode->pExtScanRange, &pCond->twindows, pCond->extTwindows);
-  } else if (readHandle->extWinRangeValid) {
-    pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
-    code = getQueryExtWindow(&pCond->twindows, &readHandle->extWinRange, &pCond->twindows, pCond->extTwindows);
+  if (applyExtWin) {
+    if (NULL != pTableScanNode->pExtScanRange) {
+      pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
+      code = getQueryExtWindow(&pCond->twindows, pTableScanNode->pExtScanRange, &pCond->twindows, pCond->extTwindows);
+    } else if (readHandle->extWinRangeValid) {
+      pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
+      code = getQueryExtWindow(&pCond->twindows, &readHandle->extWinRange, &pCond->twindows, pCond->extTwindows);
+    }
   }
   
   return code;

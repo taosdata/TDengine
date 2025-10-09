@@ -5735,7 +5735,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     }
 
     // here we only need one more row, so the capacity is set to be ONE.
-    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[0], 5, pResBlock, idstr);
+    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[0], 1, pResBlock, idstr);
     TSDB_CHECK_CODE(code, lino, _end);
 
     if (order == TSDB_ORDER_ASC) {
@@ -5745,7 +5745,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     }
     pCond->order = order;
 
-    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[1], 5, pResBlock, idstr);
+    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[1], 1, pResBlock, idstr);
     pCond->twindows = window;
     TSDB_CHECK_CODE(code, lino, _end);
   }
@@ -6303,6 +6303,7 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     code = doTsdbNextDataBlock2(pReader->innerReader[0], hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
 
+    pReader->step = EXTERNAL_ROWS_PREV;
     if (*hasNext) {
       pStatus = &pReader->innerReader[0]->status;
       if (pStatus->composedDataBlock) {
@@ -6314,8 +6315,6 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
 
       return code;
     }
-
-    pReader->step = EXTERNAL_ROWS_PREV;
   }
 
   if (pReader->step == EXTERNAL_ROWS_PREV) {
@@ -6605,9 +6604,9 @@ int32_t tsdbRetrieveDataBlock2(void* p, SSDataBlock** pBlock, SArray* pIdList) {
 
   pTReader = pReader;
   if (pReader->type == TIMEWINDOW_RANGE_EXTERNAL) {
-    if (pReader->step == 0) {
+    if (pReader->step == EXTERNAL_ROWS_PREV) {
       pTReader = pReader->innerReader[0];
-    } else if (pReader->step == EXTERNAL_ROWS_MAIN) {
+    } else if (pReader->step == EXTERNAL_ROWS_NEXT) {
       pTReader = pReader->innerReader[1];
     }
   }
