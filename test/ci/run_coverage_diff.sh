@@ -88,6 +88,27 @@ EOF
     # 修正路径以确保与 TDengine 仓库根目录匹配    
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info
 
+    ## 添加详细的调试信息
+    echo "=== 文件检查 ==="
+    echo "当前目录: $(pwd)"
+    echo "目标文件: $TDENGINE_DIR/coverage_tdengine.info"
+    
+    ## 使用绝对路径和相对路径都检查一遍
+    for file_path in "$TDENGINE_DIR/coverage_tdengine.info" "./coverage_tdengine.info" "coverage_tdengine.info"; do
+        if [ -f "$file_path" ]; then
+            size=$(stat -c%s "$file_path" 2>/dev/null)
+            echo "✓ 找到文件: $file_path (大小: $size 字节)"
+        else
+            echo "✗ 文件不存在: $file_path"
+        fi
+    done
+    
+    ## 列出当前目录所有文件
+    echo "当前目录文件列表:"
+    ls -la | grep -E "\.(info|gcda)$" || echo "未找到相关文件"
+    
+    echo "================="
+
     # 确保 coverage_tdengine.info 文件不为空
     if [ ! -s $TDENGINE_DIR/coverage_tdengine.info ]; then
         echo "Error: coverage_tdengine.info 文件为空，无法上传到 Codecov"
