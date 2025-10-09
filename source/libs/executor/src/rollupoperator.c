@@ -84,7 +84,7 @@ static int32_t createDataBlockForTargets(SRSchema *pRSchema, SNodeList *pTargets
     if (!pFuncNode || pFuncNode->node.type != QUERY_NODE_FUNCTION) {
       TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
     }
-    if (LIST_LENGTH(pFuncNode->pParameterList) != 1 && LIST_LENGTH(pFuncNode->pParameterList) != 2) {
+    if (LIST_LENGTH(pFuncNode->pParameterList) < 1 || LIST_LENGTH(pFuncNode->pParameterList) > 3) { // col[,ts[,composite key]]
       TAOS_CHECK_EXIT(TSDB_CODE_RSMA_INVALID_FUNC_PARAM);
     }
     SColumnNode *pColNode = (SColumnNode *)nodesListGetNode(pFuncNode->pParameterList, 0);
@@ -127,8 +127,11 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   SFunctionNode  *pFuncNode = NULL;
   SColumnNode    *pColNode = NULL;
   SColumnNode    *pPrimaryKeyColNode = NULL;
+  SColumnNode    *pCompositeKeyColNode = NULL;
   int32_t         nCols = pTSchema->numOfCols;
   int32_t         exprNum = 0;
+  bool            hasPk = false;
+  int32_t         pkBytes = 0;
   SExprInfo      *pExprInfo = NULL;
   char            buf[512] = "\0";
 
@@ -180,6 +183,10 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   }
 
   int32_t inputRowSize = sizeof(int64_t);  // for the timestamp column
+  if (pTSchema->columns[1].flags & COL_IS_KEY) {
+    hasPk = true;
+    pkBytes = pTSchema->columns[1].bytes;
+  }
   for (int32_t i = 1; i < nCols; i++) {    // skip the first timestamp column
     STColumn *pCol = pTSchema->columns + i;
     TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pColNode));
@@ -215,6 +222,8 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pColNode));
     pColNode = NULL;
     TAOS_CHECK_EXIT(fmGetFuncInfo(pFuncNode, buf, sizeof(buf)));
+    pFuncNode->hasPk = hasPk;
+    pFuncNode->pkBytes = pkBytes;
 
     if (fmIsImplicitTsFunc(pFuncNode->funcId)) {
       TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pPrimaryKeyColNode));
@@ -227,6 +236,16 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
       (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", pFuncNode->functionName);
       TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pPrimaryKeyColNode));
       pPrimaryKeyColNode = NULL;
+      if (hasPk) {
+        TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pCompositeKeyColNode));
+        pCompositeKeyColNode->node.resType.type = pTSchema->columns[1].type;
+        pCompositeKeyColNode->node.resType.bytes = pTSchema->columns[1].bytes;
+        pCompositeKeyColNode->colId = pTSchema->columns[1].colId;
+        pCompositeKeyColNode->colType = COLUMN_TYPE_COLUMN;
+        pCompositeKeyColNode->slotId = 1;
+        TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pCompositeKeyColNode));
+        pCompositeKeyColNode = NULL;
+      }
     }
 
     // build the target node
@@ -275,6 +294,7 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   TAOS_CHECK_EXIT(initGroupedResultInfo(pCtx->pGroupResInfo, pCtx->aggSup->pResultRowHashTable, 0));
 
 _exit:
+  nodesDestroyNode((SNode *)pCompositeKeyColNode);
   nodesDestroyNode((SNode *)pPrimaryKeyColNode);
   nodesDestroyNode((SNode *)pColNode);
   nodesDestroyNode((SNode *)pFuncNode);
