@@ -535,13 +535,17 @@ static int32_t pushDownCondOptRebuildTbanme(SNode** pTagCond) {
   return code;
 }
 
-static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
+static int32_t rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   if (nodeType(*pCond) == QUERY_NODE_LOGIC_CONDITION) {
     SLogicConditionNode* pCondNode = *(SLogicConditionNode**)pCond;
     if (pCondNode->condType == LOGIC_COND_TYPE_AND) {
       SNode* pNode = NULL;
       WHERE_EACH(pNode, pCondNode->pParameterList) {
-        rewriteDnodeConds(&cell->pNode, pDnodeConds);
+        code = rewriteDnodeConds(&cell->pNode, pDnodeConds);
+        TAOS_CHECK_EXIT(code);
         if (cell->pNode == NULL) {
           ERASE_NODE(pCondNode->pParameterList);
           continue;
@@ -549,14 +553,15 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
         WHERE_NEXT;
       }
       if (pCondNode->pParameterList->length == 1) {
-        nodesCloneNode(pCondNode->pParameterList->pHead->pNode, pCond);
+        code = nodesCloneNode(pCondNode->pParameterList->pHead->pNode, pCond);
+        TAOS_CHECK_EXIT(code);
         nodesDestroyList(pCondNode->pParameterList);
       } else if (pCondNode->pParameterList->length == 0) {
         nodesDestroyNode(*pCond);
         *pCond = NULL;
       }
     } else {
-      return;
+      return code;
     }
   } else if (nodeType(*pCond) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pOperNode = *(SOperatorNode**)pCond;
@@ -565,12 +570,18 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
       SNode* pRight = pOperNode->pRight;
       if ((QUERY_NODE_COLUMN == nodeType(pLeft) && strcmp(((SColumnNode*)pLeft)->node.aliasName, "dnode_id") == 0) ||
           (QUERY_NODE_COLUMN == nodeType(pRight) && strcmp(((SColumnNode*)pRight)->node.aliasName, "dnode_id") == 0)) {
-        nodesListAppend(pDnodeConds, (SNode*)pOperNode);
+        code = nodesListAppend(pDnodeConds, (SNode*)pOperNode);
         *pCond = NULL;
+        TAOS_CHECK_EXIT(code);
       }
     }
   }
-  return;
+
+_exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNodeList** pDnodeConds) {
@@ -585,8 +596,8 @@ static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
-  return TSDB_CODE_SUCCESS;
+  code = rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
+  return code;
 }
 
 static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds) {
