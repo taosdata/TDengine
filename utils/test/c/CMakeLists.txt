@@ -85,6 +85,14 @@ target_link_libraries(
 )
 
 target_link_libraries(
+    tmq_td35698
+    PUBLIC ${TAOS_NATIVE_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
     tmq_td32471
     PUBLIC ${TAOS_LIB}
     PUBLIC util
