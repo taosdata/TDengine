@@ -541,5 +541,4 @@ class TestCase:
         self.s6_rollup_db()
         self.s7_rollup_vgroups()
 
-
         tdLog.success("%s successfully executed" % __file__)
