@@ -55,6 +55,7 @@ jobs:
           mkdir -p debug && cd debug
           cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
           make -j"$(nproc || echo 16)"
+          make install
           echo "Built binaries:"
           ls -l build/bin || find . -maxdepth 5 -type f -name 'taos*' -printf '%p\n' 2>/dev/null || true
       - name: Check TDengine
