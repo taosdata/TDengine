@@ -84,7 +84,7 @@ static int32_t createDataBlockForTargets(SRSchema *pRSchema, SNodeList *pTargets
     if (!pFuncNode || pFuncNode->node.type != QUERY_NODE_FUNCTION) {
       TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
     }
-    if (LIST_LENGTH(pFuncNode->pParameterList) < 1 || LIST_LENGTH(pFuncNode->pParameterList) > 3) { // col[,ts[,composite key]]
+    if (LIST_LENGTH(pFuncNode->pParameterList) < 1 || LIST_LENGTH(pFuncNode->pParameterList) > 3) { // col[,pk[,composite key]]
       TAOS_CHECK_EXIT(TSDB_CODE_RSMA_INVALID_FUNC_PARAM);
     }
     SColumnNode *pColNode = (SColumnNode *)nodesListGetNode(pFuncNode->pParameterList, 0);
@@ -134,6 +134,10 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   int32_t         pkBytes = 0;
   SExprInfo      *pExprInfo = NULL;
   char            buf[512] = "\0";
+
+  if (nCols < 2) {
+    TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+  }
 
   if (!(pExprSup = pCtx->exprSup)) {
     if (!(pExprSup = taosMemoryCalloc(1, sizeof(SExprSupp)))) {
