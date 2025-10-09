@@ -982,6 +982,13 @@ int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr) {
 }
 
 int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
+  taosThreadMutexLock(&fs->tsdb->mutex);
+  int32_t code = tsdbFSCreateRefSnapshotWithoutLock(fs, fsetArr);
+  taosThreadMutexUnlock(&fs->tsdb->mutex);
+  return code;
+}
+
+int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fsetArr) {
   int32_t    code = 0;
   STFileSet *fset, *fset1;
 

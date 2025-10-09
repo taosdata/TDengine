@@ -4968,7 +4968,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   }
 
   // fs
-  code = tsdbFSCreateRefSnapshot(pTsdb->pFS, &pSnap->pfSetArray);
+  code = tsdbFSCreateRefSnapshotWithoutLock(pTsdb->pFS, &pSnap->pfSetArray);
 
   // unlock
   taosThreadMutexUnlock(&pTsdb->mutex);
