@@ -202,7 +202,7 @@ class TestStreamperiodTrigger:
             (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(delete_output_table)  into outTbname as querySql ;", (1, True)),#8
             (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(LOW_LATENCY_CALC) into outTbname as querySql ;", (1, True)),#9
             (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(delete_output_table) into outTbname as querySql ;", (1, True)),#10
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(delete_recalc) into outTbname as querySql ;", (1, True)),#11
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname into outTbname as querySql ;", (1, True)),#11
         ]
         
         # tdLog.info(f"createStreamSqls num: {len(createStreamSqls)}")
