@@ -26,7 +26,7 @@ CREATE RSMA [IF NOT EXISTS] rsma_name ON [dbname.]table_name FUNCTION([func_name
 ```
 
 - 创建 RSMA 时需要指定 RSMA 名字，表名字，函数列表以及窗口大小。其中 RSMA 命名规则与表名字相同，最大长度限制为 193。
-- RSMA 只能基于超级表创建。如果超级表的列包含 blob/decimal 数据类型，暂不支持 RSMA。
+- RSMA 只能基于超级表创建。如果超级表的列包含 blob 数据类型，暂不支持 RSMA。
 - 函数列表支持 `min, max, sum, avg, first, last`，函数参数必须为 1 个，函数参数必须为非主键普通列，不能为标签列。非数值类型的列不能指定 sum/avg 等数值计数函数。FUNCTION 参数可为空，未显式指定 func_name 的列默认函数为 last。非 Primary Key 复合主键列，func_name 仅支持 first/last，未显式指定默认函数为 last。
 - RSMA interval 至少指定 1 个，至多指定 2 个。取值范围为 [0, DB duration] 之间的整数，至少一个 非 0。Interval 1 取 0，表示 level 2 存储层级的数据不进行降采样存储；interval 2  取 0，表示 level 3 存储层级的数据不进行降采样存储。本文后续对 interval 的描述，如果没有特别说明，均为正整数。
 - RSMA 表的 interval 满足 `interval1 < interval2 <= duration`， 且必须指定单位，单位取值范围：a(毫秒)、b(纳秒)、h(小时)、m(分钟)、s(秒)、u(微秒)、d(天)。
