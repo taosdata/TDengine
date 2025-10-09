@@ -202,6 +202,7 @@ typedef struct TsdReader {
 
   int32_t      (*tsdReaderResetStatus)(void* p, SQueryTableDataCond* pCond);
   int32_t      (*tsdReaderGetDataBlockDistInfo)();
+  void      (*tsdReaderGetDatablock)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();
 
