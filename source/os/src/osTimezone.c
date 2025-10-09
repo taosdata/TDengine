@@ -904,6 +904,7 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
   if (bufferSize > 0) {
     for (size_t i = 0; i < W_TZ_NUM; i++) {
       if (strcmp(win_tz[i][0], value) == 0) {
+        tstrncpy(outTimezoneStr, win_tz[i][1], TD_TIMEZONE_LEN);
         bufferSize = sizeof(value);
         snprintf(keyPath, sizeof(keyPath), "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Time Zones\\%s", value);
         result = RegGetValue(HKEY_LOCAL_MACHINE, keyPath, "Display", RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
