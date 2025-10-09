@@ -810,10 +810,6 @@ class Test_IDMP_Meters:
         step = 200
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
 
-        # delete no affected
-        # sql = f"delete from asset01.`em-8` where ts >= {self.start2}"
-        # tdSql.execute(sql)
-
         time.sleep(5)
 
         # write order
@@ -821,15 +817,6 @@ class Test_IDMP_Meters:
         sleepS = 0.2  # 0.2 seconds
         tdSql.insertNow(table, sleepS, count, cols, fixedVals)
 
-        # write disorder
-        # count = 10
-        # ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
-
-        # update no affected
-        # updateVals = "1000, 2000, 3000"
-        # step  = 300
-        # count = 5
-        # tdSql.insertFixedVal(table, self.start2, step, count, cols, updateVals)
 
     #
     #  stream9 trigger
@@ -1570,15 +1557,6 @@ class Test_IDMP_Meters:
         for i in range(count):
             # row
             cnt = tdSql.getData(i, 1)
-            # ***** bug2 *****
-            '''
-            if cnt > 5:
-                tdLog.exit(f"stream8 expected cnt <= 5, actual cnt={cnt}")
-            elif cnt > 0:
-                tdSql.checkData(i, 2, 200)  # avg(voltage)
-                tdSql.checkData(i, 3, cnt * 300) # sum(power)
-            '''    
-
             sum += cnt
 
         if sum != 30:
