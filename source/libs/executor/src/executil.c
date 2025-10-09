@@ -2965,28 +2965,28 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
 }
 
 // TODO handle the group offset info, fix it, the rule of group output will be broken by this function
-int32_t tableListRemoveTableInfo(STableListInfo* pTableList, uint64_t uid) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+// int32_t tableListRemoveTableInfo(STableListInfo* pTableList, uint64_t uid) {
+//   int32_t code = TSDB_CODE_SUCCESS;
+//   int32_t lino = 0;
 
-  int32_t* slot = taosHashGet(pTableList->map, &uid, sizeof(uid));
-  if (slot == NULL) {
-    qDebug("table:%" PRIu64 " not found in table list", uid);
-    return 0;
-  }
+//   int32_t* slot = taosHashGet(pTableList->map, &uid, sizeof(uid));
+//   if (slot == NULL) {
+//     qDebug("table:%" PRIu64 " not found in table list", uid);
+//     return 0;
+//   }
 
-  taosArrayRemove(pTableList->pTableList, *slot);
-  code = taosHashRemove(pTableList->map, &uid, sizeof(uid));
+//   taosArrayRemove(pTableList->pTableList, *slot);
+//   code = taosHashRemove(pTableList->map, &uid, sizeof(uid));
 
-  _end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  } else {
-    qDebug("uid:%" PRIu64 ", remove from table list", uid);
-  }
+//   _end:
+//   if (code != TSDB_CODE_SUCCESS) {
+//     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+//   } else {
+//     qDebug("uid:%" PRIu64 ", remove from table list", uid);
+//   }
 
-  return code;
-}
+//   return code;
+// }
 
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3129,7 +3129,7 @@ static int32_t orderbyGroupIdComparFn(const void* p1, const void* p2) {
   }
 }
 
-static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
+int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
   int32_t size = taosArrayGetSize(pTableListInfo->pTableList);
 
@@ -3343,7 +3343,7 @@ char* getStreamOpName(uint16_t opType) {
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
-  if (qDebugFlag & DEBUG_TRACE) {
+  if (qDebugFlag & DEBUG_INFO) {
     if (!pBlock) {
       qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
       return;

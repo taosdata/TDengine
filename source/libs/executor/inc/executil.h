@@ -141,7 +141,8 @@ int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
 uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
-int32_t         tableListRemoveTableInfo(STableListInfo* pTableList, uint64_t uid);
+// int32_t         tableListRemoveTableInfo(STableListInfo* pTableList, uint64_t uid);
+int32_t         sortTableGroup(STableListInfo* pTableListInfo);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
                                       int32_t* num);
 int32_t         tableListGetSize(const STableListInfo* pTableList, int32_t* pRes);

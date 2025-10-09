@@ -185,6 +185,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
           pTaskInner->currentGroupIndex = index;
         }
         STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTaskInner->pTableList, pTaskInner->currentGroupIndex, &pList, &pNum, &options->sStreamReaderInfo->lock))
+        // ST_TASK_DLOG("%s build tablelist, gid:%"PRId64" table num:%d uid:%"PRId64" gid:%"PRId64, __func__, options->gid, pNum, pList->uid, pList->groupId);
       } else if (options->scanMode == STREAM_SCAN_ALL) {
         STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTaskInner->pTableList, -1, &pList, &pNum, &options->sStreamReaderInfo->lock))
       }

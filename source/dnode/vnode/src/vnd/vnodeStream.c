@@ -23,6 +23,7 @@
 #include "scalar.h"
 #include "streamReader.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tcommon.h"
 #include "tdatablock.h"
@@ -2469,6 +2470,8 @@ static int32_t vnodeProcessStreamTsdbCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, 
   blockDataTransform(pBlockRes, pTaskInner->pResBlockDst);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlockRes, &buf, &size));
   ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlockRes->info.rows);
+  printDataBlock(pBlockRes, __func__, "tsdb_data", ((SStreamTask*)pTask)->streamId);
+
   if (!hasNext) {
     STREAM_CHECK_RET_GOTO(taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES));
   }
@@ -2850,6 +2853,10 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     ST_TASK_DLOG("vgId:%d %s put vtable uid:%"PRId64, TD_VID(pVnode), __func__, pKeyInfo->uid);
 
     code = api.metaReaderFn.getTableEntryByUid(&metaReader, pKeyInfo->uid);
+    if (code != 0) {
+      ST_TASK_ELOG("vgId:%d %s get table entry by uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, pKeyInfo->uid, tstrerror(code));
+      continue;
+    }
     if (taosArrayGetSize(cids) == 1 && *(col_id_t*)taosArrayGet(cids, 0) == PRIMARYKEY_TIMESTAMP_COL_ID){
       vTable->cols.nCols = metaReader.me.colRef.nCols;
       vTable->cols.version = metaReader.me.colRef.version;

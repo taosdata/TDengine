@@ -1764,6 +1764,69 @@ static int32_t doFilterTableByTagCond(void* pVnode, void* pListInfo, SArray* pUi
   return code;
 }
 
+static int compareIndex(const void* elem1, const void* elem2) {
+  int32_t* index1 = (int32_t*)elem1;
+  int32_t* index2 = (int32_t*)elem2;
+
+  if (*index1 < *index2) {
+    return -1;
+  }
+
+  return *index1 > *index2;
+}
+
+static int32_t removeUids(STableListInfo* pTableListInfo, SArray* uidList){
+  int32_t code = 0;
+  SArray* indexList = taosArrayInit(10, sizeof(int32_t));
+  if (indexList == NULL) {
+    code = terrno;
+    goto end;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(uidList); i++){
+    int64_t* uid = taosArrayGet(uidList, i);
+    if (uid == NULL) continue;
+    int32_t* slot = taosHashGet(pTableListInfo->map, uid, sizeof(*uid));
+    if (slot == NULL) {
+      qDebug("table:%" PRId64 " not found in table list", *uid);
+      continue;
+    }
+    if (taosArrayPush(indexList, slot) == NULL) {
+      code = terrno;
+      goto end;
+    }
+  }
+
+  taosArraySort(indexList, compareIndex);
+  for (int32_t i = taosArrayGetSize(indexList) - 1; i >= 0; i--){
+    int32_t* index = taosArrayGet(indexList, i);
+    if (index == NULL) continue;
+    taosArrayRemove(pTableListInfo->pTableList, *index);
+  }
+
+end:
+  taosArrayDestroy(indexList);
+  return code;
+}
+
+static int32_t buildTableListMap(STableListInfo* pTableListInfo){
+  // add all table entry in the hash map
+  taosHashClear(pTableListInfo->map);
+  size_t size = taosArrayGetSize(pTableListInfo->pTableList);
+  for (int32_t i = 0; i < size; ++i) {
+    STableKeyInfo* p = taosArrayGet(pTableListInfo->pTableList, i);
+    if (!p) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
+    }
+    int32_t tempRes = taosHashPut(pTableListInfo->map, &p->uid, sizeof(uint64_t), &i, sizeof(int32_t));
+    if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
+      return tempRes;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
                                         SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, void* pTableList, void* pTableListHistory, 
@@ -1778,14 +1841,12 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
   }
   SScanPhysiNode pScanNode = {.suid = pTableListInfo->idInfo.suid, .tableType = pTableListInfo->idInfo.tableType};
   SReadHandle    pHandle = {.vnode = pVnode};
-  for (int32_t i = 0; !isAdd && i < taosArrayGetSize(uidList); i++){
-    int64_t* uid = taosArrayGet(uidList, i);
-    if (uid == NULL) continue;
-    code = tableListRemoveTableInfo(pTableListInfo, *uid); 
+  if (!isAdd) {
+    code = removeUids(pTableListInfo, uidList);
     if (code != TSDB_CODE_SUCCESS) {
       goto end;
     }
-    code = tableListRemoveTableInfo(pTableListInfoHistory, *uid); 
+    code = removeUids(pTableListInfoHistory, uidList);
     if (code != TSDB_CODE_SUCCESS) {
       goto end;
     }
@@ -1804,14 +1865,35 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
   for (int32_t i = 0; i < taosArrayGetSize(pList->pTableList); i++){
     STableKeyInfo* info = taosArrayGet(pList->pTableList, i);
     if (info == NULL) continue;
-    code = tableListAddTableInfo(pTableListInfo, info->uid, info->groupId);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (taosArrayPush(pTableListInfo->pTableList, info) == NULL) {
       goto end;
     }
-    code = tableListAddTableInfo(pTableListInfoHistory, info->uid, info->groupId);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (taosArrayPush(pTableListInfoHistory->pTableList, info) == NULL) {
       goto end;
     }
+  }
+
+  taosMemoryFreeClear(pTableListInfo->groupOffset);
+  taosMemoryFreeClear(pTableListInfoHistory->groupOffset);
+
+  code = sortTableGroup(pTableListInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  code = sortTableGroup(pTableListInfoHistory);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  code = buildTableListMap(pTableListInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  code = buildTableListMap(pTableListInfoHistory);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
   }
 
 end:
@@ -1861,9 +1943,10 @@ end:
 }
 
 int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid, TdThreadRwlock* lock) {
-  int32_t index = 0;
+  int32_t index = -1;
   (void)taosThreadRwlockRdlock(lock);
   if (((STableListInfo*)pTableListInfo)->groupOffset == NULL){
+    index = 0;
     goto end;
   }
   for (int32_t i = 0; i < ((STableListInfo*)pTableListInfo)->numOfOuputGroups; ++i) {
