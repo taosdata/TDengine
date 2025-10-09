@@ -102,6 +102,8 @@ cp %{_compiledir}/build/bin/taosudf                 %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosmqtt                %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/taosgen                 %{buildroot}%{homepath}/bin
+
 cp %{_compiledir}/../../enterprise/packaging/start-all.sh  %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../../enterprise/packaging/stop-all.sh  %{buildroot}%{homepath}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
@@ -247,6 +249,7 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${bin_link_dir}/taosdump       || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark       || :
     ${csudo}rm -f ${bin_link_dir}/taosmqtt    || :
+    ${csudo}rm -f ${bin_link_dir}/taosgen    || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :

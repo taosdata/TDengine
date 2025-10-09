@@ -110,8 +110,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TIMEOUT_ERROR,                "Operation timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DISKSPACE,          "No enough disk space")
 TAOS_DEFINE_ERROR(TSDB_CODE_THIRDPARTY_ERROR,             "third party error, please check the log")
 
-TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting up")
-TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
+TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Dnode is starting up")
+TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Dnode is closing down")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DATA_FMT,             "Invalid data format")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration value")
 TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,         "Not allowed to connect")
@@ -405,7 +405,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_MAX_TSMA_NUM_EXCEEDED,    "Max tsma num exceeded
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_RSMA_OPTION,      "Invalid rsma option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_CREATING,         "Rsma in creating status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_DROPPING,         "Rsma in dropping status")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_EXIST_IN_TABLE,      "Rsma already exist in the table")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_EXIST_IN_TABLE,      "Rsma already exists in the table")
 
 // mnode-view
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_ALREADY_EXIST,       "view already exists in db")

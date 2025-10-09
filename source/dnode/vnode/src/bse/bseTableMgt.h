@@ -83,8 +83,6 @@ struct STableMgt {
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
 int32_t bseTableMgtSetLastTableId(STableMgt *pMgt, int64_t retention);
 
-int32_t bseTableMgtCreateCache(STableMgt *pMgt);
-
 int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len);
 
 void bseTableMgtCleanup(void *p);

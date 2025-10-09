@@ -149,9 +149,10 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
   - generation: Data generation behavior configuration.
     - interlace (int): Number of rows for interlaced data generation, default: 0 (disabled).
     - concurrency (int): Number of threads for data generation, default: same as write threads.
-    - per_table_rows (int): Number of rows to write per table, default: 10000, -1 means unlimited.
-    - per_batch_rows (int): Maximum number of rows per batch request, default: 10000.
-    - tables_reuse_data (bool): Whether multiple tables reuse the same data, default is false.
+    - rows_per_table (int): Number of rows to write per table, default: 10000, -1 means unlimited.
+    - rows_per_batch (int): Maximum number of rows per batch request, default: 10,000.
+    - num_cached_batches (int): Number of batches to pre-generate and cache, 0 means caching is disabled, default is 10000.
+    - tables_reuse_data (bool): Whether multiple tables reuse the same data, default is true.
 
 ##### Column Configuration Attributes
 Each column includes:

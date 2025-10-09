@@ -1,6 +1,7 @@
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 
+
 # 01-DataTypes
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
@@ -260,6 +261,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_sum.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_gconcat.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_smoking.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/02-Aggregate/test_agg_last.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_first_last.py
@@ -409,8 +411,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
-#,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_manual_basic.py
-#,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_manual_basic.py
+,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/20-UseCase/test_idmp_privilege.py
@@ -1892,6 +1894,19 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 --replica 3
+
+### 82-unit-test
+,,n,cases,bash 82-UnitTest/test.sh
+
+### 83-ocs-examples test
+,,n,cases,bash 83-DocsExamplesTest/c.sh
+,,n,cases,bash 83-DocsExamplesTest/python.sh
+,,n,cases,bash 83-DocsExamplesTest/node.sh
+,,n,cases,bash 83-DocsExamplesTest/csharp.sh
+,,n,cases,bash 83-DocsExamplesTest/jdbc.sh
+,,n,cases,bash 83-DocsExamplesTest/rust.sh
+,,n,cases,bash 83-DocsExamplesTest/go.sh
+,,n,cases,bash 83-DocsExamplesTest/test_R.sh
 
 ### 99-TDcase
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_19201.py
