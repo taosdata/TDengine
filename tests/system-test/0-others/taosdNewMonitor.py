@@ -41,7 +41,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         
         # dnode_info  ====================================
 
-        dnode_infos =  ['disk_engine', 'system_net_in', 'vnodes_num', 'system_net_out', 'uptime', 'has_mnode', 'io_read_disk', 'error_log_count',
+        dnode_infos =  ['disk_engine', 'mem_cache_buffer', 'system_net_in', 'vnodes_num', 'system_net_out', 'uptime', 'has_mnode', 'io_read_disk', 'error_log_count',
         'io_read', 'cpu_cores', 'has_qnode', 'has_snode', 'disk_total', 'mem_engine', 'info_log_count', 'cpu_engine', 'io_write_disk',
         'debug_log_count', 'disk_used', 'mem_total', 'io_write', 'masters', 'cpu_system',
         'trace_log_count', 'mem_free']
@@ -83,42 +83,40 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         
         if infoDict[0]["tables"][2]["metric_groups"][0]["metrics"][2]["name"] != "used":
             tdLog.exit("avail is null!")
+
+        if infoDict[0]["tables"][3]["name"] != "taosd_sql_req":
+            tdLog.exit("taosd_sql_req is null!")
         
-        if infoDict[0]["tables"][3]["name"] != "taosd_cluster_info":
+        # cluster_info  ====================================
+        if infoDict[0]["tables"][4]["name"] != "taosd_cluster_info":
             tdLog.exit("taosd_cluster_info is null!")
 
-        # cluster_info  ====================================
-
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][0]["name"] != "cluster_uptime":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][0]["name"] != "cluster_uptime":
             tdLog.exit("cluster_uptime is null!")
         
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][1]["name"] != "dbs_total":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][1]["name"] != "dbs_total":
             tdLog.exit("dbs_total is null!")
         
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][4]["name"] != "vgroups_total":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][4]["name"] != "vgroups_total":
             tdLog.exit("vgroups_total is null!")
 
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][5]["name"] != "vgroups_alive":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][5]["name"] != "vgroups_alive":
             tdLog.exit("vgroups_alive is null!")
 
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][10]["name"] != "connections_total":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][10]["name"] != "connections_total":
             tdLog.exit("connections_total is null!")
 
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][13]["name"] != "dnodes_total":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][13]["name"] != "dnodes_total":
             tdLog.exit("dnodes_total is null!")
 
-        # grant_info  ====================================
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][15]["name"] != "grants_expire_time":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][15]["name"] != "grants_expire_time":
             tdLog.exit("grants_expire_time is null!")
 
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][16]["name"] != "grants_timeseries_used":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][16]["name"] != "grants_timeseries_used":
             tdLog.exit("grants_timeseries_used is null!")
         
-        if infoDict[0]["tables"][3]["metric_groups"][0]["metrics"][17]["name"] != "grants_timeseries_total":
+        if infoDict[0]["tables"][4]["metric_groups"][0]["metrics"][17]["name"] != "grants_timeseries_total":
             tdLog.exit("grants_timeseries_total is null!")
-
-        if infoDict[0]["tables"][4]["name"] != "taosd_sql_req":
-            tdLog.exit("taosd_sql_req is null!")
 
         # vgroup_infos  ====================================
 
