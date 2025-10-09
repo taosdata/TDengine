@@ -93,6 +93,7 @@ int32_t getTimeWindowOfBlock(SSDataBlock *pBlock, col_id_t tsSlotId, int64_t *st
 
   SColumnInfoData *pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, tsIndex);
   QUERY_CHECK_NULL(pColData, code, lino, _return, terrno)
+  pColData->hasNull = false;
 
   GET_TYPED_DATA(*startTs, int64_t, TSDB_DATA_TYPE_TIMESTAMP, colDataGetNumData(pColData, 0), 0);
   GET_TYPED_DATA(*endTs, int64_t, TSDB_DATA_TYPE_TIMESTAMP, colDataGetNumData(pColData, pBlock->info.rows - 1), 0);
@@ -423,6 +424,9 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
   int64_t lastTs = 0;
   int64_t rowNums = -1;
   blockDataEmpty(p);
+  for (int32_t j = 0; j < taosArrayGetSize(p->pDataBlock); j++) {
+    colDataSetNItemsNull(taosArrayGet(p->pDataBlock, j), 0, capacity);
+  }
   while (1) {
     STupleHandle* pTupleHandle = NULL;
     if (!pInfo->pSavedTuple) {
@@ -436,22 +440,19 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
     }
 
     int32_t tsIndex = -1;
+    int32_t colNum = tsortGetColNum(pTupleHandle);
 
-    for (int32_t i = 0; i < tsortGetColNum(pTupleHandle); i++) {
-      if (tsortIsNullVal(pTupleHandle, i)) {
-        continue;
-      } else {
-        SColumnInfoData *pColInfo = NULL;
-        tsortGetColumnInfo(pTupleHandle, i, &pColInfo);
-        if (pColInfo->info.slotId ==  pInfo->virtualScanInfo.tsSlotId) {
-          tsIndex = i;
-          break;
-        }
+    for (int32_t i = 0; i < colNum; i++) {
+      SColumnInfoData *pColInfo = NULL;
+      tsortGetColumnInfo(pTupleHandle, i, &pColInfo);
+      if (pColInfo && pColInfo->info.slotId ==  pInfo->virtualScanInfo.tsSlotId) {
+        tsIndex = i;
+        break;
       }
     }
 
     if (tsIndex == -1) {
-      tsIndex = (int32_t)tsortGetColNum(pTupleHandle) - 1;
+      tsIndex = colNum - 1;
     }
 
     char* pData = NULL;
@@ -466,9 +467,6 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
           goto _return;
         }
         rowNums++;
-        for (int32_t j = 0; j < taosArrayGetSize(p->pDataBlock); j++) {
-          colDataSetNULL(taosArrayGet(p->pDataBlock, j), rowNums);
-        }
         if (pInfo->virtualScanInfo.tsSlotId != -1) {
           VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, pInfo->virtualScanInfo.tsSlotId), rowNums, pData, false));
         }
@@ -479,13 +477,11 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
       continue;
     }
 
-    for (int32_t i = 0; i < tsortGetColNum(pTupleHandle); i++) {
+    for (int32_t i = 0; i < colNum; i++) {
       if (i == tsIndex || tsortIsNullVal(pTupleHandle, i)) {
         continue;
       }
 
-      SColumnInfoData *pColInfo = NULL;
-      tsortGetColumnInfo(pTupleHandle, i, &pColInfo);
       tsortGetValue(pTupleHandle, i, (void**)&pData);
 
       if (pData != NULL) {

@@ -1253,10 +1253,6 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   STableKeyInfo*           pList = NULL;
 
   cleanupQueryTableDataCond(&pInfo->base.cond);
-  if (pAPI->tsdReader.tsdReaderClose) {
-    pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
-  }
-  pInfo->base.dataReader = NULL;
 
   pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
   code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pParam->pOrgTbInfo->tbName, ".") + 1);
@@ -1279,6 +1275,18 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       return TSDB_CODE_INVALID_PARA;
       break;
   }
+
+  pListInfo->oneTableForEachGroup = true;
+  taosHashClear(pListInfo->map);
+  taosArrayClear(pListInfo->pTableList);
+
+  uint64_t      pUid = orgTable.me.uid;
+  STableKeyInfo info = {.groupId = 0, .uid = pUid};
+  int32_t       tableIdx = 0;
+  code = taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t));
+  QUERY_CHECK_CODE(code, lino, _return);
+  QUERY_CHECK_NULL(taosArrayPush(pListInfo->pTableList, &info), code, lino, _return, terrno);
+  qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
 
   pColArray = taosArrayInit(schema->nCols, sizeof(SColIdPair));
   QUERY_CHECK_NULL(pColArray, code, lino, _return, terrno);
@@ -1312,43 +1320,70 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     }
   }
 
+  taosArraySort(pColArray, compareColIdPair);
+  taosArraySort(pBlockColArray, compareColIdPair);
+
+  code = initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
+  QUERY_CHECK_CODE(code, lino, _return);
+
   if (pInfo->pResBlock) {
     blockDataDestroy(pInfo->pResBlock);
     pInfo->pResBlock = NULL;
   }
-  taosArraySort(pColArray, compareColIdPair);
-  taosArraySort(pBlockColArray, compareColIdPair);
-  code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
-  QUERY_CHECK_CODE(code, lino, _return);
-  code =
-      initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
-  QUERY_CHECK_CODE(code, lino, _return);
+
   if (pParam->window.ekey > 0) {
     pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
+  } else if (pParam->window.skey == INT64_MAX && pParam->window.ekey == INT64_MIN) {
+    pInfo->base.cond.twindows.skey = pInfo->base.orgCond.twindows.skey;
+    pInfo->base.cond.twindows.ekey = pInfo->base.orgCond.twindows.ekey;
   }
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->ignoreTag = true;
 
-  pListInfo->oneTableForEachGroup = true;
-  taosHashClear(pListInfo->map);
-  taosArrayClear(pListInfo->pTableList);
+  void **reader = taosHashGet(pInfo->readerCache, &pUid, sizeof(uint64_t));
+  if (reader) {
+    if (pParam->window.ekey == INT64_MIN && pParam->window.skey == INT64_MAX) {
+      pAPI->tsdReader.tsdReaderClose(*reader);
+      pInfo->base.dataReader = NULL;
 
-  uint64_t      pUid = orgTable.me.uid;
-  STableKeyInfo info = {.groupId = 0, .uid = pUid};
-  int32_t       tableIdx = 0;
-  code = taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t));
-  QUERY_CHECK_CODE(code, lino, _return);
-  QUERY_CHECK_NULL(taosArrayPush(pListInfo->pTableList, &info), code, lino, _return, terrno);
-  qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+      code = taosHashRemove(pInfo->readerCache, &pUid, sizeof(uint64_t));
+      QUERY_CHECK_CODE(code, lino, _return);
 
+      code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
+      QUERY_CHECK_CODE(code, lino, _return);
+
+      taosRLockLatch(&pTaskInfo->lock);
+      code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
+      taosRUnLockLatch(&pTaskInfo->lock);
+      QUERY_CHECK_CODE(code, lino, _return);
+
+      code = taosHashPut(pInfo->readerCache, &pUid, sizeof(uint64_t), &pInfo->base.dataReader, POINTER_BYTES);
+      QUERY_CHECK_CODE(code, lino, _return);
+      pInfo->newReader = true;
+    } else {
+      pInfo->base.dataReader = *reader;
+      pAPI->tsdReader.tsdReaderGetDatablock(pInfo->base.dataReader, &pInfo->pResBlock);
+      pInfo->newReader = false;
+      pInfo->scanTimes = 0;
+    }
+  } else {
+    pInfo->base.dataReader = NULL;
+
+    code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    taosRLockLatch(&pTaskInfo->lock);
+    code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
+    taosRUnLockLatch(&pTaskInfo->lock);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    code = taosHashPut(pInfo->readerCache, &pUid, sizeof(uint64_t), &pInfo->base.dataReader, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, lino, _return);
+    pInfo->newReader = true;
+  }
   pOperator->status = OP_OPENED;
-
-  taosRLockLatch(&pTaskInfo->lock);
-  code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
-  taosRUnLockLatch(&pTaskInfo->lock);
-  QUERY_CHECK_CODE(code, lino, _return);
-
+  
   if (pInfo->pResBlock->info.capacity > pOperator->resultInfo.capacity) {
     pOperator->resultInfo.capacity = pInfo->pResBlock->info.capacity;
   }
@@ -1511,22 +1546,41 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         (*ppRes) = result;
         return code;
       }
-      while (true) {
+
+      if (pInfo->newReader) {
         code = startNextGroupScan(pOperator, &result);
         QUERY_CHECK_CODE(code, lino, _end);
-
-        if (result || pOperator->status == OP_EXEC_DONE) {
-          SSDataBlock* res = NULL;
-          if (result) {
-            code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, &res);
-            QUERY_CHECK_CODE(code, lino, _end);
-            pInfo->pResBlock = res;
-            blockDataDestroy(result);
-          }
-          (*ppRes) = res;
-          return code;
-        }
+      } else {
+        code = doGroupedTableScan(pOperator, &result);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
+
+      if (result) {
+        SSDataBlock* res = NULL;
+        code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, &res);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pInfo->pResBlock = res;
+        blockDataCleanup(result);
+        (*ppRes) = res;
+      } else {
+        STableKeyInfo *keyInfo = taosArrayGet(pInfo->base.pTableListInfo->pTableList, 0);
+        QUERY_CHECK_NULL(keyInfo, code, lino, _end, terrno)
+
+        void** reader = taosHashGet(pInfo->readerCache, &keyInfo->uid, sizeof(uint64_t));
+        if (reader) {
+          if (*reader == pInfo->base.dataReader) {
+            pInfo->base.dataReader = NULL;
+          }
+          if (pAPI->tsdReader.tsdReaderClose) {
+            pAPI->tsdReader.tsdReaderClose(*reader);
+          }
+        }
+
+        pInfo->pResBlock = NULL;
+        code = taosHashRemove(pInfo->readerCache, &keyInfo->uid, sizeof(uint64_t));
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      return code;
     } else {
       code = createTableListInfoFromParam(pOperator);
       freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
@@ -1654,6 +1708,23 @@ static void destroyTableScanOperatorInfo(void* param) {
   blockDataDestroy(pTableScanInfo->pResBlock);
   blockDataDestroy(pTableScanInfo->pOrgBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
+  if (pTableScanInfo->virtualStableScan && pTableScanInfo->readerCache) {
+    void *pIter = taosHashIterate(pTableScanInfo->readerCache, NULL);
+    while (pIter != NULL) {
+      void **reader = pIter;
+      if (*reader && pTableScanInfo->base.readerAPI.tsdReaderClose) {
+        SSDataBlock* tmpBlock = NULL;
+        pTableScanInfo->base.readerAPI.tsdReaderGetDatablock(*reader, &tmpBlock);
+        blockDataDestroy(tmpBlock);
+        if (*reader == pTableScanInfo->base.dataReader) {
+          pTableScanInfo->base.dataReader = NULL;
+        }
+        pTableScanInfo->base.readerAPI.tsdReaderClose(*reader);
+      }
+      pIter = taosHashIterate(pTableScanInfo->readerCache, pIter);
+    }
+    taosHashCleanup(pTableScanInfo->readerCache);
+  }
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
   taosMemoryFreeClear(param);
 }
@@ -1732,6 +1803,11 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
     pInfo->pResBlock = NULL;
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
+  }
+
+  if (pInfo->virtualStableScan) {
+    pInfo->readerCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    QUERY_CHECK_NULL(pInfo->readerCache, code, lino, _error, terrno);
   }
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
