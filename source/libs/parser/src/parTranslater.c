@@ -16920,10 +16920,10 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
 
   for (int32_t c = 1; c < numOfCols; ++c) {
     int8_t type = pCols[c].type;
-    if (type == TSDB_DATA_TYPE_BLOB || type == TSDB_DATA_TYPE_MEDIUMBLOB) {
+    if (type == TSDB_DATA_TYPE_BLOB || type == TSDB_DATA_TYPE_MEDIUMBLOB || type == TSDB_DATA_TYPE_DECIMAL ||
+        type == TSDB_DATA_TYPE_DECIMAL64) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                           "Rsma does not support column type %" PRIi8 " currently",
-                                           type));  // TODO: support later
+                                           "Rsma does not support column type %" PRIi8 " currently", type));
     }
   }
 
@@ -16990,19 +16990,20 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
     TAOS_CHECK_EXIT(rewriteRsmaFuncs(pCxt, &pStmt->pFuncs, numOfCols, pCols));
 
     if (pRsmaInfo->nFuncs > 0) {
-      int32_t i = 0;
       FOREACH(pNode, pStmt->pFuncs) {
         SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
         SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
+        int32_t        i = 0;
         while (i < pRsmaInfo->nFuncs) {
           if (pColNode->colId == pRsmaInfo->funcColIds[i]) {
             TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                                     "Rsma func already specified for column: %s", pColNode->colName));
           } else if (pColNode->colId > pRsmaInfo->funcColIds[i]) {
             ++i;
+          } else {
+            break;
           }
         }
-        if (i >= pRsmaInfo->nFuncs) break;
       }
     }
 
