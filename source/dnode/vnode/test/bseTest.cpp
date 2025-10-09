@@ -90,7 +90,7 @@ static int32_t putData(SBse *bse, int nItem, int32_t vlen, std::vector<int64_t> 
 
     data->push_back(seq);
   }
-  printf("put result ");
+  printf("put result\n ");
   code = bseCommitBatch(bse, pBatch);
   return code;
 }
@@ -130,7 +130,7 @@ static int32_t getData(SBse *pBse, std::vector<int64_t> *data, int32_t expectLen
         ASSERT(0);
       }
       // std::string str((char *)value, len);
-      // printf("get result %d: %s\n", i, str.c_str());
+      if (i % 10000 == 0) printf("get result %d\n", i);
     }
     taosMemoryFree(value);
   }
@@ -163,7 +163,7 @@ int32_t getDataAndValid(SBse *pBse, std::string &inStr, std::vector<int64_t> *se
       if (strncmp((const char *)value, inStr.c_str(), len) != 0) {
         ASSERT(0);
       } else {
-        // printf("succ to get key %d\n", (int32_t)seq);
+        if (i % 10000 == 0) printf("succ to get key %d\n", (int32_t)seq);
       }
     }
     taosMemoryFree(value);

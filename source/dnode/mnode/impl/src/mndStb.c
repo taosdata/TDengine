@@ -3343,18 +3343,23 @@ void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t
 }
 
 static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode  *pMnode = pReq->info.node;
-  SSdb    *pSdb = pMnode->pSdb;
-  int32_t  numOfRows = 0;
-  SStbObj *pStb = NULL;
-  int32_t  cols = 0;
-  int32_t  lino = 0;
-  int32_t  code = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SStbObj  *pStb = NULL;
+  SUserObj *pUser = NULL;
+  int32_t   cols = 0;
+  int32_t   lino = 0;
+  int32_t   code = 0;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) return terrno;
+  }
+
+  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) {
+    goto _ERROR;
   }
 
   while (numOfRows < rows) {
@@ -3368,6 +3373,12 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     if (isTsmaResSTb(pStb->name)) {
       sdbRelease(pSdb, pStb);
+      continue;
+    }
+
+    if ((0 == pUser->superUser) && mndCheckStbPrivilege(pMnode, pUser, MND_OPER_SHOW_STB, pStb) != 0) {
+      sdbRelease(pSdb, pStb);
+      terrno = 0;
       continue;
     }
 
@@ -3473,10 +3484,19 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }
+  if (pUser != NULL) {
+    mndReleaseUser(pMnode, pUser);
+  }
 
   goto _OVER;
 
 _ERROR:
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
+  }
+  if (pUser != NULL) {
+    mndReleaseUser(pMnode, pUser);
+  }
   mError("show:0x%" PRIx64 ", failed to retrieve data at %s:%d since %s", pShow->id, __FUNCTION__, lino,
          tstrerror(code));
 

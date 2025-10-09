@@ -29,9 +29,9 @@ cd "${script_dir}"
 PWD=$(pwd)
 
 if [ $ent -eq 0 ]; then
-    cd ../../debug
-else
     cd ../../../debug
+else
+    cd ../../../../debug
 fi
 PWD=$(pwd)
 echo "PWD: $PWD"
