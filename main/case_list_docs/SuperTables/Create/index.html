@@ -954,8 +954,74 @@
         
   
     <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k_call.TestRowlength64k1.test_stable_create_rowlength64k" class="md-nav__link">
+        Call Table Max Columns Case With Different Mode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k.TestRowlength64k.test_stable_create_rowlength64k" class="md-nav__link">
+        Create Table With Max columns 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#04-SuperTables.01-Create.test_stable_create_basic.TestStableCreateMt.test_stable_create_mt" class="md-nav__link">
         Name: basic 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_stable_create_presuf.TestDatabasePreSuf.test_stable_create_presuf" class="md-nav__link">
+        Super Table Create with Random Prefix and Suffix 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_table_comment.TestTableComment.test_table_comment" class="md-nav__link">
+        Table Comment Case 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_table_param_ttl.TestTableParamTtl.test_table_param_ttl" class="md-nav__link">
+        Table TTL Case 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k_benchmark.TestRowlength64kBenchmark.test_rowlength64k_benchmark" class="md-nav__link">
+        Test Table Max Columns With Benchmark 
       </a>
       
     </li>
@@ -2785,8 +2851,74 @@
         
   
     <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k_call.TestRowlength64k1.test_stable_create_rowlength64k" class="md-nav__link">
+        Call Table Max Columns Case With Different Mode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k.TestRowlength64k.test_stable_create_rowlength64k" class="md-nav__link">
+        Create Table With Max columns 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#04-SuperTables.01-Create.test_stable_create_basic.TestStableCreateMt.test_stable_create_mt" class="md-nav__link">
         Name: basic 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_stable_create_presuf.TestDatabasePreSuf.test_stable_create_presuf" class="md-nav__link">
+        Super Table Create with Random Prefix and Suffix 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_table_comment.TestTableComment.test_table_comment" class="md-nav__link">
+        Table Comment Case 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_table_param_ttl.TestTableParamTtl.test_table_param_ttl" class="md-nav__link">
+        Table TTL Case 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k_benchmark.TestRowlength64kBenchmark.test_rowlength64k_benchmark" class="md-nav__link">
+        Test Table Max Columns With Benchmark 
       </a>
       
     </li>
@@ -2839,6 +2971,207 @@
                     <strong>Path:</strong>
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_create_basic.py" target="_blank">
                       cases/04-SuperTables/01-Create/test_stable_create_basic.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="04-SuperTables.01-Create.test_stable_create_presuf.TestDatabasePreSuf.test_stable_create_presuf" class="doc doc-heading">
+
+<a href="#04-SuperTables.01-Create.test_stable_create_presuf.TestDatabasePreSuf.test_stable_create_presuf" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Super Table Create with Random Prefix and Suffix
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create Database with random vgroups</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create Super Table with random prefix and suffix</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create Sub Tables with random prefix and suffix</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Insert data into Sub Tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check data in Sub Tables and Super Table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_create_presuf.py" target="_blank">
+                      cases/04-SuperTables/01-Create/test_stable_create_presuf.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="04-SuperTables.01-Create.test_stable_create_rowlength64k.TestRowlength64k.test_stable_create_rowlength64k" class="doc doc-heading">
+
+<a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k.TestRowlength64k.test_stable_create_rowlength64k" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Create Table With Max columns
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create stable with max columns to test limit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create stable with max tags to test limit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Alter stable to test column and tag limit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Insert data to test max columns and tags</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query data to test max columns and tags</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_create_rowlength64k.py" target="_blank">
+                      cases/04-SuperTables/01-Create/test_stable_create_rowlength64k.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="04-SuperTables.01-Create.test_stable_create_rowlength64k_benchmark.TestRowlength64kBenchmark.test_rowlength64k_benchmark" class="doc doc-heading">
+
+<a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k_benchmark.TestRowlength64kBenchmark.test_rowlength64k_benchmark" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Test Table Max Columns With Benchmark
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. taosBenchmark create table with column 1023</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. taosBenchmark create table with column 4095</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. taosBenchmark create table with column 1021</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. taosBenchmark create table with column 4093</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. taosBenchmark run with rowlength64k.json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. verify result is ok</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_create_rowlength64k_benchmark.py" target="_blank">
+                      cases/04-SuperTables/01-Create/test_stable_create_rowlength64k_benchmark.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="04-SuperTables.01-Create.test_stable_create_rowlength64k_call.TestRowlength64k1.test_stable_create_rowlength64k" class="doc doc-heading">
+
+<a href="#04-SuperTables.01-Create.test_stable_create_rowlength64k_call.TestRowlength64k1.test_stable_create_rowlength64k" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Call Table Max Columns Case With Different Mode
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Call Table Max Columns Case with Different queryPolicy (-Q 1 to 4)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Call Table Max Columns Case with restful</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_stable_create_rowlength64k_call.py" target="_blank">
+                      cases/04-SuperTables/01-Create/test_stable_create_rowlength64k_call.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="04-SuperTables.01-Create.test_table_comment.TestTableComment.test_table_comment" class="doc doc-heading">
+
+<a href="#04-SuperTables.01-Create.test_table_comment.TestTableComment.test_table_comment" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Table Comment Case
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create normal table, stable and child table with/without comment</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Alter table comment</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify comment info in information_schema.ins_tables and information_schema.ins_stables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify error when comment length &gt; 1024</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_table_comment.py" target="_blank">
+                      cases/04-SuperTables/01-Create/test_table_comment.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="04-SuperTables.01-Create.test_table_param_ttl.TestTableParamTtl.test_table_param_ttl" class="doc doc-heading">
+
+<a href="#04-SuperTables.01-Create.test_table_param_ttl.TestTableParamTtl.test_table_param_ttl" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Table TTL Case
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create normal table with ttl param</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create stable and child table with ttl param</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert data into child table with ttl param</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify ttl param is ok</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/04-SuperTables/01-Create/test_table_param_ttl.py" target="_blank">
+                      cases/04-SuperTables/01-Create/test_table_param_ttl.py
                     </a>
                   </div>
         </div>
