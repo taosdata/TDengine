@@ -272,6 +272,7 @@ static int32_t tsdbCompactFSetEnd(SCompactor2 *compactor) {
 
   if (TARRAY2_SIZE(compactor->fopArr) > 0) {
     EFEditT etype = compactor->optrType == TSDB_OPTR_ROLLUP ? TSDB_FEDIT_ROLLUP : TSDB_FEDIT_COMPACT;
+    compactor->tsdb->pFS->rollupLevel = compactor->ctx->expLevel;
     code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, etype);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -495,11 +496,20 @@ _exit:
   return code;
 }
 
-bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, ETsdbOpType type) {
+bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, int32_t expLevel, ETsdbOpType type) {
   STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
   if (fobj) {
     tsdbInfo("vgId:%d, fid:%d,lastCompact:%" PRId64 ", lastCommit:%" PRId64 ", lastMigrate:%" PRId64 ", lcn:%d", vgId,
              fset->fid, fset->lastCompact, fset->lastCommit, fset->lastMigrate, fobj->f->lcn);
+  }
+
+   if (type == TSDB_OPTR_ROLLUP) {
+    // Rollup is a special compact, it'd update lastRollupLevel, update lastRollup and lastCompact with the same value
+    // after finished.
+    if ((fset->lastRollup < fset->lastCommit) || (fset->lastRollupLevel < expLevel)) {
+      return true;
+    }
+    return false;
   }
 
   // because we only do compact on the leader vnode of a migration, "fset->lastCompact > fset->lastCommit"
@@ -510,14 +520,6 @@ bool tsdbShouldCompact(STFileSet *fset, int32_t vgId, ETsdbOpType type) {
   // last migration, we don't do compact.
   if (fset->lastMigrate > fset->lastCommit) {
     return false;
-  }
-
-  if (type == TSDB_OPTR_ROLLUP) {
-    // Rollup is a special compact, it'd update lastRollup and lastCompact with the same value after finished.
-    if (fset->lastRollup >= fset->lastCommit) {
-      return false;
-    }
-    return true;
   }
 
   if (fset->lastCompact > fset->lastCommit) {
@@ -556,7 +558,6 @@ int32_t tsdbDoCompact(SCompactor2 *compactor) {
   int32_t lino = 0;
 
   STsdb *tsdb = compactor->tsdb;
-  compactor->ctx->expLevel = tsdbFidLevel(compactor->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
 
   tsdbInfo("vgId:%d compact fileset:%d start", TD_VID(tsdb->pVnode), compactor->fset->fid);
 
@@ -622,9 +623,12 @@ static int32_t tsdbCompact(void *arg) {
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   // do compact
-  if (compactor.fset && tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactArg->type)) {
-    code = tsdbDoCompact(&compactor);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  if (compactor.fset) {
+    compactor.ctx->expLevel = tsdbFidLevel(compactor.fset->fid, &compactor.tsdb->keepCfg, taosGetTimestampSec());
+    if (tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactor.ctx->expLevel, compactArg->type)) {
+      code = tsdbDoCompact(&compactor);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
 _exit:
