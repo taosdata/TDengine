@@ -282,7 +282,7 @@ function collect_gcda_from_tests() {
             local new_filename="${filename%.*}_${subdir_name}_${timestamp}.${filename##*.}"
             
             # 使用 mv 快速移动
-            if mv "$gcda_file" "$target_dir/$new_filename" 2>/dev/null; then
+            if cp "$gcda_file" "$target_dir/$new_filename" 2>/dev/null; then
                 ((count++))
             fi
         done < <(find "$subdir" -name "*.gcda" -type f -print0 2>/dev/null)
