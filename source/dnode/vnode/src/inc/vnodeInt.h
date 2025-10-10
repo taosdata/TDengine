@@ -102,7 +102,7 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_RSMA1_DIR      "rsma1"
 #define VNODE_RSMA2_DIR      "rsma2"
 #define VNODE_TQ_STREAM      "stream"
-#define VNODE_CACHE_DIR      "cache.rdb"
+#define VNODE_CACHE_DIR      "row_cache.rdb"
 #define VNODE_TSDB_CACHE_DIR VNODE_TSDB_DIR TD_DIRSEP VNODE_CACHE_DIR
 #define VNODE_BSE_DIR   "bse"
 
@@ -184,6 +184,7 @@ int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
+int32_t         metaBuildTSchemaFromSchemaWrapper(SSchemaWrapper* pSchemaWrapper, STSchema** ppTSchema);
 SRSchema*       metaGetTbTSchemaR(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
@@ -242,10 +243,14 @@ int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCacheNewTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, const SSchemaWrapper* pSchemaRow);
 int32_t tsdbCacheDropTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, SSchemaWrapper* pSchemaRow);
 int32_t tsdbCacheDropSubTables(STsdb* pTsdb, SArray* uids, tb_uid_t suid);
-int32_t tsdbCacheNewSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t col_type);
-int32_t tsdbCacheDropSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, bool hasPrimayKey);
-int32_t tsdbCacheNewNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type);
-int32_t tsdbCacheDropNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, bool hasPrimayKey);
+int32_t tsdbCacheNewSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t col_type,
+                                 SSchemaWrapper* pOldSchemaWrapper, SSchemaWrapper* pNewSchemaWrapper);
+int32_t tsdbCacheDropSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, SSchemaWrapper* pOldSchemaWrapper,
+                                  SSchemaWrapper* pNewSchemaWrapper, bool hasPrimayKey);
+int32_t tsdbCacheNewNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, int8_t col_type,
+                                 SSchemaWrapper* pOldSchemaWrapper, SSchemaWrapper* pNewSchemaWrapper);
+int32_t tsdbCacheDropNTableColumn(STsdb* pTsdb, int64_t uid, int16_t cid, SSchemaWrapper* pOldSchemaWrapper,
+                                  SSchemaWrapper* pNewSchemaWrapper, bool hasPrimayKey);
 void    tsdbCacheInvalidateSchema(STsdb* pTsdb, tb_uid_t suid, tb_uid_t uid, int32_t sver);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
