@@ -20,13 +20,118 @@ function printHelp() {
     echo "    -d [TDengine dir]           Project directory (default: outermost project directory)"
     echo "                                    e.g., -d /home/TDinternal/"
     echo "    -f [Capture gcda dir]       Capture gcda directory (default: <project dir>/debug)"
-    echo "    -b [Coverage branch]        Covevrage branch (default:3.0)"
+    echo "    -b [Coverage branch]        Covevrage branch "
+    echo "    -l [Test log dir]           Test log directory containing gcda files"
     exit 0
+}
+
+function collect_gcda_from_tests() {
+    local test_log_dir="$1"
+    local target_debug_dir="$2"
+    
+    if [ -z "$test_log_dir" ] || [ ! -d "$test_log_dir" ]; then
+        echo "测试日志目录不存在或未指定，跳过 GCDA 收集: $test_log_dir"
+        return 0
+    fi
+    
+    echo "=== 从测试日志收集 GCDA 文件 ==="
+    echo "源目录: $test_log_dir"
+    echo "目标目录: $target_debug_dir"
+    
+    python3 - << EOF
+import os
+import glob
+import shutil
+import hashlib
+from datetime import datetime
+
+def get_file_md5(file_path):
+    try:
+        md5_hash = hashlib.md5()
+        with open(file_path, 'rb') as f:
+            while chunk := f.read(8192):
+                md5_hash.update(chunk)
+        return md5_hash.hexdigest()
+    except Exception as e:
+        print(f"计算 MD5 失败 {file_path}: {e}")
+        return None
+
+def process_gcda_files(test_log_dir, target_debug_dir):
+    gcda_pattern = os.path.join(test_log_dir, "**", "*.gcda")
+    gcda_files = glob.glob(gcda_pattern, recursive=True)
+    
+    print(f"找到 {len(gcda_files)} 个 GCDA 文件")
+    
+    processed_count = 0
+    for gcda_file in gcda_files:
+        try:
+            # 计算 MD5
+            md5_value = get_file_md5(gcda_file)
+            if md5_value is None:
+                continue
+                
+            # 获取相对路径结构
+            rel_path = os.path.relpath(gcda_file, test_log_dir)
+            
+            # 构建目标路径，保持目录结构
+            target_path = os.path.join(target_debug_dir, rel_path)
+            target_dir = os.path.dirname(target_path)
+            
+            # 确保目标目录存在
+            os.makedirs(target_dir, exist_ok=True)
+            
+            # 生成带 MD5 的文件名
+            filename = os.path.basename(gcda_file)
+            name_parts = filename.rsplit('.', 1)
+            if len(name_parts) == 2:
+                base_name, extension = name_parts
+            else:
+                base_name = filename
+                extension = ""
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            md5_short = md5_value[:8]
+            
+            if extension:
+                if '.' in base_name:
+                    name_without_ext, first_ext = base_name.rsplit('.', 1)
+                    new_filename = f"{name_without_ext}_{timestamp}_{md5_short}.{first_ext}.{extension}"
+                else:
+                    new_filename = f"{base_name}_{timestamp}_{md5_short}.{extension}"
+            else:
+                new_filename = f"{base_name}_{timestamp}_{md5_short}"
+            
+            final_target_path = os.path.join(target_dir, new_filename)
+            
+            # 复制文件
+            shutil.copy2(gcda_file, final_target_path)
+            print(f"已处理: {gcda_file} -> {final_target_path} (MD5: {md5_value[:8]})")
+            processed_count += 1
+            
+        except Exception as e:
+            print(f"处理文件失败 {gcda_file}: {e}")
+    
+    print(f"成功处理 {processed_count} 个 GCDA 文件")
+    return processed_count
+
+# 执行处理
+if __name__ == "__main__":
+    process_gcda_files("$test_log_dir", "$target_debug_dir")
+EOF
+
+    echo "=== GCDA 文件收集完成 ==="
 }
 
 function lcovFunc {
     echo "collect data by lcov"
     cd $TDENGINE_DIR || exit
+
+
+    # 如果指定了测试日志目录，先收集 GCDA 文件
+    if [ -n "$TEST_LOG_DIR" ]; then
+        collect_gcda_from_tests "$TEST_LOG_DIR" "$CAPTURE_GCDA_DIR"
+    fi
+
 
 #     # 创建 lcov 配置文件
 #     cat > lcov_tdengine.config << EOF
@@ -38,6 +143,15 @@ function lcovFunc {
 #     # 调试输出配置文件内容
 #     echo "lcov_tdengine.config 内容:"
 #     cat lcov_tdengine.config
+
+    # 显示 GCDA 文件统计
+    echo "=== GCDA 文件统计 ==="
+    gcda_count=$(find "$CAPTURE_GCDA_DIR" -name "*.gcda" -type f | wc -l)
+    echo "debug 目录中的 GCDA 文件数量: $gcda_count"
+    
+    if [ "$gcda_count" -eq 0 ]; then
+        echo "警告: 未找到任何 GCDA 文件，覆盖率报告可能为空"
+    fi
 
     # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。
     lcov --quiet -d ../debug/ -capture \
@@ -165,9 +279,10 @@ function lcovFunc {
 TDINTERNAL_DIR="/home/TDinternal" 
 TDENGINE_DIR="/home/TDinternal/community"
 CAPTURE_GCDA_DIR="/home/TDinternal/debug"
+TEST_LOG_DIR=""
 
 # Parse command line parameters
-while getopts "hd:b:f:" arg; do
+while getopts "hd:b:f:l:" arg; do
   case $arg in
     d)
       TDINTERNAL_DIR=$OPTARG
@@ -177,6 +292,9 @@ while getopts "hd:b:f:" arg; do
       ;;
     f)
       CAPTURE_GCDA_DIR=$OPTARG
+      ;;
+    l)
+      TEST_LOG_DIR=$OPTARG
       ;;
     h)
       printHelp
@@ -193,6 +311,7 @@ print_color "$GREEN" "Run coverage test on workflow!"
 
 echo "TDENGINE_DIR = $TDENGINE_DIR"
 echo "CAPTURE_GCDA_DIR = $CAPTURE_GCDA_DIR"
+echo "TEST_LOG_DIR = $TEST_LOG_DIR"
 echo "BRANCH = $BRANCH"
 
 lcovFunc
