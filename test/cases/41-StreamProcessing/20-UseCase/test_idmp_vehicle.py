@@ -1178,7 +1178,7 @@ class Test_IDMP_Vehicle:
 
         # sub1
         # ***** bug11 *****
-        #self.verify_stream8_sub1()
+        self.verify_stream8_sub1()
         tdLog.info(f"verify stream8 ................................. successfully.")
 
     # verify stream8_sub1
