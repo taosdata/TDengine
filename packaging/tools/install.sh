@@ -288,7 +288,7 @@ function install_bin() {
 
   # set taos_malloc.sh as bin script
   if [ "${pkgMode}" != "lite" ]; then
-    if [ -f ${script_dir}/bin/${set_malloc_bin} ] && [ "${verType}" != "client" ]; then
+    if [[ -f ${script_dir}/bin/${set_malloc_bin} && "${verType}" != "client" ]]; then
       ${csudo}cp -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
     else
       echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
@@ -339,7 +339,6 @@ function install_lib() {
   tcmalloc_file="${driver_path}/libtcmalloc.so.4.5.18"
   [ -f "${jemalloc_file}" ] && ${csudo}ln -sf "${jemalloc_file}" "${driver_path}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
   [ -f "${tcmalloc_file}" ] && ${csudo}ln -sf "${tcmalloc_file}" "${driver_path}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
-
 
   #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
@@ -957,7 +956,7 @@ function finished_install_info(){
     # collect pairs "label|value"
     if [ "${pkgMode}" != "lite" ]; then
       entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
-      if [ -f "${configDir}/${adapterName}.toml" ] && [ -f "${installDir}/bin/${adapterName}" ]; then
+      if [[ -f "${configDir}/${adapterName}.toml" && -f "${installDir}/bin/${adapterName}" ]]; then
         entries+=("To configure ${clientName}Adapter:|edit ${configDir}/${adapterName}.toml")
       fi
       
@@ -968,14 +967,14 @@ function finished_install_info(){
       # insert a blank line between config and start
       entries+=("|")
       
-      if ((${service_mod} == 0)); then
+      if ((service_mod == 0)); then
         entries+=("To start ${PREFIX}d:|${csudo}systemctl start ${serverName}")
-        if [ -f "${service_config_dir}/${clientName}adapter.service" ] && [ -f "${installDir}/bin/${clientName}adapter" ]; then
+        if [[ -f "${service_config_dir}/${clientName}adapter.service" && -f "${installDir}/bin/${clientName}adapter" ]]; then
           entries+=("To start ${clientName}Adapter:|${csudo}systemctl start ${clientName}adapter")
         fi
-      elif ((${service_mod} == 1)); then
+      elif ((service_mod == 1)); then
         entries+=("To start ${productName} server:|${csudo}service ${serverName} start")
-        if [ -f "${service_config_dir}/${clientName}adapter.service" ] && [ -f "${installDir}/bin/${clientName}adapter" ]; then
+        if [[ -f "${service_config_dir}/${clientName}adapter.service" && -f "${installDir}/bin/${clientName}adapter" ]]; then
           entries+=("To start ${clientName}Adapter:|${csudo}service ${clientName}adapter start")
         fi
       else
@@ -998,7 +997,7 @@ function finished_install_info(){
       entries+=("To access ${productName} GUI:|http://$serverFqdn:6060")
       entries+=("|")
 
-      if [ "$verMode" == "cluster" ]; then
+      if [ "${verMode}" == "cluster" ]; then
         entries+=("To read the user manual:|http://$serverFqdn:6060/docs-en")
         entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
       else
