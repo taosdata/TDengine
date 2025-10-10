@@ -678,7 +678,8 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
       if (!pCol->notFillCol) {
         if (pCol->fillVal.nType == TSDB_DATA_TYPE_VARBINARY || pCol->fillVal.nType == TSDB_DATA_TYPE_VARCHAR ||
-            pCol->fillVal.nType == TSDB_DATA_TYPE_NCHAR || pCol->fillVal.nType == TSDB_DATA_TYPE_JSON) {
+            pCol->fillVal.nType == TSDB_DATA_TYPE_NCHAR || pCol->fillVal.nType == TSDB_DATA_TYPE_JSON ||
+            pCol->fillVal.nType == TSDB_DATA_TYPE_DECIMAL) {
           if (pCol->fillVal.pz) {
             taosMemoryFree(pCol->fillVal.pz);
             pCol->fillVal.pz = NULL;
