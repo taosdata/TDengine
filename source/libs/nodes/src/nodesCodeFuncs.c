@@ -393,6 +393,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateRsmaStmt";
     case QUERY_NODE_DROP_RSMA_STMT:
       return "DropRsmaStmt";
+    case QUERY_NODE_ALTER_RSMA_STMT:
+      return "AlterRsmaStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:

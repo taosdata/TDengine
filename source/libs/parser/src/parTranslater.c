@@ -2988,7 +2988,7 @@ static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode*
       break;
     } 
 
-    if (funcType == FUNCTION_TYPE_ANOMALY_MARK) {
+    if (funcType == FUNCTION_TYPE_ANOMALY_MARK && pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW) {
       bFound = true;
       break;
     }
@@ -16731,7 +16731,7 @@ _return:
   tFreeSMDropSmaReq(&dropReq);
   return code;
 }
-
+#ifdef TD_ENTERPRISE
 static int32_t compareRsmaFuncWithColId(SNode* pNode1, SNode* pNode2) {
   SFunctionNode* pFunc1 = (SFunctionNode*)pNode1;
   SFunctionNode* pFunc2 = (SFunctionNode*)pNode2;
@@ -16740,14 +16740,16 @@ static int32_t compareRsmaFuncWithColId(SNode* pNode1, SNode* pNode2) {
   return compareTsmaColWithColId(pCol1, pCol2);
 }
 
-static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt, int32_t columnNum,
-                                const SSchema* pCols) {
+static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SNodeList** ppFuncs, int32_t columnNum, const SSchema* pCols) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t nFuncs = LIST_LENGTH(pStmt->pFuncs);
+  int32_t nFuncs = LIST_LENGTH(*ppFuncs);
 
   SNode*         pNode;
   SFunctionNode* pFunc = NULL;
-  FOREACH(pNode, pStmt->pFuncs) {
+  const SSchema* pSchema = NULL;
+  int32_t        i = 0, j = 0, k = 0;
+  int8_t         flags = 0;
+  FOREACH(pNode, *ppFuncs) {
     pFunc = (SFunctionNode*)pNode;
     if (!pFunc->pParameterList || LIST_LENGTH(pFunc->pParameterList) != 1 ||
         nodeType(pFunc->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) {
@@ -16761,37 +16763,60 @@ static int32_t rewriteRsmaFuncs(STranslateContext* pCxt, SCreateRsmaStmt* pStmt,
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
                                      "Invalid func param for rsma since column node is NULL: %s", pFunc->functionName);
     }
-    int32_t i = 0;
+
+    j = i;
+    pSchema = NULL;
     for (; i < columnNum; ++i) {
-      if (strcmp(pCols[i].name, pCol->colName) == 0) {
-        pCol->colId = pCols[i].colId;
-        pCol->node.resType.type = pCols[i].type;
-        pCol->node.resType.bytes = pCols[i].bytes;
+      if (strcasecmp(pCols[i].name, pCol->colName) == 0) {
+        pSchema = pCols + i;
         break;
       }
     }
-    if (i == columnNum) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
-                                     "Invalid func param for rsma since column not exist: %s(%s)",
-                                     pFunc->functionName, pCol->colName);
+    if (!pSchema) {
+      for (k = 0; k < j; ++k) {
+        if (strcasecmp(pCols[k].name, pCol->colName) == 0) {
+          pSchema = pCols + k;
+          break;
+        }
+      }
     }
-    if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+
+    if (!pSchema) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
+                                     "Invalid func param for rsma since column not exist: %s(%s)", pFunc->functionName,
+                                     pCol->colName);
+    }
+    if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
                                      "Invalid func param for rsma since column is primary key: %s(%s)",
                                      pFunc->functionName, pCol->colName);
     }
-    PAR_ERR_JRET(fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len));
+    pCol->colId = pSchema->colId;
+    pCol->node.resType.type = pSchema->type;
+    pCol->node.resType.bytes = pSchema->bytes;
+    if ((code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len)) != TSDB_CODE_SUCCESS) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "%s: %s(%s)", tstrerror(code), pFunc->functionName,
+                                     pCol->colName);
+    }
     if (!fmIsRsmaSupportedFunc(pFunc->funcId)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_RSMA_UNSUPPORTED_FUNC, "Invalid func for rsma: %s",
                                      pFunc->functionName);
+    }
+    if (((pSchema->flags) & COL_IS_KEY)) {
+      if (pFunc->funcType != FUNCTION_TYPE_FIRST && pFunc->funcType != FUNCTION_TYPE_LAST) {
+        return generateSyntaxErrMsgExt(
+            &pCxt->msgBuf, TSDB_CODE_RSMA_INVALID_FUNC_PARAM,
+            "Invalid func param for rsma since composite key column can only be first/last: %s(%s)",
+            pFunc->functionName, pCol->colName);
+      }
     }
     (void)snprintf(pFunc->node.userAlias, TSDB_COL_NAME_LEN, "%s(%s)", pFunc->functionName, pCol->colName);
   }
 
   if (nFuncs > 1) {
-    nodesSortList(&pStmt->pFuncs, compareRsmaFuncWithColId);
+    nodesSortList(ppFuncs, compareRsmaFuncWithColId);
     col_id_t lastColId = -1;
-    FOREACH(pNode, pStmt->pFuncs) {
+    FOREACH(pNode, *ppFuncs) {
       SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
       SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
       if (pColNode->colId == lastColId) {
@@ -16826,8 +16851,6 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
   pReq->igExists = pStmt->ignoreExists;
   PAR_ERR_JRET(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
 
-  pStmt->precision = pDbInfo.precision;
-
   if (LIST_LENGTH(pStmt->pIntervals) < 1 || LIST_LENGTH(pStmt->pIntervals) > 2) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Invalid interval count for rsma, should be in range [1, 2]");
@@ -16843,32 +16866,36 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
       return pCxt->errCode;
     }
-    if (pVal->unit == TIME_UNIT_WEEK || pVal->unit == TIME_UNIT_MONTH || pVal->unit == TIME_UNIT_YEAR) {
+    if (pVal->unit == 0 || pVal->unit == TIME_UNIT_WEEK || pVal->unit == TIME_UNIT_MONTH || pVal->unit == TIME_UNIT_YEAR) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT, "Invalid interval unit for rsma: %c",
                                      pVal->unit);
     }
     pReq->interval[idx] = pVal->datum.i;
-    // checkTableRangeOption(pCxt, pName, interval, minVal, maxVal);
-    // TODO check relationship of interval/keep, min/max check
-    if (pReq->interval[idx] < 1 || pReq->interval[idx] > durationInPrecision) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OUT_OF_RANGE, "Invalid interval value for rsma: %lld",
-                                     pReq->interval[idx]);
+
+    if (pReq->interval[idx] < 0 || pReq->interval[idx] > durationInPrecision) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OUT_OF_RANGE, "Invalid interval value for rsma: %" PRId64 ", valid range [0, %" PRId64 "]",
+                                     pReq->interval[idx], durationInPrecision);
     }
-    if (durationInPrecision % pReq->interval[idx]) {
+    if ((pReq->interval[idx] > 0) && (durationInPrecision % pReq->interval[idx])) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                     "Interval value for rsma should be a divisor of DB duration: %lld",
-                                     durationInPrecision);
+                                     "Interval value for rsma, should be a divisor of DB duration: %" PRId64
+                                     "%c, %" PRId64,
+                                     pVal->datum.i, pVal->unit, durationInPrecision);
     }
     ++idx;
   }
-  if (pReq->interval[1] > 0) {
+  if (pReq->interval[0] == 0 && pReq->interval[1] == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "At least one interval value for rsma should be greater than 0");
+  }
+  if (pReq->interval[0] > 0 && pReq->interval[1] > 0) {
     if (pReq->interval[1] <= pReq->interval[0]) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                      "Second interval value for rsma should be greater than first interval: %" PRId64
                                      ",%" PRId64,
                                      pReq->interval[0], pReq->interval[1]);
     }
-    if (pReq->interval[1] % pReq->interval[0]) {
+    if ((pReq->interval[1] % pReq->interval[0]) != 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                      "Second interval value for rsma should be a multiple of first interval: %" PRId64
                                      ",%" PRId64,
@@ -16876,12 +16903,11 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
     }
   }
 
-  int32_t  numOfCols = 0, numOfTags = 0;
-  SSchema *pCols = NULL, *pTags = NULL;
+  int32_t  numOfCols = 0;
+  SSchema* pCols = NULL;
   int32_t  nFuncs = LIST_LENGTH(pStmt->pFuncs);
   PAR_ERR_JRET(getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta));
   numOfCols = pTableMeta->tableInfo.numOfColumns;
-  numOfTags = pTableMeta->tableInfo.numOfTags;
   pCols = pTableMeta->schema;
   if (nFuncs < 0 || nFuncs > (numOfCols - 1)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
@@ -16894,23 +16920,16 @@ static int32_t buildCreateRsmaReq(STranslateContext* pCxt, SCreateRsmaStmt* pStm
 
   for (int32_t c = 1; c < numOfCols; ++c) {
     int8_t type = pCols[c].type;
-    if (type == TSDB_DATA_TYPE_DECIMAL || type == TSDB_DATA_TYPE_DECIMAL64 || type == TSDB_DATA_TYPE_BLOB ||
-        type == TSDB_DATA_TYPE_MEDIUMBLOB) {
+    if (type == TSDB_DATA_TYPE_BLOB || type == TSDB_DATA_TYPE_MEDIUMBLOB) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                           "Rsma does not support column type %" PRIi8 " currently",
-                                           type));  // TODO: support later
-    }
-    if (((pCols[c].flags) & COL_IS_KEY)) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                           "Rsma does not support composite primary key column currently: %s",
-                                           pCols[c].name));
+                                           "Rsma does not support column type %" PRIi8 " currently", type));
     }
   }
 
   pReq->tbUid = pTableMeta->uid;
 
   if (nFuncs > 0) {
-    PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, pStmt, numOfCols, pCols));
+    PAR_ERR_JRET(rewriteRsmaFuncs(pCxt, &pStmt->pFuncs, numOfCols, pCols));
     pReq->funcColIds = taosMemoryCalloc(nFuncs, sizeof(col_id_t));
     pReq->funcIds = taosMemoryCalloc(nFuncs, sizeof(int32_t));
     if (!pReq->funcColIds || !pReq->funcIds) {
@@ -16933,19 +16952,101 @@ _return:
   TAOS_RETURN(code);
 }
 
+static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt, SRsmaInfoRsp* pRsmaInfo,
+                                 SMAlterRsmaReq* pReq, SName* useTbName) {
+  SName       name = {0};
+  SDbCfgInfo  pDbInfo = {0};
+  int32_t     code = 0, lino = 0;
+  SNode*      pNode = NULL;
+  STableMeta* pTableMeta = NULL;
+
+  (void)snprintf(pReq->name, TSDB_TABLE_NAME_LEN, "%s", pStmt->rsmaName);
+  pReq->tbType = TSDB_SUPER_TABLE;
+  pReq->igNotExists = pStmt->ignoreNotExists;
+  TAOS_CHECK_EXIT(tNameFromString(&name, pRsmaInfo->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, name.tname, useTbName);
+  TAOS_CHECK_EXIT(getDBCfg(pCxt, pStmt->dbName, &pDbInfo));
+
+  int32_t  numOfCols = 0;
+  SSchema* pCols = NULL;
+  int32_t  nFuncs = LIST_LENGTH(pStmt->pFuncs);
+  bool     async = pCxt->pParseCxt->async;
+  pCxt->pParseCxt->async = false;
+  // get table meta in sync since tbName is unknown during parser phase
+  code = getTableMeta(pCxt, pStmt->dbName, name.tname, &pTableMeta);
+  pCxt->pParseCxt->async = async;
+  TAOS_CHECK_EXIT(code);
+  numOfCols = pTableMeta->tableInfo.numOfColumns;
+  pCols = pTableMeta->schema;
+
+  if (pReq->alterType == TSDB_ALTER_RSMA_FUNCTION) {
+    if (nFuncs <= 0 || nFuncs > (numOfCols - 1)) {
+      TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                              "Invalid func count for rsma, should be in range [1, %d]",
+                                              numOfCols - 1));
+    }
+
+    TAOS_CHECK_EXIT(rewriteRsmaFuncs(pCxt, &pStmt->pFuncs, numOfCols, pCols));
+
+    if (pRsmaInfo->nFuncs > 0) {
+      FOREACH(pNode, pStmt->pFuncs) {
+        SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
+        SColumnNode*   pColNode = (SColumnNode*)pFuncNode->pParameterList->pHead->pNode;
+        int32_t        i = 0;
+        while (i < pRsmaInfo->nFuncs) {
+          if (pColNode->colId == pRsmaInfo->funcColIds[i]) {
+            TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                                    "Rsma func already specified for column: %s", pColNode->colName));
+          } else if (pColNode->colId > pRsmaInfo->funcColIds[i]) {
+            ++i;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    pReq->funcColIds = taosMemoryCalloc(nFuncs, sizeof(col_id_t));
+    pReq->funcIds = taosMemoryCalloc(nFuncs, sizeof(int32_t));
+    if (!pReq->funcColIds || !pReq->funcIds) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    int32_t        idx = 0;
+    SFunctionNode* pFunc = NULL;
+    FOREACH(pNode, pStmt->pFuncs) {
+      pFunc = (SFunctionNode*)pNode;
+      pReq->funcColIds[idx] = ((SColumnNode*)pFunc->pParameterList->pHead->pNode)->colId;
+      pReq->funcIds[idx] = pFunc->funcId;
+      ++idx;
+    }
+    pReq->nFuncs = nFuncs;
+  } else {
+    TAOS_CHECK_EXIT(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                            "Invalid alter type for rsma: %" PRIi8, pReq->alterType));
+  }
+
+_exit:
+  taosMemoryFreeClear(pTableMeta);
+  TAOS_RETURN(code);
+  return 0;
+}
+
+#endif
+
 static int32_t translateCreateRsma(STranslateContext* pCxt, SCreateRsmaStmt* pStmt) {
 #ifdef TD_ENTERPRISE
   int32_t code = TSDB_CODE_SUCCESS;
   pCxt->pCurrStmt = (SNode*)pStmt;
 
   SName           useTbName = {0};
-  SMCreateRsmaReq pReq = {0};
+  SMCreateRsmaReq req = {0};
 
-  PAR_ERR_JRET(buildCreateRsmaReq(pCxt, pStmt, &pReq, &useTbName));
+  PAR_ERR_JRET(buildCreateRsmaReq(pCxt, pStmt, &req, &useTbName));
   PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
-  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &pReq));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_CREATE_RSMA, (FSerializeFunc)tSerializeSMCreateRsmaReq, &req));
 _return:
-  tFreeSMCreateRsmaReq(&pReq);
+  tFreeSMCreateRsmaReq(&req);
   return code;
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -16966,6 +17067,30 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_RSMA, (FSerializeFunc)tSerializeSMDropRsmaReq, &dropReq));
   return code;
 _return:
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+static int32_t translateAlterRsma(STranslateContext* pCxt, SAlterRsmaStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  int32_t        code = 0;
+  SMAlterRsmaReq req = {0};
+  req.alterType = pStmt->alterType;
+  SRsmaInfoRsp* pRsmaInfo = NULL;
+  SName         useTbName = {0};
+
+  PAR_ERR_JRET(getRsma(pCxt, pStmt->rsmaName, &pRsmaInfo));
+  PAR_ERR_JRET(buildAlterRsmaReq(pCxt, pStmt, pRsmaInfo, &req, &useTbName));
+  PAR_ERR_JRET(collectUseTable(&useTbName, pCxt->pTargetTables));
+  PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_ALTER_RSMA, (FSerializeFunc)tSerializeSMAlterRsmaReq, &req));
+_return:
+  if (pRsmaInfo) {
+    tFreeRsmaInfoRsp(pRsmaInfo, true);
+    taosMemoryFreeClear(pRsmaInfo);
+  }
+  tFreeSMAlterRsmaReq(&req);
   return code;
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -17229,7 +17354,7 @@ _return:
       code = translateDropRsma(pCxt, (SDropRsmaStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_RSMA_STMT:
-      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      code = translateAlterRsma(pCxt, (SAlterRsmaStmt*)pNode);
       break;
     default:
       break;
