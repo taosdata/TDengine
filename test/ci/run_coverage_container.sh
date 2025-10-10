@@ -78,13 +78,29 @@ echo "DEBUG_DIR = $DEBUG_DIR"
 echo "branch_name_id = $branch_name_id"
 echo "test_log_dir = $test_log_dir"
 
+# 检查是否已存在同名容器，如果存在则删除 --rm \
+if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
+    echo "Removing existing container: $CONTAINER_NAME"
+    docker rm -f "$CONTAINER_NAME" 2>/dev/null
+fi
+
+    # docker run \
+    #     --privileged=true \
+    #     --name "$CONTAINER_NAME" \
+    #     -v "$TDINTERNAL_DIR:$CONTAINER_TDINTERNAL_DIR" \
+    #     -v "$DEBUG_DIR:$CONTAINER_DEBUG_DIR" \
+    #     -v "$test_log_dir:$CONTAINER_LOG_DIR" \   
+    #     --rm \
+    #     --ulimit core=-1 \
+    #     "$DOCKER_IMAGE" \
+    #     sh -c "bash $CONTAINER_TESTDIR/test/ci/run_coverage_diff.sh -b $branch_name_id -l $CONTAINER_LOG_DIR"
+
 docker run \
     --privileged=true \
     --name "$CONTAINER_NAME" \
     -v "$TDINTERNAL_DIR:$CONTAINER_TDINTERNAL_DIR" \
     -v "$DEBUG_DIR:$CONTAINER_DEBUG_DIR" \
     -v "$test_log_dir:$CONTAINER_LOG_DIR" \
-    --rm \
     --ulimit core=-1 \
     "$DOCKER_IMAGE" \
     sh -c "bash $CONTAINER_TESTDIR/test/ci/run_coverage_diff.sh -b $branch_name_id -l $CONTAINER_LOG_DIR"
