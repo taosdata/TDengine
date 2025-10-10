@@ -294,12 +294,14 @@ struct SRSchema {
   int64_t    interval[2];
   func_id_t *funcIds;
   STSchema  *tSchema;
+  void      *extSchema;  // SExtSchema, for decimal type
 };
 
 static FORCE_INLINE void tFreeSRSchema(SRSchema **rSchema) {
   if (rSchema && *rSchema) {
     taosMemoryFreeClear((*rSchema)->funcIds);
     taosMemoryFreeClear((*rSchema)->tSchema);
+    taosMemoryFreeClear((*rSchema)->extSchema);
     taosMemoryFreeClear(*rSchema);
   }
 }
