@@ -25,6 +25,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
   if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__TABLE) {
     return true;
   }
+
   STqExecHandle* pExec = &pHandle->execHandle;
   STqReader* pReader = pExec->pTqReader;
 
@@ -62,7 +63,8 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
       if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
-          taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  needRebuild++;
+          taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  
+        needRebuild++;
       }
     }
     if (needRebuild == 0) {

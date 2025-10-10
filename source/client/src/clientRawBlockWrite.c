@@ -74,7 +74,7 @@ static tb_uid_t processSuid(tb_uid_t suid, char* db) {
   }
   return suid + MurmurHash3_32(db, strlen(db));
 }
-static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, SExtSchema* pExtSchemas,char* name, int64_t id, int8_t t,
+static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* schemaTag, SExtSchema* pExtSchemas, char* name, int64_t id, int8_t t,
                                  SColCmprWrapper* pColCmprRow, cJSON** pJson) {
   if (schemaRow == NULL || name == NULL || pColCmprRow == NULL || pJson == NULL) {
     uError("invalid parameter, schemaRow:%p, name:%p, pColCmprRow:%p, pJson:%p", schemaRow, name, pColCmprRow, pJson);
