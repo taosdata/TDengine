@@ -928,6 +928,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ttlChangeOnWrite", tsTtlChangeOnWrite, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ttlFlushThreshold", tsTtlFlushThreshold, -1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "trimVDbIntervalSec", tsTrimVDbIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryTrimIntervalSec", tsQueryTrimIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "timeseriesThreshold", tsTimeSeriesThreshold, 0, 2000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1753,6 +1754,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "trimVDbIntervalSec");
   tsTrimVDbIntervalSec = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryTrimIntervalSec");
+  tsQueryTrimIntervalSec = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "uptimeInterval");
   tsUptimeInterval = pItem->i32;
@@ -2732,6 +2736,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"tmqRowSize", &tmqRowSize},
                                          {"transPullupInterval", &tsTransPullupInterval},
                                          {"compactPullupInterval", &tsCompactPullupInterval},
+                                         {"queryTrimIntervalSec", &tsQueryTrimIntervalSec},
                                          {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
                                          {"ttlBatchDropNum", &tsTtlBatchDropNum},
                                          {"ttlFlushThreshold", &tsTtlFlushThreshold},

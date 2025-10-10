@@ -642,7 +642,7 @@ taos> select truncate(8888.88, -1);
 CORR(expr1, expr2)
 ```
 
-**功能说明**：获得两列数据之间的线性关系强度和方向，返回结果在 -1 和 1 之间，又即皮尔逊相关系数（Pearson correlation coefficient）。
+**功能说明**：计算两列数据之间的皮尔逊相关系数（Pearson correlation coefficient），该数值反映了两个序列之间的线性关系强度和方向，返回结果在 -1 和 1 之间。
 
 **版本**：v3.3.8.0
 
