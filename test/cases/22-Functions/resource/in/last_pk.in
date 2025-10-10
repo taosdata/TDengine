@@ -1,0 +1,10 @@
+select last(ts), a from test_last_pk.stb
+select last(ts, a) from test_last_pk.stb
+select last(ts), a from test_last_pk.stb group by tbname order by tbname
+select last(ts), a, ta, tb from test_last_pk.stb group by tbname order by tbname
+select last_row(ts), a, ta, tb from test_last_pk.stb group by tbname order by tbname
+explain select last(ts), a from test_last_pk.stb\G
+explain select last(ts, a) from test_last_pk.stb\G
+explain select last(ts), a from test_last_pk.stb group by tbname\G
+explain select last(ts), a, ta, tb from test_last_pk.stb group by tbname\G
+explain select last_row(ts), a, ta, tb from test_last_pk.stb group by tbname\G
