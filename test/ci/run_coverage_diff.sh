@@ -157,6 +157,84 @@ function printHelp() {
 #     echo "=== GCDA 文件收集完成 ==="
 # }
 
+# function collect_gcda_from_tests() {
+#     local test_log_dir="$1"
+#     local target_debug_dir="$2"
+    
+#     if [ -z "$test_log_dir" ] || [ ! -d "$test_log_dir" ]; then
+#         echo "Test log directory does not exist or not specified, skipping GCDA collection: $test_log_dir"
+#         return 0
+#     fi
+    
+#     echo "=== Collecting GCDA files from test logs ==="
+#     echo "Source directory: $test_log_dir"
+#     echo "Target directory: $target_debug_dir"
+    
+#     # 查找所有的覆盖率目录
+#     local coverage_dirs=$(find "$test_log_dir" -type d -name "*.coverage" 2>/dev/null)
+    
+#     if [ -z "$coverage_dirs" ]; then
+#         echo "No coverage directories found in $test_log_dir"
+#         return 0
+#     fi
+    
+#     local total_processed=0
+    
+#     # 处理每个覆盖率目录
+#     echo "$coverage_dirs" | while read -r coverage_dir; do
+#         if [ -d "$coverage_dir" ]; then
+#             echo "Processing coverage directory: $(basename $coverage_dir)"
+            
+#             # 查找所有子目录（debugSan, debugNoSan）
+#             for subdir in "$coverage_dir"/*; do
+#                 if [ -d "$subdir" ]; then
+#                     local subdir_name=$(basename "$subdir")
+#                     echo "Processing debug type: $subdir_name"
+                    
+#                     # 递归查找并复制 GCDA 文件
+#                     find "$subdir" -name "*.gcda" -type f | while read -r gcda_file; do
+#                         # 获取相对于子目录的路径
+#                         local rel_path=$(realpath --relative-to="$subdir" "$gcda_file")
+                        
+#                         # 构建目标路径
+#                         local target_path="$target_debug_dir/$rel_path"
+#                         local target_dir=$(dirname "$target_path")
+                        
+#                         # 创建目标目录
+#                         mkdir -p "$target_dir"
+                        
+#                         # 生成唯一文件名（包含调试类型和时间戳）
+#                         local filename=$(basename "$gcda_file")
+#                         local timestamp=$(date +"%Y%m%d_%H%M%S_%3N")
+#                         local md5_hash=$(md5sum "$gcda_file" | cut -d' ' -f1 | cut -c1-8)
+                        
+#                         # 处理文件名，添加debug类型标识
+#                         if [[ "$filename" == *.c.gcda ]]; then
+#                             local base_name="${filename%.c.gcda}"
+#                             local new_filename="${base_name}_${subdir_name}_${timestamp}_${md5_hash}.c.gcda"
+#                         else
+#                             local base_name="${filename%.gcda}"
+#                             local new_filename="${base_name}_${subdir_name}_${timestamp}_${md5_hash}.gcda"
+#                         fi
+                        
+#                         local final_target="$target_dir/$new_filename"
+                        
+#                         # 复制文件
+#                         if cp "$gcda_file" "$final_target"; then
+#                             echo "Copied: $gcda_file -> $final_target"
+#                             ((total_processed++))
+#                         else
+#                             echo "Failed to copy: $gcda_file"
+#                         fi
+#                     done
+#                 fi
+#             done
+#         fi
+#     done
+    
+#     echo "=== GCDA file collection completed, processed: $total_processed files ==="
+# }
+
 function collect_gcda_from_tests() {
     local test_log_dir="$1"
     local target_debug_dir="$2"
@@ -166,73 +244,64 @@ function collect_gcda_from_tests() {
         return 0
     fi
     
-    echo "=== Collecting GCDA files from test logs ==="
-    echo "Source directory: $test_log_dir"
-    echo "Target directory: $target_debug_dir"
+    echo "=== Fast GCDA collection with mv and parallel processing ==="
+    echo "Source: $test_log_dir -> Target: $target_debug_dir"
     
-    # 查找所有的覆盖率目录
+    # 查找所有覆盖率目录
     local coverage_dirs=$(find "$test_log_dir" -type d -name "*.coverage" 2>/dev/null)
     
     if [ -z "$coverage_dirs" ]; then
-        echo "No coverage directories found in $test_log_dir"
+        echo "No coverage directories found"
         return 0
     fi
     
-    local total_processed=0
+    local max_jobs=$(nproc 2>/dev/null || echo "4")
+    echo "Using $max_jobs parallel jobs"
     
-    # 处理每个覆盖率目录
-    echo "$coverage_dirs" | while read -r coverage_dir; do
-        if [ -d "$coverage_dir" ]; then
-            echo "Processing coverage directory: $(basename $coverage_dir)"
+    # 并发处理函数
+    process_debug_subdir() {
+        local subdir="$1"
+        local target_debug_dir="$2"
+        local subdir_name=$(basename "$subdir")
+        local count=0
+        
+        echo "Processing $subdir_name..."
+        
+        # 批量查找并处理
+        while IFS= read -r -d '' gcda_file; do
+            local rel_path=$(realpath --relative-to="$subdir" "$gcda_file")
+            local target_path="$target_debug_dir/$rel_path"
+            local target_dir=$(dirname "$target_path")
             
-            # 查找所有子目录（debugSan, debugNoSan）
-            for subdir in "$coverage_dir"/*; do
-                if [ -d "$subdir" ]; then
-                    local subdir_name=$(basename "$subdir")
-                    echo "Processing debug type: $subdir_name"
-                    
-                    # 递归查找并复制 GCDA 文件
-                    find "$subdir" -name "*.gcda" -type f | while read -r gcda_file; do
-                        # 获取相对于子目录的路径
-                        local rel_path=$(realpath --relative-to="$subdir" "$gcda_file")
-                        
-                        # 构建目标路径
-                        local target_path="$target_debug_dir/$rel_path"
-                        local target_dir=$(dirname "$target_path")
-                        
-                        # 创建目标目录
-                        mkdir -p "$target_dir"
-                        
-                        # 生成唯一文件名（包含调试类型和时间戳）
-                        local filename=$(basename "$gcda_file")
-                        local timestamp=$(date +"%Y%m%d_%H%M%S_%3N")
-                        local md5_hash=$(md5sum "$gcda_file" | cut -d' ' -f1 | cut -c1-8)
-                        
-                        # 处理文件名，添加debug类型标识
-                        if [[ "$filename" == *.c.gcda ]]; then
-                            local base_name="${filename%.c.gcda}"
-                            local new_filename="${base_name}_${subdir_name}_${timestamp}_${md5_hash}.c.gcda"
-                        else
-                            local base_name="${filename%.gcda}"
-                            local new_filename="${base_name}_${subdir_name}_${timestamp}_${md5_hash}.gcda"
-                        fi
-                        
-                        local final_target="$target_dir/$new_filename"
-                        
-                        # 复制文件
-                        if cp "$gcda_file" "$final_target"; then
-                            echo "Copied: $gcda_file -> $final_target"
-                            ((total_processed++))
-                        else
-                            echo "Failed to copy: $gcda_file"
-                        fi
-                    done
-                fi
-            done
-        fi
-    done
+            # 只在需要时创建目录
+            [ ! -d "$target_dir" ] && mkdir -p "$target_dir"
+            
+            # 简化文件名生成
+            local filename=$(basename "$gcda_file")
+            local timestamp=$(date +"%H%M%S%N" | cut -c1-12)  # 更短的时间戳
+            local new_filename="${filename%.*}_${subdir_name}_${timestamp}.${filename##*.}"
+            
+            # 使用 mv 快速移动
+            if mv "$gcda_file" "$target_dir/$new_filename" 2>/dev/null; then
+                ((count++))
+            fi
+        done < <(find "$subdir" -name "*.gcda" -type f -print0 2>/dev/null)
+        
+        echo "$subdir_name: processed $count files"
+    }
     
-    echo "=== GCDA file collection completed, processed: $total_processed files ==="
+    # 导出函数供并发使用
+    export -f process_debug_subdir
+    
+    # 收集所有需要处理的子目录
+    local all_subdirs=()
+    echo "$coverage_dirs" | while read -r coverage_dir; do
+        for subdir in "$coverage_dir"/*; do
+            [ -d "$subdir" ] && echo "$subdir"
+        done
+    done | xargs -n 1 -P "$max_jobs" -I {} bash -c "process_debug_subdir '{}' '$target_debug_dir'"
+    
+    echo "=== GCDA collection completed ==="
 }
 
 function lcovFunc {
@@ -256,6 +325,15 @@ function lcovFunc {
 #     # 调试输出配置文件内容
 #     echo "lcov_tdengine.config 内容:"
 #     cat lcov_tdengine.config
+
+    # 在 lcov capture 之前添加
+    echo "=== 调试信息 ==="
+    echo "当前工作目录: $(pwd)"
+    echo "CAPTURE_GCDA_DIR: $CAPTURE_GCDA_DIR"
+    echo "TDENGINE_DIR: $TDENGINE_DIR"
+    echo "配置文件内容:"
+    echo "GCDA 文件位置检查:"
+    find "$CAPTURE_GCDA_DIR" -name "*.gcda" -type f | head -10
 
     # 显示 GCDA 文件统计
     echo "=== GCDA 文件统计 ==="
