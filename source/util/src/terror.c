@@ -1057,11 +1057,16 @@ const char* tstrerror(int32_t err) {
 
   // this is a system errno
   #ifdef WINDOWS
+  int32_t errCode = err & 0x0000ffff;
   if ((err & 0x01ff0000) == 0x01ff0000) {
-    snprintf(WinAPIErrDesc, 256, "windows api error, code: 0x%08x", err & 0x0000ffff);
+    if (errCode == 0x00000021) {
+      snprintf(WinAPIErrDesc, 256, "Resource temporarily unavailable, code: 0x%08x", errCode);
+    } else {
+      snprintf(WinAPIErrDesc, 256, "windows api error, code: 0x%08x", errCode);
+    }
     return WinAPIErrDesc;
-  }  else if ((err & 0x02ff0000) == 0x02ff0000) {
-    snprintf(WinAPIErrDesc, 256, "windows socket error, code: 0x%08x", err & 0x0000ffff);
+  } else if ((err & 0x02ff0000) == 0x02ff0000) {
+    snprintf(WinAPIErrDesc, 256, "windows socket error, code: 0x%08x", errCode);
     return WinAPIErrDesc;
   }
   #endif
