@@ -271,8 +271,8 @@ function collect_coverage_data() {
     
     # 如果收集到文件，显示目录结构（用于调试）
     if [ "$total_gcda_count" -gt 0 ]; then
-        echo "覆盖率数据目录结构:"
-        ls -la "$coverage_dir" 2>/dev/null | head -10
+        # echo "覆盖率数据目录结构:"
+        # ls -la "$coverage_dir" 2>/dev/null | head -10
         echo "覆盖率数据已保存到: $coverage_dir"
     else
         echo "警告: 未收集到任何覆盖率文件"
