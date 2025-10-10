@@ -25,8 +25,6 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
   if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__TABLE) {
     return true;
   }
-  STqExecHandle* pExec = &pHandle->execHandle;
-  STqReader* pReader = pExec->pTqReader;
 
   STqExecHandle* pExec = &pHandle->execHandle;
   STqReader* pReader = pExec->pTqReader;
