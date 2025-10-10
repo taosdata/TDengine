@@ -107,3 +107,38 @@ class Test_Last:
             "cases/22-Functions/resource/in/last_tag.in",
             "cases/22-Functions/resource/ans/last_tag.csv",
             "test_last_tag")
+
+    def test_last_pk(self):
+        """Agg-basic: last with pk
+
+        Test the LAST function with composite key outside.
+        For example: select last(ts), pk from stb group by tbname.
+
+        Catalog:
+            - Function:Aggregate
+
+        Since: v3.4.0.0
+
+        Labels: last/last_row, composite key
+
+        Jira: TD-38004
+
+        History:
+            - Tony zhang, 2025/10/10, created
+
+        """
+        tdSql.execute("create database if not exists test_last_pk cachemodel 'both' keep 3650")
+        tdSql.execute("use test_last_pk")
+        tdSql.execute("create table stb (ts timestamp,a int COMPOSITE key,b int,c int) tags(ta int,tb int,tc int)")
+        tdSql.execute("create table aaat1 using stb tags(1,1,1)")
+        tdSql.execute("create table bbbt2 using stb tags(2,2,2)")
+        tdSql.execute("insert into aaat1 values('2024-06-05 11:00:00',1,2,3)")
+        tdSql.execute("insert into aaat1 values('2024-06-05 12:00:00',2,2,3)")
+        tdSql.execute("insert into bbbt2 values('2024-06-05 13:00:00',3,2,3)")
+        tdSql.execute("insert into bbbt2 values('2024-06-05 14:00:00',4,2,3)")
+
+        tdCom.compare_testcase_result(
+            "cases/22-Functions/resource/in/last_pk.in",
+            "cases/22-Functions/resource/ans/last_pk.csv",
+            "test_last_pk"
+        )
