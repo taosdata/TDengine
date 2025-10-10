@@ -613,3 +613,14 @@ This document details the server error codes that may be encountered when using 
 | 0x80007014 | Stream output table name too long     | Output table name exceeds length limit       | Check if the output table name rules in the stream creation statement are correct and if the result is too long |
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
+
+## C# Connector
+
+| Error Code | Description                      | Possible Error Scenarios or Reasons                                    | Recommended Actions for Users                                                                                  |
+|------------|----------------------------------|------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| 0xf001     | WebSocket Reconnection Failed    | Connected taosAdapter exited causing reconnection failure              | Check taosAdapter status, wait and retry later                                                                 |
+| 0xf002     | WebSocket Message Mismatch       | Duplicate request ID generated                                         | Close current connection, wait and reconnect; avoid passing duplicate request IDs                              |
+| 0xf003     | WebSocket Connection Closed      | Using already closed WebSocket connection                              | Close current connection and retry with new connection                                                         |
+| 0xf004     | WebSocket Write Timeout          | WebSocket write request timeout                                        | Check network issues, increase write timeout parameter, close current connection and retry with new connection |
+| 0xf005     | WebSocket Connection Failed      | Connected taosAdapter exited                                           | Check taosAdapter status, wait and retry later                                                                 |
+| 0xf006     | WebSocket Close Message Received | Network issues caused heartbeat timeout, taosAdapter closed connection | Check network issues, wait and retry later                                                                     |
