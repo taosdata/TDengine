@@ -56,6 +56,37 @@ def get_file_md5(file_path):
         print(f"计算 MD5 失败 {file_path}: {e}")
         return None
 
+def extract_source_path(gcda_path, test_log_dir):
+    """
+    从 GCDA 文件路径中提取真正的源码路径
+    例如: /home/test_logs/cases/xxx/enterprise/src/plugins/grant/CMakeFiles/grant.dir/src/mndGrant.c.gcda
+    提取出: enterprise/src/plugins/grant/CMakeFiles/grant.dir/src/mndGrant.c.gcda
+    """
+    rel_path = os.path.relpath(gcda_path, test_log_dir)
+    
+    # 查找路径中是否包含已知的源码目录标识
+    source_indicators = ['source/', 'src/', 'enterprise/', 'include/', 'tools/']
+    
+    path_parts = rel_path.split('/')
+    source_start_idx = -1
+    
+    # 寻找源码目录的开始位置
+    for i, part in enumerate(path_parts):
+        if any(part.startswith(indicator.rstrip('/')) for indicator in source_indicators):
+            source_start_idx = i
+            break
+    
+    if source_start_idx >= 0:
+        # 从源码目录开始的路径
+        source_path = '/'.join(path_parts[source_start_idx:])
+        return source_path
+    
+    # 如果没找到源码标识，返回去掉 cases/xxx 部分后的路径
+    if len(path_parts) > 2 and path_parts[0] == 'cases':
+        return '/'.join(path_parts[2:])  # 跳过 cases/test_name
+    
+    return rel_path
+
 def process_gcda_files(test_log_dir, target_debug_dir):
     gcda_pattern = os.path.join(test_log_dir, "**", "*.gcda")
     gcda_files = glob.glob(gcda_pattern, recursive=True)
@@ -69,18 +100,19 @@ def process_gcda_files(test_log_dir, target_debug_dir):
             md5_value = get_file_md5(gcda_file)
             if md5_value is None:
                 continue
-                
-            # 获取相对路径结构
-            rel_path = os.path.relpath(gcda_file, test_log_dir)
+             
+            # 提取源码相关的路径
+            source_rel_path = extract_source_path(gcda_file, test_log_dir)
+               
             
-            # 构建目标路径，保持目录结构
-            target_path = os.path.join(target_debug_dir, rel_path)
+            # 构建目标路径（直接放到 debug 目录下对应的源码结构中）
+            target_path = os.path.join(target_debug_dir, source_rel_path)
             target_dir = os.path.dirname(target_path)
             
             # 确保目标目录存在
             os.makedirs(target_dir, exist_ok=True)
             
-            # 生成带 MD5 的文件名
+            # 生成带 MD5 和时间戳的文件名
             filename = os.path.basename(gcda_file)
             name_parts = filename.rsplit('.', 1)
             if len(name_parts) == 2:
@@ -92,20 +124,23 @@ def process_gcda_files(test_log_dir, target_debug_dir):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
             md5_short = md5_value[:8]
             
-            if extension:
-                if '.' in base_name:
-                    name_without_ext, first_ext = base_name.rsplit('.', 1)
-                    new_filename = f"{name_without_ext}_{timestamp}_{md5_short}.{first_ext}.{extension}"
-                else:
-                    new_filename = f"{base_name}_{timestamp}_{md5_short}.{extension}"
+            # 处理可能的双扩展名情况（如 .c.gcda）
+            if extension == 'gcda' and '.' in base_name:
+                name_without_gcda, first_ext = base_name.rsplit('.', 1)
+                new_filename = f"{name_without_gcda}_{timestamp}_{md5_short}.{first_ext}.{extension}"
             else:
-                new_filename = f"{base_name}_{timestamp}_{md5_short}"
+                new_filename = f"{base_name}_{timestamp}_{md5_short}.{extension}" if extension else f"{base_name}_{timestamp}_{md5_short}"
             
             final_target_path = os.path.join(target_dir, new_filename)
             
             # 复制文件
             shutil.copy2(gcda_file, final_target_path)
-            print(f"已处理: {gcda_file} -> {final_target_path} (MD5: {md5_value[:8]})")
+            
+            # 输出处理结果
+            print(f"已处理: {gcda_file}")
+            print(f"  -> {final_target_path}")
+            print(f"  (MD5: {md5_value[:8]})")
+            
             processed_count += 1
             
         except Exception as e:
