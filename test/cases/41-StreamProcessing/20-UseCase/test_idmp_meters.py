@@ -166,7 +166,7 @@ class Test_IDMP_Meters:
             "CREATE STREAM `tdasset`.`ana_stream3`      event_window( start with `电压` > 250 end with `电压` <= 250 )                                TRUE_FOR(5m) FROM `tdasset`.`vt_em-3`                                      NOTIFY('ws://idmp:6042/eventReceive')          ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3`      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-3` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM `tdasset`.`ana_stream3_sub1` event_window( start with `电压` > 250 end with `电压` <= 250 )                                TRUE_FOR(5m) FROM `tdasset`.`vt_em-3`                                      NOTIFY('ws://idmp:6042/eventReceive')          ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3_sub1` AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream3_sub2` event_window( start with `电压` > 250 and `电流` > 50 end with `电压` <= 250 or `电流` <= 50 ) TRUE_FOR(5m) FROM `tdasset`.`vt_em-3`                                      NOTIFY('ws://idmp:6042/eventReceive')          ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3_sub2` AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            #"CREATE STREAM `tdasset`.`ana_stream3_sub3` event_window( start with `电压` > 250 and `电流` > 50 end with `电压` <= 250 or `电流` <= 50 ) TRUE_FOR(5m) FROM `tdasset`.`vt_em-3` STREAM_OPTIONS(PRE_FILTER(`相位`=1))  NOTIFY('ws://idmp:6042/eventReceive')          ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3_sub3` AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream3_sub3` event_window( start with `voltage` > 250 and `current` > 50 end with `voltage` <= 250 or `current` <= 50 ) TRUE_FOR(5m) FROM `asset01`.`em-3` STREAM_OPTIONS(PRE_FILTER(`phase`=1)) INTO `tdasset`.`result_stream3_sub3` AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`current`) AS `最小电流`, MAX(`current`) AS `最大电流`, MIN(`voltage`) AS `最小电压`, MAX(`voltage`) AS `最大电压`, SUM(`power`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream3_sub4` event_window( start with `电压` > 250 and `电流` > 50 end with `电压` <= 250 or `电流` <= 50 ) TRUE_FOR(5m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname             NOTIFY('ws://idmp:6042/eventReceive')          ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3_sub4` AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream3_sub5` event_window( start with `电压` > 250 end with `电压` <= 250 )                                TRUE_FOR(5m) FROM `tdasset`.`vt_em-3`                                                                                                                   INTO `tdasset`.`result_stream3_sub5` AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream3_sub6` event_window( start with `电压` > 250 end with `电压` <= 250 )                                TRUE_FOR(5m) FROM `tdasset`.`vt_em-3`                                      NOTIFY('ws://idmp:6042/recv/?key=stream3_sub6') ON(WINDOW_OPEN|WINDOW_CLOSE)",
@@ -349,7 +349,6 @@ class Test_IDMP_Meters:
         # stream7
         self.verify_stream7_again()
         # stream10
-        # ***** bug10 *****
         self.verify_stream10_again()
 
     #
@@ -772,7 +771,7 @@ class Test_IDMP_Meters:
         fixedVals = "600, 600, 600"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, fixedVals)
 
-        # update
+        # update 500 -> 501
         count = 2
         fixedVals = "501, 501, 501"
         tdSql.insertFixedVal(table, self.updateTs7, step, count, cols, fixedVals)
@@ -786,11 +785,12 @@ class Test_IDMP_Meters:
         step = 1 * 60 * 1000  # 1 minute
         cols = "ts,current,voltage,power"
 
+        # update 501->502
         count = 2
         fixedVals = "502, 502, 502"
         tdSql.insertFixedVal(table, self.updateTs7, step, count, cols, fixedVals)
 
-        # del
+        # del 400
         count = 2
         sql = f"delete from {table} where ts >= {self.delTs7} and ts < {self.delTs7 + count * step};"
         print(sql)
@@ -976,8 +976,8 @@ class Test_IDMP_Meters:
         # other sub
         self.verify_stream3_sub1()
         self.verify_stream3_sub2()
-        # ***** bug *****
-        # self.verify_stream3_sub3()
+        # ***** bug12 *****
+        self.verify_stream3_sub3()
         self.verify_stream3_sub4()
         self.verify_stream3_sub5()
 
