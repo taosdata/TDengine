@@ -125,7 +125,6 @@ typedef struct SInsertTableInfo {
   int64_t                  uid;
   int64_t                  vgid;
   int32_t                  version;
-  STSchema*                pSchema;
   char*                    tbname;
 } SInsertTableInfo;
 

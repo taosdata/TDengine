@@ -136,10 +136,6 @@ static void freeCacheTbInfo(void* pp) {
     taosMemFree(pTbInfo->tbname);
     pTbInfo->tbname = NULL;
   }
-  if (pTbInfo->pSchema) {
-    tDestroyTSchema(pTbInfo->pSchema);
-    pTbInfo->pSchema = NULL;
-  }
   taosMemoryFree(pTbInfo);
 }
 
@@ -199,8 +195,8 @@ static int32_t checkResAndResetTableInfo(const SSubmitRes* pSubmitRes, SInsertTa
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createNewInsertTbInfo(const SSubmitRes* pSubmitRes, SInsertTableInfo* pOldInsertTbInfo,
-                                     SInsertTableInfo** ppNewInsertTbInfo) {
+static int32_t createNewInsertTbInfo(SStreamDataInserterInfo* pInserterInfo, const SSubmitRes* pSubmitRes,
+                                     SInsertTableInfo* pOldInsertTbInfo, SInsertTableInfo** ppNewInsertTbInfo) {
   SVCreateTbRsp* pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
   if (pCreateTbRsp->code != 0 && pCreateTbRsp->code != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
     stError("create table failed, code:%d", pCreateTbRsp->code);
@@ -224,8 +220,9 @@ static int32_t createNewInsertTbInfo(const SSubmitRes* pSubmitRes, SInsertTableI
   res->vgid = pCreateTbRsp->pMeta->vgId;
 
   res->version = pCreateTbRsp->pMeta->sversion;
-  res->pSchema = tBuildTSchema(pCreateTbRsp->pMeta->pSchemas, pCreateTbRsp->pMeta->numOfColumns, res->version);
-  if (res->pSchema == NULL) {
+  *pInserterInfo->ppSchema =
+      tBuildTSchema(pCreateTbRsp->pMeta->pSchemas, pCreateTbRsp->pMeta->numOfColumns, res->version);
+  if (*pInserterInfo->ppSchema == NULL) {
     stError("failed to build schema for table:%s, uid:%" PRId64 ", vgid:%" PRId64 ", version:%d", res->tbname, res->uid,
             res->vgid, res->version);
     return terrno;
@@ -249,7 +246,7 @@ static int32_t updateInsertGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, 
 
   if (schemaChanged) {
     SInsertTableInfo* pNewInfo = NULL;
-    code = createNewInsertTbInfo(pSubmitRes, *ppTbRes, &pNewInfo);
+    code = createNewInsertTbInfo(pInserterInfo, pSubmitRes, *ppTbRes, &pNewInfo);
     QUERY_CHECK_CODE(code, lino, _exit);
 
     TAOS_UNUSED(taosHashRemove(gStreamGrpTableHash, key, sizeof(key)));
@@ -306,8 +303,10 @@ static int32_t initTableInfo(SDataInserterHandle* pInserter, SStreamDataInserter
     return terrno;
   }
 
-  code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, &res->pSchema);
-  QUERY_CHECK_CODE(code, lino, _return);
+  if (*pInserterInfo->ppSchema == NULL) {
+    code = buildTSchmaFromInserter(pInserter->pParam->streamInserterParam, pInserterInfo->ppSchema);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
 
   int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
   code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableInfo*));
@@ -2094,9 +2093,9 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
       tbData->suid = pInsertParam->suid;
     }
 
-    pTSchema = pTbInfo->pSchema;
+    pTSchema = *pInserterInfo->ppSchema;
   } else {
-    pTSchema = pTbInfo->pSchema;
+    pTSchema = *pInserterInfo->ppSchema;
   }
 
   code = getTableVgInfo(pInserter, pInsertParam->dbFName, pTbInfo->tbname, vgInfo);

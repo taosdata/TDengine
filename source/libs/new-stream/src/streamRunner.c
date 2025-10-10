@@ -69,6 +69,7 @@ static void stRunnerDestroyTaskExecution(void* pExec) {
   dsDestroyDataSinker(pExecution->pSinkHandle);
   stRunnerDestroyRuntimeInfo(&pExecution->runtimeInfo);
   blockDataDestroy(pExecution->pOutBlock);
+  tDestroyTSchema(pExecution->pSchema);
 }
 
 static int32_t stRunnerTaskAcquireExec(SStreamRunnerTask* pTask, int32_t execId, bool markRunning, SStreamRunnerTaskExecution** ppExec) {
@@ -418,7 +419,8 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
                                      .streamId = pTask->task.streamId,
                                      .groupId = pExec->runtimeInfo.funcInfo.groupId,
                                      .isAutoCreateTable = *createTb,
-                                     .pTagVals = pTagVals};
+                                     .pTagVals = pTagVals,
+                                     .ppSchema = (STSchema**)&pExec->pSchema};
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
@@ -772,13 +774,14 @@ _exit:
 static int32_t stRunnerEnsureSinkHandle(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                         SReadHandle* readers, int32_t vgId, int32_t taskId) {
   int32_t code = 0;
-  if (atomic_load_32(&pExec->sinkHandleInited) == 2) {
+  if (atomic_load_32(&pExec->sinkHandleInited) == SINK_HANDLE_INITIALIZED) {
     code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, readers, NULL, vgId, taskId);
     return code;
   }
 
-  int32_t expected = 0;
-  if (atomic_val_compare_exchange_32(&pExec->sinkHandleInited, expected, 1) == 0) {
+  int32_t expected = SINK_HANDLE_UNINITIALIZED;
+  if (atomic_val_compare_exchange_32(&pExec->sinkHandleInited, expected, SINK_HANDLE_INITIALIZING) ==
+      SINK_HANDLE_UNINITIALIZED) {
     ST_TASK_DLOG("initializing shared sink handle, pTask:%p", pTask);
 
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
@@ -793,20 +796,20 @@ static int32_t stRunnerEnsureSinkHandle(SStreamRunnerTask* pTask, SStreamRunnerT
     code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, readers, &params, vgId, taskId);
 
     if (code == 0) {
-      atomic_store_32(&pExec->sinkHandleInited, 2);
+      atomic_store_32(&pExec->sinkHandleInited, SINK_HANDLE_INITIALIZED);
       pExec->pSinkHandle = params.pSinkHandle;
       ST_TASK_DLOG("shared sink handle initialized successfully, pTask:%p", pTask);
     } else {
-      atomic_store_32(&pExec->sinkHandleInited, 0);
+      atomic_store_32(&pExec->sinkHandleInited, SINK_HANDLE_UNINITIALIZED);
       ST_TASK_ELOG("failed to create shared sink handle, code:%s", tstrerror(code));
     }
     return code;
   } else {
-    while (atomic_load_32(&pExec->sinkHandleInited) == 1) {
+    while (atomic_load_32(&pExec->sinkHandleInited) == SINK_HANDLE_INITIALIZING) {
       taosMsleep(1);
     }
 
-    if (atomic_load_32(&pExec->sinkHandleInited) == 2) {
+    if (atomic_load_32(&pExec->sinkHandleInited) == SINK_HANDLE_INITIALIZED) {
       code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, readers, NULL, vgId, taskId);
       return code;
     } else {
