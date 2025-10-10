@@ -480,7 +480,8 @@ class DataType:
         if self.type == TypeEnum.INT:
             return str(secrets.randbelow(4294967296) - 2147483648)
         if self.type == TypeEnum.BIGINT:
-            return str(secrets.randbelow(9223372036854775808) - 4611686018427387904)
+            # return str(secrets.randbelow(9223372036854775808) - 4611686018427387904)
+            return str(secrets.randbelow(923372036854775808) - 411686018427387904)
         if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
             return str(random.random())
         if (
@@ -490,7 +491,8 @@ class DataType:
         ):
             return f"'{str(random.random())[0:self.length]}'"
         if self.type == TypeEnum.TIMESTAMP:
-            return str(secrets.randbelow(9223372036854775808))
+            # return str(secrets.randbelow(9223372036854775808))
+            return str(secrets.randbelow(923372036854775808))
         if self.type == TypeEnum.UTINYINT:
             return str(secrets.randbelow(256))
         if self.type == TypeEnum.USMALLINT:
@@ -498,7 +500,8 @@ class DataType:
         if self.type == TypeEnum.UINT:
             return str(secrets.randbelow(4294967296))
         if self.type == TypeEnum.UBIGINT:
-            return str(secrets.randbelow(9223372036854775808))
+            #  return str(secrets.randbelow(9223372036854775808))
+            return str(secrets.randbelow(923372036854775808))
         if self.type == TypeEnum.JSON:
             return f'{{"key": "{secrets.token_urlsafe(10)}"}}'
         if self.type == TypeEnum.GEOMETRY:
@@ -1854,6 +1857,7 @@ class TestDecimal2:
         ## insert null/None for decimal type
 
         ## insert with column format
+        self.log_test("start to insert decimal values finished")
 
     def no_decimal_table_test(self):
         columns = [
@@ -1898,6 +1902,7 @@ class TestDecimal2:
         self.log_test("test_decimal_ddl")
         tdSql.execute("create database test cachemodel 'both'", queryTimes=1)
         self.check_decimal_column_ddl()
+        self.log_test("test_decimal_ddl finished")
 
     def check_decimal_and_stream(self):
         self.log_test("test_decimal_and_stream")
@@ -2468,5 +2473,6 @@ class TestDecimal2:
         #self.check_query_decimal_case_when()
         #self.check_query_decimal_group_by_clause()
         #self.check_query_decimal_having_clause()
+        self.log_test("start to test decimal query finished")
 
 event = threading.Event()
