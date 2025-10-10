@@ -28,16 +28,16 @@ function lcovFunc {
     echo "collect data by lcov"
     cd $TDENGINE_DIR || exit
 
-    # 创建 lcov 配置文件
-    cat > lcov_tdengine.config << EOF
-# lcov 配置文件 - 只包含指定的源文件
-genhtml_branch_coverage = 1
-lcov_branch_coverage = 1
-EOF
+#     # 创建 lcov 配置文件
+#     cat > lcov_tdengine.config << EOF
+# # lcov 配置文件 - 只包含指定的源文件
+# genhtml_branch_coverage = 1
+# lcov_branch_coverage = 1
+# EOF
 
-    # 调试输出配置文件内容
-    echo "lcov_tdengine.config 内容:"
-    cat lcov_tdengine.config
+#     # 调试输出配置文件内容
+#     echo "lcov_tdengine.config 内容:"
+#     cat lcov_tdengine.config
 
     # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。
     lcov --quiet -d ../debug/ -capture \
@@ -48,7 +48,6 @@ EOF
         -b $TDENGINE_DIR/ \
         -o coverage_tdengine_raw.info 
     
-
     # # remove exclude paths (确保只保留 community 相关的文件)
     # lcov --quiet --remove coverage_tdengine.info \
     #     '*/enterprise/*' '*/contrib/*' '*/test/*' '*/packaging/*' '*/docs/*' '*/debug/*' '*/sql.c' '*/sql.y' \
@@ -70,12 +69,11 @@ EOF
     #     '*/taos-tools/deps/toolscJson/src/*' '*/taos-tools/deps/jansson/src/*' \
     #      --rc lcov_branch_coverage=1  -o coverage_tdengine.info 
 
-    # 第二步：使用 coverage.txt 文件来过滤需要的文件
+    # 使用 coverage.txt 文件来过滤需要的文件
     if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
         echo "使用 coverage.txt 文件过滤覆盖率数据..."
         
-        # 方法1: 使用 --extract 参数（推荐）
-        # 从 coverage.txt 读取文件列表，为每个文件添加路径前缀
+        # 使用 --extract 参数，从 coverage.txt 读取文件列表，为每个文件添加路径前缀
         while IFS= read -r file_pattern; do
             # 跳过空行和注释行
             [[ -z "$file_pattern" || "$file_pattern" =~ ^[[:space:]]*# ]] && continue
@@ -97,7 +95,6 @@ EOF
     # # 清理临时文件
     # rm -f coverage_tdengine_raw.info
 
-
     # generate result
     echo "generate result"
     lcov --quiet -l --rc lcov_branch_coverage=1 coverage_tdengine.info 
@@ -107,9 +104,6 @@ EOF
     
     # 修正路径以确保与 TDengine 仓库根目录匹配    
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info
-
-    # echo "lcov --list 修正后输出:"
-    # lcov --list $TDENGINE_DIR/coverage_tdengine.info --rc lcov_branch_coverage=1
 
     ## 添加详细的调试信息
     echo "=== 文件检查 ==="
@@ -129,8 +123,6 @@ EOF
     ## 列出当前目录所有文件
     echo "当前目录文件列表:"
     ls -la | grep -E "\.info$" || echo "未找到相关文件"
-    
-    echo "================="
 
     # 确保 coverage_tdengine.info 文件不为空
     if [ ! -s $TDENGINE_DIR/coverage_tdengine.info ]; then
@@ -154,8 +146,6 @@ EOF
         -F "TDengine" \
         --no-gcov-out \
         --required 
-        # --gcov-args="-q" --no-gcov-out
-        # \--verbose
 
     # 检查上传结果
     if [ $? -ne 0 ]; then
@@ -163,23 +153,6 @@ EOF
     else
         echo "覆盖率数据已成功上传到 Codecov。"
     fi  
-
-    # # 验证 uploader
-    # echo "使用新版 Codecov uploader 上传..."
-    # timeout 60 codecov upload \
-    #     --token b0e18192-e4e0-45f3-8942-acab64178afe \
-    #     --file $TDENGINE_DIR/coverage_tdengine.info \
-    #     --name "TDengine Coverage Report" \
-    #     --flag TDengine \
-    #     --branch "$BRANCH" \
-    #     --verbose
-        
-    # # 检查上传结果
-    # if [ $? -ne 0 ]; then
-    #     echo "Error: 上传到 Codecov uploader 失败，请检查日志输出。"
-    # else
-    #     echo "覆盖率数据已成功上传到 Codecov。"
-    # fi  
 
 }
 
@@ -192,7 +165,6 @@ EOF
 TDINTERNAL_DIR="/home/TDinternal" 
 TDENGINE_DIR="/home/TDinternal/community"
 CAPTURE_GCDA_DIR="/home/TDinternal/debug"
-BRANCH="cover/3.0"
 
 # Parse command line parameters
 while getopts "hd:b:f:" arg; do
