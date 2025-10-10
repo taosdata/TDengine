@@ -9,12 +9,13 @@ from flask import Flask, request
 from taosanalytics.algo.imputation import do_imputation, do_set_params
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
+from taosanalytics.algo.correlation import do_dtw, do_tlcc
 
 from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
-from taosanalytics.util import app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise, \
-    parse_options, get_past_dynamic_data, get_dynamic_data
+from taosanalytics.util import (app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise,
+    parse_options, get_past_dynamic_data, get_dynamic_data)
 
 app = Flask(__name__)
 
@@ -215,6 +216,48 @@ def handle_imputation_req():
         app_logger.log_inst.debug("imputation result: %s", res)
 
         return res
+    except Exception as e:
+        app_logger.log_inst.error('impu failed, %s', str(e))
+        return {"msg": str(e), "rows": -1}
+
+
+@app.route("/correlation", methods=['POST'])
+def handle_correlation_req():
+    """handle the imputation request """
+    app_logger.log_inst.info('recv correlation from %s', request.remote_addr)
+    try:
+        # check for rows limitation to reduce the dtw process time
+        req_json, payload, options, data_index, ts_index = do_check_before_exec(request)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    params = parse_options(options)
+
+    # try:
+    #     # do_set_params(params, req_json)
+    # except ValueError as e:
+    #     app_logger.log_inst.error("invalid correlation params: %s", e)
+    #     return {"msg": f"{e}", "rows": -1}
+
+    algo = req_json['algo'].lower()
+
+    try:
+        if algo == 'dtw':
+            val, path = do_dtw(payload[data_index], payload[ts_index], params)
+
+            res = {"option": options, "rows": len(val["ts"]), "val": val, "path": path}
+            app_logger.log_inst.debug("dtw result: %s", res)
+
+            return res
+        elif algo == 'tlcc':
+            lags, ccf_vals = do_tlcc(payload[data_index], payload[ts_index], params)
+
+            res = {"option": options, "rows": len(lags), "lags": lags, "ccf_vals": ccf_vals}
+            app_logger.log_inst.debug("dtw result: %s", res)
+
+            return res
+        else:
+            raise BaseException(f"unsupported algo: {algo}")
     except Exception as e:
         app_logger.log_inst.error('impu failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
