@@ -235,8 +235,8 @@ class Test_IDMP_Vehicle:
         self.verify_stream5()
         self.verify_stream6()
         self.verify_stream7()
-        #self.verify_stream8()
-        #self.verify_stream9()
+        self.verify_stream8()
+        self.verify_stream9()
         self.verify_stream10()
 
 
@@ -1177,7 +1177,6 @@ class Test_IDMP_Vehicle:
         )
 
         # sub1
-        # ***** bug11 *****
         self.verify_stream8_sub1()
         tdLog.info(f"verify stream8 ................................. successfully.")
 
@@ -1203,7 +1202,7 @@ class Test_IDMP_Vehicle:
     #
     def verify_stream9(self):
         # ***** bug12 *****
-        return 
+        #return 
 
         # check data
         result_sql = f"select * from idmp.`result_stream9` "
