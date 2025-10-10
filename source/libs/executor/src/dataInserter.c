@@ -2066,6 +2066,10 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   if (tbDataInfo->isFirstBlock) {
     if (pInserterInfo->isAutoCreateTable) {
       code = initTableInfo(pInserter, pInserterInfo);
+      stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d uid:%" PRId64
+              " suid:%" PRId64 " sver:%d 1blockRows:%d",
+              pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
+              pInserterInfo->isAutoCreateTable, tbData->uid, tbData->suid, tbData->sver, rows);
       QUERY_CHECK_CODE(code, lino, _end);
       if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
         code = buildNormalTableCreateReq(pInserter, pInsertParam, tbData);
@@ -2078,9 +2082,13 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
+  stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d uid:%" PRId64
+          " suid:%" PRId64 " sver:%d 2blockRows:%d",
+          pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
+          pInserterInfo->isAutoCreateTable, tbData->uid, tbData->suid, tbData->sver, rows);
 
   code = getStreamInsertTableInfo(pInserterInfo->streamId, pInserterInfo->groupId, &ppTbInfo);
-  pTbInfo =  *ppTbInfo;
+  pTbInfo = *ppTbInfo;
   if (tbDataInfo->isFirstBlock) {
     if (!pInserterInfo->isAutoCreateTable) {
       tstrncpy(pInserterInfo->tbName, pTbInfo->tbname, TSDB_TABLE_NAME_LEN);
@@ -2097,6 +2105,10 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   } else {
     pTSchema = *pInserterInfo->ppSchema;
   }
+  stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d uid:%" PRId64
+          " suid:%" PRId64 " sver:%d 3rows:%d",
+          pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
+          pInserterInfo->isAutoCreateTable, tbData->uid, tbData->suid, tbData->sver, rows);
 
   code = getTableVgInfo(pInserter, pInsertParam->dbFName, pTbInfo->tbname, vgInfo);
   QUERY_CHECK_CODE(code, lino, _end);
