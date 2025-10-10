@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "decimal.h"
 #include "meta.h"
 #include "tsdb.h"
 #include "tsdbInt.h"
@@ -103,6 +104,8 @@ static int32_t tdRollupFetchData(SRollupCtx *pCtx, SBlockData *pBlockDataFrom) {
           if (IS_VAR_DATA_TYPE(colInfo->info.type)) {
             STR_WITH_SIZE_TO_VARSTR(pCtx->pBuf, cv.value.pData, cv.value.nData);
             TAOS_CHECK_EXIT(colDataSetVal(colInfo, r, (const char *)pCtx->pBuf, false));
+          } else if (colInfo->info.type == TSDB_DATA_TYPE_DECIMAL) {
+            TAOS_CHECK_EXIT(colDataSetVal(colInfo, r, (const char *)cv.value.pData, false));
           } else {
             TAOS_CHECK_EXIT(colDataSetVal(colInfo, r, (const char *)&cv.value.val, false));
           }
@@ -126,8 +129,9 @@ _exit:
   return code;
 }
 
-static int32_t tdRollupGenerateAggRow(SRollupCtx *pCtx, STSchema *pTSchema, SRowInfo *aggRow) {
+static int32_t tdRollupGenerateAggRow(SRollupCtx *pCtx, SRSchema *pRSchema, SRowInfo *aggRow) {
   int32_t      code = 0, lino = 0;
+  STSchema    *pTSchema = pRSchema->tSchema;
   SSDataBlock *pResBlock = pCtx->pResBlock;
   SArray      *colValArray = pCtx->pColValArr;
   int32_t      nCols = taosArrayGetSize(pResBlock->pDataBlock);
@@ -138,7 +142,7 @@ static int32_t tdRollupGenerateAggRow(SRollupCtx *pCtx, STSchema *pTSchema, SRow
     TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
   } else {
     tsdbTrace("vgId:%d %s res block has 1 row with %d cols, suid:%" PRId64 ", uid:%" PRId64,
-             TD_VID(((STsdb *)pCtx->pTsdb)->pVnode), __func__, nCols, aggRow->suid, aggRow->uid);
+              TD_VID(((STsdb *)pCtx->pTsdb)->pVnode), __func__, nCols, aggRow->suid, aggRow->uid);
   }
 
   if (pTSchema->numOfCols != nCols + 1) {  // skip the primary timestamp column
@@ -182,7 +186,12 @@ static int32_t tdRollupGenerateAggRow(SRollupCtx *pCtx, STSchema *pTSchema, SRow
         val.nData = varDataLen(p);
       } else {
         if (val.type == pColData->info.type) {
-          memcpy(&val.val, p, pColData->info.bytes);
+          if (val.type != TSDB_DATA_TYPE_DECIMAL) {
+            memcpy(&val.val, p, pColData->info.bytes);
+          } else {
+            val.pData = p;
+            val.nData = pColData->info.bytes;
+          }
         } else {
           /**
            *  1. sum/avg would convert to int64_t/uint64_t/double during aggregation
@@ -205,6 +214,9 @@ static int32_t tdRollupGenerateAggRow(SRollupCtx *pCtx, STSchema *pTSchema, SRow
             float v = 0;
             GET_TYPED_DATA(v, float, pColInfo->type, p, typeGetTypeModFromColInfo(pColInfo));
             SET_TYPED_DATA(&tv, val.type, v);
+          } else if (pColInfo->type == TSDB_DATA_TYPE_DECIMAL) {
+            TEST_decimal64FromDecimal128((const Decimal128 *)p, pColInfo->precision, pColInfo->scale, (Decimal64 *)tv,
+                                         pColInfo->precision, pColInfo->scale);
           } else {
             TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
           }
@@ -240,7 +252,7 @@ static int32_t tdRollupCalcStashRows(SRollupCtx *pCtx, SCompactor2 *compactor, S
   }
   if (pCtx->winTotalRows > 0) {
     TAOS_CHECK_EXIT(tdRollupFinalize(pCtx));
-    TAOS_CHECK_EXIT(tdRollupGenerateAggRow(pCtx, pRSchema->tSchema, aggRow));
+    TAOS_CHECK_EXIT(tdRollupGenerateAggRow(pCtx, pRSchema, aggRow));
     TAOS_CHECK_EXIT(tsdbFSetWriteRow(compactor->ctx->writer, aggRow));
     ++(*nWrittenAggRows);
     TAOS_CHECK_EXIT(tdRollupCtxReset(pCtx));
@@ -324,13 +336,6 @@ int32_t tsdbCompactFSetRollup(SCompactor2 *compactor) {
       }
     } else if (!pRSchema) {
       TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);  // should not happen
-      if (!(pRSchema = metaGetTbTSchemaR(pVnode->pMeta, compactor->ctx->tbid->suid, -1, 1))) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      rollup = tsdbRollupCheck(pRSchema, compactor->ctx[0].expLevel, durationInPrecision);
-      if (rollup) {
-        interval = pRSchema->interval[compactor->ctx[0].expLevel - 1];
-      }
     }
 
     if (row->uid != compactor->ctx->tbid->uid) {
@@ -363,7 +368,7 @@ int32_t tsdbCompactFSetRollup(SCompactor2 *compactor) {
       if (rollup) {
         STsdbRowKey curRowKey;
         tsdbRowGetKey((TSDBROW *)&row->row, &curRowKey);
-        curRowKey.key.numOfPKs = 0;  // ignore numOfPKs when do aggregation
+        // curRowKey.key.numOfPKs = 0;  // ignore numOfPKs when do aggregation
         if (rowTS > winEndTs) {
           TAOS_CHECK_EXIT(tdRollupCalcStashRows(&ctx, compactor, &stashBlock, pRSchema, &nWrittenAggRows, &aggRow));
           TAOS_CHECK_EXIT(tdRollupStashRow(&ctx, &stashBlock, row, false));
@@ -413,8 +418,8 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
-    tsdbInfo("vgId:%d fid:%d rollup %" PRId64 " rows, skip %" PRId64 " rows, write %" PRId64
-             " raw rows/%" PRId64 " agg rows",
+    tsdbInfo("vgId:%d fid:%d rollup %" PRId64 " rows, skip %" PRId64 " rows, write %" PRId64 " raw rows/%" PRId64
+             " agg rows",
              TD_VID(pVnode), compactor->fset->fid, nTotalRawRows, nSkippedRawRows, nWrittenRawRows, nWrittenAggRows);
   }
   return code;

@@ -124,6 +124,7 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
         sdbRelease(pSdb, pVgroup);
         TAOS_RETURN(TSDB_CODE_MND_VGROUP_NOT_EXIST);
       }
+      sdbRelease(pSdb, pVgroup);
     }
 
     for (int32_t i = 0; i < numOfVgroups; i++) {
