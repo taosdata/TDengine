@@ -63,7 +63,7 @@ if [ ! -d "$WORKDIR" ]; then
 fi
 
 TDINTERNAL_DIR=$WORKDIR/TDinternal
-DEBUG_DIR=$WORKDIR/debugNoSan/
+DEBUG_DIR=$WORKDIR/debugSan/
 
 CONTAINER_TDINTERNAL_DIR="/home/TDinternal"
 CONTAINER_DEBUG_DIR="$CONTAINER_TDINTERNAL_DIR/debug"
@@ -96,7 +96,6 @@ fi
     #     sh -c "bash $CONTAINER_TESTDIR/test/ci/run_coverage_diff.sh -b $branch_name_id -l $CONTAINER_LOG_DIR"
 
 docker run \
-    -d \
     --privileged=true \
     --name "$CONTAINER_NAME" \
     -v "$TDINTERNAL_DIR:$CONTAINER_TDINTERNAL_DIR" \
