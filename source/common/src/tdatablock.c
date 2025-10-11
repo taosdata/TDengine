@@ -1606,6 +1606,9 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
 }
 
 void blockDataEmpty(SSDataBlock* pDataBlock) {
+  if (pDataBlock == NULL) {
+    return;
+  }
   SDataBlockInfo* pInfo = &pDataBlock->info;
   if (pInfo->capacity == 0) {
     return;

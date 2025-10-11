@@ -35,6 +35,7 @@
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "executor.h"
 
 #define BUILD_OPTION(options, sStreamReaderInfo, _ver, _order, startTime, endTime, _schemas, _isSchema, _scanMode, \
                      _gid, _initReader, _mapInfo)                                                                        \
@@ -3088,9 +3089,9 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   ST_TASK_DLOG("vgId:%d %s start, execId:%d, reset:%d, pTaskInfo:%p, scan type:%d", TD_VID(pVnode), __func__, req.execId, req.reset,
                sStreamReaderCalcInfo->pTaskInfo, nodeType(sStreamReaderCalcInfo->calcAst->pNode));
 
-  if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
-  // if (req.reset) {
-    qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
+  // if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
+  if (req.reset) {
+    // qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
     int64_t uid = 0;
     if (req.dynTbname) {
       SArray* vals = req.pStRtFuncInfo->pStreamPartColVals;
@@ -3121,13 +3122,13 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
     handle.streamRtInfo = &sStreamReaderCalcInfo->rtInfo;
 
-    // if (sStreamReaderCalcInfo->pTaskInfo == NULL) {
-    STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
+    if (sStreamReaderCalcInfo->pTaskInfo == NULL) {
+      STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
                                                     sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, TD_VID(pVnode),
                                                     req.taskId));
-    // } else {
-    // STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, handle.winRange));
-    // }
+    } else {
+      STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, handle.winRange));
+    }
 
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
   }
