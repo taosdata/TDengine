@@ -267,14 +267,18 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
-  dTrace("send status req to mnode, begin to send rpc msg, statusSeq:%d", pMgmt->statusSeq);
+  if (dDebugFlag & DEBUG_TRACE) {
+    char tbuf[512];
+    dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
+    dTrace("send status req to mnode, begin to send rpc msg, statusSeq:%d to %s", pMgmt->statusSeq, tbuf);
+  }
   code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
   if (code != 0) {
     dError("failed to SendRecv status req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
     return;
   }
 
-  if (rpcRsp.code != 0) {
+  if (rpcRsp.code != 0 || code == TSDB_CODE_TIMEOUT_ERROR) {
     dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[512];
     dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
@@ -386,7 +390,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
+  dDebug("send config req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
   code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
   if (code != 0) {
     dError("failed to SendRecv config req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
