@@ -2222,7 +2222,7 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
-      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc || pSelect->hasInterpFunc ||
       !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange) ||
       conditionHasPlaceHolder(pSelect->pWhere)) {
     pCxt->pPlanCxt->withExtWindow = false;

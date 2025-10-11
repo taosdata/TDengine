@@ -1258,6 +1258,23 @@ class TestStreamSubqueryCount:
         )
         # self.streams.append(stream) bug
 
+        stream = StreamItem(
+            id=137,
+            stream="create stream rdb.s137 count_window(1, 10000) from tdb.v1 into rdb.r137 as select _irowts, interp(cbigint), _isfilled from qdb.v1 RANGE(_twstart, _twend + 30s) EVERY (3s) FILL(near);",
+            res_query="select * from rdb.r137",
+            exp_query="select _irowts, interp(cbigint), _isfilled from qdb.v1 RANGE('2025-01-01 00:00:00.000', '2025-01-01 00:00:30.000') EVERY (3s) FILL(near);",
+        )
+        self.streams.append(stream)
+
+        stream = StreamItem(
+            id=138,
+            stream="create stream rdb.s138 count_window(1, 10000) from tdb.v1 into rdb.r138 as select _irowts, interp(cbigint), _isfilled from qdb.v1 where _c0 >= _twstart and _c0 <= _twend RANGE(_twstart, _twend + 30s) EVERY (3s) FILL(near);",
+            res_query="select * from rdb.r138",
+            exp_query="select _irowts, interp(cbigint), _isfilled from qdb.v1 where _c0 <= '2025-01-01 00:00:00.000' RANGE('2025-01-01 00:00:00.000', '2025-01-01 00:00:30.000') EVERY (3s) FILL(near);",
+        )
+        self.streams.append(stream)
+
+
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
