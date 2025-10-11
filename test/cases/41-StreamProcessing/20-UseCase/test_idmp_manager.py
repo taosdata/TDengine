@@ -194,7 +194,7 @@ class Test_IDMP_Meters:
 
 
               # stream6
-              "CREATE STREAM test.stream6      EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_6  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream6')        ON(WINDOW_OPEN|WINDOW_CLOSE)        INTO test.result_stream6      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
+              "CREATE STREAM test.stream6      EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_6  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream6')  ON(WINDOW_OPEN|WINDOW_CLOSE)  NOTIFY_OPTIONS(NOTIFY_HISTORY)   INTO test.result_stream6      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
 
               # stream7 recalculate
               "CREATE STREAM test.stream7      INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)   INTO test.result_stream7      AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows",
@@ -278,10 +278,9 @@ class Test_IDMP_Meters:
         self.verify_stream1()
         self.verify_stream3()
         self.verify_stream4()
-        # ***** bug5 *****
-        #self.verify_stream5()
+        self.verify_stream5()
         # ***** bug6 *****
-        #self.verify_stream6()
+        self.verify_stream6()
         self.verify_stream7()
         self.verify_stream8()
 
@@ -364,6 +363,13 @@ class Test_IDMP_Meters:
                 tdLog.exit(f"check taosd log failed, key={key} expect:{expect} < actual:{cnt}.")
             else:
                 print(f"check taosd log success, key:{key} expect:{expect} rule:{rule} actual:{cnt}.")
+    
+    #
+    # find notify key
+    #
+    def findNotifyKey(self, key):
+        self.checkTaosdLog(f"failed to get stream notify handle of ws://idmp:6042/recv/?key={key}", expect=1, rule=1)
+                
 
     #
     # ---------------------   find other   ----------------------
@@ -581,7 +587,7 @@ class Test_IDMP_Meters:
     #  trigger stream5
     #
     def trigger_stream5(self):
-        ts    = self.start1
+        ts    = self.start2
         table = "test.t5"
         step  = 1000 # 1s
         cols  = "ts,fc,ic,bi,si,bin"
@@ -931,7 +937,7 @@ class Test_IDMP_Meters:
         tdSql.checkDataMem(result_sql, data)
 
         # check taosd log
-        self.checkTaosdLog("?key=man_stream5_sub1", expect = 1)
+        self.findNotifyKey("man_stream5_sub1")
         print("verify stream5 sub1 ............................ successfully.")
 
     #
@@ -950,6 +956,9 @@ class Test_IDMP_Meters:
             func = lambda: tdSql.getRows() == len(data)
         )
         tdSql.checkDataMem(result_sql, data)   
+
+        # check taosd log
+        self.findNotifyKey("man_stream6")
         print("verify stream6 ................................. successfully.")
 
 
