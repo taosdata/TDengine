@@ -2190,8 +2190,7 @@ static bool filterHasPlaceHolderRange(SOperatorNode *pStart, SOperatorNode *pEnd
   nodesWalkExpr(pStartRight, conditionOnlyPhAndConstImpl, &startCxt);
   nodesWalkExpr(pEndRight, conditionOnlyPhAndConstImpl, &endCxt);
   if (startCxt.hasNotBasicOp || startCxt.hasNegativeConst || startCxt.hasOtherFunc || startCxt.placeholderAtRight ||
-    endCxt.hasNotBasicOp || endCxt.hasNegativeConst || endCxt.hasOtherFunc || endCxt.placeholderAtRight ||
-    !placeHolderCanMakeExternalWindow(startCxt.placeholderType, endCxt.placeholderType)) {
+    endCxt.hasNotBasicOp || endCxt.hasNegativeConst || endCxt.hasOtherFunc || endCxt.placeholderAtRight) {
     return false;
   }
   return true;
