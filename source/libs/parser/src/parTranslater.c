@@ -6900,7 +6900,7 @@ static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight) {
 
     SConditionOnlyPhAndConstContext cxt = {true, false};
     nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
-    if (cxt.onlyPhAndConst && cxt.hasPhOrConst) {
+    if (cxt.onlyPhAndConst && cxt.hasPhOrConst && (((SExprNode*)pRight)->resType.type == TSDB_DATA_TYPE_TIMESTAMP)) {
       return true;
     } else {
       return false;
