@@ -7527,7 +7527,7 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t *pTsData = (int64_t *)pTsCol->pData;
     for (int32_t i = startIdx; i < endIdx; i++) {
-      if (pLastWin == NULL || pLastWin->wrownum == pTask->windowSliding) {
+      if (pGroup->totalCount % pTask->windowSliding == 0) {
         SSTriggerNotifyWindow newWin = {0};
         newWin.range.skey = pTsData[i];
         newWin.range.ekey = INT64_MAX;
@@ -7541,6 +7541,10 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
           QUERY_CHECK_NULL(pLastWin, code, lino, _end, terrno);
           pFirstWin = TARRAY_GET_ELEM(pContext->pWindows, idx);
         }
+      }
+      pGroup->totalCount++;
+      if (pFirstWin == NULL) {
+        continue;
       }
       for (SSTriggerNotifyWindow *pWin = pFirstWin; pWin <= pLastWin; pWin++) {
         pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
@@ -9422,8 +9426,7 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
         code = stHistoryGroupOpenWindow(pGroup, lastTs, NULL, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      QUERY_CHECK_CONDITION(IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      if (TRINGBUF_HEAD(&pGroup->winBuf)->wrownum == pTask->windowCount) {
+      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && TRINGBUF_HEAD(&pGroup->winBuf)->wrownum == pTask->windowCount) {
         code = stHistoryGroupCloseWindow(pGroup, NULL, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -9456,8 +9459,7 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
           code = stHistoryGroupOpenWindow(pGroup, lastTs, NULL, false, true);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        QUERY_CHECK_CONDITION(IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        if (TRINGBUF_HEAD(&pGroup->winBuf)->wrownum == pTask->windowCount) {
+        if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && TRINGBUF_HEAD(&pGroup->winBuf)->wrownum == pTask->windowCount) {
           code = stHistoryGroupCloseWindow(pGroup, NULL, false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
