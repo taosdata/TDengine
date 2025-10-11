@@ -487,7 +487,8 @@ class DataType:
         if self.type == TypeEnum.INT:
             return str(secrets.randbelow(4294967296) - 2147483648)
         if self.type == TypeEnum.BIGINT:
-            return str(secrets.randbelow(9223372036854775808) - 4611686018427387904)
+            # return str(secrets.randbelow(9223372036854775808) - 4611686018427387904)
+            return str(secrets.randbelow(9372036854775808) - 4686018427387904)
         if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
             return str(random.random())
         if (
@@ -497,7 +498,8 @@ class DataType:
         ):
             return f"'{str(random.random())[0:self.length]}'"
         if self.type == TypeEnum.TIMESTAMP:
-            return str(secrets.randbelow(9223372036854775808))
+            # return str(secrets.randbelow(9223372036854775808))
+            return str(secrets.randbelow(9372036854775808))
         if self.type == TypeEnum.UTINYINT:
             return str(secrets.randbelow(256))
         if self.type == TypeEnum.USMALLINT:
@@ -505,7 +507,8 @@ class DataType:
         if self.type == TypeEnum.UINT:
             return str(secrets.randbelow(4294967296))
         if self.type == TypeEnum.UBIGINT:
-            return str(secrets.randbelow(9223372036854775808))
+            #  return str(secrets.randbelow(9223372036854775808))
+            return str(secrets.randbelow(9372036854775808))
         if self.type == TypeEnum.JSON:
             return f'{{"key": "{secrets.token_urlsafe(10)}"}}'
         if self.type == TypeEnum.GEOMETRY:
