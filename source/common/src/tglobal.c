@@ -98,6 +98,7 @@ int32_t tsTimeToGetAvailableConn = 500000;
 int8_t  tsEnableIpv6 = 0;
 
 #ifdef TD_ENTERPRISE
+bool    tsAuthServer = 0;
 bool    tsAuthReq = 0;
 int32_t tsAuthReqInterval = 2592000;
 char    tsAuthReqUrl[TSDB_FQDN_LEN] = {0};
@@ -951,6 +952,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyFrameSize", tsStreamNotifyFrameSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
 #ifdef TD_ENTERPRISE
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authServer", tsAuthServer, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authReq", tsAuthReq, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "authReqInterval", tsAuthReqInterval, 1, 86400 * 365, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "authReqUrl", tsAuthReqUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL));
@@ -1573,6 +1575,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsEnableIpv6 = pItem->bval;
 
 #ifdef TD_ENTERPRISE
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "authServer");
+  tsAuthServer = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "authReq");
   tsAuthReq = pItem->bval;
 

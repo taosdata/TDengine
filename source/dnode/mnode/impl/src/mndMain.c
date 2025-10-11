@@ -226,6 +226,19 @@ static void mndPullupGrant(SMnode *pMnode) {
   }
 }
 
+static void mndPullupAuth(SMnode *pMnode) {
+  mTrace("pullup auth msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_AUTH_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.notFreeAhandle = 1, .info.ahandle = 0};
+    // TODO check return value
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
 static void mndIncreaseUpTime(SMnode *pMnode) {
   mTrace("increate uptime");
   int32_t contLen = 0;
@@ -362,6 +375,11 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 
   if (sec % tsTrimVDbIntervalSec == 0) {
     mndPullupTrimDb(pMnode);
+  }
+#endif
+#ifdef TD_ENTERPRISE
+  if (sec % tsAuthReqInterval == 0) {
+    mndPullupAuth(pMnode);
   }
 #endif
 #ifdef USE_SHARED_STORAGE

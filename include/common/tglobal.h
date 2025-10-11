@@ -106,9 +106,6 @@ extern int32_t tsNumOfRpcSessions;
 extern int32_t tsShareConnLimit;
 extern int32_t tsReadTimeout;
 extern int8_t  tsEnableIpv6;
-extern bool    tsAuthReq;
-extern int32_t tsAuthReqInterval;
-extern char    tsAuthReqUrl[];
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
@@ -337,6 +334,12 @@ extern bool tsInsertPerfEnabled;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+
+// auth
+extern bool    tsAuthServer;
+extern bool    tsAuthReq;
+extern int32_t tsAuthReqInterval;
+extern char    tsAuthReqUrl[];
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
