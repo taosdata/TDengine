@@ -595,7 +595,6 @@ class TestStateWindowExtend:
         tdSql.error("select count(*) from ntb state_window(s, 1.5)")
         tdSql.error("select count(*) from ntb state_window(s, *)")
         tdSql.error("select count(*) from ntb state_window(s, '2025-09-03')")
-        tdSql.error("select count(*) from ntb state_window(s, 1, 2)")
         tdSql.error("select count(*) from ntb state_window(s, 1+1)")
         tdSql.error("select count(*) from ntb state_window(s, 1*1)")
         tdSql.error("select count(*) from ntb state_window(s, case when now < 2025-01-01 then 0 else 1)")

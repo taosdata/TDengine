@@ -370,6 +370,7 @@ typedef struct SStateWindowNode {
   SNode*    pExpr;
   SNode*    pTrueForLimit;
   SNode*    pExtend;
+  SNode*    pZeroth;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {

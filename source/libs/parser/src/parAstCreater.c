@@ -1045,7 +1045,7 @@ _err:
   return NULL;
 }
 
-static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
+int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType &&
       ((SLogicConditionNode*)pParam)->condType != LOGIC_COND_TYPE_NOT) {
     int32_t code = nodesListAppendList(pCond->pParameterList, ((SLogicConditionNode*)pParam)->pParameterList);
@@ -1569,7 +1569,7 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExtend, SNode* pTrueForLimit) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* pOptions, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
@@ -1578,13 +1578,19 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExte
   CHECK_MAKE_NODE(state->pCol);
   state->pExpr = pExpr;
   state->pTrueForLimit = pTrueForLimit;
-  state->pExtend = pExtend;
+  if (pOptions != NULL && pOptions->length >= 1) {
+    state->pExtend = pOptions->pHead->pNode;
+  }
+  if (pOptions != NULL && pOptions->length == 2) {
+    // zeroth state
+    state->pZeroth = nodesListGetNode(pOptions, 1);
+  }
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
   nodesDestroyNode(pExpr);
   nodesDestroyNode(pTrueForLimit);
-  nodesDestroyNode(pExtend);
+  nodesDestroyList(pOptions);
   return NULL;
 }
 
