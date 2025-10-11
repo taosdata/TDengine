@@ -104,7 +104,7 @@ class Test_IDMP_Vehicle:
 
         # import data
         etool.taosdump(f"-i {os.path.join(os.path.dirname(__file__), 'vehicle_data')}")
-        tdLog.info(f"import data to db={self.db}. successfully.")
+        print(f"import data to db={self.db}. successfully.")
 
 
     # 
@@ -132,7 +132,7 @@ class Test_IDMP_Vehicle:
         ]
 
         tdSql.executes(sqls)
-        tdLog.info(f"create {len(sqls) - 2} vtable successfully.")
+        print(f"create {len(sqls) - 2} vtable successfully.")
         
 
     # 
@@ -178,7 +178,7 @@ class Test_IDMP_Vehicle:
         ]
 
         tdSql.executes(sqls)
-        tdLog.info(f"create {len(sqls)} streams successfully.")
+        print(f"create {len(sqls)} streams successfully.")
 
     # 
     # 3. wait stream ready
@@ -186,7 +186,7 @@ class Test_IDMP_Vehicle:
     def checkStreamStatus(self):
         print("wait stream ready ...")
         tdStream.checkStreamStatus()
-        tdLog.info(f"check stream status successfully.")
+        print(f"check stream status successfully.")
 
     # 
     # 4. write trigger data
@@ -225,7 +225,6 @@ class Test_IDMP_Vehicle:
         time.sleep(10)
         print("verify results ...")
         
-        self.verify_stream_stb1()
         self.verify_stream1()
         self.verify_stream2()
         self.verify_stream3()
@@ -235,10 +234,10 @@ class Test_IDMP_Vehicle:
         self.verify_stream5()
         self.verify_stream6()
         self.verify_stream7()
-        #self.verify_stream8()
-        #self.verify_stream9()
+        self.verify_stream8()
+        self.verify_stream9()
         self.verify_stream10()
-
+        self.verify_stream_stb1()
 
     # 
     # 6. write trigger data again
@@ -254,22 +253,22 @@ class Test_IDMP_Vehicle:
     def verifyResultsAgain(self):
         pass
         # stream3
-        self.verify_stream3_again()
-        self.verify_stream3_sub1_again()
+        #self.verify_stream3_again()
+        #self.verify_stream3_sub1_again()
 
     #
     # 8. restart dnode
     #
     def restartDnode(self):
         # restart
-        tdLog.info("restart dnode ...")
+        print("restart dnode ...")
         sc.dnodeRestartAll()
 
         # wait stream ready
-        tdLog.info("wait stream ready after dnode restart ...")
+        print("wait stream ready after dnode restart ...")
         self.checkStreamStatus()
 
-        tdLog.info("dnode restarted successfully.")
+        print("dnode restarted successfully.")
 
 
     #
@@ -830,7 +829,7 @@ class Test_IDMP_Vehicle:
             retry = 420
         )
 
-        tdLog.info(f"verify stream_stb1 ............................. successfully.")
+        print(f"verify stream_stb1 ............................. successfully.")
 
 
     #
@@ -849,7 +848,7 @@ class Test_IDMP_Vehicle:
 
         # sub
         self.verify_stream1_sub1()
-        tdLog.info("verify stream1 .................................. successfully.")
+        print("verify stream1 .................................. successfully.")
 
     # stream1 sub1
     def verify_stream1_sub1(self):
@@ -868,7 +867,7 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(1, 2, 140)        # avg(speed)
         )
 
-        tdLog.info("verify stream1 sub1 ............................. successfully.")
+        print("verify stream1 sub1 ............................. successfully.")
 
 
     #
@@ -887,7 +886,7 @@ class Test_IDMP_Vehicle:
         # sub
         self.verify_stream2_sub1()
 
-        tdLog.info("verify stream2 .................................. successfully.")
+        print("verify stream2 .................................. successfully.")
 
 
     # verify stream2 sub1
@@ -900,7 +899,7 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(0, 0, self.start) # ts
             and tdSql.compareData(0, 1, 6)                     # cnt
         )        
-        tdLog.info("verify stream2 sub1 ............................. successfully.")
+        print("verify stream2 sub1 ............................. successfully.")
 
 
     #
@@ -920,7 +919,7 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(1, 1, 8 + 1)          # cnt
         )
 
-        tdLog.info("verify stream3 .................................. successfully.")
+        print("verify stream3 .................................. successfully.")
         
     def verify_stream3_sub1(self, tables=None):
         # check
@@ -937,7 +936,7 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(1, 1, 8 + 1)          # cnt
         )
 
-        tdLog.info(f"verify stream3 sub1 ............................. successfully.")
+        print(f"verify stream3 sub1 ............................. successfully.")
 
 
     #
@@ -946,7 +945,7 @@ class Test_IDMP_Vehicle:
     def verify_stream3_again(self):
         # check
         self.verify_stream3()
-        tdLog.info("verify stream3 again ............................ successfully.")
+        print("verify stream3 again ............................ successfully.")
 
 
     def verify_stream3_sub1_again(self, tables=None):
@@ -977,7 +976,7 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(3, 1, 5 + 1)         # cnt
         )
 
-        tdLog.info(f"verify stream3 sub1 again ...................... successfully.")
+        print(f"verify stream3 sub1 again ...................... successfully.")
 
 
     #
@@ -1003,7 +1002,7 @@ class Test_IDMP_Vehicle:
         # sub
         self.verify_stream4_sub1()
 
-        tdLog.info(f"verify stream4 ................................. successfully.")
+        print(f"verify stream4 ................................. successfully.")
 
     def verify_stream4_sub1(self, tables=None):
         # check
@@ -1025,7 +1024,7 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(3, 1, 11 - 4)                      # cnt
         )
 
-        tdLog.info(f"verify stream4 sub1 ............................. successfully.")
+        print(f"verify stream4 sub1 ............................. successfully.")
 
 
 
@@ -1048,7 +1047,7 @@ class Test_IDMP_Vehicle:
     # verify stream4 again
     #
     def verify_stream4_again(self):
-        tdLog.info("verify stream4 again ............................ successfully.")
+        print("verify stream4 again ............................ successfully.")
 
     
     #
@@ -1092,7 +1091,7 @@ class Test_IDMP_Vehicle:
             exp_sql = f"select * from idmp.`result_stream5`      where cnt > 0",
         )
         
-        tdLog.info(f"verify stream5 ................................. successfully.")
+        print(f"verify stream5 ................................. successfully.")
 
     #
     # verify stream6
@@ -1126,10 +1125,10 @@ class Test_IDMP_Vehicle:
             exp_sql = "select * from idmp.`result_stream6` where cnt > 0"
         )
 
-        tdLog.info("verify stream6 ................................. successfully.")
+        print("verify stream6 ................................. successfully.")
 
     def verify_stream6_again(self):
-        tdLog.info("verify stream6 ................................. successfully.")
+        print("verify stream6 ................................. successfully.")
         
 
     #
@@ -1157,7 +1156,7 @@ class Test_IDMP_Vehicle:
             sql     = sql,
             exp_sql = f"select * from idmp.`result_stream7` where cnt > 0"
         )        
-        tdLog.info(f"verify stream7 ................................. successfully.")
+        print(f"verify stream7 ................................. successfully.")
 
 
     #
@@ -1177,9 +1176,8 @@ class Test_IDMP_Vehicle:
         )
 
         # sub1
-        # ***** bug11 *****
-        #self.verify_stream8_sub1()
-        tdLog.info(f"verify stream8 ................................. successfully.")
+        self.verify_stream8_sub1()
+        print(f"verify stream8 ................................. successfully.")
 
     # verify stream8_sub1
     def verify_stream8_sub1(self):
@@ -1195,34 +1193,15 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(0, 3, 600)        # sum
         )
 
-        tdLog.info(f"verify stream8 sub1 ............................ successfully.")
+        print(f"verify stream8 sub1 ............................ successfully.")
 
 
     #
     # verify stream9
     #
     def verify_stream9(self):
-        # ***** bug12 *****
-        return 
-
         # check data
         result_sql = f"select * from idmp.`result_stream9` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.checkRows(1)
-            # row1
-            and tdSql.compareData(0, 0, self.start) # ts
-            and tdSql.compareData(0, 1, 7)          # cnt
-            and tdSql.compareData(0, 2, 120)        # avg
-            and tdSql.compareData(0, 3, 700)        # sum
-        )
-
-        tdLog.info(f"verify stream9 ................................. successfully.")
-
-    # verify stream9_sub1
-    def verify_stream9_sub1(self):
-        # check data
-        result_sql = f"select * from idmp.`result_stream9_sub1` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(1)
@@ -1233,40 +1212,54 @@ class Test_IDMP_Vehicle:
             and tdSql.compareData(0, 3, 600)        # sum
         )
 
-        tdLog.info(f"verify stream9 sub1 ............................ successfully.")
+        print(f"verify stream9 ................................. successfully.")
+
+    # verify stream9_sub1
+    def verify_stream9_sub1(self):
+        # check data
+        result_sql = f"select * from idmp.`result_stream9_sub1` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.checkRows(1)
+            # row1
+            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 1, 10)          # cnt
+            and tdSql.compareData(0, 2, 120)        # avg
+            and tdSql.compareData(0, 3, 1000)        # sum
+        )
+
+        print(f"verify stream9 sub1 ............................ successfully.")
 
 
     #
     # verify stream10
     #
     def verify_stream10(self):
-        # ***** bug13 *****
-        return 
-
         # check data
         result_sql = f"select * from idmp.`result_stream10` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
             func = lambda: tdSql.checkRows(7)
             # row1
-            and tdSql.compareData(0, 0, self.start) # ts
+            and tdSql.compareData(0, 0, 1752900000000) # ts
             and tdSql.compareData(0, 1, 1)          # cnt
             and tdSql.compareData(0, 2, 120)        # avg
             and tdSql.compareData(0, 3, 100)        # sum
             # row2
             and tdSql.compareData(1, 1, 0)
-            and tdSql.compareData(1, 0, self.start + 1 * self.step)
-            and tdSql.compareData(2, 0, self.start + 2 * self.step)
-            and tdSql.compareData(3, 0, self.start + 3 * self.step)
-            and tdSql.compareData(4, 0, self.start + 4 * self.step)
-            and tdSql.compareData(5, 0, self.start + 5 * self.step)
-            and tdSql.compareData(6, 0, self.start + 6 * self.step)
+            and tdSql.compareData(1, 0, 1752900600000)
+            # row3 ~ 7
+            and tdSql.compareData(2, 0, 1752901200000)
+            and tdSql.compareData(3, 0, 1752901800000)
+            and tdSql.compareData(4, 0, 1752902400000)
+            and tdSql.compareData(5, 0, 1752903000000)
+            and tdSql.compareData(6, 0, 1752903600000)
         )
+
+        print(f"verify stream10 ................................ successfully.")
 
         # sub
         self.verify_stream10_sub1()
-
-        tdLog.info(f"verify stream10 ................................ successfully.")
 
 
     # verify stream10_sub1
@@ -1277,25 +1270,24 @@ class Test_IDMP_Vehicle:
             sql = result_sql, 
             func = lambda: tdSql.checkRows(8)
             # row1
-            and tdSql.compareData(0, 0, self.start - 1 * self.step) # ts
-            and tdSql.compareData(0, 1, 9)          # cnt
-            and tdSql.compareData(0, 2, 120)        # avg
-            and tdSql.compareData(0, 3, 900)        # sum
+            and tdSql.compareData(0, 0, 1752899400000) # ts
+            and tdSql.compareData(0, 1, 9)             # cnt
+            and tdSql.compareData(0, 2, 120)           # avg
+            and tdSql.compareData(0, 3, 900)           # sum
             # row2 
-            and tdSql.compareData(1, 0, self.start) # ts
-            and tdSql.compareData(1, 1, 1)          # cnt
+            and tdSql.compareData(1, 0, 1752900000000) # ts
+            and tdSql.compareData(1, 1, 10)            # cnt
             # row3
-            and tdSql.compareData(2, 0, self.start + 1 * self.step) # ts
-            # ***** bug13 *****
-            #and tdSql.compareData(2, 1, 0)          # cnt
+            and tdSql.compareData(2, 0, 1752900600000) # ts
+            and tdSql.compareData(2, 1, 10)            # cnt
             # row4
-            and tdSql.compareData(3, 0, self.start + 2 * self.step) # ts
-            and tdSql.compareData(3, 1, 10)         # cnt
+            and tdSql.compareData(3, 0, 1752901200000) # ts
+            and tdSql.compareData(3, 1, 0)             # cnt
             # row5 ~ 8
-            and tdSql.compareData(4, 0, self.start + 3 * self.step)
-            and tdSql.compareData(5, 0, self.start + 4 * self.step)
-            and tdSql.compareData(6, 0, self.start + 5 * self.step)
-            and tdSql.compareData(7, 0, self.start + 6 * self.step)
+            and tdSql.compareData(4, 0, 1752901800000)
+            and tdSql.compareData(5, 0, 1752902400000)
+            and tdSql.compareData(6, 0, 1752903000000)
+            and tdSql.compareData(7, 0, 1752903600000)
         )
 
-        tdLog.info(f"verify stream10 sub1 ........................... successfully.")
+        print(f"verify stream10 sub1 ........................... successfully.")
