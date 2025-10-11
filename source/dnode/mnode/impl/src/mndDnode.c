@@ -802,7 +802,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     code = terrno;
 
     pDnode->offlineReason = DND_REASON_TIME_UNSYNC;
-    mError("dnode:%d, not sync with cluster:%d since %s, mnode limit %ds", statusReq.dnodeId, pMnode->clusterId,
+    mError("dnode:%d, not sync with cluster:%d since %s, limit %ds", statusReq.dnodeId, pMnode->clusterId,
            tstrerror(code), tsTimestampDeltaLimit);
     goto _OVER;
   }
