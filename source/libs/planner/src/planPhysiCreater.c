@@ -2332,6 +2332,10 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     pInterpFunc->pFillValues = NULL;
     pInterpFunc->rangeInterval = pFuncLogicNode->rangeInterval;
     pInterpFunc->rangeIntervalUnit = pFuncLogicNode->rangeIntervalUnit;
+    code = nodesCloneNode(pFuncLogicNode->pTimeRange, &pInterpFunc->pTimeRange);
+  }
+  
+  if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pFuncLogicNode->pFillValues, &pInterpFunc->pFillValues);
   }
 

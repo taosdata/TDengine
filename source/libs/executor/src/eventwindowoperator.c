@@ -229,7 +229,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     }
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
-    code = setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);

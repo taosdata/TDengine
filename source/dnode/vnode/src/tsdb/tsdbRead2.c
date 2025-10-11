@@ -6272,7 +6272,7 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
   code = pReader->code;
   TSDB_CHECK_CODE(code, lino, _end);
 
-  if (isEmptyQueryTimeWindow(&pReader->info.window) || pReader->step == EXTERNAL_ROWS_NEXT) {
+  if ((pReader->type != TIMEWINDOW_RANGE_EXTERNAL && isEmptyQueryTimeWindow(&pReader->info.window)) || pReader->step == EXTERNAL_ROWS_NEXT) {
     goto _end;
   }
 
@@ -6300,9 +6300,13 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
   }
 
   if (pReader->innerReader[0] != NULL && pReader->step == 0) {
-    code = doTsdbNextDataBlock2(pReader->innerReader[0], hasNext);
-    TSDB_CHECK_CODE(code, lino, _end);
-
+    if (isEmptyQueryTimeWindow(&pReader->innerReader[0]->info.window)) {
+      *hasNext = false;
+    } else {
+      code = doTsdbNextDataBlock2(pReader->innerReader[0], hasNext);
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+    
     pReader->step = EXTERNAL_ROWS_PREV;
     if (*hasNext) {
       pStatus = &pReader->innerReader[0]->status;
@@ -6318,21 +6322,28 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
   }
 
   if (pReader->step == EXTERNAL_ROWS_PREV) {
-    // prepare for the main scan
-    if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
-      code = doOpenReaderImpl(pReader);
+    if (!isEmptyQueryTimeWindow(&pReader->info.window)) {
+      // prepare for the main scan
+      if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
+        code = doOpenReaderImpl(pReader);
+      }
+
+      int32_t step = 1;
+      resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->info.window.ekey, step);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
-
-    int32_t step = 1;
-    resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->info.window.ekey, step);
-    TSDB_CHECK_CODE(code, lino, _end);
-
+    
     pReader->step = EXTERNAL_ROWS_MAIN;
   }
 
-  code = doTsdbNextDataBlock2(pReader, hasNext);
-  TSDB_CHECK_CODE(code, lino, _end);
 
+  if (!isEmptyQueryTimeWindow(&pReader->info.window)) {
+    code = doTsdbNextDataBlock2(pReader, hasNext);
+    TSDB_CHECK_CODE(code, lino, _end);
+  } else {
+    *hasNext = false;
+  }
+  
   if (*hasNext) {
     if (pStatus->composedDataBlock) {
       tsdbTrace("tsdb/read: %p, unlock read mutex", pReader);
@@ -6344,18 +6355,22 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
   }
 
   if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
-    // prepare for the next row scan
-    if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
-      code = doOpenReaderImpl(pReader->innerReader[1]);
+    if (isEmptyQueryTimeWindow(&pReader->innerReader[1]->info.window)) {
+      *hasNext = false;
+    } else {
+      // prepare for the next row scan
+      if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
+        code = doOpenReaderImpl(pReader->innerReader[1]);
+      }
+
+      int32_t step = -1;
+      resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->info.window.ekey, step);
+      TSDB_CHECK_CODE(code, lino, _end);
+
+      code = doTsdbNextDataBlock2(pReader->innerReader[1], hasNext);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
-
-    int32_t step = -1;
-    resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->info.window.ekey, step);
-    TSDB_CHECK_CODE(code, lino, _end);
-
-    code = doTsdbNextDataBlock2(pReader->innerReader[1], hasNext);
-    TSDB_CHECK_CODE(code, lino, _end);
-
+    
     pReader->step = EXTERNAL_ROWS_NEXT;
     if (*hasNext) {
       pStatus = &pReader->innerReader[1]->status;

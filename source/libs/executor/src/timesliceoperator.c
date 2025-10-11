@@ -28,6 +28,7 @@
 typedef struct STimeSliceOperatorInfo {
   SSDataBlock*         pRes;
   STimeWindow          win;
+  SNode*               pWin;        // for stream
   SInterval            interval;
   int64_t              current;
   SArray*              pPrevRow;     // SArray<SGroupValue>
@@ -1113,12 +1114,17 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
+  } else if (pOperator->status == OP_NOT_OPENED && pSliceInfo->pWin) {
+    code = streamCalcCurrWinTimeRange((STimeRangeNode*)pSliceInfo->pWin, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pSliceInfo->win, NULL, 3);
+    TSDB_CHECK_CODE(code, lino, _finished);
+    OPTR_SET_OPENED(pOperator);    
+    pSliceInfo->current = pSliceInfo->win.skey;
   }
 
-  STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   SSDataBlock*            pResBlock = pSliceInfo->pRes;
 
   blockDataCleanup(pResBlock);
@@ -1340,6 +1346,8 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   pInfo->win = pInterpPhyNode->timeRange;
+  code = nodesCloneNode(pInterpPhyNode->pTimeRange, &pInfo->pWin);
+  QUERY_CHECK_CODE(code, lino, _error);
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;
   pInfo->prevTsSet = false;
@@ -1439,6 +1447,7 @@ void destroyTimeSliceOperatorInfo(void* param) {
     }
     taosMemoryFree(pInfo->pFillColInfo);
   }
+  nodesDestroyNode(pInfo->pWin);
   taosMemoryFreeClear(param);
 }
 

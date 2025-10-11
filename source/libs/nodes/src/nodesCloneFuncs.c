@@ -784,6 +784,7 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pFuncs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(precision);

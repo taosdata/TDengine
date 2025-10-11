@@ -2053,6 +2053,7 @@ void nodesDestroyNode(SNode* pNode) {
       SInterpFuncLogicNode* pLogicNode = (SInterpFuncLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
+      nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pFillValues);
       nodesDestroyNode(pLogicNode->pTimeSeries);
       break;
@@ -2272,6 +2273,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
       nodesDestroyList(pPhyNode->pFuncs);
+      nodesDestroyNode(pPhyNode->pTimeRange);
       nodesDestroyNode(pPhyNode->pFillValues);
       nodesDestroyNode(pPhyNode->pTimeSeries);
       break;

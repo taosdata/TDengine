@@ -3805,6 +3805,7 @@ static const char* jkInterpFuncPhysiPlanExprs = "Exprs";
 static const char* jkInterpFuncPhysiPlanFuncs = "Funcs";
 static const char* jkInterpFuncPhysiPlanStartTime = "StartTime";
 static const char* jkInterpFuncPhysiPlanEndTime = "EndTime";
+static const char* jkInterpFuncPhysiPlanRangeExpr = "RangeExpr";
 static const char* jkInterpFuncPhysiPlanInterval = "Interval";
 static const char* jkInterpFuncPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkInterpFuncPhysiPlanPrecision = "precision";
@@ -3829,6 +3830,9 @@ static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanEndTime, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkInterpFuncPhysiPlanRangeExpr, nodeToJson, pNode->pTimeRange);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanInterval, pNode->interval);
@@ -3873,6 +3877,9 @@ static int32_t jsonToPhysiInterpFuncNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanEndTime, &pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkInterpFuncPhysiPlanRangeExpr, &pNode->pTimeRange);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanInterval, &pNode->interval);

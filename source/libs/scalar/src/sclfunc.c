@@ -5354,8 +5354,10 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
   }
   
   qDebug("%s, stream curr win calc range, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
-  *winRangeValid = true;
-
+  if (winRangeValid) {
+    *winRangeValid = true;
+  }
+  
 _exit:
 
   if (code) {
