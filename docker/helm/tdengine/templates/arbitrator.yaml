@@ -116,7 +116,7 @@ spec:
           # Must set if you want a cluster.
           - name: TAOS_FIRST_EP
             value: "$(SERVER_STS_NAME)-0.$(SERVICE_NAME).$(NAMESPACE).svc.cluster.local:$(TAOS_SERVER_PORT)"
-          # TAOS_FQND should always be setted in k8s env.
+          # TAOS_FQND should always be set in k8s env.
           - name: TAOS_FQDN
             value: "$(POD_NAME).$(ARB_SERVICE_NAME).$(NAMESPACE).svc.cluster.local"
 

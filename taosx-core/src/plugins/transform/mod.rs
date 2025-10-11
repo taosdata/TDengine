@@ -2134,7 +2134,7 @@ fn pivot(
                             )
                         }
                     }
-                    dt => unimplemented!("pivot unsupport datatype: {dt}"),
+                    dt => unimplemented!("pivot unsupported datatype: {dt}"),
                 };
                 pivot_fields.insert(name, (field, array));
             }

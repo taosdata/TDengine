@@ -655,7 +655,7 @@ Windows： <code>C:\\TDengine\\cfg\\</code>`,
         step3desc: '打开 Seeq，以 admin 用户登录，然后打开 Administration，点击“Add Data Source”',
         step3desc1: '对于连接器，请选择 SQL connector v2',
         step3desc2: '在“Additional Configuration”的输入框, 请复制和粘贴下面的内容：',
-        step3desc3: '对于“QueryDefintions”，请参考下面的例子来完成您自己的查询定义。',
+        step3desc3: '对于“QueryDefinitions”，请参考下面的例子来完成您自己的查询定义。',
         step4: '智能电表样例',
         step4full: '导入大量时序数据：智能电表样例',
         step4desc:

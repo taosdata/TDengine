@@ -8,7 +8,7 @@ let version = ''; // 缓存的版本号
 let timer: NodeJS.Timeout | null = null;
 
 // 轮询用检测方法
-const timerFuncion = async () => {
+const timerFunction = async () => {
   // 次数超过的时候 停止轮询 防止用户挂着网页一直轮询
   if (time >= 5) {
     // 仅清除计时器
@@ -34,7 +34,7 @@ const timerFuncion = async () => {
   if (!version) {
     version = res;
   } else if (res && version != res) {
-    // 弹出更新提示 发现verison文件更新了 就代表新部署了
+    // 弹出更新提示 发现version文件更新了 就代表新部署了
     // 借鉴Element的Message实现挂载vue组件到页面上
     const app = createApp(Modal);
     app.use(i18n);
@@ -52,12 +52,12 @@ const moveFunction = () => {
   time = 0;
   // 长时间挂机后 不在轮询的网页 在鼠标活跃于窗口的时候重新检测
   if (!timer) {
-    timer = setInterval(timerFuncion, 10000);
+    timer = setInterval(timerFunction, 10000);
   }
 };
 // 当被main.js 引用的时候 开始轮询于监听鼠标移动事件
 if (import.meta.env.MODE !== 'dev') {
-  timer = setInterval(timerFuncion, 10000);
+  timer = setInterval(timerFunction, 10000);
   window.addEventListener('mousemove', moveFunction);
 }
 // 完全清除轮询 不轮询 不监听鼠标事件

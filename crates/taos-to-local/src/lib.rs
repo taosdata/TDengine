@@ -279,8 +279,8 @@ async fn fetch_tables_meta(
     metas.extend(child_metas);
 
     // 普通表
-    let mormal_metas = fetch_ntables_meta(taos, db).await?;
-    metas.extend(mormal_metas);
+    let normal_metas = fetch_ntables_meta(taos, db).await?;
+    metas.extend(normal_metas);
 
     Ok(metas)
 }
@@ -481,7 +481,7 @@ async fn fetch_ctables_meta(
     for (_stb, ctbs) in ctb_meta_map {
         for (_ctb, meta_unit, _desc) in ctbs {
             let meta_unit =
-                serde_json::from_value(meta_unit).context("failed to serilize meta unit")?;
+                serde_json::from_value(meta_unit).context("failed to serialize meta unit")?;
             metas.push(meta_unit);
         }
     }

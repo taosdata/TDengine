@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { TDengineTimeUnit } from '@/const';
-const stateColumnExculde = ['TIMESTAMP', 'FLOAT', 'DOUBLE'];
+const stateColumnExclude = ['TIMESTAMP', 'FLOAT', 'DOUBLE'];
 interface Props {
   windowClause: windowClauseType;
   columnList: any[];
@@ -87,7 +87,7 @@ const timeUnit = TDengineTimeUnit;
 const intervalTimeUnit = TDengineTimeUnit.slice(2);
 
 const stateColumn = computed(() => {
-  return props.columnList.filter(item => !stateColumnExculde.includes(item.type));
+  return props.columnList.filter(item => !stateColumnExclude.includes(item.type));
 });
 </script>
 

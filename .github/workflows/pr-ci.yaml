@@ -62,8 +62,8 @@ jobs:
           cargo fmt --check --all
       - name: Typos check
         run: |
-          typos --version || cargo install typos-cli
-          typos src explorer/taos-ui taosx-* README.md
+          cargo make --version || cargo install cargo-make -f
+          cargo make typos
       - name: Clippy check
         run: |
           cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings

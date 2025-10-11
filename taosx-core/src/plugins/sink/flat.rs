@@ -3207,7 +3207,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     tracing::error!("flat task exit with error: {e:#}");
                 }
                 Err(e) => {
-                    tracing::error!("flat task paniced: {e:#}");
+                    tracing::error!("flat task panicked: {e:#}");
                 }
             }
         }

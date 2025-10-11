@@ -57,7 +57,7 @@ httpRequest.setResponseInterceptor(
         return Promise.resolve(res.data);
       }
       if (Object.is(res.code, 0) && res.code === '0') {
-        //针对 'show databses'
+        //针对 'show databases'
         return Promise.resolve(res);
       }
       if (res.code && res.code === '21200') {

@@ -267,7 +267,7 @@ async fn main() -> anyhow::Result<()> {
                                             .and_then(|value| {
                                                 processor
                                                     .process(value)
-                                                    .context("processer process error")
+                                                    .context("processor process error")
                                             })
                                             .context("get value error")?,
                                     )
@@ -425,7 +425,7 @@ async fn start_publisher(
                 match res {
                     Ok(Event::Incoming(Incoming::ConnAck(ack))) => {
                         if matches!(ack.code, ConnectReturnCode::Success) {
-                            println!("client connect sucessfully");
+                            println!("client connect successfully");
                         } else {
                             println!("connect error: {:?}", ack.code);
                             break;

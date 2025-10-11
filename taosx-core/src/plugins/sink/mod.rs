@@ -300,7 +300,7 @@ pub async fn ipc_forward(
                             tracing::error!("persist task exited with error: {e:#}");
                         }
                         Err(e) => {
-                            tracing::error!("persist task paniced: {e}")
+                            tracing::error!("persist task panicked: {e}")
                         }
                     }
                 }
@@ -2643,7 +2643,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
         })
         .await;
     while let Some(task) = tasks.join_next().await {
-        task.context("Point stream task paniced")?
+        task.context("Point stream task panicked")?
             .context("Point stream worker error")?;
     }
     println!(
@@ -3584,7 +3584,7 @@ pub async fn listen_tcp_socket_with_agent(
                             tracing::warn!("persist task exit with error: {e:#}");
                         }
                         Ok(Some(Err(e))) => {
-                            tracing::warn!("persist task exit paniced: {e}");
+                            tracing::warn!("persist task exit panicked: {e}");
                         }
                         Err(_) => {
                             tracing::warn!("waiting persist tasks exit timeout");
@@ -3797,7 +3797,7 @@ pub async fn listen_tcp_socket(
                                 break
                             }
                             Err(e) => {
-                                tracing::error!("persist task paniced: {e}");
+                                tracing::error!("persist task panicked: {e}");
                                 break
                             }
                         }
@@ -3831,7 +3831,7 @@ pub async fn listen_tcp_socket(
                                 tracing::error!("persist task exit with error: {e:#}");
                             }
                             Err(e) => {
-                                tracing::error!("persist task paniced: {e}");
+                                tracing::error!("persist task panicked: {e}");
                             }
                         }
                     }
@@ -4261,7 +4261,7 @@ mod tests {
         let port = port_pool.get().await.context("port")?;
         let addr = format!("127.0.0.1:{}", port.get());
         let Ok((listener, listen_addr)) = bind_tcp(Some(&addr)).await else {
-            // bind tcp manully may fail
+            // bind tcp manually may fail
             return Ok(());
         };
         assert_eq!(listener.local_addr()?, listen_addr);

@@ -52,7 +52,7 @@ pub enum Error {
     DeserializeState {
         source: serde_json::Error,
     },
-    #[snafu(display("deserialize metric paylaod error"))]
+    #[snafu(display("deserialize metric payload error"))]
     DeserializePayload {
         source: prost::DecodeError,
     },

@@ -146,11 +146,11 @@ export default {
       if (!foundFixed) {
         mainTop = maxTop;
       } else {
-        const tmpScollTop = this.langFixed[this.activeLang].scrollTop;
-        if (tmpScollTop <= 150) {
+        const tmpScrollTop = this.langFixed[this.activeLang].scrollTop;
+        if (tmpScrollTop <= 150) {
           mainTop = 150;
         } else {
-          mainTop = tmpScollTop;
+          mainTop = tmpScrollTop;
         }
       }
       this.mainEl.scrollTo({

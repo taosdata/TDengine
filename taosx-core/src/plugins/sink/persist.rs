@@ -148,7 +148,7 @@ pub async fn get_persist(
         {
             Some(breakpoint) => {
                 let position = serde_json::from_str(&breakpoint)
-                    .context("deserialize persist queue positoin error")?;
+                    .context("deserialize persist queue position error")?;
                 persist_queue::fs::ReadFrom::LastPosition(position)
             }
             None => persist_queue::fs::ReadFrom::Earliest,

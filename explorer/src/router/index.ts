@@ -170,7 +170,7 @@ const adminRoute = [
     ]
   }
 ];
-const costantRoutes = [
+const constantRoutes = [
   {
     path: '/',
     name: 'layout',
@@ -196,7 +196,7 @@ const costantRoutes = [
 
 const router = createRouter({
   history: createWebHistory('/'),
-  routes: costantRoutes
+  routes: constantRoutes
 });
 
 // router.onError(error => {

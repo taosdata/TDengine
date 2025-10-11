@@ -133,7 +133,7 @@ pub async fn mqtt_to_taos(
                     Ok(_) => {}
                     Err(err) if err.is_cancelled() => {}
                     Err(err) if err.is_panic() => {
-                        tracing::error!("mqtt job paniced: {err}")
+                        tracing::error!("mqtt job panicked: {err}")
                     }
                     Err(err) => {
                         tracing::warn!("mqtt job exit with err: {err}")
@@ -155,8 +155,8 @@ pub async fn mqtt_to_taos(
                     }
                     Some(Err(e)) => {
                         safe_exit!();
-                        tracing::error!("MQTT client paniced: {e:#}");
-                        return Err(e).context("MQTT task paniced");
+                        tracing::error!("MQTT client panicked: {e:#}");
+                        return Err(e).context("MQTT task panicked");
                     }
                     None => break,
                 }
@@ -424,7 +424,7 @@ async fn execute(
             .ok()
             .map(std::num::NonZero::<usize>::get)
     };
-    let parallel = std::env::var("TAOSX_MQTT_BUILD_BATCH_PARRALLEL")
+    let parallel = std::env::var("TAOSX_MQTT_BUILD_BATCH_PARALLEL")
         .ok()
         .and_then(|v| v.parse().ok())
         .or_else(get_parallel)
