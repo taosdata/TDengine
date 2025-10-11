@@ -219,8 +219,8 @@ class Test_IDMP_Meters:
             "CREATE STREAM `tdasset`.`ana_stream10`      SLIDING(10s, 0s) FROM `tdasset`.`vt_em-10`                                                                                            NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10`      AS SELECT _tcurrent_ts AS ts, _tprev_ts AS prev_ts, _tnext_ts AS next_ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream10_sub1` SLIDING(10s, 0s) FROM `tdasset`.`vt_em-10`                                               STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub1` AS SELECT _tcurrent_ts AS ts, _tprev_ts AS prev_ts, _tnext_ts AS next_ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream10_sub2` SLIDING(10s, 0s) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`地址`                STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub2` AS SELECT _tcurrent_ts AS ts,                                             COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            #"CREATE STREAM `tdasset`.`ana_stream10_sub3` SLIDING(10s, 0s) FROM `tdasset`.`vt_em-10`                                               STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`电压`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub3` AS SELECT _tcurrent_ts AS ts,                                             COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            #"CREATE STREAM `tdasset`.`ana_stream10_sub4` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vt_em-10`                                     STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`电压`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub4` AS SELECT _twstart AS ts,                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream10_sub3` SLIDING(10s, 0s) FROM `asset01`.`em-10`                                                  STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`voltage`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub3` AS SELECT _tcurrent_ts AS ts,                                         COUNT(*) AS cnt, AVG(`voltage`) AS `平均电压`, SUM(`power`) AS `功率和` FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream10_sub4` INTERVAL(10s) SLIDING(10s) FROM `asset01`.`em-10`                                        STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|PRE_FILTER(`voltage`=100)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub4` AS SELECT _twstart AS ts,                                             COUNT(*) AS cnt, AVG(`voltage`) AS `平均电压`, SUM(`power`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream10_sub5` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vt_em-10`                                     STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub5` AS SELECT _twstart AS ts,                                                 COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream10_sub6` SLIDING(10s, 1s) FROM `tdasset`.`vt_em-10`                                               STREAM_OPTIONS(IGNORE_NODATA_TRIGGER)                       NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub6` AS SELECT _tcurrent_ts AS ts, _tprev_ts AS prev_ts, _tnext_ts AS next_ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream10_sub7` INTERVAL(10s) SLIDING(10s) FROM `tdasset`.`vst_智能电表_1`  PARTITION BY tbname,`地址`     STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)         NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream10_sub7` AS SELECT _twend AS ts,                                             COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
@@ -254,10 +254,8 @@ class Test_IDMP_Meters:
             "CREATE STREAM `tdasset`.`err_stream6_sub3` COUNT_WINDOW(5,5,`电流`,`电压`)    FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`电压`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream_err` AS SELECT _twstart AS ts, COUNT(*) AS cnt, _twrownum as wrownum, COUNT(`电流`) as curcnt, COUNT(`电压`) as volcnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`err_stream6_sub4` COUNT_WINDOW(5,5,`电流`,`电压`)    FROM `tdasset`.`vst_智能电表_1` PARTITION BY `地址`                                        NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream_err` AS SELECT _twstart AS ts, COUNT(*) AS cnt, _twrownum as wrownum, COUNT(`电流`) as curcnt, COUNT(`电压`) as volcnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
             "CREATE STREAM `tdasset`.`err_stream6_sub5` COUNT_WINDOW(5,5,`电流`,`电压`)    FROM `tdasset`.`vst_智能电表_1`                                                           NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream_err` AS SELECT _twstart AS ts, COUNT(*) AS cnt, _twrownum as wrownum, COUNT(`电流`) as curcnt, COUNT(`电压`) as volcnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            # ***** bug TD-37665 *****
-            # "CREATE STREAM `tdasset`.`err_stream6_sub5` COUNT_WINDOW(5,5,`电流`,`电压`)   FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`地址`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6_sub4` AS SELECT _twstart AS ts, COUNT(*) AS cnt, _twrownum as wrownum, COUNT(`电流`) as curcnt, COUNT(`电压`) as volcnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `功率和` FROM %%trows",
-            # ***** bug TD-37529 *****
-            # "CREATE STREAM `tdasset`.`err_stream11_sub1` INTERVAL(10s, 1s) SLIDING(4s, 1s) FROM `tdasset`.`vt_em-11`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream11_sub2` AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
+            # TD-37529
+            "CREATE STREAM `tdasset`.`err_stream11_sub1` INTERVAL(10s, 1s) SLIDING(4s, 1s) FROM `tdasset`.`vt_em-11`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream11_sub2_err` AS SELECT _twstart AS ts, _twend as wend, _twduration as wduration, _twrownum as wrownum, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
         ]
 
         tdSql.errors(sqls)
@@ -974,7 +972,6 @@ class Test_IDMP_Meters:
         # other sub
         self.verify_stream3_sub1()
         self.verify_stream3_sub2()
-        # ***** bug12 *****
         self.verify_stream3_sub3()
         self.verify_stream3_sub4()
         self.verify_stream3_sub5()
@@ -1340,8 +1337,7 @@ class Test_IDMP_Meters:
         self.verify_stream6_sub2()
         self.verify_stream6_sub3()
         self.verify_stream6_sub4()
-        # ***** bug19 *****
-        #self.verify_stream6_sub5()
+        self.verify_stream6_sub5()
 
     def verify_stream6_sub2(self):
         # check
@@ -1550,15 +1546,6 @@ class Test_IDMP_Meters:
         for i in range(count):
             # row
             cnt = tdSql.getData(i, 1)
-            # ***** bug2 *****
-            '''
-            if cnt > 5:
-                tdLog.exit(f"stream8 expected cnt <= 5, actual cnt={cnt}")
-            elif cnt > 0:
-                tdSql.checkData(i, 2, 200)  # avg(voltage)
-                tdSql.checkData(i, 3, cnt * 300) # sum(power)
-            '''    
-
             sum += cnt
 
         if sum != 30:
@@ -1698,12 +1685,9 @@ class Test_IDMP_Meters:
         # sub
         self.verify_stream10_sub1()
         self.verify_stream10_sub2()
-        # ***** bug4 *****
-        # self.verify_stream10_sub3()
-        # ***** bug6 *****
-        # self.verify_stream10_sub4()
-        # ***** bug7 *****
-        # self.verify_stream10_sub5()
+        self.verify_stream10_sub3()
+        self.verify_stream10_sub4()
+        self.verify_stream10_sub5()
         self.verify_stream10_sub6()
         self.verify_stream10_sub7()
         self.verify_stream10_sub8()
@@ -1745,20 +1729,26 @@ class Test_IDMP_Meters:
             # ts
             and tdSql.compareData(0, 0, 1752574200000)
             # cnt
-            and tdSql.compareData(0, 1, 1) and tdSql.compareData(1, 1, 10),
+            and tdSql.compareData(0, 1, 1) 
+            and tdSql.compareData(1, 1, 10),
         )
-        print("verify stream10_sub2 ........................... successfully.")
+        print("verify stream10_sub3 ........................... successfully.")
 
     def verify_stream10_sub4(self):
         # check
         tdSql.checkResultsByFunc(
             sql=f"select * from tdasset.`result_stream10_sub4` ",
-            func=lambda: tdSql.getRows() == 1
+            func=lambda: tdSql.getRows() == 2
             # row1
             and tdSql.compareData(0, 0, 1752574200000)  # ts
-            and tdSql.compareData(0, 1, 10)  # cnt
-            and tdSql.compareData(0, 2, 100)  # avg
-            and tdSql.compareData(0, 3, 2000),  # sum
+            and tdSql.compareData(0, 1, 10)             # cnt
+            and tdSql.compareData(0, 2, 100)            # avg
+            and tdSql.compareData(0, 3, 2000)           # sum
+            # row2
+            and tdSql.compareData(1, 0, 1752574210000)  # ts
+            and tdSql.compareData(1, 1, 1)              # cnt
+            and tdSql.compareData(1, 2, 100)            # avg
+            and tdSql.compareData(1, 3, 200)            # sum
         )
         print("verify stream10_sub4 ........................... successfully.")
 

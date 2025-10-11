@@ -278,7 +278,6 @@ class Test_IDMP_Meters:
         self.verify_stream3()
         self.verify_stream4()
         self.verify_stream5()
-        # ***** bug6 *****
         self.verify_stream6()
         self.verify_stream7()
         self.verify_stream8()
@@ -1005,7 +1004,6 @@ class Test_IDMP_Meters:
     #  verify stream7 again
     #
     def verify_stream7_again(self):
-        # ***** bug8 *****
         # mem
         data = [
             # ts           cnt  power
