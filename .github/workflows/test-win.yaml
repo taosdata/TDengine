@@ -21,3 +21,4 @@ jobs:
         
       - name: Run your script
         run: python3 c:\\test.py
+        
