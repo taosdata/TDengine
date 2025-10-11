@@ -269,6 +269,7 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompac
   pCompact->compactId = tGenIdPI32();
 
   tstrncpy(pCompact->dbname, pDb->name, sizeof(pCompact->dbname));
+  pCompact->dbUid = pDb->uid;
 
   pCompact->startTime = taosGetTimestampMs();
 

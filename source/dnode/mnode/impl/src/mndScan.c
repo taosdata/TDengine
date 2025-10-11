@@ -270,6 +270,7 @@ int32_t mndAddScanToTran(SMnode *pMnode, STrans *pTrans, SScanObj *pScan, SDbObj
   pScan->scanId = tGenIdPI32();
 
   tstrncpy(pScan->dbname, pDb->name, sizeof(pScan->dbname));
+  pScan->dbUid = pDb->uid;
 
   pScan->startTime = taosGetTimestampMs();
 

@@ -236,6 +236,7 @@ int32_t mndAddRetentionToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pO
   pObj->id = tGenIdPI32();
 
   tstrncpy(pObj->dbname, pDb->name, sizeof(pObj->dbname));
+  pObj->dbUid = pDb->uid;
 
   pObj->startTime = taosGetTimestampMs();
 
