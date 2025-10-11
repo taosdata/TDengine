@@ -1500,34 +1500,40 @@ class Test_IDMP_Meters:
         )
 
         # ***** bug11 *****
-        return
-
+        '''
         # del sub4
         result_sql = f"select * from tdasset.`result_stream7_sub4` "
-        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 4)
-
-        # check data
         data = [
-            # ts          cnt
+            # ts          cnt    
             [1752574200000, 2, 100, 200],
             [1752574320000, 2, 200, 400],
+            [1752574560000, 2, 400, 800],
             [1752574680000, 2, 502, 1004],
-            [1752574800000, 2, 600, 1200],
-        ]
-        tdSql.checkDataMem(result_sql, data)
-
-        # del sub5
-        result_sql = f"select * from tdasset.`result_stream7_sub5` "
+            [1752574800000, 2, 600, 1200]
+        ]        
         tdSql.checkResultsByFunc(
-            sql=result_sql,
-            func=lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, 1752574680000)
-            and tdSql.compareData(0, 1, 2)
-            and tdSql.compareData(0, 2, 502)
-            and tdSql.compareData(0, 3, 1004),
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
         )
+        # check data
+        tdSql.checkDataMem(result_sql, data)
+        '''
 
-        print("verify stream7_again ........................... successfully.")
+        # del sub5        
+        result_sql = f"select * from tdasset.`result_stream7_sub5` "
+        data = [
+            # ts          cnt    
+            [1752574560000, 2, 400, 800],
+            [1752574680000, 2, 502, 1004]
+        ]        
+        tdSql.checkResultsByFunc(
+            sql  = result_sql, 
+            func = lambda: tdSql.getRows() == len(data)
+        )
+        # check data
+        tdSql.checkDataMem(result_sql, data)
+        
+        print("verify stream7_again ............................. successfully.")
 
     #
     # verify stream8
