@@ -73,6 +73,7 @@ static int32_t tSerializeSScanObj(void *buf, int32_t bufLen, const SScanObj *pOb
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->scanId));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbname));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->dbUid));
 
   tEndEncode(&encoder);
 
@@ -96,6 +97,11 @@ int32_t tDeserializeSScanObj(void *buf, int32_t bufLen, SScanObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->scanId));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbname));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->dbUid));
+  } else {
+    pObj->dbUid = 0;
+  }
 
   tEndDecode(&decoder);
 
@@ -243,7 +249,7 @@ static void mndReleaseScan(SMnode *pMnode, SScanObj *pScan) {
   pScan = NULL;
 }
 
-static int32_t mndScanGetDbName(SMnode *pMnode, int32_t scanId, char *dbname, int32_t len) {
+static int32_t mndScanGetDbInfo(SMnode *pMnode, int32_t scanId, char *dbname, int32_t len, int64_t *dbUid) {
   int32_t   code = 0;
   SScanObj *pScan = mndAcquireScan(pMnode, scanId);
   if (pScan == NULL) {
@@ -253,6 +259,7 @@ static int32_t mndScanGetDbName(SMnode *pMnode, int32_t scanId, char *dbname, in
   }
 
   tstrncpy(dbname, pScan->dbname, len);
+  if (dbUid) *dbUid = pScan->dbUid;
   mndReleaseScan(pMnode, pScan);
   TAOS_RETURN(code);
 }
@@ -263,6 +270,7 @@ int32_t mndAddScanToTran(SMnode *pMnode, STrans *pTrans, SScanObj *pScan, SDbObj
   pScan->scanId = tGenIdPI32();
 
   tstrncpy(pScan->dbname, pDb->name, sizeof(pScan->dbname));
+  pScan->dbUid = pDb->uid;
 
   pScan->startTime = taosGetTimestampMs();
 
@@ -688,10 +696,11 @@ static int32_t mndSaveScanProgress(SMnode *pMnode, int32_t scanId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  char dbname[TSDB_TABLE_FNAME_LEN] = {0};
-  TAOS_CHECK_RETURN(mndScanGetDbName(pMnode, scanId, dbname, TSDB_TABLE_FNAME_LEN));
+  char    dbname[TSDB_TABLE_FNAME_LEN] = {0};
+  int64_t dbUid = 0;
+  TAOS_CHECK_RETURN(mndScanGetDbInfo(pMnode, scanId, dbname, TSDB_TABLE_FNAME_LEN, &dbUid));
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     needSave = true;
     mWarn("scan:%" PRId32 ", no db exist, set needSave:%s", scanId, dbname);
   }
@@ -783,7 +792,7 @@ static int32_t mndSaveScanProgress(SMnode *pMnode, int32_t scanId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     allFinished = true;
     mWarn("scan:%" PRId32 ", no db exist, set all finished:%s", scanId, dbname);
   }

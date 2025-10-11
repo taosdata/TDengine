@@ -425,14 +425,18 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
-bool mndDbIsExist(SMnode *pMnode, const char *db) {
+bool mndDbIsExist(SMnode *pMnode, const char *db, int64_t uid) {
   SDbObj *pDb = mndAcquireDb(pMnode, db);
   if (pDb == NULL) {
     return false;
   } else {
+    bool result = true;
+    if (uid != 0 && pDb->uid != uid) {
+      result = false;
+    }
     mndReleaseDb(pMnode, pDb);
     pDb = NULL;
-    return true;
+    return result;
   }
 }
 
