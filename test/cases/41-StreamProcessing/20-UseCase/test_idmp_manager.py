@@ -312,7 +312,7 @@ class Test_IDMP_Meters:
         time.sleep(3)
         print("verifyResultsAgain ...")
         # ***** bug1 *****
-        # self.verify_stream1_again()
+        self.verify_stream1_again()
         self.verify_stream3_again()
         self.verify_stream4_again()
         # ***** bug9 *****
@@ -789,46 +789,9 @@ class Test_IDMP_Meters:
     #
     def verify_stream1_again(self):
         # check
-        result_sql = f"select * from test.result_stream1 order by tag_tbname"
-        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 1)
-
-        # check data
-        data = [
-            # ts           cnt  power
-            [1752574200000, 5, 50, "t1"]
-        ]
-        tdSql.checkDataMem(result_sql, data)
+        self.verify_stream1()
         print("verify stream1 again ........................... successfully.")
 
-        # sub
-        self.verify_stream1_sub1_again()
-        self.verify_stream1_sub3_again()
-
-    def verify_stream1_sub1_again(self):
-        # check
-        result_sql = f"select * from test.result_stream1_sub1 "
-        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 1)
-
-        # check data
-        data = [
-            # ts           cnt  power  gid
-            [1752574200000, 5, 50, 1]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream1 sub1 again ...................... successfully.")
-
-    def verify_stream1_sub3_again(self):
-        # check
-        result_sql = f"select * from out.result_stream1_sub3 "
-        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 1)
-
-        # check data
-        data = [
-            # ts           cnt  power  gid
-            [1752574200000, 5, 50, 1]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-        print("verify stream1 sub3 again ...................... successfully.")
 
     #
     #  verify stream3
