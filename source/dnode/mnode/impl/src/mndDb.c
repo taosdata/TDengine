@@ -430,12 +430,13 @@ bool mndDbIsExist(SMnode *pMnode, const char *db, int64_t uid) {
   if (pDb == NULL) {
     return false;
   } else {
+    bool result = true;
+    if (uid != 0 && pDb->uid != uid) {
+      result = false;
+    }
     mndReleaseDb(pMnode, pDb);
     pDb = NULL;
-    if (uid != 0) {
-      return uid == pDb->uid ? true : false;
-    }
-    return true;
+    return result;
   }
 }
 
