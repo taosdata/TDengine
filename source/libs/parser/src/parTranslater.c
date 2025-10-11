@@ -17029,7 +17029,6 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
 _exit:
   taosMemoryFreeClear(pTableMeta);
   TAOS_RETURN(code);
-  return 0;
 }
 
 #endif
