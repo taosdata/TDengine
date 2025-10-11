@@ -421,8 +421,7 @@ class Test_IDMP_Meters:
         items = {
            "mnode-stream-mg": 4,
            "dnode-stream-mg": 5,
-           # ***** bug4 *****
-           #"vnode-st-reader": 6,
+           "vnode-st-reader": 6,
            "snode-stream-tr": 7,
            "snode-stream-ru": 8
         }
