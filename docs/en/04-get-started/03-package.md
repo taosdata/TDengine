@@ -108,7 +108,6 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
 
    1. Download the Windows installation package:
       <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.1" platform="Windows" pkgType="Server"/>
-      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Windows" pkgType="Server"/>
    2. Run the installation package to install TDengine.
 
    </TabItem>
@@ -116,7 +115,6 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label="macOS" value="macos">
 
    1. Download the desired installation package from the following list:
-     <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.1" platform="macOS" pkgType="Server"/>
      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="macOS" pkgType="Server"/>
    2. Run the installation package to install TDengine.
 
