@@ -216,7 +216,7 @@ void mndReleaseRetention(SMnode *pMnode, SRetentionObj *pObj) {
   sdbRelease(pSdb, pObj);
 }
 
-int32_t mndRetentionGetDbInfo(SMnode *pMnode, int32_t id,  int64_t *dbId) {
+static int32_t mndRetentionGetDbInfo(SMnode *pMnode, int32_t id, char *dbname, int32_t len, int64_t *dbUid) {
   int32_t        code = 0;
   SRetentionObj *pObj = mndAcquireRetention(pMnode, id);
   if (pObj == NULL) {
@@ -225,7 +225,8 @@ int32_t mndRetentionGetDbInfo(SMnode *pMnode, int32_t id,  int64_t *dbId) {
     TAOS_RETURN(code);
   }
 
-  *dbId = pObj->dbUid;
+  tstrncpy(dbname, pObj->dbname, len);
+  if (dbUid) *dbUid = pObj->dbUid;
   mndReleaseRetention(pMnode, pObj);
   TAOS_RETURN(code);
 }
@@ -673,10 +674,11 @@ static int32_t mndSaveRetentionProgress(SMnode *pMnode, int32_t id) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  char dbname[TSDB_TABLE_FNAME_LEN] = {0};
-  TAOS_CHECK_RETURN(mndRetentionGetDbName(pMnode, id, dbname, TSDB_TABLE_FNAME_LEN));
+  char    dbname[TSDB_TABLE_FNAME_LEN] = {0};
+  int64_t dbUid = 0;
+  TAOS_CHECK_RETURN(mndRetentionGetDbInfo(pMnode, id, dbname, TSDB_TABLE_FNAME_LEN, &dbUid));
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     needSave = true;
     mWarn("retention:%" PRId32 ", no db exist, set needSave:%s", id, dbname);
   }
@@ -768,7 +770,7 @@ static int32_t mndSaveRetentionProgress(SMnode *pMnode, int32_t id) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     allFinished = true;
     mWarn("retention:%" PRId32 ", no db exist, set all finished:%s", id, dbname);
   }

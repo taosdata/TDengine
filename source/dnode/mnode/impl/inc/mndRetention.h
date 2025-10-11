@@ -39,7 +39,6 @@ int32_t mndProcessQueryRetentionRsp(SRpcMsg *pReq);
 SRetentionObj *mndAcquireRetention(SMnode *pMnode, int32_t id);
 void           mndReleaseRetention(SMnode *pMnode, SRetentionObj *pRetention);
 
-int32_t mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t len);
 void    mndRetentionSendProgressReq(SMnode *pMnode, SRetentionObj *pRetention);
 
 #ifdef __cplusplus

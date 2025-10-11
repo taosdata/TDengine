@@ -1047,6 +1047,7 @@ typedef struct {
 typedef struct {
   int32_t scanId;
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* scanDetail;
 } SScanObj;
