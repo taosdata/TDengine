@@ -343,6 +343,8 @@ extern int32_t tsSsPageCacheSize;
 extern bool tsInsertPerfEnabled;
 
 extern bool tsExperimental;
+
+extern int64_t tsTimestampDeltaLimit;  // s
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
