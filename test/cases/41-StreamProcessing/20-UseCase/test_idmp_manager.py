@@ -313,7 +313,7 @@ class Test_IDMP_Meters:
         self.verify_stream3_again()
         self.verify_stream4_again()
         # ***** bug9 *****
-        #self.verify_stream7_again()
+        self.verify_stream7_again()
         self.verify_stream8_again()
 
     #
@@ -651,28 +651,24 @@ class Test_IDMP_Meters:
         step  = 1000 # 1s
         cols  = "ts,fc,ic,bi,si,bin"
 
-        # win1
+        # win1 order insert
         count = 5
         vals  = "50,250,10,1,'abcde'"
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
-        # blank 5 win2 disorder
+        # blank 5 win2 for disorder
         disTs = ts
         ts += 5 * step
 
-        # win3~4
+        # win3~4 order insert
         count = 11
         vals  = "50,250,10,1,'abcde'"
         self.ts7 = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
-        # disorder win2
+        # insert win2 disorder
         count = 5
         vals  = "40,240,10,1,'disorder'"
-        disTs = tdSql.insertFixedVal(table, disTs, step, count, cols, vals)
-
-        # delete win3
-        sql = f"delete from {table} where ts >= {disTs} and ts < {disTs + 5 * step}"
-        self.exec(sql)
+        self.disTs7 = tdSql.insertFixedVal(table, disTs, step, count, cols, vals)
 
     #
     #  trigger stream7 again
@@ -698,6 +694,10 @@ class Test_IDMP_Meters:
         step  = 1000 # 1s
         count = 5
         ts    = tdSql.insertFixedVal(table, self.ts7, step, count, cols, vals)
+
+        # delete win3 for rows 0 and 1
+        sql = f"delete from {table} where ts >= {self.disTs7} and ts < {self.disTs7 + 2 * step}"
+        self.exec(sql)        
 
 
     #
@@ -989,7 +989,7 @@ class Test_IDMP_Meters:
         data = [
             # ts           cnt  power
             [1752574200000, 5,  50], # order
-            [1752574210000, 5,  50], # deleted
+            [1752574210000, 5,  50], # order
             [1752574215000, 5,  50]  # order
         ]
         result_sql = f"select * from test.result_stream7_sub1"
@@ -1006,13 +1006,13 @@ class Test_IDMP_Meters:
     #
     def verify_stream7_again(self):
         # ***** bug8 *****
-        ''' 
         # mem
         data = [
             # ts           cnt  power
             [1752574200000, 5,  50], # order
             [1752574205000, 5,  50], # disorder
-            [1752574215000, 5,  50],  # order
+            [1752574210000, 3,  30], # order del row 0~1
+            [1752574215000, 5,  50], # order
             [1752574220000, 5,  50]  # again
         ]
         result_sql = f"select * from test.result_stream7"
@@ -1022,7 +1022,6 @@ class Test_IDMP_Meters:
         )
         tdSql.checkDataMem(result_sql, data)   
         print("verify stream7 again ........................... successfully.")
-        '''
 
         # sub
         self.verify_stream7_sub1_again()
@@ -1035,6 +1034,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power
             [1752574200000, 5,  50], # order
             [1752574205000, 5,  50], # disorder
+            [1752574210000, 5,  50], # order del row 0~1 but no set DELETE_RECALC OPTION
             [1752574215000, 5,  50], # order
             [1752574220000, 5,  50]  # again
         ]
