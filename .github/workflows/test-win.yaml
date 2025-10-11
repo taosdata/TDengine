@@ -20,6 +20,13 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Run your script
+        shell: cmd 
+        run: where python3
+
+      - name: Run your script
+        run: where python3
+        
+      - name: Run your script
         run: python3 c:\\test.py
 
 
