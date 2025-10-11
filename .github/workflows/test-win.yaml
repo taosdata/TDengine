@@ -1,0 +1,27 @@
+
+name: Test-for-win
+on:
+  pull_request:
+    branches:
+      - 'main'
+      
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-Test-for-win
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on:
+      group: CI
+      labels: [self-hosted, Windows, X64, test-win]
+      
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fix execution policy
+        shell: powershell
+        run: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+
+      - name: Run your script
+        run: python3 c:\\test.py
