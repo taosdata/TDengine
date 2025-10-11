@@ -66,7 +66,7 @@ class TestShowTransactionDetail:
         tdLog.info(f"stop dnode 2")
         dnode.stoptaosd()
         if platform.system() == 'Windows':
-            time.sleep(15)
+            time.sleep(20)
 
         tdLog.info(f"show transactions;")
         rows = tdSql.query("show transactions;", queryTimes=1)
