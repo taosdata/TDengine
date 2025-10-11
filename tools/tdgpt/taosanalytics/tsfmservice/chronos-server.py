@@ -131,6 +131,8 @@ def main():
 
         if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
             download_model(model_name, model_folder, enable_ep=enable_ep)
+        else:
+            print("model file exists, start directly")
 
         """load the model from local folder"""
         pretrained_model = BaseChronosPipeline.from_pretrained(
