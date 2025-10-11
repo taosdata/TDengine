@@ -443,7 +443,7 @@ class DataType:
             return str(secrets.randbelow(4294967296) - 2147483648)
         if self.type == TypeEnum.BIGINT:
             # return str(secrets.randbelow(9223372036854775808) - 4611686018427387904)
-            return str(secrets.randbelow(923372036854775808) - 411686018427387904)
+            return str(secrets.randbelow(9372036854775808) - 4686018427387904)
         if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
             return str(random.uniform(-1e10, 1e10))
         if (
@@ -454,7 +454,7 @@ class DataType:
             return f"'{str(random.uniform(-1e20, 1e20))[0:self.length]}'"
         if self.type == TypeEnum.TIMESTAMP:
             # return str(secrets.randbelow(9223372036854775808))
-            return str(secrets.randbelow(923372036854775808))
+            return str(secrets.randbelow(9372036854775808))
         if self.type == TypeEnum.UTINYINT:
             return str(secrets.randbelow(256))
         if self.type == TypeEnum.USMALLINT:
@@ -463,7 +463,7 @@ class DataType:
             return str(secrets.randbelow(4294967296))
         if self.type == TypeEnum.UBIGINT:
             #  return str(secrets.randbelow(9223372036854775808))
-            return str(secrets.randbelow(923372036854775808))
+            return str(secrets.randbelow(9372036854775808))
         if self.type == TypeEnum.JSON:
             return f'{{"key": "{secrets.token_urlsafe(10)}"}}'
         if self.type == TypeEnum.GEOMETRY:
@@ -1989,7 +1989,6 @@ class TestDecimal:
             10000, 1537146000000, 500, flush_database=True
         )
         ## TODO wjm test non support decimal version upgrade to decimal support version, and add decimal column
-
         ## Test metaentry compatibility problem for decimal type
         ## How to test it?
         ## Create table with no decimal type, the metaentries should not have extschma, and add decimal column, the metaentries should have extschema for all columns.
