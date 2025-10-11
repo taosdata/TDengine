@@ -28,7 +28,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label=".deb" value="debinst">
 
    1. Download the .deb installation package:
-      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Linux-Ubuntu" arch="x64" pkgType="Server" pkgType="Server"/>
+      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Linux-Ubuntu" arch="x64" pkgType="Server"/>
    2. Run the following command to install TDengine:
 
       ```bash
