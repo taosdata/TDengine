@@ -797,7 +797,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   }
 
   int64_t delta = curMs / 1000 - statusReq.timestamp / 1000;
-  if (abs((int32_t)(delta)) >= tsTimestampDeltaLimit) {
+  if (labs(delta) >= tsTimestampDeltaLimit) {
     terrno = TSDB_CODE_TIME_UNSYNCED;
     code = terrno;
 
