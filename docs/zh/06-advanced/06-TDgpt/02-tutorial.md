@@ -31,7 +31,7 @@ docker pull tdengine/tdgpt:latest
 或者特定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdgpt:3.3.7.0
+docker pull tdengine/tdgpt:3.3.8.1
 ```
 
 执行下面的命令启动容器：
@@ -40,7 +40,7 @@ docker pull tdengine/tdgpt:3.3.7.0
 docker run -d \
   -p 6035:6035 \
   -p 6036:6036 \
-  tdengine/tdgpt:3.3.7.0
+  tdengine/tdgpt:3.3.8.1
 ```
 
 :::note
@@ -60,7 +60,7 @@ docker pull tdengine/tdgpt-full:latest
 或者指定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdgpt-full:3.3.7.0
+docker pull tdengine/tdgpt-full:3.3.8.1
 ```
 
 执行下面的命令启动容器：
@@ -71,7 +71,7 @@ docker run -d \
   -p 6035:6035 \
   -p 6036:6036 \
   -p 6037:6037 \
-  tdengine/tdgpt-full:3.3.7.0
+  tdengine/tdgpt-full:3.3.8.1
 ```
 
 **注意**：TDgpt 服务端使用 6035 TCP 端口。6036 和 6037 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
