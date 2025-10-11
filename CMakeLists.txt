@@ -35,6 +35,7 @@ endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 add_subdirectory(contrib)
+add_subdirectory(deps/roaring)
 
 if(${BUILD_TEST})
   include(CTest)
@@ -51,6 +52,7 @@ add_subdirectory(utils)
 add_subdirectory(tests)
 add_subdirectory(examples/c)
 add_subdirectory(docs/doxgen)
+add_subdirectory(plugins/incremental_bitmap)
 
 include(cmake/install.cmake)
 include(CPack)

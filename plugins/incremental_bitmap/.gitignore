@@ -1,0 +1,31 @@
+dump_result.txt
+
+# 构建产物
+build/
+CMakeFiles/
+*.o
+*.so
+*.a
+*.dylib
+*.dll
+
+# CMake 临时文件
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+
+# 编译产物
+*.exe
+*.out
+*.log
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db 

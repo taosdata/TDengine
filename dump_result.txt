@@ -1,0 +1,666 @@
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 09:42:35
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          3
+end time: 2025-08-27 09:42:35
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 09:43:34
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          4
+end time: 2025-08-27 09:43:34
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 09:45:33
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          5
+end time: 2025-08-27 09:45:33
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 09:47:00
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          7
+end time: 2025-08-27 09:47:00
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 12:32:57
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          9
+end time: 2025-08-27 12:32:57
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 12:35:46
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          11
+end time: 2025-08-27 12:35:46
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 12:40:07
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          13
+end time: 2025-08-27 12:40:07
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 13:41:35
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          15
+end time: 2025-08-27 13:41:35
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 14:15:23
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          17
+end time: 2025-08-27 14:15:23
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 14:16:43
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          19
+end time: 2025-08-27 14:16:43
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 14:58:14
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          21
+end time: 2025-08-27 14:58:14
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 15:01:12
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          23
+end time: 2025-08-27 15:01:12
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 15:01:42
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          25
+end time: 2025-08-27 15:01:42
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 15:19:13
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          27
+end time: 2025-08-27 15:19:13
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 17:15:16
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          29
+end time: 2025-08-27 17:15:16
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 20:30:25
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          31
+end time: 2025-08-27 20:30:25
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: (null)
+user: root
+port: 0
+outpath: /home/hp/TDengine/plugins/incremental_bitmap/build/e2e_dump_out/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-08-27 20:34:40
+
+#### database:                       test
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          33
+end time: 2025-08-27 20:34:40
+
+========== arguments config =========
+TDengine Community Edition
+taosdump version: 3.3.6.13.alpha
+git: 57e56dc7588d645b0ad008bae0cecae7612b6797
+build: Linux-x64 2025-08-26 15:39:13 +0800
+host: 127.0.0.1
+user: root
+port: 6030
+outpath: /tmp/taosdump_comparison_test/
+inpath: 
+resultFile: ./dump_result.txt
+all_databases: false
+databases: true
+databasesSeq: test_bitmap_db
+schemaonly: false
+with_property: true
+avro codec: snappy
+data_batch: 16383
+thread_num: 8
+allow_sys: false
+escape_char: true
+loose_mode: false
+isDumpIn: false
+arg_list_len: 0
+debug_print: 0
+========== DUMP OUT ========== 
+# DumpOut start time: 2025-09-09 21:27:38
+
+#### database:                       test_bitmap_db
+
+============================== TOTAL STATISTICS ============================== 
+# total database count:     1
+# total super table count:  0
+# total child table count:  0
+# total row count:          1
+end time: 2025-09-09 21:27:38
+
