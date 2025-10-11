@@ -145,21 +145,21 @@ sudo apt install build-essential
 
 1. 从列表中下载获得 tar.gz 安装包
 
-   <PkgListV37 productName="TDengine TDgpt-OSS" version="3.3.8.0" platform="Linux-Generic" pkgType="Server"/>
+   <PkgListV37 productName="TDengine TDgpt-OSS" version="3.3.8.1" platform="Linux-Generic" pkgType="Server"/>
 
    安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
   
 2. 进入到安装包所在目录，使用 tar 解压安装包；
 
 ```bash
-tar -zxvf tdengine-tdgpt-oss-3.3.8.0-linux-x64.tar.gz
+tar -zxvf tdengine-tdgpt-oss-3.3.8.1-linux-x64.tar.gz
 ```
 
 ### 执行安装脚本
 
 解压安装包后，进入目录执行其中的 `install.sh` 脚本进行安装。
 ```bash
-cd tdengine-tdgpt-oss-3.3.8.0
+cd tdengine-tdgpt-oss-3.3.8.1
 ./install.sh
 ```
 
