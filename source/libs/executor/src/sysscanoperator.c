@@ -3341,8 +3341,6 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     pMsgSendInfo->fp = loadSysTableCallback;
     pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
-    qInfo("%s send fetch meta data request to mnode, msgType:%d, tb:%s, user:%s", GET_TASKID(pTaskInfo),
-          pMsgSendInfo->msgType, pInfo->req.tb, pInfo->req.user);
     code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, NULL, pMsgSendInfo);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -3386,10 +3384,6 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
     updateLoadRemoteInfo(&pInfo->loadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
-    qInfo("%s load meta data from mnode, rowsOfSource:%d, rowsInBlock:%d, totalRows:%" PRIu64
-          ", timeCost:%.3fms",
-          GET_TASKID(pTaskInfo), pRsp->numOfRows, pInfo->pRes->info.rows, pInfo->loadInfo.totalRows,
-          (taosGetTimestampUs() - startTs) / 1000.0);
     // todo log the filter info
     code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     if (code != TSDB_CODE_SUCCESS) {
