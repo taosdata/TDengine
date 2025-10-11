@@ -1685,6 +1685,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
   SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
   SArray*                    pColRefArray = NULL;
+  SColRefInfo*               pColRefInfo = NULL;
   SOperatorInfo*             pSystableScanOp = pOperator->pDownstream[1];
 
   pVtbScan->childTableMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -1715,7 +1716,10 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
           code = getColRefInfo(&info, pChildInfo->pDataBlock, i);
           QUERY_CHECK_CODE(code, line, _return);
 
+          pColRefInfo = &info;
+
           if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
+            destroyColRefInfo(pColRefInfo);
             continue;
           }
 
@@ -1736,6 +1740,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
             pColRefArray = taosArrayInit(1, sizeof(SColRefInfo));
             QUERY_CHECK_NULL(pColRefArray, code, line, _return, terrno)
             QUERY_CHECK_NULL(taosArrayPush(pColRefArray, &info), code, line, _return, terrno)
+            pColRefInfo = NULL;
             int32_t tableIdx = (int32_t)taosArrayGetSize(pVtbScan->childTableList);
             QUERY_CHECK_NULL(taosArrayPush(pVtbScan->childTableList, &pColRefArray), code, line, _return, terrno)
             code = taosHashPut(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName), &tableIdx, sizeof(tableIdx));
@@ -1746,6 +1751,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
             pColRefArray = (SArray *)taosArrayGetP(pVtbScan->childTableList, *tableIdx);
             QUERY_CHECK_NULL(pColRefArray, code, line, _return, terrno)
             QUERY_CHECK_NULL(taosArrayPush(pColRefArray, &info), code, line, _return, terrno)
+            pColRefInfo = NULL;
           }
         }
       }
@@ -1758,6 +1764,9 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
 _return:
   if (code) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+  }
+  if (pColRefInfo) {
+    destroyColRefInfo(pColRefInfo);
   }
   return code;
 }
