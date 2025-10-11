@@ -216,7 +216,7 @@ void mndReleaseRetention(SMnode *pMnode, SRetentionObj *pObj) {
   sdbRelease(pSdb, pObj);
 }
 
-int32_t mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t len) {
+int32_t mndRetentionGetDbInfo(SMnode *pMnode, int32_t id,  int64_t *dbId) {
   int32_t        code = 0;
   SRetentionObj *pObj = mndAcquireRetention(pMnode, id);
   if (pObj == NULL) {
@@ -225,7 +225,7 @@ int32_t mndRetentionGetDbName(SMnode *pMnode, int32_t id, char *dbname, int32_t 
     TAOS_RETURN(code);
   }
 
-  tstrncpy(dbname, pObj->dbname, len);
+  *dbId = pObj->dbUid;
   mndReleaseRetention(pMnode, pObj);
   TAOS_RETURN(code);
 }
@@ -344,7 +344,7 @@ static void *mndBuildKillRetentionReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *
   req.dnodeId = dnodeId;
   terrno = 0;
 
-  mInfo("vgId:%d, build kill retention vnode config req", pVgroup->vgId);
+  mInfo("vgId:%d, build kill retention req", pVgroup->vgId);
   int32_t contLen = tSerializeSVKillCompactReq(NULL, 0, &req);
   if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -362,7 +362,6 @@ static void *mndBuildKillRetentionReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
 
-  mTrace("vgId:%d, build compact vnode config req, contLen:%d", pVgroup->vgId, contLen);
   int32_t ret = 0;
   if ((ret = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
     taosMemoryFreeClear(pReq);
@@ -494,7 +493,7 @@ int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   SRetentionObj *pObj = mndAcquireRetention(pMnode, req.id);
   if (pObj == NULL) {
-    code = TSDB_CODE_MND_INVALID_TRIM_ID;
+    code = TSDB_CODE_MND_INVALID_RETENTION_ID;
     tFreeSKillCompactReq(&req);
     TAOS_RETURN(code);
   }

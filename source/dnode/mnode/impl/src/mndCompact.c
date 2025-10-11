@@ -65,6 +65,7 @@ int32_t tSerializeSCompactObj(void *buf, int32_t bufLen, const SCompactObj *pObj
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbname));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
   TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pObj->flags));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->dbUid));
 
   tEndEncode(&encoder);
 
@@ -93,6 +94,11 @@ int32_t tDeserializeSCompactObj(void *buf, int32_t bufLen, SCompactObj *pObj) {
     TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pObj->flags));
   } else {
     pObj->flags = 0;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->dbUid));
+  } else {
+    pObj->dbUid = 0;
   }
 
   tEndDecode(&decoder);

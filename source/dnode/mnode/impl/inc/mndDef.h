@@ -1031,6 +1031,7 @@ typedef struct {
     int32_t id;
   };
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* compactDetail;
   union {
