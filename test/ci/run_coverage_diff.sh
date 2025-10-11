@@ -244,64 +244,194 @@ function collect_gcda_from_tests() {
         return 0
     fi
     
-    echo "=== Fast GCDA collection with mv and parallel processing ==="
+    echo "=== GCDA collection with coverage.txt filtering and MD5 deduplication ==="
     echo "Source: $test_log_dir -> Target: $target_debug_dir"
+    
+    # 预加载 coverage.txt 过滤规则
+    local coverage_patterns_file=$(mktemp)
+    if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
+        echo "Loading coverage.txt filter patterns..."
+        
+        # 处理所有行，提取基础文件名
+        while IFS= read -r line; do
+            # 跳过空行和注释行
+            [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+            
+            # 提取文件名（去掉路径）
+            local filename=$(basename "$line")
+            
+            # 去掉扩展名，得到基础名称
+            if [[ "$filename" == *.* ]]; then
+                local base_name="${filename%%.*}"
+                echo "$base_name" >> "$coverage_patterns_file"
+            else
+                echo "$filename" >> "$coverage_patterns_file"
+            fi
+        done < "$TDENGINE_DIR/test/ci/coverage.txt"
+        
+        # 去重并排序
+        sort -u "$coverage_patterns_file" -o "$coverage_patterns_file"
+        
+        local pattern_count=$(wc -l < "$coverage_patterns_file")
+        echo "Loaded $pattern_count unique coverage filter patterns"
+        
+    else
+        echo "Warning: coverage.txt not found, processing all files"
+        touch "$coverage_patterns_file"
+    fi
     
     # 查找所有覆盖率目录
     local coverage_dirs=$(find "$test_log_dir" -type d -name "*.coverage" 2>/dev/null)
     
     if [ -z "$coverage_dirs" ]; then
         echo "No coverage directories found"
+        rm -f "$coverage_patterns_file"
         return 0
     fi
     
+    echo "Found $(echo "$coverage_dirs" | wc -l) coverage directories"
+    
     local max_jobs=$(nproc 2>/dev/null || echo "4")
     echo "Using $max_jobs parallel jobs"
+    
+    # 创建临时文件来跟踪已处理的 MD5
+    local md5_tracking_file=$(mktemp)
+    
+    # 文件匹配函数
+    is_file_in_coverage() {
+        local gcda_file="$1"
+        local patterns_file="$2"
+        
+        # 如果模式文件为空，处理所有文件
+        if [ ! -s "$patterns_file" ]; then
+            return 0
+        fi
+        
+        # 从 GCDA 文件路径提取基础文件名
+        local gcda_filename=$(basename "$gcda_file")
+        local base_name=""
+        
+        if [[ "$gcda_filename" == *.c.gcda ]]; then
+            base_name="${gcda_filename%.c.gcda}"
+        elif [[ "$gcda_filename" == *.gcda ]]; then
+            base_name="${gcda_filename%.gcda}"
+        else
+            return 1
+        fi
+        
+        # 在模式文件中查找
+        grep -q "^${base_name}$" "$patterns_file"
+    }
+    
+    # 导出函数供子进程使用
+    export -f is_file_in_coverage
     
     # 并发处理函数
     process_debug_subdir() {
         local subdir="$1"
         local target_debug_dir="$2"
+        local md5_tracking_file="$3"
+        local patterns_file="$4"
         local subdir_name=$(basename "$subdir")
+        local coverage_dir_name=$(basename "$(dirname "$subdir")")
         local count=0
+        local skipped_coverage=0
+        local skipped_md5=0
         
-        echo "Processing $subdir_name..."
+        echo "Processing case: $coverage_dir_name/$subdir_name"
+        
+        # 统计该目录下的 GCDA 文件总数
+        local total_gcda=$(find "$subdir" -name "*.gcda" -type f 2>/dev/null | wc -l)
         
         # 批量查找并处理
         while IFS= read -r -d '' gcda_file; do
+            # 预过滤：检查文件是否在覆盖率范围内
+            if ! is_file_in_coverage "$gcda_file" "$patterns_file"; then
+                ((skipped_coverage++))
+                continue
+            fi
+            
+            # 计算文件 MD5
+            local md5_hash=$(md5sum "$gcda_file" 2>/dev/null | cut -d' ' -f1)
+            if [ -z "$md5_hash" ]; then
+                continue
+            fi
+            
             local rel_path=$(realpath --relative-to="$subdir" "$gcda_file")
             local target_path="$target_debug_dir/$rel_path"
             local target_dir=$(dirname "$target_path")
             
-            # 只在需要时创建目录
+            # 创建目标目录
             [ ! -d "$target_dir" ] && mkdir -p "$target_dir"
             
-            # 简化文件名生成
+            # 生成文件名
             local filename=$(basename "$gcda_file")
-            local timestamp=$(date +"%H%M%S%N" | cut -c1-12)  # 更短的时间戳
-            local new_filename="${filename%.*}_${subdir_name}_${timestamp}.${filename##*.}"
+            local md5_short="${md5_hash:0:8}"
             
-            # 使用 mv 快速移动
-            if cp "$gcda_file" "$target_dir/$new_filename" 2>/dev/null; then
-                ((count++))
+            local new_filename
+            if [[ "$filename" == *.c.gcda ]]; then
+                local base_name="${filename%.c.gcda}"
+                new_filename="${base_name}_${subdir_name}_${md5_short}.c.gcda"
+            elif [[ "$filename" == *.gcda ]]; then
+                local base_name="${filename%.gcda}"
+                new_filename="${base_name}_${subdir_name}_${md5_short}.gcda"
+            else
+                new_filename="${filename}_${subdir_name}_${md5_short}"
             fi
+            
+            local final_target="$target_dir/$new_filename"
+            
+            # MD5 去重检查
+            (
+                flock -x 200
+                
+                local md5_entry="${md5_hash}:${rel_path}:${final_target}"
+                
+                if grep -q "^${md5_hash}:" "$md5_tracking_file" 2>/dev/null; then
+                    skipped_md5=$((skipped_md5 + 1))
+                else
+                    if cp "$gcda_file" "$final_target" 2>/dev/null; then
+                        echo "$md5_entry" >> "$md5_tracking_file"
+                        count=$((count + 1))
+                    fi
+                fi
+            ) 200>"$md5_tracking_file.lock"
+            
         done < <(find "$subdir" -name "*.gcda" -type f -print0 2>/dev/null)
         
-        echo "$subdir_name: processed $count files"
+        echo "Completed $coverage_dir_name/$subdir_name: processed $count, skipped $((skipped_coverage + skipped_md5)) (total $total_gcda)"
+        
+        # 清理锁文件
+        rm -f "$md5_tracking_file.lock"
     }
     
     # 导出函数供并发使用
     export -f process_debug_subdir
     
     # 收集所有需要处理的子目录
-    local all_subdirs=()
+    local temp_subdirs=$(mktemp)
     echo "$coverage_dirs" | while read -r coverage_dir; do
         for subdir in "$coverage_dir"/*; do
             [ -d "$subdir" ] && echo "$subdir"
         done
-    done | xargs -n 1 -P "$max_jobs" -I {} bash -c "process_debug_subdir '{}' '$target_debug_dir'"
+    done > "$temp_subdirs"
+    
+    # 并发处理所有子目录
+    cat "$temp_subdirs" | xargs -n 1 -P "$max_jobs" -I {} bash -c "process_debug_subdir '{}' '$target_debug_dir' '$md5_tracking_file' '$coverage_patterns_file'"
+    
+    # 统计最终结果
+    local total_unique=$(wc -l < "$md5_tracking_file" 2>/dev/null || echo "0")
+    local total_files=$(cat "$temp_subdirs" | xargs -I {} find {} -name "*.gcda" -type f 2>/dev/null | wc -l)
+    local processed_files=$total_unique
+    local skipped_files=$((total_files - processed_files))
     
     echo "=== GCDA collection completed ==="
+    echo "Total files found: $total_files"
+    echo "Files processed: $processed_files"
+    echo "Files skipped: $skipped_files"
+    
+    # 清理临时文件
+    rm -f "$md5_tracking_file" "$temp_subdirs" "$coverage_patterns_file"
 }
 
 function lcovFunc {
@@ -315,25 +445,16 @@ function lcovFunc {
     fi
 
 
-#     # 创建 lcov 配置文件
-#     cat > lcov_tdengine.config << EOF
-# # lcov 配置文件 - 只包含指定的源文件
-# genhtml_branch_coverage = 1
-# lcov_branch_coverage = 1
-# EOF
+    # 创建 lcov 配置文件
+    cat > lcov_tdengine.config << EOF
+# lcov 配置文件 - 只包含指定的源文件
+genhtml_branch_coverage = 1
+lcov_branch_coverage = 1
+EOF
 
-#     # 调试输出配置文件内容
-#     echo "lcov_tdengine.config 内容:"
-#     cat lcov_tdengine.config
-
-    # 在 lcov capture 之前添加
-    echo "=== 调试信息 ==="
-    echo "当前工作目录: $(pwd)"
-    echo "CAPTURE_GCDA_DIR: $CAPTURE_GCDA_DIR"
-    echo "TDENGINE_DIR: $TDENGINE_DIR"
-    echo "配置文件内容:"
-    echo "GCDA 文件位置检查:"
-    find "$CAPTURE_GCDA_DIR" -name "*.gcda" -type f | head -10
+    # 调试输出配置文件内容
+    echo "lcov_tdengine.config 内容:"
+    cat lcov_tdengine.config
 
     # 显示 GCDA 文件统计
     echo "=== GCDA 文件统计 ==="
