@@ -80,6 +80,7 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t     pendingNullStart;    // for state window trigger
   int32_t     numPendingNull;      // for state window trigger
   STimeWindow prevWindow;          // the last closed window, for sliding trigger
+  int64_t     totalCount;          // for count window trigger
   SObjList    windows;             // SObjList<SSTriggerWindow>, windows not yet closed
   SObjList    pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
   SSHashObj  *pDoneVersions;       // SSHashObj<vgId, SObjList<{skey, ver}>>

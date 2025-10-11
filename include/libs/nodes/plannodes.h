@@ -91,7 +91,9 @@ typedef struct SScanLogicNode {
   EScanType          scanType;
   uint8_t            scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow        scanRange;
+  STimeWindow*       pExtScanRange;
   SNode*             pTimeRange;  // for create stream
+  SNode*             pExtTimeRange;  // for create stream
   SName              tableName;
   bool               showRewrite;
   double             ratio;
@@ -221,6 +223,7 @@ typedef struct SInterpFuncLogicNode {
   SLogicNode    node;
   SNodeList*    pFuncs;
   STimeWindow   timeRange;
+  SNode*        pTimeRange; // STimeRangeNode for create stream
   int64_t       interval;
   int8_t        intervalUnit;
   int8_t        precision;
@@ -529,7 +532,9 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t        scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow    scanRange;
+  STimeWindow*   pExtScanRange; 
   SNode*         pTimeRange;  // for create stream
+  SNode*         pExtTimeRange;  // for create stream
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
@@ -576,6 +581,7 @@ typedef struct SInterpFuncPhysiNode {
   SNodeList*        pExprs;
   SNodeList*        pFuncs;
   STimeWindow       timeRange;
+  SNode*            pTimeRange;  // for stream
   int64_t           interval;
   int8_t            intervalUnit;
   int8_t            precision;

@@ -1958,7 +1958,9 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
       taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pLogicNode->pTsmaTargetTbInfo);
+      taosMemoryFreeClear(pLogicNode->pExtScanRange);
       nodesDestroyNode(pLogicNode->pTimeRange);
+      nodesDestroyNode(pLogicNode->pExtTimeRange);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -2072,6 +2074,7 @@ void nodesDestroyNode(SNode* pNode) {
       SInterpFuncLogicNode* pLogicNode = (SInterpFuncLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
+      nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pFillValues);
       nodesDestroyNode(pLogicNode->pTimeSeries);
       break;
@@ -2155,7 +2158,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTags);
       nodesDestroyNode(pPhyNode->pSubtable);
+      taosMemoryFreeClear(pPhyNode->pExtScanRange);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      nodesDestroyNode(pPhyNode->pExtTimeRange);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -2289,6 +2294,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
       nodesDestroyList(pPhyNode->pFuncs);
+      nodesDestroyNode(pPhyNode->pTimeRange);
       nodesDestroyNode(pPhyNode->pFillValues);
       nodesDestroyNode(pPhyNode->pTimeSeries);
       break;

@@ -1693,7 +1693,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   QUERY_CHECK_CODE(code, lino, _error);
 
   initLimitInfo(pScanNode->node.pLimit, pScanNode->node.pSlimit, &pInfo->base.limitInfo);
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle, true);
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pScanNode->pScanPseudoCols != NULL) {
@@ -4513,7 +4513,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
                              &pInfo->base.matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle, false);
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
