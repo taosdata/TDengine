@@ -739,7 +739,7 @@ cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
   INTERVAL NK_LP signed_duration_list(F) NK_RP.                                   { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, F); }
 cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
 cmd ::= SHOW CREATE RSMA full_table_name(A).                                      { pCxt->pRootNode = createShowCreateRsmaStmt(pCxt, QUERY_NODE_SHOW_CREATE_RSMA_STMT, A); }
-cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) FUNCTION func_list(D).         { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, D, true); }
+cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) rsma_func_list(D).             { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, TSDB_ALTER_RSMA_FUNCTION, D); }
 cmd ::= SHOW db_name_cond_opt(B) RSMAS.                                           { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_RSMAS_STMT, B, NULL, OP_TYPE_LIKE); }
 cmd ::= SHOW db_name_cond_opt(B) RETENTIONS.                                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_RETENTIONS_STMT, B, NULL, OP_TYPE_LIKE); }
 cmd ::= SHOW RETENTION NK_INTEGER(A).                                             { pCxt->pRootNode = createShowRetentionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }

@@ -132,7 +132,7 @@ taosgen -h 127.0.0.1 -c config.yaml
       - has_header（布尔）：是否包含表头行，默认为 true。
       - repeat_read（布尔）：是否重复读取数据，默认为 false。
       - tbname_index（整数）：指定子表名称所在的列索引（从 0 开始），默认为 -1，表示未生效。
-      - timestamp_index（整数）：指定时间戳列的索引（从 0 开始），默认值为 0。
+      - timestamp_index（整数）：指定时间戳列的索引（从 0 开始），默认为 -1，表示未生效。
       - timestamp_precision（字符串）：表示时间戳列的时间精度，可选值为 "s"、"ms"、"us"、"ns"。
       - timestamp_offset：描述时间戳数值的偏移配置参数。
         - offset_type（字符串）：表示时间戳偏移类型，可选值为："relative"、"absolute"。
@@ -155,9 +155,10 @@ taosgen -h 127.0.0.1 -c config.yaml
   - generation：描述数据生成行为相关的配置参数。
     - interlace（整数）：控制交错方式生成表数据的行数，默认值为 0，表示不启用交错模式。
     - concurrency（整数）：表示生成数据的线程数量，默认值为写入线程数量。
-    - per_table_rows（整数），每个数据表写入的行数，默认值为 10000，-1 表示无限数据。
-    - per_batch_rows（整数），默认值为 10000，表示每次批量请求写入的最大行数。
-    - tables_reuse_data（布尔）：多表是否复用相同数据，默认为 false。
+    - rows_per_table（整数），每个数据表写入的行数，默认值为 10000，-1 表示无限数据。
+    - rows_per_batch（整数），表示每次批量请求写入的最大行数，默认值为 10000。
+    - num_cached_batches（整数），表示提前生成数据并缓存批量请求的数量，0 表示关闭数据缓存，默认值为 10000。
+    - tables_reuse_data（布尔）：多表是否复用相同数据，默认为 true。
 
 ##### 列配置包含属性
 每列包含以下属性：
@@ -252,7 +253,7 @@ taosgen -h 127.0.0.1 -c config.yaml
   - retry_interval_ms（整数）：重试间隔，单位为毫秒，默认值为 1000，仅在 max_retries > 0 时有效。
   - on_failure（字符串）：默认值为 exit，表示失败后的行为，可选值为：
     - exit：失败后自动退出程序
-    - continue：失败后警告用户并继续执行
+    - skip：失败后警告用户并跳过继续执行
 - time_interval：控制写入过程中时间间隔分布策略。
   - enabled（布尔）：表示是否启用时间间隔控制，默认值为 false。
   - interval_strategy（字符串）：表示时间间隔策略类型，默认值为 fixed。可选值为：

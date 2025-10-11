@@ -595,6 +595,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_RSMA_STMT:
       code = makeNode(type, sizeof(SDropRsmaStmt), &pNode);
       break;
+    case QUERY_NODE_ALTER_RSMA_STMT:
+      code = makeNode(type, sizeof(SAlterRsmaStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
@@ -684,6 +687,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = makeNode(type, sizeof(SCompactVgroupsStmt), &pNode);
+      break;
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+      code = makeNode(type, sizeof(SRollupVgroupsStmt), &pNode);
       break;
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       code = makeNode(type, sizeof(SScanVgroupsStmt), &pNode);
@@ -1619,7 +1625,6 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_RSMA_STMT: {
       SCreateRsmaStmt* pStmt = (SCreateRsmaStmt*)pNode;
-      nodesDestroyList(pStmt->pCols);
       nodesDestroyList(pStmt->pFuncs);
       nodesDestroyList(pStmt->pIntervals);
       break;
@@ -1715,6 +1720,14 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_COMPACT_VGROUPS_STMT: {
       SCompactVgroupsStmt* pStmt = (SCompactVgroupsStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyList(pStmt->vgidList);
+      nodesDestroyNode(pStmt->pStart);
+      nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT: {
+      SRollupVgroupsStmt* pStmt = (SRollupVgroupsStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyList(pStmt->vgidList);
       nodesDestroyNode(pStmt->pStart);
@@ -1864,6 +1877,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_SCAN_STMT:
     case QUERY_NODE_KILL_SSMIGRATE_STMT:          // no pointer field
       break;
+    case QUERY_NODE_SHOW_CREATE_RSMA_STMT: {
+      SRsmaInfoRsp* pMeta = ((SShowCreateRsmaStmt*)pNode)->pRsmaMeta;
+      if (pMeta != NULL) {
+        tFreeRsmaInfoRsp(pMeta, true);
+        taosMemFreeClear(((SShowCreateRsmaStmt*)pNode)->pRsmaMeta);
+      }
+      break;
+    }
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
       nodesDestroyNode(pStmt->pFromTable);

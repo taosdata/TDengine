@@ -393,6 +393,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateRsmaStmt";
     case QUERY_NODE_DROP_RSMA_STMT:
       return "DropRsmaStmt";
+    case QUERY_NODE_ALTER_RSMA_STMT:
+      return "AlterRsmaStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -8742,6 +8744,16 @@ static int32_t jsonToCompactVgroupsStmt(const SJson* pJson, void* pObj) {
   return 0;
 }
 
+static int32_t rollupVgroupsStmtToJson(const void* pObj, SJson* pJson) {
+  const SRollupVgroupsStmt* pNode = (const SRollupVgroupsStmt*)pObj;
+  return 0;
+}
+
+static int32_t jsonToRollupVgroupsStmt(const SJson* pJson, void* pObj) {
+  SRollupVgroupsStmt* pNode = (SRollupVgroupsStmt*)pObj;
+  return 0;
+}
+
 static int32_t scanVgroupsStmtToJson(const void* pObj, SJson* pJson) {
   const SScanVgroupsStmt* pNode = (const SScanVgroupsStmt*)pObj;
   return 0;
@@ -9708,6 +9720,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return scanDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return compactVgroupsStmtToJson(pObj, pJson);
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+      return rollupVgroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       return scanVgroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_STREAM_STMT:
@@ -10123,6 +10137,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToScanDatabaseStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return jsonToCompactVgroupsStmt(pJson, pObj);
+    case QUERY_NODE_ROLLUP_VGROUPS_STMT:
+      return jsonToRollupVgroupsStmt(pJson, pObj);
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       return jsonToScanVgroupsStmt(pJson, pObj);
     case QUERY_NODE_CREATE_STREAM_STMT:

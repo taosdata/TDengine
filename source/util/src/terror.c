@@ -110,8 +110,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TIMEOUT_ERROR,                "Operation timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_NO_ENOUGH_DISKSPACE,          "No enough disk space")
 TAOS_DEFINE_ERROR(TSDB_CODE_THIRDPARTY_ERROR,             "third party error, please check the log")
 
-TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting up")
-TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
+TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Dnode is starting up")
+TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Dnode is closing down")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DATA_FMT,             "Invalid data format")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration value")
 TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,         "Not allowed to connect")
@@ -334,6 +334,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED,  "Last Transaction not 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_SYNC_TIMEOUT,       "Sync timeout While execute transaction and will continue in the background")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CTX_SWITCH,         "Wrong transaction execution context")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT_COMPACT,   "Transaction not completed due to conflict with compact")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT_RETENTION, "Transaction not completed due to conflict with retention")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_ABLE_TO_kILLED, "The transaction is not able to be killed")
 
@@ -405,7 +406,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_MAX_TSMA_NUM_EXCEEDED,    "Max tsma num exceeded
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_RSMA_OPTION,      "Invalid rsma option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_CREATING,         "Rsma in creating status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_IN_DROPPING,         "Rsma in dropping status")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_EXIST_IN_TABLE,      "Rsma already exist in the table")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_EXIST_IN_TABLE,      "Rsma already exists in the table")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_FUNC_CONFLICT,       "Rsma func already specified for some column")
 
 // mnode-view
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_ALREADY_EXIST,       "view already exists in db")

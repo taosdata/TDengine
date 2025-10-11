@@ -227,6 +227,14 @@ typedef struct SCompactVgroupsStmt {
   bool       metaOnly;
 } SCompactVgroupsStmt;
 
+typedef struct SRollupVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SRollupVgroupsStmt;
+
 typedef struct SScanVgroupsStmt {
   ENodeType  type;
   SNode*     pDbName;
@@ -522,8 +530,9 @@ typedef struct SShowCreateViewStmt {
 typedef struct SShowCreateRsmaStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
-  char      rsmaName[TSDB_VIEW_NAME_LEN];
-  void*     pRsmaMeta;
+  char      rsmaName[TSDB_TABLE_NAME_LEN];
+  void*     pRsmaMeta;  // SRsmaInfoRsp;
+  void*     pTableCfg;  // STableCfg
 } SShowCreateRsmaStmt;
 
 typedef struct SShowTableDistributedStmt {
@@ -854,11 +863,9 @@ typedef struct SDropTSMAStmt {
 typedef struct SCreateRsmaStmt {
   ENodeType  type;
   bool       ignoreExists;
-  uint8_t    precision;
   char       rsmaName[TSDB_TABLE_NAME_LEN];
   char       dbName[TSDB_DB_NAME_LEN];
   char       tableName[TSDB_TABLE_NAME_LEN];
-  SNodeList* pCols;
   SNodeList* pFuncs;
   SNodeList* pIntervals;
 } SCreateRsmaStmt;

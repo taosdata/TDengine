@@ -256,6 +256,9 @@ int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobSet *pBlob);
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data);
+
+int32_t tColDataAddValueByDataBlockWithBlob(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows,
+                                            char *lengthOrbitmap, char *data, void *pBlobSet);
 // for encode/decode
 int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
 int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, bool jump);
@@ -291,12 +294,14 @@ struct SRSchema {
   int64_t    interval[2];
   func_id_t *funcIds;
   STSchema  *tSchema;
+  void      *extSchema;  // SExtSchema, for decimal type
 };
 
 static FORCE_INLINE void tFreeSRSchema(SRSchema **rSchema) {
   if (rSchema && *rSchema) {
     taosMemoryFreeClear((*rSchema)->funcIds);
     taosMemoryFreeClear((*rSchema)->tSchema);
+    taosMemoryFreeClear((*rSchema)->extSchema);
     taosMemoryFreeClear(*rSchema);
   }
 }

@@ -4592,8 +4592,11 @@ typedef struct {
     char tbFName[TSDB_TABLE_FNAME_LEN];  // used by mnode
     char tbName[TSDB_TABLE_NAME_LEN];    // used by vnode
   };
-  int8_t     tbType;  // ETableType: 1 stable, 3 normal table
-  int8_t     igExists;
+  int8_t tbType;  // ETableType: 1 stable, 3 normal table
+  union {
+    int8_t igExists;   // used by mnode
+    int8_t alterType;  // used by vnode
+  };
   int8_t     intervalUnit;
   int16_t    nFuncs;       // number of functions specified by user
   col_id_t*  funcColIds;   // column ids specified by user
@@ -4614,6 +4617,48 @@ typedef SMCreateRsmaReq SVCreateRsmaReq;
 int32_t tSerializeSVCreateRsmaReq(void* buf, int32_t bufLen, SVCreateRsmaReq* pReq);
 int32_t tDeserializeSVCreateRsmaReq(void* buf, int32_t bufLen, SVCreateRsmaReq* pReq);
 void    tFreeSVCreateRsmaReq(SVCreateRsmaReq* pReq);
+
+typedef SMCreateRsmaReq SVAlterRsmaReq;
+
+int32_t tSerializeSVAlterRsmaReq(void* buf, int32_t bufLen, SVAlterRsmaReq* pReq);
+int32_t tDeserializeSVAlterRsmaReq(void* buf, int32_t bufLen, SVAlterRsmaReq* pReq);
+void    tFreeSVAlterRsmaReq(SVAlterRsmaReq* pReq);
+
+typedef struct {
+  char       name[TSDB_TABLE_NAME_LEN];
+  int8_t     alterType;
+  int8_t     tbType;  // ETableType: 1 stable, 3 normal table
+  int8_t     igNotExists;
+  int16_t    nFuncs;      // number of functions specified by user
+  col_id_t*  funcColIds;  // column ids specified by user
+  func_id_t* funcIds;     // function ids specified by user
+  int32_t    sqlLen;      // strlen + 1
+  char*      sql;
+} SMAlterRsmaReq;
+
+int32_t tSerializeSMAlterRsmaReq(void* buf, int32_t bufLen, SMAlterRsmaReq* pReq);
+int32_t tDeserializeSMAlterRsmaReq(void* buf, int32_t bufLen, SMAlterRsmaReq* pReq);
+void    tFreeSMAlterRsmaReq(SMAlterRsmaReq* pReq);
+
+typedef struct {
+  int64_t    id;
+  char       name[TSDB_TABLE_NAME_LEN];
+  char       tbFName[TSDB_TABLE_FNAME_LEN];
+  int32_t    code;
+  int32_t    version;
+  int8_t     tbType;
+  int8_t     intervalUnit;
+  col_id_t   nFuncs;
+  col_id_t   nColNames;
+  int64_t    interval[2];
+  col_id_t*  funcColIds;
+  func_id_t* funcIds;
+  SArray*    colNames;
+} SRsmaInfoRsp;
+
+int32_t tSerializeRsmaInfoRsp(void* buf, int32_t bufLen, SRsmaInfoRsp* pReq);
+int32_t tDeserializeRsmaInfoRsp(void* buf, int32_t bufLen, SRsmaInfoRsp* pReq);
+void    tFreeRsmaInfoRsp(SRsmaInfoRsp* pReq, bool deep);
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
@@ -5285,6 +5330,21 @@ typedef struct {
 
 int32_t tSerializeTableTSMAInfoReq(void* buf, int32_t bufLen, const STableTSMAInfoReq* pReq);
 int32_t tDeserializeTableTSMAInfoReq(void* buf, int32_t bufLen, STableTSMAInfoReq* pReq);
+
+typedef struct {
+  char name[TSDB_TABLE_NAME_LEN];  // rsmaName
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t withColName : 1;
+      uint8_t reserved : 7;
+    };
+  };
+
+} SRsmaInfoReq;
+
+int32_t tSerializeRsmaInfoReq(void* buf, int32_t bufLen, const SRsmaInfoReq* pReq);
+int32_t tDeserializeRsmaInfoReq(void* buf, int32_t bufLen, SRsmaInfoReq* pReq);
 
 typedef struct {
   int32_t  funcId;
