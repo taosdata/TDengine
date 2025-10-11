@@ -303,6 +303,8 @@ typedef struct STableScanInfo {
   SSDataBlock*    pOrgBlock;
   bool            ignoreTag;
   bool            virtualStableScan;
+  SHashObj*       readerCache;
+  bool            newReader;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
