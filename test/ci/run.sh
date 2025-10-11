@@ -160,6 +160,8 @@ function collect_coverage_data() {
     local log_dir=$4
     local status=$5  # success 或 failed
     
+    echo "开始生成覆盖率信息: ${case_file} (${status})"
+    
     # 创建覆盖率数据目录，使用递增序号避免冲突
     local base_coverage_dir="${log_dir}/${case_file}.coverage"
     local coverage_dir="$base_coverage_dir"
@@ -181,150 +183,180 @@ function collect_coverage_data() {
         ssh_script=$(get_remote_ssh_command "$index")
     fi
     
-    # 定义需要收集的debug目录列表
+    # 定义需要处理的debug目录列表
     local debug_dirs=(
         "${workdirs[index]}/debugSan"
         "${workdirs[index]}/debugNoSan"
     )
     
-    local total_gcda_count=0
+    local generated_info_files=()
+    local total_info_count=0
     
-    echo "开始收集覆盖率数据: ${case_file} (${status})"
-
-    # 遍历所有debug目录
+    # 遍历所有debug目录，为每个目录生成覆盖率信息
     for debug_path in "${debug_dirs[@]}"; do
         local debug_name=$(basename "$debug_path")
-        local target_subdir="$coverage_dir/$debug_name"
+        local info_filename="coverage_${case_file##*/}_${debug_name}.info"
+        local remote_info_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${info_filename}"
         
-        echo "处理目录: $debug_path -> $target_subdir"
+        echo "处理目录: $debug_path -> $info_filename"
         
         if ! is_local_host "${hosts[index]}"; then
             # 远程主机处理
-            # 首先检查远程目录是否存在
-            local check_cmd="${ssh_script} \"[ -d ${debug_path} ] && echo 'exists' || echo 'not_exists'\""
-            local dir_status=$(bash -c "$check_cmd" 2>/dev/null | tail -1)
+            # 首先检查远程目录是否存在并有GCDA文件
+            local check_cmd="${ssh_script} \"[ -d ${debug_path} ] && find ${debug_path} -name '*.gcda' -type f | wc -l || echo '0'\""
+            local gcda_count=$(bash -c "$check_cmd" 2>/dev/null | tail -1)
             
-            if [ "$dir_status" != "exists" ]; then
-                echo "远程目录不存在，跳过: $debug_path"
+            if [ "$gcda_count" -eq 0 ]; then
+                echo "远程目录 $debug_path 中没有GCDA文件，跳过"
                 continue
             fi
             
-            # 创建临时压缩文件路径
-            local remote_tar_file="${workdirs[index]}/tmp/thread_volume/$thread_no/coverage_${debug_name}_${case_file##*/}.tar.gz"
+            echo "远程目录 $debug_path 中发现 $gcda_count 个GCDA文件"
             
-            # 在远程主机打包 GCDA 文件
-            local tar_cmd="${ssh_script} \"cd ${debug_path} && find . -name '*.gcda' -type f | tar -czf ${remote_tar_file} -T - 2>/dev/null || touch ${remote_tar_file}\""
-            echo "远程打包命令: $tar_cmd"
-            bash -c "$tar_cmd"
+            # 在远程主机上运行lcov生成覆盖率信息
+            local lcov_cmd="${ssh_script} \"
+                cd ${debug_path} && \\
+                lcov --quiet -d . -capture \\
+                    --rc lcov_branch_coverage=1 \\
+                    --rc genhtml_branch_coverage=1 \\
+                    --no-external \\
+                    -b ${workdirs[index]}/TDinternal/community/ \\
+                    -o ${remote_info_file} 2>/dev/null && \\
+                echo 'lcov_success' || echo 'lcov_failed'
+            \""
             
-            # 检查远程压缩文件是否创建成功
-            local check_tar_cmd="${ssh_script} \"[ -f ${remote_tar_file} ] && stat -c%s ${remote_tar_file} || echo '0'\""
-            local tar_size=$(bash -c "$check_tar_cmd" 2>/dev/null | tail -1)
+            echo "远程lcov命令: $lcov_cmd"
+            local lcov_result=$(bash -c "$lcov_cmd" 2>/dev/null | tail -1)
             
-            if [ "$tar_size" -gt 0 ]; then
-                # 传输压缩包
-                mkdir -p "$target_subdir"
-                local scp_cmd="$scpcmd:${remote_tar_file} ${target_subdir}/gcda_files.tar.gz"
-                echo "传输命令: $scp_cmd"
+            if [ "$lcov_result" = "lcov_success" ]; then
+                # 检查生成的info文件大小
+                local check_info_cmd="${ssh_script} \"[ -f ${remote_info_file} ] && stat -c%s ${remote_info_file} || echo '0'\""
+                local info_size=$(bash -c "$check_info_cmd" 2>/dev/null | tail -1)
                 
-                if bash -c "$scp_cmd" 2>/dev/null; then
-                    # 解压到覆盖率目录
-                    if [ -f "${target_subdir}/gcda_files.tar.gz" ]; then
-                        cd "$target_subdir" && tar -xzf gcda_files.tar.gz 2>/dev/null && rm -f gcda_files.tar.gz
-                        local gcda_count=$(find "$target_subdir" -name "*.gcda" -type f 2>/dev/null | wc -l)
-                        echo "从 $debug_name 收集到 $gcda_count 个 GCDA 文件"
-                        ((total_gcda_count += gcda_count))
+                if [ "$info_size" -gt 0 ]; then
+                    echo "成功生成覆盖率信息文件: $info_filename (大小: $info_size 字节)"
+                    
+                    # 传输info文件到本地
+                    local scp_cmd="$scpcmd:${remote_info_file} ${coverage_dir}/${info_filename}"
+                    if bash -c "$scp_cmd" 2>/dev/null; then
+                        echo "传输成功: ${info_filename}"
+                        generated_info_files+=("${coverage_dir}/${info_filename}")
+                        ((total_info_count++))
+                    else
+                        echo "传输失败: ${info_filename}"
                     fi
+                    
+                    # 清理远程临时文件
+                    local cleanup_cmd="${ssh_script} \"rm -f ${remote_info_file}\""
+                    bash -c "$cleanup_cmd" 2>/dev/null
                 else
-                    echo "传输失败: $debug_path"
+                    echo "生成的覆盖率信息文件为空: $info_filename"
                 fi
-                
-                # 清理远程临时文件
-                local cleanup_cmd="${ssh_script} \"rm -f ${remote_tar_file}\""
-                bash -c "$cleanup_cmd" 2>/dev/null
             else
-                echo "远程目录 $debug_path 中没有 GCDA 文件或打包失败"
+                echo "lcov执行失败: $debug_path"
             fi
             
         else
             # 本地主机处理
             if [ -d "$debug_path" ]; then
-                mkdir -p "$target_subdir"
+                local gcda_count=$(find "$debug_path" -name "*.gcda" -type f 2>/dev/null | wc -l)
                 
-                # 直接复制 GCDA 文件，保持目录结构
-                local copy_cmd="cd ${debug_path} && find . -name '*.gcda' -type f -exec cp --parents {} ${target_subdir}/ \\; 2>/dev/null"
-                echo "本地复制命令: $copy_cmd"
-                bash -c "$copy_cmd"
+                if [ "$gcda_count" -eq 0 ]; then
+                    echo "本地目录 $debug_path 中没有GCDA文件，跳过"
+                    continue
+                fi
                 
-                local gcda_count=$(find "$target_subdir" -name "*.gcda" -type f 2>/dev/null | wc -l)
-                echo "从 $debug_name 收集到 $gcda_count 个 GCDA 文件"
-                ((total_gcda_count += gcda_count))
+                echo "本地目录 $debug_path 中发现 $gcda_count 个GCDA文件"
+                
+                # 在本地运行lcov
+                local local_info_file="${coverage_dir}/${info_filename}"
+                local lcov_cmd="cd ${debug_path} && lcov --quiet -d . -capture \\
+                    --rc lcov_branch_coverage=1 \\
+                    --rc genhtml_branch_coverage=1 \\
+                    --no-external \\
+                    -b ${workdirs[index]}/TDinternal/community/ \\
+                    -o ${local_info_file}"
+                
+                echo "本地lcov命令: $lcov_cmd"
+                if bash -c "$lcov_cmd" 2>/dev/null; then
+                    if [ -s "$local_info_file" ]; then
+                        local info_size=$(stat -c%s "$local_info_file")
+                        echo "成功生成覆盖率信息文件: $info_filename (大小: $info_size 字节)"
+                        generated_info_files+=("$local_info_file")
+                        ((total_info_count++))
+                    else
+                        echo "生成的覆盖率信息文件为空: $info_filename"
+                        rm -f "$local_info_file"
+                    fi
+                else
+                    echo "lcov执行失败: $debug_path"
+                fi
             else
                 echo "本地目录不存在，跳过: $debug_path"
             fi
         fi
     done
     
-    # 记录统计信息
-    echo "总计收集到 ${total_gcda_count} 个覆盖率文件 (${status}): ${case_file}"
-    echo "Coverage data collected from debugSan/debugNoSan: ${total_gcda_count} files" >> "${log_dir}/${case_file}.txt"
-    
-    # 如果收集到文件，显示目录结构（用于调试）
-    if [ "$total_gcda_count" -gt 0 ]; then
-        # echo "覆盖率数据目录结构:"
-        # ls -la "$coverage_dir" 2>/dev/null | head -10
-        echo "覆盖率数据已保存到: $coverage_dir"
-    else
-        echo "警告: 未收集到任何覆盖率文件"
+    # 如果生成了多个info文件，尝试合并它们
+    if [ "$total_info_count" -gt 1 ]; then
+        echo "合并 $total_info_count 个覆盖率信息文件..."
+        local merged_info_file="${coverage_dir}/coverage_${case_file##*/}_merged.info"
+        
+        # 构建lcov合并命令
+        local merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+        for info_file in "${generated_info_files[@]}"; do
+            merge_cmd="$merge_cmd --add-tracefile '$info_file'"
+        done
+        merge_cmd="$merge_cmd -o '$merged_info_file'"
+        
+        echo "合并命令: $merge_cmd"
+        if eval "$merge_cmd" 2>/dev/null; then
+            if [ -s "$merged_info_file" ]; then
+                local merged_size=$(stat -c%s "$merged_info_file")
+                echo "成功合并覆盖率信息: coverage_${case_file##*/}_merged.info (大小: $merged_size 字节)"
+                
+                # 删除单独的info文件，保留合并后的文件
+                for info_file in "${generated_info_files[@]}"; do
+                    rm -f "$info_file"
+                done
+                generated_info_files=("$merged_info_file")
+            else
+                echo "合并后的文件为空，保留单独的文件"
+                rm -f "$merged_info_file"
+            fi
+        else
+            echo "合并失败，保留单独的info文件"
+        fi
     fi
     
-    # # 方案1: 直接复制所有 GCDA 文件
-    # if ! is_local_host "${hosts[index]}"; then
-    #     # 远程主机 - 先打包再传输（避免文件过多导致命令行过长）
-    #     local ssh_script=$(get_remote_ssh_command "$index")
-    #     local remote_tar_file="${workdirs[index]}/tmp/thread_volume/$thread_no/coverage_${case_file##*/}.tar.gz"
-        
-    #     # 在远程主机打包 GCDA 文件
-    #     cmd="${ssh_script} \"cd ${remote_debug_dir} && find . -name '*.gcda' -type f | tar -czf ${remote_tar_file} -T - 2>/dev/null \""
-    #     echo "打包覆盖率文件: $cmd"
-    #     bash -c "$cmd"
-        
-    #     # 传输压缩包
-    #     cmd="$scpcmd:${remote_tar_file} ${coverage_dir}/gcda_files.tar.gz"
-    #     echo "传输覆盖率文件: $cmd"
-    #     bash -c "$cmd" 2>/dev/null
-        
-    #     # 解压到覆盖率目录
-    #     if [ -f "${coverage_dir}/gcda_files.tar.gz" ]; then
-    #         cd "$coverage_dir" && tar -xzf gcda_files.tar.gz 2>/dev/null && rm -f gcda_files.tar.gz
-    #         echo "覆盖率数据已保存到: $coverage_dir"
-    #     fi
-        
-    #     # 清理远程临时文件
-    #     cmd="${ssh_script} \"rm -f ${remote_tar_file}\""
-    #     bash -c "$cmd" 2>/dev/null
-    # else
-    #     # 本地主机 - 直接复制
-    #     cmd="cd ${remote_debug_dir} && find . -name '*.gcda' -type f -exec cp --parents {} ${coverage_dir}/ \\; 2>/dev/null "
-    #     echo "本地复制覆盖率文件: $cmd"
-    #     bash -c "$cmd"
-    # fi
+    # 记录统计信息
+    echo "覆盖率信息生成完成 (${status}): ${case_file}"
+    echo "生成的info文件数量: ${#generated_info_files[@]}"
     
-    # # 方案2: 额外创建 sim/cover 目录的符号链接（可选）
-    # local sim_coverage_dir="${log_dir}/${case_file}.sim.coverage"
-    # if [ -d "${coverage_dir}" ] && [ -n "$(ls -A ${coverage_dir} 2>/dev/null)" ]; then
-    #     mkdir -p "$sim_coverage_dir"
-    #     # 创建到 coverage 目录的符号链接，方便查找
-    #     ln -sf "../${case_file}.coverage" "$sim_coverage_dir/gcda_files"
-    #     echo "创建覆盖率数据链接: $sim_coverage_dir/gcda_files -> ${case_file}.coverage"
-    # fi
+    # 记录到日志
+    echo "Coverage info files generated: ${#generated_info_files[@]}" >> "${log_dir}/${case_file}.txt"
     
-    # # 统计收集到的文件数量
-    # local gcda_count=$(find "$coverage_dir" -name "*.gcda" -type f 2>/dev/null | wc -l)
-    # echo "收集到 ${gcda_count} 个覆盖率文件 (${status}): ${case_file}"
+    # 显示生成的文件信息
+    if [ "${#generated_info_files[@]}" -gt 0 ]; then
+        echo "生成的覆盖率信息文件:"
+        for info_file in "${generated_info_files[@]}"; do
+            if [ -f "$info_file" ]; then
+                local file_size=$(stat -c%s "$info_file")
+                local file_lines=$(wc -l < "$info_file")
+                echo "  $(basename "$info_file"): $file_size 字节, $file_lines 行"
+            fi
+        done
+        echo "覆盖率信息已保存到: $coverage_dir"
+    else
+        echo "警告: 未生成任何有效的覆盖率信息文件"
+    fi
     
-    # # 记录到日志
-    # echo "Coverage data collected: ${gcda_count} files" >> "${log_dir}/${case_file}.txt"
+    # 创建一个索引文件，记录所有生成的info文件
+    if [ "${#generated_info_files[@]}" -gt 0 ]; then
+        local index_file="${coverage_dir}/info_files.list"
+        printf "%s\n" "${generated_info_files[@]}" > "$index_file"
+        echo "创建索引文件: $index_file"
+    fi
 }
 
 function clean_tmp() {
