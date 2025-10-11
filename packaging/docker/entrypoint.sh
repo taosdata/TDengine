@@ -167,8 +167,8 @@ else
         execute_startup "${MODEL_BASE_PATH}/tdtsfm" "tdtsfm" "${MODEL_NAMES['tdtsfm']}"
     fi
     if [ -f ${TIMEMOE_FLAG_FILE} ];then
-        echo "Starting timer-moe server..."
-        execute_startup "${MODEL_BASE_PATH}/time-moe" "timemoe" "${MODEL_NAMES['timemoe']}"
+        echo "Starting timermoe server..."
+        execute_startup "${MODEL_BASE_PATH}/timemoe" "timemoe" "${MODEL_NAMES['timemoe']}"
     fi
 fi
 
