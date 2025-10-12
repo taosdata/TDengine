@@ -655,7 +655,8 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
   int32_t      code = 0;
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
-  taosMemoryFreeClear(*pTableMeta);
+  // taosMemoryFreeClear(*pTableMeta);
+  *pTableMeta = NULL;
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
