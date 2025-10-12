@@ -10,103 +10,6 @@ import psutil
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
-class CaseHelper:
-    @staticmethod
-    def waitTransactionZero(seconds = 300, interval = 1):
-        # wait end
-        for i in range(seconds):
-            sql ="show transactions;"
-            rows = tdSql.query(sql)
-            if rows == 0:
-                tdLog.info("transaction count became zero.")
-                return True
-            #tdLog.info(f"i={i} wait ...")
-            time.sleep(interval)
-        
-        return False
-    @staticmethod
-    def prepareEnv(**parameterDict):
-        tdLog.info("input parameters:")
-        print (parameterDict)
-        # create new connector for my thread
-        tsql=CaseHelper.newcur(parameterDict['cfg'], 'localhost', 6030)
-        CaseHelper.create_tables(tsql,\
-                           parameterDict["dbName"],\
-                           parameterDict["vgroups"],\
-                           parameterDict["stbName"],\
-                           parameterDict["ctbNum"])
-
-        CaseHelper.insert_data(tsql,\
-                         parameterDict["dbName"],\
-                         parameterDict["stbName"],\
-                         parameterDict["ctbNum"],\
-                         parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"],\
-                         parameterDict["startTs"])
-        
-        tsql.close()
-        return
-
-    @staticmethod
-    def newcur(cfg,host,port):
-        user = "root"
-        password = "taosdata"
-        con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
-        cur=con.cursor()
-        print(cur)
-        return cur
-
-    @staticmethod
-    def create_tables(tsql, dbName,vgroups,stbName,ctbNum):
-        tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
-        tsql.execute("create database if not exists %s_test vgroups %d wal_retention_period 3600"%(dbName, vgroups))
-        if CaseHelper.waitTransactionZero() is False:
-            tdLog.exit(f"transaction not finished")
-            return False
-        tsql.execute("use %s" %dbName)
-        tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
-        pre_create = "create table"
-        sql = pre_create
-        #tdLog.debug("doing create one  stable %s and %d  child table in %s  ..." %(stbname, count ,dbname))
-        for i in range(ctbNum):
-            sql += " %s_%d using %s tags(%d)"%(stbName,i,stbName,i+1)
-            if (i > 0) and (i%100 == 0):
-                tsql.execute(sql)
-                sql = pre_create
-        if sql != pre_create:
-            tsql.execute(sql)
-
-        event.set()
-        tdLog.debug("complete to create database[%s], stable[%s] and %d child tables" %(dbName, stbName, ctbNum))
-        return
-
-    @staticmethod
-    def insert_data(tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs):
-        tdLog.debug("start to insert data ............")
-        tsql.execute("use %s" %dbName)
-        pre_insert = "insert into "
-        sql = pre_insert
-
-        # t = 1678609778776 #time.time()
-        t = 1600000000000
-        startTs = t #int(round(t * 1000))
-        #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        for i in range(ctbNum):
-            sql += " %s_%d values "%(stbName,i)
-            for j in range(rowsPerTbl):
-                sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
-                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
-                    tsql.execute(sql)
-                    if j < rowsPerTbl - 1:
-                        sql = "insert into %s_%d values " %(stbName,i)
-                    else:
-                        sql = "insert into "
-        #end sql
-        if sql != pre_insert:
-            #print("insert sql:%s"%sql)
-            tsql.execute(sql)
-        tdLog.debug("insert data ............ [OK]")
-        return
 class TestCase:
     hostname = socket.gethostname()
     #rpcDebugFlagVal = '143'
@@ -135,6 +38,14 @@ class TestCase:
                     break
         return buildPath
 
+    def newcur(self,cfg,host,port):
+        user = "root"
+        password = "taosdata"
+        con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
+        cur=con.cursor()
+        print(cur)
+        return cur
+
     def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
         tdSql.query("create database if not exists %s vgroups 1 wal_retention_period 3600"%(cdbName))
@@ -158,7 +69,6 @@ class TestCase:
             if tdSql.getRows() == expectRows:
                 break
             else:
-                tdLog.info("wait consume result, current rows: %d, expect rows: %d"%(tdSql.getRows(), expectRows))
                 time.sleep(5)
 
         for i in range(expectRows):
@@ -167,8 +77,7 @@ class TestCase:
 
         return resultList
 
-    @staticmethod
-    def startTmqSimProcess(buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
+    def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
         if valgrind == 1:
             logFile = os.path.join(os.path.dirname(cfgPath), 'log', 'valgrind-tmq.log')
             shellCmd = 'nohup valgrind --log-file=' + logFile
@@ -184,6 +93,20 @@ class TestCase:
             shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
         os.system(shellCmd)
+
+    def waitTransactionZero1(self, tsql):
+        for i in range(300):
+            sql ="show transactions;"
+            tsql.execute(sql)
+            result = tsql.fetchall()
+            rows = len(result)
+            if rows == 0:
+                tdLog.info("transaction count became zero.")
+                return True
+            time.sleep(1)
+        
+        return False
+    
 
     @staticmethod
     def stopTmqSimProcess():
@@ -219,27 +142,75 @@ class TestCase:
         except Exception as e:
             tdLog.error(f"Error stopping tmq_sim process: {str(e)}")
 
-    @staticmethod
-    def checkTmqSimProcess():
-        """检查 tmq_sim 进程是否在运行"""
-        try:
-            import psutil
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    if proc.info['name'] == 'tmq_sim' or \
-                    (proc.info['cmdline'] and any('tmq_sim' in cmd for cmd in proc.info['cmdline'])):
-                        return True
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+    def create_tables(self, tsql, dbName, vgroups, stbName, ctbNum):
+        tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
+        
+        if self.waitTransactionZero1(tsql) is False:
+            tdLog.exit(f"transaction not finished")
             return False
-        except ImportError:
-            # 如果没有 psutil，使用系统命令
-            if platform.system().lower() == 'windows':
-                result = os.system('tasklist /fi "imagename eq tmq_sim.exe" | find "tmq_sim.exe" > nul')
-                return result == 0
-            else:
-                result = os.system('pgrep -f tmq_sim > /dev/null 2>&1')
-                return result == 0
+        
+        tsql.execute("use %s" %dbName)
+        tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
+        pre_create = "create table"
+        sql = pre_create
+        for i in range(ctbNum):
+            sql += " %s_%d using %s tags(%d)"%(stbName,i,stbName,i+1)
+            if (i > 0) and (i%100 == 0):
+                tsql.execute(sql)
+                sql = pre_create
+        if sql != pre_create:
+            tsql.execute(sql)
+
+        event.set()
+        tdLog.debug("complete to create database[%s], stable[%s] and %d child tables" %(dbName, stbName, ctbNum))
+        return
+
+    def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs):
+        tdLog.debug("start to insert data ............")
+        tsql.execute("use %s" %dbName)
+        pre_insert = "insert into "
+        sql = pre_insert
+
+        # t = 1678609778776 #time.time()
+        t = 1600000000000
+        startTs = t #int(round(t * 1000))
+        #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
+        for i in range(ctbNum):
+            sql += " %s_%d values "%(stbName,i)
+            for j in range(rowsPerTbl):
+                sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
+                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                    tsql.execute(sql)
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s_%d values " %(stbName,i)
+                    else:
+                        sql = "insert into "
+        #end sql
+        if sql != pre_insert:
+            #print("insert sql:%s"%sql)
+            tsql.execute(sql)
+        tdLog.debug("insert data ............ [OK]")
+        return
+
+    def prepareEnv(self, **parameterDict):
+        print ("input parameters:")
+        print (parameterDict)
+        # create new connector for my thread
+        tsql=self.newcur(parameterDict['cfg'], 'localhost', 6030)
+        self.create_tables(tsql,\
+                           parameterDict["dbName"],\
+                           parameterDict["vgroups"],\
+                           parameterDict["stbName"],\
+                           parameterDict["ctbNum"])
+
+        self.insert_data(tsql,\
+                         parameterDict["dbName"],\
+                         parameterDict["stbName"],\
+                         parameterDict["ctbNum"],\
+                         parameterDict["rowsPerTbl"],\
+                         parameterDict["batchNum"],\
+                         parameterDict["startTs"])
+        return
 
     def tmqCase6(self, cfgPath, buildPath):
         tdLog.printNoPrefix("======== test case 6: Produce while one consumers to subscribe tow topic, Each contains one db")
@@ -260,7 +231,7 @@ class TestCase:
         tdLog.info("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
         tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
 
-        prepareEnvThread = threading.Thread(target=CaseHelper.prepareEnv, kwargs=parameterDict)
+        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
 
         parameterDict2 = {'cfg':        '',       \
@@ -272,11 +243,11 @@ class TestCase:
                          'batchNum':   100,      \
                          'replica':    self.replicaVar,     \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        parameterDict['cfg'] = cfgPath
+        parameterDict2['cfg'] = cfgPath
 
         tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict2['dbName'], parameterDict2['vgroups'], parameterDict2['replica']))
 
-        prepareEnvThread2 = threading.Thread(target=CaseHelper.prepareEnv, kwargs=parameterDict2)
+        prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
         prepareEnvThread2.start()
 
         tdLog.info("create topics from db")
@@ -349,7 +320,7 @@ class TestCase:
 
         tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict['dbName'], parameterDict['vgroups'], parameterDict['replica']))
 
-        prepareEnvThread = threading.Thread(target=CaseHelper.prepareEnv, kwargs=parameterDict)
+        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
 
         parameterDict2 = {'cfg':        '',       \
@@ -361,11 +332,11 @@ class TestCase:
                          'batchNum':   100,      \
                          'replica':   self.replicaVar,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        parameterDict['cfg'] = cfgPath
+        parameterDict2['cfg'] = cfgPath
 
         tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict2['dbName'], parameterDict2['vgroups'], parameterDict2['replica']))
 
-        prepareEnvThread2 = threading.Thread(target=CaseHelper.prepareEnv, kwargs=parameterDict2)
+        prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
         prepareEnvThread2.start()
 
         tdLog.info("create topics from db")
