@@ -124,7 +124,7 @@ show retention {retention_id};
 taos> show retentions;
  retention_id |            db_name             |       start_time        | trigger_mode |     type     |
 ========================================================================================================
-    857434526 | d0                             | 2025-10-11 11:26:04.649 | manual       | trim         |
+    857434526 | d0                             | 2025-10-11 11:26:04.649 | manual       | rollup       |
 Query OK, 1 row(s) in set (0.004885s)
 
 taos> show retention 857434526;

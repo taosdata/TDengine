@@ -271,14 +271,11 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   int32_t        code = 0, lino = 0;
   char           tmpBuf[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
-  if (strlen(pShow->db) > 0) {
-    sep = strchr(pShow->db, '.');
-    if (sep &&
-        ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
-      sep++;
-    } else {
-      pDb = mndAcquireDb(pMnode, pShow->db);
-      if (pDb == NULL) return terrno;
+  if ((pShow->db[0] != 0) && (sep = strchr(pShow->db, '.')) && (*(++sep) != 0)) {
+    if (IS_SYS_DBNAME(sep)) {
+      goto _OVER;
+    } else if (!(pDb = mndAcquireDb(pMnode, pShow->db))) {
+      return terrno;
     }
   }
 
@@ -293,13 +290,13 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     COL_DATA_SET_VAL_GOTO((const char *)&pObj->id, false, pObj, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pDb != NULL || !IS_SYS_DBNAME(pObj->dbname)) {
-      SName name = {0};
-      TAOS_CHECK_GOTO(tNameFromString(&name, pObj->dbname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
-      (void)tNameGetDbName(&name, varDataVal(tmpBuf));
-    } else {
-      tstrncpy(varDataVal(tmpBuf), pObj->dbname, sizeof(tmpBuf) - VARSTR_HEADER_SIZE);
+    if (pDb != NULL && strcmp(pDb->name, pObj->dbname) != 0) {
+      sdbRelease(pSdb, pObj);
+      continue;
     }
+    SName name = {0};
+    TAOS_CHECK_GOTO(tNameFromString(&name, pObj->dbname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
+    (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     COL_DATA_SET_VAL_GOTO((const char *)tmpBuf, false, pObj, pShow->pIter, _OVER);
 
