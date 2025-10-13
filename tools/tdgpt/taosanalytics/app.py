@@ -245,7 +245,7 @@ def handle_correlation_req():
         if algo == 'dtw':
             val, path = do_dtw(payload[data_index], payload[ts_index], params)
 
-            res = {"option": options, "rows": len(val["ts"]), "val": val, "path": path}
+            res = {"option": options, "rows": len(path), "distance": val, "path": path}
             app_logger.log_inst.debug("dtw result: %s", res)
 
             return res
@@ -253,13 +253,13 @@ def handle_correlation_req():
             lags, ccf_vals = do_tlcc(payload[data_index], payload[ts_index], params)
 
             res = {"option": options, "rows": len(lags), "lags": lags, "ccf_vals": ccf_vals}
-            app_logger.log_inst.debug("dtw result: %s", res)
+            app_logger.log_inst.debug("tlcc result: %s", res)
 
             return res
         else:
             raise ValueError(f"unsupported algo: {algo}")
     except Exception as e:
-        app_logger.log_inst.error('impu failed, %s', str(e))
+        app_logger.log_inst.error('correlation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 if __name__ == '__main__':
