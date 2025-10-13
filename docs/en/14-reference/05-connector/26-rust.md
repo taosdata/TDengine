@@ -53,7 +53,21 @@ match conn.exec(sql) {
 }
 ```
 
-The error code of the error message can be referred to: [Error Codes](../../error-codes/)
+For specific error codes, please refer to:
+
+| Error Code | Error Description           | Possible Error Scenarios or Reasons                         | Recommended User Actions                                       |
+| ---------- | --------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
+| 0xE000     | DSN Error                   | DSN does not meet specifications                            | Check if the DSN string meets specifications                   |
+| 0xE001     | Internal Error              | Uncertain                                                   | Preserve the scene and logs, report issue on GitHub            |
+| 0xE002     | Connection Closed           | Network disconnected                                        | Please check the network condition, review `taosadapter` logs. |
+| 0xE003     | Send Timeout                | Network disconnected                                        | Please check the network condition                             |
+| 0xE004     | Receive Timeout             | Slow query, or network disconnected                         | Investigate `taosadapter` logs                                 |
+| 0xE005     | I/O error                   | Network I/O exception or disk error                         | Check network connection and disk status                       |
+| 0xE006     | Authentication failed       | Username and password incorrect or insufficient permissions | Check username and password, confirm user permissions          |
+| 0xE007     | Encoding and decoding error | Data encoding and decoding exception                        | Check data format, check `taosadapter` log                     |
+| 0xE008     | Disconnected                | WebSocket connection disconnected                           | Check network status and reestablish connection                |
+
+For error codes of other TDengine TSDB modules, please refer to: [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 
