@@ -25,234 +25,36 @@ function printHelp() {
     exit 0
 }
 
-# function collect_gcda_from_tests() {
-#     local test_log_dir="$1"
-#     local target_debug_dir="$2"
-    
-#     if [ -z "$test_log_dir" ] || [ ! -d "$test_log_dir" ]; then
-#         echo "Test log directory does not exist or not specified, skipping GCDA collection: $test_log_dir"
-#         return 0
-#     fi
-    
-#     echo "=== Collecting GCDA files from test logs ==="
-#     echo "Source directory: $test_log_dir"
-#     echo "Target directory: $target_debug_dir"
-    
-#     python3 - << EOF
-# import os
-# import glob
-# import shutil
-# import hashlib
-# from datetime import datetime
-
-# def get_file_md5(file_path):
-#     try:
-#         md5_hash = hashlib.md5()
-#         with open(file_path, 'rb') as f:
-#             while chunk := f.read(8192):
-#                 md5_hash.update(chunk)
-#         return md5_hash.hexdigest()
-#     except Exception as e:
-#         print(f"计算 MD5 失败 {file_path}: {e}")
-#         return None
-
-# def extract_source_path(gcda_path, test_log_dir):
-#     """
-#     从 GCDA 文件路径中提取真正的源码路径
-#     例如: /home/test_logs/cases/xxx/enterprise/src/plugins/grant/CMakeFiles/grant.dir/src/mndGrant.c.gcda
-#     提取出: enterprise/src/plugins/grant/CMakeFiles/grant.dir/src/mndGrant.c.gcda
-#     """
-#     rel_path = os.path.relpath(gcda_path, test_log_dir)
-    
-#     # 查找路径中是否包含已知的源码目录标识
-#     source_indicators = ['source/', 'src/', 'enterprise/', 'include/', 'tools/']
-    
-#     path_parts = rel_path.split('/')
-#     source_start_idx = -1
-    
-#     # 寻找源码目录的开始位置
-#     for i, part in enumerate(path_parts):
-#         if any(part.startswith(indicator.rstrip('/')) for indicator in source_indicators):
-#             source_start_idx = i
-#             break
-    
-#     if source_start_idx >= 0:
-#         # 从源码目录开始的路径
-#         source_path = '/'.join(path_parts[source_start_idx:])
-#         return source_path
-    
-#     # 如果没找到源码标识，返回去掉 cases/xxx 部分后的路径
-#     if len(path_parts) > 2 and path_parts[0] == 'cases':
-#         return '/'.join(path_parts[2:])  # 跳过 cases/test_name
-    
-#     return rel_path
-
-# def process_gcda_files(test_log_dir, target_debug_dir):
-#     gcda_pattern = os.path.join(test_log_dir, "**", "*.gcda")
-#     gcda_files = glob.glob(gcda_pattern, recursive=True)
-    
-#     print(f"找到 {len(gcda_files)} 个 GCDA 文件")
-    
-#     processed_count = 0
-#     for gcda_file in gcda_files:
-#         try:
-#             # 计算 MD5
-#             md5_value = get_file_md5(gcda_file)
-#             if md5_value is None:
-#                 continue
-             
-#             # 提取源码相关的路径
-#             source_rel_path = extract_source_path(gcda_file, test_log_dir)
-               
-            
-#             # 构建目标路径（直接放到 debug 目录下对应的源码结构中）
-#             target_path = os.path.join(target_debug_dir, source_rel_path)
-#             target_dir = os.path.dirname(target_path)
-            
-#             # 确保目标目录存在
-#             os.makedirs(target_dir, exist_ok=True)
-            
-#             # 生成带 MD5 和时间戳的文件名
-#             filename = os.path.basename(gcda_file)
-#             name_parts = filename.rsplit('.', 1)
-#             if len(name_parts) == 2:
-#                 base_name, extension = name_parts
-#             else:
-#                 base_name = filename
-#                 extension = ""
-            
-#             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-#             md5_short = md5_value[:8]
-            
-#             # 处理可能的双扩展名情况（如 .c.gcda）
-#             if extension == 'gcda' and '.' in base_name:
-#                 name_without_gcda, first_ext = base_name.rsplit('.', 1)
-#                 new_filename = f"{name_without_gcda}_{timestamp}_{md5_short}.{first_ext}.{extension}"
-#             else:
-#                 new_filename = f"{base_name}_{timestamp}_{md5_short}.{extension}" if extension else f"{base_name}_{timestamp}_{md5_short}"
-            
-#             final_target_path = os.path.join(target_dir, new_filename)
-            
-#             # 复制文件
-#             shutil.copy2(gcda_file, final_target_path)
-            
-#             # 输出处理结果
-#             print(f"已处理: {gcda_file}")
-#             print(f"  -> {final_target_path}")
-#             print(f"  (MD5: {md5_value[:8]})")
-            
-#             processed_count += 1
-            
-#         except Exception as e:
-#             print(f"处理文件失败 {gcda_file}: {e}")
-    
-#     print(f"成功处理 {processed_count} 个 GCDA 文件")
-#     return processed_count
-
-# # 执行处理
-# if __name__ == "__main__":
-#     process_gcda_files("$test_log_dir", "$target_debug_dir")
-# EOF
-
-#     echo "=== GCDA 文件收集完成 ==="
-# }
-
-# function collect_gcda_from_tests() {
-#     local test_log_dir="$1"
-#     local target_debug_dir="$2"
-    
-#     if [ -z "$test_log_dir" ] || [ ! -d "$test_log_dir" ]; then
-#         echo "Test log directory does not exist or not specified, skipping GCDA collection: $test_log_dir"
-#         return 0
-#     fi
-    
-#     echo "=== Collecting GCDA files from test logs ==="
-#     echo "Source directory: $test_log_dir"
-#     echo "Target directory: $target_debug_dir"
-    
-#     # 查找所有的覆盖率目录
-#     local coverage_dirs=$(find "$test_log_dir" -type d -name "*.coverage" 2>/dev/null)
-    
-#     if [ -z "$coverage_dirs" ]; then
-#         echo "No coverage directories found in $test_log_dir"
-#         return 0
-#     fi
-    
-#     local total_processed=0
-    
-#     # 处理每个覆盖率目录
-#     echo "$coverage_dirs" | while read -r coverage_dir; do
-#         if [ -d "$coverage_dir" ]; then
-#             echo "Processing coverage directory: $(basename $coverage_dir)"
-            
-#             # 查找所有子目录（debugSan, debugNoSan）
-#             for subdir in "$coverage_dir"/*; do
-#                 if [ -d "$subdir" ]; then
-#                     local subdir_name=$(basename "$subdir")
-#                     echo "Processing debug type: $subdir_name"
-                    
-#                     # 递归查找并复制 GCDA 文件
-#                     find "$subdir" -name "*.gcda" -type f | while read -r gcda_file; do
-#                         # 获取相对于子目录的路径
-#                         local rel_path=$(realpath --relative-to="$subdir" "$gcda_file")
-                        
-#                         # 构建目标路径
-#                         local target_path="$target_debug_dir/$rel_path"
-#                         local target_dir=$(dirname "$target_path")
-                        
-#                         # 创建目标目录
-#                         mkdir -p "$target_dir"
-                        
-#                         # 生成唯一文件名（包含调试类型和时间戳）
-#                         local filename=$(basename "$gcda_file")
-#                         local timestamp=$(date +"%Y%m%d_%H%M%S_%3N")
-#                         local md5_hash=$(md5sum "$gcda_file" | cut -d' ' -f1 | cut -c1-8)
-                        
-#                         # 处理文件名，添加debug类型标识
-#                         if [[ "$filename" == *.c.gcda ]]; then
-#                             local base_name="${filename%.c.gcda}"
-#                             local new_filename="${base_name}_${subdir_name}_${timestamp}_${md5_hash}.c.gcda"
-#                         else
-#                             local base_name="${filename%.gcda}"
-#                             local new_filename="${base_name}_${subdir_name}_${timestamp}_${md5_hash}.gcda"
-#                         fi
-                        
-#                         local final_target="$target_dir/$new_filename"
-                        
-#                         # 复制文件
-#                         if cp "$gcda_file" "$final_target"; then
-#                             echo "Copied: $gcda_file -> $final_target"
-#                             ((total_processed++))
-#                         else
-#                             echo "Failed to copy: $gcda_file"
-#                         fi
-#                     done
-#                 fi
-#             done
-#         fi
-#     done
-    
-#     echo "=== GCDA file collection completed, processed: $total_processed files ==="
-# }
-
-function collect_gcda_from_tests() {
+function collect_info_from_tests_single() {
     local test_log_dir="$1"
-    local target_debug_dir="$2"
     
     if [ -z "$test_log_dir" ] || [ ! -d "$test_log_dir" ]; then
-        echo "Test log directory does not exist or not specified, skipping GCDA collection: $test_log_dir"
+        echo "Test log directory does not exist or not specified, skipping info collection: $test_log_dir"
         return 0
     fi
     
-    echo "=== GCDA collection with coverage.txt filtering and MD5 deduplication ==="
-    echo "Source: $test_log_dir -> Target: $target_debug_dir"
+    echo "=== 收集并合并所有测试case的覆盖率信息文件 ==="
+    echo "源目录: $test_log_dir"
     
-    # 预加载 coverage.txt 过滤规则
-    local coverage_patterns_file=$(mktemp)
+    # 查找所有 .info 文件
+    echo "查找所有 .info 文件..."
+    local info_files=$(find "$test_log_dir" -name "*.info" -type f 2>/dev/null)
+    
+    if [ -z "$info_files" ]; then
+        echo "警告: 未找到任何 .info 文件"
+        return 1
+    fi
+    
+    local info_count=$(echo "$info_files" | wc -l)
+    echo "找到 $info_count 个覆盖率信息文件"
+    
+    # 使用 coverage.txt 过滤需要处理的文件
+    local filtered_info_files=""
     if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
-        echo "Loading coverage.txt filter patterns..."
+        echo "使用 coverage.txt 过滤覆盖率信息文件..."
         
-        # 处理所有行，提取基础文件名
+        # 创建临时过滤模式文件
+        local coverage_patterns_file=$(mktemp)
         while IFS= read -r line; do
             # 跳过空行和注释行
             [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
@@ -271,235 +73,545 @@ function collect_gcda_from_tests() {
         
         # 去重并排序
         sort -u "$coverage_patterns_file" -o "$coverage_patterns_file"
-        
         local pattern_count=$(wc -l < "$coverage_patterns_file")
-        echo "Loaded $pattern_count unique coverage filter patterns"
+        echo "加载了 $pattern_count 个过滤模式"
         
-    else
-        echo "Warning: coverage.txt not found, processing all files"
-        touch "$coverage_patterns_file"
-    fi
-    
-    # 查找所有覆盖率目录
-    local coverage_dirs=$(find "$test_log_dir" -type d -name "*.coverage" 2>/dev/null)
-    
-    if [ -z "$coverage_dirs" ]; then
-        echo "No coverage directories found"
-        rm -f "$coverage_patterns_file"
-        return 0
-    fi
-    
-    echo "Found $(echo "$coverage_dirs" | wc -l) coverage directories"
-    
-    local max_jobs=$(nproc 2>/dev/null || echo "4")
-    echo "Using $max_jobs parallel jobs"
-    
-    # 创建临时文件来跟踪已处理的 MD5
-    local md5_tracking_file=$(mktemp)
-    
-    # 文件匹配函数
-    is_file_in_coverage() {
-        local gcda_file="$1"
-        local patterns_file="$2"
+        # 过滤 .info 文件：只保留包含coverage.txt中文件的info文件
+        local temp_filtered_list=$(mktemp)
+        echo "$info_files" | while read -r info_file; do
+            if [ -f "$info_file" ]; then
+                # 检查 info 文件中是否包含我们关心的源文件
+                local has_covered_files=false
+                while IFS= read -r pattern; do
+                    if grep -q "SF:.*${pattern}" "$info_file" 2>/dev/null; then
+                        has_covered_files=true
+                        break
+                    fi
+                done < "$coverage_patterns_file"
+                
+                if [ "$has_covered_files" = true ]; then
+                    echo "$info_file" >> "$temp_filtered_list"
+                fi
+            fi
+        done
         
-        # 如果模式文件为空，处理所有文件
-        if [ ! -s "$patterns_file" ]; then
-            return 0
-        fi
-        
-        # 从 GCDA 文件路径提取基础文件名
-        local gcda_filename=$(basename "$gcda_file")
-        local base_name=""
-        
-        if [[ "$gcda_filename" == *.c.gcda ]]; then
-            base_name="${gcda_filename%.c.gcda}"
-        elif [[ "$gcda_filename" == *.gcda ]]; then
-            base_name="${gcda_filename%.gcda}"
+        if [ -s "$temp_filtered_list" ]; then
+            filtered_info_files=$(cat "$temp_filtered_list")
+            local filtered_count=$(wc -l < "$temp_filtered_list")
+            echo "过滤后剩余 $filtered_count 个有效的覆盖率信息文件"
         else
+            echo "警告: 过滤后没有有效的覆盖率信息文件"
+            rm -f "$coverage_patterns_file" "$temp_filtered_list"
             return 1
         fi
         
-        # 在模式文件中查找
-        grep -q "^${base_name}$" "$patterns_file"
-    }
+        rm -f "$coverage_patterns_file" "$temp_filtered_list"
+    else
+        echo "Warning: coverage.txt 不存在，使用所有找到的 .info 文件"
+        filtered_info_files="$info_files"
+    fi
     
-    # 导出函数供子进程使用
-    export -f is_file_in_coverage
+    # 检查是否有文件需要合并
+    local final_info_count=$(echo "$filtered_info_files" | wc -l)
+    if [ "$final_info_count" -eq 0 ]; then
+        echo "错误: 没有有效的覆盖率信息文件需要处理"
+        return 1
+    fi
     
-    # 并发处理函数
-    process_debug_subdir() {
-        local subdir="$1"
-        local target_debug_dir="$2"
-        local md5_tracking_file="$3"
-        local patterns_file="$4"
-        local subdir_name=$(basename "$subdir")
-        local coverage_dir_name=$(basename "$(dirname "$subdir")")
-        local count=0
-        local skipped_coverage=0
-        local skipped_md5=0
+    echo "准备合并 $final_info_count 个覆盖率信息文件..."
+    
+    # 合并所有 .info 文件
+    if [ "$final_info_count" -eq 1 ]; then
+        # 只有一个文件，直接复制
+        local single_file=$(echo "$filtered_info_files" | head -1)
+        echo "只有一个覆盖率文件，直接使用: $(basename "$single_file")"
+        cp "$single_file" "coverage_tdengine_raw.info"
+    else
+        # 多个文件，使用 lcov 合并 - 简单显示进度
+        echo "使用 lcov 合并多个覆盖率文件..."
         
-        echo "Processing case: $coverage_dir_name/$subdir_name"
+        # 创建临时文件列表
+        local info_files_list=$(mktemp)
+        echo "$filtered_info_files" > "$info_files_list"
         
-        # 统计该目录下的 GCDA 文件总数
-        local total_gcda=$(find "$subdir" -name "*.gcda" -type f 2>/dev/null | wc -l)
+        # 构建合并命令并显示文件列表
+        local merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+        local file_index=0
         
-        # 批量查找并处理
-        while IFS= read -r -d '' gcda_file; do
-            # 预过滤：检查文件是否在覆盖率范围内
-            if ! is_file_in_coverage "$gcda_file" "$patterns_file"; then
-                ((skipped_coverage++))
-                continue
+        echo "合并文件列表:"
+        while IFS= read -r info_file; do
+            if [ -f "$info_file" ]; then
+                ((file_index++))
+                local file_size=$(stat -c%s "$info_file" 2>/dev/null || echo "0")
+                echo "  [$file_index/$final_info_count] $(basename "$info_file") ($file_size 字节)"
+                merge_cmd="$merge_cmd --add-tracefile '$info_file'"
             fi
+        done < "$info_files_list"
+        
+        merge_cmd="$merge_cmd -o coverage_tdengine_raw.info"
+        
+        echo ""
+        echo "开始执行合并..."
+        local start_time=$(date +%s)
+        
+        if eval "$merge_cmd" 2>/dev/null; then
+            local end_time=$(date +%s)
+            local duration=$((end_time - start_time))
+            echo "✓ 成功合并覆盖率信息 (用时: ${duration}秒)"
+        else
+            echo "✗ 合并覆盖率信息失败"
+            rm -f "$info_files_list"
+            return 1
+        fi
+        
+        rm -f "$info_files_list"
+    fi
+    
+    # 检查生成的文件
+    if [ -s "coverage_tdengine_raw.info" ]; then
+        local final_size=$(stat -c%s "coverage_tdengine_raw.info")
+        local final_lines=$(wc -l < "coverage_tdengine_raw.info")
+        local source_files=$(grep "^SF:" "coverage_tdengine_raw.info" | wc -l || echo "0")
+        
+        echo "✓ 成功生成合并后的覆盖率信息文件:"
+        echo "  文件大小: $final_size 字节"
+        echo "  文件行数: $final_lines 行"
+        echo "  包含源文件数: $source_files 个"
+        
+        return 0
+    else
+        echo "✗ 生成的覆盖率信息文件为空或不存在"
+        return 1
+    fi
+}
+
+function collect_info_from_tests() {
+    local test_log_dir="$1"
+    
+    if [ -z "$test_log_dir" ] || [ ! -d "$test_log_dir" ]; then
+        echo "Test log directory does not exist or not specified, skipping info collection: $test_log_dir"
+        return 0
+    fi
+    
+    echo "=== 收集并合并所有测试case的覆盖率信息文件 ==="
+    echo "源目录: $test_log_dir"
+    
+    # 查找所有 .info 文件
+    echo "查找所有 .info 文件..."
+    local info_files=$(find "$test_log_dir" -name "*.info" -type f 2>/dev/null)
+    
+    if [ -z "$info_files" ]; then
+        echo "警告: 未找到任何 .info 文件"
+        return 1
+    fi
+    
+    local info_count=$(echo "$info_files" | wc -l)
+    echo "找到 $info_count 个覆盖率信息文件"
+    
+    # 使用 coverage.txt 过滤需要处理的文件
+    local filtered_info_files=""
+    if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
+        echo "使用 coverage.txt 过滤覆盖率信息文件..."
+        
+        # 创建临时过滤模式文件
+        local coverage_patterns_file=$(mktemp)
+        while IFS= read -r line; do
+            # 跳过空行和注释行
+            [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
             
-            # 计算文件 MD5
-            local md5_hash=$(md5sum "$gcda_file" 2>/dev/null | cut -d' ' -f1)
-            if [ -z "$md5_hash" ]; then
-                continue
-            fi
+            # 提取文件名（去掉路径）
+            local filename=$(basename "$line")
             
-            local rel_path=$(realpath --relative-to="$subdir" "$gcda_file")
-            local target_path="$target_debug_dir/$rel_path"
-            local target_dir=$(dirname "$target_path")
-            
-            # 创建目标目录
-            [ ! -d "$target_dir" ] && mkdir -p "$target_dir"
-            
-            # 生成文件名
-            local filename=$(basename "$gcda_file")
-            local md5_short="${md5_hash:0:8}"
-            
-            local new_filename
-            if [[ "$filename" == *.c.gcda ]]; then
-                local base_name="${filename%.c.gcda}"
-                new_filename="${base_name}_${subdir_name}_${md5_short}.c.gcda"
-            elif [[ "$filename" == *.gcda ]]; then
-                local base_name="${filename%.gcda}"
-                new_filename="${base_name}_${subdir_name}_${md5_short}.gcda"
+            # 去掉扩展名，得到基础名称
+            if [[ "$filename" == *.* ]]; then
+                local base_name="${filename%%.*}"
+                echo "$base_name" >> "$coverage_patterns_file"
             else
-                new_filename="${filename}_${subdir_name}_${md5_short}"
+                echo "$filename" >> "$coverage_patterns_file"
+            fi
+        done < "$TDENGINE_DIR/test/ci/coverage.txt"
+        
+        # 去重并排序
+        sort -u "$coverage_patterns_file" -o "$coverage_patterns_file"
+        local pattern_count=$(wc -l < "$coverage_patterns_file")
+        echo "加载了 $pattern_count 个过滤模式"
+        
+        # 过滤 .info 文件：只保留包含coverage.txt中文件的info文件
+        local temp_filtered_list=$(mktemp)
+        echo "$info_files" | while read -r info_file; do
+            if [ -f "$info_file" ]; then
+                # 检查 info 文件中是否包含我们关心的源文件
+                local has_covered_files=false
+                while IFS= read -r pattern; do
+                    if grep -q "SF:.*${pattern}" "$info_file" 2>/dev/null; then
+                        has_covered_files=true
+                        break
+                    fi
+                done < "$coverage_patterns_file"
+                
+                if [ "$has_covered_files" = true ]; then
+                    echo "$info_file" >> "$temp_filtered_list"
+                fi
+            fi
+        done
+        
+        if [ -s "$temp_filtered_list" ]; then
+            filtered_info_files=$(cat "$temp_filtered_list")
+            local filtered_count=$(wc -l < "$temp_filtered_list")
+            echo "过滤后剩余 $filtered_count 个有效的覆盖率信息文件"
+        else
+            echo "警告: 过滤后没有有效的覆盖率信息文件"
+            rm -f "$coverage_patterns_file" "$temp_filtered_list"
+            return 1
+        fi
+        
+        rm -f "$coverage_patterns_file" "$temp_filtered_list"
+    else
+        echo "Warning: coverage.txt 不存在，使用所有找到的 .info 文件"
+        filtered_info_files="$info_files"
+    fi
+    
+    # 检查是否有文件需要合并
+    local final_info_count=$(echo "$filtered_info_files" | wc -l)
+    if [ "$final_info_count" -eq 0 ]; then
+        echo "错误: 没有有效的覆盖率信息文件需要处理"
+        return 1
+    fi
+    
+    echo "准备合并 $final_info_count 个覆盖率信息文件..."
+    
+    # 全部使用并发分层合并策略
+    if [ "$final_info_count" -eq 1 ]; then
+        # 只有一个文件，直接复制
+        local single_file=$(echo "$filtered_info_files" | head -1)
+        echo "只有一个覆盖率文件，直接使用: $(basename "$single_file")"
+        cp "$single_file" "coverage_tdengine_raw.info"
+    else
+        # 全并发分层合并策略
+        echo "使用全并发分层合并策略..."
+        
+        # 确定并发数和初始批次大小
+        local max_jobs=$(nproc 2>/dev/null || echo "4")
+        local initial_batch_size=5  # 初始批次大小，可以调小一点减少内存使用
+        
+        echo "并发配置: 最多 $max_jobs 个并发任务，初始批次大小 $initial_batch_size"
+        merge_files_hierarchical_concurrent "$filtered_info_files" "$final_info_count" "$initial_batch_size" "$max_jobs"
+    fi
+    
+    # 检查生成的文件
+    if [ -s "coverage_tdengine_raw.info" ]; then
+        local final_size=$(stat -c%s "coverage_tdengine_raw.info")
+        local final_lines=$(wc -l < "coverage_tdengine_raw.info")
+        local source_files=$(grep "^SF:" "coverage_tdengine_raw.info" | wc -l || echo "0")
+        
+        echo "✓ 成功生成合并后的覆盖率信息文件:"
+        echo "  文件大小: $final_size 字节"
+        echo "  文件行数: $final_lines 行"
+        echo "  包含源文件数: $source_files 个"
+        
+        return 0
+    else
+        echo "✗ 生成的覆盖率信息文件为空或不存在"
+        return 1
+    fi
+}
+
+# 全并发分层合并函数
+function merge_files_hierarchical_concurrent() {
+    local filtered_info_files="$1"
+    local file_count="$2"
+    local batch_size="$3"
+    local max_jobs="$4"
+    
+    local overall_start=$(date +%s)
+    
+    # 创建临时目录
+    local temp_dir=$(mktemp -d)
+    local current_files_list="$temp_dir/current_files.list"
+    echo "$filtered_info_files" > "$current_files_list"
+    
+    local current_count="$file_count"
+    local level=1
+    
+    echo "开始分层并发合并: $current_count 个文件"
+    
+    # 分层合并：当文件数量大于1时继续合并
+    while [ "$current_count" -gt 1 ]; do
+        echo ""
+        echo "=== 第 $level 层并发合并 ==="
+        echo "处理 $current_count 个文件..."
+        
+        # *** 关键修复：避免死循环的批次大小计算 ***
+        local level_batch_size
+        
+        if [ "$current_count" -le "$max_jobs" ]; then
+            # 如果文件数小于等于并发数，强制合并成1个文件
+            echo "文件数 ($current_count) 小于等于并发数 ($max_jobs)，执行最终合并"
+            level_batch_size="$current_count"  # 所有文件合并成1个
+        else
+            # 计算批次大小，确保文件数量有明显减少
+            level_batch_size=$(((current_count + max_jobs - 1) / max_jobs))
+            
+            # 关键：确保批次大小至少为2，避免1对1的无效合并
+            if [ "$level_batch_size" -lt 2 ]; then
+                level_batch_size=2
             fi
             
-            local final_target="$target_dir/$new_filename"
-            
-            # MD5 去重检查
-            (
-                flock -x 200
-                
-                local md5_entry="${md5_hash}:${rel_path}:${final_target}"
-                
-                if grep -q "^${md5_hash}:" "$md5_tracking_file" 2>/dev/null; then
-                    skipped_md5=$((skipped_md5 + 1))
-                else
-                    if cp "$gcda_file" "$final_target" 2>/dev/null; then
-                        echo "$md5_entry" >> "$md5_tracking_file"
-                        count=$((count + 1))
-                    fi
-                fi
-            ) 200>"$md5_tracking_file.lock"
-            
-        done < <(find "$subdir" -name "*.gcda" -type f -print0 2>/dev/null)
+            # 如果计算出的批次大小会导致文件数不减少，强制增大批次大小
+            local expected_output=$(((current_count + level_batch_size - 1) / level_batch_size))
+            if [ "$expected_output" -ge "$current_count" ]; then
+                # 强制批次大小，确保至少减少一半文件
+                level_batch_size=$(((current_count + 1) / 2))
+                echo "调整批次大小以避免死循环: $level_batch_size"
+            fi
+        fi
         
-        echo "Completed $coverage_dir_name/$subdir_name: processed $count, skipped $((skipped_coverage + skipped_md5)) (total $total_gcda)"
+        local expected_output_count=$(((current_count + level_batch_size - 1) / level_batch_size))
+        echo "批次大小: $level_batch_size, 预期生成: $expected_output_count 个文件"
+        
+        # 安全检查：如果预期输出数量没有减少，强制最终合并
+        if [ "$expected_output_count" -ge "$current_count" ]; then
+            echo "检测到可能的死循环，执行强制最终合并..."
+            break
+        fi
+        
+        # 分割当前层的文件列表
+        split -l "$level_batch_size" -d "$current_files_list" "$temp_dir/level_${level}_batch_" --suffix-length=4
+        
+        # 并发处理当前层的批次
+        local level_success_list="$temp_dir/level_${level}_success.list"
+        rm -f "$level_success_list"
+        
+        # 并发合并函数
+        level_merge_batch() {
+            local batch_file="$1"
+            local batch_no="$2"
+            local level="$3"
+            local temp_dir="$4"
+            
+            local batch_output="$temp_dir/level_${level}_merged_$(printf "%04d" $batch_no).info"
+            local batch_count=$(wc -l < "$batch_file")
+            
+            echo "  [第${level}层-批次${batch_no}] 开始合并 $batch_count 个文件..."
+            
+            # *** 关键修复：处理单文件批次 ***
+            if [ "$batch_count" -eq 1 ]; then
+                # 单文件批次，直接复制而不是使用lcov
+                local single_file=$(head -1 "$batch_file")
+                if [ -f "$single_file" ]; then
+                    cp "$single_file" "$batch_output"
+                    local file_size=$(stat -c%s "$batch_output" 2>/dev/null || echo "0")
+                    echo "  [第${level}层-批次${batch_no}] ✓ 单文件复制 (大小: $file_size 字节)"
+                    
+                    # 使用文件锁安全地写入成功列表
+                    (
+                        flock -x 200
+                        echo "$batch_output" >> "$temp_dir/level_${level}_success.list"
+                    ) 200>"$temp_dir/level_${level}_success.lock"
+                else
+                    echo "  [第${level}层-批次${batch_no}] ✗ 单文件不存在"
+                fi
+                return
+            fi
+            
+            # 构建合并命令（多文件批次）
+            local merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+            while IFS= read -r file_path; do
+                if [ -f "$file_path" ]; then
+                    merge_cmd="$merge_cmd --add-tracefile '$file_path'"
+                fi
+            done < "$batch_file"
+            merge_cmd="$merge_cmd -o '$batch_output'"
+            
+            local batch_start=$(date +%s)
+            if eval "$merge_cmd" 2>/dev/null; then
+                local batch_end=$(date +%s)
+                local batch_duration=$((batch_end - batch_start))
+                
+                if [ -s "$batch_output" ]; then
+                    local file_size=$(stat -c%s "$batch_output" 2>/dev/null || echo "0")
+                    echo "  [第${level}层-批次${batch_no}] ✓ 完成 (用时: ${batch_duration}秒, 大小: $file_size 字节)"
+                    
+                    # 使用文件锁安全地写入成功列表
+                    (
+                        flock -x 200
+                        echo "$batch_output" >> "$temp_dir/level_${level}_success.list"
+                    ) 200>"$temp_dir/level_${level}_success.lock"
+                else
+                    echo "  [第${level}层-批次${batch_no}] ✗ 生成文件为空"
+                    rm -f "$batch_output"
+                fi
+            else
+                echo "  [第${level}层-批次${batch_no}] ✗ 合并失败"
+            fi
+        }
+        
+        # 导出函数
+        export -f level_merge_batch
+        
+        # 启动并发任务
+        local batch_no=1
+        for batch_file in "$temp_dir"/level_${level}_batch_*; do
+            if [ -f "$batch_file" ]; then
+                # 使用GNU parallel或后台进程
+                if command -v parallel >/dev/null 2>&1; then
+                    echo "$batch_file $batch_no $level $temp_dir"
+                else
+                    # 后台进程控制
+                    level_merge_batch "$batch_file" "$batch_no" "$level" "$temp_dir" &
+                    
+                    # 控制并发数
+                    local running_jobs=$(jobs -r | wc -l)
+                    while [ "$running_jobs" -ge "$max_jobs" ]; do
+                        sleep 0.5
+                        running_jobs=$(jobs -r | wc -l)
+                    done
+                fi
+                ((batch_no++))
+            fi
+        done
+        
+        # 使用parallel或等待后台任务
+        if command -v parallel >/dev/null 2>&1; then
+            find "$temp_dir" -name "level_${level}_batch_*" -type f | \
+            parallel -j "$max_jobs" level_merge_batch {} {#} "$level" "$temp_dir"
+        else
+            wait
+        fi
         
         # 清理锁文件
-        rm -f "$md5_tracking_file.lock"
-    }
+        rm -f "$temp_dir/level_${level}_success.lock"
+        
+        # 检查当前层结果
+        if [ ! -f "$level_success_list" ]; then
+            echo "✗ 第 $level 层合并失败，没有成功文件"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+        
+        local success_count=$(wc -l < "$level_success_list")
+        if [ "$success_count" -eq 0 ]; then
+            echo "✗ 第 $level 层合并失败，成功文件数为0"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+        
+        # *** 关键检查：如果文件数没有减少，说明有问题 ***
+        if [ "$success_count" -ge "$current_count" ]; then
+            echo "警告: 第 $level 层文件数没有减少 ($current_count -> $success_count)，强制最终合并"
+            break
+        fi
+        
+        local level_end=$(date +%s)
+        local level_duration=$((level_end - overall_start))
+        echo "第 $level 层完成: $current_count -> $success_count 个文件 (累计用时: ${level_duration}秒)"
+        
+        # 清理当前层临时文件，但保留成功的输出文件
+        rm -f "$temp_dir"/level_${level}_batch_*
+        
+        # 准备下一层
+        mv "$level_success_list" "$current_files_list"
+        current_count="$success_count"
+        ((level++))
+        
+        # 安全检查：防止无限循环
+        if [ "$level" -gt 10 ]; then
+            echo "警告: 合并层数超过10层，强制最终合并"
+            break
+        fi
+    done
     
-    # 导出函数供并发使用
-    export -f process_debug_subdir
+    # *** 强制最终合并处理 ***
+    if [ "$current_count" -eq 1 ]; then
+        local final_file=$(cat "$current_files_list")
+        echo ""
+        echo "✓ 分层合并完成，最终文件: $(basename "$final_file")"
+        mv "$final_file" "coverage_tdengine_raw.info"
+    elif [ "$current_count" -gt 1 ]; then
+        # 强制合并所有剩余文件
+        echo ""
+        echo "执行强制最终合并: $current_count 个文件..."
+        
+        local final_merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+        local final_file_count=0
+        
+        while IFS= read -r file_path; do
+            if [ -f "$file_path" ]; then
+                final_merge_cmd="$final_merge_cmd --add-tracefile '$file_path'"
+                ((final_file_count++))
+                echo "  最终合并文件: $(basename "$file_path")"
+            fi
+        done < "$current_files_list"
+        
+        final_merge_cmd="$final_merge_cmd -o coverage_tdengine_raw.info"
+        
+        echo "执行最终合并命令 ($final_file_count 个文件)..."
+        local final_start=$(date +%s)
+        
+        if eval "$final_merge_cmd" 2>/dev/null; then
+            local final_end=$(date +%s)
+            local final_duration=$((final_end - final_start))
+            echo "✓ 强制最终合并完成 (用时: ${final_duration}秒)"
+        else
+            echo "✗ 强制最终合并失败"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+    else
+        echo "✗ 分层合并异常，剩余 $current_count 个文件"
+        rm -rf "$temp_dir"
+        return 1
+    fi
     
-    # 收集所有需要处理的子目录
-    local temp_subdirs=$(mktemp)
-    echo "$coverage_dirs" | while read -r coverage_dir; do
-        for subdir in "$coverage_dir"/*; do
-            [ -d "$subdir" ] && echo "$subdir"
-        done
-    done > "$temp_subdirs"
+    local overall_end=$(date +%s)
+    local total_duration=$((overall_end - overall_start))
     
-    # 并发处理所有子目录
-    cat "$temp_subdirs" | xargs -n 1 -P "$max_jobs" -I {} bash -c "process_debug_subdir '{}' '$target_debug_dir' '$md5_tracking_file' '$coverage_patterns_file'"
+    echo "✓ 全并发分层合并完成:"
+    echo "  总层数: $((level - 1))"
+    echo "  总用时: ${total_duration}秒"
+    echo "  输入文件: $file_count 个"
+    if [ "$file_count" -gt 0 ]; then
+        echo "  平均每文件用时: $((total_duration * 1000 / file_count)) 毫秒"
+    fi
     
-    # 统计最终结果
-    local total_unique=$(wc -l < "$md5_tracking_file" 2>/dev/null || echo "0")
-    local total_files=$(cat "$temp_subdirs" | xargs -I {} find {} -name "*.gcda" -type f 2>/dev/null | wc -l)
-    local processed_files=$total_unique
-    local skipped_files=$((total_files - processed_files))
-    
-    echo "=== GCDA collection completed ==="
-    echo "Total files found: $total_files"
-    echo "Files processed: $processed_files"
-    echo "Files skipped: $skipped_files"
-    
-    # 清理临时文件
-    rm -f "$md5_tracking_file" "$temp_subdirs" "$coverage_patterns_file"
+    # 清理临时目录
+    rm -rf "$temp_dir"
 }
 
 function lcovFunc {
     echo "collect data by lcov"
     cd $TDENGINE_DIR || exit
 
-
-    # 如果指定了测试日志目录，先收集 GCDA 文件
+    # 收集并合并所有测试case的覆盖率信息文件
     if [ -n "$TEST_LOG_DIR" ]; then
-        collect_gcda_from_tests "$TEST_LOG_DIR" "$CAPTURE_GCDA_DIR"
+        if ! collect_info_from_tests "$TEST_LOG_DIR"; then
+            echo "错误: 收集覆盖率信息文件失败"
+            exit 1
+        fi
+    else
+        echo "警告: 未指定测试日志目录，无法收集覆盖率信息"
+        exit 1
     fi
 
-
-    # 创建 lcov 配置文件
-    cat > lcov_tdengine.config << EOF
-# lcov 配置文件 - 只包含指定的源文件
-genhtml_branch_coverage = 1
-lcov_branch_coverage = 1
-EOF
-
-    # 调试输出配置文件内容
-    echo "lcov_tdengine.config 内容:"
-    cat lcov_tdengine.config
-
-    # 显示 GCDA 文件统计
-    echo "=== GCDA 文件统计 ==="
-    gcda_count=$(find "$CAPTURE_GCDA_DIR" -name "*.gcda" -type f | wc -l)
-    echo "debug 目录中的 GCDA 文件数量: $gcda_count"
-    
-    if [ "$gcda_count" -eq 0 ]; then
-        echo "警告: 未找到任何 GCDA 文件，覆盖率报告可能为空"
+    # 检查生成的原始覆盖率文件
+    if [ ! -s "coverage_tdengine_raw.info" ]; then
+        echo "错误: coverage_tdengine_raw.info 文件不存在或为空"
+        exit 1
     fi
 
-    # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。
-    lcov --quiet -d ../debug/ -capture \
-        --rc lcov_branch_coverage=1 \
-        --rc genhtml_branch_coverage=1 \
-        --no-external \
-        --config-file lcov_tdengine.config \
-        -b $TDENGINE_DIR/ \
-        -o coverage_tdengine_raw.info 
-    
-    # # remove exclude paths (确保只保留 community 相关的文件)
-    # lcov --quiet --remove coverage_tdengine.info \
-    #     '*/enterprise/*' '*/contrib/*' '*/test/*' '*/packaging/*' '*/docs/*' '*/debug/*' '*/sql.c' '*/sql.y' \
-    #     '*/source/*' \
-    #     '*/include/*' \
-    #     '*/tools/src/*' \
-    #     '*/taos-tools/deps/*' '*/taosadapter/*' '*/TSZ/*' \
-    #     '*/AccessBridgeCalls.c' '*/ttszip.c' '*/dataInserter.c' '*/tlinearhash.c' '*/tsimplehash.c' '*/tsdbDiskData.c' '/*/enterprise/*' '*/docs/*' '*/sim/*'\
-    #     '*/texpr.c' '*/runUdf.c' '*/schDbg.c' '*/syncIO.c' '*/tdbOs.c' '*/pushServer.c' '*/osLz4.c'\
-    #     '*/tbase64.c' '*/tbuffer.c' '*/tdes.c' '*/texception.c' '*/examples/*' '*/tidpool.c' '*/tmempool.c'\
-    #     '*/clientJniConnector.c' '*/clientTmqConnector.c' '*/version.cc' '*/strftime.c' '*/localtime.c'\
-    #     '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/version.c' '*/tencode.h' \
-    #     '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c' '*/debug/*' '*/tests/*'\
-    #     '*/tsdbFile.c' '*/tsdbUpgrade.c' '*/tsdbFS.c' '*/tsdbReaderWriter.c' \
-    #     '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c'\
-    #     '*/streamsessionnonblockoperator.c' '*/streameventnonblockoperator.c' '*/streamstatenonblockoperator.c' '*/streamfillnonblockoperator.c' \
-    #     '*/streamclient.c' '*/cos_cp.c' '*/cos.c' '*/trow.c' '*/trow.h' '*/tsdbSnapshot.c' '*/smaTimeRange.c' \
-    #     '*/metaSma.c' '*/mndDump.c' '*/td_block_blob_client.cpp' \
-    #     '*/taos-tools/deps/toolscJson/src/*' '*/taos-tools/deps/jansson/src/*' \
-    #      --rc lcov_branch_coverage=1  -o coverage_tdengine.info 
+    echo "=== 原始覆盖率信息统计 ==="
+    local raw_size=$(stat -c%s "coverage_tdengine_raw.info")
+    local raw_lines=$(wc -l < "coverage_tdengine_raw.info")
+    local raw_sources=$(grep "^SF:" "coverage_tdengine_raw.info" | wc -l || echo "0")
+    echo "原始文件大小: $raw_size 字节"
+    echo "原始文件行数: $raw_lines 行"
+    echo "原始源文件数: $raw_sources 个"
 
-    # 使用 coverage.txt 文件来过滤需要的文件
+    # 使用 coverage.txt 文件来进一步过滤覆盖率数据
     if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
-        echo "使用 coverage.txt 文件过滤覆盖率数据..."
+        echo "使用 coverage.txt 进行最终过滤..."
         
-        # 使用 --extract 参数，从 coverage.txt 读取文件列表，为每个文件添加路径前缀
+        local include_patterns=""
         while IFS= read -r file_pattern; do
             # 跳过空行和注释行
             [[ -z "$file_pattern" || "$file_pattern" =~ ^[[:space:]]*# ]] && continue
@@ -508,63 +620,66 @@ EOF
             include_patterns="$include_patterns '*/$file_pattern'"
         done < "$TDENGINE_DIR/test/ci/coverage.txt"
         
-        # 使用 lcov --extract 提取指定的文件
-        eval "lcov --quiet --extract coverage_tdengine_raw.info $include_patterns \
-            --rc lcov_branch_coverage=1 \
-            -o coverage_tdengine.info"
+        if [ -n "$include_patterns" ]; then
+            # 使用 lcov --extract 提取指定的文件
+            eval "lcov --quiet --extract coverage_tdengine_raw.info $include_patterns \
+                --rc lcov_branch_coverage=1 \
+                -o coverage_tdengine.info"
             
+            if [ -s "coverage_tdengine.info" ]; then
+                echo "✓ 成功应用 coverage.txt 过滤"
+            else
+                echo "✗ 过滤后文件为空，使用原始数据"
+                cp coverage_tdengine_raw.info coverage_tdengine.info
+            fi
+        else
+            echo "Warning: coverage.txt 中没有有效的文件模式，使用原始数据"
+            cp coverage_tdengine_raw.info coverage_tdengine.info
+        fi
     else
         echo "Warning: coverage.txt 文件不存在，使用原始数据"
         cp coverage_tdengine_raw.info coverage_tdengine.info
     fi
 
-    # # 清理临时文件
-    # rm -f coverage_tdengine_raw.info
+    # 生成最终结果统计
+    echo "=== 最终覆盖率信息统计 ==="
+    local final_size=$(stat -c%s "coverage_tdengine.info")
+    local final_lines=$(wc -l < "coverage_tdengine.info")
+    local final_sources=$(grep "^SF:" "coverage_tdengine.info" | wc -l || echo "0")
+    echo "最终文件大小: $final_size 字节"
+    echo "最终文件行数: $final_lines 行"
+    echo "最终源文件数: $final_sources 个"
 
     # generate result
     echo "generate result"
     lcov --quiet -l --rc lcov_branch_coverage=1 coverage_tdengine.info 
-
-    # echo "lcov --list 修正前输出:"
-    # lcov --list $TDENGINE_DIR/coverage_tdengine.info --rc lcov_branch_coverage=1
     
     # 修正路径以确保与 TDengine 仓库根目录匹配    
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info
 
-    ## 添加详细的调试信息
+    # 文件检查
     echo "=== 文件检查 ==="
     echo "当前目录: $(pwd)"
     echo "目标文件: $TDENGINE_DIR/coverage_tdengine.info"
     
-    ## 使用绝对路径和相对路径都检查一遍
-    for file_path in "$TDENGINE_DIR/coverage_tdengine.info" "./coverage_tdengine.info" "coverage_tdengine.info"; do
-        if [ -f "$file_path" ]; then
-            size=$(stat -c%s "$file_path" 2>/dev/null)
-            echo "✓ 找到文件: $file_path (大小: $size 字节)"
-        else
-            echo "✗ 文件不存在: $file_path"
-        fi
-    done
-    
-    ## 列出当前目录所有文件
-    echo "当前目录文件列表:"
-    ls -la | grep -E "\.info$" || echo "未找到相关文件"
-
-    # 确保 coverage_tdengine.info 文件不为空
-    if [ ! -s $TDENGINE_DIR/coverage_tdengine.info ]; then
-        echo "Error: coverage_tdengine.info 文件为空，无法上传到 Codecov"
+    if [ -s "$TDENGINE_DIR/coverage_tdengine.info" ]; then
+        local check_size=$(stat -c%s "$TDENGINE_DIR/coverage_tdengine.info")
+        echo "✓ 最终文件: $TDENGINE_DIR/coverage_tdengine.info (大小: $check_size 字节)"
+    else
+        echo "✗ 最终文件不存在或为空: $TDENGINE_DIR/coverage_tdengine.info"
         exit 1
     fi
 
-    # 调试输出 coverage_tdengine.info 内容
-    echo "coverage_tdengine.info 内容:"
-    cat $TDENGINE_DIR/coverage_tdengine.info | grep SF
+    # 调试输出覆盖率文件内容样例
+    echo "覆盖率文件包含的源文件 (前10个):"
+    grep "^SF:" "$TDENGINE_DIR/coverage_tdengine.info" | head -10 | sed 's/^SF:/  /' || echo "  (无源文件信息)"
 
-    # push result to https://app.codecov.io/
+    # 上传到 Codecov
     pip install codecov
     echo "开始上传覆盖率数据到 Codecov..."
     echo "BRANCH: $BRANCH"
     echo "coverage_tdengine.info: $TDENGINE_DIR/coverage_tdengine.info"
+    
     timeout 300 codecov -t b0e18192-e4e0-45f3-8942-acab64178afe \
         -f $TDENGINE_DIR/coverage_tdengine.info \
         -b $BRANCH \
@@ -579,9 +694,7 @@ EOF
     else
         echo "覆盖率数据已成功上传到 Codecov。"
     fi  
-
 }
-
 
 ######################
 # main entry

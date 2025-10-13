@@ -46,13 +46,13 @@ while getopts "d:b:l:c:i:h" opt; do
 done
 
 if [ -z "$branch_name_id" ]; then
-	echo "Error: branch id for coverage is required"
+    echo "Error: branch id for coverage is required"
     usage
     exit 1
 fi
 
 if [ -z "$WORKDIR" ]; then
-	echo "Error: work dir is required"
+    echo "Error: work dir is required"
     usage
     exit 1
 fi
@@ -63,10 +63,14 @@ if [ ! -d "$WORKDIR" ]; then
 fi
 
 TDINTERNAL_DIR=$WORKDIR/TDinternal
-DEBUG_DIR=$WORKDIR/debugSan/
+
+# 验证关键目录是否存在
+if [ ! -d "$TDINTERNAL_DIR" ]; then
+    echo "Error: TDinternal directory not found: $TDINTERNAL_DIR"
+    exit 1
+fi
 
 CONTAINER_TDINTERNAL_DIR="/home/TDinternal"
-CONTAINER_DEBUG_DIR="$CONTAINER_TDINTERNAL_DIR/debug"
 CONTAINER_TESTDIR="$CONTAINER_TDINTERNAL_DIR/community"
 CONTAINER_LOG_DIR="/home/test_logs"
 
@@ -74,43 +78,59 @@ ulimit -c unlimited
 
 echo "WORKDIR = $WORKDIR"
 echo "TDINTERNAL_DIR = $TDINTERNAL_DIR"
-echo "DEBUG_DIR = $DEBUG_DIR"
 echo "branch_name_id = $branch_name_id"
 echo "test_log_dir = $test_log_dir"
 
-# 检查是否已存在同名容器，如果存在则删除 --rm \
+# 检查是否已存在同名容器，如果存在则删除
 if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
     echo "Removing existing container: $CONTAINER_NAME"
     docker rm -f "$CONTAINER_NAME" 2>/dev/null
 fi
 
-    # docker run \
-    #     --privileged=true \
-    #     --name "$CONTAINER_NAME" \
-    #     -v "$TDINTERNAL_DIR:$CONTAINER_TDINTERNAL_DIR" \
-    #     -v "$DEBUG_DIR:$CONTAINER_DEBUG_DIR" \
-    #     -v "$test_log_dir:$CONTAINER_LOG_DIR" \   
-    #     --rm \
-    #     --ulimit core=-1 \
-    #     "$DOCKER_IMAGE" \
-    #     sh -c "bash $CONTAINER_TESTDIR/test/ci/run_coverage_diff.sh -b $branch_name_id -l $CONTAINER_LOG_DIR"
+# 构建 Docker 挂载参数
+DOCKER_MOUNTS="-v $TDINTERNAL_DIR:$CONTAINER_TDINTERNAL_DIR"
 
+# 挂载测试日志目录（如果存在）- 这里包含所有case的.info文件
+if [ -n "$test_log_dir" ] && [ -d "$test_log_dir" ]; then
+    DOCKER_MOUNTS="$DOCKER_MOUNTS -v $test_log_dir:$CONTAINER_LOG_DIR"
+    echo "Mounting test logs (with .info files): $test_log_dir -> $CONTAINER_LOG_DIR"
+fi
+
+echo "Starting Docker container: $CONTAINER_NAME"
+echo "Docker mounts: $DOCKER_MOUNTS"
+
+# 构建覆盖率命令参数
+COVERAGE_ARGS="-b $branch_name_id"
+if [ -n "$test_log_dir" ] && [ -d "$test_log_dir" ]; then
+    COVERAGE_ARGS="$COVERAGE_ARGS -l $CONTAINER_LOG_DIR"
+fi
+
+echo "Running coverage analysis..."
 docker run \
     --privileged=true \
     --name "$CONTAINER_NAME" \
-    -v "$TDINTERNAL_DIR:$CONTAINER_TDINTERNAL_DIR" \
-    -v "$DEBUG_DIR:$CONTAINER_DEBUG_DIR" \
-    -v "$test_log_dir:$CONTAINER_LOG_DIR" \
+    $DOCKER_MOUNTS \
     --ulimit core=-1 \
     "$DOCKER_IMAGE" \
-    sh -c "bash $CONTAINER_TESTDIR/test/ci/run_coverage_diff.sh -b $branch_name_id -l $CONTAINER_LOG_DIR"
+    sh -c "bash $CONTAINER_TESTDIR/test/ci/run_coverage_diff.sh $COVERAGE_ARGS"
 
 ret=$?
 
 if [ $ret -eq 0 ]; then
     echo "Coverage test completed successfully."
 else
-    echo "Coverage test failed. $ret"
+    echo "Coverage test failed with exit code: $ret"
 fi
+
+# 显示容器状态信息
+echo "Container status:"
+docker ps -a --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}"
+
+echo "To debug the container:"
+echo "  docker exec -it $CONTAINER_NAME /bin/bash"
+echo "To view container logs:"
+echo "  docker logs $CONTAINER_NAME"
+echo "To remove the container:"
+echo "  docker rm -f $CONTAINER_NAME"
 
 exit $ret
