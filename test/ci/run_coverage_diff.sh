@@ -280,22 +280,34 @@ function collect_info_from_tests() {
     
     echo "准备合并 $final_info_count 个覆盖率信息文件..."
     
-    # 全部使用并发分层合并策略
+    # 简化的两轮合并策略
     if [ "$final_info_count" -eq 1 ]; then
         # 只有一个文件，直接复制
         local single_file=$(echo "$filtered_info_files" | head -1)
         echo "只有一个覆盖率文件，直接使用: $(basename "$single_file")"
         cp "$single_file" "coverage_tdengine_raw.info"
     else
-        # 全并发分层合并策略
-        echo "使用全并发分层合并策略..."
+        # 使用简化的两轮合并策略
+        echo "使用两轮并发合并策略..."
         
-        # 确定并发数和初始批次大小
+        # 确定并发数和第一轮批次大小
         local max_jobs=$(nproc 2>/dev/null || echo "4")
-        local initial_batch_size=5  # 初始批次大小，可以调小一点减少内存使用
         
-        echo "并发配置: 最多 $max_jobs 个并发任务，初始批次大小 $initial_batch_size"
-        merge_files_hierarchical_concurrent "$filtered_info_files" "$final_info_count" "$initial_batch_size" "$max_jobs"
+        # 第一轮批次大小：可调参数，默认根据CPU核心数和文件数量动态计算
+        local first_batch_size
+        if [ "$final_info_count" -le 100 ]; then
+            # 文件数较少，每批5-10个文件
+            first_batch_size=8
+        elif [ "$final_info_count" -le 500 ]; then
+            # 中等文件数，每批15-25个文件  
+            first_batch_size=20
+        else
+            # 大量文件，每批30-50个文件
+            first_batch_size=40
+        fi
+        
+        echo "并发配置: $max_jobs 个CPU核心，第一轮每批 $first_batch_size 个文件"
+        merge_files_two_phase "$filtered_info_files" "$final_info_count" "$first_batch_size" "$max_jobs"
     fi
     
     # 检查生成的文件
@@ -316,8 +328,8 @@ function collect_info_from_tests() {
     fi
 }
 
-# 全并发分层合并函数
-function merge_files_hierarchical_concurrent() {
+
+function merge_files_two_phase() {
     local filtered_info_files="$1"
     local file_count="$2"
     local batch_size="$3"
@@ -327,98 +339,52 @@ function merge_files_hierarchical_concurrent() {
     
     # 创建临时目录
     local temp_dir=$(mktemp -d)
-    local current_files_list="$temp_dir/current_files.list"
-    echo "$filtered_info_files" > "$current_files_list"
+    local input_files_list="$temp_dir/input_files.list"
+    echo "$filtered_info_files" > "$input_files_list"
     
-    local current_count="$file_count"
-    local level=1
+    echo "开始两轮并发合并: $file_count 个文件"
+    echo "第一轮: 分批并发合并，每批 $batch_size 个文件"
     
-    echo "开始分层并发合并: $current_count 个文件"
+    # ===== 第一轮：分批并发合并 =====
     
-    # 分层合并：当文件数量大于1时继续合并
-    while [ "$current_count" -gt 1 ]; do
-        echo ""
-        echo "=== 第 $level 层并发合并 ==="
-        echo "处理 $current_count 个文件..."
+    # 分割文件列表为多个批次
+    split -l "$batch_size" -d "$input_files_list" "$temp_dir/batch_" --suffix-length=4
+    
+    # 统计批次数
+    local batch_count=$(find "$temp_dir" -name "batch_*" -type f | wc -l)
+    echo "第一轮生成 $batch_count 个批次进行并发处理"
+    
+    # 第一轮合并函数
+    first_phase_merge() {
+        local batch_file="$1"
+        local batch_no="$2"
+        local temp_dir="$3"
         
-        # *** 关键修复：避免死循环的批次大小计算 ***
-        local level_batch_size
+        local batch_output="$temp_dir/phase1_merged_$(printf "%04d" $batch_no).info"
+        local batch_count=$(wc -l < "$batch_file")
         
-        if [ "$current_count" -le "$max_jobs" ]; then
-            # 如果文件数小于等于并发数，强制合并成1个文件
-            echo "文件数 ($current_count) 小于等于并发数 ($max_jobs)，执行最终合并"
-            level_batch_size="$current_count"  # 所有文件合并成1个
+        echo "  [第1轮-批次${batch_no}] 合并 $batch_count 个文件..."
+        
+        if [ "$batch_count" -eq 1 ]; then
+            # 单文件批次，直接复制
+            local single_file=$(head -1 "$batch_file")
+            if [ -f "$single_file" ]; then
+                cp "$single_file" "$batch_output"
+                local file_size=$(stat -c%s "$batch_output" 2>/dev/null || echo "0")
+                echo "  [第1轮-批次${batch_no}] ✓ 单文件复制 (大小: $file_size 字节)"
+            else
+                echo "  [第1轮-批次${batch_no}] ✗ 单文件不存在"
+                return 1
+            fi
         else
-            # 计算批次大小，确保文件数量有明显减少
-            level_batch_size=$(((current_count + max_jobs - 1) / max_jobs))
-            
-            # 关键：确保批次大小至少为2，避免1对1的无效合并
-            if [ "$level_batch_size" -lt 2 ]; then
-                level_batch_size=2
-            fi
-            
-            # 如果计算出的批次大小会导致文件数不减少，强制增大批次大小
-            local expected_output=$(((current_count + level_batch_size - 1) / level_batch_size))
-            if [ "$expected_output" -ge "$current_count" ]; then
-                # 强制批次大小，确保至少减少一半文件
-                level_batch_size=$(((current_count + 1) / 2))
-                echo "调整批次大小以避免死循环: $level_batch_size"
-            fi
-        fi
-        
-        local expected_output_count=$(((current_count + level_batch_size - 1) / level_batch_size))
-        echo "批次大小: $level_batch_size, 预期生成: $expected_output_count 个文件"
-        
-        # 安全检查：如果预期输出数量没有减少，强制最终合并
-        if [ "$expected_output_count" -ge "$current_count" ]; then
-            echo "检测到可能的死循环，执行强制最终合并..."
-            break
-        fi
-        
-        # 分割当前层的文件列表
-        split -l "$level_batch_size" -d "$current_files_list" "$temp_dir/level_${level}_batch_" --suffix-length=4
-        
-        # 并发处理当前层的批次
-        local level_success_list="$temp_dir/level_${level}_success.list"
-        rm -f "$level_success_list"
-        
-        # 并发合并函数
-        level_merge_batch() {
-            local batch_file="$1"
-            local batch_no="$2"
-            local level="$3"
-            local temp_dir="$4"
-            
-            local batch_output="$temp_dir/level_${level}_merged_$(printf "%04d" $batch_no).info"
-            local batch_count=$(wc -l < "$batch_file")
-            
-            echo "  [第${level}层-批次${batch_no}] 开始合并 $batch_count 个文件..."
-            
-            # *** 关键修复：处理单文件批次 ***
-            if [ "$batch_count" -eq 1 ]; then
-                # 单文件批次，直接复制而不是使用lcov
-                local single_file=$(head -1 "$batch_file")
-                if [ -f "$single_file" ]; then
-                    cp "$single_file" "$batch_output"
-                    local file_size=$(stat -c%s "$batch_output" 2>/dev/null || echo "0")
-                    echo "  [第${level}层-批次${batch_no}] ✓ 单文件复制 (大小: $file_size 字节)"
-                    
-                    # 使用文件锁安全地写入成功列表
-                    (
-                        flock -x 200
-                        echo "$batch_output" >> "$temp_dir/level_${level}_success.list"
-                    ) 200>"$temp_dir/level_${level}_success.lock"
-                else
-                    echo "  [第${level}层-批次${batch_no}] ✗ 单文件不存在"
-                fi
-                return
-            fi
-            
-            # 构建合并命令（多文件批次）
+            # 多文件批次，使用lcov合并
             local merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+            local actual_files=0
+            
             while IFS= read -r file_path; do
                 if [ -f "$file_path" ]; then
                     merge_cmd="$merge_cmd --add-tracefile '$file_path'"
+                    ((actual_files++))
                 fi
             done < "$batch_file"
             merge_cmd="$merge_cmd -o '$batch_output'"
@@ -430,30 +396,242 @@ function merge_files_hierarchical_concurrent() {
                 
                 if [ -s "$batch_output" ]; then
                     local file_size=$(stat -c%s "$batch_output" 2>/dev/null || echo "0")
-                    echo "  [第${level}层-批次${batch_no}] ✓ 完成 (用时: ${batch_duration}秒, 大小: $file_size 字节)"
-                    
-                    # 使用文件锁安全地写入成功列表
-                    (
-                        flock -x 200
-                        echo "$batch_output" >> "$temp_dir/level_${level}_success.list"
-                    ) 200>"$temp_dir/level_${level}_success.lock"
+                    echo "  [第1轮-批次${batch_no}] ✓ 完成 ($actual_files个文件, 用时: ${batch_duration}秒, 大小: $file_size 字节)"
                 else
-                    echo "  [第${level}层-批次${batch_no}] ✗ 生成文件为空"
+                    echo "  [第1轮-批次${batch_no}] ✗ 生成文件为空"
                     rm -f "$batch_output"
+                    return 1
                 fi
             else
-                echo "  [第${level}层-批次${batch_no}] ✗ 合并失败"
+                echo "  [第1轮-批次${batch_no}] ✗ 合并失败"
+                return 1
             fi
+        fi
+        
+        # 记录成功的批次文件
+        (
+            flock -x 200
+            echo "$batch_output" >> "$temp_dir/phase1_success.list"
+        ) 200>"$temp_dir/phase1_success.lock"
+    }
+    
+    # 导出函数
+    export -f first_phase_merge
+    
+    # 清空成功列表
+    rm -f "$temp_dir/phase1_success.list"
+    
+    # 并发执行第一轮合并
+    local batch_no=1
+    for batch_file in "$temp_dir"/batch_*; do
+        if [ -f "$batch_file" ]; then
+            if command -v parallel >/dev/null 2>&1; then
+                echo "$batch_file $batch_no $temp_dir"
+            else
+                # 后台进程控制
+                first_phase_merge "$batch_file" "$batch_no" "$temp_dir" &
+                
+                # 控制并发数
+                local running_jobs=$(jobs -r | wc -l)
+                while [ "$running_jobs" -ge "$max_jobs" ]; do
+                    sleep 0.2
+                    running_jobs=$(jobs -r | wc -l)
+                done
+            fi
+            ((batch_no++))
+        fi
+    done
+    
+    # 使用parallel或等待后台任务
+    if command -v parallel >/dev/null 2>&1; then
+        echo "使用 GNU parallel 进行第一轮并发处理..."
+        find "$temp_dir" -name "batch_*" -type f | \
+        parallel -j "$max_jobs" first_phase_merge {} {#} "$temp_dir"
+    else
+        echo "使用后台进程进行第一轮并发处理，等待完成..."
+        wait
+    fi
+    
+    # 清理锁文件
+    rm -f "$temp_dir/phase1_success.lock"
+    
+    # 检查第一轮结果
+    if [ ! -f "$temp_dir/phase1_success.list" ]; then
+        echo "✗ 第一轮合并失败，没有成功文件"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    local phase1_success_count=$(wc -l < "$temp_dir/phase1_success.list")
+    if [ "$phase1_success_count" -eq 0 ]; then
+        echo "✗ 第一轮合并失败，成功文件数为0"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    local phase1_end=$(date +%s)
+    local phase1_duration=$((phase1_end - overall_start))
+    echo "第一轮完成: $file_count -> $phase1_success_count 个文件 (用时: ${phase1_duration}秒)"
+    
+    # 清理第一轮临时文件
+    rm -f "$temp_dir"/batch_*
+    
+    # ===== 第二轮：多层递减合并 =====
+    
+    echo ""
+    echo "第二轮: 多层递减合并 $phase1_success_count 个文件..."
+    
+    # 使用递减合并策略处理第一轮的输出文件
+    merge_files_hierarchical "$temp_dir/phase1_success.list" "$phase1_success_count" "$max_jobs" "$temp_dir"
+    
+    local overall_end=$(date +%s)
+    local total_duration=$((overall_end - overall_start))
+    
+    echo "✓ 两轮并发合并完成:"
+    echo "  第一轮批次数: $batch_count"
+    echo "  中间文件数: $phase1_success_count"
+    echo "  总用时: ${total_duration}秒"
+    echo "  输入文件: $file_count 个"
+    if [ "$file_count" -gt 0 ]; then
+        echo "  处理效率: $(((file_count * 1000) / (total_duration > 0 ? total_duration : 1))) 文件/秒"
+    fi
+    
+    # 清理临时目录
+    rm -rf "$temp_dir"
+}
+
+# 新增：多层递减合并函数（用于第二轮）
+function merge_files_hierarchical() {
+    local files_list="$1"
+    local current_count="$2"
+    local max_jobs="$3"
+    local temp_dir="$4"
+    
+    local level=2  # 从第2轮开始计数
+    local current_files_list="$files_list"
+    
+    echo "开始多层递减合并: $current_count 个文件"
+    
+    # 多层递减合并：当文件数量大于1时继续合并
+    while [ "$current_count" -gt 1 ]; do
+        echo ""
+        echo "=== 第 $level 轮递减合并 ==="
+        echo "处理 $current_count 个文件..."
+        
+        # 确定批次大小策略
+        local level_batch_size
+        
+        if [ "$current_count" -le 2 ]; then
+            # 1-2个文件，直接合并
+            echo "剩余文件很少 ($current_count)，直接合并"
+            level_batch_size="$current_count"
+        elif [ "$current_count" -le 10 ]; then
+            # 3-10个文件，每批2个，充分利用并发
+            level_batch_size=2
+            echo "文件数较少 ($current_count)，每批 $level_batch_size 个文件"
+        elif [ "$current_count" -le 50 ]; then
+            # 11-50个文件，每批4-5个
+            level_batch_size=4
+            echo "文件数中等 ($current_count)，每批 $level_batch_size 个文件"
+        else
+            # 50个以上，每批10个左右
+            level_batch_size=$(((current_count + max_jobs - 1) / max_jobs))
+            if [ "$level_batch_size" -lt 5 ]; then
+                level_batch_size=5
+            elif [ "$level_batch_size" -gt 15 ]; then
+                level_batch_size=15
+            fi
+            echo "文件数较多 ($current_count)，每批 $level_batch_size 个文件"
+        fi
+        
+        local expected_output_count=$(((current_count + level_batch_size - 1) / level_batch_size))
+        echo "批次大小: $level_batch_size, 预期生成: $expected_output_count 个文件"
+        
+        # 安全检查：确保文件数量有显著减少
+        if [ "$expected_output_count" -ge "$current_count" ] && [ "$current_count" -gt 2 ]; then
+            echo "检测到收敛缓慢，强制最终合并所有 $current_count 个文件..."
+            break
+        fi
+        
+        # 分割文件列表
+        split -l "$level_batch_size" -d "$current_files_list" "$temp_dir/level_${level}_batch_" --suffix-length=4
+        
+        # 统计批次数
+        local actual_batches=$(find "$temp_dir" -name "level_${level}_batch_*" -type f | wc -l)
+        echo "生成 $actual_batches 个批次进行并发处理"
+        
+        # 第二轮合并函数
+        level_merge_batch() {
+            local batch_file="$1"
+            local batch_no="$2"
+            local level="$3"
+            local temp_dir="$4"
+            
+            local batch_output="$temp_dir/level_${level}_merged_$(printf "%04d" $batch_no).info"
+            local batch_count=$(wc -l < "$batch_file")
+            
+            echo "  [第${level}轮-批次${batch_no}] 合并 $batch_count 个文件..."
+            
+            if [ "$batch_count" -eq 1 ]; then
+                # 单文件批次，直接复制
+                local single_file=$(head -1 "$batch_file")
+                if [ -f "$single_file" ]; then
+                    cp "$single_file" "$batch_output"
+                    local file_size=$(stat -c%s "$batch_output" 2>/dev/null || echo "0")
+                    echo "  [第${level}轮-批次${batch_no}] ✓ 单文件复制 (大小: $file_size 字节)"
+                else
+                    echo "  [第${level}轮-批次${batch_no}] ✗ 单文件不存在"
+                    return 1
+                fi
+            else
+                # 多文件批次，使用lcov合并
+                local merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+                local actual_files=0
+                
+                while IFS= read -r file_path; do
+                    if [ -f "$file_path" ]; then
+                        merge_cmd="$merge_cmd --add-tracefile '$file_path'"
+                        ((actual_files++))
+                    fi
+                done < "$batch_file"
+                merge_cmd="$merge_cmd -o '$batch_output'"
+                
+                local batch_start=$(date +%s)
+                if eval "$merge_cmd" 2>/dev/null; then
+                    local batch_end=$(date +%s)
+                    local batch_duration=$((batch_end - batch_start))
+                    
+                    if [ -s "$batch_output" ]; then
+                        local file_size=$(stat -c%s "$batch_output" 2>/dev/null || echo "0")
+                        echo "  [第${level}轮-批次${batch_no}] ✓ 完成 ($actual_files个文件, 用时: ${batch_duration}秒, 大小: $file_size 字节)"
+                    else
+                        echo "  [第${level}轮-批次${batch_no}] ✗ 生成文件为空"
+                        rm -f "$batch_output"
+                        return 1
+                    fi
+                else
+                    echo "  [第${level}轮-批次${batch_no}] ✗ 合并失败"
+                    return 1
+                fi
+            fi
+            
+            # 记录成功的批次文件
+            (
+                flock -x 200
+                echo "$batch_output" >> "$temp_dir/level_${level}_success.list"
+            ) 200>"$temp_dir/level_${level}_success.lock"
         }
         
         # 导出函数
         export -f level_merge_batch
         
-        # 启动并发任务
+        # 清空成功列表
+        rm -f "$temp_dir/level_${level}_success.list"
+        
+        # 并发执行当前轮合并
         local batch_no=1
         for batch_file in "$temp_dir"/level_${level}_batch_*; do
             if [ -f "$batch_file" ]; then
-                # 使用GNU parallel或后台进程
                 if command -v parallel >/dev/null 2>&1; then
                     echo "$batch_file $batch_no $level $temp_dir"
                 else
@@ -463,7 +641,7 @@ function merge_files_hierarchical_concurrent() {
                     # 控制并发数
                     local running_jobs=$(jobs -r | wc -l)
                     while [ "$running_jobs" -ge "$max_jobs" ]; do
-                        sleep 0.5
+                        sleep 0.1
                         running_jobs=$(jobs -r | wc -l)
                     done
                 fi
@@ -473,62 +651,55 @@ function merge_files_hierarchical_concurrent() {
         
         # 使用parallel或等待后台任务
         if command -v parallel >/dev/null 2>&1; then
+            echo "使用 GNU parallel 进行第${level}轮并发处理..."
             find "$temp_dir" -name "level_${level}_batch_*" -type f | \
             parallel -j "$max_jobs" level_merge_batch {} {#} "$level" "$temp_dir"
         else
+            echo "使用后台进程进行第${level}轮并发处理，等待完成..."
             wait
         fi
         
         # 清理锁文件
         rm -f "$temp_dir/level_${level}_success.lock"
         
-        # 检查当前层结果
-        if [ ! -f "$level_success_list" ]; then
-            echo "✗ 第 $level 层合并失败，没有成功文件"
-            rm -rf "$temp_dir"
+        # 检查当前轮结果
+        if [ ! -f "$temp_dir/level_${level}_success.list" ]; then
+            echo "✗ 第 $level 轮合并失败，没有成功文件"
             return 1
         fi
         
-        local success_count=$(wc -l < "$level_success_list")
+        local success_count=$(wc -l < "$temp_dir/level_${level}_success.list")
         if [ "$success_count" -eq 0 ]; then
-            echo "✗ 第 $level 层合并失败，成功文件数为0"
-            rm -rf "$temp_dir"
+            echo "✗ 第 $level 轮合并失败，成功文件数为0"
             return 1
         fi
         
-        # *** 关键检查：如果文件数没有减少，说明有问题 ***
-        if [ "$success_count" -ge "$current_count" ]; then
-            echo "警告: 第 $level 层文件数没有减少 ($current_count -> $success_count)，强制最终合并"
-            break
-        fi
+        echo "第 $level 轮完成: $current_count -> $success_count 个文件"
         
-        local level_end=$(date +%s)
-        local level_duration=$((level_end - overall_start))
-        echo "第 $level 层完成: $current_count -> $success_count 个文件 (累计用时: ${level_duration}秒)"
-        
-        # 清理当前层临时文件，但保留成功的输出文件
+        # 清理当前轮临时文件，但保留成功的输出文件
         rm -f "$temp_dir"/level_${level}_batch_*
         
-        # 准备下一层
-        mv "$level_success_list" "$current_files_list"
+        # 准备下一轮
+        mv "$temp_dir/level_${level}_success.list" "$temp_dir/level_$((level + 1))_input.list"
+        current_files_list="$temp_dir/level_$((level + 1))_input.list"
         current_count="$success_count"
         ((level++))
         
         # 安全检查：防止无限循环
-        if [ "$level" -gt 10 ]; then
-            echo "警告: 合并层数超过10层，强制最终合并"
+        if [ "$level" -gt 20 ]; then
+            echo "警告: 合并轮数超过20轮，强制最终合并"
             break
         fi
     done
     
-    # *** 强制最终合并处理 ***
+    # 处理最终结果
     if [ "$current_count" -eq 1 ]; then
-        local final_file=$(cat "$current_files_list")
+        local final_file=$(head -1 "$current_files_list")
         echo ""
-        echo "✓ 分层合并完成，最终文件: $(basename "$final_file")"
+        echo "✓ 多层递减合并完成，最终文件: $(basename "$final_file")"
         mv "$final_file" "coverage_tdengine_raw.info"
     elif [ "$current_count" -gt 1 ]; then
-        # 强制合并所有剩余文件
+        # 强制合并剩余文件
         echo ""
         echo "执行强制最终合并: $current_count 个文件..."
         
@@ -554,29 +725,16 @@ function merge_files_hierarchical_concurrent() {
             echo "✓ 强制最终合并完成 (用时: ${final_duration}秒)"
         else
             echo "✗ 强制最终合并失败"
-            rm -rf "$temp_dir"
             return 1
         fi
     else
-        echo "✗ 分层合并异常，剩余 $current_count 个文件"
-        rm -rf "$temp_dir"
+        echo "✗ 多层递减合并异常，剩余 $current_count 个文件"
         return 1
     fi
     
-    local overall_end=$(date +%s)
-    local total_duration=$((overall_end - overall_start))
-    
-    echo "✓ 全并发分层合并完成:"
-    echo "  总层数: $((level - 1))"
-    echo "  总用时: ${total_duration}秒"
-    echo "  输入文件: $file_count 个"
-    if [ "$file_count" -gt 0 ]; then
-        echo "  平均每文件用时: $((total_duration * 1000 / file_count)) 毫秒"
-    fi
-    
-    # 清理临时目录
-    rm -rf "$temp_dir"
+    echo "多层递减合并完成，共 $((level - 2)) 轮"
 }
+
 
 function lcovFunc {
     echo "collect data by lcov"
