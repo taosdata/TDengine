@@ -4195,6 +4195,26 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
 
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false, true));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
+
+  int32_t nReaders = tSimpleHashGetSize(pReq->pWalVersions);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, nReaders));
+  if (nReaders > 0) {
+    int32_t iter = 0;
+    void*   px = tSimpleHashIterate(pReq->pWalVersions, NULL, &iter);
+    while (px != NULL) {
+      int32_t vgId = *(int32_t*)tSimpleHashGetKey(px, NULL);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, vgId));
+      SArray* pVersions = *(SArray**)px;
+      int32_t nVersions = TARRAY_SIZE(pVersions);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nVersions));
+      if (nVersions > 0 && encoder.data) {
+        TAOS_MEMCPY(encoder.data + encoder.pos, pVersions->pData, nVersions * sizeof(int64_t));
+      }
+      encoder.data += nVersions * sizeof(int64_t);
+      px = tSimpleHashIterate(pReq->pWalVersions, px, &iter);
+    }
+  }
+
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
 
   tEndEncode(&encoder);
@@ -4213,6 +4233,7 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
   SDecoder decoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
+  SArray*  pVersions = NULL;
 
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
@@ -4225,11 +4246,40 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
 
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(&decoder, &pReq->params, false));
   TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(&decoder, &pReq->groupColVals));
+
+  int32_t nReaders = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nReaders));
+  if (nReaders > 0) {
+    pReq->pWalVersions = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    if (pReq->pWalVersions == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nReaders; i++) {
+      int32_t vgId = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vgId));
+      int32_t nVersions = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nVersions));
+      if (nVersions > 0) {
+        pVersions = taosArrayInit_s(sizeof(int64_t), nVersions);
+        if (pVersions == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        TAOS_MEMCPY(pVersions->pData, decoder.data + decoder.pos, nVersions * sizeof(int64_t));
+        decoder.pos += nVersions * sizeof(int64_t);
+        TAOS_CHECK_EXIT(tSimpleHashPut(pReq->pWalVersions, &vgId, sizeof(vgId), &pVersions, POINTER_BYTES));
+        pVersions = NULL;
+      }
+    }
+  }
+
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createTable));
 
   tEndDecode(&decoder);
 
 _exit:
+  if (pVersions == NULL) {
+    taosArrayDestroy(pVersions);
+  }
   tDecoderClear(&decoder);
   return code;
 }
@@ -4243,6 +4293,17 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
     if (pReq->groupColVals != NULL) {
       taosArrayDestroyEx(pReq->groupColVals, tDestroySStreamGroupValue);
       pReq->groupColVals = NULL;
+    }
+    if (pReq->pWalVersions != NULL) {
+      int32_t iter = 0;
+      void*   px = tSimpleHashIterate(pReq->pWalVersions, NULL, &iter);
+      while (px != NULL) {
+        SArray* pVersions = *(SArray**)px;
+        taosArrayDestroy(pVersions);
+        px = tSimpleHashIterate(pReq->pWalVersions, px, &iter);
+      }
+      tSimpleHashCleanup(pReq->pWalVersions);
+      pReq->pWalVersions = NULL;
     }
     blockDataDestroy(pReq->pOutBlock);
   }

@@ -957,8 +957,9 @@ typedef struct SSTriggerCalcRequest {
   int64_t triggerTaskId;  // does not serialize
   
   int64_t gid;
-  SArray* params;        // SArray<SSTriggerCalcParam>
-  SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
+  SArray*    params;        // SArray<SSTriggerCalcParam>
+  SArray*    groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
+  SSHashObj* pWalVersions;  // SSHash<vgId, SArray<int64_t>*>, only provided in realtime calculation with %%trows
 
   // The following fields are not serialized and only used by the runner task
   int8_t  createTable;
