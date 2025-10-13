@@ -211,7 +211,7 @@ class TestFunLower:
         )
 
     def test_fun_sca_lower(self):
-        """ Function LOWER()
+        """ Fun: LOWER()
 
         1. LOWER on super/child/normal table
         2. LOWER between all data types

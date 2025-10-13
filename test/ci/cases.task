@@ -183,22 +183,21 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 
 # 10-DataIngestion
-,,n,.,pytest cases/10-DataIngestion/test_write.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_basic.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_bug.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_column_value.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_commit.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_datatypes.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_delete.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_insert_select.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_morevgroup.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_out_of_order_data.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_stb.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update_multi_rows.py
-
 
 ## 01-SQL
+,,n,.,pytest cases/10-DataIngestion/01-SQL/test_write.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_basic.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_bug.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_column_value.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_commit.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_datatypes.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_delete.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_morevgroup.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_out_of_order_data.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_stb.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_update.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_update_multi_rows.py
 ## 02-STMT
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/02-STMT/test_stmt_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/02-STMT/test_write_stmt_error.py

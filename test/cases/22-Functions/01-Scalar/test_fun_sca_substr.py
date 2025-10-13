@@ -241,7 +241,7 @@ class TestFunSubstr:
         )
 
     def test_fun_sca_substr(self):
-        """ Function SUBSTR()
+        """ Fun: SUBSTR()
 
         1. SUBSTR on super/child/normal table
         2. SUBSTR between all data types

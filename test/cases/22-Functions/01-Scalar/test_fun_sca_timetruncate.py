@@ -242,7 +242,7 @@ class TestFunTimetruncate:
             self.data_check(date_time,precision,'stb')
 
     def test_fun_sca_timetruncate(self):
-        """ Function TIMETRUNCATE()
+        """ Fun: TIMETRUNCATE()
 
         1. Query from normal/child/super/without table
         2. Query from ns/us/ms precision database

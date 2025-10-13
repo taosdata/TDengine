@@ -1379,7 +1379,7 @@ class TestFunCols:
     # ------------------ main ------------------
     #
     def test_func_select_cols(self):
-        """ Function COLS()
+        """ Fun: COLS()
 
         1. Basic query for input different params
         2. Query on super/child/normal/empty table

@@ -217,7 +217,7 @@ class TestBottom:
     # ------------------ main ------------------
     #
     def test_func_select_bottom(self):
-        """ Function BOTTOM()
+        """ Fun: BOTTOM()
 
         1. Sim case
         2. Query on all data types

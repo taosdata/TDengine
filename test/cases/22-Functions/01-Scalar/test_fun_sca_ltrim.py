@@ -235,7 +235,7 @@ class TestFunLtrim:
         )
 
     def test_fun_sca_ltrim(self):
-        """ Function LTRIM()
+        """ Fun: LTRIM()
 
         1. LTRIM on super/child/normal table
         2. LTRIM between all data types

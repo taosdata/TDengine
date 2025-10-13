@@ -472,7 +472,7 @@ class TestFunAcos:
         pass
 
     def test_fun_sca_acos(self):
-        """ Function ACOS()
+        """ Fun: ACOS()
 
         1. Support types
         2. Basic query

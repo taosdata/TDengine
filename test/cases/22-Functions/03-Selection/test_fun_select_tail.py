@@ -442,7 +442,7 @@ class TestFunTail:
     # ------------------ main ------------------
     #
     def test_func_select_tail(self):
-        """ Function TAIL()
+        """ Fun: TAIL()
 
         1. Basic query for input different params
         2. Query on super/child/normal/empty table

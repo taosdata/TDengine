@@ -231,7 +231,7 @@ class TestFunRtrim:
         )
 
     def test_fun_sca_rtrim(self):
-        """ Function RTRIM()
+        """ Fun: RTRIM()
 
         1. RTRIM on super/child/normal table
         2. RTRIM between all data types

@@ -71,11 +71,10 @@ nav:
         - 04-Query: case_list_docs/SuperTables/Query.md
     - 05-VirtualTables: case_list_docs/VirtualTables.md
     - 10-DataIngestion:
-        - 01-Insert: case_list_docs/DataIngestion/Insert.md
-        - 02-Import: case_list_docs/DataIngestion/Import.md
-        - 03-Delete: case_list_docs/DataIngestion/Delete.md
-        - 04-Update: case_list_docs/DataIngestion/Update.md
-        - 05-Others: case_list_docs/DataIngestion/Others.md
+        - 01-SQL:    case_list_docs/DataIngestion/SQL.md
+        - 02-STMT:   case_list_docs/DataIngestion/STMT.md
+        - 03-SML:    case_list_docs/DataIngestion/SML.md
+        - 04-Import: case_list_docs/DataIngestion/Import.md
     - 11-DataDeletion: case_list_docs/DataDeletion.md
     - 12-DataCompression: case_list_docs/DataCompression.md
     - 20-DataQuerying:
@@ -98,10 +97,10 @@ nav:
         - 99-Others: case_list_docs/DataQuerying/Others.md
     - 21-Operators: case_list_docs/Operators.md
     - 22-Functions:
-        - 01-SingleRow: case_list_docs/Functions/SingleRow.md
+        - 01-Scalar: case_list_docs/Functions/Scalar.md
         - 02-Aggregate: case_list_docs/Functions/Aggregate.md
         - 03-Selection: case_list_docs/Functions/Selection.md
-        - 04-TimeseriesSpecfic: case_list_docs/Functions/TimeseriesSpecfic.md
+        - 04-Timeseries: case_list_docs/Functions/Timeseries.md
     - 23-UDFs: case_list_docs/UDFs.md
     - 24-TimeSeriesExtensions:
         - 01-PartitionBy: case_list_docs/TimeSeriesExtensions/PartitionBy.md

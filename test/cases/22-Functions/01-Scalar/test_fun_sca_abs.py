@@ -574,7 +574,7 @@ class TestFunAbs:
         pass
 
     def test_fun_sca_abs(self):
-        """ Function ABS()
+        """ Fun: ABS()
 
         1. Support types
         2. Basic query
