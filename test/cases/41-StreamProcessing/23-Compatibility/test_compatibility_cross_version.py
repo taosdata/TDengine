@@ -559,16 +559,6 @@ class TestStreamCompatibility:
         tdLog.info("New stream creation and verification completed")
         return True
 
-        # Fallback to searching for any taosd binary
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-
-        print(f"buildPath:{buildPath}")
-        return buildPath
 
     def getCfgPath(self):
         """Get config path"""
