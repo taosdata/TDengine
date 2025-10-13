@@ -866,7 +866,7 @@ class TestFunSample:
     # ------------------ main ------------------
     #
     def test_func_ts_sample(self):
-        """ Fun: INTERP()
+        """ Fun: Sample()
 
         1. Basic query for different params
         2. Query on super/child/normal table

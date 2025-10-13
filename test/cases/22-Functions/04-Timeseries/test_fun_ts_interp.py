@@ -6883,7 +6883,7 @@ class TestInterp:
     # ------------------ main ------------------
     #
     def test_func_ts_interp(self):
-        """ Fun: INTERP()
+        """ Fun: Interp()
 
         1. Basic query for different params
         2. Query on super/child/normal/empty table

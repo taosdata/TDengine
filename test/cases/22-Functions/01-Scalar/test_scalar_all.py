@@ -467,12 +467,10 @@ class TestScalarFunction:
         """
         self.run_pi()
         self.run_round()
-        self.run_exp()
         self.run_truncate()
         self.run_ln()
         self.run_mod()
         self.run_sign()
-        self.run_degrees()
         self.run_radians()
         self.run_rand()
         self.run_greatest()
@@ -495,3 +493,48 @@ class TestScalarFunction:
         self.run_weekofyear()
         self.run_dayofweek()
         self.run_date()
+
+
+    def test_fun_sca_degrees(self):
+        """Fun: Degrees()
+
+        1. Support datatype types
+        2. Query with constant parameter
+        3. Query with function parameter (abs/sin/cos)
+        4. Query with limit
+        5. Query with order by
+        6. Query with null value
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_degrees()
+
+    def test_fun_sca_exp(self):
+        """Fun: Exp()
+
+        1. Support datatype types
+        2. Query with constant/boundary/null/expr parameter
+        3. Query with function parameter (abs/log/round)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_exp()

@@ -693,7 +693,7 @@ class TestFunCast:
         tdSql.query(f"select cast(c8 as tinyint unsigned) as b from {self.dbname}.stb1 union all select last(cast(c8 as tinyint unsigned)) from {self.dbname}.stb1")
 
     def test_fun_sca_cast(self):
-        """ Fun: CAST()
+        """ Fun: Cast()
 
         1. CAST on super table and normal table
         2. CAST between all data types

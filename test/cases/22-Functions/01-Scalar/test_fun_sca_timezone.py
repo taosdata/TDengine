@@ -195,7 +195,7 @@ class TestFunTimezone:
                     tdLog.exit("show charset:%s != %s"%(tdSql.getData(i, 1), charset))
 
     def test_fun_sca_timezone(self):
-        """ Fun: TIMEZONE()
+        """ Fun: Timezone()
 
         1. Check show local/dnode variables timezone
         2. Check timezone() function on normal table/stable/child table

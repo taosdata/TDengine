@@ -671,7 +671,7 @@ class TestFunSum:
     # ------------------ main ------------------
     #
     def test_func_agg_sum(self):
-        """ Fun: SUM()
+        """ Fun: Sum()
 
         1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
         2. Query on super/child/normal table

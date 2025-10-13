@@ -175,7 +175,7 @@ class TestTwa:
     # ------------------ main ------------------
     #
     def test_func_ts_twa(self):
-        """ Fun: TWA()
+        """ Fun: Twa()
 
         1. Basic query for different params
         2. Query on super/child table

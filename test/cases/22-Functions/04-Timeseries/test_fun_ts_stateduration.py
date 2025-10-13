@@ -759,7 +759,7 @@ class TestFunStateduration:
     # ------------------ main ------------------
     #
     def test_func_ts_stateduration(self):
-        """ Fun: STATEDURATION()
+        """ Fun: Stateduration()
 
         1. Basic query for different params
         2. Query on super/child/normal table

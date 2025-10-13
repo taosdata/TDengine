@@ -480,7 +480,7 @@ class TestFunAsin:
         pass
 
     def test_fun_sca_asin(self):
-        """ Fun: ASIN()
+        """ Fun: Asin()
 
         1. Support types
         2. Basic query

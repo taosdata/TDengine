@@ -157,7 +157,7 @@ class TestFuncToTimestamp:
         tdSql.query("select to_timestamp('%s', '%s')" % (time_str, format))
 
     def test_func_sca_to_timestamp(self):
-        """ Fun: TO_TIMESTAMP()
+        """ Fun: TO_Timestamp()
 
         1. Query from child/super/without table
         2. Query from ns/us/ms precision database

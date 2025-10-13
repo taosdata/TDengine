@@ -480,7 +480,7 @@ class TestUnique:
     # ------------------ main ------------------
     #
     def test_func_select_unique(self):
-        """ Fun: UNIQUE()
+        """ Fun: Unique()
 
         1. Basic query for input different params
         2. Query on super/child/normal table
