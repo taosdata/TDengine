@@ -4584,8 +4584,9 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
         return false;
       }
       if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId)) return false;
-    } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
-      if (!lastRowScanOptLastParaIsTag(nodesListGetNode(pAggFunc->pParameterList, 0))) {
+    } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType ||
+               FUNCTION_TYPE_GROUP_CONST_VALUE == pAggFunc->funcType) {
+      if (!lastRowScanOptLastParaIsTag(pParam)) {
         return false;
       }
     } else if (FUNCTION_TYPE_LAST_ROW != pAggFunc->funcType) {
