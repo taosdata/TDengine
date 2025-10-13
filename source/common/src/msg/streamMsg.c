@@ -4210,7 +4210,7 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
       if (nVersions > 0 && encoder.data) {
         TAOS_MEMCPY(encoder.data + encoder.pos, pVersions->pData, nVersions * sizeof(int64_t));
       }
-      encoder.data += nVersions * sizeof(int64_t);
+      encoder.pos += nVersions * sizeof(int64_t);
       px = tSimpleHashIterate(pReq->pWalVersions, px, &iter);
     }
   }
