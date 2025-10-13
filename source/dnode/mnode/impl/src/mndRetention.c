@@ -331,7 +331,7 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 _OVER:
   mndReleaseDb(pMnode, pDb);
   if (code != 0) {
-    mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
+    mError("failed to retrieve retention at line %d since %s", lino, tstrerror(code));
     TAOS_RETURN(code);
   }
   pShow->numOfRows += numOfRows;
