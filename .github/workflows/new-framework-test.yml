@@ -42,7 +42,6 @@ concurrency:
     ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.specified_pr_number }}-TDengineNewFramework
   cancel-in-progress: true
 
-
 jobs:
   test-new-cases:
     uses: taosdata/.github/.github/workflows/new-framework-test.yml@fix/windows-policy
@@ -51,8 +50,6 @@ jobs:
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
       specified_target_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_target_branch }}
       specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_pr_number }}
-
-
 
 
 
