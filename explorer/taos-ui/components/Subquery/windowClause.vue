@@ -62,8 +62,8 @@ const currentValue = computed({
 const emits = defineEmits(['update:modelValue']);
 const stateColumn = computed(() => props.columnList.filter(item => !stateColumnExclude.includes(item.type)));
 function typeChange(val: string) {
-  if (val != 'STATE' && currentValue.value.parttionSet?.includes('tbname')) {
-    currentValue.value.parttionSet = currentValue.value.parttionSet.concat(['tbname']);
+  if (val != 'STATE' && currentValue.value.partitionSet?.includes('tbname')) {
+    currentValue.value.partitionSet = currentValue.value.partitionSet.concat(['tbname']);
   }
 }
 </script>

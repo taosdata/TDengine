@@ -436,7 +436,7 @@ export default {
   tabletip: 'Please enter the table name',
   precisiontip: 'Please select the precision',
   includeheader: 'Include Header',
-  precision: 'Percison',
+  precision: 'Precision',
   csvtable: 'Table Name',
   csvNext: 'Parse',
   seconds: 's',

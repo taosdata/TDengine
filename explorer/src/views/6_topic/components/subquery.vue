@@ -50,11 +50,11 @@
           :params="params"
         />
       </el-form-item>
-      <el-form-item v-if="parttion && level == 1" prop="parttionSet" :label="$t('stream.parttionSet')">
+      <el-form-item v-if="partition && level == 1" prop="partitionSet" :label="$t('stream.partitionSet')">
         <el-select
           ref="resultSet"
           v-model:tags="tags"
-          v-model="info.parttionSet"
+          v-model="info.partitionSet"
           class="w100"
           placeholder=""
           :disabled="!info[stbField]"
@@ -110,7 +110,7 @@ const props = defineProps({
     type: Object,
     default: () => ({})
   },
-  parttion: {
+  partition: {
     type: Boolean,
     default: false
   },
@@ -231,10 +231,10 @@ function getResultSet() {
       isResultSet = true;
       const fnList = item.fnList.map(item => item.options).flat(1) || [];
       const currentFn = fnList.find(ite => ite.label == result.fn)?.filters || [];
-      let otherParmas = '';
+      let otherParams = '';
       const isReverse = TDengineFnReverseGroup.includes(result.fn);
       if (currentFn.length) {
-        otherParmas = currentFn
+        otherParams = currentFn
           .reduce((pre, { field }) => {
             const value = result.params[field];
             if (value) {
@@ -247,15 +247,15 @@ function getResultSet() {
             }
           }, [])
           .join(',');
-        if (otherParmas) {
-          otherParmas = isReverse ? otherParmas + ',' : ',' + otherParmas;
+        if (otherParams) {
+          otherParams = isReverse ? otherParams + ',' : ',' + otherParams;
         }
       }
       if (systemFns.includes(result.fn)) {
         resultSet.push(`${result.fn}()`);
       } else {
         resultSet.push(
-          `${result.fn}(${isReverse ? otherParmas + JSON.stringify(item.name) : item.field + otherParmas})`
+          `${result.fn}(${isReverse ? otherParams + JSON.stringify(item.name) : item.field + otherParams})`
         );
       }
     } else {

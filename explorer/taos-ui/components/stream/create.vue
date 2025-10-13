@@ -42,7 +42,7 @@
           :avg-fn="true"
           :window-clause="true"
           field-set
-          :parttion="true"
+          :partition="true"
         >
           <template #db-bottom>
             <el-form-item :label="t('common.type')" prop="source_type" required>
@@ -216,7 +216,7 @@ const info = reactive({
   source_type: 1,
   subtale: '',
   stream_name: '',
-  parttionSet: ['tbname'],
+  partitionSet: ['tbname'],
   window_type: 'INTERVAL',
   table_type: 'STABLE',
   tol_val: 0,
@@ -351,8 +351,8 @@ function generateSql(show = true) {
             result += ` SUBTABLE(CONCAT('${info.subtale}',tbname))`;
           }
           result += ' AS ' + subquery;
-          if (info.parttionSet) {
-            result += ' PARTITION BY ' + info.parttionSet.join(',');
+          if (info.partitionSet) {
+            result += ' PARTITION BY ' + info.partitionSet.join(',');
           }
           if (info.window_type) {
             result += ' ';

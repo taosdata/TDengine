@@ -8,7 +8,7 @@ export default {
   execution: '执行',
   delay: '延迟',
   delayTip: '即watermark，这是在执行查询之前等待无序数据的时间。',
-  parttionSet: '分区设置',
+  partitionSet: '分区设置',
   windowClause: '窗口设置',
   totalTimeLength: '总时长',
   intervalPeriod: '间隔周期',

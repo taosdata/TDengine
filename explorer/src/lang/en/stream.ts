@@ -17,7 +17,7 @@ export default {
     intervaloffset: "Interval Offset",
     column: "Column",
     windowClause: "Window Clause",
-    parttionSet: "Partition By",
+    partitionSet: "Partition By",
     source: "Source",
     subtablePrefix: "Subtable Prefix",
     output: "Output",

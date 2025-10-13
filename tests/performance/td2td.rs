@@ -278,7 +278,7 @@ async fn run_td2td_history(params: TD2TDFactors) -> anyhow::Result<TD2TDHistoryM
     .await?;
 
     let start = Utc::now().timestamp_millis() / 60000 * 60000;
-    // simuate write
+    // simulate write
     let sim: Simulation = Simulation {
         db: DB_SRC.to_string(),
         writers: std::thread::available_parallelism()
