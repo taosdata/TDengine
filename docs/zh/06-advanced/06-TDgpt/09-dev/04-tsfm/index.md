@@ -82,8 +82,6 @@ nohup python timemoe-server.py > service_output.out 2>&1 &
 如果您需要部署参数规模更大参数规模的版本（`'Maple728/TimeMoE-200M'`）请将 `timemoe-server.py` 文件中 `_model_list[0],`  
 修改为 `_model_list[1],` 即可。
 
-
-
 如果加载失败，请尝试执行如下命令切换为国内镜像下载模型。
 
 ```shell

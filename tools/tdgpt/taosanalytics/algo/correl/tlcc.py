@@ -43,7 +43,7 @@ class _TlccService(AbstractCorrelationService):
     def do_tlcc(self):
         ccf_vals = []
         if len(self.list) != len(self.list1) or len(self.list) == 0 or len(self.list1) == 0:
-            return ccf_vals
+            raise ValueError("input lists are mismatch, tlcc values not return")
 
         n = len(self.list)
         for lag in np.arange(self.lag_start, self.lag_end + 1):

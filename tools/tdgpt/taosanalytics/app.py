@@ -223,7 +223,7 @@ def handle_imputation_req():
 
 @app.route("/correlation", methods=['POST'])
 def handle_correlation_req():
-    """handle the imputation request """
+    """handle the correlation request """
     app_logger.log_inst.info('recv correlation from %s', request.remote_addr)
     try:
         # check for rows limitation to reduce the dtw process time
@@ -257,7 +257,7 @@ def handle_correlation_req():
 
             return res
         else:
-            raise BaseException(f"unsupported algo: {algo}")
+            raise ValueError(f"unsupported algo: {algo}")
     except Exception as e:
         app_logger.log_inst.error('impu failed, %s', str(e))
         return {"msg": str(e), "rows": -1}

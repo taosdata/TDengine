@@ -7,7 +7,7 @@ def do_dtw(input_list1: list, input_list2: list, params):
     s.set_input_list(input_list1, None)
     s.set_second_input_data(input_list2)
 
-    s.set_param(params)
+    s.set_params(params)
     val, path = s.execute()
     return val, path
 
@@ -17,6 +17,6 @@ def do_tlcc(input_list1: list, input_list2: list, params):
     s.set_input_list(input_list1, None)
     s.set_second_input_data(input_list2)
 
-    s.set_param(params)
+    s.set_params(params)
     lags, ccf_vals = s.execute()
     return lags, ccf_vals
