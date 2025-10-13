@@ -56,10 +56,10 @@ TDgpt 安装根目录下的 `./lib/taosanalytics/time-moe.py` 文件 (3.3.6.4 �
 ```python
 @app.route('/ds_predict', methods=['POST'])
 def time_moe():
-    ...
+    #...
 ```
 
-修改 `ds_predict` 为需要开启的 URL 服务地址，或者使用默认值亦可。
+修改 `host` 参数为需要开启的 URL 服务地址，或者使用默认值亦可。
 
 ```Python
     app.run(
@@ -70,7 +70,7 @@ def time_moe():
         )
 ```
 
-其中的 port 修改为希望开启的端口，包括使用默认值亦可。完成之后重启服务。
+其中的 port 修改为希望开启的端口，使用默认值亦可。完成之后重启服务即可。
 
 # 启动 Python 脚本
 
@@ -81,6 +81,8 @@ nohup python timemoe-server.py > service_output.out 2>&1 &
 第一次启动脚本会从 huggingface 自动加载 [0.5 亿参数模型](https://huggingface.co/Maple728/TimeMoE-50M) (`Maple728/TimeMoE-50M`),
 如果您需要部署参数规模更大参数规模的版本（`'Maple728/TimeMoE-200M'`）请将 `timemoe-server.py` 文件中 `_model_list[0],`  
 修改为 `_model_list[1],` 即可。
+
+
 
 如果加载失败，请尝试执行如下命令切换为国内镜像下载模型。
 
@@ -190,7 +192,7 @@ pip install flask
 在 moirai-server.py 文件中配置服务地址（配置服务地址方式见上），设置加载的模型（如果需要）。
 
 ```python
-_model_list = [
+_model_list = [****
     'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
     'Salesforce/moirai-moe-1.0-R-base',   # base model with 205M parameters
 ]
@@ -288,4 +290,16 @@ pip install momentfm
 
 ```shell
 nohup python moment-server.py > service_output.out 2>&1 &
+```
+
+## 动态下载时序模型
+
+在 3.3.8.x 以后的版本，您可以在启动模型的时候指定不同规模的模型。如果不指定任何参数，模型运行驱动文件（[xxx]-server.py）将自动加载参数规模最小的模型运行。
+
+此外，如果您手动在本地下载了模型文件，可以通过指定本地模型文件路径的方式，运行已经下载完成的模型。
+
+```shell
+# 运行在本地目录 /var/lib/taos/taosanode/model/chronos 的 chronos-bolt-tiny 模型文件，如果指定目录不存在，则自动下载模型文件到  /var/lib/taos/taosanode/model/chronos 目录下。第三个参数是下载模型文件的时候时候打开镜像，推荐国内用户打开该选项
+python chronos-server.py /var/lib/taos/taosanode/model/chronos/ amazon/chronos-bolt-tiny True
+
 ```
