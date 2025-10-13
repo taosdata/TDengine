@@ -465,16 +465,7 @@ class TestScalarFunction:
             - 2025-5-08 Huo Hong Migrated to new test framework
 
         """
-        self.run_pi()
         self.run_round()
-        self.run_truncate()
-        self.run_ln()
-        self.run_mod()
-        self.run_sign()
-        self.run_radians()
-        self.run_rand()
-        self.run_greatest()
-        self.run_least()
         self.run_greatest_large_table()
         
         self.run_char_length()
@@ -538,3 +529,222 @@ class TestScalarFunction:
 
         """
         self.run_exp()
+
+    def test_fun_sca_greatest(self):
+        """Fun: Greatest()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_greatest()
+
+    def test_fun_sca_least(self):
+        """Fun: Least()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_least()
+        
+    def test_fun_sca_ln(self):
+        """Fun: Ln()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_ln()
+
+    def test_fun_sca_mod(self):
+        """Fun: Mod()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_mod()
+
+    def test_fun_sca_pi(self):
+        """Fun: Pi()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_pi()
+
+    def test_fun_sca_radians(self):
+        """Fun: Radians()
+
+        1. Support data types
+        2. Query with constant/boundary/null parameter
+        3. Query with function parameter (sqrt/degrees)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_radians()
+
+    def test_fun_sca_rand(self):
+        """Fun: Rand()
+
+        1. Support data types
+        2. Query with constant/boundary/null/big parameter
+        3. Query with limit
+        4. Query with order by
+        5. Query on stable/notable
+        6. Query on where clause
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_rand()
+
+    def test_fun_sca_sign(self):
+        """Fun: Sign()
+
+        1. Support data types
+        2. Query with constant/boundary/null parameter
+        3. Query with function parameter (sqrt/abs/round/log)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+        9. Error query with two parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_sign()
+        
+    def test_fun_sca_truncate(self):
+        """Fun: Truncate()
+
+        1. Support data types
+        2. Query with constant/boundary/null parameter
+        3. Query with function parameter (exp/abs/log)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Query like TRUNCATE(TRUNCATE(TRUNCATE(...
+        8. Error query with no parameter
+        9. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_truncate()
+        
+    def test_fun_sca_pi(self):
+        """Fun: Pi()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_pi()
