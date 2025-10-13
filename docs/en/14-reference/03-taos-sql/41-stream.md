@@ -792,7 +792,7 @@ Temporary Restrictions:
 
 - Grouping by regular data columns is not yet supported.
 - The Geometry data type is not yet supported.
-- The functions Interp, Percentile, Forecast, and UDFs are not yet supported.
+- The user defined functions(UDFs) are not yet supported.
 - The DELETE_OUTPUT_TABLE option is not yet supported.
 - The ON_FAILURE_PAUSE option in NOTIFY_OPTIONS is not yet supported.
 - The Cast function is not yet supported in state window triggers.
