@@ -47,7 +47,7 @@ class _TlccService(AbstractCorrelationService):
 
         n = len(self.list)
         for lag in np.arange(self.lag_start, self.lag_end + 1):
-            x1 = self.list[max(0, -lag):n - lag if lag < 0 else n - lag]
+            x1 = self.list[max(0, -lag):n if lag < 0 else n - lag]
             y1 = self.list1[max(0, lag):n if lag > 0 else n + lag]
 
             ccf_vals.append(np.corrcoef(x1, y1)[0, 1])
