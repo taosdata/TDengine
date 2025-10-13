@@ -1715,6 +1715,10 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
 
   if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
+    cleanupQueryTableDataCond(&pInfo->base.cond);
+    SReadHandle readHandle = pInfo->base.readHandle;
+    readHandle.winRange = pInfo->base.cond.twindows;
+    code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &readHandle);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
   }

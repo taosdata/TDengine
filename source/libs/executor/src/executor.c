@@ -345,20 +345,18 @@ _error:
 int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range) {
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
-  
 
-  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pOperator->pPhyNode)){
-    STableScanInfo* pScanInfo = pOperator->info;
-    STableScanBase* pScanBaseInfo = &pScanInfo->base;
-    if (range.skey != 0 && range.ekey != 0) {
-      pScanBaseInfo->cond.twindows = range;
-    }
-  } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode)){
-    STableMergeScanInfo* pScanInfo = pOperator->info;
-    STableScanBase* pScanBaseInfo = &pScanInfo->base;
-    if (range.skey != 0 && range.ekey != 0) {
-      pScanBaseInfo->cond.twindows = range;
-    }
+  void*           info = pOperator->info;
+  STableScanBase* pScanBaseInfo = NULL;
+
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pOperator->pPhyNode)) {
+    pScanBaseInfo = &((STableScanInfo*)info)->base;
+  } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode)) {
+    pScanBaseInfo = &((STableMergeScanInfo*)info)->base;
+  }
+
+  if (pScanBaseInfo != NULL && range.skey != 0 && range.ekey != 0) {
+    pScanBaseInfo->cond.twindows = range;
   }
 
   qDebug("reset table scan, name:%s, id:%s, time range: [%" PRId64 ", %" PRId64 "]", pOperator->name, GET_TASKID(pTaskInfo), range.skey,
