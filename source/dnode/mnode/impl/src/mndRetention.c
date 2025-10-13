@@ -66,7 +66,7 @@ int32_t mndInitRetention(SMnode *pMnode) {
 
 void mndCleanupRetention(SMnode *pMnode) { mDebug("mnd retention cleanup"); }
 
-void tFreeRetentionObj(SRetentionObj *pObj) {}
+void tFreeRetentionObj(SRetentionObj *pObj) { tFreeCompactObj((SCompactObj *)pObj); }
 
 int32_t tSerializeSRetentionObj(void *buf, int32_t bufLen, const SRetentionObj *pObj) {
   return tSerializeSCompactObj(buf, bufLen, (const SCompactObj *)pObj);
@@ -84,7 +84,7 @@ SSdbRaw *mndRetentionActionEncode(SRetentionObj *pObj) {
   void    *buf = NULL;
   SSdbRaw *pRaw = NULL;
 
-  int32_t tlen = tSerializeSCompactObj(NULL, 0, pObj);
+  int32_t tlen = tSerializeSRetentionObj(NULL, 0, pObj);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto OVER;
@@ -103,7 +103,7 @@ SSdbRaw *mndRetentionActionEncode(SRetentionObj *pObj) {
     goto OVER;
   }
 
-  tlen = tSerializeSCompactObj(buf, tlen, pObj);
+  tlen = tSerializeSRetentionObj(buf, tlen, pObj);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto OVER;
@@ -167,7 +167,7 @@ SSdbRow *mndRetentionActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, OVER);
 
-  if ((terrno = tDeserializeSCompactObj(buf, tlen, pObj)) < 0) {
+  if ((terrno = tDeserializeSRetentionObj(buf, tlen, pObj)) < 0) {
     goto OVER;
   }
 
@@ -190,7 +190,7 @@ int32_t mndRetentionActionInsert(SSdb *pSdb, SRetentionObj *pObj) {
 
 int32_t mndRetentionActionDelete(SSdb *pSdb, SRetentionObj *pObj) {
   mTrace("retention:%" PRId32 ", perform delete action", pObj->id);
-  tFreeCompactObj(pObj);
+  tFreeRetentionObj(pObj);
   return 0;
 }
 
