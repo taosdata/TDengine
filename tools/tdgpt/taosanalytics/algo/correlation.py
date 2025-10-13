@@ -8,8 +8,8 @@ def do_dtw(input_list1: list, input_list2: list, params):
     s.set_second_input_data(input_list2)
 
     s.set_params(params)
-    val, path = s.execute()
-    return val, path
+    dist, path = s.execute()
+    return dist, path
 
 def do_tlcc(input_list1: list, input_list2: list, params):
     s = loader.get_service("tlcc")
