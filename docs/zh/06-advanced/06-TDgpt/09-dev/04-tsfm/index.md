@@ -190,7 +190,7 @@ pip install flask
 在 moirai-server.py 文件中配置服务地址（配置服务地址方式见上），设置加载的模型（如果需要）。
 
 ```python
-_model_list = [****
+_model_list = [
     'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
     'Salesforce/moirai-moe-1.0-R-base',   # base model with 205M parameters
 ]
