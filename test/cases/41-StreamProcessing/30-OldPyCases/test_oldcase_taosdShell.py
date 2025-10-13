@@ -16,7 +16,6 @@ from new_test_framework.utils import (
     tdSql,
     tdStream,
     cluster,
-    tdStream,
     tdCom
 )
 
