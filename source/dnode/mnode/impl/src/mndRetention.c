@@ -298,7 +298,7 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     if ((code = tNameFromString(&name, pObj->dbname, T_NAME_ACCT | T_NAME_DB)) != 0) {
       sdbRelease(pSdb, pObj);
       sdbCancelFetch(pSdb, pShow->pIter);
-      TAOS_CHECK_GOTO(code, lino, _OVER);
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
     (void)tNameGetDbName(&name, varDataVal(tmpBuf));
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
@@ -329,9 +329,12 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   }
 
 _OVER:
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  pShow->numOfRows += numOfRows;
   mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
