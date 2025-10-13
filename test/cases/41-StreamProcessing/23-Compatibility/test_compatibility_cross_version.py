@@ -18,7 +18,7 @@ import sys
 import subprocess
 import importlib.util
 from pathlib import Path
-from new_test_framework.utils import tdLog, tdSql, tdStream, cluster
+from new_test_framework.utils import tdLog, tdSql, tdStream, cluster, tdCom
 
 # Import enterprise package downloader
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -150,7 +150,7 @@ class TestStreamCompatibility:
             tdLog.info(f"Windows skip stream compatibility test")
             return
 
-        bPath = self.getBuildPath()
+        bPath = tdCom.getBuildPath()
         cPath = self.getCfgPath()
         tdLog.info(f"bPath:{bPath}, cPath:{cPath}")
 
@@ -559,23 +559,6 @@ class TestStreamCompatibility:
         tdLog.info("New stream creation and verification completed")
         return True
 
-    def getBuildPath(self):
-        """Get build path"""
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        print(f"selfPath:{selfPath}")
-        
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        # Prioritize debug build path for enterprise version
-        debug_build_path = os.path.join(projPath, "debug/build")
-        if os.path.exists(os.path.join(debug_build_path, "bin/taosd")):
-            print(f"buildPath:{debug_build_path}")
-            return debug_build_path
-        
         # Fallback to searching for any taosd binary
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
@@ -589,7 +572,7 @@ class TestStreamCompatibility:
 
     def getCfgPath(self):
         """Get config path"""
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):

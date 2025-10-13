@@ -16,36 +16,16 @@ import random
 import platform
 import time
 
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 class TestOutOfOrder:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        buildPath = ""
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("test")]
-
-        for root, dirs, files in os.walk(projPath):
-            taosdFileName = "taosd"
-            if platform.system().lower() == 'windows':
-                taosdFileName = "taosd.exe"
-            if (taosdFileName in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        return buildPath
-
     def run_benchmark(self,dbname,tables,per_table_num,order,replica):
         #O :Out of order
         #A :Repliaca
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
