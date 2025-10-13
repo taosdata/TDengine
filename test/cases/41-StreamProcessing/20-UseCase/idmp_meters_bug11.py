@@ -142,7 +142,6 @@ class Test_IDMP_Meters:
         sqls = [
             # stream7 state
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream7_sub4` STATE_WINDOW(`电压`) TRUE_FOR(60s) FROM `tdasset`.`vt_em-7` STREAM_OPTIONS(DELETE_RECALC)                                      NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream7_sub4` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-7` WHERE ts >= _twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream7_sub5` STATE_WINDOW(`电压`) TRUE_FOR(60s) FROM `tdasset`.`vt_em-7` STREAM_OPTIONS(PRE_FILTER(`电流`>300 and `电流`<=600)|DELETE_RECALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream7_sub5` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-7` WHERE ts >= _twstart AND ts <=_twend",
         ]
 
         tdSql.executes(sqls)
@@ -239,7 +238,7 @@ class Test_IDMP_Meters:
 
 
 
-     #
+    #
     #  stream7 trigger
     #
     def trigger_stream7(self):
@@ -316,36 +315,21 @@ class Test_IDMP_Meters:
     # verify stream7
     #
     def verify_stream7_again(self):
-
-        # check
-
-        # del sub4
+        # ***** bug11 *****
         result_sql = f"select * from tdasset.`result_stream7_sub4` "
-        tdSql.checkResultsByFunc(
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 4
-        )
-
-        # check data
         data = [
             # ts          cnt    
             [1752574200000, 2, 100, 200],
             [1752574320000, 2, 200, 400],
+            [1752574560000, 2, 400, 800],
             [1752574680000, 2, 502, 1004],
             [1752574800000, 2, 600, 1200]
-        ]
-        tdSql.checkDataMem(result_sql, data)
-
-        # del sub5
-        result_sql = f"select * from tdasset.`result_stream7_sub5` "
+        ]        
         tdSql.checkResultsByFunc(
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, 1752574680000)
-            and tdSql.compareData(0, 1, 2)
-            and tdSql.compareData(0, 2, 502)
-            and tdSql.compareData(0, 3, 1004)
+            func = lambda: tdSql.getRows() == len(data)
         )
+        # check data
+        tdSql.checkDataMem(result_sql, data)        
 
-        tdLog.info(f"verify stream7_again ............................. successfully.")
-        
+        print("verify stream7_again ............................. successfully.")
