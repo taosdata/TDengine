@@ -5,6 +5,7 @@ description: 使用 docker、云服务、安装包体验 TDgpt
 ---
 
 import PkgListV3 from "/components/PkgListV3";
+import PkgListV37 from "/components/PkgListV37";
 
 本节介绍如何通过 Docker，云服务或安装包来部署 TDgpt
 
@@ -30,7 +31,7 @@ docker pull tdengine/tdgpt:latest
 或者特定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdgpt:3.3.7.0
+docker pull tdengine/tdgpt:3.3.8.1
 ```
 
 执行下面的命令启动容器：
@@ -39,7 +40,7 @@ docker pull tdengine/tdgpt:3.3.7.0
 docker run -d \
   -p 6035:6035 \
   -p 6036:6036 \
-  tdengine/tdgpt:3.3.7.0
+  tdengine/tdgpt:3.3.8.1
 ```
 
 :::note
@@ -59,7 +60,7 @@ docker pull tdengine/tdgpt-full:latest
 或者指定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdgpt-full:3.3.7.0
+docker pull tdengine/tdgpt-full:3.3.8.1
 ```
 
 执行下面的命令启动容器：
@@ -70,7 +71,7 @@ docker run -d \
   -p 6035:6035 \
   -p 6036:6036 \
   -p 6037:6037 \
-  tdengine/tdgpt-full:3.3.7.0
+  tdengine/tdgpt-full:3.3.8.1
 ```
 
 **注意**：TDgpt 服务端使用 6035 TCP 端口。6036 和 6037 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
@@ -144,25 +145,21 @@ sudo apt install build-essential
 
 1. 从列表中下载获得 tar.gz 安装包
 
-   <PkgListV3 type={9}/>
+   <PkgListV37 productName="TDengine TDgpt-OSS" version="3.3.8.1" platform="Linux-Generic" pkgType="Server"/>
 
    安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
   
 2. 进入到安装包所在目录，使用 tar 解压安装包；
 
-> 请将 `<version>` 替换为下载的安装包版本
-
 ```bash
-tar -zxvf tdengine-tdgpt-<version>-Linux-x64.tar.gz
+tar -zxvf tdengine-tdgpt-oss-3.3.8.1-linux-x64.tar.gz
 ```
 
 ### 执行安装脚本
 
 解压安装包后，进入目录执行其中的 `install.sh` 脚本进行安装。
-请将 `<version>` 替换为下载的安装包版本
-
 ```bash
-cd tdengine-tdgpt-<version>
+cd tdengine-tdgpt-oss-3.3.8.1
 ./install.sh
 ```
 

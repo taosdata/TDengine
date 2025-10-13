@@ -863,11 +863,9 @@ typedef struct SDropTSMAStmt {
 typedef struct SCreateRsmaStmt {
   ENodeType  type;
   bool       ignoreExists;
-  uint8_t    precision;
   char       rsmaName[TSDB_TABLE_NAME_LEN];
   char       dbName[TSDB_DB_NAME_LEN];
   char       tableName[TSDB_TABLE_NAME_LEN];
-  SNodeList* pCols;
   SNodeList* pFuncs;
   SNodeList* pIntervals;
 } SCreateRsmaStmt;

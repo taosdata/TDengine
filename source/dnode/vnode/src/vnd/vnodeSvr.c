@@ -60,6 +60,7 @@ static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pRe
                                           SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessCreateRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessAlterRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 static int32_t vnodeCheckState(SVnode *pVnode);
 static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token);
@@ -866,6 +867,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
     case TDMT_VND_DROP_RSMA:
       code = vnodeProcessDropRsmaReq(pVnode, ver, pReq, len, pRsp);
+      TSDB_CHECK_CODE(code, lino, _err);
+      break;
+    case TDMT_VND_ALTER_RSMA:
+      code = vnodeProcessAlterRsmaReq(pVnode, ver, pReq, len, pRsp);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
     case TDMT_VND_DROP_TTL_TABLE:
@@ -1861,6 +1866,20 @@ _exit:
   pRsp->code = code;
   pRsp->contLen = 0;
   return 0;
+}
+
+static int32_t vnodeProcessAlterRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t         code = 0, lino = 0;
+  SVAlterRsmaReq req = {0};
+  TAOS_CHECK_EXIT(tDeserializeSVAlterRsmaReq(pReq, len, &req));
+  TAOS_CHECK_EXIT(metaAlterRsma(pVnode->pMeta, ver, &req));
+_exit:
+  pRsp->msgType = TDMT_VND_ALTER_RSMA_RSP;
+  pRsp->pCont = NULL;
+  pRsp->code = code;
+  pRsp->contLen = 0;
+  tFreeSVAlterRsmaReq(&req);
+  return code;
 }
 
 #ifdef BUILD_NO_CALL
