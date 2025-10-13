@@ -2902,6 +2902,9 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->slimit = slimit;
   pLimitInfo->remainOffset = limit.offset;
   pLimitInfo->remainGroupOffset = slimit.offset;
+  pLimitInfo->numOfOutputRows = 0;
+  pLimitInfo->numOfOutputGroups = 0;
+  pLimitInfo->currentGroupId = 0;
 }
 
 void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo) {

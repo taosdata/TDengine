@@ -342,6 +342,20 @@ _error:
   return code;
 }
 
+bool qNeedReset(qTaskInfo_t* pInfo) {
+  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
+  SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+  if (pOperator->pPhyNode == NULL) {
+    return false;
+  } 
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pOperator->pPhyNode) || 
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode) ||
+      QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == nodeType(pOperator->pPhyNode)) {
+    return true;
+  }
+  return false;
+}
+
 int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range) {
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;

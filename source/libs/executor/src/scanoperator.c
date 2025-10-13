@@ -1687,9 +1687,6 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   }
   pInfo->base.dataReader = NULL;
 
-  pInfo->base.limitInfo.remainOffset = pInfo->base.limitInfo.limit.offset;
-  pInfo->base.limitInfo.remainGroupOffset = pInfo->base.limitInfo.slimit.offset;
-
   // tableListDestroy(pInfo->base.pTableListInfo);
 
   // pInfo->base.pTableListInfo = tableListCreate();
@@ -1712,6 +1709,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
 
   SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
   STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
+  initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);
 
   if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
@@ -4563,10 +4561,9 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
   }
   pInfo->base.dataReader = NULL;
 
+  pInfo->base.limitInfo = (SLimitInfo){0};
   pInfo->base.limitInfo.limit.limit = -1;
   pInfo->base.limitInfo.slimit.limit = -1;
-  pInfo->base.limitInfo.remainOffset = pInfo->base.limitInfo.limit.offset;
-  pInfo->base.limitInfo.remainGroupOffset = pInfo->base.limitInfo.slimit.offset;
 
   STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pOper->pPhyNode;
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
