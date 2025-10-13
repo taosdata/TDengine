@@ -264,7 +264,7 @@ const char *taos_collector_registry_bridge_new(taos_collector_registry_t *self, 
   }
 
   if(tjsonGetArraySize(array) == 0){
-    terrno = TSDB_CODE_UTIL_NO_MATRIC_EXIST;
+    terrno = TSDB_CODE_UTIL_NO_METRIC_EXIST;
     tjsonDelete(pJson);
     return NULL;
   }
