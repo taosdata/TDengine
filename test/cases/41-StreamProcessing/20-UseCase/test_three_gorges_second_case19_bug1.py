@@ -91,9 +91,9 @@ class Test_ThreeGorges:
             tdSql.execute(stream1,queryTimes=2)
         except Exception as e:
             if "_WSTART, _WEND" in str(e) and "can only be used in window query" in str(e):
-                tdLog.info(f"create stream error :_WSTART, _WEND and _WDURATION can only be used in window query")
+                tdLog.info(f"create stream error: {e}")
             else:
-                raise  Exception(f"error: _WSTART, _WEND and _WDURATION must be used in window query") 
+                raise
         
     
     def checkResultWithResultFile(self):
