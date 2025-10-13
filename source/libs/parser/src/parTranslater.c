@@ -17029,7 +17029,6 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
 _exit:
   taosMemoryFreeClear(pTableMeta);
   TAOS_RETURN(code);
-  return 0;
 }
 
 #endif
@@ -17065,7 +17064,6 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_RSMA, (FSerializeFunc)tSerializeSMDropRsmaReq, &dropReq));
-  return code;
 _return:
   return code;
 #else
