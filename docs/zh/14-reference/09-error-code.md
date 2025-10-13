@@ -614,3 +614,14 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 | 0x80007014 | Stream output table name too long                   | 输出表名超长               | 检查建流语句中输出表名规则是否正确，是否结果超长       |
 | 0x80007016 | Stream output table name calc failed                | 输出表名计算失败             | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在 |
 | 0x80007017 | Stream vtable calculate need redeploy               | 流计算语句中的虚拟表的原始表分布发生变更 | 流会自动处理该错误，无需处理                 |
+
+## C# 连接器
+
+| 错误码    | 错误描述                             | 可能的出错场景或者可能的原因              | 建议用户采取的措施                      |
+|--------|----------------------------------|-----------------------------|--------------------------------|
+| 0xf001 | WebSocket Reconnection Failed    | 连接的 taosAdapter 退出导致重连失败    | 检查 taosAdapter 状态，等待一段时间后重试    |
+| 0xf002 | WebSocket Message Mismatch       | 产生重复的请求 ID                  | 关闭当前连接等待一段时间后重连，不要传递重复的请求 ID   |
+| 0xf003 | WebSocket Connection Closed      | 使用已关闭的 WebSocket 连接         | 关闭当前连接使用新连接进行重试                |
+| 0xf004 | WebSocket Write Timeout          | WebSocket 写请求超时             | 检查网络问题，调大写超时参数，关闭当前连接使用新连接进行重试 |
+| 0xf005 | WebSocket Connection Failed      | 连接的 taosAdapter 退出          | 检查 taosAdapter 状态，等待一段时间后重试    |
+| 0xf006 | WebSocket Close Message Received | 网络原因导致心跳超时 taosAdapter 关闭连接 | 检查网络问题，等待一段时间后重试               |
