@@ -20,18 +20,50 @@
 #include "tlog.h"
 #include "tcurl.h"
 #include "tutil.h"
+#include "osAtomic.h"
 
 #ifndef WINDOWS
 
+#include <resolv.h>
 #include "curl/curl.h"
 
 static threadlocal SHashObj* tNotificationConnHash = NULL;  // key: url, value: CURL*
 static threadlocal bool      tInitialized = false;
 
+static int32_t tcurlSetSystemDNSTimeout() {
+  static int8_t init = 0;
+  static bool   uses_system_resolver = false;
+  if (atomic_val_compare_exchange_8(&init, 0, 1) != 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  curl_version_info_data* version_info = curl_version_info(CURLVERSION_NOW);
+
+  if (version_info->features & CURL_VERSION_ASYNCHDNS) {
+    uInfo("[curl] Detected c-ares DNS resolver");
+    uses_system_resolver = false;
+  } else {
+    uInfo("[curl] Detected system DNS resolver");
+    uses_system_resolver = true;
+  }
+
+  if (uses_system_resolver) {
+    _res.retrans = 2;
+    _res.retry = 2;
+    _res.options |= RES_INIT;
+    uInfo("[curl] Set global DNS timeout: retrans=%d, retry=%d", _res.retrans, _res.retry);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t tcurlConnect(CURL** ppConn, const char* url) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   CURLcode res = CURLE_OK;
+
+  uInfo("[curl] try to connect to %s", url);
+  tcurlSetSystemDNSTimeout();
 
   CURL* pConn = curl_easy_init();
   TSDB_CHECK_NULL(pConn, code, lino, _end, TSDB_CODE_FAILED);
@@ -71,6 +103,12 @@ static int32_t tcurlConnect(CURL** ppConn, const char* url) {
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
   res = curl_easy_perform(pConn);
+  if (res != CURLE_OK) {
+    const char* error_msg = curl_easy_strerror(res);
+    uError("[curl] perform failed, url:%s, CURLcode:%d, error:%s", url, res, error_msg);
+    *ppConn = NULL;
+    return TSDB_CODE_FAILED;
+  }
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
 _end:
