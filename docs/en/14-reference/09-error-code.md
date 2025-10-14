@@ -21,8 +21,8 @@ Error codes are represented by 8-digit hexadecimal numbers starting with 0x, for
 | Error Type                    | Prefix  | Description                                                  |
 | ----------------------------- | ------- | ------------------------------------------------------------ |
 | TDengine TSDB Business Error  | 0x8000  | Custom business logic error codes defined by TDengine TSDB engine, see detailed error code descriptions below |
-| Linux System Call Error       | 0x80FF  | Last 4 digits correspond to Linux system API errno, refer to [Linux Error Codes](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/asm-generic/errno-base.h) or use `errno -l` command to query |
-| Windows API System Error      | 0x81FF  | Last 4 digits correspond to Windows API error codes, refer to [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes) or use `net helpmsg <error_code>` command to query |
+| Linux System Call Error       | 0x80FF  | Last 4 digits correspond to Linux system API errno, refer to [Linux Error Codes](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/asm-generic/errno-base.h) |
+| Windows API System Error      | 0x81FF  | Last 4 digits correspond to Windows API error codes, refer to [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes) |
 | Windows Socket System Error   | 0x82FF  | Last 4 digits correspond to Windows Socket API error codes, refer to [WSAGetLastError](https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2) documentation |
 
 ### Example Explanation

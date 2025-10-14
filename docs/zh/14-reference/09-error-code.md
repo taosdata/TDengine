@@ -19,9 +19,9 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 | 错误类型                      | 前缀    | 说明                                                  |
 | ---------------------------- | ------- | ---------------------------------------------------- |
 | TDengine TSDB 业务错误        | 0x8000  | TDengine TSDB 引擎自定义的业务逻辑错误码，详见下文各模块错误码说明 |
-| Linux 系统调用错误            | 0x80FF  | 后 4 位对应 Linux 系统 API 返回的 errno，可参考 [Linux Error Codes](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/asm-generic/errno-base.h) 或使用 `errno -l` 命令查询 |
-| Windows API 系统错误          | 0x81FF  | 后 4 位对应 Windows API 返回的错误码，可参考 [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes) 或使用 `net helpmsg <错误码>` 命令查询 |
-| Windows Socket 系统错误       | 0x82FF  | 后 4 位对应 Windows Socket API 返回的错误码，可参考 [WSAGetLastError](https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2) 说明 |
+| Linux 系统调用错误            | 0x80FF  | 后 4 位对应 Linux 系统 API 返回的 errno，可参考 [Linux Error Codes](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/asm-generic/errno-base.h) |
+| Windows API 系统错误          | 0x81FF  | 后 4 位对应 Windows API 返回的错误码，可参考 [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes) |
+| Windows Socket 系统错误       | 0x82FF  | 后 4 位对应 Windows Socket API 返回的错误码，可参考 [WSAGetLastError](https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2) |
 
 ### 示例说明
 
