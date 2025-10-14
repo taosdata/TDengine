@@ -378,8 +378,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   }
 #endif
 #ifdef TD_ENTERPRISE
-  if (sec % tsAuthReqInterval == 0) {
-    mndPullupAuth(pMnode);
+  if (tsAuthReq) {
+    if (sec % tsAuthReqHBInterval == 0) {
+      mndPullupAuth(pMnode);
+    }
   }
 #endif
 #ifdef USE_SHARED_STORAGE
