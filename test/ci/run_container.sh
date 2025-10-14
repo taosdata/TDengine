@@ -279,8 +279,14 @@ mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coverage_info
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/coredump/*
 
 if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/test" ]; then
-    echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
-    cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
+    if [ "$exec_dir" != "." ]; then
+        subdir=`echo "$exec_dir"|cut -d/ -f1`
+        echo "cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/"
+        cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/
+    else
+        echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
+        cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
+    fi
 fi
 
 MOUNT_SOURCE="${TMP_DIR}/thread_volume/${thread_no}"
@@ -303,24 +309,12 @@ coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
     coredump_dir="/home/coredump"
 fi
-<<<<<<< HEAD
 
 # 修改：创建一个复合命令，先运行测试，然后生成覆盖率信息
 composite_cmd="$CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param; coverage_exit_code=\$?; echo \"Test execution completed with exit code: \$coverage_exit_code\"; if [ -f $CONTAINER_TESTDIR/test/generate_coverage.sh ]; then echo \"Generating coverage information...\"; bash $CONTAINER_TESTDIR/test/generate_coverage.sh \"$WORKDIR\" \"$thread_no\" \"$case_name\" \"$CONTAINER_TESTDIR\" \"$DEBUGPATH\"; coverage_gen_code=\$?; echo \"Coverage generation completed with exit code: \$coverage_gen_code\"; else echo \"Coverage generation script not found\"; fi; exit \$coverage_exit_code"
 
 echo "执行复合命令: $composite_cmd"
 
-=======
-echo "docker run \
-    -v $REP_MOUNT_PARAM \
-    -v $REP_MOUNT_DEBUG \
-    -v $REP_MOUNT_LIB \
-    -v $MOUNT_DIR \
-    -v ${SOURCEDIR}:/usr/local/src/ \
-    -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
-    -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param"
->>>>>>> origin/main
 docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
