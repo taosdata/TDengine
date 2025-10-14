@@ -140,6 +140,12 @@ class TestScalarFunction:
     def run_trim(self):
         self.run_normal_query_new("trim")
 
+    def run_base64(self):
+        self.run_normal_query_new("base64")
+    
+    def run_crc32(self):
+        self.run_normal_query_new("crc32")        
+
     def run_timediff(self):
         self.run_normal_query_new("timediff")
         tdSql.error("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
@@ -468,15 +474,12 @@ class TestScalarFunction:
         self.run_round()
         self.run_greatest_large_table()
         
-        self.run_char_length()
-        self.run_char()
-        self.run_ascii()
         self.run_position()
         self.run_replace()
         self.run_repeat()
         self.run_substr()
         self.run_substr_idx()
-        self.run_trim()
+        self.run_trim()    
 
         self.run_timediff()
         self.run_week()
@@ -727,17 +730,14 @@ class TestScalarFunction:
         """
         self.run_truncate()
         
-    def test_fun_sca_pi(self):
-        """Fun: Pi()
+    def test_fun_sca_crc32(self):
+        """Fun: Crc32()
 
         1. Support data types
-        2. Query with constant/boundary/null/chinese/now parameter
-        3. Query with function parameter (cast)
-        4. Query with limit
-        5. Query with order by
-        6. Query on stable/notable
-        7. Error query with no parameter
-        8. Error query with string parameter
+        2. Query with constant/null/blank/chinese parameter
+        3. Query with function parameter (to_timestamp/to_char)
+        4. Query with float/int/expr parameter
+        5. Error query with no parameter
 
         Since: v3.3.0.0
 
@@ -747,4 +747,91 @@ class TestScalarFunction:
             - 2025-10-13 Alex Duan add doc
 
         """
-        self.run_pi()
+        self.run_crc32()
+
+    def test_fun_sca_base64(self):
+        """Fun: Base64()
+
+        1. Support data types
+        2. Query with constant/boundary/null/blank/chinese parameter
+        3. Query with function parameter (trim/repeat/concat/lower)
+        4. Error query with no parameter
+        5. Error query with number parameter
+        6. Error query with cast as integer parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_base64()
+        
+    def test_fun_sca_ascii(self):
+        """Fun: Ascii()
+
+        1. Support data types
+        2. Query with constant/null/blank/special char/chinese parameter
+        3. Query with input parameter cast/concat/substring
+        4. Query with output parameter pow/sqrt/cast
+        5. Query with limit/order by
+        6. Query on super/no table
+        7. Error query with no parameter
+        8. Error query with number parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_ascii()
+
+    def test_fun_sca_char(self):
+        """Fun: Char()
+
+        1. Support data types
+        2. Query with constant/null/string/float/int/expr parameter
+        3. Query with output parameter concat/cast
+        4. Query with 1 ~ 5 parameter
+        5. Query with limit/order by
+        6. Query on super/no table
+        7. Error query with no parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_char()
+
+    def test_fun_sca_char_length(self):
+        """Fun: Char_length()
+
+        1. Support data types
+        2. Query with constant/null/blank/chinese/japanese parameter
+        3. Query with input parameter concat/cast
+        4. Query with output parameter sqrt/cast/min/max/avg
+        5. Query with limit/order by/group by/
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with number parameter
+
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_char_length()
+        
