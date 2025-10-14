@@ -3404,8 +3404,6 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 
 static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
   SSysTableScanInfo* pInfo = pOper->info;
-  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
-  SSystemTableScanPhysiNode* pPhynode = (SSystemTableScanPhysiNode*)pOper->pPhyNode;
 
   pOper->status = OP_NOT_OPENED;
   blockDataEmpty(pInfo->pRes);
