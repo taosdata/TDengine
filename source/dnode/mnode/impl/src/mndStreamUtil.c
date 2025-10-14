@@ -107,7 +107,7 @@ void mstDestroySStmVgroupStatus(void* param) {
 }
 
 void mstResetSStmStatus(SStmStatus* pStatus) {
-  mstWaitLock(&pStatus->resetLock, false);
+  (void)mstWaitLock(&pStatus->resetLock, false);
 
   taosArrayDestroy(pStatus->trigReaders);
   pStatus->trigReaders = NULL;
@@ -1091,7 +1091,7 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
     goto _exit;
   }
 
-  mstWaitLock(&pStatus->resetLock, true);
+  (void)mstWaitLock(&pStatus->resetLock, true);
   statusLocked = true;
   
   int32_t count = mstGetNumOfStreamTasks(pStatus);
