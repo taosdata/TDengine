@@ -1701,7 +1701,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
                                     &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
                                     pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
     if (code) {
-      qError("%s failed to createScanTableListInfo, code:%s, %s", __func__, tstrerror(code));
+      qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
       return code;
     }
   }
@@ -1717,7 +1717,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
   }
-
+  pOper->resultInfo.totalRows = 0;
   blockDataEmpty(pInfo->pResBlock);
   blockDataEmpty(pInfo->pOrgBlock);
   taosHashClear(pInfo->pIgnoreTables);
@@ -4575,7 +4575,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
                                   &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
                                   pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
   if (code) {
-    qError("%s failed to createScanTableListInfo, code:%s, %s", __func__, tstrerror(code));
+    qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
     return code;
   }
 
@@ -4586,6 +4586,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
 
   taosHashCleanup(pInfo->mSkipTables);
   pInfo->mSkipTables = NULL;
+  pOper->resultInfo.totalRows = 0;
 
   pInfo->bGroupProcessed = false;
   pInfo->bNewFilesetEvent = false;
