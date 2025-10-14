@@ -7,7 +7,7 @@ import threading
 from enum import Enum
 import platform
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -602,4 +602,5 @@ class TestCase:
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
+
 
