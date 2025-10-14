@@ -65,7 +65,7 @@ else
 fi
 
 if [ "$build_taosadapter" = "true" ]; then
-    BUILD_HTTP_OPT="-DBUILD_HTTP=tdinternal -DTAOSADAPTER_GIT_TAG:STRING=${branch_taosadapter}"
+    BUILD_HTTP_OPT="-DBUILD_HTTP=tdinternal -DTAOSADAPTER_GIT_TAG:STRING=3.0"
 else
     BUILD_HTTP_OPT="-DBUILD_HTTP=true"
 fi
