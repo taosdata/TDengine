@@ -342,18 +342,39 @@ _error:
   return code;
 }
 
+bool qNeedReset(qTaskInfo_t* pInfo) {
+  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
+  SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+  if (pOperator->pPhyNode == NULL) {
+    return false;
+  } 
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pOperator->pPhyNode) || 
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode) ||
+      QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == nodeType(pOperator->pPhyNode)) {
+    return true;
+  }
+  return false;
+}
+
 int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range) {
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
-  STableScanInfo* pScanInfo = pOperator->info;
-  STableScanBase* pScanBaseInfo = &pScanInfo->base;
 
-  if (range.skey != 0 && range.ekey != 0) {
+  void*           info = pOperator->info;
+  STableScanBase* pScanBaseInfo = NULL;
+
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pOperator->pPhyNode)) {
+    pScanBaseInfo = &((STableScanInfo*)info)->base;
+  } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode)) {
+    pScanBaseInfo = &((STableMergeScanInfo*)info)->base;
+  }
+
+  if (pScanBaseInfo != NULL && range.skey != 0 && range.ekey != 0) {
     pScanBaseInfo->cond.twindows = range;
   }
-  setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
-  qStreamSetOpen(pTaskInfo);
-  return pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
+  qDebug("reset table scan, name:%s, id:%s, time range: [%" PRId64 ", %" PRId64 "]", pOperator->name, GET_TASKID(pTaskInfo), range.skey,
+         range.ekey);
+  return pOperator->fpSet.resetStateFn(pOperator);
 }
 
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,
