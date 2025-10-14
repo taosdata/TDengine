@@ -772,7 +772,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   SMnode *pMnode = taosMemoryCalloc(1, sizeof(SMnode));
   if (pMnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to open mnode since %s", terrstr());
+    mError("failed to open mnode in step 1, since %s", terrstr());
     return NULL;
   }
   (void)memset(pMnode, 0, sizeof(SMnode));
@@ -780,16 +780,18 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   int32_t code = taosThreadRwlockInit(&pMnode->lock, NULL);
   if (code != 0) {
     taosMemoryFree(pMnode);
-    mError("failed to open mnode lock since %s", tstrerror(code));
+    mError("failed to open mnode in step 2, add lock, since %s", tstrerror(code));
+    terrno = code;
     return NULL;
   }
 
   char timestr[24] = "1970-01-01 00:00:00.00";
   code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
   if (code < 0) {
-    mError("failed to parse time since %s", tstrerror(code));
+    mError("failed to open mnode in step 3, parse time, since %s", tstrerror(code));
     (void)taosThreadRwlockDestroy(&pMnode->lock);
     taosMemoryFree(pMnode);
+    terrno = code;
     return NULL;
   }
   mndSetOptions(pMnode, pOption);
@@ -799,14 +801,13 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   if (pMnode->pSteps == NULL) {
     taosMemoryFree(pMnode);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to open mnode since %s", terrstr());
+    mError("failed to open mnode in step 4, since %s", terrstr());
     return NULL;
   }
 
   code = mndCreateDir(pMnode, path);
   if (code != 0) {
-    code = terrno;
-    mError("failed to open mnode since %s", tstrerror(code));
+    mError("failed to open mnode in step 5, since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -814,8 +815,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndInitSteps(pMnode);
   if (code != 0) {
-    code = terrno;
-    mError("failed to open mnode since %s", tstrerror(code));
+    mError("failed to open mnode in step 6, since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -823,8 +823,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndExecSteps(pMnode);
   if (code != 0) {
-    code = terrno;
-    mError("failed to open mnode since %s", tstrerror(code));
+    mError("failed to open mnode in step 7, since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
     return NULL;

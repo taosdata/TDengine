@@ -305,7 +305,7 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
     }
   }
 
-  if (WINDOW_TYPE_STATE == pWindow->winType || WINDOW_TYPE_COUNT == pWindow->winType) {
+  if (WINDOW_TYPE_STATE == pWindow->winType || WINDOW_TYPE_COUNT == pWindow->winType || WINDOW_TYPE_EVENT == pWindow->winType) {
     if (!streamQuery) {
       return stbSplHasMultiTbScan(streamQuery, pNode);
     } else {

@@ -45,6 +45,7 @@ typedef struct {
   SArray  *pQueries;  // SArray<SQueryDesc>
   char     userApp[TSDB_APP_NAME_LEN];
   uint32_t userIp;
+  SIpAddr  userDualIp;
   SIpAddr  addr;
 } SConnObj;
 
@@ -143,8 +144,8 @@ static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
     varDataLen(dst) = strlen(varDataVal(dst));
   }
 
-  if (pConn->addr.ipv4[0] != 0 && strncmp(pConn->addr.ipv4, none, strlen(none)) != 0) {
-    char   *ipstr = IP_ADDR_STR(&pConn->addr);
+  if (pConn->userDualIp.ipv4[0] != 0 && strncmp(pConn->userDualIp.ipv4, none, strlen(none)) != 0) {
+    char   *ipstr = IP_ADDR_STR(&pConn->userDualIp);
     int32_t len = strlen(ipstr);
     memcpy(varDataVal(dst), ipstr, len);
     varDataLen(dst) = len;
@@ -163,7 +164,8 @@ static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
   if (connObj == NULL) {
     return;
   }
-  code = tIpUintToStr(pRange, &connObj->addr);
+
+  code = tIpUintToStr(pRange, &connObj->userDualIp);
   if (code != 0) {
     mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
     return;
@@ -943,7 +945,12 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char addr[IP_RESERVE_CAP] = {0};
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
+    if (tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port) >= sizeof(addr)) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      mError("failed to set endpoint since %s", tstrerror(code));
+      return code;
+    }
+
     STR_TO_VARSTR(endpoint, addr);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1019,7 +1026,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
     (void)tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
-              pQuery->reqRid);
+                    pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);

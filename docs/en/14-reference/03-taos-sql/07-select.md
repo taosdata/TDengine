@@ -534,7 +534,11 @@ UNION [ALL] SELECT ...
 [UNION [ALL] SELECT ...]
 ```
 
-TDengine supports the UNION [ALL] operator. This means that if multiple SELECT clauses return result sets with the exact same structure (column names, column types, number of columns, order), these result sets can be combined together using UNION [ALL].
+In TDengine, the UNION [ALL] operator is used to combine the results of multiple SELECT clauses. When using this operator, the multiple SELECT clauses must satisfy the following two conditions:
+1. Each SELECT clause must return results with the same number of columns;
+2. Columns in corresponding positions must be in the same order and have the same or compatible data types.
+
+After combination, the column names of the result set are determined by those defined in the first SELECT clause.
 
 ## SQL Examples
 
