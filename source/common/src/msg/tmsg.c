@@ -11158,6 +11158,13 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->reset));
   TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->dynTbname));
 
+  int32_t n = taosArrayGetSize(pReq->pWalVersions);
+  TAOS_CHECK_RETURN(tEncodeI32(&encoder, n));
+  for (int32_t i = 0; i < n; ++i) {
+    int64_t *version = (int64_t *)taosArrayGet(pReq->pWalVersions, i);
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, *version));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -11226,6 +11233,24 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->reset));
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->dynTbname));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t n = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &n));
+    if (n > 0) {
+      pReq->pWalVersions = taosArrayInit(n, sizeof(int64_t));
+      if (NULL == pReq->pWalVersions) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < n; ++i) {
+        int64_t version = 0;
+        TAOS_CHECK_EXIT(tDecodeI64(&decoder, &version));
+        if (taosArrayPush(pReq->pWalVersions, &version) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
   }
 
   tEndDecode(&decoder);

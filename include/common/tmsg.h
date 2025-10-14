@@ -3432,6 +3432,7 @@ typedef struct {
   struct SStreamRuntimeFuncInfo* pStRtFuncInfo;
   bool                           reset;
   bool                           dynTbname;
+  SArray*                        pWalVersions;
   // used for new-stream
 } SResFetchReq;
 

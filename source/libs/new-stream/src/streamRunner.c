@@ -769,7 +769,7 @@ _exit:
   return code;
 }
 
-static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
+static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq, SStreamRunnerTaskExecution* pExec) {
   int32_t vgId = pTask->task.nodeId;
   int64_t st = taosGetTimestampMs();
   int64_t streamId = pTask->task.streamId;
@@ -797,6 +797,8 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExec
   } else {
     code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, NULL, vgId, taskId);
   }
+  setExecTaskInfoWalVersions(&pExec->pExecutor, pReq->pWalVersions);
+
   if (code) {
     ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));
     return code;
@@ -849,7 +851,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_CALC_REQ_MAX_WIN_NUM, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
 
   if (!pExec->pExecutor) {
-    STREAM_CHECK_RET_GOTO(stRunnerBuildTask(pTask, pExec));
+    STREAM_CHECK_RET_GOTO(stRunnerBuildTask(pTask, pReq, pExec));
   } else if (pReq->brandNew) {
     STREAM_CHECK_RET_GOTO(stRunnerResetTaskExec(pTask, pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
   }

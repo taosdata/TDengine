@@ -370,7 +370,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
     nodesDestroyNode((SNode *)pPlan);
     return code;
   }
-  // todo: add stream inserter param
+
   code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo,
                                pInserterParams ? &pInserterParams->pSinkHandle : NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM,
                                pInserterParams);
@@ -380,6 +380,14 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   }
 
   return code;
+}
+
+void setExecTaskInfoWalVersions(qTaskInfo_t* pTaskInfo, SSHashObj* pWalVersions) {
+  if (pTaskInfo == NULL) {
+    return;
+  }
+  SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
+  (*pTask)->pWalVersions = pWalVersions;
 }
 
 static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr,

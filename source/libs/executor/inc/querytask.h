@@ -105,6 +105,7 @@ struct SExecTaskInfo {
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
+  SSHashObj*               pWalVersions;    // SSHash<vgId, SArray<int64_t>*>, only provided in realtime calculation with %%trows
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);

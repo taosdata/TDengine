@@ -1042,12 +1042,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
         qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
       } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
-        code = getCurrentWinCalcTimeRange(req.pStRtFuncInfo, &req.pStRtFuncInfo->curWindow);
-        QUERY_CHECK_CODE(code, lino, _end);
+        req.pWalVersions = tSimpleHashGet(pTaskInfo->pWalVersions, &req.header.vgId, sizeof(req.header.vgId));
         needStreamPesudoFuncVals = false;
-        qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]",
-               GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
-               req.pStRtFuncInfo->curWindow.ekey);
+        // code = getCurrentWinCalcTimeRange(req.pStRtFuncInfo, &req.pStRtFuncInfo->curWindow);
+        // QUERY_CHECK_CODE(code, lino, _end);
+        // needStreamPesudoFuncVals = false;
+        // qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]",
+        //        GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
+        //        req.pStRtFuncInfo->curWindow.ekey);
       }
       if (!pDataInfo->fetchSent) {
         req.reset = pDataInfo->fetchSent = true;
