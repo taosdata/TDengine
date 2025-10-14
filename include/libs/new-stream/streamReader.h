@@ -56,7 +56,7 @@ typedef struct SStreamTriggerReaderInfo {
   SSHashObj*   indexHash;  // index hash for wal data
   bool         groupByTbname;
   void*        pVnode;
-  TdThreadMutex mutex;
+  TdThreadRwlock lock;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {

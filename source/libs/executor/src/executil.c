@@ -1653,7 +1653,7 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
   return code;
 }
 
-static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
+int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
                                  SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
   *listAdded = false;
   if (pTagCond == NULL) {
@@ -2961,6 +2961,10 @@ uint64_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tab
   }
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
+  if (pKeyInfo == NULL) {
+    qDebug("table:%" PRIu64 " not found in table list", tableUid);
+    return -1;
+  }
   return pKeyInfo->groupId;
 }
 
@@ -3106,40 +3110,50 @@ static int32_t orderbyGroupIdComparFn(const void* p1, const void* p2) {
   }
 }
 
-static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
+int32_t sortTableGroup(STableListInfo* pTableListInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
   taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
   int32_t size = taosArrayGetSize(pTableListInfo->pTableList);
+  if (size == 0) {
+    pTableListInfo->numOfOuputGroups = 0;
+    return code;
+  }
 
   SArray* pList = taosArrayInit(4, sizeof(int32_t));
   if (!pList) {
-    return terrno;
+    code = terrno;
+    goto end;
   }
 
   STableKeyInfo* pInfo = taosArrayGet(pTableListInfo->pTableList, 0);
-  if (!pInfo) {
+  if (pInfo == NULL) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    return terrno;
+    code = terrno;
+    goto end;
   }
   uint64_t gid = pInfo->groupId;
 
   int32_t start = 0;
   void*   tmp = taosArrayPush(pList, &start);
-  if (!tmp) {
+  if (tmp == NULL) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    return terrno;
+    code = terrno;
+    goto end;
   }
 
   for (int32_t i = 1; i < size; ++i) {
     pInfo = taosArrayGet(pTableListInfo->pTableList, i);
-    if (!pInfo) {
+    if (pInfo == NULL) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return terrno;
+      code = terrno;
+      goto end;
     }
     if (pInfo->groupId != gid) {
       tmp = taosArrayPush(pList, &i);
-      if (!tmp) {
+      if (tmp == NULL) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-        return terrno;
+        code = terrno;
+        goto end;
       }
       gid = pInfo->groupId;
     }
@@ -3148,13 +3162,15 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   pTableListInfo->numOfOuputGroups = taosArrayGetSize(pList);
   pTableListInfo->groupOffset = taosMemoryMalloc(sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
   if (pTableListInfo->groupOffset == NULL) {
-    taosArrayDestroy(pList);
-    return terrno;
+    code = terrno;
+    goto end;
   }
 
   memcpy(pTableListInfo->groupOffset, taosArrayGet(pList, 0), sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
+
+end:
   taosArrayDestroy(pList);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,

@@ -1703,76 +1703,302 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* usec
 
 int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                         SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
-                                        SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap) {
+                                        SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap, TdThreadRwlock* lock) {
+  int32_t code = 0;                                        
+  (void)taosThreadRwlockWrlock(lock);
+  if (*pTableListInfo != NULL) {
+    qDebug("table list already exists, no need to create again");
+    goto end;
+  }
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    return terrno;
+    code = terrno;
+    goto end;
   }
 
   SScanPhysiNode pScanNode = {.suid = suid, .uid = uid, .tableType = tableType};
   SReadHandle    pHandle = {.vnode = pVnode};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
+  code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
-    return code;
+    goto end;
   }
   *pTableListInfo = pList;
+
+end:
+  (void)taosThreadRwlockUnlock(lock);
   return 0;
 }
 
-int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size) {
+static int32_t compareFunc(const void *pLeft, const void *pRight) {
+  STableKeyInfo *p1 = (STableKeyInfo *)pLeft;
+  STableKeyInfo *p2 = (STableKeyInfo *)pRight;
+  if (p1->uid > p2->uid) {
+    return 1;
+  } else if (p1->uid < p2->uid) {
+    return -1;
+  }
+  return 0;
+}
+
+static int32_t doFilterTableByTagCond(void* pVnode, void* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
+  bool   listAdded = false;
+  int32_t code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, true, &listAdded, NULL);
+  if (code == 0 && !listAdded) {
+    int32_t numOfTables = taosArrayGetSize(pUidList);
+    for (int i = 0; i < numOfTables; i++) {
+      void* tmp = taosArrayGet(pUidList, i);
+      if (tmp == NULL) {
+        return terrno;
+      }
+      STableKeyInfo info = {.uid = *(uint64_t*)tmp, .groupId = 0};
+
+      void* p = taosArrayPush(((STableListInfo*)pListInfo)->pTableList, &info);
+      if (p == NULL) {
+        return terrno;
+      }
+    }
+  }
+  return code;
+}
+
+static int compareIndex(const void* elem1, const void* elem2) {
+  int32_t* index1 = (int32_t*)elem1;
+  int32_t* index2 = (int32_t*)elem2;
+
+  if (*index1 < *index2) {
+    return -1;
+  }
+
+  return *index1 > *index2;
+}
+
+static int32_t removeUids(STableListInfo* pTableListInfo, SArray* uidList){
+  int32_t code = 0;
+  SArray* indexList = taosArrayInit(10, sizeof(int32_t));
+  if (indexList == NULL) {
+    code = terrno;
+    goto end;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(uidList); i++){
+    int64_t* uid = taosArrayGet(uidList, i);
+    if (uid == NULL) continue;
+    int32_t* slot = taosHashGet(pTableListInfo->map, uid, sizeof(*uid));
+    if (slot == NULL) {
+      qDebug("table:%" PRId64 " not found in table list", *uid);
+      continue;
+    }
+    if (taosArrayPush(indexList, slot) == NULL) {
+      code = terrno;
+      goto end;
+    }
+  }
+
+  taosArraySort(indexList, compareIndex);
+  for (int32_t i = taosArrayGetSize(indexList) - 1; i >= 0; i--){
+    int32_t* index = taosArrayGet(indexList, i);
+    if (index == NULL) continue;
+    taosArrayRemove(pTableListInfo->pTableList, *index);
+  }
+
+end:
+  taosArrayDestroy(indexList);
+  return code;
+}
+
+static int32_t buildTableListMap(STableListInfo* pTableListInfo){
+  // add all table entry in the hash map
+  taosHashClear(pTableListInfo->map);
+  size_t size = taosArrayGetSize(pTableListInfo->pTableList);
+  for (int32_t i = 0; i < size; ++i) {
+    STableKeyInfo* p = taosArrayGet(pTableListInfo->pTableList, i);
+    if (!p) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
+    }
+    int32_t tempRes = taosHashPut(pTableListInfo->map, &p->uid, sizeof(uint64_t), &i, sizeof(int32_t));
+    if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
+      return tempRes;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
+                                        SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
+                                        SStorageAPI* storageAPI, void* pTableList, void* pTableListHistory, 
+                                        SHashObj* groupIdMap, bool isAdd, TdThreadRwlock* lock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)taosThreadRwlockWrlock(lock);
+  STableListInfo* pTableListInfo = pTableList;
+  STableListInfo* pTableListInfoHistory = pTableListHistory;
+  STableListInfo* pList = tableListCreate();
+  if (pList == NULL) {
+    goto end;
+  }
+  SScanPhysiNode pScanNode = {.suid = pTableListInfo->idInfo.suid, .tableType = pTableListInfo->idInfo.tableType};
+  SReadHandle    pHandle = {.vnode = pVnode};
+  if (!isAdd) {
+    code = removeUids(pTableListInfo, uidList);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto end;
+    }
+    code = removeUids(pTableListInfoHistory, uidList);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto end;
+    }
+  }
+
+  pList->idInfo = pTableListInfo->idInfo;
+  code = doFilterTableByTagCond(pVnode, pList, uidList, pTagCond, storageAPI);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }                                              
+  code = buildGroupIdMapForAllTables(pList, &pHandle, &pScanNode, pGroupTags, groupSort, NULL, storageAPI, groupIdMap);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pList->pTableList); i++){
+    STableKeyInfo* info = taosArrayGet(pList->pTableList, i);
+    if (info == NULL) continue;
+    if (taosArrayPush(pTableListInfo->pTableList, info) == NULL) {
+      goto end;
+    }
+    if (taosArrayPush(pTableListInfoHistory->pTableList, info) == NULL) {
+      goto end;
+    }
+  }
+
+  taosMemoryFreeClear(pTableListInfo->groupOffset);
+  taosMemoryFreeClear(pTableListInfoHistory->groupOffset);
+
+  code = sortTableGroup(pTableListInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  code = sortTableGroup(pTableListInfoHistory);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  code = buildTableListMap(pTableListInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  code = buildTableListMap(pTableListInfoHistory);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+end:
+  tableListDestroy(pList);
+  (void)taosThreadRwlockUnlock(lock);
+  return code;
+}
+
+int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size, TdThreadRwlock* lock) {
   if (pTableListInfo == NULL || pKeyInfo == NULL || size == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  int32_t code = 0;
+  (void)taosThreadRwlockRdlock(lock);
   if (taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList) == 0) {
     *size = 0;
     *pKeyInfo = NULL;
-    return 0;
+    goto end;
   }
   if (currentGroupId == -1) {
     *size = taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList);
     *pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, 0);
-    return 0;
+    goto end;
   }
-  return tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
+  code = tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
+  
+end:
+  (void)taosThreadRwlockUnlock(lock);
+  return code;
 }
 
-int32_t  qStreamSetTableList(void** pTableListInfo, uint64_t uid, uint64_t gid){
+
+int32_t  qStreamSetTableList(void** pTableListInfo, uint64_t uid, uint64_t gid, TdThreadRwlock* lock){
+  int32_t code = 0;
+  (void)taosThreadRwlockWrlock(lock);
   if (*pTableListInfo == NULL) {
     *pTableListInfo = tableListCreate();
     if (*pTableListInfo == NULL) {
-      return terrno;
+      code = terrno;
+      goto end;
     }
   }
-  return tableListAddTableInfo(*pTableListInfo, uid, gid);
+  code = tableListAddTableInfo(*pTableListInfo, uid, gid);
+  (void)taosThreadRwlockUnlock(lock);
+
+end:
+  return code;
 }
 
-int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {
+int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid, TdThreadRwlock* lock) {
+  int32_t index = -1;
+  (void)taosThreadRwlockRdlock(lock);
   if (((STableListInfo*)pTableListInfo)->groupOffset == NULL){
-    return 0;
+    index = 0;
+    goto end;
   }
   for (int32_t i = 0; i < ((STableListInfo*)pTableListInfo)->numOfOuputGroups; ++i) {
     int32_t offset = ((STableListInfo*)pTableListInfo)->groupOffset[i];
 
     STableKeyInfo* pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, offset);
     if (pKeyInfo != NULL && pKeyInfo->groupId == gid) {
-      return i;
+      index = i;
+      goto end;
     }
   }
-  return -1;
+end:
+  (void)taosThreadRwlockUnlock(lock);
+  return index;
 }
 
-void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableListInfo); }
+void qStreamDestroyTableList(void* pTableListInfo, TdThreadRwlock* lock) { 
+  (void)taosThreadRwlockWrlock(lock);
+  tableListDestroy(pTableListInfo);
+  (void)taosThreadRwlockUnlock(lock);
+}
 
-uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid) { return tableListGetTableGroupId(pTableListInfo, uid); }
+uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid, TdThreadRwlock* lock) { 
+  (void)taosThreadRwlockRdlock(lock);
+  uint64_t gid = tableListGetTableGroupId(pTableListInfo, uid); 
+  (void)taosThreadRwlockUnlock(lock);
+  return gid;
+}
 
-int32_t qStreamGetTableListGroupNum(const void* pTableList) { return ((STableListInfo*)pTableList)->numOfOuputGroups; }
-void    qStreamSetTableListGroupNum(const void* pTableList, int32_t groupNum) {((STableListInfo*)pTableList)->numOfOuputGroups = groupNum; }
-SArray* qStreamGetTableArrayList(const void* pTableList) { return ((STableListInfo*)pTableList)->pTableList; }
+int32_t qStreamGetTableListGroupNum(const void* pTableList, TdThreadRwlock* lock) { 
+  (void)taosThreadRwlockRdlock(lock);
+  int32_t code = ((STableListInfo*)pTableList)->numOfOuputGroups; 
+  (void)taosThreadRwlockUnlock(lock);
+  return code; 
+}
+
+void    qStreamSetTableListGroupNum(const void* pTableList, int32_t groupNum, TdThreadRwlock* lock) {
+  (void)taosThreadRwlockRdlock(lock);
+  ((STableListInfo*)pTableList)->numOfOuputGroups = groupNum; 
+  (void)taosThreadRwlockUnlock(lock);
+}
+
+SArray* qStreamGetTableArrayList(const void* pTableList, TdThreadRwlock* lock) { 
+  SArray* pList = NULL;
+  (void)taosThreadRwlockRdlock(lock); 
+  pList = ((STableListInfo*)pTableList)->pTableList;
+  (void)taosThreadRwlockUnlock(lock);
+  return pList;
+}
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }
 
