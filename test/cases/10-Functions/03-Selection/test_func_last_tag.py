@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdCom
 
 
 class TestFuncLastTag:
@@ -177,3 +177,42 @@ class TestFuncLastTag:
         tdSql.query(f"select last(*),last_row(*) from t1;")
 
         tdSql.checkCols(8)
+
+    def test_last_tag(self):
+        """summary: test last/last_row with tag column
+
+        description: verify the behavior of selecting last/last_row with tag column outside.
+                    For example: select last(ts), tag1, tag2 from stable group by tbname.
+                    In this case, we should read cache data to get the tag column value.
+
+        Since: v3.3.6
+
+        Labels: last/last_row, tag
+
+        Jira: TS-6146
+
+        Catalog:
+            - Function:Selection
+
+        History:
+            - Tony Zhang, 2025/10/10, Created
+
+        """
+        tdSql.execute("create database test_last_tag cachemodel 'both' keep 3650;")
+        tdSql.execute("use test_last_tag;")
+        tdSql.execute("create table stb (ts timestamp, c1 int) tags (tag1 int, tag2 float)")
+
+        tdSql.execute("create table tb1 using stb tags (1, 1.1);")
+        tdSql.execute("create table tb2 using stb tags (2, 2.2);")
+
+        tdSql.execute("insert into tb1 values ('2024-10-10 10:00:00', 0);")
+        tdSql.execute("insert into tb1 values ('2024-10-10 10:00:02', 2);")
+        tdSql.execute("insert into tb1 values ('2024-10-10 10:00:04', 4);")
+        tdSql.execute("insert into tb2 values ('2024-10-10 10:00:01', 1);")
+        tdSql.execute("insert into tb2 values ('2024-10-10 10:00:03', 3);")
+        tdSql.execute("insert into tb2 values ('2024-10-10 10:00:05', null);")
+
+        tdCom.compare_testcase_result(
+            "cases/10-Functions/in/last_tag.in",
+            "cases/10-Functions/ans/last_tag.csv",
+            "test_last_tag")
