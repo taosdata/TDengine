@@ -1579,12 +1579,12 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* p
   state->pExpr = pExpr;
   state->pTrueForLimit = pTrueForLimit;
   if (pOptions != NULL && pOptions->length >= 1) {
-    state->pExtend = pOptions->pHead->pNode;
+    state->pExtend = nodesListGetNode(pOptions, 0);
   }
   if (pOptions != NULL && pOptions->length == 2) {
-    // zeroth state
     state->pZeroth = nodesListGetNode(pOptions, 1);
   }
+  nodesClearList(pOptions);
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);

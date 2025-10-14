@@ -7623,37 +7623,24 @@ static int32_t translateZerothState(STranslateContext* pCxt, SSelectStmt* pSelec
       return code;
     }
     notEqualOp->opType = OP_TYPE_NOT_EQUAL;
-    notEqualOp->pLeft = pStateWin->pExpr;
-    notEqualOp->pRight = pStateWin->pZeroth;
+    code = nodesCloneNode(pStateWin->pExpr, &notEqualOp->pLeft);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesCloneNode(pStateWin->pZeroth, &notEqualOp->pRight);
+    }
 
-    // add the 'NOT EQUAL' operator to having clause
-    if (NULL == pSelect->pHaving) {
-      pSelect->pHaving = (SNode*)notEqualOp;
-    } else {
-      // create a new 'AND' operator
-      SLogicConditionNode* condAnd = NULL;
-      code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&condAnd);
-      if (TSDB_CODE_SUCCESS != code) {
-        parserError("failed to create 'AND' operator at %s since %s", __func__, tstrerror(code));
-        nodesDestroyNode((SNode*)notEqualOp);
-        return code;
-      }
-      condAnd->condType = LOGIC_COND_TYPE_AND;
-      condAnd->pParameterList = NULL;
-      code = nodesMakeList(&condAnd->pParameterList);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = addParamToLogicConditionNode(condAnd, pSelect->pHaving);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = addParamToLogicConditionNode(condAnd, (SNode*)notEqualOp);
-      }
-      if (TSDB_CODE_SUCCESS != code) {
-        parserError("failed to add param to 'AND' operator at %s since %s", __func__, tstrerror(code));
-        nodesDestroyNode((SNode*)notEqualOp);
-        nodesDestroyNode((SNode*)condAnd);
-        return code;
-      }
-      pSelect->pHaving = (SNode*)condAnd;
+    if (TSDB_CODE_SUCCESS != code) {
+      parserError("failed to clone nodes for zeroth state at %s since %s", __func__, tstrerror(code));
+      nodesDestroyNode((SNode*)notEqualOp);
+      return code;
+    }
+
+    // merge the 'NOT EQUAL' operator to having clause
+    SNode* pNewCond = (SNode*)notEqualOp;
+    code = nodesMergeNode(&pSelect->pHaving, &pNewCond);
+    if (code != TSDB_CODE_SUCCESS) {
+      parserError("failed to merge NOT EQUAL operator to having clause at %s since %s", __func__, tstrerror(code));
+      nodesDestroyNode((SNode*)notEqualOp);
+      return code;
     }
   }
 

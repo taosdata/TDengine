@@ -369,8 +369,8 @@ typedef struct SStateWindowNode {
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
   SNode*    pTrueForLimit;
-  SNode*    pExtend;
-  SNode*    pZeroth;
+  SNode*    pExtend;  // SValueNode
+  SNode*    pZeroth;  // SValueNode
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
