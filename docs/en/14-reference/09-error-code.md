@@ -4,7 +4,40 @@ title: Error Code Reference
 slug: /tdengine-reference/error-codes
 ---
 
-This document details the server error codes that may be encountered when using the TDengine client and the corresponding actions to be taken. All language connectors will also return these error codes to the caller when using the native connection method.
+This document provides a comprehensive list of error codes that may be returned by TDengine TSDB during operation, along with their meanings and recommended actions.
+
+These error codes cover all aspects of system operation, including client connections, server-side processing, data operations, query execution, and more. When using connectors for various programming languages (C/C++, Java, Python, Go, etc.) with native connection mode to access TDengine, connectors will return these error codes to the caller if an operation fails.
+
+Understanding the meaning and causes of these error codes helps quickly locate and resolve issues, ensuring smooth system operation.
+
+## Error Code Structure
+
+Error codes are represented by 8-digit hexadecimal numbers starting with 0x, formatted as follows:
+
+**Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digits)**
+
+### Prefix Categories
+
+| Error Type                    | Prefix  | Description                                                  |
+| ----------------------------- | ------- | ------------------------------------------------------------ |
+| TDengine TSDB Business Error  | 0x8000  | Custom business logic error codes defined by TDengine TSDB engine, see detailed error code descriptions below |
+| Linux System Call Error       | 0x80FF  | Last 4 digits correspond to Linux system API errno, refer to [Linux Error Codes](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/asm-generic/errno-base.h) or use `errno -l` command to query |
+| Windows API System Error      | 0x81FF  | Last 4 digits correspond to Windows API error codes, refer to [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes) or use `net helpmsg <error_code>` command to query |
+| Windows Socket System Error   | 0x82FF  | Last 4 digits correspond to Windows Socket API error codes, refer to [WSAGetLastError](https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2) documentation |
+
+### Example Explanation
+
+Taking error code `0x80000216` as an example:
+- **Prefix**: `0x8000` → TDengine business error
+- **Specific Error Code**: `0216` → Corresponds to TSC module's "Syntax error in SQL"
+
+Taking error code `0x80FF0002` as an example:
+- **Prefix**: `0x80FF` → Linux system error
+- **Specific Error Code**: `0002` → Corresponds to Linux errno 2, which means "No such file or directory"
+
+:::tip
+When an interface returns an error code not starting with `0x8000`, it indicates an error occurred when calling operating system APIs. For specific error meanings, please refer to the corresponding operating system documentation.
+:::
 
 ## rpc
 

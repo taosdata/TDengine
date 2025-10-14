@@ -4,7 +4,40 @@ title: TDengine TSDB 错误码
 description: TDengine TSDB 服务端的错误码列表和详细说明
 ---
 
-本文中详细列举了在使用 TDengine TSDB 客户端可能得到的服务端错误码以及所要采取的相应动作。所有语言的连接器在使用原生连接方式时也会将这些错误码返回给连接器的调用者。
+本文详细列举了 TDengine TSDB 在运行过程中可能返回的错误码及其含义。这些错误码涵盖了客户端连接、服务端处理、数据操作、查询执行等各个环节。
+
+当使用各语言连接器（C/C++、Java、Python、Go 等）通过原生连接方式访问 TDengine 时，如果操作失败，连接器会将相应的错误码返回给调用者。理解这些错误码的含义和产生原因，有助于快速定位和解决问题。
+
+## 错误码构成
+
+错误码由 0x 开头的 8 位 16 进制数表示，格式如下:
+
+**错误码 = 分类前缀（前 4 位）+ 具体错误码（后 4 位）**
+
+### 前缀分类
+
+| 错误类型                      | 前缀    | 说明                                                  |
+| ---------------------------- | ------- | ---------------------------------------------------- |
+| TDengine TSDB 业务错误        | 0x8000  | TDengine TSDB 引擎自定义的业务逻辑错误码，详见下文各模块错误码说明 |
+| Linux 系统调用错误            | 0x80FF  | 后 4 位对应 Linux 系统 API 返回的 errno，可参考 [Linux Error Codes](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/asm-generic/errno-base.h) 或使用 `errno -l` 命令查询 |
+| Windows API 系统错误          | 0x81FF  | 后 4 位对应 Windows API 返回的错误码，可参考 [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes) 或使用 `net helpmsg <错误码>` 命令查询 |
+| Windows Socket 系统错误       | 0x82FF  | 后 4 位对应 Windows Socket API 返回的错误码，可参考 [WSAGetLastError](https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2) 说明 |
+
+### 示例说明
+
+以错误码 `0x80000216` 为例：
+- **前缀**: `0x8000` → TDengine 业务错误
+- **具体错误码**: `0216` → 对应 TSC 模块的 "Syntax error in SQL"
+
+以错误码 `0x80FF0002` 为例：
+- **前缀**: `0x80FF` → Linux 系统错误
+- **具体错误码**: `0002` → 对应 Linux errno 2，即 "No such file or directory"
+
+:::tip
+当接口返回非 0x8000 开头的错误码时，表示调用系统 API 出错了，具体错误码含义请参考相应系统的文档。
+:::
+
+以下为 TDengine TSDB 错误码介绍：
 
 ## rpc
 
