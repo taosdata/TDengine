@@ -21,7 +21,7 @@ Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digi
 | Error Type                    | Prefix  | Description                                                  |
 | ----------------------------- | ------- | ------------------------------------------------------------ |
 | TDengine TSDB Business Error  | 0x8000  | Custom business logic error codes defined by TDengine TSDB engine, see detailed error code descriptions below |
-| Linux System Call Error       | 0x80FF  | Last 4 digits correspond to Linux system API errno, refer to [Linux Error Codes](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/asm-generic/errno-base.h) |
+| Linux System Call Error       | 0x80FF  | Last 4 digits correspond to Linux system API errno, refer to [Linux Error Codes](https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/errnos/) |
 | Windows API System Error      | 0x81FF  | Last 4 digits correspond to Windows API error codes, refer to [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes) |
 | Windows Socket System Error   | 0x82FF  | Last 4 digits correspond to Windows Socket API error codes, refer to [Windows Sockets Error Codes](https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2) |
 
