@@ -39,9 +39,9 @@ Taking error code `0x80FF0002` as an example:
 When an interface returns an error code not starting with `0x8000`, it indicates an error occurred when calling operating system APIs. For specific error meanings, please refer to the corresponding operating system documentation.
 :::
 
-The following section provides detailed TDengine TSDB error code descriptions:
+## TDengine TSDB Error Codes
 
-## rpc
+### RPC
 
 | Error Code | Error Description                            | Possible Error Scenarios or Reasons                          | Recommended User Actions                                     |
 | ---------- | -------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -64,7 +64,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x8000002A  | RPC state already dropped                   | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002B  | RPC msg exceed limit                        | 1. Single RPC message exceeds the limit, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 
-## common  
+### Common
 
 | Error Code | Error Description                 | Possible Error Scenarios or Reasons                          | Recommended User Actions                                     |
 | ---------- | --------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -112,7 +112,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
 
-## tsc
+### TSC
 
 | Error Code | Error Description                 | Possible Error Scenarios or Reasons             | Recommended Actions for Users                                                     |
 | ---------- | --------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -137,7 +137,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 internal cache error                 | Preserve the scene and logs, report issue on GitHub                               |
 | 0x80000231 | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
-## mnode
+### Mnode
 
 | Error Code | Description                                                  | Possible Error Scenarios or Reasons                          | Suggested Actions for Users                                  |
 | ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -262,7 +262,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 
-## Bnode
+### Bnode
 
 | Error Code | Description                | Possible Error Scenarios or Reasons | Recommended Actions                       |
 | ---------- | -------------------------- | ----------------------------------- | ----------------------------------------- |
@@ -274,7 +274,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80000455 | Bnode exec launch failed   | Internal error                      | Report issue                              |
 | 0x8000261C | Invalid Bnode option       | Illegal Bnode option value          | Check and correct the Bnode option values |
 
-## dnode
+### Dnode
 
 | Error Code | Description            | Possible Error Scenarios or Reasons | Recommended Actions |
 | ---------- | ---------------------- | ----------------------------------- | ------------------- |
@@ -290,7 +290,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80000411 | Snode not deployed     | Already deployed                    | Confirm if correct  |
 | 0x8000042D | Request is not matched with local dnode | FQDN or port in taos.cfg is changed. | Change it back  |
 
-## vnode
+### Vnode
 
 | Error Code | Description                                        | Possible Error Scenarios or Reasons             | Recommended Actions |
 | ---------- | -------------------------------------------------- | ----------------------------------------------- | ------------------- |
@@ -308,7 +308,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
 | 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
 
-## tsdb
+### TSDB
 
 | Error Code | Error Description                        | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                        |
 | ---------- | ---------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------- |
@@ -325,7 +325,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x8000061B | Invalid table schema version             | Same as TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION                  | Report the issue                                     |
 | 0x8000061D | Table already exists in other supertable | Table exists, but belongs to another supertable              | Check write application logic                        |
 
-## query
+### Query
 
 | Error Code | Error Description                    | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                                |
 | ---------- | ------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -345,7 +345,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                         | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
 | 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G |
 
-## grant
+### Grant
 
 | Error Code | Description                         | Possible Error Scenarios or Reasons                    | Recommended Actions for Users                                |
 | ---------- | ----------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------ |
@@ -364,7 +364,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x8000080C | STable creation limited by license  | Number of supertables exceeds license limit            | Check license information, contact delivery for updated license code |
 | 0x8000080D | Table creation limited by license   | Number of subtables/basic tables exceeds license limit | Check license information, contact delivery for updated license code |
 
-## sync
+### Sync
 
 | Error Code | Description                  | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                                |
 | ---------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -379,14 +379,14 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80000918 | Sync negotiation win is full | Scenario 1: High concurrency of client requests, exceeding server's processing capacity, or due to severe lack of network and CPU resources, or network connection issues. | Check cluster status, system resource usage (e.g., disk IO, CPU, network), and network connections between nodes. |
 | 0x800009FF | Sync internal error          | Other internal errors                                        | Check cluster status, e.g., `show vgroups`                   |
 
-## tq
+### TQ
 
 | Error Code | Description               | Possible Scenarios or Reasons                                | Recommended Actions for Users          |
 | ---------- | ------------------------- | ------------------------------------------------------------ | -------------------------------------- |
 | 0x80000A0C | TQ table schema not found | The table does not exist when consuming data                 | Internal error, not passed to users    |
 | 0x80000A0D | TQ no committed offset    | Consuming with offset reset = none, and no previous offset on server | Set offset reset to earliest or latest |
 
-## wal
+### WAL
 
 | Error Code | Description           | Possible Scenarios or Reasons                   | Recommended Actions for Users |
 | ---------- | --------------------- | ----------------------------------------------- | ----------------------------- |
@@ -396,7 +396,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80001006 | WAL checksum mismatch | Scenario: WAL file damaged                      | Internal server error         |
 | 0x80001007 | WAL log incomplete    | Log file has been lost or damaged               | Internal server error         |
 
-## tfs
+### TFS
 
 | Error Code | Description                      | Possible Scenarios or Reasons                        | Recommended Actions for Users                                |
 | ---------- | -------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------ |
@@ -407,7 +407,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80002205 | TFS no disk mount on tire        | Incorrect multi-tier storage configuration           | Check if the configuration is correct                        |
 | 0x80002208 | No disk available on a tier.     | TFS internal error, often occurs when disks are full | Add more disks to expand capacity                            |
 
-## catalog
+### Catalog
 
 | Error Code | Description                      | Possible Error Scenarios or Reasons   | Suggested Actions for Users                                  |
 | ---------- | -------------------------------- | ------------------------------------- | ------------------------------------------------------------ |
@@ -423,7 +423,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80002504 | Task timeout                     | Subtask timeout                       | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002505 | Job is dropping                  | Task being or already canceled        | Check if there was a manual or application interruption of the current task |
 
-## parser
+### Parser
 
 | Error Code | Description                                                                                            | Possible Error Scenarios or Reasons                                        | Suggested Actions for Users                                  |
 |------------|--------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------| ------------------------------------------------------------ |
@@ -534,7 +534,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80002705 | Planner invalid table type                                                                             | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub                          |
 | 0x80002706 | Planner invalid query control plan type                                                                | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub                         |
 
-## function
+### Function
 
 | Error Code | Error Description                            | Possible Error Scenarios or Reasons                          | Suggested User Actions                                       |
 | ---------- | -------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -545,7 +545,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80002804 | Not a built-in function                      | The function is not a built-in function. Errors will occur if the built-in function is not in the hash table. Users should rarely encounter this problem, otherwise, it indicates an error during the initialization of the internal built-in function hash or corruption. | Customers should not encounter this; if they do, it indicates a bug in the program, consult the developers. |
 | 0x80002805 | Duplicate timestamps not allowed in function | Duplicate timestamps in the function's input primary key column. When querying supertables with certain time-order dependent functions, all subtable data will be sorted by timestamp and merged into one timeline for calculation, which may result in duplicate timestamps, causing errors in some calculations. Functions involved include: CSUM, DERIVATIVE, DIFF, IRATE, MAVG, STATECOUNT, STATEDURATION, TWA | Ensure there are no duplicate timestamp data in subtables when querying supertables using these time-order dependent functions. |
 
-## udf
+### UDF
 
 | Error Code | Description                        | Possible Scenarios or Reasons                                | Recommended Actions                                          |
 | ---------- | ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -560,7 +560,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80002909 | udf program language not supported | udf programming language not supported                       | Use supported languages, currently supports C, Python        |
 | 0x8000290A | udf function execution failure     | udf function execution error, e.g., returning incorrect number of rows | Refer to specific error logs                                 |
 
-## sml
+### SML
 
 | Error Code | Description                      | Possible Scenarios or Reasons                                | Recommended Actions                                          |
 | ---------- | -------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -570,7 +570,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80003004 | Not the same type as before      | Inconsistent column types within the same batch of schemaless data | Ensure the data type of the same column in each row is consistent |
 | 0x80003005 | Internal error                   | General internal logic error in schemaless, typically should not occur | Refer to client-side error log hints                         |
 
-## sma
+### SMA
 
 | Error Code | Description                   | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                      |
 | ---------- | ----------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
@@ -591,14 +591,14 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80003157 | Rsma fs sync error            | Operator file synchronization failed                         | Check error logs, contact development for handling |
 | 0x80003158 | Rsma fs update error          | Operator file update failed                                  | Check error logs, contact development for handling |
 
-## index
+### Index
 
 | Error Code | Description         | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                      |
 | ---------- | ------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
 | 0x80003200 | INDEX being rebuilt | 1. Writing too fast, causing the index merge thread to lag 2. Index file is damaged, being rebuilt | Check error logs, contact development for handling |
 | 0x80003201 | Index file damaged  | File damaged                                                 | Check error logs, contact development for handling |
 
-## tmq
+### TMQ
 
 | Error Code | Description           | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                |
 | ---------- | --------------------- | ------------------------------------------------------------ | -------------------------------------------- |
@@ -610,7 +610,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
 
-## TDgpt
+### TDgpt
 
 | Error Code | Description                                         | Possible Error Scenarios or Reasons                           | Recommended Actions for Users                                          |
 |------------|-----------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
@@ -626,7 +626,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
-## virtual table
+### Virtual Table
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
 |------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
@@ -639,7 +639,7 @@ The following section provides detailed TDengine TSDB error code descriptions:
 | 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
 | 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table's child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |
 
-## stream
+### Stream
 
 | Error Code | Description                           | Possible Error Scenarios or Reasons   | Recommended Actions for Users                                                                                   |
 |------------|---------------------------------------|----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
