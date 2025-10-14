@@ -4523,20 +4523,30 @@ static bool lastRowScanOptCheckColNum(int32_t lastColNum, col_id_t lastColId, in
 
 static bool isNeedSplitCacheLastFunc(SFunctionNode* pFunc, SScanLogicNode* pScan) {
   int32_t funcType = pFunc->funcType;
-  if ((FUNCTION_TYPE_LAST_ROW != funcType ||
-        (FUNCTION_TYPE_LAST_ROW == funcType && TSDB_CACHE_MODEL_LAST_VALUE == pScan->cacheLastMode)) &&
-      (FUNCTION_TYPE_LAST != funcType ||
-        (FUNCTION_TYPE_LAST == funcType &&
-          (TSDB_CACHE_MODEL_LAST_ROW == pScan->cacheLastMode ||
-          QUERY_NODE_OPERATOR == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
-          QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
-          COLUMN_TYPE_COLUMN != ((SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0))->colType))) &&
-      FUNCTION_TYPE_SELECT_VALUE != funcType &&
-      FUNCTION_TYPE_GROUP_KEY != funcType &&
-      FUNCTION_TYPE_GROUP_CONST_VALUE != funcType) {
-    return true;
+  SNode*  pParam = nodesListGetNode(pFunc->pParameterList, 0);
+
+  if (funcType == FUNCTION_TYPE_LAST_ROW) {
+    return pScan->cacheLastMode == TSDB_CACHE_MODEL_LAST_VALUE;
   }
-  return false;
+
+  if (funcType == FUNCTION_TYPE_LAST) {
+    if (pScan->cacheLastMode == TSDB_CACHE_MODEL_LAST_ROW) {
+      return true;
+    }
+    if (pParam != NULL) {
+      int type = nodeType(pParam);
+      if (type == QUERY_NODE_OPERATOR || type == QUERY_NODE_VALUE) {
+        return true;
+      }
+      if (type == QUERY_NODE_COLUMN && ((SColumnNode*)pParam)->colType != COLUMN_TYPE_COLUMN) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return funcType != FUNCTION_TYPE_SELECT_VALUE && funcType != FUNCTION_TYPE_GROUP_KEY &&
+         funcType != FUNCTION_TYPE_GROUP_CONST_VALUE;
 }
 
 static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel, bool* hasOtherFunc) {
