@@ -2414,6 +2414,88 @@ impl MessageArrowRecords {
     }
 }
 
+pub trait ConcatBatches {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>>;
+}
+
+impl ConcatBatches for [MessageArrowRecords] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let schema = first.records.schema().clone();
+        let batches = self.iter().map(|x| &x.records);
+        Ok(Some(concat_batches(&schema, batches)?))
+    }
+}
+
+impl ConcatBatches for [&MessageArrowRecords] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let schema = first.records.schema().clone();
+        let batches = self.iter().map(|x| &x.records);
+        Ok(Some(concat_batches(&schema, batches)?))
+    }
+}
+
+impl ConcatBatches for Vec<&MessageArrowRecords> {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for Vec<MessageArrowRecords> {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for &[&MessageArrowRecords] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for [RecordBatch] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let schema = first.schema().clone();
+        Ok(Some(concat_batches(&schema, self)?))
+    }
+}
+
+impl ConcatBatches for [&RecordBatch] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let schema = first.schema().clone();
+        Ok(Some(concat_batches(&schema, self.iter().copied())?))
+    }
+}
+
+impl ConcatBatches for Vec<RecordBatch> {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for Vec<&RecordBatch> {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for &[&RecordBatch] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum WrittenProtocol {
@@ -4832,7 +4914,9 @@ mod parser_tests {
 #[cfg(test)]
 mod test {
     use super::Parser;
-    use crate::plugins::transform::{MessageArrowRecords, MessageTableMeta, TableOptions};
+    use crate::plugins::transform::{
+        ConcatBatches, MessageArrowRecords, MessageTableMeta, TableOptions,
+    };
     use std::sync::Arc;
 
     #[tokio::test]
@@ -4957,6 +5041,68 @@ mod test {
         assert!(!has_large_record);
         let has_large_record = message.has_large_record(9 * 1024);
         assert!(has_large_record);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_concat_batches() -> anyhow::Result<()> {
+        let batch1 =
+            arrow::array::record_batch!(("test1", Utf8, ["1234567890", &"1234567890".repeat(3)]))?;
+        let batch2 =
+            arrow::array::record_batch!(("test1", Utf8, ["aaa", &"bbb".repeat(3), "ccc"]))?;
+        let batches = vec![batch1.clone(), batch2.clone()];
+
+        let ref_batches = batches.iter().collect::<Vec<_>>();
+        let concat_batch = ref_batches.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+        println!(
+            "{}",
+            arrow::util::pretty::pretty_format_batches(&[concat_batch]).unwrap()
+        );
+
+        let concat_batch = batches[..].concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let ref_batches = &batches;
+        let concat_batch = ref_batches.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let concat_batch = batches.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let stable_meta = MessageTableMeta {
+            name: Arc::new("meters".into()),
+            using: None,
+            tags: None,
+        };
+        let opts = Arc::new(TableOptions::default());
+
+        let message1 = MessageArrowRecords {
+            table: stable_meta.clone(),
+            records: batch1,
+            opts: opts.clone(),
+        };
+
+        let message2 = MessageArrowRecords {
+            table: stable_meta.clone(),
+            records: batch2,
+            opts: opts.clone(),
+        };
+
+        let messages = vec![message1, message2];
+        let concat_batch = messages[..].concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let concat_batch = messages.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let ref_messages = messages.iter().collect::<Vec<_>>();
+        let concat_batch = ref_messages[..].concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let concat_batch = ref_messages.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
         Ok(())
     }
 }
