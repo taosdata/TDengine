@@ -579,6 +579,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TD_GPT_EXPIRED,         "License expired for T
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VNODE_LIMITED,          "Number of vnodes has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ANODE_LIMITED,          "Number of anodes has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_IDMP_BASIC,     "Lack of TDengine IDMP basic functions in active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_EXPIRED,         "License expired for mounts function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_LIMITED,         "Number of mounts has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_INVALID_AUTH_SERVER,    "Auth server is invalid")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")

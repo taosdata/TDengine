@@ -417,8 +417,8 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   }
 #endif
 #ifdef TD_ENTERPRISE
-  if(tsAuthReq){
-    if (sec % tsAuthReqInterval == 0) {
+  if (tsAuthReq) {
+    if (sec % tsAuthReqHBInterval == 0) {
       mndPullupAuth(pMnode);
     }
   }

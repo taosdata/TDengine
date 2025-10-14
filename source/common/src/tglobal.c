@@ -98,6 +98,7 @@ int8_t  tsEnableIpv6 = 0;
 bool    tsAuthServer = 0;
 bool    tsAuthReq = 0;
 int32_t tsAuthReqInterval = 2592000;
+int32_t tsAuthReqHBInterval = 5;
 char    tsAuthReqUrl[TSDB_FQDN_LEN] = {0};
 #endif
 
@@ -1082,7 +1083,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authServer", tsAuthServer, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authReq", tsAuthReq, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "authReqInterval", tsAuthReqInterval, 1, 86400 * 365, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "authReqInterval", tsAuthReqInterval, 1, 86400 * 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "authReqUrl", tsAuthReqUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL));
 #endif
 >>>>>>> 912d31e1288 (add config)
