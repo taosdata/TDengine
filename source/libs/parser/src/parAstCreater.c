@@ -1045,7 +1045,7 @@ _err:
   return NULL;
 }
 
-int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
+static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType &&
       ((SLogicConditionNode*)pParam)->condType != LOGIC_COND_TYPE_NOT) {
     int32_t code = nodesListAppendList(pCond->pParameterList, ((SLogicConditionNode*)pParam)->pParameterList);
@@ -1578,11 +1578,13 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* p
   CHECK_MAKE_NODE(state->pCol);
   state->pExpr = pExpr;
   state->pTrueForLimit = pTrueForLimit;
-  if (pOptions != NULL && pOptions->length >= 1) {
-    state->pExtend = nodesListGetNode(pOptions, 0);
-  }
-  if (pOptions != NULL && pOptions->length == 2) {
-    state->pZeroth = nodesListGetNode(pOptions, 1);
+  if (pOptions != NULL) {
+    if (pOptions->length >= 1) {
+      state->pExtend = nodesListGetNode(pOptions, 0);
+    }
+    if (pOptions->length == 2) {
+      state->pZeroth = nodesListGetNode(pOptions, 1);
+    }
   }
   nodesClearList(pOptions);
   return (SNode*)state;
