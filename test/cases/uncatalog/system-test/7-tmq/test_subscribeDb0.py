@@ -326,7 +326,7 @@ class TestCase:
         """
         tdSql.prepare()
 
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
@@ -340,3 +340,4 @@ class TestCase:
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
+
