@@ -35,7 +35,7 @@ Taking error code `0x80FF0002` as an example:
 - **Prefix**: `0x80FF` → Linux system error.
 - **Specific Error Code**: `0002` → Corresponds to Linux errno 2, which means "No such file or directory".
 
-## TDengine TSDB Error Codes
+## TDengine TSDB Business Error
 
 ### RPC
 

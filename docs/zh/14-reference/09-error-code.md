@@ -33,7 +33,7 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 - **前缀**: `0x80FF` → Linux 系统错误。
 - **具体错误码**: `0002` → 对应 Linux errno 2，即 "No such file or directory"。
 
-## TDengine TSDB 错误码
+## TDengine TSDB 业务错误
 
 ### RPC
 
