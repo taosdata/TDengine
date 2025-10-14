@@ -160,7 +160,7 @@ function collect_coverage_data() {
     local log_dir=$4
     local status=$5
     
-    echo "收集覆盖率信息: ${case_file} (${status})"
+    # echo "收集覆盖率信息: ${case_file} (${status})"
     
     # 创建覆盖率数据目录
     local base_coverage_dir="${log_dir}/${case_file}.coverage"
@@ -208,7 +208,7 @@ function collect_coverage_data() {
     else
         # 本地处理
         if [ -d "$remote_coverage_dir" ]; then
-            echo "复制本地覆盖率信息文件..."
+            # echo "复制本地覆盖率信息文件..."
             cp -f "$remote_coverage_dir"/*.info "$coverage_dir"/ 2>/dev/null || true
             cp -f "$remote_coverage_dir"/coverage_files.list "$coverage_dir"/ 2>/dev/null || true
             
@@ -223,7 +223,7 @@ function collect_coverage_data() {
     local collected_info_files=$(find "$coverage_dir" -name "*.info" -type f 2>/dev/null | wc -l)
     
     if [ "$collected_info_files" -gt 0 ]; then
-        echo "成功收集 $collected_info_files 个覆盖率信息文件:"
+        # echo "成功收集 $collected_info_files 个覆盖率信息文件:"
         find "$coverage_dir" -name "*.info" -type f | while read -r info_file; do
             local file_size=$(stat -c%s "$info_file" 2>/dev/null || echo "0")
             local file_lines=$(wc -l < "$info_file" 2>/dev/null || echo "0")

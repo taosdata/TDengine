@@ -360,7 +360,7 @@ function merge_files_uniform_batch() {
             local batch_output="$temp_dir/round_${round}_merged_$(printf "%04d" $batch_no).info"
             local batch_count=$(wc -l < "$batch_file")
             
-            echo "  [第${round}轮-批次${batch_no}] 合并 $batch_count 个文件..."
+            #echo "  [第${round}轮-批次${batch_no}] 合并 $batch_count 个文件..."
             
             if [ "$batch_count" -eq 1 ]; then
                 # 单文件批次，直接复制
@@ -762,6 +762,10 @@ function lcovFunc {
     else
         echo "覆盖率数据已成功上传到 Codecov。"
     fi  
+
+    echo "push result to coveralls.io"
+    # push result to https://coveralls.io/
+    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage_tdengine.info 
 }
 
 ######################
