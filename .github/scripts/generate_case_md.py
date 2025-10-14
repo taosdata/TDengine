@@ -108,15 +108,16 @@ def parse_catalog(module_name, docstring):
 def parse_labels(docstring):
     """解析 docstring 中的 Labels 字段"""
     labels_pattern = re.compile(
-        r"Labels:\s*((?:- .+?\n?)+)(?:\n\s*\n|(?=\n(?:Since:|Catalog:|Jira:|History:)))", 
-        re.DOTALL
+        r"Labels:\s*(.*?)(?=\n\s*(?:Since|Catalog|Jira|History):\s*|\Z)", 
+        re.DOTALL | re.IGNORECASE
     )
     match = labels_pattern.search(docstring)
     labels = []
     if match:
         # 提取 Labels 块并按行分割
-        labels_block = match.group(1)
-        labels = [line.strip("- ").strip() for line in labels_block.splitlines() if line.strip()]
+        labels_content = match.group(1).strip()
+        labels_line = re.sub(r'\s+', ' ', labels_content)
+        labels = [label.strip() for label in labels_line.split(",") if label.strip()]
     
     return labels
 
