@@ -150,7 +150,7 @@ class TestStreamCompatibility:
             tdLog.info(f"Windows skip stream compatibility test")
             return
 
-        bPath = tdCom.getBuildPath()
+        bPath = os.path.join(tdCom.getBuildPath(), "build")
         cPath = self.getCfgPath()
         tdLog.info(f"bPath:{bPath}, cPath:{cPath}")
 
@@ -562,7 +562,7 @@ class TestStreamCompatibility:
 
     def getCfgPath(self):
         """Get config path"""
-        buildPath = tdCom.getBuildPath()
+        buildPath = os.path.join(tdCom.getBuildPath(), "build")
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
