@@ -63,7 +63,7 @@ static int32_t tcurlConnect(CURL** ppConn, const char* url) {
   CURLcode res = CURLE_OK;
 
   uInfo("[curl] try to connect to %s", url);
-  tcurlSetSystemDNSTimeout();
+  // tcurlSetSystemDNSTimeout();
 
   CURL* pConn = curl_easy_init();
   TSDB_CHECK_NULL(pConn, code, lino, _end, TSDB_CODE_FAILED);
@@ -100,6 +100,9 @@ static int32_t tcurlConnect(CURL** ppConn, const char* url) {
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
   res = curl_easy_setopt(pConn, CURLOPT_CONNECT_ONLY, 2L);
+  TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+
+  res = curl_easy_setopt(pConn, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
   TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
   res = curl_easy_perform(pConn);
