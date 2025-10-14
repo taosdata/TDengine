@@ -76,13 +76,22 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t    oldThreshold;
   int64_t    newThreshold;
 
-  SValue      stateVal;            // for state window trigger
-  int64_t     pendingNullStart;    // for state window trigger
-  int32_t     numPendingNull;      // for state window trigger
-  STimeWindow prevWindow;          // the last closed window, for sliding trigger
-  SObjList    windows;             // SObjList<SSTriggerWindow>, windows not yet closed
-  SObjList    pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
-  SSHashObj  *pDoneVersions;       // SSHashObj<vgId, SObjList<{skey, ver}>>
+  union {
+    STimeWindow prevWindow;  // the last closed window, for sliding trigger
+    struct {
+      SValue  stateVal;          // for state window trigger
+      int64_t pendingNullStart;  // for state window trigger
+      int32_t numPendingNull;    // for state window trigger
+    };
+    struct {
+      SSTriggerNotifyWindow parentWindow;   // for event window trigger with sub-event
+      int32_t               numSubWindows;  // for event window trigger with sub-event
+      int32_t               conditionIdx;   // for event window trigger with sub-event
+    };
+  };
+  SObjList   windows;             // SObjList<SSTriggerWindow>, windows not yet closed
+  SObjList   pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
+  SSHashObj *pDoneVersions;       // SSHashObj<vgId, SObjList<{skey, ver}>>
 
   int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
