@@ -3336,6 +3336,7 @@ TEST(stmt2Case, errcode) {
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_14");
   do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_14");
   do_query(taos, "use stmt2_testdb_14");
+  do_query(taos, "create table stmt2_testdb_14.tb (ts timestamp, b binary(10))");
 
   {
     TAOS_STMT2_OPTION option = {0};
@@ -3354,6 +3355,25 @@ TEST(stmt2Case, errcode) {
     sql = "insert into ? (ts, name) values (?, ?)";
     code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code, __FILE__, __LINE__);
+    taos_stmt2_close(stmt);
+  }
+  // TD-38218, skip bind data before execute
+  {
+    TAOS_STMT2_OPTION option = {0};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    char* sql = "insert into tb values(?,?)";
+    int   code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_exec(stmt, NULL);
+    ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
+
     taos_stmt2_close(stmt);
   }
 
