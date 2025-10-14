@@ -372,6 +372,7 @@ int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
     pScanBaseInfo->readHandle.uid = handle->uid;
   } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode)) {
     pScanBaseInfo = &((STableMergeScanInfo*)info)->base;
+    pScanBaseInfo->readHandle.uid = handle->uid;
   }
 
   if (pScanBaseInfo != NULL && handle->winRange.skey != 0 && handle->winRange.ekey != 0) {
