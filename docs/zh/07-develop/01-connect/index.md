@@ -123,7 +123,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
         ```
 
 - **安装验证**
-    <Tabs defaultValue="rest">
+    <Tabs defaultValue="ws">
     <TabItem value="native" label="原生连接">
     对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
 
@@ -131,12 +131,6 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
     import taos
     ```
 
-    </TabItem>
-    <TabItem  value="rest" label="REST 连接">
-    对于 REST 连接，只需验证是否能成功导入 `taosrest` 模块。可在 Python 交互式 Shell 中输入：
-    ```python
-    import taosrest
-    ```
     </TabItem>
     <TabItem  value="ws" label="WebSocket 连接">
     对于 WebSocket 连接，只需验证是否能成功导入 `taosws` 模块。可在 Python 交互式 Shell 中输入：
@@ -267,7 +261,7 @@ dotnet add package TDengine.Connector
     <TabItem label="Java" value="java">
     Java 连接器建立连接的参数有 URL 和 Properties。  
     TDengine TSDB 的 JDBC URL 规范格式为：
-    `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
+    `jdbc:[TAOS|TAOS-WS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
 
     URL 和 Properties 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/java/#url-规范)
 
@@ -309,14 +303,6 @@ dotnet add package TDengine.Connector
     - `cfg` 指定 taos.cfg 目录。
     - `cgoThread` 指定 cgo 同时执行的数量，默认为系统核数。
     - `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000。
-    - `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
-
-    REST 连接：
-
-    - `disableCompression` 是否接受压缩数据，默认为 true 不接受压缩数据，如果传输数据使用 gzip 压缩设置为 false。
-    - `readBufferSize` 读取数据的缓存区大小默认为 4K（4096），当查询结果数据量多时可以适当调大该值。
-    - `token` 连接云服务时使用的 token。
-    - `skipVerify` 是否跳过证书验证，默认为 false 不跳过证书验证，如果连接的是不安全的服务设置为 true。
     - `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
 
     WebSocket 连接：
@@ -465,10 +451,6 @@ SQLAlchemy 支持通过 `hosts` 参数配置多个服务器地址，实现负载
 ```
 
 </TabItem>
-<TabItem label="REST API" value="rest">
-不支持
-
-</TabItem>
 </Tabs>
 
 ### 原生连接
@@ -506,49 +488,6 @@ SQLAlchemy 支持通过 `hosts` 参数配置多个服务器地址，实现负载
     <ConnC />
 </TabItem>
 
-<TabItem label="REST API" value="rest">
-不支持
-
-</TabItem>
-</Tabs>
-
-### REST 连接
-
-下面是各语言连接器建立 REST 连接代码样例。演示了如何使用 REST 连接方式连接到 TDengine TSDB 数据库。整个过程主要涉及到数据库连接的建立和异常处理。
-
-<Tabs defaultValue="java" groupId="lang">
-    <TabItem label="Java" value="java">
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/RESTConnectExample.java:main}}
-```
-    </TabItem>
-    <TabItem label="Python" value="python">
-```python
-{{#include docs/examples/python/connect_rest_example.py:connect}}
-```
-    </TabItem>
-    <TabItem label="Go" value="go">
-```go
-{{#include docs/examples/go/connect/restexample/main.go}}
-```
-    </TabItem>
-<TabItem label="Rust" value="rust">
-不支持
-</TabItem>
-<TabItem label="Node.js" value="node">
-不支持
-</TabItem>
-<TabItem label="C#" value="csharp">
-不支持
-</TabItem>
-<TabItem label="C" value="c">
-不支持
-</TabItem>
-
-<TabItem label="REST API" value="rest">
-使用 REST API 方式访问 TDengine TSDB，由应用程序自主去建立 HTTP 连接。
-
-</TabItem>
 </Tabs>
 
 :::tip
