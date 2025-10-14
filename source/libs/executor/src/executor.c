@@ -342,21 +342,25 @@ _error:
   return code;
 }
 
-bool qNeedReset(qTaskInfo_t* pInfo) {
+bool qNeedReset(qTaskInfo_t pInfo) {
+  if (pInfo == NULL) {
+    return false;
+  }
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
-  if (pOperator->pPhyNode == NULL) {
+  if (pOperator == NULL || pOperator->pPhyNode == NULL) {
     return false;
-  } 
-  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pOperator->pPhyNode) || 
-      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode) ||
-      QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == nodeType(pOperator->pPhyNode)) {
-    return true;
   }
-  return false;
+  int32_t node = nodeType(pOperator->pPhyNode);
+  return (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == node || 
+          QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == node ||
+          QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == node);
 }
 
-int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range) {
+int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
+  if (pInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
 
@@ -365,16 +369,18 @@ int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range) {
 
   if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pOperator->pPhyNode)) {
     pScanBaseInfo = &((STableScanInfo*)info)->base;
+    pScanBaseInfo->readHandle.uid = handle->uid;
   } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode)) {
     pScanBaseInfo = &((STableMergeScanInfo*)info)->base;
+    pScanBaseInfo->readHandle.uid = handle->uid;
   }
 
-  if (pScanBaseInfo != NULL && range.skey != 0 && range.ekey != 0) {
-    pScanBaseInfo->cond.twindows = range;
+  if (pScanBaseInfo != NULL && handle->winRange.skey != 0 && handle->winRange.ekey != 0) {
+    pScanBaseInfo->cond.twindows = handle->winRange;
   }
 
-  qDebug("reset table scan, name:%s, id:%s, time range: [%" PRId64 ", %" PRId64 "]", pOperator->name, GET_TASKID(pTaskInfo), range.skey,
-         range.ekey);
+  qDebug("reset table scan, name:%s, id:%s, time range: [%" PRId64 ", %" PRId64 "]", pOperator->name, GET_TASKID(pTaskInfo), handle->winRange.skey,
+  handle->winRange.ekey);
   return pOperator->fpSet.resetStateFn(pOperator);
 }
 
