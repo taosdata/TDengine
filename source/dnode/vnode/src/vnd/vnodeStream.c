@@ -3162,6 +3162,9 @@ end:
   taosArrayDestroy(pResList);
   streamReleaseTask(taskAddr);
 
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST){
+    code = TDB_CODE_SUCCESS;
+  }
   STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
