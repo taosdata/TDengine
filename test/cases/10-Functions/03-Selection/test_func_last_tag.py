@@ -180,16 +180,23 @@ class TestFuncLastTag:
 
     def test_last_tag(self):
         """summary: test last/last_row with tag column
+
         description: verify the behavior of selecting last/last_row with tag column outside.
                     For example: select last(ts), tag1, tag2 from stable group by tbname.
                     In this case, we should read cache data to get the tag column value.
-        Since: ver-3.4.0.0
+
+        Since: v3.3.6
+
         Labels: last/last_row, tag
+
         Jira: TS-6146
+
         Catalog:
             - xxx:xxx
+
         History:
             - Tony Zhang, 2025/10/10, Created
+
         """
         tdSql.execute("create database test_last_tag cachemodel 'both' keep 3650;")
         tdSql.execute("use test_last_tag;")
