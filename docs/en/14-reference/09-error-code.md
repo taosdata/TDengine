@@ -39,6 +39,8 @@ Taking error code `0x80FF0002` as an example:
 When an interface returns an error code not starting with `0x8000`, it indicates an error occurred when calling operating system APIs. For specific error meanings, please refer to the corresponding operating system documentation.
 :::
 
+The following section provides detailed TDengine TSDB error code descriptions:
+
 ## rpc
 
 | Error Code | Error Description                            | Possible Error Scenarios or Reasons                          | Recommended User Actions                                     |
