@@ -493,7 +493,7 @@ class TestSelectTop:
     # ------------------ main ------------------
     #
     def test_func_select_top(self):
-        """ Function TOP()
+        """ Fun: Top()
 
         1. Sim case
         2. Query on all data types

@@ -189,7 +189,7 @@ class TestMode:
     # ------------------ main ------------------
     #
     def test_func_select_mode(self):
-        """ Function MODE()
+        """ Fun: Mode()
 
         1. Query with basic params
         2. Query on super/child/normal table

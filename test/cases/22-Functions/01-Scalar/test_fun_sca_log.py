@@ -590,7 +590,7 @@ class TestFunLog:
         self.check_result_auto_log( 2 ,f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(t1,2) , log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
     def test_fun_sca_log(self):
-        """ Function LOG()
+        """ Fun: Log()
 
         1. Support types
         2. Basic query

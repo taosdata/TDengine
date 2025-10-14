@@ -488,7 +488,7 @@ class TestFunSqrt:
         pass
 
     def test_fun_sca_sqrt(self):
-        """ Function SQRT()
+        """ Fun: Sqrt()
 
         1. Support types
         2. Basic query

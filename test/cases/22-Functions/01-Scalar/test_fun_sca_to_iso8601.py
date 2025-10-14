@@ -170,7 +170,7 @@ class TestFunToIso8601:
             tdSql.checkData(0,0,None)
 
     def test_fun_sca_to_iso8601(self):
-        """ Function TO_ISO8601()
+        """ Fun: TO_ISO8601()
 
         1. Query from child/normal/super/without table
         2. Query from ns/us/ms precision database

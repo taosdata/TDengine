@@ -551,25 +551,28 @@ class TestPow:
         self.check_result_auto_pow(2, f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(t1,2) , pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
     def test_pow(self):
-        """summary: xxx
+        """ Fun: Pow()
 
-        description: xxx
+        1. Support types
+        2. Basic query
+        3. Big number query
+        4. Boundary query
+        5. Filter query
+        6. Super/child/normal table query
+        7. Query with partition by
+        8. Nest query
+        9. Mix with other functions
+        10. Input invalid parameter
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-10-13 Alex Duan Migrated from uncatalog/system-test/2-query/test_pow.py
         """
-  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")

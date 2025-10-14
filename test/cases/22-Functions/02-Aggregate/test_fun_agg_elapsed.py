@@ -2115,7 +2115,7 @@ class TestFunElapsed:
     # ------------------ main ------------------
     #
     def test_func_agg_elapsed(self):
-        """ Function ELAPSED
+        """ Fun: Elapsed()
 
         1. Query on super/child/normal table
         2. Query with nested

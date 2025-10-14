@@ -25,7 +25,7 @@ class TestInsertFromCsv:
         tdSql.checkData(0, 0, 5)
 
     def test_write_import_csv(self):
-        """ Import Data from CSV File
+        """ From CSV File
 
         1. Create table and import data from csv file
         2. Check the imported data
