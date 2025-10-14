@@ -1718,6 +1718,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
   }
 
+  pOper->resultInfo.totalRows = 0;
   blockDataEmpty(pInfo->pResBlock);
   blockDataEmpty(pInfo->pOrgBlock);
   taosHashClear(pInfo->pIgnoreTables);
@@ -4588,7 +4589,8 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
 
   taosHashCleanup(pInfo->mSkipTables);
   pInfo->mSkipTables = NULL;
-
+  pOper->resultInfo.totalRows = 0;
+  
   pInfo->bGroupProcessed = false;
   pInfo->bNewFilesetEvent = false;
   pInfo->bNextDurationBlockEvent = false;
