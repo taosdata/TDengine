@@ -1687,28 +1687,25 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   }
   pInfo->base.dataReader = NULL;
 
-  // tableListDestroy(pInfo->base.pTableListInfo);
-
-  // pInfo->base.pTableListInfo = tableListCreate();
-  // if (!pInfo->base.pTableListInfo) {
-  //   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-  //   return terrno;
-  // }
-  // SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
-  
-  // STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
-  // if (!pTableScanNode->scan.node.dynamicOp) {
-  //   code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-  //                                   &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
-  //                                   pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
-  //   if (code) {
-  //     qError("%s failed to createScanTableListInfo, code:%s, %s", __func__, tstrerror(code));
-  //     return code;
-  //   }
-  // }
-
+  tableListDestroy(pInfo->base.pTableListInfo);
+  pInfo->base.pTableListInfo = tableListCreate();
+  if (!pInfo->base.pTableListInfo) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
   SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
+  
   STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
+  if (!pTableScanNode->scan.node.dynamicOp) {
+    code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                    &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
+                                    pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+    if (code) {
+      qError("%s failed to createScanTableListInfo, code:%s, %s", __func__, tstrerror(code));
+      return code;
+    }
+  }
+
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);
 
   if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
@@ -4565,7 +4562,23 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
   pInfo->base.limitInfo.limit.limit = -1;
   pInfo->base.limitInfo.slimit.limit = -1;
 
-  STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pOper->pPhyNode;
+  tableListDestroy(pInfo->base.pTableListInfo);
+  pInfo->base.pTableListInfo = tableListCreate();
+  if (!pInfo->base.pTableListInfo) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
+  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
+  
+  STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
+  code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                  &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
+                                  pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+  if (code) {
+    qError("%s failed to createScanTableListInfo, code:%s, %s", __func__, tstrerror(code));
+    return code;
+  }
+
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
   tsortDestroySortHandle(pInfo->pSortHandle);
