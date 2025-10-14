@@ -192,7 +192,7 @@ class TestFuncLastTag:
         Jira: TS-6146
 
         Catalog:
-            - xxx:xxx
+            - Function:Selection
 
         History:
             - Tony Zhang, 2025/10/10, Created
