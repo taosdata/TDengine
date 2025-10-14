@@ -5,7 +5,7 @@ on:
     branches:
       - '3.0'
       - 'main'
-      - '3.3.6'
+      - 'cover/3.0'
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
@@ -44,7 +44,7 @@ concurrency:
 
 jobs:
   test-new-cases:
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@test/td-37719
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
