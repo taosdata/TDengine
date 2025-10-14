@@ -1189,6 +1189,8 @@ int32_t tEncodeSStreamRunnerDeployMsg(SEncoder* pEncoder, const SStreamRunnerDep
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pCoutCol->type.bytes));
   }
 
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->lowLatencyCalc));
+
 _exit:
 
   return code;
@@ -1756,6 +1758,10 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
     TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pCoutCol->type.precision));
     TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pCoutCol->type.scale));
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pCoutCol->type.bytes));
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->lowLatencyCalc));
   }
 
 _exit:
