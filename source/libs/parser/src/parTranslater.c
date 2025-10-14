@@ -14209,7 +14209,9 @@ static int32_t createStreamReqBuildTriggerEventWindow(STranslateContext* pCxt, S
   pReq->triggerType = WINDOW_TYPE_EVENT;
   PAR_ERR_RET(checkEventWindow(pCxt, pTriggerWindow));
   PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pStartCond, false, (char**)&pReq->trigger.event.startCond, NULL));
-  PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pEndCond, false, (char**)&pReq->trigger.event.endCond, NULL));
+  if (pTriggerWindow->pEndCond != NULL) {
+    PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pEndCond, false, (char**)&pReq->trigger.event.endCond, NULL));
+  }
   pReq->trigger.event.trueForDuration = createStreamReqWindowGetBigInt(pTriggerWindow->pTrueForLimit);
   return TSDB_CODE_SUCCESS;
 }
