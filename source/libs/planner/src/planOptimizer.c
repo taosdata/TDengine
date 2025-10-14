@@ -4524,14 +4524,16 @@ static bool lastRowScanOptCheckColNum(int32_t lastColNum, col_id_t lastColId, in
 static bool isNeedSplitCacheLastFunc(SFunctionNode* pFunc, SScanLogicNode* pScan) {
   int32_t funcType = pFunc->funcType;
   if ((FUNCTION_TYPE_LAST_ROW != funcType ||
-       (FUNCTION_TYPE_LAST_ROW == funcType && TSDB_CACHE_MODEL_LAST_VALUE == pScan->cacheLastMode)) &&
+        (FUNCTION_TYPE_LAST_ROW == funcType && TSDB_CACHE_MODEL_LAST_VALUE == pScan->cacheLastMode)) &&
       (FUNCTION_TYPE_LAST != funcType ||
-       (FUNCTION_TYPE_LAST == funcType &&
-        (TSDB_CACHE_MODEL_LAST_ROW == pScan->cacheLastMode ||
-         QUERY_NODE_OPERATOR == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
-         QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
-         COLUMN_TYPE_COLUMN != ((SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0))->colType))) &&
-      FUNCTION_TYPE_SELECT_VALUE != funcType && FUNCTION_TYPE_GROUP_KEY != funcType) {
+        (FUNCTION_TYPE_LAST == funcType &&
+          (TSDB_CACHE_MODEL_LAST_ROW == pScan->cacheLastMode ||
+          QUERY_NODE_OPERATOR == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
+          QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
+          COLUMN_TYPE_COLUMN != ((SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0))->colType))) &&
+      FUNCTION_TYPE_SELECT_VALUE != funcType &&
+      FUNCTION_TYPE_GROUP_KEY != funcType &&
+      FUNCTION_TYPE_GROUP_CONST_VALUE != funcType) {
     return true;
   }
   return false;

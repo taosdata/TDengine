@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom
 
 
 class TestFuncLastTag:
