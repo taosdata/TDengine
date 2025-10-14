@@ -14,7 +14,7 @@ Understanding the meaning and causes of these error codes helps quickly locate a
 
 Error codes are represented by 8-digit hexadecimal numbers starting with 0x, formatted as follows:
 
-**Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digits)**
+Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digits)
 
 ### Prefix Categories
 
@@ -28,16 +28,12 @@ Error codes are represented by 8-digit hexadecimal numbers starting with 0x, for
 ### Example Explanation
 
 Taking error code `0x80000216` as an example:
-- **Prefix**: `0x8000` → TDengine business error
-- **Specific Error Code**: `0216` → Corresponds to TSC module's "Syntax error in SQL"
+- **Prefix**: `0x8000` → TDengine business error.
+- **Specific Error Code**: `0216` → Corresponds to TSC module's "Syntax error in SQL".
 
 Taking error code `0x80FF0002` as an example:
-- **Prefix**: `0x80FF` → Linux system error
-- **Specific Error Code**: `0002` → Corresponds to Linux errno 2, which means "No such file or directory"
-
-:::tip
-When an interface returns an error code not starting with `0x8000`, it indicates an error occurred when calling operating system APIs. For specific error meanings, please refer to the corresponding operating system documentation.
-:::
+- **Prefix**: `0x80FF` → Linux system error.
+- **Specific Error Code**: `0002` → Corresponds to Linux errno 2, which means "No such file or directory".
 
 ## TDengine TSDB Error Codes
 

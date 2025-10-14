@@ -12,7 +12,7 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 
 错误码由 0x 开头的 8 位 16 进制数表示，格式如下:
 
-**错误码 = 分类前缀（前 4 位）+ 具体错误码（后 4 位）**
+错误码 = 分类前缀（前 4 位）+ 具体错误码（后 4 位）
 
 ### 前缀分类
 
@@ -26,16 +26,12 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 ### 示例说明
 
 以错误码 `0x80000216` 为例：
-- **前缀**: `0x8000` → TDengine 业务错误
-- **具体错误码**: `0216` → 对应 TSC 模块的 "Syntax error in SQL"
+- **前缀**: `0x8000` → TDengine 业务错误。
+- **具体错误码**: `0216` → 对应 TSC 模块的 "Syntax error in SQL"。
 
 以错误码 `0x80FF0002` 为例：
-- **前缀**: `0x80FF` → Linux 系统错误
-- **具体错误码**: `0002` → 对应 Linux errno 2，即 "No such file or directory"
-
-:::tip
-当接口返回非 0x8000 开头的错误码时，表示调用系统 API 出错了，具体错误码含义请参考相应系统的文档。
-:::
+- **前缀**: `0x80FF` → Linux 系统错误。
+- **具体错误码**: `0002` → 对应 Linux errno 2，即 "No such file or directory"。
 
 ## TDengine TSDB 错误码
 
