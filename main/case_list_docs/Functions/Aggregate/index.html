@@ -1807,6 +1807,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_pk" class="md-nav__link">
+        Agg-basic: last with pk 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#22-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="md-nav__link">
         Agg-basic: Leastsquares 
       </a>
@@ -2983,6 +2994,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#22-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_pk" class="md-nav__link">
+        Agg-basic: last with pk 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#22-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="md-nav__link">
         Agg-basic: Leastsquares 
       </a>
@@ -3273,6 +3295,37 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">description: verify the behavior of selecting last/last_row with tag column outside.</div>
                           <div style="margin-left: 9.600000000000001em; white-space: pre-wrap;">            For example: select last(ts), tag1, tag2 from stable group by tbname.</div>
                           <div style="margin-left: 9.600000000000001em; white-space: pre-wrap;">            In this case, we should read cache data to get the tag column value.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/22-Functions/02-Aggregate/test_agg_last.py" target="_blank">
+                      cases/22-Functions/02-Aggregate/test_agg_last.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="22-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_pk" class="doc doc-heading">
+
+<a href="#22-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_pk" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Agg-basic: last with pk
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the LAST function with composite key outside.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">For example: select last(ts), pk from stb group by tbname.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
