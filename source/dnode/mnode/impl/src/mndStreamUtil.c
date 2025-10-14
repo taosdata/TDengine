@@ -107,6 +107,8 @@ void mstDestroySStmVgroupStatus(void* param) {
 }
 
 void mstResetSStmStatus(SStmStatus* pStatus) {
+  mstWaitLock(&pStatus->resetLock, false);
+
   taosArrayDestroy(pStatus->trigReaders);
   pStatus->trigReaders = NULL;
   taosArrayDestroy(pStatus->trigOReaders);
@@ -122,6 +124,8 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
     taosArrayDestroy(pStatus->runners[i]);
     pStatus->runners[i] = NULL;
   }
+
+  taosWUnLockLatch(&pStatus->resetLock);
 }
 
 void mstDestroySStmStatus(void* param) {
@@ -1071,6 +1075,7 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
   int32_t code = 0;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
+  bool    statusLocked = false;
 
   (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
 
@@ -1085,6 +1090,9 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
     mstsDebug("stream stopped %d, ignore it", stopped);
     goto _exit;
   }
+
+  mstWaitLock(&pStatus->resetLock, true);
+  statusLocked = true;
   
   int32_t count = mstGetNumOfStreamTasks(pStatus);
 
@@ -1153,6 +1161,10 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
   pBlock->info.rows = *numOfRows;
 
 _exit:
+
+  if (statusLocked) {
+    taosRUnLockLatch(&pStatus->resetLock);
+  }
   
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
 
