@@ -387,10 +387,46 @@ taos> select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '
 taos> select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-01-01 00:00:00' and '2020-01-02 00:00:00' range('2020-01-01 00:00:30', '2020-01-01 00:00:00') every(1s) fill(linear);
 
 taos> select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-01-01 00:00:00' and '2020-01-01 00:00:20' range('2020-01-01 00:00:21', '2020-01-01 00:00:30') every(1s) fill(null);
+         _irowts         | _isfilled | interp(c1)  |
+====================================================
+ 2020-01-01 00:00:21.000 | true      | NULL        |
+ 2020-01-01 00:00:22.000 | true      | NULL        |
+ 2020-01-01 00:00:23.000 | true      | NULL        |
+ 2020-01-01 00:00:24.000 | true      | NULL        |
+ 2020-01-01 00:00:25.000 | true      | NULL        |
+ 2020-01-01 00:00:26.000 | true      | NULL        |
+ 2020-01-01 00:00:27.000 | true      | NULL        |
+ 2020-01-01 00:00:28.000 | true      | NULL        |
+ 2020-01-01 00:00:29.000 | true      | NULL        |
+ 2020-01-01 00:00:30.000 | true      | NULL        |
 
 taos> select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-01-01 00:00:00' and '2020-01-01 00:00:20' range('2020-01-01 00:00:21', '2020-01-01 00:00:30') every(1s) fill(value, 1);
+         _irowts         | _isfilled | interp(c1)  |
+====================================================
+ 2020-01-01 00:00:21.000 | true      |           1 |
+ 2020-01-01 00:00:22.000 | true      |           1 |
+ 2020-01-01 00:00:23.000 | true      |           1 |
+ 2020-01-01 00:00:24.000 | true      |           1 |
+ 2020-01-01 00:00:25.000 | true      |           1 |
+ 2020-01-01 00:00:26.000 | true      |           1 |
+ 2020-01-01 00:00:27.000 | true      |           1 |
+ 2020-01-01 00:00:28.000 | true      |           1 |
+ 2020-01-01 00:00:29.000 | true      |           1 |
+ 2020-01-01 00:00:30.000 | true      |           1 |
 
 taos> select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-01-01 00:00:00' and '2020-01-01 00:00:20' range('2020-01-01 00:00:21', '2020-01-01 00:00:30') every(1s) fill(prev);
+         _irowts         | _isfilled | interp(c1)  |
+====================================================
+ 2020-01-01 00:00:21.000 | true      |          15 |
+ 2020-01-01 00:00:22.000 | true      |          15 |
+ 2020-01-01 00:00:23.000 | true      |          15 |
+ 2020-01-01 00:00:24.000 | true      |          15 |
+ 2020-01-01 00:00:25.000 | true      |          15 |
+ 2020-01-01 00:00:26.000 | true      |          15 |
+ 2020-01-01 00:00:27.000 | true      |          15 |
+ 2020-01-01 00:00:28.000 | true      |          15 |
+ 2020-01-01 00:00:29.000 | true      |          15 |
+ 2020-01-01 00:00:30.000 | true      |          15 |
 
 taos> select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-01-01 00:00:00' and '2020-01-01 00:00:20' range('2020-01-01 00:00:21', '2020-01-01 00:00:30') every(1s) fill(next);
 
