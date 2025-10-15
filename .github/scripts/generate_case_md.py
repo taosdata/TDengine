@@ -123,7 +123,8 @@ def parse_labels(docstring):
 
 def has_special_labels(labels, special_markers=None):
     """检查是否有特殊标记"""
-    special_markers = ["ignore"] 
+    if special_markers is None:
+        special_markers = ["ignore"] 
     
     for label in labels:
         if any(marker.lower() in label.lower() for marker in special_markers):
