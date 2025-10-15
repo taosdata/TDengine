@@ -1841,6 +1841,7 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
   STableListInfo* pTableListInfoHistory = pTableListHistory;
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
+    code = terrno;
     goto end;
   }
   SScanPhysiNode pScanNode = {.suid = pTableListInfo->idInfo.suid, .tableType = pTableListInfo->idInfo.tableType};
