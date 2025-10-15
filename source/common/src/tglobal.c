@@ -402,7 +402,7 @@ int32_t tsStreamNotifyMessageSize = 8 * 1024;  // KB, default 8MB
 int32_t tsStreamNotifyFrameSize = 256;         // KB, default 256KB
 
 bool    tsShowFullCreateTableColumn = 0;  // 0: show full create table, 1: show only table name and db name
-int32_t tsRpcRecvLogThreshold = 10;       // in seconds, default 10
+int32_t tsRpcRecvLogThreshold = 3;        // in seconds, default 3s
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
