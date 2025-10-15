@@ -47,7 +47,8 @@ extend-exclude = [
   "crates/tokio-cron-scheduler/**",
   "docker/dev/cpanm",
   "tests/*.toml",
-  "tests/e2e/**", # FIXME: should be removed after while
+  "tests/e2e/**",                                             # FIXME: should be removed after while
+  "crates/source-kinghistorian/kinghistorian-sys/KRTDBAPI.h",
 ]
 
 [default]

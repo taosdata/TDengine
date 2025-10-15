@@ -1418,12 +1418,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "c_vec"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdd7a427adc0135366d99db65b36dae9237130997e560ed61118041fb72be6e8"
-
-[[package]]
 name = "cached"
 version = "0.56.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3144,10 +3138,8 @@ dependencies = [
 [[package]]
 name = "geos"
 version = "10.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0473e63acafe4109b096ab8c1e6b8151e1cb25397811525779a9bc7187382a7b"
+source = "git+https://github.com/georust/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
 dependencies = [
- "c_vec",
  "geos-sys",
  "libc",
  "num",
@@ -3156,8 +3148,7 @@ dependencies = [
 [[package]]
 name = "geos-src"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8f5247861370ecfcd91a239376c572021cf355cddf52a6602ebbf403d9bb99e"
+source = "git+https://github.com/georust/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
 dependencies = [
  "cmake",
 ]
@@ -3165,8 +3156,7 @@ dependencies = [
 [[package]]
 name = "geos-sys"
 version = "2.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dc873d24aefc72aa94c3c1c251afb82beb7be5926002746c0e1f585fef9854c"
+source = "git+https://github.com/georust/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
 dependencies = [
  "geos-src",
  "libc",
@@ -4137,6 +4127,16 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "twox-hash 1.6.3",
+]
+
+[[package]]
+name = "kinghistorian-sys"
+version = "1.11.0"
+dependencies = [
+ "bigdecimal 0.4.8",
+ "bindgen",
+ "chrono",
+ "flume",
 ]
 
 [[package]]
@@ -8063,6 +8063,13 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "source-kinghistorian"
+version = "1.11.0"
+dependencies = [
+ "kinghistorian-sys",
 ]
 
 [[package]]

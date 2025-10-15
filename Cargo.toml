@@ -40,6 +40,8 @@ members = [
   "crates/legacy-to-taos",
   "crates/source-orc",
   "crates/taos-to-local",
+  "crates/source-kinghistorian",
+  "crates/source-kinghistorian/kinghistorian-sys",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
