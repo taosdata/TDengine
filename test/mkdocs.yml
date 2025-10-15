@@ -102,13 +102,13 @@ nav:
         - 03-Selection: case_list_docs/Functions/Selection.md
         - 04-Timeseries: case_list_docs/Functions/Timeseries.md
     - 23-UDFs: case_list_docs/UDFs.md
-    - 24-TimeSeriesExtensions:
-        - 01-PartitionBy: case_list_docs/TimeSeriesExtensions/PartitionBy.md
-        - 02-Fill: case_list_docs/TimeSeriesExtensions/Fill.md
-        - 03-TimeWindow: case_list_docs/TimeSeriesExtensions/TimeWindow.md
-        - 05-EventWindow: case_list_docs/TimeSeriesExtensions/EventWindow.md
-        - 06-SessionWindow: case_list_docs/TimeSeriesExtensions/SessionWindow.md
-        - 07-CountWindow: case_list_docs/TimeSeriesExtensions/CountWindow.md
+    - 24-TimeSeriesExt:
+        - 01-PartitionBy: case_list_docs/TimeSeriesExt/PartitionBy.md
+        - 02-Fill: case_list_docs/TimeSeriesExt/Fill.md
+        - 03-TimeWindow: case_list_docs/TimeSeriesExt/TimeWindow.md
+        - 05-EventWindow: case_list_docs/TimeSeriesExt/EventWindow.md
+        - 06-SessionWindow: case_list_docs/TimeSeriesExt/SessionWindow.md
+        - 07-CountWindow: case_list_docs/TimeSeriesExt/CountWindow.md
     - 25-JoinQueries: case_list_docs/JoinQueries.md
     - 26-TagIndex: case_list_docs/TagIndex.md
     - 27-Views: case_list_docs/Views.md
