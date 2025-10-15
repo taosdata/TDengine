@@ -26,12 +26,12 @@ description: TDengine TSDB 服务端的错误码列表和详细说明
 ### 示例说明
 
 以错误码 `0x80000216` 为例：
-- **前缀**: `0x8000` → TDengine 业务错误。
-- **具体错误码**: `0216` → 对应 TSC 模块的 "Syntax error in SQL"。
+- **前缀**:      `0x8000` → TDengine 业务错误。
+- **具体错误码**: `0x0216` → 对应 TSC 模块的 "Syntax error in SQL"。
 
 以错误码 `0x80FF0002` 为例：
-- **前缀**: `0x80FF` → Linux 系统错误。
-- **具体错误码**: `0002` → 对应 Linux errno 2，即 "No such file or directory"。
+- **前缀**:      `0x80FF` → Linux 系统错误。
+- **具体错误码**: `0x0002` → 对应 Linux errno 0x0002，即 "No such file or directory"。
 
 ## TDengine TSDB 业务错误
 
