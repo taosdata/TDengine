@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 // show wrapper hint 
-void showWrapperHint(int32_t errCode);
+void showWrapperHint(uint32_t errCode);
 
 #ifdef __cplusplus
 }

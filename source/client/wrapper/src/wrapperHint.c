@@ -119,7 +119,7 @@ void winSocketErrorHint(uint32_t code) {
 
 // interface API
 void showWrapperHint(uint32_t errCode) {
-  uint32_t prefix = (errCode & 0xFFFF0000) >> 32;
+  uint32_t prefix = (errCode & 0xFFFF0000) >> 16;
   uint32_t code   =  errCode & 0x0000FFFF;
 
   switch (prefix) {
