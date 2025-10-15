@@ -1629,8 +1629,6 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
 
 static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, SCellDecoder *pDecoder, TXN *pTxn,
                                  SBTree *pBt) {
-  int ret = 0;
-  int nPayload;
   int maxLocal = pPage->maxLocal;
 
   int kLen = pDecoder->kLen;
@@ -1641,16 +1639,16 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
       tdbError("tdb/btree-decode-payload: leaf page with non-null pVal.");
       return TSDB_CODE_INVALID_DATA_FMT;
     }
-    nPayload = pDecoder->kLen;
-  } else {
-    nPayload = pDecoder->kLen + pDecoder->vLen;
+    vLen = 0; // this is an interior page, so the value is part of header and has already been decoded
   }
+
+  int nPayload = kLen + vLen;
 
   if (nHeader + nPayload <= maxLocal) {
     // no over flow case
     pDecoder->pKey = (SCell *)pCell + nHeader;
-    if (pDecoder->pVal == NULL && pDecoder->vLen > 0) {
-      pDecoder->pVal = (SCell *)pCell + nHeader + pDecoder->kLen;
+    if (pDecoder->pVal == NULL && vLen > 0) {
+      pDecoder->pVal = (SCell *)pCell + nHeader + kLen;
     }
     return 0;
   }
@@ -1690,7 +1688,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
 
     // unpack left val data from ovpages
     while (pgno != 0) {
-      ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+      int ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
       if (ret < 0) {
         return ret;
       }
@@ -1732,8 +1730,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
     // load left key & val to ovpages
     while (pgno != 0) {
       tdbTrace("tdb decode-ofp, pTxn: %p, pgno:%u by cell:%p", pTxn, pgno, pCell);
-      // printf("tdb decode-ofp, pTxn: %p, pgno:%u by cell:%p\n", pTxn, pgno, pCell);
-      ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+      int ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
       if (ret < 0) {
         return ret;
       }
@@ -1781,7 +1778,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
     }
 
     while (nLeft > 0) {
-      ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
+      int ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
       if (ret < 0) {
         return ret;
       }
