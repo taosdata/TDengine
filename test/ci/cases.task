@@ -368,23 +368,23 @@
 #,,y,.,./ci/pytest.sh pytest cases/23-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/23-UDFs/test_udf_with_const.py
 
-# 24-TimeSeriesExtensions
+# 24-TimeSeriesExt
 ## 01-PartitionBy
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/01-PartitionBy/test_partitonby.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/01-PartitionBy/test_partitonby.py
 ## 02-Fill
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/02-Fill/test_fill.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/02-Fill/test_fill.py
 ## 03-TimeWindow
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/03-TimeWindow/test_interval_auto.py
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/03-TimeWindow/test_interval_basic.py
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/03-TimeWindow/test_interval_bug_ts5400.py
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/03-TimeWindow/test_interval_timezone.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_auto.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_basic.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_bug_ts5400.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_timezone.py
 ## 04-StateWindow
 ## 05-EventWindow
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/05-EventWindow/test_event.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/05-EventWindow/test_event.py
 ## 06-SessionWindow
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/06-SessionWindow/test_session.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/06-SessionWindow/test_session.py
 ## 07-CountWindow
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/07-CountWindow/test_count.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/07-CountWindow/test_count.py
 
 # 25-JoinQueries
 ,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join_full.py

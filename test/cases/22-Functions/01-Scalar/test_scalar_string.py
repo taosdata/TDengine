@@ -753,3 +753,22 @@ class TestString:
 
         """
         pass
+
+    def test_fun_sca_like_in_set(self):
+        """ Fun: Like_in_set()
+
+        1. Support data types varchar/nchar
+        2. Query with constant/null/single char/special char/chinese parameter
+        3. Query with different separator
+        4. Query from normal/no table
+        5. Query with 2 ~ 3 parameters
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        pass

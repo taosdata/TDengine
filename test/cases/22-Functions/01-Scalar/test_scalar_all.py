@@ -473,8 +473,7 @@ class TestScalarFunction:
         """
         self.run_round()
         self.run_greatest_large_table()
-        
-        self.run_position()
+
         self.run_replace()
         self.run_repeat()
         self.run_substr()
@@ -834,4 +833,26 @@ class TestScalarFunction:
 
         """
         self.run_char_length()
-        
+
+    def test_fun_sca_position(self):
+        """ Fun: Position()
+
+        1. Support datatype varchar/nchar
+        2. Query with constant/null/blank/expr parameter
+        3. Call in function abs/pow
+        4. Call with function input substring/trim/upper/concat 
+        5. Query with limit/order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with 1 parameter
+        9. Error query with number parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_position()
