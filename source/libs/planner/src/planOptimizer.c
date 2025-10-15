@@ -749,26 +749,46 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
 
   SNode*  pTagIndexCond = NULL;
   SNode*  pTagCond = NULL;
+  SNode*  pPrimaryKeyCond = NULL;
+  SNode*  pOtherCond = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  PLAN_ERR_JRET(filterPartitionCond(&pScan->node.pConditions, NULL, &pTagIndexCond, &pTagCond, NULL));
+  if (pCxt->pPlanCxt->streamCalcQuery) {
+    SVirtualScanLogicNode *pVscan = (SVirtualScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 0);
+    if (NULL == pVscan || QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pVscan)) {
+      PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                        "pdcDealVirtualSuperTableScan get invalid vtable scan logic node from dyn query ctrl node"));
+    }
+    TSWAP(pVscan->node.pConditions, pScan->node.pConditions);
+    return code;
+  }
+
+  PLAN_ERR_JRET(filterPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pTagIndexCond, &pTagCond, &pOtherCond));
   if (NULL != pTagCond) {
     PLAN_ERR_JRET(pushDownCondOptRebuildTbanme(&pTagCond));
   }
 
   SVirtualScanLogicNode *pVscan = (SVirtualScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 0);
   if (NULL == pVscan || QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pVscan)) {
-    qError("pdcDealVirtualSuperTableScan get invalid vtable scan logic node from dyn query ctrl node");
-    PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
+    PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                      "pdcDealVirtualSuperTableScan get invalid vtable scan logic node from dyn query ctrl node"));
+  }
+  SScanLogicNode* pOrgScan = (SScanLogicNode*)nodesListGetNode(pVscan->node.pChildren, LIST_LENGTH(pVscan->node.pChildren) - 1);
+  if (NULL == pOrgScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pOrgScan) || pOrgScan->tableType != TSDB_SUPER_TABLE) {
+    PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                      "pdcDealVirtualSuperTableScan get invalid org scan logic node from vtable scan node"));
   }
   SScanLogicNode* pSysScan = (SScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 1);
   if (NULL == pSysScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pSysScan) || pSysScan->tableType != TSDB_SYSTEM_TABLE) {
-    qError("pdcDealVirtualSuperTableScan get invalid sys scan logic node from vtable scan node");
-    PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
+    PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                      "pdcDealVirtualSuperTableScan get invalid sys scan logic node from vtable scan node"));
   }
 
-  TSWAP(pVscan->node.pConditions, pScan->node.pConditions);
+  if (NULL != pPrimaryKeyCond) {
+    PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, pOrgScan, &pPrimaryKeyCond, &pOtherCond));
+  }
 
+  pVscan->node.pConditions = pOtherCond;
   pSysScan->pTagCond = pTagCond;
   pSysScan->pTagIndexCond = pTagIndexCond;
 
@@ -777,6 +797,8 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
 
   return code;
 _return:
+  nodesDestroyNode(pPrimaryKeyCond);
+  nodesDestroyNode(pOtherCond);
   nodesDestroyNode(pTagIndexCond);
   nodesDestroyNode(pTagCond);
   return code;
