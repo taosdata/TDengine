@@ -1870,9 +1870,12 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
     STableKeyInfo* info = taosArrayGet(pList->pTableList, i);
     if (info == NULL) continue;
     if (taosArrayPush(pTableListInfo->pTableList, info) == NULL) {
+      code = terrno;
       goto end;
     }
     if (taosArrayPush(pTableListInfoHistory->pTableList, info) == NULL) {
+      taosArrayPopTailBatch(pTableListInfo->pTableList, 1); // Rollback
+      code = terrno;
       goto end;
     }
   }
@@ -1987,8 +1990,8 @@ int32_t qStreamGetTableListGroupNum(const void* pTableList, TdThreadRwlock* lock
   return code; 
 }
 
-void    qStreamSetTableListGroupNum(const void* pTableList, int32_t groupNum, TdThreadRwlock* lock) {
-  (void)taosThreadRwlockRdlock(lock);
+void    qStreamSetTableListGroupNum(void* pTableList, int32_t groupNum, TdThreadRwlock* lock) {
+  (void)taosThreadRwlockWrlock(lock);
   ((STableListInfo*)pTableList)->numOfOuputGroups = groupNum; 
   (void)taosThreadRwlockUnlock(lock);
 }
