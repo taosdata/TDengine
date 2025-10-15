@@ -1682,10 +1682,6 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->currentTable = 0;
   pInfo->scanMode = 0;
   pInfo->countState = 0;
-  if (pInfo->base.readerAPI.tsdReaderClose) {
-    pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
-  }
-  pInfo->base.dataReader = NULL;
 
   tableListDestroy(pInfo->base.pTableListInfo);
   pInfo->base.pTableListInfo = tableListCreate();
@@ -1718,7 +1714,49 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
+    if (pInfo->base.readerAPI.tsdReaderClose) {
+      pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
+    }
+    pInfo->base.dataReader = NULL;
+  } else {
+    // reuse tsdb reader
+    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
+      setOperatorCompleted(pOper);
+      return code;
+    }
+
+    taosRLockLatch(&pTaskInfo->lock);
+    do {
+      int32_t        num = 0;
+      STableKeyInfo* pList = NULL;
+      code = initNextGroupScan(pInfo, &pList, &num);
+      if (code) {
+        qError("%s failed to initNextGroupScan, code:%s", __func__, tstrerror(code));
+        break;
+      }
+      code = pInfo->base.readerAPI.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
+      if (code) {
+        qError("%s failed to tsdSetQueryTableList, code:%s", __func__, tstrerror(code));
+        break;
+      }
+      code = pInfo->base.readerAPI.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+      if (code) {
+        qError("%s failed to tsdReaderResetStatus, code:%s", __func__, tstrerror(code));
+        break;
+      }
+    } while (0);
+    taosRUnLockLatch(&pTaskInfo->lock);
+    if (code) return code;
+
+    if (pInfo->filesetDelimited) {
+      pInfo->base.readerAPI.tsdSetFilesetDelimited(pInfo->base.dataReader);
+    }
+
+    if (pInfo->pResBlock->info.capacity > pOper->resultInfo.capacity) {
+      pOper->resultInfo.capacity = pInfo->pResBlock->info.capacity;
+    }
   }
+
   pOper->resultInfo.totalRows = 0;
   blockDataEmpty(pInfo->pResBlock);
   blockDataEmpty(pInfo->pOrgBlock);
