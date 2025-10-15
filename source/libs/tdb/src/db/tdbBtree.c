@@ -1421,6 +1421,8 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     return ret;
   }
 
+  assert(pgno <= pBt->pPager->dbFileSize);
+
   // local buffer for cell
   SCell *pBuf = tdbRealloc(NULL, pBt->pageSize);
   if (pBuf == NULL) {
@@ -1493,6 +1495,8 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
             tdbFree(pBuf);
             return ret;
           }
+
+          assert(pgno <= pBt->pPager->dbFileSize);
         }
       } else {
         // fetch next ofp, a new ofp and make it dirty
@@ -1502,6 +1506,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
           tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
           return ret;
         }
+        assert(pgno <= pBt->pPager->dbFileSize);
       }
 
       memcpy(pBuf + bytes, &pgno, sizeof(pgno));
@@ -1542,6 +1547,8 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     } else {
       pgno = 0;
     }
+
+    assert(pgno <= pBt->pPager->dbFileSize);
 
     memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
     memcpy(pBuf + bytes, &pgno, sizeof(pgno));
@@ -1595,6 +1602,9 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
       tdbError("tdb/btree-encode-cell: invalid cell.");
       return TSDB_CODE_INVALID_PARA;
     }
+
+    SPgno pgno = *(SPgno *)pVal;
+    assert(pgno != 0 && pgno <= pBt->pPager->dbFileSize);
 
     ((SPgno *)(pCell + nHeader))[0] = ((SPgno *)pVal)[0];
     nHeader = nHeader + sizeof(SPgno);
