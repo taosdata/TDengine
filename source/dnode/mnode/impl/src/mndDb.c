@@ -425,14 +425,15 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
-bool mndDbIsExist(SMnode *pMnode, const char *db) {
+bool mndDbIsExist(SMnode *pMnode, const char *db, int64_t uid) {
   SDbObj *pDb = mndAcquireDb(pMnode, db);
   if (pDb == NULL) {
     return false;
   } else {
+    bool result = (uid == 0) || (uid == pDb->uid);
     mndReleaseDb(pMnode, pDb);
     pDb = NULL;
-    return true;
+    return result;
   }
 }
 
@@ -1350,6 +1351,7 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
   mndTransSetGroupParallel(pTrans);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithRetention(pMnode, pTrans), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndSetAlterDbPrepareLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterDbCommitLogs(pMnode, pTrans, pOld, pNew), NULL, _OVER);
@@ -2220,6 +2222,7 @@ static int32_t mndSetTrimDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
         sdbRelease(pSdb, pVgroup);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_VGROUP_NOT_EXIST);
       }
+      sdbRelease(pSdb, pVgroup);
     }
 
     for (int32_t i = 0; i < numOfVgroups; i++) {
@@ -2340,6 +2343,23 @@ _exit:
   TAOS_RETURN(code);
 }
 
+#ifdef TD_ENTERPRISE
+static int32_t mndCheckRsmaInDb(SMnode *pMnode, SDbObj *pDb) {
+  int32_t   code = 0;
+  void     *pIter = NULL;
+  SRsmaObj *pRsma = NULL;
+  while ((pIter = sdbFetch(pMnode->pSdb, SDB_RSMA, pIter, (void **)&pRsma))) {
+    if (pRsma->dbUid == pDb->uid) {
+      sdbRelease(pMnode->pSdb, pRsma);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      TAOS_RETURN(code);
+    }
+    sdbRelease(pMnode->pSdb, pRsma);
+  }
+  TAOS_RETURN(TSDB_CODE_RSMA_NOT_EXIST);
+}
+#endif
+
 static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = 0, lino = 0;
@@ -2364,6 +2384,12 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT);
   }
 
+#ifdef TD_ENTERPRISE
+  if (trimReq.optrType == TSDB_OPTR_ROLLUP) {
+    TAOS_CHECK_EXIT(mndCheckRsmaInDb(pMnode, pDb));
+  }
+#endif
+
   TAOS_CHECK_EXIT(mndTrimDb(pMnode, pReq, pDb, trimReq.tw, trimReq.vgroupIds, trimReq.optrType, trimReq.triggerType));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -2379,7 +2405,8 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("db:%s, failed at line %d to process trim db req since %s", trimReq.db, lino, tstrerror(code));
+    mError("db:%s, failed at line %d to process trim db req since %s, optr:%u", trimReq.db, lino, tstrerror(code),
+           trimReq.optrType);
   }
 
   mndReleaseDb(pMnode, pDb);

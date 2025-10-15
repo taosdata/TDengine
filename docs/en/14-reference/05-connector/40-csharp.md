@@ -41,17 +41,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 `TDengine.Connector` will throw exceptions, and applications need to handle these exceptions. The taosc exception type `TDengineError` includes an error code and error message, which applications can use to handle the error.
 For error reporting in other TDengine modules, please refer to [Error Codes](../../error-codes/)
 
-Possible WebSocket connection error codes:
-
-
-| Error Code | Description                      | Possible Error Scenarios or Reasons                                    | Recommended Actions for Users                                                                                  |
-|------------|----------------------------------|------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
-| 0xf001     | WebSocket Reconnection Failed    | Connected taosAdapter exited causing reconnection failure              | Check taosAdapter status, wait and retry later                                                                 |
-| 0xf002     | WebSocket Message Mismatch       | Duplicate request ID generated                                         | Close current connection, wait and reconnect; avoid passing duplicate request IDs                              |
-| 0xf003     | WebSocket Connection Closed      | Using already closed WebSocket connection                              | Close current connection and retry with new connection                                                         |
-| 0xf004     | WebSocket Write Timeout          | WebSocket write request timeout                                        | Check network issues, increase write timeout parameter, close current connection and retry with new connection |
-| 0xf005     | WebSocket Connection Failed      | Connected taosAdapter exited                                           | Check taosAdapter status, wait and retry later                                                                 |
-| 0xf006     | WebSocket Close Message Received | Network issues caused heartbeat timeout, taosAdapter closed connection | Check network issues, wait and retry later                                                                     |
+For error code information please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 

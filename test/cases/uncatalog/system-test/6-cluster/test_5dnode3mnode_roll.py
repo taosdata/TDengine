@@ -45,25 +45,9 @@ class Test5dnode3mnodeRoll:
         else:
             print(f'this processName is not stoped in 60s')
 
-            
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        return buildPath
 
     def getCfgPath(self):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -74,10 +58,10 @@ class Test5dnode3mnodeRoll:
         return cfgPath
 
     def installTaosd(self,bPath,cPath):
-        # os.system(f"rmtaos && mkdir -p {self.getBuildPath()}/build/lib/temp &&  mv {self.getBuildPath()}/build/lib/libtaos.so*  {self.getBuildPath()}/build/lib/temp/ ")
+        # os.system(f"rmtaos && mkdir -p {tdCom.getBuildPath()}/build/lib/temp &&  mv {tdCom.getBuildPath()}/build/lib/libtaos.so*  {tdCom.getBuildPath()}/build/lib/temp/ ")
         # os.system(f" mv {bPath}/build  {bPath}/build_bak ")
-        # os.system(f"mv {self.getBuildPath()}/build/lib/libtaos.so  {self.getBuildPath()}/build/lib/libtaos.so_bak ")
-        # os.system(f"mv {self.getBuildPath()}/build/lib/libtaos.so.1  {self.getBuildPath()}/build/lib/libtaos.so.1_bak ")
+        # os.system(f"mv {tdCom.getBuildPath()}/build/lib/libtaos.so  {tdCom.getBuildPath()}/build/lib/libtaos.so_bak ")
+        # os.system(f"mv {tdCom.getBuildPath()}/build/lib/libtaos.so.1  {tdCom.getBuildPath()}/build/lib/libtaos.so.1_bak ")
         
         packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
@@ -184,7 +168,7 @@ class Test5dnode3mnodeRoll:
 
         tdLog.info("====step1.1:stop all taosd and clear data dir,then start all old taosd  ====")
 
-        bPath = self.getBuildPath()
+        bPath = tdCom.getBuildPath()
         cPath = self.getCfgPath()
         tdDnodes=cluster.dnodes
         for i in range(dnodeNumbers):
