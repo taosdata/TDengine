@@ -736,7 +736,7 @@ class TestString:
         tdSql.checkData(2, 0, 0)
 
     def test_fun_sca_find_in_set(self):
-        """Fun: Find_in_set()
+        """ Fun: Find_in_set()
 
         1. Support data types varchar/nchar
         2. Query with constant/null/single char/chinese parameter

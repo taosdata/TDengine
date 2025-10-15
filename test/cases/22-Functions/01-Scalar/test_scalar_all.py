@@ -479,7 +479,7 @@ class TestScalarFunction:
         self.run_repeat()
         self.run_substr()
         self.run_substr_idx()
-        self.run_trim()    
+        self.run_trim()
 
         self.run_timediff()
         self.run_week()
@@ -490,7 +490,7 @@ class TestScalarFunction:
 
 
     def test_fun_sca_degrees(self):
-        """Fun: Degrees()
+        """ Fun: Degrees()
 
         1. Support datatype types
         2. Query with constant parameter
@@ -512,7 +512,7 @@ class TestScalarFunction:
         self.run_degrees()
 
     def test_fun_sca_exp(self):
-        """Fun: Exp()
+        """ Fun: Exp()
 
         1. Support datatype types
         2. Query with constant/boundary/null/expr parameter
@@ -534,7 +534,7 @@ class TestScalarFunction:
         self.run_exp()
 
     def test_fun_sca_greatest(self):
-        """Fun: Greatest()
+        """ Fun: Greatest()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -556,7 +556,7 @@ class TestScalarFunction:
         self.run_greatest()
 
     def test_fun_sca_least(self):
-        """Fun: Least()
+        """ Fun: Least()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -578,7 +578,7 @@ class TestScalarFunction:
         self.run_least()
         
     def test_fun_sca_ln(self):
-        """Fun: Ln()
+        """ Fun: Ln()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -600,7 +600,7 @@ class TestScalarFunction:
         self.run_ln()
 
     def test_fun_sca_mod(self):
-        """Fun: Mod()
+        """ Fun: Mod()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -622,7 +622,7 @@ class TestScalarFunction:
         self.run_mod()
 
     def test_fun_sca_pi(self):
-        """Fun: Pi()
+        """ Fun: Pi()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -644,7 +644,7 @@ class TestScalarFunction:
         self.run_pi()
 
     def test_fun_sca_radians(self):
-        """Fun: Radians()
+        """ Fun: Radians()
 
         1. Support data types
         2. Query with constant/boundary/null parameter
@@ -665,7 +665,7 @@ class TestScalarFunction:
         self.run_radians()
 
     def test_fun_sca_rand(self):
-        """Fun: Rand()
+        """ Fun: Rand()
 
         1. Support data types
         2. Query with constant/boundary/null/big parameter
@@ -685,7 +685,7 @@ class TestScalarFunction:
         self.run_rand()
 
     def test_fun_sca_sign(self):
-        """Fun: Sign()
+        """ Fun: Sign()
 
         1. Support data types
         2. Query with constant/boundary/null parameter
@@ -708,7 +708,7 @@ class TestScalarFunction:
         self.run_sign()
         
     def test_fun_sca_truncate(self):
-        """Fun: Truncate()
+        """ Fun: Truncate()
 
         1. Support data types
         2. Query with constant/boundary/null parameter
@@ -731,7 +731,7 @@ class TestScalarFunction:
         self.run_truncate()
         
     def test_fun_sca_crc32(self):
-        """Fun: Crc32()
+        """ Fun: Crc32()
 
         1. Support data types
         2. Query with constant/null/blank/chinese parameter
@@ -750,7 +750,7 @@ class TestScalarFunction:
         self.run_crc32()
 
     def test_fun_sca_base64(self):
-        """Fun: Base64()
+        """ Fun: Base64()
 
         1. Support data types
         2. Query with constant/boundary/null/blank/chinese parameter
@@ -770,7 +770,7 @@ class TestScalarFunction:
         self.run_base64()
         
     def test_fun_sca_ascii(self):
-        """Fun: Ascii()
+        """ Fun: Ascii()
 
         1. Support data types
         2. Query with constant/null/blank/special char/chinese parameter
@@ -792,7 +792,7 @@ class TestScalarFunction:
         self.run_ascii()
 
     def test_fun_sca_char(self):
-        """Fun: Char()
+        """ Fun: Char()
 
         1. Support data types
         2. Query with constant/null/string/float/int/expr parameter
@@ -813,7 +813,7 @@ class TestScalarFunction:
         self.run_char()
 
     def test_fun_sca_char_length(self):
-        """Fun: Char_length()
+        """ Fun: Char_length()
 
         1. Support data types
         2. Query with constant/null/blank/chinese/japanese parameter
