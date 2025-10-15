@@ -792,7 +792,7 @@ void monSendPromReport() {
       uDebugL("report cont prom:\n%s", promStr);
     }
     else{
-      uInfo("report cont is null");
+      uInfo("report cont is null, since %s", tstrerror(terrno));
     }
   }
   if (pCont != NULL) {

@@ -10612,6 +10612,7 @@ static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeF
   pCxt->pCmdMsg->msgType = msgType;
   pCxt->pCmdMsg->msgLen = func(NULL, 0, pReq);
   if (pCxt->pCmdMsg->msgLen < 0) {
+    taosMemoryFreeClear(pCxt->pCmdMsg);
     return terrno;
   }
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
@@ -10620,6 +10621,8 @@ static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeF
     return terrno;
   }
   if (-1 == func(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, pReq)) {
+    taosMemoryFreeClear(pCxt->pCmdMsg->pMsg);
+    taosMemoryFreeClear(pCxt->pCmdMsg);
     code = TSDB_CODE_INVALID_MSG;
   }
   return code;

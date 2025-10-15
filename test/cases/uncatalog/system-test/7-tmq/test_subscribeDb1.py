@@ -6,6 +6,7 @@ import socket
 import os
 import threading
 import platform
+import psutil
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 
@@ -77,29 +78,65 @@ class TestCase:
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
-    def waitTransactionZero(self, seconds = 300, interval = 1):
-        # wait end
-        for i in range(seconds):
+    def waitTransactionZero1(self, tsql):
+        for i in range(300):
             sql ="show transactions;"
-            rows = tdSql.query(sql)
+            tsql.execute(sql)
+            result = tsql.fetchall()
+            rows = len(result)
             if rows == 0:
                 tdLog.info("transaction count became zero.")
                 return True
-            #tdLog.info(f"i={i} wait ...")
-            time.sleep(interval)
+            time.sleep(1)
         
         return False
     
-    def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum):
+
+    @staticmethod
+    def stopTmqSimProcess():
+        """停止 tmq_sim 进程"""
+        try:
+            if platform.system().lower() == 'windows':
+                # Windows 系统
+                shellCmd = 'taskkill /f /im tmq_sim.exe'
+                tdLog.info(f"Stopping tmq_sim process on Windows: {shellCmd}")
+                os.system(shellCmd)
+            else:
+                # 查找并终止 tmq_sim 进程
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        if proc.info['name'] == 'tmq_sim' or \
+                        (proc.info['cmdline'] and any('tmq_sim' in cmd for cmd in proc.info['cmdline'])):
+                            tdLog.info(f"Found tmq_sim process with PID: {proc.info['pid']}")
+                            proc.terminate()  # 优雅终止
+                            proc.wait(timeout=5)  # 等待进程结束
+                            tdLog.info(f"Successfully terminated tmq_sim process {proc.info['pid']}")
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
+                        pass
+                            
+            # 等待一段时间确保进程完全停止
+            time.sleep(2)
+            
+            # 验证进程是否已停止
+            if not TestCase.checkTmqSimProcess():
+                tdLog.info("tmq_sim process stopped successfully")
+            else:
+                tdLog.warning("tmq_sim process may still be running")
+                
+        except Exception as e:
+            tdLog.error(f"Error stopping tmq_sim process: {str(e)}")
+
+    def create_tables(self, tsql, dbName, vgroups, stbName, ctbNum):
         tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
-        if self.waitTransactionZero() is False:
+        
+        if self.waitTransactionZero1(tsql) is False:
             tdLog.exit(f"transaction not finished")
             return False
+        
         tsql.execute("use %s" %dbName)
         tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
         pre_create = "create table"
         sql = pre_create
-        #tdLog.debug("doing create one  stable %s and %d  child table in %s  ..." %(stbname, count ,dbname))
         for i in range(ctbNum):
             sql += " %s_%d using %s tags(%d)"%(stbName,i,stbName,i+1)
             if (i > 0) and (i%100 == 0):
@@ -190,7 +227,7 @@ class TestCase:
                          'batchNum':   100,      \
                          'replica':    self.replicaVar,     \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        parameterDict['cfg'] = cfgPath
+        parameterDict2['cfg'] = cfgPath
 
         tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict2['dbName'], parameterDict2['vgroups'], parameterDict2['replica']))
 
@@ -243,6 +280,8 @@ class TestCase:
 
         tdSql.query("drop topic %s"%topicName1)
         tdSql.query("drop topic %s"%topicName2)
+        
+        self.stopTmqSimProcess()
 
         tdLog.printNoPrefix("======== test case 6 end ...... ")
 
@@ -277,7 +316,7 @@ class TestCase:
                          'batchNum':   100,      \
                          'replica':   self.replicaVar,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        parameterDict['cfg'] = cfgPath
+        parameterDict2['cfg'] = cfgPath
 
         tdSql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600" %(parameterDict2['dbName'], parameterDict2['vgroups'], parameterDict2['replica']))
 
@@ -330,6 +369,8 @@ class TestCase:
 
         tdSql.query("drop topic %s"%topicName1)
         tdSql.query("drop topic %s"%topicName2)
+        
+        self.stopTmqSimProcess()
 
         tdLog.printNoPrefix("======== test case 7 end ...... ")
 
