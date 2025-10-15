@@ -82,6 +82,9 @@ typedef struct SSysTableScanInfo {
   // file set iterate
   struct SFileSetReader* pFileSetReader;
   SHashObj*              pExtSchema;
+
+  // for virtual supertable scan
+  STableListInfo*        pSubTableListInfo;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -832,6 +835,19 @@ _end:
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
+static bool virtualChildTableNeedCollect(STableListInfo* pTableListInfo, tb_uid_t tableUid) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
+    tb_uid_t* childUid = taosArrayGet(pTableListInfo->pTableList, i);
+    if (childUid == NULL) {
+      return false;
+    }
+    if (*childUid == tableUid) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -916,7 +932,9 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
-
+      if (!virtualChildTableNeedCollect(pInfo->pSubTableListInfo, pInfo->pCur->mr.me.uid)) {
+        continue;
+      }
       colRef = &pInfo->pCur->mr.me.colRef;
       int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
       void*   schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
@@ -3438,8 +3456,9 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 //   return 0;
 // }
 
-int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode, const char* pUser,
-                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
+                                       STableListInfo* pTableListInfo, const char* pUser, SExecTaskInfo* pTaskInfo,
+                                       SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -3507,6 +3526,8 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     pInfo->epSet = pScanPhyNode->mgmtEpSet;
     pInfo->readHandle = *(SReadHandle*)readHandle;
   }
+
+  pInfo->pSubTableListInfo = pTableListInfo;
 
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -3592,6 +3613,7 @@ void destroySysScanOperator(void* param) {
     taosHashCleanup(pInfo->pExtSchema);
     pInfo->pExtSchema = NULL;
   }
+  tableListDestroy(pInfo->pSubTableListInfo);
 
   taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFreeClear(pInfo->pUser);

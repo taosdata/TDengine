@@ -741,6 +741,47 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   return code;
 }
 
+static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtrlLogicNode* pScan) {
+  if (NULL == pScan->node.pConditions ||
+      OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode*  pTagIndexCond = NULL;
+  SNode*  pTagCond = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(filterPartitionCond(&pScan->node.pConditions, NULL, &pTagIndexCond, &pTagCond, NULL));
+  if (NULL != pTagCond) {
+    PLAN_ERR_JRET(pushDownCondOptRebuildTbanme(&pTagCond));
+  }
+
+  SVirtualScanLogicNode *pVscan = (SVirtualScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 0);
+  if (NULL == pVscan || QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pVscan)) {
+    qError("pdcDealVirtualSuperTableScan get invalid vtable scan logic node from dyn query ctrl node");
+    PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
+  }
+  SScanLogicNode* pSysScan = (SScanLogicNode*)nodesListGetNode(pScan->node.pChildren, 1);
+  if (NULL == pSysScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pSysScan) || pSysScan->tableType != TSDB_SYSTEM_TABLE) {
+    qError("pdcDealVirtualSuperTableScan get invalid sys scan logic node from vtable scan node");
+    PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
+  }
+
+  TSWAP(pVscan->node.pConditions, pScan->node.pConditions);
+
+  pSysScan->pTagCond = pTagCond;
+  pSysScan->pTagIndexCond = pTagIndexCond;
+
+  OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+  pCxt->optimized = true;
+
+  return code;
+_return:
+  nodesDestroyNode(pTagIndexCond);
+  nodesDestroyNode(pTagCond);
+  return code;
+}
+
 static bool pdcColBelongThisTable(SNode* pCondCol, SNodeList* pTableCols) {
   SNode* pTableCol = NULL;
   FOREACH(pTableCol, pTableCols) {
@@ -2436,6 +2477,9 @@ static int32_t pdcOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
       break;
     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
       code = pdcDealVirtualTable(pCxt, (SVirtualScanLogicNode*)pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
+      code = pdcDealVirtualSuperTableScan(pCxt, (SDynQueryCtrlLogicNode*)pLogicNode);
       break;
     default:
       break;
