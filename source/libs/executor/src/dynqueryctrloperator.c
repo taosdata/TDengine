@@ -540,6 +540,7 @@ static int32_t buildExchangeOperatorParamForVScanEx(SOperatorParam** ppRes, int3
   basic->newDeployedSrc.type = QUERY_NODE_DOWNSTREAM_SOURCE;
   basic->newDeployedSrc.clientId = taskId;// current task's taskid
   basic->newDeployedSrc.taskId = pTaskAddr->taskId;
+  qInfo("fixtaskid build exchange for vscan, deploy taskid: %" PRIx64 ", src taskid: %" PRIx64, taskId, pTaskAddr->taskId);
   basic->newDeployedSrc.fetchMsgType = TDMT_STREAM_FETCH;
   basic->newDeployedSrc.localExec = false;
   basic->newDeployedSrc.addr.nodeId = pTaskAddr->nodeId;

@@ -310,6 +310,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .fetchMsgType = SCH_FETCH_TYPE(pTask),
         .localExec = SCH_IS_LOCAL_EXEC_TASK(pJob, pTask),
     };
+    SCH_TASK_ELOG("fixtaskid set subplan exec node for parent task, parent taskid: %" PRIx64 ", child taskid: %" PRIx64,
+                  pParent->taskId, pTask->taskId);
 
     code = qSetSubplanExecutionNode(pParent->plan, pTask->plan->id.groupId, &source);
     if (TSDB_CODE_SUCCESS != code) {
