@@ -399,7 +399,7 @@ static int btreeToStack(SBTree* pBt, TXN* pTxn) {
   SBtreeInitPageArg arg = {.pBt = pBt, .flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF};
   int ret = tdbPagerFetchPage(pBt->pPager, &pBt->root, &pRoot, tdbBtreeInitPage, &arg, pTxn);
   if (ret < 0) {
-    
+    tdbError("tdb/btree-to-stack: fetch root page failed with ret: %d.", ret);
     return ret;
   }
 
@@ -426,7 +426,11 @@ static int btreeToStack(SBTree* pBt, TXN* pTxn) {
   // corruption, it is a rare case, but we are unable to detect and handle it correctly.
   if (!TDB_BTREE_PAGE_IS_LEAF(pRoot)) {
     tdbWarn("tdb/btree-to-stack: root page is not a leaf page, all existing free pages are discarded");
-    tdbBtreeInitPage(pRoot, &arg, 0); // re-initialize the root page
+    ret = tdbBtreeInitPage(pRoot, &arg, 0); // re-initialize the root page
+    if (ret < 0) {
+      tdbError("tdb/btree-to-stack: init page failed with ret: %d.", ret);
+      return ret;
+    }
     TDB_BTREE_PAGE_SET_FLAGS(pRoot, TDB_BTREE_STACK|TDB_BTREE_LEAF|TDB_BTREE_ROOT);
     tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
     return 0;
@@ -1378,7 +1382,10 @@ int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt) {
       return ret;
     }
 
-    tdbPagerInsertFreePage(pBt->pPager, ofp, pTxn);
+    ret = tdbPagerInsertFreePage(pBt->pPager, ofp, pTxn);
+    if (ret < 0) {
+      return ret;
+    }
     tdbPagerReturnPage(pBt->pPager, ofp, pTxn);
 
     nSize -= bytes;
