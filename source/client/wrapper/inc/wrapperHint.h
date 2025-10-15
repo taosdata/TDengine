@@ -30,4 +30,4 @@ void showWrapperHint(uint32_t errCode);
 }
 #endif
 
-#endif  // TDENGINE_CLIENT_WRAPPER_H
+#endif  // TDENGINE_WRAPPER_HINT_H

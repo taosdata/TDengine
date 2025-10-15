@@ -138,13 +138,4 @@ void showWrapperHint(uint32_t errCode) {
     default:
       break;
   }
-
- if (errCode == TSDB_CODE_DLL_NOT_LOAD) {
-    printf("Please make sure you have installed TDengine client library. \r\n");
-    printf("On Linux, you can install it via: sudo apt-get install taos-client or sudo yum install taos-client \r\n");
-    printf("On MacOS, you can install it via: brew install taosdata/tap/taos \r\n");
-    printf("Or you can download the TDengine server package from https://www.taosdata.com/cn/download/ and copy the client library to your system path.\r\n");
-  } else if (errCode == TSDB_CODE_DLL_FUNC_NOT_LOAD) {
-    printf("The version of TDengine client library is too old. Please upgrade it to at least v3.0.0.\r\n");
-  }
 }
