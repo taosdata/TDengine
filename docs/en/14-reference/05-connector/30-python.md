@@ -88,7 +88,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
-|0.6.1 | 1. Support BLOB data type <br/> 2. Support timezone | - |
+|0.6.1 | 1. Support BLOB data type <br/> 2. Support timezone <br/> 3. Support load balancing | - |
 |0.5.3 | Support IPv6 address format | - |
 |0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
 |0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |

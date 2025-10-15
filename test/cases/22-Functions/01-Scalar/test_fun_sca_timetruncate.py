@@ -243,7 +243,6 @@ class TestFunTimetruncate:
 
     def test_fun_sca_timetruncate(self):
         """ Fun: Timetruncate()
-        
 
         1. Query from normal/child/super/without table
         2. Query from ns/us/ms precision database

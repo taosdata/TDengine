@@ -46,6 +46,7 @@ typedef struct {
   SArray  *pQueries;  // SArray<SQueryDesc>
   char     userApp[TSDB_APP_NAME_LEN];
   uint32_t userIp;
+  SIpAddr  userDualIp;
   SIpAddr  addr;
 } SConnObj;
 
@@ -144,8 +145,8 @@ static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
     varDataLen(dst) = strlen(varDataVal(dst));
   }
 
-  if (pConn->addr.ipv4[0] != 0 && strncmp(pConn->addr.ipv4, none, strlen(none)) != 0) {
-    char   *ipstr = IP_ADDR_STR(&pConn->addr);
+  if (pConn->userDualIp.ipv4[0] != 0 && strncmp(pConn->userDualIp.ipv4, none, strlen(none)) != 0) {
+    char   *ipstr = IP_ADDR_STR(&pConn->userDualIp);
     int32_t len = strlen(ipstr);
     memcpy(varDataVal(dst), ipstr, len);
     varDataLen(dst) = len;
@@ -159,24 +160,13 @@ static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) 
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
   connObj->userIp = userIp;
 }
-static int8_t emptyIpRange(SIpRange *pRange) {
-  int32_t  code = 0;
-  SIpRange node = {0};
-
-  if (memcmp(pRange, &node, sizeof(node)) == 0) {
-    return 1;
-  }
-  return 0;
-}
 static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
   int32_t code = 0;
   if (connObj == NULL) {
     return;
   }
 
-  if (emptyIpRange(pRange)) return;
-
-  code = tIpUintToStr(pRange, &connObj->addr);
+  code = tIpUintToStr(pRange, &connObj->userDualIp);
   if (code != 0) {
     mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
     return;
@@ -1049,7 +1039,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
     (void)tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
-              pQuery->reqRid);
+                    pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
