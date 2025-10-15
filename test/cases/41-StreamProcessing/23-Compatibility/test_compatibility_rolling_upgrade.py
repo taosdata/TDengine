@@ -7,7 +7,8 @@ from new_test_framework.utils import (
     clusterComCheck,
     tdStream,
     StreamItem,
-    tdCb
+    tdCb,
+    tdCom
 )
 
 
@@ -117,15 +118,15 @@ class TestCompatibilityRollingUpgrade:
 
             time.sleep(10)
 
-            tdCb.prepareDataOnOldVersion(lastBigVersion, self.getBuildPath(),corss_major_version=False)
+            tdCb.prepareDataOnOldVersion(lastBigVersion, tdCom.getBuildPath(),corss_major_version=False)
 
-            tdCb.updateNewVersion(self.getBuildPath(),self.getDnodePath(),0)
+            tdCb.updateNewVersion(tdCom.getBuildPath(),self.getDnodePath(),0)
 
             time.sleep(10)
 
             tdCb.verifyData(corss_major_version=False)
 
-            tdCb.verifyBackticksInTaosSql(self.getBuildPath())
+            tdCb.verifyBackticksInTaosSql(tdCom.getBuildPath())
 
         tdLog.printNoPrefix("========== Rolling Upgrade Compatibility Test Completed Successfully ==========")
 
@@ -140,25 +141,6 @@ class TestCompatibilityRollingUpgrade:
         return lastBigVersion
 
     def getDnodePath(self):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         dnodePaths = [buildPath + "/../sim/dnode1/", buildPath + "/../sim/dnode2/", buildPath + "/../sim/dnode3/"]
         return dnodePaths
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        print(f"projPath:{projPath}")
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                print(f"rootRealPath:{rootRealPath}")
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        print(f"buildPath:{buildPath}")
-        return buildPath

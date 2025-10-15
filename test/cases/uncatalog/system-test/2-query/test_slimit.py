@@ -16,7 +16,7 @@ import os
 import random
 import re
 
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 class TestSlimit:
     def setup_class(cls):
@@ -27,25 +27,9 @@ class TestSlimit:
         cls.testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        buildPath = ""
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        return buildPath
 
     def run_benchmark(self,dbname,tables,per_table_num,vgroups,replica):
-        # buildPath = self.getBuildPath()
+        # buildPath = tdCom.getBuildPath()
         # if (buildPath == ""):
         #     tdLog.exit("taosd not found!")
         # else:
