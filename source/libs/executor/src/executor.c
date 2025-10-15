@@ -1839,6 +1839,7 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
   STableListInfo* pTableListInfoHistory = pTableListHistory;
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
+    code = terrno;
     goto end;
   }
   SScanPhysiNode pScanNode = {.suid = pTableListInfo->idInfo.suid, .tableType = pTableListInfo->idInfo.tableType};
@@ -1868,10 +1869,12 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
     STableKeyInfo* info = taosArrayGet(pList->pTableList, i);
     if (info == NULL) continue;
     if (taosArrayPush(pTableListInfo->pTableList, info) == NULL) {
+      code = terrno;
       goto end;
     }
     if (taosArrayPush(pTableListInfoHistory->pTableList, info) == NULL) {
       taosArrayPopTailBatch(pTableListInfo->pTableList, 1); // Rollback
+      code = terrno;
       goto end;
     }
   }
