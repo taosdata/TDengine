@@ -29,11 +29,11 @@ Error Code = Category Prefix (first 4 digits) + Specific Error Code (last 4 digi
 
 Taking error code `0x80000216` as an example:
 - **Prefix**: `0x8000` → TDengine business error.
-- **Specific Error Code**: `0x0216` → Corresponds to TSC module's "Syntax error in SQL".
+- **Specific Error Code**: `0216` → Corresponds to TSC module's "Syntax error in SQL".
 
 Taking error code `0x80FF0002` as an example:
 - **Prefix**: `0x80FF` → Linux system error.
-- **Specific Error Code**: `0x0002` → Corresponds to Linux errno 0x2, which means "No such file or directory".
+- **Specific Error Code**: `0002` → Corresponds to Linux errno 2, which means "No such file or directory".
 
 ## TDengine TSDB Business Error
 
