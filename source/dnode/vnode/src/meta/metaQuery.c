@@ -708,7 +708,7 @@ SRSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) 
   SSchemaWrapper *pSW = NULL;
 
   if (!(pRSchema = (SRSchema *)taosMemoryCalloc(1, sizeof(SRSchema)))) goto _err;
-  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0x01))) goto _err;
+  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, (SExtSchema **)&pRSchema->extSchema, 0x01))) goto _err;
   if (!(pRSchema->tSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version))) goto _err;
 
   if (pSW->pRsma) {
@@ -716,7 +716,7 @@ SRSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) 
     memcpy(pRSchema->funcIds, pSW->pRsma->funcIds, pSW->nCols * sizeof(func_id_t));
 
     pRSchema->tbType = pSW->pRsma->tbType;
-    pRSchema->tbUid = uid;  // TODO: child table or super table?
+    pRSchema->tbUid = uid;
     tstrncpy(pRSchema->tbName, pSW->pRsma->tbName, TSDB_TABLE_NAME_LEN);
     pRSchema->interval[0] = pSW->pRsma->interval[0];
     pRSchema->interval[1] = pSW->pRsma->interval[1];

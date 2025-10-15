@@ -2418,6 +2418,7 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
 
   mndTransSetDbName(pTrans, pVgroup->dbName, NULL);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithRetention(pMnode, pTrans), NULL, _OVER);
 
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to redistribute vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
@@ -3578,6 +3579,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
 
   mndTransSetDbName(pTrans, pDb->name, NULL);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithRetention(pMnode, pTrans), NULL, _OVER);
 
   SVgObj newVg1 = {0};
   memcpy(&newVg1, pVgroup, sizeof(SVgObj));
@@ -3828,6 +3830,7 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
   mInfo("trans:%d, used to balance vgroup", pTrans->id);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransCheckConflictWithRetention(pMnode, pTrans), NULL, _OVER);
 
   while (1) {
     taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);

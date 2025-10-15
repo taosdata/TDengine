@@ -32,6 +32,10 @@ typedef struct SKvParam {
 } SKvParam;
 
 int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
+  if (pDataBlock == NULL || pDataBlock->pData == NULL) {
+    qError("stmt qCloneCurrentTbData input is null, maybe not bind data before execute");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
   *pData = taosMemoryCalloc(1, sizeof(SSubmitTbData));
   if (NULL == *pData) {
     return terrno;

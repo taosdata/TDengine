@@ -393,6 +393,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateRsmaStmt";
     case QUERY_NODE_DROP_RSMA_STMT:
       return "DropRsmaStmt";
+    case QUERY_NODE_ALTER_RSMA_STMT:
+      return "AlterRsmaStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -2310,7 +2312,10 @@ static const char* jkTableScanPhysiPlanScanCount = "ScanCount";
 static const char* jkTableScanPhysiPlanReverseScanCount = "ReverseScanCount";
 static const char* jkTableScanPhysiPlanStartKey = "StartKey";
 static const char* jkTableScanPhysiPlanEndKey = "EndKey";
+static const char* jkTableScanPhysiPlanExtStartKey = "ExtStartKey";
+static const char* jkTableScanPhysiPlanExtEndKey = "ExtEndKey";
 static const char* jkTableScanPhysiPlanTimeRangeExpr = "TimeRangeExpr";
+static const char* jkTableScanPhysiPlanExtTimeRangeExpr = "ExtTimeRangeExpr";
 static const char* jkTableScanPhysiPlanRatio = "Ratio";
 static const char* jkTableScanPhysiPlanDataRequired = "DataRequired";
 static const char* jkTableScanPhysiPlanDynamicScanFuncs = "DynamicScanFuncs";
@@ -2354,8 +2359,17 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanEndKey, pNode->scanRange.ekey);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->pExtScanRange) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanExtStartKey, pNode->pExtScanRange->skey);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pExtScanRange) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanExtEndKey, pNode->pExtScanRange->ekey);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkTableScanPhysiPlanTimeRangeExpr, nodeToJson, pNode->pTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkTableScanPhysiPlanExtTimeRangeExpr, nodeToJson, pNode->pExtTimeRange);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddDoubleToObject(pJson, jkTableScanPhysiPlanRatio, pNode->ratio);
@@ -2423,6 +2437,22 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
+static int32_t jsonToExtTimeWindow(const SJson* pJson, STimeWindow** pWin) {
+  int64_t skey = 0;
+  if (NULL == tjsonGetObjectItem(pJson, jkTableScanPhysiPlanExtStartKey)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  *pWin = taosMemoryMalloc(sizeof(**pWin));
+  if (NULL == *pWin) {
+    return terrno;
+  }
+  int32_t code = tjsonGetBigIntValue(pJson, jkTableScanPhysiPlanExtStartKey, &(*pWin)->skey);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkTableScanPhysiPlanExtEndKey, &(*pWin)->ekey);
+  }
+  return code;
+}
+
 static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
 
@@ -2440,7 +2470,13 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
     code = tjsonGetBigIntValue(pJson, jkTableScanPhysiPlanEndKey, &pNode->scanRange.ekey);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToExtTimeWindow(pJson, &pNode->pExtScanRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkTableScanPhysiPlanTimeRangeExpr, &pNode->pTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkTableScanPhysiPlanExtTimeRangeExpr, &pNode->pExtTimeRange);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetDoubleValue(pJson, jkTableScanPhysiPlanRatio, &pNode->ratio);
@@ -3771,6 +3807,7 @@ static const char* jkInterpFuncPhysiPlanExprs = "Exprs";
 static const char* jkInterpFuncPhysiPlanFuncs = "Funcs";
 static const char* jkInterpFuncPhysiPlanStartTime = "StartTime";
 static const char* jkInterpFuncPhysiPlanEndTime = "EndTime";
+static const char* jkInterpFuncPhysiPlanRangeExpr = "RangeExpr";
 static const char* jkInterpFuncPhysiPlanInterval = "Interval";
 static const char* jkInterpFuncPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkInterpFuncPhysiPlanPrecision = "precision";
@@ -3795,6 +3832,9 @@ static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanEndTime, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkInterpFuncPhysiPlanRangeExpr, nodeToJson, pNode->pTimeRange);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanInterval, pNode->interval);
@@ -3839,6 +3879,9 @@ static int32_t jsonToPhysiInterpFuncNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanEndTime, &pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkInterpFuncPhysiPlanRangeExpr, &pNode->pTimeRange);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanInterval, &pNode->interval);

@@ -1188,6 +1188,10 @@ static int32_t collectMetaKeyFromDropRsmaStmt(SCollectMetaKeyCxt* pCxt, SDropRsm
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromAlterRsmaStmt(SCollectMetaKeyCxt* pCxt, SAlterRsmaStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowRsmasStmt(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_RSMAS,
                                  pCxt->pMetaCache);
@@ -1405,6 +1409,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCreateRsmaStmt(pCxt, (SCreateRsmaStmt*)pStmt);
     case QUERY_NODE_DROP_RSMA_STMT:
       return collectMetaKeyFromDropRsmaStmt(pCxt, (SDropRsmaStmt*)pStmt);
+    case QUERY_NODE_ALTER_RSMA_STMT:
+      return collectMetaKeyFromAlterRsmaStmt(pCxt, (SAlterRsmaStmt*)pStmt);
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return collectMetaKeyFromShowRsmasStmt(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
