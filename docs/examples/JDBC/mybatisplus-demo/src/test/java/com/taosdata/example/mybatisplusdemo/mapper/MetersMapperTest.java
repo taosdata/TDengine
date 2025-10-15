@@ -30,7 +30,7 @@ public class MetersMapperTest {
     @Autowired
     private MetersMapper mapper;
 
-    @Before 
+    @Before
     public void createTable(){
         mapper.dropTable();
         mapper.createTable();
@@ -123,4 +123,10 @@ public class MetersMapperTest {
         }
     }
 
+    @Test
+    public void testCountBySql() {
+        int count = mapper.countBySql("test_10001");
+        System.out.println(count);
+        Assert.assertEquals(1, count);
+    }
 }
