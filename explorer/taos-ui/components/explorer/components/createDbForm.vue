@@ -647,7 +647,7 @@ const props = withDefaults(defineProps<CreateDbProps>(), {
   showTitle: true,
   dbList: () => [],
   isHa: false,
-  isEdit: false
+  isEdit: false,
 });
 const dbParameters: Recordable = getDbParamsByTdVersion(props.version);
 const dbParamsterList = Object.keys(dbParameters);
