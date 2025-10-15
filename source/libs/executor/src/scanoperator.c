@@ -1708,12 +1708,14 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);
 
+  cleanupQueryTableDataCond(&pInfo->base.cond);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle);
+  if (code) {
+    qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
+    return code;
+  }
   if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
-    cleanupQueryTableDataCond(&pInfo->base.cond);
-    SReadHandle readHandle = pInfo->base.readHandle;
-    readHandle.winRange = pInfo->base.cond.twindows;
-    code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &readHandle);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
   }
@@ -4583,6 +4585,11 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
   }
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle);
+  if (code) {
+    qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
+    return code;
+  }
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
