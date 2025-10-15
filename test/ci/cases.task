@@ -313,6 +313,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timediff.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timetruncate.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timezone.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_json.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_iso8601.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_unixtimestamp.py
@@ -985,7 +986,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4382.py

@@ -16,23 +16,22 @@ class TestJsonTag:
         #tdSql.init(conn.cursor(), logSql)
         pass
 
-    def test_json_tag(self):
-        """summary: xxx
+    def test_fun_sca_to_json(self):
+        """ Fun: to_json()
 
-        description: xxx
+        1. Create json tag on super table
+        2. Insert json tag with different data type
+        3. Query using to_json function with null/{"abc":123}/{"key"} parameter
+        4. Check query result right
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-15 Alex Duan Migrated from uncatalog/system-test/2-query/test_json_tag.py
 
         """
 

@@ -474,11 +474,7 @@ class TestScalarFunction:
         self.run_round()
         self.run_greatest_large_table()
 
-        self.run_replace()
-        self.run_repeat()
-        self.run_substr()
         self.run_substr_idx()
-        self.run_trim()
 
         self.run_timediff()
         self.run_week()
@@ -856,3 +852,118 @@ class TestScalarFunction:
 
         """
         self.run_position()
+        
+    def test_fun_sca_repeat(self):
+        """ Fun: Repeat()
+
+        1. Support datatype varchar/nchar
+        2. Query with first parameter null or second parameter null
+        3. Call in function concat/concat_ws/position
+        4. Call with function input trim/concat/length
+        5. Query with limit/order by/where
+        6. Query on stable/notable
+        7. Query on column/tag
+        8. Error query with no parameter
+        9. Error query with 1 and 3 parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_repeat()
+
+    def test_fun_sca_replace(self):
+        """ Fun: Replace()
+
+        1. Support datatype varchar/nchar
+        2. Query with first and second parameter null
+        3. Call with function input lower/substr/concat/upper/trim
+        4. Query with limit/order by/where
+        5. Query on stable/notable
+        6. Query on column/tag/constant
+        7. Error query with no parameter
+        8. Error query with invalid datatype parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_replace()
+
+    def test_fun_sca_substr(self):
+        """ Fun: Substr()
+
+        1. Support datatype varchar/nchar
+        2. Query with 1 ~ 3 parameter null
+        3. Query with from/for keyword
+        4. Call with function input concat/upper/trim/sign
+        5. Query with limit/order by/where
+        6. Query on stable/notable
+        7. Query on column/tag/constant
+        8. Query with alias name substring
+        9. Error query with no parameter
+        10. Error query with invalid datatype parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_substr()
+
+    def test_fun_sca_substring_index(self):
+        """ Fun: Substring_index()
+
+        1. Support datatype varchar/nchar
+        2. Query with 1 ~ 3 parameter null
+        3. Call with function input concat/upper/trim/length
+        4. Query with limit/order by/where
+        5. Query on stable/child/notable
+        6. Error query with no parameter
+        7. Error query with first parameter number
+        8. Error query with second parameter string
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_substr_idx()
+
+    def test_fun_sca_trim(self):
+        """ Fun: Trim()
+
+        1. Support data types varchar/nchar
+        2. Query with keyword both/leading/trailing/from
+        3. Query with constant/null/chinese parameter
+        4. Query with input function parameter concat/upper/substring/replace
+        5. Query with limit/order by asc/where
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with number parameter
+        9. Error query with both from with number parameter
+
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_trim()
