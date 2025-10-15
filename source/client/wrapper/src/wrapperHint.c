@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -19,10 +19,10 @@
 void tdengineErrorHint(uint32_t errCode) {
   switch (errCode) {
     case TSDB_CODE_DLL_NOT_LOAD:
-      printf("Hint: Please make sure you have installed TDengine client library. \n");
+      printf("Hint: Please make sure you have installed TDengine client or try re-install TDengine client.\n");
       break;
     case TSDB_CODE_DLL_FUNC_NOT_LOAD:
-      printf("Hint: Please re-install TDengine client library.\n");
+      printf("Hint: TDengine client libraries not matched, try re-install TDengine client.\n");
       break;
     default:
       break;
