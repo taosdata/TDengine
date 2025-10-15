@@ -327,9 +327,9 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     }
     TAOS_CHECK_RETURN(metaEncodeExtSchema(pCoder, pME));
   }
-  if (pME->type == TSDB_SUPER_TABLE) {
-    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
-  }
+  // if (pME->type == TSDB_SUPER_TABLE) {
+  //   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
+  // }
 
   tEndEncode(pCoder);
   return 0;
@@ -424,11 +424,11 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
       pME->pExtSchemas = NULL;
     }
   }
-  if (pME->type == TSDB_SUPER_TABLE) {
-    if (!tDecodeIsEnd(pCoder)) {
-      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->stbEntry.keep));
-    }
-  }
+  // if (pME->type == TSDB_SUPER_TABLE) {
+  //   if (!tDecodeIsEnd(pCoder)) {
+  //     TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->stbEntry.keep));
+  //   }
+  // }
 
 
   tEndDecode(pCoder);
