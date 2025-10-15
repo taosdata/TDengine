@@ -19,6 +19,7 @@
 #include "planInt.h"
 #include "planner.h"
 #include "plannodes.h"
+#include "querynodes.h"
 #include "systable.h"
 #include "tglobal.h"
 
@@ -1690,7 +1691,7 @@ static bool isImputationFunc(int32_t funcId) {
 }
 
 static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (!pSelect->hasImputationFunc) {
+  if (!pSelect->hasGenericAnalysisFunc) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1708,6 +1709,21 @@ static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStm
   code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isImputationFunc, &pImputatFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pImputatFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
+  }
+
+  // decide the analysis type, according to the query function
+  for (int32_t i = 0; i < LIST_LENGTH(pImputatFunc->pFuncs); i++) {
+    SFunctionNode* pNode = (SFunctionNode*) nodesListGetNode(pImputatFunc->pFuncs, i);
+    if (pNode->funcType == FUNCTION_TYPE_IMPUTATION) {
+      pImputatFunc->analysisType = pNode->funcType;   // todo refactor
+      break;
+    } else if (pNode->funcType == FUNCTION_TYPE_DTW || pNode->funcType == FUNCTION_TYPE_DTW_PATH) {
+      pImputatFunc->analysisType = pNode->funcType;
+      break;
+    } else if (pNode->funcType == FUNCTION_TYPE_TLCC) {
+      pImputatFunc->analysisType = pNode->funcType;
+      break;
+    }
   }
 
   // set the output

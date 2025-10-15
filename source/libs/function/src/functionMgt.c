@@ -261,7 +261,9 @@ bool fmIsImputationFunc(int32_t funcId) {
     return false;
   }
 
-  return FUNCTION_TYPE_IMPUTATION == funcMgtBuiltins[funcId].type;
+  int32_t type = funcMgtBuiltins[funcId].type;
+  return FUNCTION_TYPE_IMPUTATION == type || FUNCTION_TYPE_DTW == type || FUNCTION_TYPE_DTW_PATH == type ||
+         FUNCTION_TYPE_TLCC == type;
 }
 
 bool fmIsLastRowFunc(int32_t funcId) {
