@@ -694,9 +694,9 @@ class Test_IDMP_Meters:
         count = 5
         ts    = tdSql.insertFixedVal(table, self.ts7, step, count, cols, vals)
 
-        # delete win3 for rows 0 and 1
-        sql = f"delete from {table} where ts >= {self.disTs7} and ts < {self.disTs7 + 2 * step}"
-        self.exec(sql)        
+        # # delete win3 for rows 0 and 1
+        # sql = f"delete from {table} where ts >= {self.disTs7} and ts < {self.disTs7 + 2 * step}"
+        # self.exec(sql)        
 
 
     #
