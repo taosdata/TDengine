@@ -417,6 +417,8 @@ int32_t tsStreamVirtualMergeMaxDelayMs = 10 * 1000;  // 10s
 int32_t tsStreamVirtualMergeMaxMemKb = 16 * 1024;    // 16MB
 int32_t tsStreamVirtualMergeWaitMode = 0;            // 0 wait forever, 1 wait for max delay, 2 wait for max mem
 
+int32_t tsRpcRecvLogThreshold = 3;  // in seconds, default 3
+
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
@@ -1065,6 +1067,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeMaxDelay", tsStreamVirtualMergeMaxDelayMs, 500, 10 * 60 * 1000, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeMaxMem", tsStreamVirtualMergeMaxMemKb, 8 * 1024, 1 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamVirtualMergeWaitMode", tsStreamVirtualMergeWaitMode, 0, 2, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "rpcRecvLogThreshold", tsRpcRecvLogThreshold, 1, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
 
   // clang-format on
 
@@ -2074,6 +2078,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVirtualMergeWaitMode");
   tsStreamVirtualMergeWaitMode = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rpcRecvLogThreshold");
+  tsRpcRecvLogThreshold = pItem->i32;
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2859,7 +2865,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbSetAssignedTimeoutMs", &tsArbSetAssignedTimeoutMs},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
-                                         {"forceKillTrans", &tsForceKillTrans}};
+                                         {"forceKillTrans", &tsForceKillTrans},
+                                         {"rpcRecvLogThreshold", &tsRpcRecvLogThreshold}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
