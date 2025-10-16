@@ -167,7 +167,7 @@ function transfer_debug_dirs() {
         fi
         i=$((i + 1))
     done
-    cd $local_work_dir
+    cd "$local_work_dir"
     rm -rf debug.tar.gz
     tar -czf debug.tar.gz \
         debugSan/build/bin/taos* \
