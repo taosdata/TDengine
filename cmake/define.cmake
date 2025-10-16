@@ -157,40 +157,40 @@ IF(TD_WINDOWS)
     # ref: https://learn.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-level-1-c4819?view=msvc-170
     set(_c_cxx_flags_list
         /W3 /WX
-        /wd4311      # 'variable' : pointer truncation from 'type' to 'type'
-        /wd4312      # 'operation' : conversion from 'type1' to 'type2' of greater size
-        /wd4022      # 'function' : pointer mismatch for actual parameter 'number'
-        /wd4013      # 'function' undefined; assuming extern returning int
-        /wd4090      # 'operation' : different 'modifier' qualifiers
-        /wd4996      # Your code uses a function, class member, variable, or typedef that's marked deprecated
-        /wd4819      # The file contains a character that cannot be represented in the current code page (number)
-        /wd4101      # The local variable is never used
-        /wd4244      # 'argument' : conversion from 'type1' to 'type2', possible loss of data
-        /wd4267      # 'var' : conversion from 'size_t' to 'type', possible loss of data
-        /wd4098      # 'function' : void function returning a value
-        /wd4047      # 'operator' : 'identifier1' differs in levels of indirection from 'identifier2'
-        /wd4133      # 'expression': incompatible types - from 'type1' to 'type2'
-        /wd4715      # 'function' : not all control paths return a value
-        /wd4018      # 'token' : signed/unsigned mismatch
-        /wd4716      # 'function' must return a value
-        /wd4305      # 'conversion': truncation from 'type1' to 'type2'
-        /wd4102      # 'label' : unreferenced label
-        /wd4146      # unary minus operator applied to unsigned type, result still unsigned
-        /wd4005      # 'identifier' : macro redefinition
-        /wd4273      # 'function' : inconsistent DLL linkage
-        /wd4068      # unknown pragma
-        /wd4003      # not enough arguments for function-like macro invocation 'identifier'
-        /wd4081      # expected 'token1'; found 'token2'
-        /wd4113      # 'identifier1' differs in parameter lists from 'identifier2'
-        /wd4477      # 'function' : format string 'string' requires an argument of type 'type', but variadic argument number has type 'type'
-        /wd4293      # 'operator' : shift count negative or too big, undefined behavior
-        /wd4805      # 'operation' : unsafe mix of type 'type' and type 'type' in operation
-        /wd4334      # 'operator': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
-        /wd4307      # 'operator' : signed integral constant overflow
-        /wd4200      # nonstandard extension used: zero-sized array in struct/union
-                     # C++ only: This member will be ignored by a defaulted constructor or copy/move assignment operator
-        /wd4309      # 'conversion' : truncation of constant value
-        /wd4028      # formal parameter 'number' different from declaration
+        /wd4311 # 'variable' : pointer truncation from 'type' to 'type'
+        /wd4312 # 'operation' : conversion from 'type1' to 'type2' of greater size
+        /wd4022 # 'function' : pointer mismatch for actual parameter 'number'
+        /wd4013 # 'function' undefined; assuming extern returning int
+        /wd4090 # 'operation' : different 'modifier' qualifiers
+        /wd4996 # Your code uses a function, class member, variable, or typedef that's marked deprecated
+        /wd4819 # The file contains a character that cannot be represented in the current code page (number)
+        /wd4101 # The local variable is never used
+        /wd4244 # 'argument' : conversion from 'type1' to 'type2', possible loss of data
+        /wd4267 # 'var' : conversion from 'size_t' to 'type', possible loss of data
+        /wd4098 # 'function' : void function returning a value
+        /wd4047 # 'operator' : 'identifier1' differs in levels of indirection from 'identifier2'
+        /wd4133 # 'expression': incompatible types - from 'type1' to 'type2'
+        /wd4715 # 'function' : not all control paths return a value
+        /wd4018 # 'token' : signed/unsigned mismatch
+        /wd4716 # 'function' must return a value
+        /wd4305 # 'conversion': truncation from 'type1' to 'type2'
+        /wd4102 # 'label' : unreferenced label
+        /wd4146 # unary minus operator applied to unsigned type, result still unsigned
+        /wd4005 # 'identifier' : macro redefinition
+        /wd4273 # 'function' : inconsistent DLL linkage
+        /wd4068 # unknown pragma
+        /wd4003 # not enough arguments for function-like macro invocation 'identifier'
+        /wd4081 # expected 'token1'; found 'token2'
+        /wd4113 # 'identifier1' differs in parameter lists from 'identifier2'
+        /wd4477 # 'function' : format string 'string' requires an argument of type 'type', but variadic argument number has type 'type'
+        /wd4293 # 'operator' : shift count negative or too big, undefined behavior
+        /wd4805 # 'operation' : unsafe mix of type 'type' and type 'type' in operation
+        /wd4334 # 'operator': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
+        /wd4307 # 'operator' : signed integral constant overflow
+        /wd4200 # nonstandard extension used: zero-sized array in struct/union
+        # C++ only: This member will be ignored by a defaulted constructor or copy/move assignment operator
+        /wd4309 # 'conversion' : truncation of constant value
+        /wd4028 # formal parameter 'number' different from declaration
     )
     string(JOIN " " _c_cxx_flags ${_c_cxx_flags_list})
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
@@ -202,7 +202,7 @@ ELSE()
     ENDIF()
 
     set(_c_cxx_flags_list
-      -Wno-unused-result
+        -Wno-unused-result
     )
     string(JOIN " " _c_cxx_flags ${_c_cxx_flags_list})
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} ${_c_cxx_flags}")
@@ -217,7 +217,7 @@ ELSE()
     ENDIF()
 
     # disable all assert
-    IF((${DISABLE_ASSERT} MATCHES "true") OR(${DISABLE_ASSERTS} MATCHES "true"))
+    IF((${DISABLE_ASSERT} MATCHES "true") OR (${DISABLE_ASSERTS} MATCHES "true"))
         ADD_DEFINITIONS(-DDISABLE_ASSERT)
         MESSAGE(STATUS "Disable all asserts")
     ENDIF()
@@ -226,7 +226,7 @@ ELSE()
 
     IF(TD_ARM_64 OR TD_ARM_32)
         SET(COMPILER_SUPPORT_SSE42 false)
-    ELSEIF(("${CMAKE_C_COMPILER_ID}" MATCHES "Clang") OR("${CMAKE_C_COMPILER_ID}" MATCHES "AppleClang"))
+    ELSEIF(("${CMAKE_C_COMPILER_ID}" MATCHES "Clang") OR ("${CMAKE_C_COMPILER_ID}" MATCHES "AppleClang"))
         SET(COMPILER_SUPPORT_SSE42 true)
         MESSAGE(STATUS "Always enable sse4.2 for Clang/AppleClang")
     ELSE()
@@ -310,6 +310,14 @@ ELSE()
     ELSE()
         message(FATAL_ERROR "not implemented yet")
     ENDIF()
+ENDIF()
+
+IF(TD_RISCV_64)
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--relax -mcmodel=medium")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,--relax -mcmodel=medium")
+    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--relax")
+    SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--relax")
+    SET(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,--relax")
 ENDIF()
 
 IF(TD_LINUX_64)
