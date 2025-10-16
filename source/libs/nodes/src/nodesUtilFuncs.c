@@ -153,7 +153,7 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
   if (g_pNodeAllocator->pCurrChunk->usedSize + alignedSize > g_pNodeAllocator->pCurrChunk->availableSize) {
     int32_t code = callocNodeChunk(g_pNodeAllocator, NULL);
     if (TSDB_CODE_SUCCESS != code) {
-      *pOut = NULL;
+      taosMemFreeClear(*pOut);
       return code;
     }
   }
@@ -594,6 +594,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_DROP_RSMA_STMT:
       code = makeNode(type, sizeof(SDropRsmaStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_RSMA_STMT:
+      code = makeNode(type, sizeof(SAlterRsmaStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
@@ -1622,7 +1625,6 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_RSMA_STMT: {
       SCreateRsmaStmt* pStmt = (SCreateRsmaStmt*)pNode;
-      nodesDestroyList(pStmt->pCols);
       nodesDestroyList(pStmt->pFuncs);
       nodesDestroyList(pStmt->pIntervals);
       break;

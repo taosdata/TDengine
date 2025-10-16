@@ -5264,7 +5264,8 @@ _err:
   return NULL;
 }
 
-SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, SNodeList* pFuncs, bool add) {
+SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, int8_t alterType,
+                           void* alterInfo) {
   CHECK_PARSER_STATUS(pCxt);
   SAlterRsmaStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_RSMA_STMT, (SNode**)&pStmt);
@@ -5276,8 +5277,15 @@ SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode*
   memcpy(pStmt->dbName, pTableNode->table.dbName, TSDB_DB_NAME_LEN);
   nodesDestroyNode(pRsma);
 
-  pStmt->pFuncs = pFuncs;
-  pStmt->alterType = add ? 1 : 2;  // 1:add, 2:drop
+  pStmt->alterType = alterType;
+  switch (alterType) {
+    case TSDB_ALTER_RSMA_FUNCTION: {
+      pStmt->pFuncs = (SNodeList*)alterInfo;
+      break;
+    }
+    default:
+      break;
+  }
   return (SNode*)pStmt;
 _err:
   return NULL;

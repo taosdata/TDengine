@@ -89,6 +89,7 @@ typedef enum {
   MND_OPER_DROP_RSMA,
   MND_OPER_ROLLUP_DB,
   MND_OPER_SHOW_STB,
+  MND_OPER_ALTER_RSMA,
 } EOperType;
 
 typedef enum {
@@ -1030,6 +1031,7 @@ typedef struct {
     int32_t id;
   };
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* compactDetail;
   union {
@@ -1045,6 +1047,7 @@ typedef struct {
 typedef struct {
   int32_t scanId;
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* scanDetail;
 } SScanObj;
