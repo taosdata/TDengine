@@ -152,7 +152,7 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
   if (g_pNodeAllocator->pCurrChunk->usedSize + alignedSize > g_pNodeAllocator->pCurrChunk->availableSize) {
     int32_t code = callocNodeChunk(g_pNodeAllocator, NULL);
     if (TSDB_CODE_SUCCESS != code) {
-      *pOut = NULL;
+      taosMemFreeClear(*pOut);
       return code;
     }
   }
