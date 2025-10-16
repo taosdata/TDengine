@@ -659,7 +659,6 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
     ctgError("Expected pTableMeta to be NULL");
     return TSDB_CODE_INVALID_PARA;
   }
-  *pTableMeta = NULL;
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
