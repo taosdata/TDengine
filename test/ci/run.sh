@@ -195,8 +195,8 @@ function transfer_debug_dirs() {
         if ! is_local_host "${hosts[index]}"; then
             # remove remote debug dir if exists
             remote_cmd=$(get_remote_ssh_command "$index")
-            bash -c "${remote_cmd} rm -rf ${workdirs[index]}/debugSan"
-            bash -c "${remote_cmd} rm -rf ${workdirs[index]}/debugNoSan"
+            bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugSan'"
+            bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugNoSan'"
             # transfer debug.tar.gz to remote
             if [ -n "${passwords[index]}" ]; then
                 sshpass -p "${passwords[index]}" scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
