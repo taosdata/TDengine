@@ -1,13 +1,13 @@
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestIf:
+class TestFunIf:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_if(self):
-        """If
+    def test_fun_cmp_if(self):
+        """ Fun: If
 
         1. Using in data columns and scalar functions within SELECT statements
         2. Using in data columns within WHERE conditions
@@ -839,3 +839,65 @@ class TestIf:
         tdSql.query(f"select coalesce(null, null, null);")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
+
+    def test_fun_cmp_ifnull(self):
+        """ Fun: ifnull()
+
+        1. Check "select ifnull(1, 0)";
+        2. Check "select ifnull(null, 10)";
+        3. Check "select ifnull(1/0, 10)";
+        4. Check "select ifnull(1/0, 'yes')";
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        pass
+
+    def test_fun_cmp_nvl(self):
+        """ Fun: nvl()
+
+        same with ifnull() 
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        """
+        pass
+
+    def test_fun_cmp_nullif(self):
+        """ Fun: nullif()
+
+        1. Check "select nullif(1, 1)";
+        2. Check "select nullif(1, 2)";
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        pass
+
+    def test_fun_cmp_nvl2(self):
+        """ Fun: nvl2()
+
+        1. Check "select nvl2(null, 1, 2)";
+        2. Check "select nvl2('x', 1, 2)";
+        
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        pass

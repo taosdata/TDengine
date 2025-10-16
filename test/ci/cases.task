@@ -277,7 +277,6 @@
 ## 06-Logical
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_case_when.py
-,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_if.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_if_smoking.py
 
 # 22-Functions
@@ -361,7 +360,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_twa.py
-## 05-Others
+## 05-Compare
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/05-Compare/test_fun_cmp_if.py
 #,,y,.,./ci/pytest.sh pytest cases/22-Functions/05-others/test_resinfo.py
 
 # 23-UDFs

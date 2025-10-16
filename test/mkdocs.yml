@@ -101,6 +101,7 @@ nav:
         - 02-Aggregate: case_list_docs/Functions/Aggregate.md
         - 03-Selection: case_list_docs/Functions/Selection.md
         - 04-Timeseries: case_list_docs/Functions/Timeseries.md
+        - 05-Compare: case_list_docs/Functions/Compare.md
     - 23-UDFs: case_list_docs/UDFs.md
     - 24-TimeSeriesExt:
         - 01-PartitionBy: case_list_docs/TimeSeriesExt/PartitionBy.md
