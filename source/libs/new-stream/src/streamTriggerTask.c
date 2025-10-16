@@ -1897,7 +1897,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
         (pTask->triggerType == STREAM_TRIGGER_PERIOD) || (pTask->triggerType == STREAM_TRIGGER_SLIDING), code, lino,
         _end, TSDB_CODE_INVALID_PARA);
   }
-  pTask->precision = pTask->interval.precision;   // todo(kjq): deserialize precision from deploy msg
+  pTask->precision = pMsg->precision;
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
   pTask->streamName = taosStrdup(pMsg->streamName);
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);

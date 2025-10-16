@@ -565,6 +565,7 @@ typedef struct {
   int8_t isTriggerTblVirt;
   int8_t triggerHasPF;
   int8_t isTriggerTblStb;
+  int8_t precision;
   void*  partitionCols;
 
   // notify options
