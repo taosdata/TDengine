@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executor.h"
 #include "executorInt.h"
 #include "filter.h"
 #include "function.h"
@@ -4585,6 +4586,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
   }
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
+  cleanupQueryTableDataCond(&pInfo->base.cond);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle);
   if (code) {
     qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
