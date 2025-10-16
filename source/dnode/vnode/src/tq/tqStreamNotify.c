@@ -16,14 +16,14 @@
 #include "cmdnodes.h"
 #include "tq.h"
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_TD_RISCV_64)
 #include "curl/curl.h"
 #endif
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS         50          // 50 ms
 typedef struct SStreamNotifyHandle {
   TdThreadMutex mutex;
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_TD_RISCV_64)
   CURL* curl;
 #endif
   char* url;
@@ -35,7 +35,7 @@ struct SStreamNotifyHandleMap {
 };
 
 static void stopStreamNotifyConn(SStreamNotifyHandle* pHandle) {
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_TD_RISCV_64)
   if (pHandle == NULL || pHandle->curl == NULL) {
     return;
   }
@@ -76,7 +76,7 @@ static void releaseStreamNotifyHandle(SStreamNotifyHandle** ppHandle) {
 
 static int32_t acquireStreamNotifyHandle(SStreamNotifyHandleMap* pMap, const char* url,
                                          SStreamNotifyHandle** ppHandle) {
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_TD_RISCV_64)
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   bool                  gLocked = false;
@@ -359,7 +359,7 @@ _end:
 }
 
 static int32_t sendSingleStreamNotify(SStreamNotifyHandle* pHandle, char* msg) {
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_TD_RISCV_64)
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   CURLcode res = CURLE_OK;

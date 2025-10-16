@@ -91,8 +91,11 @@ else()
     PUBLIC util
     INTERFACE api
   )
-  DEP_ext_curl(common)
-  DEP_ext_ssl(common)
+
+  IF(TD_RISCV_64)
+    DEP_ext_curl(common)
+    DEP_ext_ssl(common)
+  ENDIF()
 endif()
 
 if(${BUILD_S3})

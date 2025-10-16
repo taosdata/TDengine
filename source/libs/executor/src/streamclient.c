@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef WINDOWS
-
+#if !defined(WINDOWS) && !defined(_TD_RISCV_64)
 #include <curl/curl.h>
-
 #endif
 
 #include "executorInt.h"
@@ -62,7 +60,10 @@ static size_t parseResult(char* pCont, size_t contLen, size_t nmemb, void* userd
   int32_t lino = 0;
   qDebug("stream client response is received, contLen:%d, nmemb:%d, pCont:%p", (int32_t)contLen, (int32_t)nmemb, pCont);
   QUERY_CHECK_CONDITION(contLen > 0, code, lino, _end, TSDB_CODE_FAILED);
+  
+#if !defined(_TD_RISCV_64)
   QUERY_CHECK_CONDITION(nmemb > CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+#endif
   QUERY_CHECK_NULL(pCont, code, lino, _end, TSDB_CODE_FAILED);
 
   qTrace("===stream=== result:%s", pCont);
@@ -80,6 +81,7 @@ static int32_t doProcessSql(SStreamRecParam* pParam, SJson** ppJsonResult) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
+#if !defined(_TD_RISCV_64)
   CURL* pCurl = curl_easy_init();
   QUERY_CHECK_NULL(pCurl, code, lino, _end, TSDB_CODE_FAILED);
 
@@ -126,6 +128,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s. error code:%d", __func__, lino, tstrerror(code), curlRes);
   }
+#endif
   return code;
 }
 
