@@ -204,7 +204,7 @@ function transfer_debug_dirs() {
                 scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
             fi
             # untar debug.tar.gz to remote
-            bash -c "${remote_cmd} \"tar -xzf ${workdirs[index]}/debug.tar.gz -C ${workdirs[index]} && rm -rf ${workdirs[index]}/debug.tar.gz\""
+            bash -c "${remote_cmd} \"tar -xzf '${workdirs[index]}/debug.tar.gz' -C '${workdirs[index]}' && rm -rf '${workdirs[index]}/debug.tar.gz'\""
         fi
         index=$((index + 1))
     done
