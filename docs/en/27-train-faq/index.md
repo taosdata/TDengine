@@ -8,7 +8,7 @@ slug: /frequently-asked-questions
 If the information in the FAQ does not help you, and you need technical support and assistance from the TDengine technical team, please package the contents of the following two directories:
 
 1. `/var/log/taos` (if the default path has not been modified)
-1. `/etc/taos` (if no other configuration file path has been specified)
+2. `/etc/taos` (if no other configuration file path has been specified)
 
 Attach the necessary problem description, including the version information of TDengine used, platform environment information, the operations performed when the problem occurred, the manifestation of the problem, and the approximate time, and submit an issue on [GitHub](https://github.com/taosdata/TDengine).
 
@@ -29,12 +29,36 @@ However, when the system is running normally, be sure to set the debugFlag to 13
 Version 3.0 is a complete reconstruction based on previous versions, and the configuration files and data files are not compatible. Be sure to perform the following operations before upgrading:
 
 1. Delete the configuration file, execute `sudo rm -rf /etc/taos/taos.cfg`
-1. Delete the log files, execute `sudo rm -rf /var/log/taos/`
-1. Under the premise that the data is no longer needed, delete the data files, execute `sudo rm -rf /var/lib/taos/`
-1. Install the latest stable version of TDengine 3.0
-1. If data migration is needed or data files are damaged, please contact the official technical support team of Taos Data for assistance
+2. Delete the log files, execute `sudo rm -rf /var/log/taos/`
+3. Under the premise that the data is no longer needed, delete the data files, execute `sudo rm -rf /var/lib/taos/`
+4. Install the latest stable version of TDengine 3.0
+5. If data migration is needed or data files are damaged, please contact the official technical support team of Taos Data for assistance
 
-### 4. What should I do if I encounter the error "Unable to establish connection"?
+### 2. What should I do if JDBC Driver cannot find the dynamic link library on Windows platform?
+
+Please refer to the [technical blog](https://www.taosdata.com/blog/2019/12/03/950.html) written for this issue.
+
+### 3. What should I do if loading "libtaosnative.so" or "libtaosws.so" fails?
+
+Problem Description:  
+When using TDengine TSDB client applications (taos-CLI, taosBenchmark, taosdump, etc.) or client connectors (such as Java, Python, Go, etc.), you may encounter errors when loading the dynamic link libraries "libtaosnative.so" or "libtaosws.so".  
+For example: `failed to load libtaosws.so since No such file or directory [0x80FF0002]`
+
+Problem Cause:  
+This occurs because the client cannot find the required dynamic link library files, possibly due to incorrect installation or improper configuration of the system library path.
+
+Problem Solution:  
+- **Check files**: Verify that the symbolic link files `libtaosnative.so` or `libtaosws.so` and their corresponding actual files exist in the system shared library directory and are complete. If the symbolic links or actual files are missing, reinstall them as they are included in both the TDengine TSDB client and server installation packages.
+- **Check environment variables**: Ensure that the system shared library loading directory environment variable `LD_LIBRARY_PATH` includes the directory where `libtaosnative.so` or `libtaosws.so` files are located. If not included, add it with `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<new_path>`.
+- **Check permissions**: Ensure that the current user has read and execute permissions for both the `libtaosnative.so` or `libtaosws.so` symbolic links and their actual files.
+- **Check file corruption**: You can verify the integrity of the library files using the command `readelf -h library_file`.
+- **Check file dependencies**: You can view the dependencies of the library files using the command `ldd library_file` to ensure that all dependencies are correctly installed and accessible.
+
+### 4. How to generate a core file when TDengine TSDB crashes?
+
+Please refer to the [technical blog](https://www.taosdata.com/blog/2019/12/06/974.html) written for this issue.
+
+### 5. What should I do if I encounter the error "Unable to establish connection"?
 
 If the client encounters a connection failure, please follow the steps below to check:
 
@@ -71,7 +95,7 @@ If the client encounters a connection failure, please follow the steps below to 
 
 1. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../operations-and-maintenance/).
 
-### 5. What to do if you encounter the error "Unable to resolve FQDN"?
+### 6. What to do if you encounter the error "Unable to resolve FQDN"?
 
 This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For the TDengine CLI or client applications, please check the following:
 
@@ -82,11 +106,11 @@ This error occurs because the client or data node cannot resolve the FQDN (Fully
 1. If the server has previously used TDengine and changed the hostname, it is recommended to check if the dnode.json in the data directory matches the currently configured EP, typically located at /var/lib/taos/dnode. Normally, it is advisable to change to a new data directory or backup and delete the previous data directory to avoid this issue.
 1. Check /etc/hosts and /etc/hostname for the pre-configured FQDN
 
-### 6. What is the most effective method for data insertion?
+### 7. What is the most effective method for data insertion?
 
 Batch insertion. Each insert statement can insert multiple records into one table at the same time, or multiple records into multiple tables simultaneously.
 
-### 7. How to solve the issue of Chinese characters in nchar type data being parsed as garbled text on Windows systems?
+### 8. How to solve the issue of Chinese characters in nchar type data being parsed as garbled text on Windows systems?
 
 When inserting nchar type data containing Chinese characters on Windows, first ensure that the system's regional settings are set to China (this can be set in the Control Panel). At this point, the `taos` client in cmd should already be working properly; if developing a Java application in an IDE, such as Eclipse or IntelliJ, ensure that the file encoding in the IDE is set to GBK (which is the default encoding type for Java), then initialize the client configuration when creating the Connection, as follows:
 
@@ -97,7 +121,7 @@ properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
 Connection = DriverManager.getConnection(url, properties);
 ```
 
-### 8. How to display Chinese characters correctly on Windows client systems?
+### 9. How to display Chinese characters correctly on Windows client systems?
 
 In Windows systems, Chinese characters are generally stored using GBK/GB18030 encoding, while the default character set for TDengine is UTF-8. When using the TDengine client on Windows, the client driver will convert characters to UTF-8 encoding before sending them to the server for storage. Therefore, during application development, it is essential to correctly configure the current Chinese character set.
 
@@ -108,17 +132,17 @@ locale C
 charset UTF-8
 ```
 
-### 9. Table Name Not Displaying Fully
+### 10. Table Name Not Displaying Fully
 
 Due to the limited display width in the TDengine CLI terminal, longer table names may not be displayed fully. If operations are performed using these incomplete table names, a "Table does not exist" error may occur. This can be resolved by modifying the `maxBinaryDisplayWidth` setting in the taos.cfg file, or by directly entering the command `set max_binary_display_width 100`. Alternatively, use the `\G` parameter at the end of the command to adjust the display format of the results.
 
-### 10. How to Migrate Data?
+### 11. How to Migrate Data?
 
 TDengine uniquely identifies a machine by its hostname. For version 3.0, when moving data files from Machine A to Machine B, it is necessary to reconfigure the hostname of Machine B to that of Machine A.
 
 Note: The storage structures of versions 3.x and earlier versions 1.x, 2.x are not compatible. It is necessary to use migration tools or develop applications to export and import data.
 
-### 11. How to Temporarily Adjust Log Levels in the Command Line Program `taos`
+### 12. How to Temporarily Adjust Log Levels in the Command Line Program `taos`
 
 For debugging convenience, the command line program `taos` has added instructions related to log recording:
 
@@ -139,7 +163,7 @@ This means that in the current command line program, you can clear all log files
 
 - The value can be: 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs).
 
-### 12. How to Resolve Compilation Failures of Components Written in Go?
+### 13. How to Resolve Compilation Failures of Components Written in Go?
 
 Version 3.0 of TDengine includes a standalone component developed in Go called `taosAdapter`, which needs to be run separately to provide RESTful access and support data access from various other software (Prometheus, Telegraf, collectd, StatsD, etc.). To compile using the latest develop branch code, first run `git submodule update --init --recursive` to download the `taosAdapter` repository code before compiling.
 
@@ -150,7 +174,7 @@ go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
-### 13. How to Check the Storage Space Used by Data?
+### 14. How to Check the Storage Space Used by Data?
 
 By default, TDengine's data files are stored in `/var/lib/taos`, and log files are stored in `/var/log/taos`.
 
@@ -350,19 +374,3 @@ If you understand the function of configuration parameter persistence but still 
 In this situation, out-of-order issues generally won't occur. First, let's explain what out-of-order means in TDengine. In TDengine, out-of-order refers to the situation where, starting from a timestamp of 0, time windows are cut according to the Duration parameter set in the database (the default is 10 days). The out-of-order phenomenon occurs when the data written in each time window is not written in chronological order. As long as the data written in the same window is in order, even if the writing between windows is not sequential, there will be no out-of-order situation.
 
 Then, looking at the above scenario, when the backfill of old data and the writing of new data are carried out simultaneously, there is generally a large time gap between the old and new data, and they won't fall within the same window. As long as both the old and new data are written in order, there will be no out-of-order phenomenon.
-
-### 39 What should I do if loading "libtaosnative.so" or "libtaosws.so" fails?
-
-Problem Description:  
-When using TDengine TSDB client applications (taos-CLI, taosBenchmark, taosdump, etc.) or client connectors (such as Java, Python, Go, etc.), you may encounter errors when loading the dynamic link libraries "libtaosnative.so" or "libtaosws.so".  
-For example: `failed to load libtaosws.so since No such file or directory [0x80FF0002]`
-
-Problem Cause:  
-This occurs because the client cannot find the required dynamic link library files, possibly due to incorrect installation or improper configuration of the system library path.
-
-Problem Solution:  
-- **Check files**: Verify that the symbolic link files `libtaosnative.so` or `libtaosws.so` and their corresponding actual files exist in the system shared library directory and are complete. If the symbolic links or actual files are missing, reinstall them as they are included in both the TDengine TSDB client and server installation packages.
-- **Check environment variables**: Ensure that the system shared library loading directory environment variable includes the directory where `libtaosnative.so` or `libtaosws.so` files are located. If not included, add it.
-- **Check permissions**: Ensure that the current user has read and execute permissions for both the `libtaosnative.so` or `libtaosws.so` symbolic links and their actual files.
-- **Check file corruption**: You can verify the integrity of the library files using the command `readelf -h library_file`.
-- **Check file dependencies**: You can view the dependencies of the library files using the command `ldd library_file` to ensure that all dependencies are correctly installed and accessible.
