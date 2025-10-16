@@ -549,8 +549,6 @@ prepare_cases $j
 echo "Transfer debug dirs...($(date))"
 transfer_debug_dirs
 echo "Transfer debug dirs done...($(date))"
-read -r -p "Press Enter to continue..."
-
 
 i=0
 while [ $i -lt ${#hosts[*]} ]; do
