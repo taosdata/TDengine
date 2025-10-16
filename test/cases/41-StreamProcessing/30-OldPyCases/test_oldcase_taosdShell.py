@@ -16,7 +16,7 @@ from new_test_framework.utils import (
     tdSql,
     tdStream,
     cluster,
-    tdStream
+    tdCom
 )
 
 class TestOthersOldCaseTaosdshell:
@@ -51,22 +51,6 @@ class TestOthersOldCaseTaosdshell:
         # tdStream.checkAll(streams)
         self.runCase()
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("test")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        tdLog.info(f"project buildPath: {buildPath}")
-        return buildPath
 
     def get_process_pid(self,processname):
         if platform.system().lower() == 'windows':
@@ -172,7 +156,7 @@ class TestOthersOldCaseTaosdshell:
 
     # def check1(self):
 
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:

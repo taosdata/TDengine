@@ -2105,6 +2105,10 @@ _retrieve:
   *pEndIdx = nrows;
 
 _end:
+  if (p != NULL) {
+    colDataDestroy(p);
+    taosMemoryFreeClear(p);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

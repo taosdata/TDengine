@@ -17,7 +17,7 @@ import multiprocessing as mp
 import taos
 import re
 import shutil
-from new_test_framework.utils import tdLog, tdSql,tdDnodes, etool
+from new_test_framework.utils import tdLog, tdSql,tdDnodes, etool, tdCom
 import time
 # constant define
 WAITS = 5 # wait seconds
@@ -40,23 +40,6 @@ class TestQueryqnode:
         case2: offset return valid
         '''
         return
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        buildPath=""
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        return buildPath
 
     # init
     def setup_class(cls):
@@ -86,7 +69,7 @@ class TestQueryqnode:
 
     # create tables
     def create_tables(self,host,dbname,stbname,count):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
 
         tsql=self.newcur(host,config)
@@ -118,7 +101,7 @@ class TestQueryqnode:
         return
 
     def mutiThread_create_tables(self,host,dbname,stbname,vgroups,threadNumbers,childcount):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
 
         tsql=self.newcur(host,config)
@@ -148,7 +131,7 @@ class TestQueryqnode:
 
     # insert data
     def insert_data(self, host, dbname, stbname, chilCount, ts_start, rowCount):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
         tsql=self.newcur(host,config)
         tdLog.debug("ready to inser data")
@@ -180,7 +163,7 @@ class TestQueryqnode:
         return
 
     def mutiThread_insert_data(self, host, dbname, stbname, threadNumbers, chilCount, ts_start, childrowcount):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
 
         tsql=self.newcur(host,config)
@@ -215,7 +198,7 @@ class TestQueryqnode:
 
 
     def taosBench(self,jsonFile):
-        # buildPath = self.getBuildPath()
+        # buildPath = tdCom.getBuildPath()
         # if (buildPath == ""):
         #     tdLog.exit("taosd not found!")
         # else:
@@ -228,7 +211,7 @@ class TestQueryqnode:
     def taosBenchCreate(self,host,dropdb,dbname,stbname,vgroups,processNumbers,count):
 
         # count=50000
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         config = os.path.join(os.path.dirname(buildPath),"sim", "dnode1", "cfg")
         tsql=self.newcur(host,config)
 

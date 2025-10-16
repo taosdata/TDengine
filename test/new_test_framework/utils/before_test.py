@@ -518,6 +518,8 @@ class BeforeTest:
         paths = []
         debug_path = os.path.join(projPath, "debug", "build", "bin")
         for root, dirs, files in os.walk(debug_path):
+            if ".git" in root:
+                continue
             if binary_file in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
