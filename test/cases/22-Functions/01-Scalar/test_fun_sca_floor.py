@@ -435,7 +435,7 @@ class TestFunFloor:
         pass
 
     def test_fun_sca_floor(self):
-        """ Fun: Floor()
+        """ Fun: floor()
 
         1. Support types
         2. Basic query

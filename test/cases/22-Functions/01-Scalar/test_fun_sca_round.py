@@ -427,7 +427,7 @@ class TestFunRound:
         pass
 
     def test_fun_sca_round(self):
-        """ Fun: Round()
+        """ Fun: round()
 
         1. Support types
         2. Basic query

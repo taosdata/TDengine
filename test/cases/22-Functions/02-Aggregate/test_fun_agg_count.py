@@ -1022,7 +1022,7 @@ class TestFunCount:
     # ------------------ main ------------------
     #
     def test_func_agg_count(self):
-        """ Fun: Count()
+        """ Fun: count()
 
         1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
         2. Basic query

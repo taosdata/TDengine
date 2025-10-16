@@ -2425,7 +2425,7 @@ class TestFunLast:
     # ------------------ main ------------------
     #
     def test_func_select_last(self):
-        """ Fun: Last()
+        """ Fun: last()
 
         1. Perform Last queries on child tables and supertables.
         2. Test time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.

@@ -209,7 +209,7 @@ class TestUpper:
         )
 
     def test_fun_sca_upper(self):
-        """ Fun: Upper()
+        """ Fun: upper()
 
         1. Query from super/child/normal table
         2. Query from cast covert result

@@ -264,7 +264,7 @@ class TestFunConcat:
         )
 
     def test_fun_sca_concat(self):
-        """ Fun: Concat()
+        """ Fun: concat()
 
         1. CONCAT on super/child/normal table
         2. CONCAT between all data types

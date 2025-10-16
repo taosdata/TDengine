@@ -424,7 +424,7 @@ class TestFunCeil:
         pass
 
     def test_fun_sca_ceil(self):
-        """ Fun: Ceil()
+        """ Fun: ceil()
 
         1. Support types
         2. Basic query

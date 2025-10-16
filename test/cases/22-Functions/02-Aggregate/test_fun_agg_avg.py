@@ -627,7 +627,7 @@ class TestFunAvg:
     # ------------------ main ------------------
     #
     def test_func_agg_avg(self):
-        """ Fun: Avg()
+        """ Fun: avg()
 
         1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
         2. Support types

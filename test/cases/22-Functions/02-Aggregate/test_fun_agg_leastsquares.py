@@ -351,7 +351,7 @@ class TestFunLeastsquares:
         )
 
     def test_fun_agg_leastsquares(self):
-        """ Fun: Leastsquares()
+        """ Fun: leastsquares()
 
         1. Query on different data types
         2. Query on super/child/normal table

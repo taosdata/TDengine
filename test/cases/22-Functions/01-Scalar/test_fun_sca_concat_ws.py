@@ -268,7 +268,7 @@ class TestFunConcatWs:
         )
 
     def test_fun_sca_concat_ws(self):
-        """ Fun:  Concat_ws()
+        """ Fun: concat_ws()
 
         1. CONCAT_WS on super/child/normal table
         2. CONCAT_WS between all data types

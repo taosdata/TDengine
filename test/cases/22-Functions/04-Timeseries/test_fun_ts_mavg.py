@@ -721,7 +721,7 @@ class TestFunMavg:
     # ------------------ main ------------------
     #
     def test_func_ts_mavg(self):
-        """ Fun: Mavg()
+        """ Fun: mavg()
 
         1. Basic query for different params
         2. Query on super/child/normal table

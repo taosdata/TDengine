@@ -184,7 +184,7 @@ class TestFunToday:
             tdSql.execute(f'drop database {self.dbname}')
 
     def test_fun_sca_today(self):
-        """ Fun: Today()
+        """ Fun: today()
 
         1. Query from normal/super table
         2. Query from ms/us/ns precision database

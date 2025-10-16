@@ -551,7 +551,7 @@ class TestPow:
         self.check_result_auto_pow(2, f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(t1,2) , pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
     def test_pow(self):
-        """ Fun: Pow()
+        """ Fun: pow()
 
         1. Support types
         2. Basic query

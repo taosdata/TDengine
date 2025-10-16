@@ -644,7 +644,7 @@ class TestFunMax:
     # ------------------ main ------------------
     #
     def test_func_agg_max(self):
-        """ Fun: Max()
+        """ Fun: max()
 
         1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
         2. Query on super/child/normal table

@@ -499,7 +499,7 @@ class TestCsum:
     # ------------------ main ------------------
     #
     def test_func_ts_csum(self):
-        """ Fun: Csum()
+        """ Fun: csum()
 
         1. Basic query for input different params
         2. Query on super/child/normal table

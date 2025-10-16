@@ -1542,7 +1542,7 @@ class TestFunLastRow:
     # ------------------ main ------------------
     #
     def test_func_select_last_row(self):
-        """ Fun: Last_row()
+        """ Fun: last_row()
 
         1. Including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
         2. Set cacheModel = both and retest.

@@ -481,11 +481,10 @@ class TestScalarFunction:
         self.run_weekday()
         self.run_weekofyear()
         self.run_dayofweek()
-        self.run_date()
 
 
     def test_fun_sca_degrees(self):
-        """ Fun: Degrees()
+        """ Fun: degrees()
 
         1. Support datatype types
         2. Query with constant parameter
@@ -507,7 +506,7 @@ class TestScalarFunction:
         self.run_degrees()
 
     def test_fun_sca_exp(self):
-        """ Fun: Exp()
+        """ Fun: exp()
 
         1. Support datatype types
         2. Query with constant/boundary/null/expr parameter
@@ -529,7 +528,7 @@ class TestScalarFunction:
         self.run_exp()
 
     def test_fun_sca_greatest(self):
-        """ Fun: Greatest()
+        """ Fun: greatest()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -551,7 +550,7 @@ class TestScalarFunction:
         self.run_greatest()
 
     def test_fun_sca_least(self):
-        """ Fun: Least()
+        """ Fun: least()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -573,7 +572,7 @@ class TestScalarFunction:
         self.run_least()
         
     def test_fun_sca_ln(self):
-        """ Fun: Ln()
+        """ Fun: ln()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -595,7 +594,7 @@ class TestScalarFunction:
         self.run_ln()
 
     def test_fun_sca_mod(self):
-        """ Fun: Mod()
+        """ Fun: mod()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -617,7 +616,7 @@ class TestScalarFunction:
         self.run_mod()
 
     def test_fun_sca_pi(self):
-        """ Fun: Pi()
+        """ Fun: pi()
 
         1. Support data types
         2. Query with constant/boundary/null/chinese/now parameter
@@ -639,7 +638,7 @@ class TestScalarFunction:
         self.run_pi()
 
     def test_fun_sca_radians(self):
-        """ Fun: Radians()
+        """ Fun: radians()
 
         1. Support data types
         2. Query with constant/boundary/null parameter
@@ -660,7 +659,7 @@ class TestScalarFunction:
         self.run_radians()
 
     def test_fun_sca_rand(self):
-        """ Fun: Rand()
+        """ Fun: rand()
 
         1. Support data types
         2. Query with constant/boundary/null/big parameter
@@ -680,7 +679,7 @@ class TestScalarFunction:
         self.run_rand()
 
     def test_fun_sca_sign(self):
-        """ Fun: Sign()
+        """ Fun: sign()
 
         1. Support data types
         2. Query with constant/boundary/null parameter
@@ -703,7 +702,7 @@ class TestScalarFunction:
         self.run_sign()
         
     def test_fun_sca_truncate(self):
-        """ Fun: Truncate()
+        """ Fun: truncate()
 
         1. Support data types
         2. Query with constant/boundary/null parameter
@@ -726,7 +725,7 @@ class TestScalarFunction:
         self.run_truncate()
         
     def test_fun_sca_crc32(self):
-        """ Fun: Crc32()
+        """ Fun: crc32()
 
         1. Support data types
         2. Query with constant/null/blank/chinese parameter
@@ -745,7 +744,7 @@ class TestScalarFunction:
         self.run_crc32()
 
     def test_fun_sca_base64(self):
-        """ Fun: Base64()
+        """ Fun: base64()
 
         1. Support data types
         2. Query with constant/boundary/null/blank/chinese parameter
@@ -765,7 +764,7 @@ class TestScalarFunction:
         self.run_base64()
         
     def test_fun_sca_ascii(self):
-        """ Fun: Ascii()
+        """ Fun: ascii()
 
         1. Support data types
         2. Query with constant/null/blank/special char/chinese parameter
@@ -787,7 +786,7 @@ class TestScalarFunction:
         self.run_ascii()
 
     def test_fun_sca_char(self):
-        """ Fun: Char()
+        """ Fun: char()
 
         1. Support data types
         2. Query with constant/null/string/float/int/expr parameter
@@ -808,7 +807,7 @@ class TestScalarFunction:
         self.run_char()
 
     def test_fun_sca_char_length(self):
-        """ Fun: Char_length()
+        """ Fun: char_length()
 
         1. Support data types
         2. Query with constant/null/blank/chinese/japanese parameter
@@ -831,7 +830,7 @@ class TestScalarFunction:
         self.run_char_length()
 
     def test_fun_sca_position(self):
-        """ Fun: Position()
+        """ Fun: position()
 
         1. Support datatype varchar/nchar
         2. Query with constant/null/blank/expr parameter
@@ -854,7 +853,7 @@ class TestScalarFunction:
         self.run_position()
         
     def test_fun_sca_repeat(self):
-        """ Fun: Repeat()
+        """ Fun: repeat()
 
         1. Support datatype varchar/nchar
         2. Query with first parameter null or second parameter null
@@ -877,7 +876,7 @@ class TestScalarFunction:
         self.run_repeat()
 
     def test_fun_sca_replace(self):
-        """ Fun: Replace()
+        """ Fun: replace()
 
         1. Support datatype varchar/nchar
         2. Query with first and second parameter null
@@ -899,7 +898,7 @@ class TestScalarFunction:
         self.run_replace()
 
     def test_fun_sca_substr(self):
-        """ Fun: Substr()
+        """ Fun: substr()
 
         1. Support datatype varchar/nchar
         2. Query with 1 ~ 3 parameter null
@@ -923,7 +922,7 @@ class TestScalarFunction:
         self.run_substr()
 
     def test_fun_sca_substring_index(self):
-        """ Fun: Substring_index()
+        """ Fun: substring_index()
 
         1. Support datatype varchar/nchar
         2. Query with 1 ~ 3 parameter null
@@ -945,7 +944,7 @@ class TestScalarFunction:
         self.run_substr_idx()
 
     def test_fun_sca_trim(self):
-        """ Fun: Trim()
+        """ Fun: trim()
 
         1. Support data types varchar/nchar
         2. Query with keyword both/leading/trailing/from
@@ -967,3 +966,27 @@ class TestScalarFunction:
 
         """
         self.run_trim()
+
+    def test_fun_sca_date(self):
+        """ Fun: date()
+
+        1. Support data type timestamp/bigint/float
+        2. Query with group by
+        3. Query with null/boundary/0/-1000 parameter
+        4. Query with parameter "9999-12-31"/"01-JAN-25"/"#$@!+-*/"/"abcd"
+        5. Query with limit/order by asc/where
+        6. Query on super/no table
+        7. Error query with no parameter
+        8. Error query with invalid parameter
+
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_date()
+        

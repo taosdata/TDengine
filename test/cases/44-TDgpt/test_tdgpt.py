@@ -361,7 +361,7 @@ class TestTDgptBasic:
         tdSql.checkData(0, 0, 0.9999999)
 
     def test_fun_sca_corr(self):
-        """ Fun: Corr()
+        """ Fun: corr()
 
         1. Query with int and float data type parameter
         2. Query with constant/null/bool parameter

@@ -107,7 +107,7 @@ class TestFunToUnixtimestamp:
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 1, 3);")
 
     def test_fun_sca_to_unixtimestamp(self):
-        """ Fun: TO_Unixtimestamp()
+        """ Fun: to_unixtimestamp()
 
         1. Query from normal/super/without table
         2. Query from boundary timestamp

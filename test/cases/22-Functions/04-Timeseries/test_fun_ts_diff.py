@@ -1411,7 +1411,7 @@ class TestFunDiff:
     # ------------------ main ------------------
     #
     def test_func_ts_diff(self):
-        """ Fun: Diff()
+        """ Fun: diff()
 
         1. Sim case for LIKE, timestamp comparisons, and ordinary column comparisons.
         2. Basic query for input different params

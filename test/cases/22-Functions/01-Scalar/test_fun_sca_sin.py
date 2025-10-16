@@ -455,7 +455,7 @@ class TestFunSin:
         self.check_result_auto_sin( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select sin(t1) , sin(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
     def test_fun_sca_sin(self):
-        """ Fun: Sin()
+        """ Fun: sin()
 
         1. Support types
         2. Basic query

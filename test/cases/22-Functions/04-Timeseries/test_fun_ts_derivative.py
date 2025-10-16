@@ -154,7 +154,7 @@ class TestFunDerivative:
     # ------------------ main ------------------
     #
     def test_func_ts_derivative(self):
-        """ Fun: Derivative()
+        """ Fun: derivative()
 
         1. Basic query for different params
         2. Query on super/child/normal table

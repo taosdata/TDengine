@@ -215,7 +215,7 @@ class TestFunLength:
         )
 
     def test_fun_sca_length(self):
-        """ Fun: Length()
+        """ Fun: length()
 
         1. LENGTH on super/child/normal table
         2. LENGTH between all data types
