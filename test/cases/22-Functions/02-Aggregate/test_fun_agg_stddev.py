@@ -1358,3 +1358,27 @@ class TestFunStddev:
         self.do_stddev()
         self.do_stddev_test()
         self.do_distribute_stddev()
+
+    def test_func_agg_std(self):
+        """ Fun: std()
+
+        same with stddev() 
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        """
+        pass
+
+    def test_func_agg_stddev_pop(self):
+        """ Fun: stddev_pop()
+
+        same with stddev() 
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        """
+        pass

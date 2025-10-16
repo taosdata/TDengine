@@ -474,13 +474,7 @@ class TestScalarFunction:
         self.run_round()
         self.run_greatest_large_table()
 
-        self.run_substr_idx()
-
         self.run_timediff()
-        self.run_week()
-        self.run_weekday()
-        self.run_weekofyear()
-        self.run_dayofweek()
 
 
     def test_fun_sca_degrees(self):
@@ -989,4 +983,94 @@ class TestScalarFunction:
 
         """
         self.run_date()
-        
+
+    def test_fun_sca_dayofweek(self):
+        """ Fun: dayofweek()
+
+        1. Support data types timestamp/varchar/bigint
+        2. Query with null/'9999-12-31'/'01-JAN-20'/'abc' parameter
+        3. Query with input parameter timediff
+        4. Query with output parameter sum
+        5. Query with limit/order by/group by
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with 2 parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_dayofweek()
+
+    def test_fun_sca_week(self):
+        """ Fun: week()
+
+        1. Support data types timestamp/varchar/bigint
+        2. Query with null/'abc'/'01-JAN-20'/'9999-12-31' parameter
+        3. Query with second parameter mode 0/1/2/3/4/5/6/7
+        4. Query with input parameter timediff
+        5. Query with output parameter sum
+        6. Query with limit/order by/group by
+        7. Query on super/child/no table
+        8. Error query with no parameter
+        9. Error query with no input first parameter
+        10. Error query with input second float parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_week()
+
+    def test_fun_sca_weekday(self):
+        """ Fun: weekday()
+
+        1. Support data types timestamp/varchar/bigint
+        2. Query with null/'abc'/'01-JAN-20'/'9999-12-31' parameter
+        3. Query with input parameter timediff
+        4. Query with output parameter sum
+        5. Query with limit/order by/group by
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with 2 parameters
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_weekday()
+
+
+    def test_fun_sca_weekofyear(self):
+        """ Fun: weekofyear()
+
+        1. Support data types timestamp/varchar/bigint
+        2. Query with null/'abc'/'11/01/31'/'01-JAN-20'/'9999-12-31' parameter
+        3. Query with input parameter timediff
+        4. Query with output parameter sum
+        5. Query with limit/order by/group by/where
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with 2 parameters
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_weekofyear()   

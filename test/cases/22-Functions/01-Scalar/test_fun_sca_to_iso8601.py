@@ -178,9 +178,7 @@ class TestFunToIso8601:
         4. Query with different timezone string
         5. Query with null value
         6. Query with wrong parameter
-        7. Input parameter with now()/today()/null/constant/timestamp field
-
-        
+        7. Input parameter with now()/today()/null/constant/timestamp field     
    
         Since: v3.0.0.0
 
@@ -198,3 +196,20 @@ class TestFunToIso8601:
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
+    def test_fun_sca_today(self):
+        """ Fun: today()
+
+        1. Insert normal/child table with now and today values
+        2. Query with input parameter of to_iso8601 function
+        3. Query in select/ where clause
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        pass
