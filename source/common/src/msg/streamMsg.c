@@ -4202,6 +4202,8 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false, true));
   TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
+  TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->isWindowTrigger));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->precision));
 
   tEndEncode(&encoder);
 
@@ -4232,6 +4234,8 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(&decoder, &pReq->params, false));
   TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(&decoder, &pReq->groupColVals));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createTable));
+  TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->isWindowTrigger));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->precision));
 
   tEndDecode(&decoder);
 
@@ -4372,6 +4376,8 @@ int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo*
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->sessionId));
   TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pInfo->withExternalWindow));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->triggerType));
+  TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pInfo->isWindowTrigger));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pInfo->precision));
 _exit:
   return code;
 }
@@ -4388,6 +4394,8 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->sessionId));
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->withExternalWindow));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pInfo->triggerType));
+  TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->isWindowTrigger));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pInfo->precision));
 _exit:
   return code;
 }

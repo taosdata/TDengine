@@ -912,6 +912,9 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
   pReq->streamId = pTask->task.streamId;
   pReq->runnerTaskId = pRunner->addr.taskId;
   pReq->sessionId = sessionId;
+  pReq->isWindowTrigger = !(pTask->triggerType == STREAM_TRIGGER_PERIOD ||
+                            (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0));
+  pReq->precision = pTask->precision;
   pReq->triggerType = pTask->triggerType;
   pReq->triggerTaskId = pTask->task.taskId;
   pReq->gid = gid;
@@ -1894,6 +1897,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
         (pTask->triggerType == STREAM_TRIGGER_PERIOD) || (pTask->triggerType == STREAM_TRIGGER_SLIDING), code, lino,
         _end, TSDB_CODE_INVALID_PARA);
   }
+  pTask->precision = pTask->interval.precision;   // todo(kjq): deserialize precision from deploy msg
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
   pTask->streamName = taosStrdup(pMsg->streamName);
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);

@@ -329,6 +329,7 @@ typedef struct SStreamTriggerTask {
   bool    isStbPartitionByTag;
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
+  int8_t  precision;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // trigger options: old version, to be removed

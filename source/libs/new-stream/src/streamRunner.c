@@ -846,6 +846,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
   pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
+  pExec->runtimeInfo.funcInfo.isWindowTrigger = pReq->isWindowTrigger;
+  pExec->runtimeInfo.funcInfo.precision = pReq->precision;
   pExec->runtimeInfo.funcInfo.addOptions = pTask->addOptions;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
