@@ -350,3 +350,19 @@ If you understand the function of configuration parameter persistence but still 
 In this situation, out-of-order issues generally won't occur. First, let's explain what out-of-order means in TDengine. In TDengine, out-of-order refers to the situation where, starting from a timestamp of 0, time windows are cut according to the Duration parameter set in the database (the default is 10 days). The out-of-order phenomenon occurs when the data written in each time window is not written in chronological order. As long as the data written in the same window is in order, even if the writing between windows is not sequential, there will be no out-of-order situation.
 
 Then, looking at the above scenario, when the backfill of old data and the writing of new data are carried out simultaneously, there is generally a large time gap between the old and new data, and they won't fall within the same window. As long as both the old and new data are written in order, there will be no out-of-order phenomenon.
+
+### 39 What should I do if loading "libtaosnative.so" or "libtaosws.so" fails?
+
+Problem Description:  
+When using TDengine TSDB client applications (taos-CLI, taosBenchmark, taosdump, etc.) or client connectors (such as Java, Python, Go, etc.), you may encounter errors when loading the dynamic link libraries "libtaosnative.so" or "libtaosws.so".  
+For example: `failed to load libtaosws.so since No such file or directory [0x80FF0002]`
+
+Problem Cause:  
+This occurs because the client cannot find the required dynamic link library files, possibly due to incorrect installation or improper configuration of the system library path.
+
+Problem Solution:  
+- **Check files**: Verify that the symbolic link files `libtaosnative.so` or `libtaosws.so` and their corresponding actual files exist in the system shared library directory and are complete. If the symbolic links or actual files are missing, reinstall them as they are included in both the TDengine TSDB client and server installation packages.
+- **Check environment variables**: Ensure that the system shared library loading directory environment variable includes the directory where `libtaosnative.so` or `libtaosws.so` files are located. If not included, add it.
+- **Check permissions**: Ensure that the current user has read and execute permissions for both the `libtaosnative.so` or `libtaosws.so` symbolic links and their actual files.
+- **Check file corruption**: You can verify the integrity of the library files using the command `readelf -h library_file`.
+- **Check file dependencies**: You can view the dependencies of the library files using the command `ldd library_file` to ensure that all dependencies are correctly installed and accessible.

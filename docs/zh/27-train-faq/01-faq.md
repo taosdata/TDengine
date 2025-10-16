@@ -354,10 +354,10 @@ TDengine TSDB 3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 6
 问题解决：
 1）通过 systemd 重启 taosd 服务：推荐方法是先执行命令 `systemctl reset-failed taosd.service` 重置失败计数器，然后再通过 `systemctl restart taosd.service` 重启；若需长期调整，可手动修改 /etc/systemd/system/taosd.service 文件，将 StartLimitInterval 调小或将 StartLimitBurst 调大 (注：重新安装 taosd 会重置该参数，需要重新修改)，执行 `systemctl daemon-reload` 重新加载配置，然后再重启。2）也可以不通过 systemd 而是通过 taosd 命令直接重启 taosd 服务，此时不受 StartLimitInterval 和 StartLimitBurst 参数限制。
 
-### 37 我明明修改了配置文件但是配置参数并没有生效？
+### 37 我确认修改了配置文件中参数但并没有生效？
 
 问题描述：
-TDengine TSDB 3.3.5.0 及以上的版本，有些用户可能会遇到一个问题：明明我在 `taos.cfg` 中修改了某个配置参数，但是重启后发现并没有生效，查看日志也找不到任何报错。
+TDengine TSDB 3.3.5.0 及以上的版本，有些用户可能会遇到一个问题：我在 `taos.cfg` 中修改了某个配置参数，但是重启后发现并没有生效，查看日志也找不到任何报错。
 
 问题原因：
 这是由于 TDengine TSDB 3.3.5.0 及以上的版本支持将动态修改的配置参数持久化，也就是您通过 `ALTER` 动态修改的参数，重启后仍然生效。所以 TDengine TSDB 3.3.5.0 及以上的版本在重启时会默认从 `dataDir` 中加载除了 `dataDir` 之外的的配置参数，而不会使用 `taos.cfg` 中的配置参数。
@@ -370,3 +370,19 @@ TDengine TSDB 3.3.5.0 及以上的版本，有些用户可能会遇到一个问�
 这种情况通常不会产生乱序，首先我们来解释下 TDengine TSDB 中乱序是指什么？TDengine TSDB 中的乱序是指从时间戳为 0 开始按数据库设置的 Duration 参数（默认是 10 天）切割成时间窗口，在每个时间窗口中写入的数据不按顺序时间写入导致的现象为乱序现象，只要保证同一窗口是顺序写入的，即使窗口之间写入并非顺序，也不会产生乱序。
 
 再看上面场景，补旧数据和新数据同时写入，新旧数据之间一般会存在较大距离，不会落在同一窗口中，只要保证新老数据都是顺序写的，即不会产生乱序现象。
+
+
+### 39 遇到加载 “libtaosnative.so” 或 “libtaosws.so” 失败怎么办？
+问题描述：
+在使用 TDengine TSDB 客户端应用（taos-CLI、taosBenchmark、taosdump 等）或客户端连接器（如 Java、Python、Go 等）时，可能会遇到加载动态链接库 “libtaosnative.so” 或 “libtaosws.so” 失败的错误。 
+如：failed to load libtaosws.so since No such file or directory [0x80FF0002]
+
+问题原因：
+这是由于客户端无法找到所需的动态链接库文件，可能是因为文件未正确安装，或系统的库路径未正确配置等原因。
+
+问题解决：
+- **检查文件**：检查系统共享库目录下是否存在 `libtaosnative.so` 或 `libtaosws.so` 软链文件及相应实体文件也完整，如软链或实体文件已不存在，在 TDengine TSDB 客户端或服务器安装包中均包含这些文件，请重新安装。
+- **检查环境变量**：确保系统加载共享库目录环境变量包含 `libtaosnative.so` 或 `libtaosws.so` 文件所在目录， 若未包含，需添加。
+- **检查权限**：确保当前用户对 `libtaosnative.so` 或 `libtaosws.so` 软链及其实体文件具有读取和执行权限。
+- **检查文件损坏**： 可以通过 `readelf -h 库文件` 检查库文件是否完整。
+- **检查文件依赖**：可以通过 `ldd 库文件` 查看库文件的依赖项是否完整，确保所有依赖项均已正确安装且可访问。
