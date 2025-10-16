@@ -1,0 +1,16 @@
+select last(ts), tag1 from test_last_tag.stb group by tbname order by tbname
+explain select last(ts), tag1 from test_last_tag.stb group by tbname\G
+select last(c1), tag2 from test_last_tag.stb group by tbname order by tbname
+explain select last(c1), tag2 from test_last_tag.stb group by tbname\G
+select last(ts), tag1, tag2 from test_last_tag.stb order by tbname
+explain select last(ts), tag1, tag2 from test_last_tag.stb\G
+select last(ts), last(c1), tag1, tag2 from test_last_tag.stb group by tbname order by tbname
+explain select last(ts), last(c1), tag1, tag2 from test_last_tag.stb group by tbname\G
+select last(ts), last_row(c1), tag1, tag2 from test_last_tag.stb group by tbname order by tbname
+explain select last(ts), last_row(c1), tag1, tag2 from test_last_tag.stb group by tbname\G
+select last_row(ts), c1, tag1, tag2 from test_last_tag.stb group by tbname order by tbname
+explain select last_row(ts), c1, tag1, tag2 from test_last_tag.stb group by tbname order by tbname\G
+select last(ts), tag1 from test_last_tag.tb1;
+explain select last(ts), tag1 from test_last_tag.tb1\G;
+select last(ts), first(c1), cols(max(c1), ts), tag1, tag2 from test_last_tag.tb1;
+explain select last(ts), first(c1), cols(max(c1), ts), tag1, tag2 from test_last_tag.tb1\G;
