@@ -854,8 +854,10 @@ if(NOT ${TD_WINDOWS})       # {
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_STATIC_LINKER_FLAGS:STRING="-Wl,--relax"
-        CMAKE_ARGS -DCMAKE_C_FLAGS:STRING="-mcmodel=large"
-        CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING="-mcmodel=large"
+        CMAKE_ARGS -CMAKE_EXE_LINKER_FLAGS:STRING="-Wl,--relax"
+        CMAKE_ARGS -CMAKE_MODULE_LINKER_FLAGS:STRING="-Wl,--relax"
+        CMAKE_ARGS -DCMAKE_C_FLAGS:STRING="-mcmodel=medany"
+        CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING="-mcmodel=medany"
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
             COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
@@ -1343,8 +1345,10 @@ if(NOT ${TD_WINDOWS})        # {
         CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
         CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
         CMAKE_ARGS -DCMAKE_STATIC_LINKER_FLAGS:STRING="-Wl,--relax"
-        CMAKE_ARGS -DCMAKE_C_FLAGS:STRING="-mcmodel=large"
-        CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING="-mcmodel=large"
+        CMAKE_ARGS -CMAKE_EXE_LINKER_FLAGS:STRING="-Wl,--relax"
+        CMAKE_ARGS -CMAKE_MODULE_LINKER_FLAGS:STRING="-Wl,--relax"        
+        CMAKE_ARGS -DCMAKE_C_FLAGS:STRING="-mcmodel=medany"
+        CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING="-mcmodel=medany"
         CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
         CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
         CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
@@ -1389,8 +1393,10 @@ if(NOT ${TD_WINDOWS})        # {
         CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
         CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
         CMAKE_ARGS -DCMAKE_STATIC_LINKER_FLAGS:STRING="-Wl,--relax"
-        CMAKE_ARGS -DCMAKE_C_FLAGS:STRING="-mcmodel=large"
-        CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING="-mcmodel=large"
+        CMAKE_ARGS -CMAKE_EXE_LINKER_FLAGS:STRING="-Wl,--relax"
+        CMAKE_ARGS -CMAKE_MODULE_LINKER_FLAGS:STRING="-Wl,--relax"
+        CMAKE_ARGS -DCMAKE_C_FLAGS:STRING="-mcmodel=medany"
+        CMAKE_ARGS -DCMAKE_CXX_FLAGS:STRING="-mcmodel=medany"
         CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
         CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
         CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
