@@ -4,25 +4,14 @@ title: 连接器参考手册
 description: 详细介绍各种语言的连接器及 REST API
 ---
 
-TDengine TSDB 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine TSDB 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C# 和 Rust 的连接器。这些连接器支持使用原生接口（taosc）和 WebSocket 接口连接 TDengine TSDB 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 [PHP 连接器](https://github.com/Yurunsoft/php-tdengine)。
+import ConnectorType from "./_connector_type.mdx";
+import PlatformSupported from "./_platform_supported.mdx";
 
-![TDengine TSDB Database connector architecture](./connector.webp)
+<ConnectorType /> 
 
 ## 支持的平台
 
-目前 TDengine TSDB 的原生接口连接器可支持的平台包括：X64/ARM64 等硬件平台，以及 Linux/Win64 等开发环境。对照矩阵如下：
-
-| **CPU**       | **OS**    | **Java** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
-| ------------- | --------- | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
-| **X86 64bit** | **Linux** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
-| **X86 64bit** | **Win64** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
-| **X86 64bit** | **macOS** | ●        | ●          | ●      | ○           | ○      | ●        | ●     |
-| **ARM64**     | **Linux** | ●        | ●          | ●      | ●           | ○      | ○        | ●     |
-| **ARM64**     | **macOS** | ●        | ●          | ●      | ○           | ○      | ●        | ●     |
-
-其中 ● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
-
-使用 REST 连接由于不依赖客户端驱动可以支持更广泛的操作系统。
+<PlatformSupported /> 
 
 ## 版本支持
 
@@ -41,28 +30,8 @@ TDengine TSDB 版本更新往往会增加新的功能特性，列表中的连接
 
 连接器对 TDengine TSDB 功能特性的支持对照如下：
 
-### 使用原生接口（taosc）
 
-| **功能特性**        | **Java** | **Python** | **Go** | **C#** | **Rust** | **C/C++** |
-| ------------------- | -------- | ---------- | ------ | ------ | -------- | --------- |
-| **连接管理**        | 支持     | 支持       | 支持   | 支持   | 支持     | 支持      |
-| **执行 SQL**        | 支持     | 支持       | 支持   | 支持   | 支持     | 支持      |
-| **参数绑定**        | 支持     | 支持       | 支持   | 支持   | 支持     | 支持      |
-| **数据订阅（TMQ）** | 支持     | 支持       | 支持   | 支持   | 支持     | 支持      |
-| **无模式写入**      | 支持     | 支持       | 支持   | 支持   | 支持     | 支持      |
-
-:::info
-由于不同编程语言数据库框架规范不同，并不意味着所有 C/C++ 接口都需要对应封装支持。
-:::
-
-### 使用 http REST 接口
-
-| **功能特性** | **Java** | **Python** | **Go** |
-| ------------ | -------- | ---------- | ------ |
-| **连接管理** | 支持     | 支持       | 支持   |
-| **执行 SQL** | 支持     | 支持       | 支持   |
-
-### 使用 WebSocket 接口
+### WebSocket/原生 连接
 
 | **功能特性**        | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** | **C/C++** |
 | ------------------- | -------- | ---------- | ------ | ------ | ----------- | -------- | --------- |
@@ -72,11 +41,24 @@ TDengine TSDB 版本更新往往会增加新的功能特性，列表中的连接
 | **数据订阅（TMQ）** | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     | 支持      |
 | **无模式写入**      | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     | 支持      |
 
+**备注**：Node.js 连接器不支持原生连接。
+
+:::info
+由于不同编程语言数据库框架规范不同，并不意味着所有 C/C++ 接口都需要对应封装支持。
+:::
+
+
 :::warning
 
 - 无论选用何种编程语言的连接器，2.0 及以上版本的 TDengine TSDB 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池，以避免连接内的“USE statement”状态量在线程之间相互干扰（但连接的查询和写入操作都是线程安全的）。
 
 :::
+
+### REST API
+
+支持 **执行 SQL**
+
+
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
@@ -90,7 +72,7 @@ import VerifyMacOS from "./_verify_macos.mdx";
 ## 安装客户端驱动
 
 :::info
-只有在没有安装 TDengine TSDB 服务端软件的系统上使用原生接口连接器才需要安装客户端驱动。
+在没有安装 TDengine TSDB 服务端软件的系统上使用原生接口连接器或使用 C/C++ WebSocket 连接器，才需要安装客户端驱动。
 
 :::
 

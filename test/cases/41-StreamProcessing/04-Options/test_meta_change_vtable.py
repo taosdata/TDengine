@@ -528,7 +528,7 @@ class TestStreamMetaChangeVTable:
 
             tdSql.checkResultsByFunc(
                 sql=f"select startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_stb_vct4",
-                func=lambda: tdSql.getRows() == 3
+                func=lambda: tdSql.getRows() == 7
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:10")
                 and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
                 and tdSql.compareData(0, 2, "2025-01-01 00:00:12")
@@ -554,7 +554,7 @@ class TestStreamMetaChangeVTable:
 
             tdSql.checkResultsByFunc(
                 sql=f"select startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_stb_vct5",
-                func=lambda: tdSql.getRows() == 2
+                func=lambda: tdSql.getRows() == 6
                 # and tdSql.compareData(0, 0, "2025-01-01 00:00:10")
                 # and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
                 # and tdSql.compareData(0, 2, "2025-01-01 00:00:12")

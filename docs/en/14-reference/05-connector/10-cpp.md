@@ -72,29 +72,7 @@ The version number of the TDengine client driver strictly corresponds to the ver
 
 ## Error Codes
 
-In the design of the C interface, error codes are represented by integer types, and each error code corresponds to a specific error state. If not otherwise specified, when the return value of the API is an integer, _0_ represents success, and the others are error codes representing the cause of failure. When the return value is a pointer, _NULL_ represents failure.
-
-### General Error Codes
-
-All error codes and their corresponding causes are described in the `taoserror.h` file.
-
-For detailed error code descriptions, refer to: [Error Codes](../../error-codes/).
-
-### WebSocket Connection Specific Error Codes
-
-In addition to general error codes, WebSocket connections also have the following specific error codes:
-
-| Error Code | Error Description           | Possible Error Scenarios or Reasons                         | Recommended User Actions                                       |
-| ---------- | --------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
-| 0xE000     | DSN Error                   | DSN does not meet specifications                            | Check if the DSN string meets specifications                   |
-| 0xE001     | Internal Error              | Uncertain                                                   | Preserve the scene and logs, report issue on GitHub            |
-| 0xE002     | Connection Closed           | Network disconnected                                        | Please check the network condition, review `taosadapter` logs. |
-| 0xE003     | Send Timeout                | Network disconnected                                        | Please check the network condition                             |
-| 0xE004     | Receive Timeout             | Slow query, or network disconnected                         | Investigate `taosadapter` logs                                 |
-| 0xE005     | I/O error                   | Network I/O exception or disk error                         | Check network connection and disk status                       |
-| 0xE006     | Authentication failed       | Username and password incorrect or insufficient permissions | Check username and password, confirm user permissions          |
-| 0xE007     | Encoding and decoding error | Data encoding and decoding exception                        | Check data format, check `taosadapter` log                     |
-| 0xE008     | Disconnected                | WebSocket connection disconnected                           | Check network status and reestablish connection                |
+Please refer to: [Error Codes](../../error-codes/).
 
 ## Example Program
 
