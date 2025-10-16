@@ -1709,7 +1709,8 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
     return code;
   }
-
+  pInfo->base.cond.startVersion = 0;
+  pInfo->base.cond.endVersion = pInfo->base.readHandle.version;
   if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
@@ -1744,6 +1745,13 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
         qError("%s failed to tsdReaderResetStatus, code:%s", __func__, tstrerror(code));
         break;
       }
+      pInfo->base.readerAPI.tsdReaderResetVer(pInfo->base.dataReader, &pInfo->base.cond);
+      code = pInfo->base.readerAPI.tsdReaderResetExTimeWindow(pInfo->base.dataReader, &pInfo->base.cond);
+      if (code) {
+        qError("%s failed to tsdReaderResetStatus, code:%s", __func__, tstrerror(code));
+        break;
+      }
+        
     } while (0);
     taosRUnLockLatch(&pTaskInfo->lock);
     if (code) return code;
@@ -4620,6 +4628,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
   }
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
+  cleanupQueryTableDataCond(&pInfo->base.cond);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle, false);
   if (code) {
     qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
