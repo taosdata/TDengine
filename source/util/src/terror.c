@@ -611,6 +611,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_IDMP_BASIC,     "Lack of TDengine IDMP
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_EXPIRED,         "License expired for mounts function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_LIMITED,         "Number of mounts has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_INVALID_AUTH_SERVER,    "Auth server is invalid")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DISABLED,               "Cluster is disabled in auth server")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_RESTFUL_ERROR,         "RESTful response error")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
