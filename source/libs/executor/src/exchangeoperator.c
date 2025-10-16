@@ -1043,7 +1043,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
         qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
       } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
-        req.pWalVersions = tSimpleHashGet(pTaskInfo->pWalVersions, &req.header.vgId, sizeof(req.header.vgId));
+        SArray** ppTmp = tSimpleHashGet(pTaskInfo->pWalVersions, &req.header.vgId, sizeof(req.header.vgId));
+        req.pWalVersions = ppTmp ? *ppTmp : NULL;
         needStreamPesudoFuncVals = false;
         // code = getCurrentWinCalcTimeRange(req.pStRtFuncInfo, &req.pStRtFuncInfo->curWindow);
         // QUERY_CHECK_CODE(code, lino, _end);

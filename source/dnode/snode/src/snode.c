@@ -359,8 +359,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
       TAOS_CHECK_EXIT(handleStreamFetchData(pSnode, pWorkerCb, pMsg));
       break;
     case TDMT_STREAM_FETCH_FROM_CACHE:
-      TAOS_CHECK_EXIT(handleStreamFetchData(pSnode, pWorkerCb, pMsg));
-      // TAOS_CHECK_EXIT(handleStreamFetchFromCache(pSnode, pMsg));
+      TAOS_CHECK_EXIT(handleStreamFetchFromCache(pSnode, pMsg));
       break;
       case TDMT_STREAM_TRIGGER_DROP:
      TAOS_CHECK_EXIT(handleStreamDropTableReq(pSnode, pMsg));

@@ -1316,7 +1316,7 @@ _exit:
   return code;
 }
 
-int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, int32_t vgId, int64_t taskId) {
+static int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, int32_t vgId, int64_t taskId, bool isFromCache) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SSubplan* pSubplan = NULL;
@@ -1324,7 +1324,7 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   int64_t key[2] = {streamId, 0};
   SStmTaskSrcAddr addr;
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
-  addr.isFromCache = false;
+  addr.isFromCache = isFromCache;
   
   if (MNODE_HANDLE == vgId) {
     mndGetMnodeEpSet(pCtx->pMnode, &addr.epset);
@@ -1456,10 +1456,10 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   
   for (int32_t i = 0; i < calcTasksNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(pInfo->pCreate->calcScanPlanList, i);
-    if (pScan->readFromCache) {
-      TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
-      continue;
-    }
+    // if (pScan->readFromCache) {
+    //   TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
+    //   continue;
+    // }
     
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
@@ -1467,7 +1467,7 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       TSDB_CHECK_NULL(pState, code, lino, _exit, terrno);
 
       TAOS_CHECK_EXIT(msmTDAddSingleCalcReader(pCtx, pState, i, *(int32_t*)taosArrayGet(pScan->vgList, m), pScan->scanPlan, pInfo, streamId));
-      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pState->id.nodeId, pState->id.taskId));
+      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pState->id.nodeId, pState->id.taskId, pScan->readFromCache));
     }
   }
 
@@ -1496,15 +1496,15 @@ static int32_t msmUPPrepareReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   
   for (int32_t i = 0; i < calcTasksNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(pStream->pCreate->calcScanPlanList, i);
-    if (pScan->readFromCache) {
-      TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
-      continue;
-    }
+    // if (pScan->readFromCache) {
+    //   TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
+    //   continue;
+    // }
     
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
       SStmTaskStatus* pReader = (SStmTaskStatus*)pNode->data;
-      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pReader->id.nodeId, pReader->id.taskId));
+      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pReader->id.nodeId, pReader->id.taskId, pScan->readFromCache));
       pNode = TD_DLIST_NODE_NEXT(pNode);
     }
   }
@@ -1609,20 +1609,9 @@ int32_t msmUpdateLowestPlanSourceAddr(SStmGrpCtx* pCtx, SSubplan* pPlan, SStmTas
     int32_t childrenNum = taosArrayGetSize(*ppRes);
     for (int32_t i = 0; i < childrenNum; ++i) {
       SStmTaskSrcAddr* pAddr = taosArrayGet(*ppRes, i);
-      if (pAddr->isFromCache) {
-        SStmTaskSrcAddr addr = {0};
-        addr.taskId = pDeploy->task.taskId;
-        addr.vgId = pDeploy->task.nodeId;
-        addr.groupId = pPlan->id.groupId;
-        addr.epset = mndGetDnodeEpsetById(pCtx->pMnode, pDeploy->task.nodeId);
-
-        msttInfo("fixtaskid update %" PRIx64, addr.taskId);
-        TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, &addr,
-                                                TDMT_STREAM_FETCH_FROM_CACHE, key[1]));
-      } else {
-        TAOS_CHECK_EXIT(
-            msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, pAddr, pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH, key[1]));
-      }
+      TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, pAddr,
+                                              pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH,
+                                              key[1]));
     }
   }
 

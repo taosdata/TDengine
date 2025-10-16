@@ -355,7 +355,7 @@ end:
   streamReleaseTask(taskAddr);
 
   STREAM_PRINT_LOG_END(code, lino);
-  SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
+  SRpcMsg rsp = {.msgType = pMsg->msgType + 1, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   tDestroySResFetchReq(&req);
   return code;
@@ -369,7 +369,7 @@ int32_t mmProcessStreamReaderMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   dDebug("msg:%p, get from mnode-stream-reader queue", pMsg);
 
-  if (pMsg->msgType == TDMT_STREAM_FETCH) {
+  if (pMsg->msgType == TDMT_STREAM_FETCH || pMsg->msgType == TDMT_STREAM_FETCH_FROM_CACHE) {
     TAOS_CHECK_EXIT(mmProcessStreamFetchMsg(pMgmt, pMsg));
   } else {
     dError("unknown msg type:%d in stream reader queue", pMsg->msgType);
