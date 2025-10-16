@@ -278,7 +278,7 @@ IF(${BUILD_WITH_ANALYSIS})
 ENDIF()
 
 # NOTE: set option variable in this ways is not a good practice
-IF(${TD_LINUX})
+IF(${TD_LINUX} AND (NOT ${TD_RISCV_64}))
     set(BUILD_WITH_ANALYSIS ON)
 ENDIF()
 
