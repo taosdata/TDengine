@@ -154,6 +154,60 @@ function get_remote_scp_command() {
     fi
 }
 
+function transfer_debug_dirs() {
+    # Skip when only local host
+    if [ ${#hosts[@]} -le 1 ]; then
+        return 0
+    fi
+    local i=0
+    while [ $i -lt ${#hosts[*]} ]; do
+        if is_local_host "${hosts[i]}"; then
+            local_work_dir="${workdirs[i]}"
+            break
+        fi
+        i=$((i + 1))
+    done
+    cd $local_work_dir
+    rm -rf debug.tar.gz
+    tar -czf debug.tar.gz \
+        debugSan/build/bin/taos* \
+        debugSan/build/bin/tmq_* \
+        debugSan/build/bin/sml_test \
+        debugSan/build/bin/get_db_name_test \
+        debugSan/build/bin/replay_test \
+        debugSan/build/bin/varbinary_test \
+        debugSan/build/bin/write_raw_block_test \
+        debugSan/build/lib/*.so \
+        debugSan/build/share \
+        debugSan/build/include \
+        debugNoSan/build/bin/taos* \
+        debugNoSan/build/bin/tmq_sim \
+        debugNoSan/build/bin/sml_test \
+        debugNoSan/build/bin/get_db_name_test \
+        debugNoSan/build/bin/replay_test \
+        debugNoSan/build/bin/varbinary_test \
+        debugNoSan/build/bin/write_raw_block_test \
+        debugNoSan/build/lib/*.so \
+        debugNoSan/build/share \
+        debugNoSan/build/include
+    local index=0
+    while [ $index -lt ${#hosts[*]} ]; do
+        if ! is_local_host "${hosts[index]}"; then
+            # remove remote debug dir if exists
+            remote_cmd=$(get_remote_ssh_command "$index")
+            bash -c "${remote_cmd} rm -rf ${workdirs[index]}/debugSan"
+            bash -c "${remote_cmd} rm -rf ${workdirs[index]}/debugNoSan"
+            # transfer debug.tar.gz to remote
+            scpcmd=$(scp -r debug.tar.gz root@${hosts[index]}:${workdirs[index]}/debug.tar.gz)
+            bash -c "${scpcmd}"
+            # untar debug.tar.gz to remote
+            bash -c "${remote_cmd} \"tar -xzf ${workdirs[index]}/debug.tar.gz -C ${workdirs[index]} && rm -rf ${workdirs[index]}/debug.tar.gz\""
+        fi
+        index=$((index + 1))
+    done
+    rm -rf debug.tar.gz
+}
+
 function clean_tmp() {
     local index=$1
     local cmd=""
@@ -485,7 +539,15 @@ while [ $i -lt ${#hosts[*]} ]; do
     j=$((j + threads[i]))
     i=$((i + 1))
 done
+# prepare cases
 prepare_cases $j
+
+# transfer debug dirs
+echo "Transfer debug dirs...($(date))"
+transfer_debug_dirs
+echo "Transfer debug dirs done...($(date))"
+read -r -p "Press Enter to continue..."
+
 
 i=0
 while [ $i -lt ${#hosts[*]} ]; do
