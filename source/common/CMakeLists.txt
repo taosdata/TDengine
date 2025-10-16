@@ -92,7 +92,7 @@ else()
     INTERFACE api
   )
 
-  IF(TD_RISCV_64)
+  IF(NOT TD_RISCV_64)
     DEP_ext_curl(common)
     DEP_ext_ssl(common)
   ENDIF()
