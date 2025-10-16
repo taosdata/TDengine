@@ -673,7 +673,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
-#ifdef _TD_LOONGARCH_64
+#ifdef defined _TD_LOONGARCH_ || defined _TD_RISCV_64
   SHashNode *pNewNode = taosMemoryCalloc(1, sizeof(SHashNode) + keyLen + dsize + 1);
 #else
   SHashNode *pNewNode = taosMemoryMalloc(sizeof(SHashNode) + keyLen + dsize + 1);
