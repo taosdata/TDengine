@@ -11,6 +11,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "cmdnodes.h"
+#include "ttime.h"
 
 static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
   SStreamRunnerTaskExecMgr*  pMgr = &pTask->execMgr;
@@ -394,6 +395,18 @@ static int32_t stRunnerInitTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   return code;
 }
 
+static void stRunnerLogWinLatency(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
+  SStreamRuntimeFuncInfo* pRuntime = &pExec->runtimeInfo.funcInfo;
+  if (STREAM_TRIGGER_PERIOD == pRuntime->triggerType) {
+    return;
+  }
+  
+  SSTriggerCalcParam* pWin = (SSTriggerCalcParam*)taosArrayGetLast(pRuntime->pStreamPesudoFuncVals);
+  int64_t winEndTs = pRuntime->isWindowTrigger ? pWin->wend : pWin->currentTs;
+
+  ST_TASK_ILOG("group %" PRId64 " winEnd %" PRId64 " stream latency: %" PRId64 "ms", 
+      pRuntime->groupId, winEndTs, taosGetTimestampMs() - convertTimePrecision(winEndTs, pRuntime->precision, TSDB_TIME_PRECISION_MILLI));
+}
 
 static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock,
                                    bool* createTb) {
@@ -426,7 +439,12 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
                      code, pBlock->info.rows, pExec->tbname, *createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner", pTask->task.streamId);
-        if(code == TSDB_CODE_SUCCESS) *createTb = false;  // if output block success, then no need to create table
+        if(code == TSDB_CODE_SUCCESS) {
+          *createTb = false;  // if output block success, then no need to create table
+          if (tsStreamPerfLogEnabled && 1 == taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)) {
+            stRunnerLogWinLatency(pTask, pExec);
+          }
+        }
       } else {
         ST_TASK_ELOG("failed to init tag vals for output block: %s", tstrerror(code));
       }

@@ -4404,8 +4404,10 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->sessionId));
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->withExternalWindow));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pInfo->triggerType));
-  TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->isWindowTrigger));
-  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pInfo->precision));
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->isWindowTrigger));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pInfo->precision));
+  }
 _exit:
   return code;
 }
