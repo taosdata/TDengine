@@ -10612,6 +10612,7 @@ static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeF
   pCxt->pCmdMsg->msgType = msgType;
   pCxt->pCmdMsg->msgLen = func(NULL, 0, pReq);
   if (pCxt->pCmdMsg->msgLen < 0) {
+    taosMemoryFreeClear(pCxt->pCmdMsg);
     return terrno;
   }
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
@@ -10620,6 +10621,8 @@ static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeF
     return terrno;
   }
   if (-1 == func(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, pReq)) {
+    taosMemoryFreeClear(pCxt->pCmdMsg->pMsg);
+    taosMemoryFreeClear(pCxt->pCmdMsg);
     code = TSDB_CODE_INVALID_MSG;
   }
   return code;
@@ -17020,7 +17023,6 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
 _exit:
   taosMemoryFreeClear(pTableMeta);
   TAOS_RETURN(code);
-  return 0;
 }
 
 #endif
@@ -17056,7 +17058,6 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_RSMA, (FSerializeFunc)tSerializeSMDropRsmaReq, &dropReq));
-  return code;
 _return:
   return code;
 #else

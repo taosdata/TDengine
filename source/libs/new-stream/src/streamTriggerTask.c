@@ -32,7 +32,6 @@
 
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS    1000                    // 1s
 #define STREAM_TRIGGER_IDLE_TIME_NS         1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
-#define STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS 5 * NANOSECOND_PER_SEC  // 5s
 #define STREAM_TRIGGER_MAX_PENDING_PARAMS   1 * 1024 * 1024         // 1M
 #define STREAM_TRIGGER_REALTIME_SESSIONID   1
 #define STREAM_TRIGGER_HISTORY_SESSIONID    2
@@ -5204,6 +5203,30 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
       // continue check if the context is waiting for any available request
       code = stRealtimeContextCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
+    } else if (!pTask->lowLatencyCalc && pContext->pMaxDelayHeap->min != NULL &&
+               pContext->status == STRIGGER_CONTEXT_IDLE) {
+      // continue check if there are delayed requests to be processed
+      SSTriggerRealtimeGroup *pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
+      if (pMinGroup->nextExecTime > taosGetTimestampNs()) {
+        SListIter  iter = {0};
+        SListNode *pNode = NULL;
+        taosWLockLatch(&gStreamTriggerWaitLatch);
+        tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
+        while ((pNode = tdListNext(&iter)) != NULL) {
+          StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pNode->data;
+          if (pInfo->streamId == pTask->task.streamId && pInfo->taskId == pTask->task.taskId &&
+              pInfo->sessionId == pContext->sessionId) {
+            TD_DLIST_POP(&gStreamTriggerWaitList, pNode);
+            break;
+          }
+        }
+        taosWUnLockLatch(&gStreamTriggerWaitLatch);
+        if (pNode != NULL) {
+          taosMemoryFreeClear(pNode);
+          code = stRealtimeContextCheck(pContext);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
     }
   } else {
     code = tdListAppend(&pContext->retryCalcReqs, &pReq);
@@ -8043,7 +8066,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
     }
   }
   if (initPendingSize == 0 && pGroup->pPendingCalcParams.neles > 0) {
-    int64_t t = pTask->lowLatencyCalc ? now : now + STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS;
+    int64_t t = pTask->lowLatencyCalc ? now : (now + tsStreamBatchRequestWaitMs * NANOSECOND_PER_MSEC);
     nextExecTime = TMIN(nextExecTime, t);
   }
 
@@ -8193,7 +8216,7 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
   if (pGroup->pPendingCalcParams.neles >= STREAM_CALC_REQ_MAX_WIN_NUM) {
     nextExecTime = TMIN(nextExecTime, now);
   } else if (pGroup->pPendingCalcParams.neles > 0) {
-    int64_t t = pTask->lowLatencyCalc ? now : now + STREAM_TRIGGER_BATCH_WINDOW_WAIT_NS;
+    int64_t t = pTask->lowLatencyCalc ? now : (now + tsStreamBatchRequestWaitMs * NANOSECOND_PER_MSEC);
     nextExecTime = TMIN(nextExecTime, t);
   }
 

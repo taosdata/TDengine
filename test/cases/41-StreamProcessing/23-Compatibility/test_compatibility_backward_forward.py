@@ -6,7 +6,8 @@ from new_test_framework.utils import (
     clusterComCheck,
     tdStream,
     StreamItem,
-    tdCb
+    tdCb,
+    tdCom
 )
 # Define the list of base versions to test
 BASE_VERSIONS = ["3.2.0.0","3.3.3.0","3.3.4.3","3.3.5.0","3.3.6.0","3.3.7.0"]  # Add more versions as needed
@@ -136,7 +137,7 @@ class TestStreamCompatibility:
             tdLog.info(f"Windows skip compatibility test")
             return True
 
-        bPath = self.getBuildPath()
+        bPath = tdCom.getBuildPath()
         cPath = self.getCfgPath()
         tdLog.info(f"bPath:{bPath}, cPath:{cPath}")
 
@@ -163,27 +164,10 @@ class TestStreamCompatibility:
 
             tdLog.printNoPrefix(f"Compatibility test cycle with base version {base_version} completed successfully")
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        print(f"projPath:{projPath}")
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                print(f"rootRealPath:{rootRealPath}")
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        print(f"buildPath:{buildPath}")
-        return buildPath
+    
 
     def getCfgPath(self):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
