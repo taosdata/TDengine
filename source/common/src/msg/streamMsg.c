@@ -2523,6 +2523,8 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
     }
   }
 
+  TAOS_CHECK_EXIT(tEncodeU8(pEncoder, pReq->triggerPrec));
+
 _exit:
 
   if (code) {
@@ -2824,6 +2826,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       break;
   }
 
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pReq->triggerPrec));
+  }
 
 _exit:
 
@@ -3125,6 +3130,7 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
 
   pDst->triggerTblUid = pSrc->triggerTblUid;
   pDst->triggerTblType = pSrc->triggerTblType;
+  pDst->triggerPrec = pSrc->triggerPrec;
   pDst->deleteReCalc = pSrc->deleteReCalc;
   pDst->deleteOutTbl = pSrc->deleteOutTbl;
   

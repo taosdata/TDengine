@@ -282,6 +282,7 @@ typedef struct {
   int8_t   triggerTblType;
   uint64_t triggerTblUid;  // suid or uid
   uint64_t triggerTblSuid;
+  uint8_t  triggerPrec;
   int8_t   vtableCalc;     // virtual table calc exits
   int8_t   outTblType;
   int8_t   outStbExists;
