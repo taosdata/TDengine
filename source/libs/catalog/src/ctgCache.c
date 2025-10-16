@@ -656,7 +656,8 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
   if(*pTableMeta)  {
-    ctgError("Expected pTableMeta to be NULL");
+    ctgError("Expected pTableMeta to be NULL, uid:0x%" PRIx64 ", suid:0x%" PRIx64, (*pTableMeta)->uid,
+             (*pTableMeta)->suid);
     return TSDB_CODE_INVALID_PARA;
   }
 
