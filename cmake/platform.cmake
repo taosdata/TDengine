@@ -9,7 +9,7 @@ else()
     set(CXX_COMPILER_IS_GNU FALSE)
 endif()
 
-MESSAGE("Current system: ${CMAKE_SYSTEM_NAME}")
+MESSAGE(STATUS "Current system: ${CMAKE_SYSTEM_NAME}")
 
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
@@ -21,7 +21,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         set(CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS "${CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS} -undefined dynamic_lookup")
     ENDIF ()
 
-    MESSAGE("Current system processor: ${CMAKE_SYSTEM_PROCESSOR}")
+    MESSAGE(STATUS "Current system processor: ${CMAKE_SYSTEM_PROCESSOR}")
 
     IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 
@@ -36,19 +36,27 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         ENDIF ()
 
         EXECUTE_PROCESS(COMMAND chmod 777  ${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/get_os.sh)
-	EXECUTE_PROCESS(COMMAND readlink /bin/sh OUTPUT_VARIABLE SHELL_LINK)
-	MESSAGE(STATUS "The shell is: " ${SHELL_LINK})
+        EXECUTE_PROCESS(COMMAND readlink /bin/sh OUTPUT_VARIABLE SHELL_LINK)
+        MESSAGE(STATUS "The shell is: " ${SHELL_LINK})
 	
         IF (${SHELL_LINK} MATCHES "dash")
-	    EXECUTE_PROCESS(COMMAND  ${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/get_os.sh "" OUTPUT_VARIABLE TD_OS_INFO)
-	ELSE ()
-	    EXECUTE_PROCESS(COMMAND sh  ${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/get_os.sh "" OUTPUT_VARIABLE TD_OS_INFO)
-	ENDIF ()    
-	MESSAGE(STATUS "The current OS is " ${TD_OS_INFO})
-	IF (${TD_OS_INFO} MATCHES "Alpine")
-	    SET(TD_ALPINE TRUE)
+            EXECUTE_PROCESS(COMMAND  ${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/get_os.sh "" OUTPUT_VARIABLE TD_OS_INFO)
+        ELSE ()
+            EXECUTE_PROCESS(COMMAND sh  ${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/get_os.sh "" OUTPUT_VARIABLE TD_OS_INFO)
+        ENDIF ()   
+
+        MESSAGE(STATUS "The current OS is " ${TD_OS_INFO})
+        IF (${TD_OS_INFO} MATCHES "Alpine")
+            SET(TD_ALPINE TRUE)
             ADD_DEFINITIONS("-D_ALPINE")
-	ENDIF ()
+            MESSAGE(STATUS "Add defination ALPINE")
+        ENDIF ()
+
+        IF (${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
+            SET(TD_RISCV64 TRUE)
+            ADD_DEFINITIONS("-D_RISCV64")
+            MESSAGE(STATUS "Add defination RISCV64")
+        ENDIF ()
 
     ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 

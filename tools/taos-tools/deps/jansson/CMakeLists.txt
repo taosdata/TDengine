@@ -67,7 +67,7 @@ if (MSVC)
    endif()
 endif()
 
-message("C compiler: ${CMAKE_C_COMPILER_ID}")
+message(STATUS "C compiler: ${CMAKE_C_COMPILER_ID}")
 
 if (JANSSON_COVERAGE)
    include(CodeCoverage)
