@@ -198,8 +198,11 @@ function transfer_debug_dirs() {
             bash -c "${remote_cmd} rm -rf ${workdirs[index]}/debugSan"
             bash -c "${remote_cmd} rm -rf ${workdirs[index]}/debugNoSan"
             # transfer debug.tar.gz to remote
-            scpcmd=$(scp -r debug.tar.gz root@${hosts[index]}:${workdirs[index]}/debug.tar.gz)
-            bash -c "${scpcmd}"
+            if [ -n "${passwords[index]}" ]; then
+                sshpass -p "${passwords[index]}" scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
+            else
+                scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
+            fi
             # untar debug.tar.gz to remote
             bash -c "${remote_cmd} \"tar -xzf ${workdirs[index]}/debug.tar.gz -C ${workdirs[index]} && rm -rf ${workdirs[index]}/debug.tar.gz\""
         fi
