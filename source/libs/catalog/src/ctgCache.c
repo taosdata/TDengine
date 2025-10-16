@@ -655,7 +655,10 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
   int32_t      code = 0;
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
-  // taosMemoryFreeClear(*pTableMeta);
+  if(*pTableMeta)  {
+    ctgError("Expected pTableMeta to be NULL");
+    return TSDB_CODE_INVALID_PARA;
+  }
   *pTableMeta = NULL;
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
