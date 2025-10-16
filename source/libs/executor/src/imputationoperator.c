@@ -28,6 +28,7 @@
 #include "thash.h"
 #include "tjson.h"
 #include "tmsg.h"
+#include "types.h"
 
 #ifdef USE_ANALYTICS
 
@@ -69,6 +70,16 @@ typedef struct {
 } SCorrelationSupp;
 
 typedef struct {
+  SBaseSupp base;
+  int32_t   lagStart;
+  int32_t   lagEnd;
+  int32_t   targetSlot1;
+  int32_t   targetSlot2;
+  int32_t   targetSlot1Type;
+  int32_t   targetSlot2Type;
+} STlccSupp;
+
+typedef struct {
   SOptrBasicInfo   binfo;
   SExprSupp        scalarSup;
   char             algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
@@ -79,6 +90,7 @@ typedef struct {
   int32_t          analysisType;
   SImputationSupp  imputatSup;
   SCorrelationSupp corrSupp;
+  STlccSupp        tlccSupp;
 } SImputationOperatorInfo;
 
 static void    imputatDestroyOperatorInfo(void* param);
@@ -93,6 +105,7 @@ static int32_t doCreateBuf(SImputationOperatorInfo* pInfo, const char* pId);
 static int32_t estResultRowsAfterImputation(int32_t rows, int64_t skey, int64_t ekey, int32_t prec, const char* pFreq, const char* id);
 static void    doInitImputOptions(SImputationSupp* pSupp);
 static void    doInitDtwOptions(SCorrelationSupp* pSupp);
+static void    doInitTlccOptions(STlccSupp* pSupp);
 static int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id);
 static void    parseRadius(SCorrelationSupp* pSupp, SHashObj* pHashMap, const char* id);
 
@@ -151,12 +164,14 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
 
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     doInitImputOptions(pSupp);
-
     code = doParseInputForImputation(pInfo, pSupp, pImputatNode->pFuncs, id);
     QUERY_CHECK_CODE(code, lino, _error);
-
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW) {
+  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
     doInitDtwOptions(&pInfo->corrSupp);
+    code = doParseInputForDtw(pInfo, &pInfo->corrSupp, pImputatNode->pFuncs, id);
+    QUERY_CHECK_CODE(code, lino, _error);
+  } else if (pInfo->analysisType == FUNCTION_TYPE_TLCC) {
+    doInitTlccOptions(&pInfo->tlccSupp);
     code = doParseInputForDtw(pInfo, &pInfo->corrSupp, pImputatNode->pFuncs, id);
     QUERY_CHECK_CODE(code, lino, _error);
   } else {
@@ -397,7 +412,7 @@ static int32_t doCacheBlock(SImputationOperatorInfo* pInfo, SSDataBlock* pBlock,
 
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     code = doCacheBlockForImputation(&pInfo->imputatSup, id, pBlock);
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW) {
+  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
     code = doCacheBlockForDtw(&pInfo->corrSupp, id, pBlock);
   }
 
@@ -469,12 +484,34 @@ static int32_t finishBuildRequest(SImputationOperatorInfo* pInfo, SBaseSupp* pSu
   return code;
 }
 
+static int32_t buildDtwPathResult(SJson* pathJson, SColumnInfoData* pResTargetCol, const char* pId, char* buf,
+                                  int32_t bufSize) {
+  int32_t pair = tjsonGetArraySize(pathJson);
+  if (pair != 2) {
+    qError("%s invalid path data, should be array of pair", pId);
+    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+  }
+
+  SJson* first = tjsonGetArrayItem(pathJson, 0);
+  SJson* second = tjsonGetArrayItem(pathJson, 1);
+
+  int64_t t1, t2;
+  tjsonGetObjectValueBigInt(first, &t1);
+  tjsonGetObjectValueBigInt(second, &t2);
+
+  int32_t n = snprintf(varDataVal(buf), bufSize - VARSTR_HEADER_SIZE, "(%" PRId64 ", %" PRId64 ")", t1, t2);
+  if (n > 0) {
+    varDataSetLen(buf, n);
+    return TSDB_CODE_SUCCESS;
+  } else {
+    return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+  }
+}
+
 static int32_t doAnalysisImpl(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       resCurRow = pBlock->info.rows;
   int64_t       tmpI64 = 0;
-  int32_t       tmpI32 = 0;
-  float         tmpFloat = 0;
   double        tmpDouble = 0;
   int32_t       code = 0;
 
@@ -496,7 +533,7 @@ static int32_t doAnalysisImpl(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, 
     if (code != 0) {
       qError("%s failed to get msg from rsp, unknown error", pId);
     } else {
-      qError("%s failed to exec forecast, msg:%s", pId, pMsg);
+      qError("%s failed to exec analysis, msg:%s", pId, pMsg);
     }
 
     tjsonDelete(pJson);
@@ -561,14 +598,14 @@ static int32_t doAnalysisImpl(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, 
     }
 
     if (pInfo->imputatSup.resMarkSlot != -1) {
-      SColumnInfoData* pResMaskCol = taosArrayGet(pBlock->pDataBlock, pInfo->imputatSup.resMarkSlot);
-      if (pResMaskCol != NULL) {
+      SColumnInfoData* pResMarkCol = taosArrayGet(pBlock->pDataBlock, pInfo->imputatSup.resMarkSlot);
+      if (pResMarkCol != NULL) {
         resCurRow = pBlock->info.rows;
         for (int32_t i = 0; i < rows; ++i) {
-          SJson* maskJson = tjsonGetArrayItem(pMask, i);
-          tjsonGetObjectValueBigInt(maskJson, &tmpI64);
+          SJson* markJson = tjsonGetArrayItem(pMask, i);
+          tjsonGetObjectValueBigInt(markJson, &tmpI64);
           int32_t v = tmpI64;
-          colDataSetInt32(pResMaskCol, resCurRow, &v);
+          colDataSetInt32(pResMarkCol, resCurRow, &v);
           resCurRow++;
         }
       }
@@ -580,6 +617,33 @@ static int32_t doAnalysisImpl(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, 
     tjsonGetObjectValueDouble(pTarget, &tmpDouble);
     colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
     rows = 1;
+  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
+    SJson* pPath = tjsonGetObjectItem(pJson, "path");
+    if (pPath == NULL) goto _OVER;
+
+    int32_t listLen = tjsonGetArraySize(pPath);
+    if (listLen != rows) {
+      goto _OVER;
+    }
+
+    for (int32_t i = 0; i < rows; ++i) {
+      SJson* pathJson = tjsonGetArrayItem(pPath, i);
+
+      char buf[128 + VARSTR_HEADER_SIZE] = {0};
+      code = buildDtwPathResult(pathJson, pResTargetCol, pId, buf, sizeof(buf));
+      if (code != 0) {
+        qError("%s failed to build path result, code:%s", pId, tstrerror(code));
+        goto _OVER;
+      }
+
+      code = colDataSetVal(pResTargetCol, resCurRow, buf, false);
+      if (code != 0) {
+        qError("%s failed to set path result to column, code:%s", pId, tstrerror(code));
+        goto _OVER;
+      }
+
+      resCurRow++;
+    }
   }
 
   pBlock->info.rows += rows;
@@ -728,7 +792,7 @@ static int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSu
       SFunctionNode* pFunc = (SFunctionNode*)((STargetNode*)pNode)->pExpr;
       int32_t        numOfParam = LIST_LENGTH(pFunc->pParameterList);
 
-      if (pFunc->funcType == FUNCTION_TYPE_DTW) {
+      if (pFunc->funcType == FUNCTION_TYPE_DTW || pFunc->funcType == FUNCTION_TYPE_DTW_PATH) {
         // code = validInputParams(pFunc, id);
         // if (code) {
           // return code;
@@ -781,7 +845,85 @@ static int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSu
             qError("%s failed to clone options string, code:%s", id, tstrerror(code));
             return code;
           }
+        } else {
+          qError("%s too many parameters in dtw function", id);
+          code = TSDB_CODE_INVALID_PARA;
+          return code;
+        }
+      }
+    }
+  }
 
+  if (pInfo->options == NULL) {
+    qError("%s option is missing or clone option string failed, failed to do correlation analysis", id);
+    code = TSDB_CODE_ANA_INTERNAL_ERROR;
+  }
+
+  return code;
+}
+
+static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, STlccSupp* pSupp, SNodeList* pFuncs, const char* id) {
+  int32_t code = 0;
+  SNode*  pNode = NULL;
+
+  FOREACH(pNode, pFuncs) {
+    if ((nodeType(pNode) == QUERY_NODE_TARGET) && (nodeType(((STargetNode*)pNode)->pExpr) == QUERY_NODE_FUNCTION)) {
+      SFunctionNode* pFunc = (SFunctionNode*)((STargetNode*)pNode)->pExpr;
+      int32_t        numOfParam = LIST_LENGTH(pFunc->pParameterList);
+
+      if (pFunc->funcType == FUNCTION_TYPE_TLCC) {
+        // code = validInputParams(pFunc, id);
+        // if (code) {
+          // return code;
+        // }
+
+        pSupp->base.numOfCols = 2;
+
+        if (numOfParam == 2) {
+          // column1, column2
+          SColumnNode* pTargetNode1 = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+          SColumnNode* pTargetNode2 = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 1);
+
+          pSupp->targetSlot1 = pTargetNode1->slotId;
+          pSupp->targetSlot1Type = pTargetNode1->node.resType.type;
+
+          pSupp->targetSlot2 = pTargetNode2->slotId;
+          pSupp->targetSlot2Type = pTargetNode2->node.resType.type;
+
+          // let's set the default radius to be 1
+          pInfo->options = taosStrdup("algo=dtw,radius=1");
+        } else if (numOfParam == 3) {
+          // column, options, ts
+          // SColumnNode* pTargetNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+          // if (nodeType(pTargetNode) != QUERY_NODE_COLUMN) {
+          // return error
+          // }
+
+          SColumnNode* pTargetNode1 = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+          SColumnNode* pTargetNode2 = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 1);
+
+          pSupp->targetSlot1 = pTargetNode1->slotId;
+          pSupp->targetSlot1Type = pTargetNode1->node.resType.type;
+
+          pSupp->targetSlot2 = pTargetNode2->slotId;
+          pSupp->targetSlot2Type = pTargetNode2->node.resType.type;
+
+          SValueNode* pOptNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+
+          int32_t bufLen = strlen(pOptNode->literal) + 30;
+          pInfo->options = taosMemoryMalloc(bufLen);
+          if (pInfo->options == NULL) {
+            code = terrno;
+            qError("%s failed to prepare option buffer, code:%s", id, tstrerror(code));
+            return code;
+          }
+
+          int32_t ret = snprintf(pInfo->options, bufLen, "%s,%s", pOptNode->literal, "algo=dtw");
+          if (ret < 0) {
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            qError("%s failed to clone options string, code:%s", id, tstrerror(code));
+            return code;
+          }
         } else {
           qError("%s too many parameters in dtw function", id);
           code = TSDB_CODE_INVALID_PARA;
@@ -821,9 +963,20 @@ static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SExprSupp* pExprSup)
   return 0;
 }
 
+void doInitBaseOptions(SBaseSupp* pSupp) {
+  pSupp->numOfCols = 0;
+  pSupp->numOfRows = 0;
+  pSupp->numOfBlocks = 0;
+  pSupp->wncheck = ANALY_DEFAULT_WNCHECK;
+  pSupp->timeout = ANALY_DEFAULT_TIMEOUT;
+  pSupp->groupId = 0;
+
+  pSupp->win.skey = INT64_MAX;
+  pSupp->win.ekey = INT64_MIN;
+}
+
 void doInitImputOptions(SImputationSupp* pSupp) {
-  pSupp->base.numOfRows = 0;
-  pSupp->base.wncheck = ANALY_DEFAULT_WNCHECK;
+  doInitBaseOptions(&pSupp->base);
 
   pSupp->freq[0] = 'S';  // d(day), h(hour), m(minute),s(second), ms(millisecond), us(microsecond)
   pSupp->freq[1] = '\0';
@@ -832,22 +985,27 @@ void doInitImputOptions(SImputationSupp* pSupp) {
   pSupp->targetSlot = -1;
   pSupp->targetType = -1;
   pSupp->tsPrecision = -1;
-
-  pSupp->base.win.skey = INT64_MAX;
-  pSupp->base.win.ekey = INT64_MIN;
 }
 
 void doInitDtwOptions(SCorrelationSupp* pSupp) {
-  pSupp->base.numOfRows = 0;
-  pSupp->base.wncheck = ANALY_DEFAULT_WNCHECK;
-
-  pSupp->base.numOfBlocks = 0;
-  pSupp->base.timeout = ANALY_DEFAULT_TIMEOUT;
-
-  pSupp->base.win.skey = INT64_MAX;
-  pSupp->base.win.ekey = INT64_MIN;
-
+  doInitBaseOptions(&pSupp->base);
   pSupp->radius = 1;
+
+  pSupp->targetSlot1 = -1;
+  pSupp->targetSlot1Type = TSDB_DATA_TYPE_INT;
+  pSupp->targetSlot2 = -1;
+  pSupp->targetSlot2Type = TSDB_DATA_TYPE_INT;
+}
+
+void doInitTlccOptions(SDtwPathSupp* pSupp) {
+  doInitBaseOptions(&pSupp->base);
+  pSupp->lagStart = -1;
+  pSupp->lagEnd = 1;
+
+  pSupp->targetSlot1 = -1;
+  pSupp->targetSlot1Type = TSDB_DATA_TYPE_INT;
+  pSupp->targetSlot2 = -1;
+  pSupp->targetSlot2Type = TSDB_DATA_TYPE_INT;
 }
 
 int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
@@ -984,7 +1142,7 @@ int32_t doParseOption(SImputationOperatorInfo* pInfo, const char* id) {
   int32_t type = 0;
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     type = ANALY_ALGO_TYPE_IMPUTATION;
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW) {
+  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
     type = ANALY_ALGO_TYPE_CORREL;
   }
 
@@ -1028,7 +1186,7 @@ static int32_t doCreateBuf(SImputationOperatorInfo* pInfo, const char* pId) {
 
     code = taosAnalyBufWriteColMeta(pBuf, index++, pInfo->imputatSup.targetType, "val");
     if (code != 0) goto _OVER;
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW) {
+  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
     code = taosAnalyBufWriteColMeta(pBuf, index++, pInfo->corrSupp.targetSlot1Type, "val");
     if (code != 0) goto _OVER;
 
