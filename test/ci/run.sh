@@ -181,7 +181,7 @@ function transfer_debug_dirs() {
         debugSan/build/share \
         debugSan/build/include \
         debugNoSan/build/bin/taos* \
-        debugNoSan/build/bin/tmq_sim \
+        debugNoSan/build/bin/tmq_* \
         debugNoSan/build/bin/sml_test \
         debugNoSan/build/bin/get_db_name_test \
         debugNoSan/build/bin/replay_test \
