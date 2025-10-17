@@ -318,7 +318,7 @@ static int32_t tsdbLastRowInitColStatus(SLastRow *pLastRow, STSchema *pTSchema) 
   return TSDB_CODE_SUCCESS;
 }
 
-static SColCacheStatus *tsdbLastRowGetLastColValColStatus(SLastRow *pLastRow, int16_t cid) {
+SColCacheStatus *tsdbLastRowGetLastColValColStatus(SLastRow *pLastRow, int16_t cid) {
   if (!pLastRow || !pLastRow->colStatus) {
     return NULL;
   }

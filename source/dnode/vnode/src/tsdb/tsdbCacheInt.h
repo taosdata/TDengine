@@ -111,6 +111,7 @@ int32_t tsdbCacheGetBatchFromRowLru(STsdb* pTsdb, tb_uid_t uid, SArray* pLastArr
 int32_t tsdbLastRowInvalidateCol(SLastRow* pLastRow, int16_t cid);
 int32_t tsdbRowCachePutToRocksdb(STsdb* pTsdb, SLastRowKey* pLastRowKey, SLastRow* pLastRow);
 int32_t tsdbRowCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
+SColCacheStatus* tsdbLastRowGetLastColValColStatus(SLastRow* pLastRow, int16_t cid);
 
 // tsdb col cache
 int32_t tsdbColCacheCmp(void* state, const char* a, size_t alen, const char* b, size_t blen);
