@@ -8,6 +8,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal1.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal2.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal3.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py
@@ -573,7 +576,8 @@
 
 # 52-Show
 ,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_alive.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_basic.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_diskinfo.py 
 ,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_table_distributed.py
 ,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_tables.py
@@ -726,7 +730,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_compare.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_case_when.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_show.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_having.py
 
@@ -908,9 +911,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py
@@ -1132,7 +1132,6 @@
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_dumpsdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_tag_index.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py
@@ -1148,7 +1147,6 @@
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_pseudo_column.py
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_ts_range.py
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_tag_scan.py
-,,n,.,pytest cases/uncatalog/develop-test/2-query/test_show_create_db.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/test_new/storage/compact/test_compact_meta.py
 ### 7-tmq

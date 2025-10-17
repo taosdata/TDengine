@@ -64,23 +64,26 @@ class TestBasic:
         os.system(f"{os.sep.join([taosd_path, 'taosd'])} -y '1234567890' -c {dnode2_cfg_path}")
         tdLog.info("test case: recreate the encrypt key for dnode2 passed")
 
-    def test_basic(self):
-        """summary: xxx
+    def test_db_create_encrypt(self):
+        """ Option: encrypt_algorithm
 
-        description: xxx
+        1. Create encrypt key '1234567890'
+        2. Create database with encrypt_algorithm 'sm4'
+        3. Create stable and child tables
+        4. Insert data and query data
+        5. Recreate dnode encrypt key
+        6. Query data again
+        7. Create database with wrong encrypt key and expect error
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-17 Alex Duan Migrated from uncatalog/army/db-encrypt/test_basic.py
+        
         """
         self.create_encrypt_db_error()
         self.create_encrypt_db()

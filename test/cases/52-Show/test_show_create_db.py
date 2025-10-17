@@ -46,22 +46,22 @@ class TestShowCreateDb:
             tdSql.execute(f"drop database if exists {dbname}")
 
     def test_show_create_db(self):
-        """summary: xxx
+        """Show Create Database
 
-        description: xxx
+        1. Create three databases with different options
+        2. Check "show create database dbname" output correctness
+        3. Restart taosd and recheck the output correctness
+        4. Drop and recreate the databases, recheck the output correctness
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-17 Alex Duan Migrated from uncatalog/develop-test/2-query/test_show_create_db.py
+        
         """
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists scd")

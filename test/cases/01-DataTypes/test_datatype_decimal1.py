@@ -2100,23 +2100,21 @@ class TestDecimal:
         #self.check_desc("view1", [c1, Column(DecimalType(TypeEnum.DECIMAL, 38, 10))])
 
     def test_decimal(self):
-        """summary: xxx
+        """DataTypes: decimal1
 
-        description: xxx
+        1. check decimal ddl
+        2. no decimal table test
+        3. insert decimal values
+        4. query decimal values
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-10-17 Alex Duan Migrated from uncatalog/system-test/2-query/test_decimal1.py
         """
 
         self.check_decimal_ddl()

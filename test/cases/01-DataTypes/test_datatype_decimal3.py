@@ -2003,23 +2003,21 @@ class TestDecimal3:
         tdLog.info(f"{datetime.now()} start to test {name}")
 
     def test_decimal3(self):
-        """summary: xxx
+        """DataTypes: decimal3
 
-        description: xxx
+        1. check decimal ddl
+        2. check insert decimal values
+        3. check query decimal
+        4. check decimal and view
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-
+            - 2025-10-17 Alex Duan Migrated from uncatalog/system-test/2-query/test_decimal1.py
         """
 
         self.check_decimal_ddl()

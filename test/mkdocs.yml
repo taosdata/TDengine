@@ -128,6 +128,8 @@ nav:
     - 83-DocsExamplesTest: case_list_docs/DocsExamplesTest.md
     - 90-Escape: case_list_docs/Escape.md
     - 91-Limits: case_list_docs/Limits.md
+    - 95-Tools: 
+        - 01-Check: case_list_docs/Tools/Check.md
     - 99-Others:
         - 01-Valgrind: case_list_docs/Others/Valgrind.md
 
