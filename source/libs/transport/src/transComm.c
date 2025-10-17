@@ -794,7 +794,7 @@ bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
 }
 #endif
 
-static int32_t testStaticVars = -1;
+volatile int32_t testStaticVars = -1;
 
 void transInitEnv() {
   transRefMgmt = transOpenRefMgt(50000, transDestroyExHandle);
