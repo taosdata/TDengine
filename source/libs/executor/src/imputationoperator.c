@@ -59,25 +59,17 @@ typedef struct {
 } SImputationSupp;
 
 typedef struct {
-  int32_t      radius;
-  SBaseSupp    base;
-
-  int32_t      targetSlot1;
-  int32_t      targetSlot2;
-
-  int32_t      targetSlot1Type;
-  int32_t      targetSlot2Type;
-} SCorrelationSupp;
-
-typedef struct {
-  SBaseSupp base;
+  int32_t   radius;
   int32_t   lagStart;
   int32_t   lagEnd;
-  int32_t   targetSlot1;
-  int32_t   targetSlot2;
-  int32_t   targetSlot1Type;
-  int32_t   targetSlot2Type;
-} STlccSupp;
+  SBaseSupp base;
+
+  int32_t targetSlot1;
+  int32_t targetSlot2;
+
+  int32_t targetSlot1Type;
+  int32_t targetSlot2Type;
+} SCorrelationSupp;
 
 typedef struct {
   SOptrBasicInfo   binfo;
@@ -90,7 +82,6 @@ typedef struct {
   int32_t          analysisType;
   SImputationSupp  imputatSup;
   SCorrelationSupp corrSupp;
-  STlccSupp        tlccSupp;
 } SImputationOperatorInfo;
 
 static void    imputatDestroyOperatorInfo(void* param);
@@ -99,13 +90,13 @@ static int32_t doAnalysis(SImputationOperatorInfo* pInfo, SExecTaskInfo* pTaskIn
 static int32_t doCacheBlock(SImputationOperatorInfo* pInfo, SSDataBlock* pBlock, const char* id);
 static int32_t doParseInputForImputation(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SNodeList* pFuncs, const char* id);
 static int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id);
+static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id);
 static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SExprSupp* pExprSup);
 static int32_t doParseOption(SImputationOperatorInfo* pInfo, const char* id);
 static int32_t doCreateBuf(SImputationOperatorInfo* pInfo, const char* pId);
 static int32_t estResultRowsAfterImputation(int32_t rows, int64_t skey, int64_t ekey, int32_t prec, const char* pFreq, const char* id);
 static void    doInitImputOptions(SImputationSupp* pSupp);
 static void    doInitDtwOptions(SCorrelationSupp* pSupp);
-static void    doInitTlccOptions(STlccSupp* pSupp);
 static int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id);
 static void    parseRadius(SCorrelationSupp* pSupp, SHashObj* pHashMap, const char* id);
 
@@ -171,8 +162,8 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
     code = doParseInputForDtw(pInfo, &pInfo->corrSupp, pImputatNode->pFuncs, id);
     QUERY_CHECK_CODE(code, lino, _error);
   } else if (pInfo->analysisType == FUNCTION_TYPE_TLCC) {
-    doInitTlccOptions(&pInfo->tlccSupp);
-    code = doParseInputForDtw(pInfo, &pInfo->corrSupp, pImputatNode->pFuncs, id);
+    doInitDtwOptions(&pInfo->corrSupp);
+    code = doParseInputForTlcc(pInfo, &pInfo->corrSupp, pImputatNode->pFuncs, id);
     QUERY_CHECK_CODE(code, lino, _error);
   } else {
     code = TSDB_CODE_INVALID_PARA;
@@ -783,7 +774,7 @@ static int32_t doParseInputForImputation(SImputationOperatorInfo* pInfo, SImputa
   return code;
 }
 
-static int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id) {
+int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id) {
   int32_t code = 0;
   SNode*  pNode = NULL;
 
@@ -862,7 +853,7 @@ static int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSu
   return code;
 }
 
-static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, STlccSupp* pSupp, SNodeList* pFuncs, const char* id) {
+static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id) {
   int32_t code = 0;
   SNode*  pNode = NULL;
 
@@ -891,7 +882,7 @@ static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, STlccSupp* pS
           pSupp->targetSlot2Type = pTargetNode2->node.resType.type;
 
           // let's set the default radius to be 1
-          pInfo->options = taosStrdup("algo=dtw,radius=1");
+          pInfo->options = taosStrdup("algo=tlcc,lag_start=-1,lag_end=1");
         } else if (numOfParam == 3) {
           // column, options, ts
           // SColumnNode* pTargetNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -918,14 +909,14 @@ static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, STlccSupp* pS
             return code;
           }
 
-          int32_t ret = snprintf(pInfo->options, bufLen, "%s,%s", pOptNode->literal, "algo=dtw");
+          int32_t ret = snprintf(pInfo->options, bufLen, "%s,%s", pOptNode->literal, "algo=tlcc");
           if (ret < 0) {
             code = TSDB_CODE_OUT_OF_MEMORY;
             qError("%s failed to clone options string, code:%s", id, tstrerror(code));
             return code;
           }
         } else {
-          qError("%s too many parameters in dtw function", id);
+          qError("%s too many parameters in tlcc function", id);
           code = TSDB_CODE_INVALID_PARA;
           return code;
         }
@@ -991,14 +982,6 @@ void doInitDtwOptions(SCorrelationSupp* pSupp) {
   doInitBaseOptions(&pSupp->base);
   pSupp->radius = 1;
 
-  pSupp->targetSlot1 = -1;
-  pSupp->targetSlot1Type = TSDB_DATA_TYPE_INT;
-  pSupp->targetSlot2 = -1;
-  pSupp->targetSlot2Type = TSDB_DATA_TYPE_INT;
-}
-
-void doInitTlccOptions(SDtwPathSupp* pSupp) {
-  doInitBaseOptions(&pSupp->base);
   pSupp->lagStart = -1;
   pSupp->lagEnd = 1;
 
