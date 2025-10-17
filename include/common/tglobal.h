@@ -323,6 +323,7 @@ extern bool    tsCompareAsStrInGreatest;
 extern int32_t tsStreamVirtualMergeMaxDelayMs;
 extern int32_t tsStreamVirtualMergeMaxMemKb;
 extern int32_t tsStreamVirtualMergeWaitMode;
+extern int32_t tsRpcRecvLogThreshold;  // in seconds
 
 extern char     tsAdapterFqdn[];
 extern uint16_t tsAdapterPort;

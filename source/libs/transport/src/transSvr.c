@@ -425,32 +425,32 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
   STraceId* trace = &pHead->traceId;
 
   int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
-  static int64_t EXCEPTION_LIMIT_US = 1000 * 1000;
+  int64_t        threshold = tsRpcRecvLogThreshold * 1000 * 1000;
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
-    if (cost >= EXCEPTION_LIMIT_US) {
-      tGWarn("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
+    if (cost >= threshold) {
+      tGWarn("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, threshold:%d, recv exception, seqNum:%" PRId64
              ", sid:%" PRId64,
              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-             (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
+             (int)cost, (int32_t)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", sid:%" PRId64,
+      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, threshold:%d, seqNum:%" PRId64 ", sid:%" PRId64,
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
+              (int)cost, (int32_t)threshold, pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
   } else {
-    if (cost >= EXCEPTION_LIMIT_US) {
+    if (cost >= threshold) {
       tGWarn(
-          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception, "
+          "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus,threshold:%d recv exception, "
           "seqNum:%" PRId64 ", sid:%" PRId64,
           transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-          pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+          pHead->noResp, pTransMsg->code, (int)(cost), (int32_t)(threshold), pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, seqNum:%" PRId64
+      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, threshold:%d, seqNum:%" PRId64
               ", "
               "sid:%" PRId64,
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              pHead->noResp, pTransMsg->code, (int)(cost), pTransMsg->info.seqNum, pTransMsg->info.qId);
+              pHead->noResp, pTransMsg->code, (int)(cost), (int32_t)(threshold), pTransMsg->info.seqNum, pTransMsg->info.qId);
     }
   }
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pInst), pTransMsg->info.handle, pConn,
