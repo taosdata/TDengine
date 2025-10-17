@@ -383,6 +383,12 @@ option(
    OFF
 )
 
+option(
+    BUILD_LIBSASL
+    "If build libsasl2"
+    ON
+)
+
 message(STATUS "BUILD_SHARED_STORAGE:${BUILD_SHARED_STORAGE}")
 message(STATUS "BUILD_WITH_S3:${BUILD_WITH_S3}")
 message(STATUS "BUILD_WITH_COS:${BUILD_WITH_COS}")

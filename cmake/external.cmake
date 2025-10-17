@@ -1627,20 +1627,33 @@ ENDIF()
 
 if(${BUILD_LIBSASL})      # {
     if(${TD_LINUX})
-        set(ext_addr2line_static libaddr2line.a)
-    elseif(${TD_DARWIN})
-        set(ext_addr2line_static libaddr2line.a)
+        set(ext_sasl2 libsasl2.a)
     endif()
-    INIT_EXT(ext_addr2line
+
+    INIT_EXT(ext_sasl2
         INC_DIR          include
-        LIB              lib/${ext_addr2line_static}
+        LIB              lib/${ext_sasl2}
     )
     # GIT_REPOSITORY https://github.com/davea42/libdwarf-addr2line.git
     # GIT_TAG main
     get_from_local_repo_if_exists("https://github.com/cyrusimap/cyrus-sasl.git")
-    ExternalProject_Add(ext_addr2line
+    ExternalProject_Add(ext_sasl2
         GIT_REPOSITORY ${_git_url}
         GIT_TAG cyrus-sasl-2.1.27 
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CONFIGURE_COMMAND
+            COMMAND ./configure -prefix=${_ins} --enable-static --disable-shared --without-openssl    # NOTE: why disable-initial-exec-tls
+                    CFLAGS=-Wno-missing-braces
+                    CXXFLAGS=-Wno-missing-braces
+        BUILD_COMMAND
+            COMMAND make
+        INSTALL_COMMAND
+            COMMAND make install
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
     )
-    add_dependencies(build_externals ext_addr2line)     # this is for github workflow in cache-miss step.
+    add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
 endif(${BUILD_LIBSASL})   # }
