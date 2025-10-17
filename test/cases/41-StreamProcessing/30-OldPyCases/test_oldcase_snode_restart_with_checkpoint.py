@@ -46,7 +46,7 @@ class Test_snode_restart_with_checkpoint:
 
         os.system("nohup taosBenchmark -y -B 1 -t 4 -S 1000 -n 1000 -i 1000 -v 2  > /dev/null 2>&1 &")
         time.sleep(4)
-        tdSql.query("use test")
+        tdSql.query("use test", queryTimes=60)
         tdSql.query("create snode on dnode 4")
         tdSql.query(f"""
                     create stream test.s1 interval(2s) sliding(2s) from test.meters 

@@ -115,7 +115,8 @@ typedef enum {
  * @return
  */
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, SStreamInserterParam* pInsertParams, int32_t vgId, int32_t taskId);
-int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range);
+int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle);
+bool    qNeedReset(qTaskInfo_t pInfo);
 
 /**
  * Create the exec task for queue mode

@@ -15,7 +15,7 @@ on:
         type: string
         default: 'cover/3.0' # default value for TDengine test branch
   schedule:
-    - cron: '0 02 * * *'
+    - cron: '0 17 * * *'
     # - cron: '0 18 * * *'
     # - cron: '0 */12 * * *'
 

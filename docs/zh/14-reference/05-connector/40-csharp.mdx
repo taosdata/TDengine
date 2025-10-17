@@ -38,30 +38,31 @@ import RequestId from "./_request_id.mdx";
 ## 处理异常
 
 `TDengine.Connector` 会抛出异常，应用程序需要处理异常。taosc 异常类型 `TDengineError`，包含错误码和错误信息，应用程序可以根据错误码和错误信息进行处理。
-TDengine TSDB 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
+
+错误码信息请参考 [错误码](../../../reference/error-code)
 
 ## 数据类型映射
 
-| TDengine TSDB DataType | C# Type          |
-|-------------------|------------------|
-| TIMESTAMP         | DateTime         |
-| TINYINT           | sbyte            |
-| SMALLINT          | short            |
-| INT               | int              |
-| BIGINT            | long             |
-| TINYINT UNSIGNED  | byte             |
-| SMALLINT UNSIGNED | ushort           |
-| INT UNSIGNED      | uint             |
-| BIGINT UNSIGNED   | ulong            |
-| FLOAT             | float            |
-| DOUBLE            | double           |
-| BOOL              | bool             |
-| BINARY            | byte[]           |
-| NCHAR             | string           |
-| JSON              | byte[]           |
-| VARBINARY         | byte[]           |
-| GEOMETRY          | byte[]           |
-| DECIMAL           | decimal          |
+| TDengine TSDB DataType | C# Type  |
+|------------------------|----------|
+| TIMESTAMP              | DateTime |
+| TINYINT                | sbyte    |
+| SMALLINT               | short    |
+| INT                    | int      |
+| BIGINT                 | long     |
+| TINYINT UNSIGNED       | byte     |
+| SMALLINT UNSIGNED      | ushort   |
+| INT UNSIGNED           | uint     |
+| BIGINT UNSIGNED        | ulong    |
+| FLOAT                  | float    |
+| DOUBLE                 | double   |
+| BOOL                   | bool     |
+| BINARY                 | byte[]   |
+| NCHAR                  | string   |
+| JSON                   | byte[]   |
+| VARBINARY              | byte[]   |
+| GEOMETRY               | byte[]   |
+| DECIMAL                | decimal  |
 
 **注意**：
 
