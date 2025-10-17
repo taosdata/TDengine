@@ -7,7 +7,7 @@ import { debounce } from 'lodash-es';
 
 interface HighlightElement extends HTMLElement {
   hljsBlock?: HTMLElement;
-  hightFn?: (value: string) => void;
+  heightFn?: (value: string) => void;
   customLang: string;
   isUpdate?: boolean;
 }
@@ -27,15 +27,15 @@ export const highlight = {
         ?.find(item => item.includes('language-'))
         ?.split('-')[1] || '';
     const langParameter = customLang ? [customLang] : undefined;
-    el.hightFn = (value: string) => {
+    el.heightFn = (value: string) => {
       el.hljsBlock!.innerHTML = hljs.highlightAuto(value, langParameter).value;
     };
 
     if (value) {
       el.isUpdate = true;
-      el.hightFn(value);
+      el.heightFn(value);
     } else {
-      el.hightFn(el.hljsBlock.innerText);
+      el.heightFn(el.hljsBlock.innerText);
     }
 
     if (el.hljsBlock && !noCopy) {
@@ -54,7 +54,7 @@ export const highlight = {
   updated(el: HighlightElement, binding: DirectiveBinding) {
     const { value } = binding;
     if (el.hljsBlock && el.isUpdate && value) {
-      el.hightFn!(value);
+      el.heightFn!(value);
     }
   }
 };

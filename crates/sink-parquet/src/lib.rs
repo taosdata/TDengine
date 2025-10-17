@@ -54,7 +54,7 @@ fn fields_to_arrow(fields: &[Field], precision: Precision) -> Schema {
                 Ty::Json => arrow::datatypes::Field::new(f.name(), DataType::Utf8, true),
                 Ty::VarBinary => todo!(),
                 Ty::Decimal => todo!(),
-                Ty::Blob => todo!(),
+                Ty::Blob => arrow::datatypes::Field::new(f.name(), DataType::LargeBinary, true),
                 Ty::MediumBlob => todo!(),
                 _ => todo!(),
             })
@@ -97,7 +97,7 @@ fn column_to_arrow(column: &ColumnView) -> Result<ArrayRef> {
         ColumnView::Json(v) => Arc::new(arrow::array::StringArray::from_iter(v.to_vec().iter())),
         ColumnView::VarBinary(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter())),
         ColumnView::Geometry(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter())),
-        ColumnView::Blob(v) => Arc::new(arrow::array::BinaryArray::from_iter(v.iter())),
+        ColumnView::Blob(v) => Arc::new(arrow::array::LargeBinaryArray::from_iter(v.iter())),
         ColumnView::Decimal(v) => {
             let (precision, scale) = v.precision_and_scale();
             Arc::new(

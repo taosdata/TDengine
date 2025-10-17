@@ -57,7 +57,7 @@
       <div
         v-if="!renderAfterExpand || childNodeRendered"
         v-show="expanded"
-        :class="[ns.be('node', 'children'), node.level > 1 ? 'hideen-scrollbar' : '']"
+        :class="[ns.be('node', 'children'), node.level > 1 ? 'hidden-scrollbar' : '']"
         role="group"
         :aria-expanded="expanded"
         :style="{ maxHeight: maxContentHeight, overflow: 'auto' }"
@@ -377,7 +377,7 @@ export default defineComponent({
   bottom: 0;
 }
 
-.el-tree-node__content + .hideen-scrollbar::-webkit-scrollbar {
+.el-tree-node__content + .hidden-scrollbar::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
 }

@@ -312,7 +312,7 @@ public class PreLoading implements CommandLineRunner {
             result.put("valid", true);
             result.put("support", true);
             result.put("version", object.get("version"));
-            result.put("message", "Your data source is availabe, its version is " + object.get("version") + ", which is supported, you can proceed to transfer your data to TDengine.");
+            result.put("message", "Your data source is available, its version is " + object.get("version") + ", which is supported, you can proceed to transfer your data to TDengine.");
         } catch (Exception e) {
             result.put("valid", false);
             result.put("support", false);

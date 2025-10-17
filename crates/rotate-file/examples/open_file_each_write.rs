@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
             |file_path: PathBuf| -> Result<SinkFn<FastStr, std::io::Error>, anyhow::Error> {
                 let sink =
                     sink::unfold(file_path, |file_path: PathBuf, line: FastStr| async move {
-                        // this is not a typical usage, but it may occassionaly occur
+                        // this is not a typical usage, but it may occasionally occur
                         let mut file = OpenOptions::new()
                             .create(true)
                             .append(true)

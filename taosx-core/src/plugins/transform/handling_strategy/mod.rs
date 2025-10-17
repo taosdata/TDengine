@@ -143,7 +143,7 @@ pub enum HandlingDataOverflow {
 impl HandlingDataOverflow {
     pub fn handle(
         &self,
-        datas: Vec<String>,
+        data: Vec<String>,
         length: usize,
         err: String,
     ) -> anyhow::Result<(HandlingResult, String)> {
@@ -161,7 +161,7 @@ impl HandlingDataOverflow {
                 anyhow::bail!(err)
             }
             HandlingDataOverflow::Truncate => {
-                let data_truncated = datas
+                let data_truncated = data
                     .iter()
                     .map(|data| {
                         let data_truncated = data.chars().take(length).collect();
@@ -172,7 +172,7 @@ impl HandlingDataOverflow {
                 Ok((HandlingResult::Modify(data_truncated), err))
             }
             HandlingDataOverflow::TruncateAndArchive => {
-                let data_truncated = datas
+                let data_truncated = data
                     .iter()
                     .map(|data| {
                         let data_truncated = data.chars().take(length).collect();

@@ -613,7 +613,7 @@ pub async fn point_records_to_sql(
 
         let mapping = config.get_point_mapping(&point_id)?;
         if mapping.is_none() {
-            // 如果在一开始的 modelConfig 中找不到点位对应的 PoingConfig 和 TableConfig，则尝试使用规则生成
+            // 如果在一开始的 modelConfig 中找不到点位对应的 PointConfig 和 TableConfig，则尝试使用规则生成
             tracing::warn!(
                 "point mapping not found and try to auto generate, point_id: {}",
                 point_id

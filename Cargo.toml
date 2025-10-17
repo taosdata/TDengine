@@ -39,6 +39,9 @@ members = [
   "crates/local-to-taos",
   "crates/legacy-to-taos",
   "crates/source-orc",
+  "crates/taos-to-local",
+  "crates/source-kinghistorian",
+  "crates/source-kinghistorian/kinghistorian-sys",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -212,7 +215,7 @@ archive = { path = "./crates/archive" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "0e47990"
+rev = "2c76f72"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
@@ -242,7 +245,7 @@ arrow-flight = { workspace = true }
 zerocopy = { workspace = true }
 opendal = { workspace = true, features = ["services-s3"] }
 #multi_index_map = "0.15.0"
-multi_index_map = { git = "https://github.com/acerDebugman/multi_index_map.git", tag="v0.1-taos" }
+multi_index_map = { git = "https://github.com/acerDebugman/multi_index_map.git", tag = "v0.1-taos" }
 scc = { workspace = true, features = ["serde"] }
 semver.workspace = true
 shadow-rs = { workspace = true }

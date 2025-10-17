@@ -37,10 +37,12 @@ impl ColumnMeta {
             // 字符串
             "CHAR" => Ok(IpcDataType::NChar(50)),
             "VARCHAR" => Ok(IpcDataType::NChar(50)),
-            "TINYBLOB" => Ok(IpcDataType::NChar(50)),
-            "BLOB" => Ok(IpcDataType::NChar(50)),
-            "MEDIUMBLOB" => Ok(IpcDataType::NChar(50)),
-            "LONGBLOB" => Ok(IpcDataType::NChar(50)),
+            // Blob
+            "TINYBLOB" => Ok(IpcDataType::Blob),
+            "BLOB" => Ok(IpcDataType::Blob),
+            "MEDIUMBLOB" => Ok(IpcDataType::Blob),
+            "LONGBLOB" => Ok(IpcDataType::Blob),
+            // 文本
             "TINYTEXT" => Ok(IpcDataType::NChar(50)),
             "TEXT" => Ok(IpcDataType::NChar(50)),
             "MEDUIMTEXT" => Ok(IpcDataType::NChar(50)),
@@ -82,10 +84,11 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         // 字符串
         "CHAR" => Ok(DataType::Utf8),
         "VARCHAR" => Ok(DataType::Utf8),
-        "TINYBLOB" => Ok(DataType::Utf8),
-        "BLOB" => Ok(DataType::Utf8),
-        "MEDIUMBLOB" => Ok(DataType::Utf8),
-        "LONGBLOB" => Ok(DataType::Utf8),
+        // blob
+        "TINYBLOB" => Ok(DataType::LargeBinary),
+        "BLOB" => Ok(DataType::LargeBinary),
+        "MEDIUMBLOB" => Ok(DataType::LargeBinary),
+        "LONGBLOB" => Ok(DataType::LargeBinary),
         "TINYTEXT" => Ok(DataType::Utf8),
         "TEXT" => Ok(DataType::Utf8),
         "MEDUIMTEXT" => Ok(DataType::Utf8),
@@ -177,16 +180,16 @@ mod tests {
         );
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "TINYBLOB".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Blob);
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "BLOB".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Blob);
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "MEDIUMBLOB".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Blob);
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "LONGBLOB".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Blob);
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "TINYTEXT".to_string()).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
@@ -297,19 +300,19 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("TINYBLOB".to_string()).unwrap(),
-            DataType::Utf8
+            DataType::LargeBinary
         );
         assert_eq!(
             to_arrow_data_type("BLOB".to_string()).unwrap(),
-            DataType::Utf8
+            DataType::LargeBinary
         );
         assert_eq!(
             to_arrow_data_type("MEDIUMBLOB".to_string()).unwrap(),
-            DataType::Utf8
+            DataType::LargeBinary
         );
         assert_eq!(
             to_arrow_data_type("LONGBLOB".to_string()).unwrap(),
-            DataType::Utf8
+            DataType::LargeBinary
         );
         assert_eq!(
             to_arrow_data_type("TINYTEXT".to_string()).unwrap(),

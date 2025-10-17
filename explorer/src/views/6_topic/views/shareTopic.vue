@@ -1,6 +1,6 @@
 <template>
   <div class="share-topic">
-    <el-tabs v-model="activiteName" type="card">
+    <el-tabs v-model="activityName" type="card">
       <el-tab-pane name="user" :label="$t('topic.shareTopicUser')">
         <Subscription :topic-id="currentTopic"></Subscription>
       </el-tab-pane>
@@ -19,7 +19,7 @@ import Subscription from './subscription.vue';
 
 defineEmits(['change']);
 
-const activiteName = ref<string>('user');
+const activityName = ref<string>('user');
 const currentTopic = ref<string>('');
 const topicList = ref([]);
 

@@ -33,6 +33,7 @@ use source_mysql::mysql_to_taos;
 use source_oracle::oracle_to_taos;
 use source_postgres::postgres_to_taos;
 use source_sparkplugb::sparkplugb_to_taos;
+use taos_to_local::taos_to_local;
 
 #[derive(Debug, Default)]
 pub struct Transferred {
@@ -407,6 +408,10 @@ impl TaskOpts {
                         notify.clone(),
                     )
                     .await?
+                }
+                ("taos", "local") => {
+                    taos_to_local(task_id.clone(), from.clone(), to.clone(), cancel.clone())
+                        .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }

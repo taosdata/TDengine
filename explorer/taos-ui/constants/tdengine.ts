@@ -1061,7 +1061,8 @@ export const TDengineDataType = [
   'NCHAR',
   'GEOMETRY',
   'VARBINARY',
-  'DECIMAL'
+  'DECIMAL',
+  'BLOB'
 ];
 
 export const TDengineSqlKeywrods = [

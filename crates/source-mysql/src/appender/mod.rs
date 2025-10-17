@@ -369,21 +369,21 @@ pub async fn to_record_batches(
                     match val {
                         Ok(val) => match val {
                             None => {
-                                append_null!(builders[col_cidx], array::StringBuilder);
+                                append_null!(builders[col_cidx], array::LargeBinaryBuilder);
                             }
                             Some(val) => {
                                 builders[col_cidx]
                                     .as_any_mut()
-                                    .downcast_mut::<array::StringBuilder>()
+                                    .downcast_mut::<array::LargeBinaryBuilder>()
                                     .unwrap()
-                                    .append_value(format!("{:?}", val));
+                                    .append_value(val);
                             }
                         },
                         Err(e) => {
                             tracing::warn!(
-                                "migrate mysql, decoding 'BINARY/VARBINARY/...' result error: {e:?}"
+                                "migrate mysql, decoding 'TINYBLOB/BLOB/...' result error: {e:?}"
                             );
-                            append_null!(builders[col_cidx], array::StringBuilder);
+                            append_null!(builders[col_cidx], array::LargeBinaryBuilder);
                         }
                     }
                 }

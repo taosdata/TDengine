@@ -22,7 +22,7 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 export function resolve(path) {
   return join(process.cwd(), path);
 }
-export function getBaseConfig(configEnv, addtionalScss, deployUrl, commonIcons, viteDeploy) {
+export function getBaseConfig(configEnv, additionalScss, deployUrl, commonIcons, viteDeploy) {
   const lifecycle = process.env.npm_lifecycle_event;
   const { VITE_SERVICE_PORT = 8080 } = loadEnv(configEnv.mode, process.cwd());
   const baseConfig = {
@@ -36,7 +36,7 @@ export function getBaseConfig(configEnv, addtionalScss, deployUrl, commonIcons, 
     css: {
       preprocessorOptions: {
         scss: {
-          additionalData: addtionalScss ? addtionalScss : '',
+          additionalData: additionalScss ? additionalScss : '',
           api: 'modern-compiler'
         }
       }

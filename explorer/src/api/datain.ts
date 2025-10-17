@@ -178,7 +178,7 @@ export function getFileStream(filepath: string) {
   });
 }
 
-export function downlaodAllNodes(data: string, agentid?: string) {
+export function downloadAllNodes(data: string, agentid?: string) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     url: `/ds/in/download/all_data_sets?from=${data}` + (agentid ? `&via=${agentid}` : ''),
@@ -299,7 +299,7 @@ export function checkReadyFile(ticket: string) {
 }
 
 // opc：下载数据点位模版csv文件
-export function downlaodOpcPointFile(ticket: string) {
+export function downloadOpcPointFile(ticket: string) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     url: `/ds/in/point/file/async?ticket=${ticket}`,

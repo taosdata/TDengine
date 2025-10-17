@@ -425,7 +425,7 @@ export default {
       collapsible: 'one',
       children: [
         {
-          label: 'Read Concurreny',
+          label: 'Read Concurrency',
           field: 'workers',
           description:
             'The number of threads for reading data from the source. If not set, the default value is the number of CPU cores.',
@@ -441,7 +441,7 @@ export default {
           max: 100
         },
         {
-          label: 'Write Concurreny',
+          label: 'Write Concurrency',
           field: 'write-concurrency',
           description:
             'The overall maximum concurrency for writing to the target database. It cannot be less than the read concurrency, and the default is equal to the read concurrency.\n',

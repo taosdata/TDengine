@@ -145,7 +145,7 @@ export const storageCompression = {
         value: 'xz'
       }
     ],
-    includes: ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY', 'GEOMETRY'],
+    includes: ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY', 'GEOMETRY', 'BLOB'],
     defaultEncode: 'disabled',
     defaultCompress: 'lz4'
   },
@@ -233,7 +233,7 @@ export const levelList = [
 export const groupOne = ['TINYINT', 'TINYINT UNSIGNED', 'SMALLINT', 'SMALLINT UNSIGNED', 'INT', 'INT UNSIGNED'];
 export const groupTwo = ['BIGINT', 'BIGINT UNSIGNED'];
 export const groupThree = ['FLOAT', 'DOUBLE'];
-export const groupFour = ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY', 'GEOMETRY', 'DECIMAL'];
+export const groupFour = ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY', 'GEOMETRY', 'DECIMAL', 'BLOB'];
 export const groupFive = ['BOOL'];
 export const groupSix = ['TIMESTAMP'];
 

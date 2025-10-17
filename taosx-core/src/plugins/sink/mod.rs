@@ -55,6 +55,7 @@ use crate::plugins::transform::archive_records;
 use crate::plugins::transform::handling_strategy::{HandlingResult, ProcessOnAbnormalEnum};
 use crate::plugins::transform::WrittenMethod;
 use crate::plugins::*;
+use crate::sink::flat::handle_sql_too_long;
 use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
@@ -299,7 +300,7 @@ pub async fn ipc_forward(
                             tracing::error!("persist task exited with error: {e:#}");
                         }
                         Err(e) => {
-                            tracing::error!("persist task paniced: {e}")
+                            tracing::error!("persist task panicked: {e}")
                         }
                     }
                 }
@@ -2005,6 +2006,8 @@ async fn consume_point_record(
 /********** handle Point Message END **********/
 
 const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 5;
+// 400KB is empirical value
+const LARGE_RECORD_LEN: usize = 400 * 1024;
 
 /// Write flat message to TDengine.
 ///
@@ -2145,12 +2148,15 @@ async fn consume_flat_record(
                 return Ok(());
             }
 
+            // if has large record, then use raw block.
+            let has_large_record = message.iter().any(|m| m.has_large_record(LARGE_RECORD_LEN));
+
             let write_ready_rows = message
                 .iter()
                 .map(|message| message.records.num_rows())
                 .sum::<usize>();
             let factor = write_ready_rows / message.len();
-            let res = if factor < 200 {
+            let res = if factor < 200 && !has_large_record {
                 flat_write_with_sql(
                     pool,
                     taos,
@@ -2223,7 +2229,7 @@ async fn consume_flat_record(
                             .map(|message| message.records.num_rows())
                             .sum::<usize>()
                             / message.len();
-                        let n = if factor < 200 {
+                        let n = if factor < 200 && !has_large_record {
                             flat_write_with_sql(
                                 pool,
                                 taos,
@@ -2255,6 +2261,23 @@ async fn consume_flat_record(
                             .await
                         }?;
                         *count += n;
+                        metrics.add_processed_rows(num_rows as u64);
+                    } else if errstr.contains("SQL statement too long") {
+                        let success_n = handle_sql_too_long(
+                            pool,
+                            taos,
+                            target_precision,
+                            message,
+                            metrics,
+                            notifier,
+                            cancel,
+                            parser,
+                            archive_tx.clone(),
+                            &mut qid,
+                            &mut max_lengths,
+                        )
+                        .await?;
+                        *count += success_n;
                         metrics.add_processed_rows(num_rows as u64);
                     } else {
                         metrics.add_failed_rows(write_ready_rows as u64);
@@ -2620,7 +2643,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write + Send + 'static>(
         })
         .await;
     while let Some(task) = tasks.join_next().await {
-        task.context("Point stream task paniced")?
+        task.context("Point stream task panicked")?
             .context("Point stream worker error")?;
     }
     println!(
@@ -3561,7 +3584,7 @@ pub async fn listen_tcp_socket_with_agent(
                             tracing::warn!("persist task exit with error: {e:#}");
                         }
                         Ok(Some(Err(e))) => {
-                            tracing::warn!("persist task exit paniced: {e}");
+                            tracing::warn!("persist task exit panicked: {e}");
                         }
                         Err(_) => {
                             tracing::warn!("waiting persist tasks exit timeout");
@@ -3774,7 +3797,7 @@ pub async fn listen_tcp_socket(
                                 break
                             }
                             Err(e) => {
-                                tracing::error!("persist task paniced: {e}");
+                                tracing::error!("persist task panicked: {e}");
                                 break
                             }
                         }
@@ -3808,7 +3831,7 @@ pub async fn listen_tcp_socket(
                                 tracing::error!("persist task exit with error: {e:#}");
                             }
                             Err(e) => {
-                                tracing::error!("persist task paniced: {e}");
+                                tracing::error!("persist task panicked: {e}");
                             }
                         }
                     }
@@ -4238,7 +4261,7 @@ mod tests {
         let port = port_pool.get().await.context("port")?;
         let addr = format!("127.0.0.1:{}", port.get());
         let Ok((listener, listen_addr)) = bind_tcp(Some(&addr)).await else {
-            // bind tcp manully may fail
+            // bind tcp manually may fail
             return Ok(());
         };
         assert_eq!(listener.local_addr()?, listen_addr);

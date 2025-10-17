@@ -142,7 +142,8 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = JoinSet::new();
     let cancel = CancellationToken::new();
 
-    let (data_tx, data_rx) = flume::bounded(parallel);
+    let published = Arc::new(AtomicU64::default());
+    let (data_tx, data_rx) = flume::bounded(parallel * 10000);
     match (&args.source.schema, args.source.csv_file.clone()) {
         (schema, Some(csv)) => {
             let has_schema = schema.is_some();
@@ -249,40 +250,40 @@ async fn main() -> anyhow::Result<()> {
                         let topic = topic.clone();
                         let data_tx = data_tx.clone();
                         let payload = payload.clone();
-                        tasks.spawn(async move {
-                            loop {
-                                if data_tx.is_disconnected() {
-                                    break;
-                                }
-                                let payload = payload.clone();
-                                let payload = tokio::task::spawn_blocking(move || {
-                                    anyhow::Ok(
-                                        payload
-                                            .rand_json_value()
-                                            .context("gen fake data error")
-                                            .and_then(|value| {
-                                                serde_json::to_vec(&value)
-                                                    .context("serialize json error")
-                                            })
-                                            .and_then(|value| {
-                                                processor
-                                                    .process(value)
-                                                    .context("processer process error")
-                                            })
-                                            .context("get value error")?,
-                                    )
-                                })
-                                .await??;
-                                let data = Data::new(
-                                    topic.next()?,
-                                    payload,
-                                    schema.qos.unwrap_or_default(),
-                                );
-                                if data_tx.send_async(data).await.is_err() {
-                                    break;
-                                }
+                        std::thread::spawn(move || loop {
+                            if data_tx.is_disconnected() {
+                                break;
                             }
-                            Ok(())
+                            let payload = payload.clone();
+                            let payload_result = payload
+                                .rand_json_value()
+                                .context("gen fake data error")
+                                .and_then(|value| {
+                                    serde_json::to_vec(&value).context("serialize json error")
+                                })
+                                .and_then(|value| {
+                                    processor.process(value).context("processor process error")
+                                })
+                                .context("get value error");
+                            let payload = match payload_result {
+                                Ok(p) => p,
+                                Err(e) => {
+                                    eprintln!("Error generating payload: {e:#}, thread will exit.",);
+                                    break;
+                                }
+                            };
+                            let topic_str = match topic.next() {
+                                Ok(t) => t,
+                                Err(e) => {
+                                    eprintln!("Error generating topic: {e:#}, thread will exit.");
+                                    break;
+                                }
+                            };
+                            let data =
+                                Data::new(topic_str, payload, schema.qos.unwrap_or_default());
+                            if data_tx.send(data).is_err() {
+                                break;
+                            }
                         });
                     }
                 }
@@ -292,7 +293,6 @@ async fn main() -> anyhow::Result<()> {
         (None, None) => anyhow::bail!("schema or csv file is required"),
     }
 
-    let published = Arc::new(AtomicU64::default());
     for _ in 0..parallel {
         start_publisher(
             args.clone(),
@@ -375,7 +375,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     cancel.cancel();
-    tasks.abort_all();
     while tasks.join_next().await.is_some() {}
 
     Ok(())
@@ -425,7 +424,7 @@ async fn start_publisher(
                 match res {
                     Ok(Event::Incoming(Incoming::ConnAck(ack))) => {
                         if matches!(ack.code, ConnectReturnCode::Success) {
-                            println!("client connect sucessfully");
+                            println!("client connect successfully");
                         } else {
                             println!("connect error: {:?}", ack.code);
                             break;

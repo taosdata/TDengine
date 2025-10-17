@@ -30,6 +30,8 @@ pub mod trace;
 
 pub use duration::parse_duration;
 
+use crate::get_data_dir;
+
 pub fn value_equals(value: &Value, other: &Value) -> bool {
     match (value, other) {
         (Value::Null(l0), Value::Null(r0)) => l0 == r0,
@@ -396,6 +398,64 @@ pub fn parse_dir_in_dsn(dsn: &Dsn, key: Option<&str>) -> anyhow::Result<Option<P
     .transpose()
 }
 
+/// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
+pub fn parse_backup_dir(dsn: &Dsn, task_id: Option<&str>) -> anyhow::Result<PathBuf> {
+    let mut dir = match parse_dir_in_dsn(dsn, None)? {
+        // dir 为空，使用默认路径: $TAOSX_DATA_DIR/backup
+        None => {
+            let default_dir = get_data_dir().join("backup");
+            // 如果 $TAOSX_DATA_DIR/backup 不存在，则创建
+            if !default_dir.exists() {
+                std::fs::create_dir_all(&default_dir).map_err(|err| {
+                    anyhow::Error::new(err).context(format!(
+                        "failed to create backup dir: {}",
+                        default_dir.display()
+                    ))
+                })?;
+                tracing::info!("create backup dir: {}", default_dir.display());
+            }
+            default_dir
+        }
+        // 用户指定的 dir
+        Some(dir) => {
+            // 如果 dir 不存在，则报错
+            if !dir.exists() {
+                bail!("backup dir not exists: {}", dir.display());
+            }
+            dir
+        }
+    };
+
+    if let Some(task_id) = task_id {
+        dir = dir.join(task_id);
+    }
+
+    Ok(dir)
+}
+
+/// 解析 dsn 中的压缩等级参数
+pub fn parse_compression_in_dsn(
+    dsn: &Dsn,
+    keys: &[&str],
+) -> anyhow::Result<Option<async_compression::Level>> {
+    parse_keys_in_dsn::<String>(dsn, keys)?
+        .map(|s| {
+            let level = s.to_lowercase();
+            match level.as_str() {
+                "fastest" => Ok(async_compression::Level::Fastest),
+                "best" => Ok(async_compression::Level::Best),
+                "default" | "balanced" => Ok(async_compression::Level::Default),
+                _ => level
+                    .parse::<i32>()
+                    .map_err(|err| {
+                        anyhow::Error::from(err).context(format!("invalid compression level: {s}"))
+                    })
+                    .map(async_compression::Level::Precise),
+            }
+        })
+        .transpose()
+}
+
 pub fn parse_bytes(size_str: &str) -> anyhow::Result<u64> {
     let size_str = size_str.trim();
     let (number, unit) = size_str.split_at(
@@ -421,6 +481,23 @@ pub fn contains_uppercase(s: &str) -> bool {
         }
     }
     false
+}
+
+/// 如果当前时间比 upcoming 早，等待到 upcoming
+pub async fn wait_for_upcoming(upcoming: Option<DateTime<Utc>>) -> anyhow::Result<()> {
+    if let Some(upcoming) = upcoming {
+        let now = Utc::now();
+        if now < upcoming {
+            let duration = upcoming - now;
+            tracing::info!("wait for upcoming: {}", upcoming);
+            tokio::time::sleep(duration.to_std().map_err(|err| {
+                anyhow::Error::from(err)
+                    .context(format!("failed to convert: {:?} to std duration", duration))
+            })?)
+            .await;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -626,5 +703,96 @@ mod tests {
         assert!(!contains_uppercase("123"));
         assert!(!contains_uppercase("abc"));
         assert!(contains_uppercase("123A"));
+    }
+
+    #[tokio::test]
+    async fn test_wait_for_upcoming() {
+        let now = Utc::now();
+        wait_for_upcoming(Some(now + chrono::Duration::seconds(2)))
+            .await
+            .unwrap();
+        let current = Utc::now();
+        assert_eq!(current.timestamp() - now.timestamp(), 2);
+
+        let now = Utc::now();
+        wait_for_upcoming(None).await.unwrap();
+        let current = Utc::now();
+        assert_eq!(current.timestamp() - now.timestamp(), 0);
+
+        let now = Utc::now();
+        wait_for_upcoming(Some(now - chrono::Duration::days(1)))
+            .await
+            .unwrap();
+        let current = Utc::now();
+        assert_eq!(current.timestamp() - now.timestamp(), 0);
+    }
+
+    #[test]
+    fn test_parse_backup_dir() {
+        let dsn = "local:/tmp".into_dsn().unwrap();
+        let task_id = Some("123".to_string());
+        let backup_dir = parse_backup_dir(&dsn, task_id.as_deref()).unwrap();
+
+        let cur_dir = Path::new("/tmp").canonicalize().unwrap().join("123");
+        assert_eq!(backup_dir, cur_dir);
+    }
+
+    /// 测试解析备份文件的压缩等级
+    /// 测试用例：
+    /// 1. compression.level=fastest
+    /// 2. compression.level=best
+    /// 3. compression.level=default
+    /// 4. compression.level=balanced
+    /// 5. compression.level=5
+    /// 6. compression.level=
+    /// 7. compression.level=abc
+    /// 8. 不包含 compression.level
+    #[test]
+    fn test_parse_compression_level() {
+        let dsn = "local:/tmp?compression.level=fastest".into_dsn().unwrap();
+        let level = parse_compression_in_dsn(&dsn, &["compression.level"])
+            .unwrap()
+            .unwrap();
+        assert_eq!("Fastest", format!("{:?}", level));
+
+        let dsn = "local:/tmp?compression.level=best".into_dsn().unwrap();
+        let level = parse_compression_in_dsn(&dsn, &["compression.level"])
+            .unwrap()
+            .unwrap();
+        assert_eq!("Best", format!("{:?}", level));
+
+        let dsn = "local:/tmp?compression.level=default".into_dsn().unwrap();
+        let level = parse_compression_in_dsn(&dsn, &["compression.level"])
+            .unwrap()
+            .unwrap();
+        assert_eq!("Default", format!("{:?}", level));
+
+        let dsn = "local:/tmp?compression.level=balanced".into_dsn().unwrap();
+        let level = parse_compression_in_dsn(&dsn, &["compression.level"])
+            .unwrap()
+            .unwrap();
+        assert_eq!("Default", format!("{:?}", level));
+
+        let dsn = "local:/tmp?compression.level=5".into_dsn().unwrap();
+        let level = parse_compression_in_dsn(&dsn, &["compression.level"])
+            .unwrap()
+            .unwrap();
+        assert_eq!("Precise(5)", format!("{:?}", level));
+
+        let dsn = "local:/tmp".into_dsn().unwrap();
+        let level = parse_compression_in_dsn(&dsn, &["compression.level"]).unwrap();
+        assert!(level.is_none());
+
+        let dsn = "local:/tmp?compression.level=".into_dsn().unwrap();
+        let level = parse_compression_in_dsn(&dsn, &["compression.level"]).unwrap();
+        assert!(level.is_none());
+
+        let dsn = "local:/tmp?compression.level=abc".into_dsn().unwrap();
+        let level = parse_compression_in_dsn(&dsn, &["compression.level"]);
+        assert!(level.is_err());
+        assert_eq!(
+            "invalid compression level: abc",
+            format!("{}", level.err().unwrap())
+        );
     }
 }

@@ -595,7 +595,7 @@ impl Action {
                         } => {
                             let value = match &action.opts {
                                 crate::transform::AddTagOpts::Value { value } => {
-                                    serde_json::json!(format!("\"{value}\""))
+                                    serde_json::json!(value)
                                 }
                                 crate::transform::AddTagOpts::Template { template: _ } => {
                                     anyhow::bail!("unsupported transform action: {:?}", action)

@@ -143,16 +143,16 @@ impl Decoder for ReadCodec {
             return Ok(None);
         }
 
-        let paylaod = src.split_to(len);
+        let payload = src.split_to(len);
         self.buf_entry = BufEntry::default();
 
-        snafu::ensure!(crc == crc32fast::hash(&paylaod), BadChecksumSnafu);
+        snafu::ensure!(crc == crc32fast::hash(&payload), BadChecksumSnafu);
 
         self.position.advance((4 + len_len + len) as u64);
 
         Ok(Some(Entry {
             position: self.position,
-            payload: paylaod.freeze(),
+            payload: payload.freeze(),
         }))
     }
 
@@ -249,8 +249,8 @@ mod tests {
 
         // crc test
         buf.clear();
-        let paylaod = "hello, world!".repeat(50);
-        encoder.encode(paylaod.as_bytes(), &mut buf)?;
+        let payload = "hello, world!".repeat(50);
+        encoder.encode(payload.as_bytes(), &mut buf)?;
         buf[40] = 98;
         assert!(decoder.decode(&mut buf).is_err());
 

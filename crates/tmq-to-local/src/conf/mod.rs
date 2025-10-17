@@ -7,9 +7,9 @@ use taos::taos_query::tmq::VGroupId;
 use taos::*;
 use taosx_core::s3::{S3_ENABLE, S3Config};
 use taosx_core::tmq::generate_hash;
+use taosx_core::utils;
 use taosx_core::utils::constants::VERSION_3_3_6;
 use taosx_core::utils::sql::connect_taos_root;
-use taosx_core::{get_data_dir, utils};
 use tracing::Instrument;
 
 #[derive(Debug, Clone)]
@@ -241,41 +241,6 @@ impl BackupConfig {
         Ok(consumers)
     }
 
-    /// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
-    pub fn parse_backup_dir(dsn: &Dsn, task_id: Option<&str>) -> anyhow::Result<PathBuf> {
-        let mut dir = match utils::parse_dir_in_dsn(dsn, None)? {
-            // dir 为空，使用默认路径: $TAOSX_DATA_DIR/backup
-            None => {
-                let default_dir = get_data_dir().join("backup");
-                // 如果 $TAOSX_DATA_DIR/backup 不存在，则创建
-                if !default_dir.exists() {
-                    std::fs::create_dir_all(&default_dir).map_err(|err| {
-                        anyhow::Error::new(err).context(format!(
-                            "failed to create backup dir: {}",
-                            default_dir.display()
-                        ))
-                    })?;
-                    tracing::info!("create backup dir: {}", default_dir.display());
-                }
-                default_dir
-            }
-            // 用户指定的 dir
-            Some(dir) => {
-                // 如果 dir 不存在，则报错
-                if !dir.exists() {
-                    bail!("backup dir not exists: {}", dir.display());
-                }
-                dir
-            }
-        };
-
-        if let Some(task_id) = task_id {
-            dir = dir.join(task_id);
-        }
-
-        Ok(dir)
-    }
-
     pub async fn position(
         &self,
         topic: &str,
@@ -407,7 +372,7 @@ impl BackupConfigBuilder {
             .context("failed to parse backup point generate mode")?;
 
         // backup dir
-        let backup_dir = BackupConfig::parse_backup_dir(&self.to, self.task_id.as_deref())?;
+        let backup_dir = utils::parse_backup_dir(&self.to, self.task_id.as_deref())?;
 
         // topic 与 group.id 相同
         let topic = BackupConfig::group_id(&self.task_id, &self.from, &self.to);
@@ -435,7 +400,8 @@ impl BackupConfigBuilder {
 
         // backup_comp_level
         let backup_comp_level =
-            Self::parse_compression_level(&self.to)?.unwrap_or(async_compression::Level::Fastest);
+            utils::parse_compression_in_dsn(&self.to, &["compression.level", "compression_level"])?
+                .unwrap_or(async_compression::Level::Fastest);
         // s3_enable
         let s3_enable = utils::parse_key_in_dsn::<bool>(&self.to, S3_ENABLE)?.unwrap_or(false);
 
@@ -505,27 +471,6 @@ impl BackupConfigBuilder {
             }
             Some(s.to_string())
         })
-    }
-
-    /// 解析 dsn 中的压缩等级参数
-    fn parse_compression_level(dsn: &Dsn) -> anyhow::Result<Option<async_compression::Level>> {
-        utils::parse_keys_in_dsn::<String>(dsn, &["compression.level", "compression_level"])?
-            .map(|s| {
-                let level = s.to_lowercase();
-                match level.as_str() {
-                    "fastest" => Ok(async_compression::Level::Fastest),
-                    "best" => Ok(async_compression::Level::Best),
-                    "default" | "balanced" => Ok(async_compression::Level::Default),
-                    _ => level
-                        .parse::<i32>()
-                        .map_err(|err| {
-                            anyhow::Error::from(err)
-                                .context(format!("invalid compression level: {s}"))
-                        })
-                        .map(async_compression::Level::Precise),
-                }
-            })
-            .transpose()
     }
 
     /// 解析 dsn 中的 move.to 参数
@@ -805,75 +750,6 @@ mod tests {
         assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
         assert_eq!("true", dsn.get("experimental.snapshot.enable").unwrap());
         assert_eq!("false", dsn.get("compression").unwrap());
-    }
-
-    /// 测试解析备份文件的压缩等级
-    /// 测试用例：
-    /// 1. compression.level=fastest
-    /// 2. compression.level=best
-    /// 3. compression.level=default
-    /// 4. compression.level=balanced
-    /// 5. compression.level=5
-    /// 6. compression.level=
-    /// 7. compression.level=abc
-    /// 8. 不包含 compression.level
-    #[test]
-    fn test_parse_compression_level() {
-        let dsn = "local:/tmp?compression.level=fastest".into_dsn().unwrap();
-        let level = BackupConfigBuilder::parse_compression_level(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!("Fastest", format!("{:?}", level));
-
-        let dsn = "local:/tmp?compression.level=best".into_dsn().unwrap();
-        let level = BackupConfigBuilder::parse_compression_level(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!("Best", format!("{:?}", level));
-
-        let dsn = "local:/tmp?compression.level=default".into_dsn().unwrap();
-        let level = BackupConfigBuilder::parse_compression_level(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!("Default", format!("{:?}", level));
-
-        let dsn = "local:/tmp?compression.level=balanced".into_dsn().unwrap();
-        let level = BackupConfigBuilder::parse_compression_level(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!("Default", format!("{:?}", level));
-
-        let dsn = "local:/tmp?compression.level=5".into_dsn().unwrap();
-        let level = BackupConfigBuilder::parse_compression_level(&dsn)
-            .unwrap()
-            .unwrap();
-        assert_eq!("Precise(5)", format!("{:?}", level));
-
-        let dsn = "local:/tmp".into_dsn().unwrap();
-        let level = BackupConfigBuilder::parse_compression_level(&dsn).unwrap();
-        assert!(level.is_none());
-
-        let dsn = "local:/tmp?compression.level=".into_dsn().unwrap();
-        let level = BackupConfigBuilder::parse_compression_level(&dsn).unwrap();
-        assert!(level.is_none());
-
-        let dsn = "local:/tmp?compression.level=abc".into_dsn().unwrap();
-        let level = BackupConfigBuilder::parse_compression_level(&dsn);
-        assert!(level.is_err());
-        assert_eq!(
-            "invalid compression level: abc",
-            format!("{}", level.err().unwrap())
-        );
-    }
-
-    #[test]
-    fn test_parse_backup_dir() {
-        let dsn = "local:/tmp".into_dsn().unwrap();
-        let task_id = Some("123".to_string());
-        let backup_dir = BackupConfig::parse_backup_dir(&dsn, task_id.as_deref()).unwrap();
-
-        let cur_dir = Path::new("/tmp").canonicalize().unwrap().join("123");
-        assert_eq!(backup_dir, cur_dir);
     }
 
     #[test]

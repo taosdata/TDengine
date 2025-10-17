@@ -270,7 +270,7 @@ async fn run_tmq2local(f: Tmq2LocalFactors) -> anyhow::Result<Tmq2LocalMetrics> 
         speed_limit: None,
     };
     let write_metrics = simulate_write(&pool, &sim).await?;
-    tracing::info!("simluate write for tmq2local test, {}", write_metrics);
+    tracing::info!("simulate write for tmq2local test, {}", write_metrics);
 
     // 执行 tmq2local 备份
     let t0 = Instant::now();

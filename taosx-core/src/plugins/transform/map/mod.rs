@@ -122,7 +122,7 @@ trait ValueBuilder {
                     m.insert("length".to_string(), len.to_string());
                     m.insert("cast_to".to_string(), ty.ty().name().to_string());
                 }
-                IpcDataType::Json => {
+                IpcDataType::Json | IpcDataType::Blob => {
                     m.insert("cast_to".to_string(), ty.ty().name().to_string());
                 }
                 IpcDataType::Decimal(precision, scale) => {
@@ -132,13 +132,14 @@ trait ValueBuilder {
                 }
                 _ => (),
             }
+            tracing::trace!("build field {} with metadata {:?}", name, m);
             let source_type = array.data_type();
             match (source_type, ty.clone()) {
                 (DataType::Binary, IpcDataType::VarBinary(_)) => Ok((
                     Arc::new(Field::new(name, array.data_type().clone(), true).with_metadata(m)),
                     array.clone(),
                 )),
-                (DataType::List(field), IpcDataType::VarBinary(_))
+                (DataType::List(field), IpcDataType::VarBinary(_) | IpcDataType::Blob)
                     if field.data_type().is_numeric() =>
                 {
                     Ok((

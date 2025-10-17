@@ -9,7 +9,7 @@
       <component
         :is="dialogComponent"
         v-bind="dialogParams"
-        v-on="dialogListenter"
+        v-on="dialogListener"
         @close="dialogVisible = false"
       ></component>
     </el-dialog>
@@ -29,7 +29,7 @@ const key = computed(() => {
 const showSystemMes = computed(() => store.state.app.showSystemMes)
 const dialogConfig = computed(() => store.state.dialogConfig)
 const dialogParams = computed(() => store.state.dialogParams)
-const dialogListenter = computed(() => store.state.dialogListenters) 
+const dialogListener = computed(() => store.state.dialogListeners) 
 const dialogComponent = computed(() => store.state.dialogComponent) 
 const dialogVisible = computed({
   get() {

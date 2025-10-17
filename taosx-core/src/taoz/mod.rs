@@ -395,9 +395,66 @@ impl ZFile {
             let dst = new_dir.clone().join(file_name);
             if src != dst {
                 tracing::info!("move file from {} to {}", src.display(), dst.display());
-                tokio::fs::rename(&src, &dst)
-                    .await
-                    .context("failed to move ZFile")?;
+                match tokio::fs::rename(&src, &dst).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        // Cross-device link (EXDEV) fallback: copy + fsync + atomic rename + delete src
+                        #[cfg(unix)]
+                        let is_exdev = e.raw_os_error() == Some(18); // OSError: [Errno 18] Invalid cross-device link
+                        #[cfg(not(unix))]
+                        let is_exdev = false;
+
+                        if is_exdev {
+                            tracing::warn!(
+                                "rename returned EXDEV, falling back to copy for cross-filesystem move: {}",
+                                e
+                            );
+                            let tmp_name = format!(
+                                "{}.tmp-{}-{}",
+                                file_name,
+                                std::process::id(),
+                                chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+                            );
+                            let tmp = new_dir.join(tmp_name);
+
+                            tokio::fs::copy(&src, &tmp).await.with_context(|| {
+                                format!(
+                                    "failed to copy ZFile from {} to temp {}",
+                                    src.display(),
+                                    tmp.display()
+                                )
+                            })?;
+
+                            // fsync temp file to ensure contents hit disk
+                            let f = tokio::fs::OpenOptions::new()
+                                .write(true)
+                                .open(&tmp)
+                                .await
+                                .with_context(|| format!("open tmp for sync: {}", tmp.display()))?;
+                            f.sync_data()
+                                .await
+                                .with_context(|| format!("sync tmp failed: {}", tmp.display()))?;
+
+                            // remove if dst exists
+                            if dst.exists() {
+                                let _ = tokio::fs::remove_file(&dst).await;
+                            }
+                            tokio::fs::rename(&tmp, &dst).await.with_context(|| {
+                                format!(
+                                    "failed to rename tmp {} to dst {}",
+                                    tmp.display(),
+                                    dst.display()
+                                )
+                            })?;
+
+                            tokio::fs::remove_file(&src).await.with_context(|| {
+                                format!("failed to remove source after copy: {}", src.display())
+                            })?;
+                        } else {
+                            return Err(e).context("failed to move ZFile");
+                        }
+                    }
+                }
             } else {
                 tracing::info!("move skipped, src equals dst: {}", src.display());
             }
@@ -595,6 +652,7 @@ mod tests {
     use chrono::TimeZone;
     use std::str::FromStr;
     use std::sync::Arc;
+    use std::time::Duration as StdDuration;
 
     /// 两次备份任务的间隔时间必须大于 1 分钟，否则会导致文件名相同
     #[test]
@@ -803,6 +861,61 @@ mod tests {
             }
         }
         println!("total {} rows", rows);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_move_to() -> anyhow::Result<()> {
+        // case1: move file from src_dir to dest_dir
+        let src_dir = tempfile::tempdir()?;
+        let dest_dir = tempfile::tempdir()?;
+        let mut z = ZFile::new(
+            "1.0.0",
+            "3.0.0.0",
+            src_dir.path(),
+            ("topic", None, 1, 1),
+            async_compression::Level::Default,
+            10 * 1024 * 1024,
+            Some(dest_dir.path().to_path_buf()),
+            StdDuration::from_secs(60),
+        )
+        .await?;
+        z.shutdown().await?;
+        let src = z.current_file.clone();
+        let file_name = src.file_name().unwrap().to_owned();
+        let dst = dest_dir.path().join(&file_name);
+        // act
+        z.move_to().await?;
+        // assert
+        assert!(!src.exists(), "source file should be moved away");
+        assert!(dst.exists(), "destination file should exist after move");
+
+        // case2: move to the same directory again (should be a no-op)
+        let src_dir = tempfile::tempdir()?;
+        let mut z = ZFile::new(
+            "1.0.0",
+            "3.0.0.0",
+            src_dir.path(),
+            ("topic", None, 1, 1),
+            async_compression::Level::Default,
+            10 * 1024 * 1024,
+            Some(src_dir.path().to_path_buf()),
+            StdDuration::from_secs(60),
+        )
+        .await?;
+        z.shutdown().await?;
+        let src = z.current_file.clone();
+        assert!(src.exists(), "source should exist before move");
+        // act
+        z.move_to().await?;
+        // assert
+        assert!(
+            src.exists(),
+            "source should still exist when move_to equals source dir"
+        );
+
+        // case3: move file across different filesystems
+        // Note: manually test by set move_to to a different filesystem path
         Ok(())
     }
 }

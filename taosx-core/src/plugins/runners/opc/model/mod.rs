@@ -1659,7 +1659,11 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         // bool
         assert!(OpcModelConfig::check_tag_type("true", &IpcDataType::Bool).is_ok());
         assert!(OpcModelConfig::check_tag_type("false", &IpcDataType::Bool).is_ok());
+
+        // spellchecker:off
         assert!(OpcModelConfig::check_tag_type("ture", &IpcDataType::Bool).is_err());
+        // spellchecker:on
+
         // u8
         assert!(OpcModelConfig::check_tag_type("1", &IpcDataType::UInt8).is_ok());
         assert!(OpcModelConfig::check_tag_type("256", &IpcDataType::UInt8).is_err());

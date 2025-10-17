@@ -1,7 +1,7 @@
 import { request } from '@/utils/request.ts';
 
 //执行开始方法
-export function excuteStart(id) {
+export function executeStart(id) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     url: `/tasks/${id}/start`,
@@ -13,7 +13,7 @@ export function excuteStart(id) {
 }
 
 //执行停止方法
-export function excuteStop(id) {
+export function executeStop(id) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     url: `/tasks/${id}/stop`,
@@ -24,7 +24,7 @@ export function excuteStop(id) {
   });
 }
 
-export function excuteDel(id, yesDeleteFile) {
+export function executeDel(id, yesDeleteFile) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     url: `/tasks/${id}?after_delete=${yesDeleteFile ? 'clear' : ''}`,

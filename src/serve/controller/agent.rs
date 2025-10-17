@@ -30,7 +30,7 @@ pub enum AgentStatus {
     Connected,
     Disconnected,
     Outdated,
-    /// All belows states are **deprecated**.
+    /// All below states are **deprecated**.
     /// Use connected, disconnected instead.
     ///
     /// Lease these here for activities compatibility.

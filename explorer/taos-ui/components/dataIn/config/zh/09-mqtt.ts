@@ -31,7 +31,7 @@ export default {
           placeholder: '1883',
           pattern: '^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
           patternMsg: '端口号的范围是 0-65535',
-          defaultValue: '',
+          defaultValue: '1883',
           required: true,
           type: 'input'
         },

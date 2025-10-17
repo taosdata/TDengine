@@ -75,7 +75,7 @@
         </el-collapse-item>
       </el-collapse>
 
-      <!-- Comfirm Btn -->
+      <!-- Confirm Btn -->
       <div class="flex-center">
         <el-button
           v-if="!isEdit"

@@ -709,7 +709,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
             // 根据bucket与measurement获取内存中的表结构
             InfluxdbMeasurementEntity influxdbMeasurementEntity = BucketCache.measurementMap.get(BucketCache.generateBucketDataThreadKey(bucket, measurement));
-            logger.info("influxdb 1.x send query sql: {}", sql);
+            logger.debug("influxdb 1.x send query sql: {}", sql);
             logger.debug("measurement entity field size: {}, tag size: {}", influxdbMeasurementEntity.getFieldMap().size(), influxdbMeasurementEntity.getTagSet().size());
             long sTime = System.currentTimeMillis();
             // 执行查询
@@ -784,7 +784,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 获取 limit
             BucketCache.updateQueryLimit(BucketCache.generateBucketDataThreadKey(bucket, measurement), 1, performanceConfig.getThread().getReadBucketBatch(), Long.MAX_VALUE);
             double costTime = (System.currentTimeMillis() - sTime) / 1000.0;
-            logger.info("influxdb 1.x exec sql: {}, result point size: {}, time cost {} s", sql, influxdbBucketDataEntityList.size(), costTime);
+            logger.debug("influxdb 1.x exec sql: {}, result point size: {}, time cost {} s", sql, influxdbBucketDataEntityList.size(), costTime);
             return influxdbBucketDataEntityList;
         } catch (Exception e) {
             handlerException(e);

@@ -39,10 +39,12 @@ const visible = computed({
 
 type Props = InstanceType<typeof DatabaseCreate>['$props'];
 
-const dbFormProps: Props = {
-  dbList: props.dbList,
-  updateApi: props.createApi,
-  isEdit: false,
-  version: instance.version
-};
+const dbFormProps: ComputedRef<Props> = computed(() => {
+  return {
+    dbList: props.dbList,
+    updateApi: props.createApi,
+    isEdit: false,
+    version: instance.version
+  };
+});
 </script>

@@ -27,7 +27,7 @@ export function resolve(path: string) {
 
 export function getBaseConfig(
   configEnv: ConfigEnv,
-  addtionalScss?: string,
+  additionalScss?: string,
   deployUrl?: string,
   commonIcons?: boolean,
   viteDeploy?: (url: string) => void
@@ -45,7 +45,7 @@ export function getBaseConfig(
     css: {
       preprocessorOptions: {
         scss: {
-          additionalData: addtionalScss ? addtionalScss : '',
+          additionalData: additionalScss ? additionalScss : '',
           api: 'modern-compiler'
         }
       }

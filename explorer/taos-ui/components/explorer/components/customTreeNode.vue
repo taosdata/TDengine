@@ -637,7 +637,7 @@ async function isDatasourceUsedDB() {
   const datasource = databaseInUsing.find(item => item.targetDB === props.data.name);
   if (!datasource) return false;
   ElMessageBox.alert(
-    t('explorer.delDBUseingByDatasource', [props.data.name, datasource.name]),
+    t('explorer.delDBUsingByDatasource', [props.data.name, datasource.name]),
     t('status.warning', {
       confirmButtonText: t('common.confirm'),
       type: 'warning'

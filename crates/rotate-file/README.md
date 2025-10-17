@@ -1,5 +1,5 @@
 # rotate-file
-Rotate-file is a rotating file writer that automatically rotates files when file size or time limit is reached. This lib forcus on managing files within a specific directory, and utilize the Sink trait from [futures](https://crates.io/crates/futures) to handle data, it is highly flexible, allowing anyone customize a sink operator for their specific file format.
+Rotate-file is a rotating file writer that automatically rotates files when file size or time limit is reached. This lib focuses on managing files within a specific directory, and utilize the Sink trait from [futures](https://crates.io/crates/futures) to handle data, it is highly flexible, allowing anyone customize a sink operator for their specific file format.
 
 ## usage
 ```

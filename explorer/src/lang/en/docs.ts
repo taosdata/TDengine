@@ -163,7 +163,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step23desc12: '[Password]:',
         step23desc13: 'Enter the user password. If not, the default is taosdata',
         step24desc:
-          'Click "Test Connection" to test whether the data source can be connectted; if successful, it will prompt "Successfully connected to {0}".'
+          'Click "Test Connection" to test whether the data source can be connected; if successful, it will prompt "Successfully connected to {0}".'
       }
     },
     party: {
@@ -423,8 +423,8 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
           "Please be noted that in the context of TDengine  service, non privileged user can't create database using any tool, including taosBenchmark. The database needs to be firstly created in the data explorer in TDengine  service console. For any content about creating database in this document, the user needs to ignore and create the database manually inside TDengine  service.",
         step2: 'Installation',
         step2desc: 'To use taosBenchmark, you need to download and install(',
-        step2desc1: ' or downlaod and install ',
-        step2desc2: 'TDengine client installtion package',
+        step2desc1: ' or download and install ',
+        step2desc2: 'TDengine client installation package',
         step2desc3: 'Decompress the package and install.',
         step3: 'Run',
         step31: 'Configuration and running methods',
@@ -695,7 +695,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step3desc: 'Open Seeq, login as admin, go to Administration, click "Add Data Source"',
         step3desc1: 'For connector, choose SQL connector v2',
         step3desc2: 'Inside the "Additional Configuration" input box, copy and paste the following:',
-        step3desc3: 'For the "QueryDefintions", please follow the examples below to write your own.',
+        step3desc3: 'For the "QueryDefinitions", please follow the examples below to write your own.',
         step4: 'Smart Meter Example',
         step4full: 'Import a large number of time series: smart meter example',
         step4desc:
@@ -736,15 +736,15 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step4desc4:
           "Dimension: it's normally category (text) data to describe such information as device, collection point, model. In the supertable template of TDengine, we use tag columns to store the dimension information. You can use SQL like select distinct tbname, tag1, tag2 from supertable to get dimensions.",
         step4desc5:
-          'Metric: quantitive (numeric) fileds that can be calculated, like SUM, AVERAGE, MINIMUM. If the collecting frequency is 1 second, then there are 31,536,000 records in one year, it will be too low efficient to import so big data into Power BI. In TDengine, you can use data partition query, window partition query, in combination with pseudo columns related to window, to import downsampled data into Power BI. For more details, please refer to ',
+          'Metric: quantitive (numeric) fields that can be calculated, like SUM, AVERAGE, MINIMUM. If the collecting frequency is 1 second, then there are 31,536,000 records in one year, it will be too low efficient to import so big data into Power BI. In TDengine, you can use data partition query, window partition query, in combination with pseudo columns related to window, to import downsampled data into Power BI. For more details, please refer to ',
         step4desc6: 'TDengine Specialized Queries',
         step4desc7: '.',
         step4desc8:
           'Window partition query: for example, thermal meters collect one data per second, but you need to query the average temperature every 10 minutes, you can use window subclause to get the downsampling data you need. The corresponding SQL is like select tbname, _wstart date，avg(temperature) temp from table interval(10m), in which _wstart is a pseudo column indicating the start time of a window, 10m is the duration of the window, avg(temperature) indicates the aggregate value inside a window.',
         step4desc9:
-          'Data partition query: If you want to get the aggregate value of a lot of thermal meters, you can first partition the data and then perform a series of calculation in the partitioned data spaces. The SQL you need to use is partitoned by part_list. The most common of data partition usage is that when querying a supertable, you can partition data by subtable according to tags to form the data of each subtable into a single time serie to facilitate analytical processing of time series data.',
+          'Data partition query: If you want to get the aggregate value of a lot of thermal meters, you can first partition the data and then perform a series of calculation in the partitioned data spaces. The SQL you need to use is partitioned by part_list. The most common of data partition usage is that when querying a supertable, you can partition data by subtable according to tags to form the data of each subtable into a single time series to facilitate analytical processing of time series data.',
         step4desc10:
-          'Time Serie: When curve plotting or aggregating data based on time lines, date is normally required. Data or time can be imported from Excel, or retrieved from TDengine using SQL statement like select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0), in which the fill() subclause indicates the fill mode when there is data missing, pseudo column _wstart indicates the date to retrieve.',
+          'Time Series: When curve plotting or aggregating data based on time lines, date is normally required. Data or time can be imported from Excel, or retrieved from TDengine using SQL statement like select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0), in which the fill() subclause indicates the fill mode when there is data missing, pseudo column _wstart indicates the date to retrieve.',
         step4desc11:
           'Correlation: Indicates how to correlate data. Dimensions and Metrics can be correlated by tbname, dates and metrics can be correlated by date. All these can cooperate to form visual reports.',
         step5: 'Example',
@@ -944,7 +944,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         step1pre1: 'Prepare the following environment components:',
 
         step1item1: 'Node-RED version >=3.0.0,',
-        step1item2: 'Node.js versoin >=3.1.8,',
+        step1item2: 'Node.js version >=3.1.8,',
         step1item3: 'node-red-node-tdengine latest version, ',
         step11link1: 'Node-RED setup',
         step12link1: 'npmjs.com setup',

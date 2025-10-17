@@ -237,7 +237,7 @@ pub fn to_record_batches(
                     }
                 }
                 // 大文本
-                OracleType::CLOB | OracleType::NCLOB | OracleType::BLOB => {
+                OracleType::CLOB | OracleType::NCLOB => {
                     let val = col.get::<String>();
                     match val {
                         Err(_) => {
@@ -256,7 +256,7 @@ pub fn to_record_batches(
                         }
                     }
                 }
-                OracleType::BFILE | OracleType::RefCursor => {
+                OracleType::RefCursor => {
                     let val = col.get::<String>();
                     match val {
                         Err(_) => {
@@ -270,6 +270,25 @@ pub fn to_record_batches(
                             builders[col_cidx]
                                 .as_any_mut()
                                 .downcast_mut::<array::StringBuilder>()
+                                .unwrap()
+                                .append_value(val);
+                        }
+                    }
+                }
+                OracleType::BFILE | OracleType::BLOB => {
+                    let val = col.get::<Vec<u8>>();
+                    match val {
+                        Err(_) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::LargeBinaryBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Ok(val) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::LargeBinaryBuilder>()
                                 .unwrap()
                                 .append_value(val);
                         }

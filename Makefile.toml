@@ -996,3 +996,9 @@ sudo cp target/${BUILD_PROFILE}/taosx.service target/${BUILD_PROFILE}/taos-explo
 sudo cp target/${BUILD_PROFILE}/taosx target/${BUILD_PROFILE}/taos-explorer /usr/bin/
 sudo systemctl daemon-reload
 """
+
+[tasks.install-typos]
+install_crate = { crate_name = "typos-cli", binary = "typos", test_arg = "--version", min_version = "1.38.1" }
+[tasks.typos]
+dependencies = ["install-typos"]
+command = "typos"

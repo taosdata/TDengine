@@ -11,7 +11,7 @@ export default {
     endpoint: "Endpoint",
     cpumem: "Core",
     cpu_usage: "CPU Usage",
-    memory_usage: "Memery Usage",
+    memory_usage: "Memory Usage",
     disk: "Disk RW(KB)",
     network: "Network IO(KB)",
     service_status: "Service Status",

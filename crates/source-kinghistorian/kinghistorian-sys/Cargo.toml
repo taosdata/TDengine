@@ -1,0 +1,13 @@
+[package]
+name = "kinghistorian-sys"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chrono.workspace = true
+bigdecimal.workspace = true
+flume.workspace = true
+
+[build-dependencies]
+bindgen = "0.72"

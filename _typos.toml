@@ -2,6 +2,8 @@
 avaliable = "avaliable"
 optin = "optin"
 ba = "ba"
+testng = "testng"
+mosquitto = "mosquitto"
 
 [type.csv]
 extend-glob = ["*.csv"]
@@ -19,5 +21,42 @@ check-file = true
 extend-glob = ["*.sql"]
 check-file = false
 
+[type.svg]
+extend-glob = ["*.svg"]
+check-file = false
+
+[type.resx]
+extend-glob = ["*.resx"]
+check-file = false
+
+[type.min-js]
+extend-glob = ["*.min.js"]
+check-file = false
+
 [files]
-extend-exclude = ["taosx-ipc/tests/**", "taosx-core/tests/str-slice.rs", "plugins/", "packaging/**", "CHANGELOG.md"]
+extend-exclude = [
+  "taosx-ipc/tests/**",
+  "taosx-core/tests/str-slice.rs",
+  "packaging/**",
+  "plugins/pi/**",
+  "deny.toml",
+  "CHANGELOG.md",
+  "explorer/playwright-report/**",
+  "explorer/taos-connector-node/**",
+  "crates/rust-sasl/**",
+  "crates/tokio-cron-scheduler/**",
+  "docker/dev/cpanm",
+  "tests/*.toml",
+  "tests/e2e/**",                                             # FIXME: should be removed after while
+  "crates/source-kinghistorian/kinghistorian-sys/KRTDBAPI.h",
+]
+
+[default]
+extend-ignore-re = [
+  # Line ignore with trailing comment: spellchecker:disable-line
+  ".*(#|//)\\s*spellchecker:disable-line\\s*$",
+  # Block ignore with spellchecker:off ... spellchecker:on
+  "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
+  # Ignore certificate keys
+  "^\\s*[a-zA-Z0-9]{16,}\\s*$",
+]

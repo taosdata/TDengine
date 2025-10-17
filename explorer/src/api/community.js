@@ -337,7 +337,7 @@ export function getDataSources(lang) {
             ]
           },
           {
-            "diaplay": "Range",
+            "display": "Range",
             "name": "range",
             "display_order": 3,
             "short_description": "Migration time range.",
@@ -503,7 +503,7 @@ export function getDataSources(lang) {
           "params": [
             {
               "name": "workers",
-              "display": "Read Concurreny",
+              "display": "Read Concurrency",
               "hint": {
                 "type": "integer",
                 "min": 0,
@@ -514,7 +514,7 @@ export function getDataSources(lang) {
             },
             {
               "name": "write-concurrency",
-              "display": "Write Concurreny",
+              "display": "Write Concurrency",
               "hint": {
                 "type": "integer",
                 "min": 1,

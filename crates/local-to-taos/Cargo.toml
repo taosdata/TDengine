@@ -20,10 +20,12 @@ async-compression.workspace = true
 tracing-subscriber.workspace = true
 tempfile.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 
 taosx-core.workspace = true
 taosx-ipc.workspace = true
 tmq-to-local.path = "../tmq-to-local"
+taos-to-local.path = "../taos-to-local"
 
 [lints]
 workspace = true

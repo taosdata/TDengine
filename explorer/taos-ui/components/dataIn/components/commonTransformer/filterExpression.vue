@@ -268,7 +268,7 @@ function submitFilter() {
 .tip {
   font-size: 12px;
 
-  .excutetip {
+  .executetip {
     color: red;
 
     &.done {

@@ -115,7 +115,7 @@ impl Properties {
         let mut values = Vec::with_capacity(self.0.len());
         for (key, value) in &self.0 {
             keys.push(key.clone());
-            let datatype = value.pb_datatyep();
+            let datatype = value.pb_datatype();
             let value = value.pb_property_value()?;
             values.push(pb::payload::PropertyValue {
                 r#type: Some(datatype as _),
@@ -179,7 +179,7 @@ pub enum ValueSchema {
 }
 
 impl ValueSchema {
-    fn pb_datatyep(&self) -> pb::DataType {
+    fn pb_datatype(&self) -> pb::DataType {
         match self {
             ValueSchema::Boolean(_) => pb::DataType::Boolean,
             ValueSchema::Int8(_) => pb::DataType::Int8,
@@ -194,7 +194,7 @@ impl ValueSchema {
             ValueSchema::Double(_) => pb::DataType::Double,
             ValueSchema::String(_) => pb::DataType::String,
             ValueSchema::DateTime(_) => pb::DataType::DateTime,
-            ValueSchema::Option(schema) => schema.value.pb_datatyep(),
+            ValueSchema::Option(schema) => schema.value.pb_datatype(),
         }
     }
 
@@ -481,7 +481,7 @@ impl NodeDeviceFaker {
         for schema in self.metrics.clone().iter() {
             let name = &schema.name;
             let alias = self.get_alias(name);
-            let datatype = schema.value.pb_datatyep() as u32;
+            let datatype = schema.value.pb_datatype() as u32;
             let value = schema.value.pb_metric_value()?;
             ret.push(pb::payload::Metric {
                 name: is_birth.then_some(name.to_string()),

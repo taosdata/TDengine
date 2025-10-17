@@ -142,15 +142,15 @@ async function loadDnodes() {
   statisticData.value.taosd = dnodes_total;
 
   const dnode_res =
-    await sendSQLReq(`select last_row(_ts, dnode_ep, cpu_cores, cpu_system, mem_total, mem_free, io_write_disk, io_read_disk, system_net_in, system_net_out ) 
+    await sendSQLReq(`select last_row(_ts, dnode_ep, cpu_cores, cpu_system, mem_total, mem_free, mem_cache_buffer, io_write_disk, io_read_disk, system_net_in, system_net_out ) 
  from log.taosd_dnodes_info where cluster_id = '${getClusterID()}' partition by dnode_ep`);
 
-  const adpater_res = await sendSQLReq(
+  const adapter_res = await sendSQLReq(
     `select last_row(ts, endpoint) from log.adapter_requests where ts > '${offline_limit}' and req_type=0 partition by endpoint;`
   );
-  statisticData.value.adapter = adpater_res.data.length;
+  statisticData.value.adapter = adapter_res.data.length;
   const adapter_status: any = {};
-  adpater_res.data.forEach((adapter: any) => {
+  adapter_res.data.forEach((adapter: any) => {
     const [ts, endpoint] = adapter;
     const host = endpoint.split(':')[0];
     adapter_status[host] = [endpoint, checkStatusByTime(ts, error_limit, warn_limit)];
@@ -194,13 +194,14 @@ async function loadDnodes() {
       cpu_system,
       mem_total,
       mem_free,
+      mem_cache_buffer,
       io_write_disk,
       io_read_disk,
       system_net_in,
       system_net_out
     ] = dnode;
     const cpu_usage = cpu_system;
-    const mem_usage = ((mem_total - mem_free) / mem_total) * 100;
+    const mem_usage = ((mem_total - mem_free - mem_cache_buffer) / mem_total) * 100;
 
     const netio = `${formatKB(system_net_in)} | ${formatKB(system_net_out)}`;
     const diskio = `${formatKB(io_read_disk)} | ${formatKB(io_write_disk)}`;
