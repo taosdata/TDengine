@@ -1798,6 +1798,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       const SStateWinTrigger *pState = &pMsg->trigger.stateWin;
       pTask->stateSlotId = pState->slotId;
       pTask->stateExtend = pState->extend;
+      code = nodesStringToNode(pState->zeroth, &pTask->pStateZeroth);
+      QUERY_CHECK_CODE(code, lino, _end);
       pTask->stateTrueFor = pState->trueForDuration;
       code = nodesStringToNode(pState->expr, &pTask->pStateExpr);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2053,6 +2055,10 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    if (pTask->pStateZeroth != NULL) {
+      nodesDestroyNode(pTask->pStateZeroth);
+      pTask->pStateZeroth = NULL;
+    }
     if (pTask->pStateExpr != NULL) {
       nodesDestroyNode(pTask->pStateExpr);
       pTask->pStateExpr = NULL;
@@ -7567,6 +7573,25 @@ _end:
   return code;
 }
 
+bool stIsStateEqualZeroth(char* pStateData, void* pZeroth, int32_t bytes) {
+  if (pStateData == NULL || pZeroth == NULL) {
+    return false;
+  }
+
+  SValueNode* pZerothState = (SValueNode*)pZeroth;
+  int8_t type = pZerothState->node.resType.type;
+  if (IS_VAR_DATA_TYPE(type)) {
+    return memcmp(pStateData, pZerothState->datum.p, bytes) == 0;
+  } 
+  if (IS_INTEGER_TYPE(type)) {
+    return memcmp(pStateData, &pZerothState->datum.i, bytes) == 0;
+  }
+  if (IS_BOOLEAN_TYPE(type)) {
+    return memcmp(pStateData, &pZerothState->datum.b, bytes) == 0;
+  }
+  return false;
+}
+
 static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -7648,7 +7673,10 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
               startTs = pWin->range.ekey + 1;
             }
-            if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+            if (stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, bytes)) {
+              pWin = taosArrayPop(pContext->pWindows);
+              stRealtimeContextDestroyWindow((void*)pWin);
+            } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
               code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
                                                    &pWin->pWinCloseNotify);
               QUERY_CHECK_CODE(code, lino, _end);
