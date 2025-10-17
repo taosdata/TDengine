@@ -1453,14 +1453,21 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   pInfo->calcReaders = tdListNew(sizeof(SStmTaskStatus));
   TSDB_CHECK_NULL(pInfo->calcReaders, code, lino, _exit, terrno);
 
-  
   for (int32_t i = 0; i < calcTasksNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(pInfo->pCreate->calcScanPlanList, i);
-    // if (pScan->readFromCache) {
-    //   TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
-    //   continue;
-    // }
-    
+    if (pScan->readFromCache) {
+      int32_t readerNum = taosArrayGetSize(pInfo->trigReaders);
+      for (int32_t j = 0; j < readerNum; ++j) {
+        SStmTaskStatus* pTrigReader = taosArrayGet(pInfo->trigReaders, j);
+        TSDB_CHECK_NULL(pTrigReader, code, lino, _exit, terrno);
+
+        TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pTrigReader->id.nodeId, pTrigReader->id.taskId,
+                                         pScan->readFromCache));
+      }
+      // TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
+      continue;
+    }
+
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
       pState = tdListReserve(pInfo->calcReaders);
@@ -1496,10 +1503,18 @@ static int32_t msmUPPrepareReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   
   for (int32_t i = 0; i < calcTasksNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(pStream->pCreate->calcScanPlanList, i);
-    // if (pScan->readFromCache) {
-    //   TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
-    //   continue;
-    // }
+    if (pScan->readFromCache) {
+      int32_t readerNum = taosArrayGetSize(pInfo->trigReaders);
+      for (int32_t j = 0; j < readerNum; ++j) {
+        SStmTaskStatus* pTrigReader = taosArrayGet(pInfo->trigReaders, j);
+        TSDB_CHECK_NULL(pTrigReader, code, lino, _exit, terrno);
+
+        TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pTrigReader->id.nodeId, pTrigReader->id.taskId,
+                                         pScan->readFromCache));
+      }
+      // TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
+      continue;
+    }
     
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
