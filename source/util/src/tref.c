@@ -45,11 +45,11 @@ typedef struct {
   void (*fp)(void *);
 } SRefSet;
 
-static SRefSet       tsRefSetList[TSDB_REF_OBJECTS];
-static TdThreadOnce  tsRefModuleInit = PTHREAD_ONCE_INIT;
-static TdThreadMutex tsRefMutex;
-static int32_t       tsRefSetNum = 0;
-static int32_t       tsNextId = 0;
+volatile SRefSet       tsRefSetList[TSDB_REF_OBJECTS];
+volatile TdThreadOnce  tsRefModuleInit = PTHREAD_ONCE_INIT;
+volatile TdThreadMutex tsRefMutex;
+volatile int32_t       tsRefSetNum = 0;
+volatile int32_t       tsNextId = 0;
 
 static void    taosInitRefModule(void);
 static void    taosLockList(int64_t *lockedBy);
@@ -180,6 +180,8 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
          rsetId);
 
   taosUnlockList(pSet->lockedBy + hash);
+
+  __sync_synchronize();
 
   return rid;
 }
