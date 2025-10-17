@@ -23,10 +23,10 @@
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-static int32_t transRefMgmt = -2;
+static int32_t transRefMgmt = -1;
 static int32_t transSvrRefMgt = -2;
-static int32_t transInstMgt = -2;
-static int32_t transSyncMsgMgt = -2;
+static int32_t transInstMgt = -3;
+static int32_t transSyncMsgMgt = -4;
 
 void transDestroySyncMsg(void* msg);
 
@@ -801,14 +801,14 @@ void transInitEnv() {
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   TAOS_UNUSED(uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1"));
   __sync_synchronize();
-  tDebug("====>ref create, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
+  tDebug("====>ref transInitEnv, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
 }
 void transDestroyEnv() {
   transCloseRefMgt(transRefMgmt);
   transCloseRefMgt(transSvrRefMgt);
   transCloseRefMgt(transInstMgt);
   transCloseRefMgt(transSyncMsgMgt);
-  tDebug("====>ref release, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
+  tDebug("====>ref transDestroyEnv, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
 }
 
 int32_t transInit() {
@@ -816,9 +816,10 @@ int32_t transInit() {
   int32_t code = taosThreadOnce(&transModuleInit, transInitEnv);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
-    tDebug("====>ref transinit, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
+    tDebug("====>ref transInit Error, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
   }
 
+  tDebug("====>ref transInit code:%d, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", code, transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
   return code;
 }
 
