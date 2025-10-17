@@ -42,6 +42,8 @@ extern STaosError errors[];
 
 const char* tstrerror(int32_t err);
 const char* terrstr();
+const char* tstrerror2(int32_t err, char *errstr, int len);
+const char* terrstr2(char *errstr, int len);
 
 #define  ERR_MSG_LEN                        256
 

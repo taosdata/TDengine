@@ -43,43 +43,43 @@ volatile int32_t    tsInitOnceRet = 0;
   setConfRet ret = {.retCode = -1}; \
   return ret;
 
-#define CHECK_VOID(fp)               \
-  if (tsDriver == NULL) {            \
-    ERR_VOID(TSDB_CODE_DLL_NOT_LOAD) \
-  }                                  \
-  if (fp == NULL) {                  \
+#define CHECK_VOID(fp)                    \
+  if (tsDriver == NULL) {                 \
+    ERR_VOID(TSDB_CODE_DLL_NOT_LOAD)      \
+  }                                       \
+  if (fp == NULL) {                       \
     ERR_VOID(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
-#define CHECK_PTR(fp)               \
-  if (tsDriver == NULL) {           \
-    ERR_PTR(TSDB_CODE_DLL_NOT_LOAD) \
-  }                                 \
-  if (fp == NULL) {                 \
+#define CHECK_PTR(fp)                    \
+  if (tsDriver == NULL) {                \
+    ERR_PTR(TSDB_CODE_DLL_NOT_LOAD)      \
+  }                                      \
+  if (fp == NULL) {                      \
     ERR_PTR(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
-#define CHECK_INT(fp)               \
-  if (tsDriver == NULL) {           \
-    ERR_INT(TSDB_CODE_DLL_NOT_LOAD) \
-  }                                 \
-  if (fp == NULL) {                 \
+#define CHECK_INT(fp)                    \
+  if (tsDriver == NULL) {                \
+    ERR_INT(TSDB_CODE_DLL_NOT_LOAD)      \
+  }                                      \
+  if (fp == NULL) {                      \
     ERR_INT(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
-#define CHECK_BOOL(fp)               \
-  if (tsDriver == NULL) {            \
-    ERR_BOOL(TSDB_CODE_DLL_NOT_LOAD) \
-  }                                  \
-  if (fp == NULL) {                  \
+#define CHECK_BOOL(fp)                    \
+  if (tsDriver == NULL) {                 \
+    ERR_BOOL(TSDB_CODE_DLL_NOT_LOAD)      \
+  }                                       \
+  if (fp == NULL) {                       \
     ERR_BOOL(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
-#define CHECK_CONFRET(fp)               \
-  if (tsDriver == NULL) {               \
-    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD) \
-  }                                     \
-  if (fp == NULL) {                     \
+#define CHECK_CONFRET(fp)                    \
+  if (tsDriver == NULL) {                    \
+    ERR_CONFRET(TSDB_CODE_DLL_NOT_LOAD)      \
+  }                                          \
+  if (fp == NULL) {                          \
     ERR_CONFRET(TSDB_CODE_DLL_FUNC_NOT_LOAD) \
   }
 
@@ -146,7 +146,7 @@ int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const voi
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   if (taos_init() != 0) {
-    //terrno = TSDB_CODE_DLL_NOT_LOAD;
+    // terrno = TSDB_CODE_DLL_NOT_LOAD;
     return NULL;
   }
 
@@ -510,6 +510,14 @@ const char *taos_errstr(TAOS_RES *res) {
     return tstrerror(terrno);
   }
   return (*fp_taos_errstr)(res);
+}
+
+const char *taos_errstr2(TAOS_RES *res, char *errstr, int len) {
+  (void)taos_init();
+  if (fp_taos_errstr2 == NULL) {
+    return tstrerror2(terrno, errstr, len);
+  }
+  return (*fp_taos_errstr2)(res, errstr, len);
 }
 
 int taos_errno(TAOS_RES *res) {

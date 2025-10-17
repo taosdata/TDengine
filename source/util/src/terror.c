@@ -990,6 +990,55 @@ const char* tstrerror(int32_t err) {
   return "";
 }
 
+const char* tstrerror2(int32_t err, char *errstr, int len) {
+  (void)taosThreadOnce(&tsErrorInit, tsSortError);
+
+  // this is a system errno
+  #ifdef WINDOWS
+  if ((err & 0x01ff0000) == 0x01ff0000) {
+    snprintf(errstr, len, "Windows api error(0x%08X).", err & 0x0000ffff);
+
+    return errstr;
+  }  else if ((err & 0x02ff0000) == 0x02ff0000) {
+    snprintf(errstr, len, "Windows socket error(0x%08X).", err & 0x0000ffff);
+
+    return errstr;
+  }
+  #endif
+  if ((err & 0x00ff0000) == 0x00ff0000) {
+    int32_t code = err & 0x0000ffff;
+    // strerror can handle any invalid code
+    // invalid code return Unknown error
+    snprintf(errstr, len, "System error(%d): %s", code, strerror(code));
+
+    return errstr;
+  }
+
+  int32_t s = 0;
+  int32_t e = sizeof(errors) / sizeof(errors[0]);
+
+  while (s < e) {
+    int32_t mid = (s + e) / 2;
+    int32_t val = errors[mid].val;
+    if (err > val) {
+      s = mid + 1;
+    } else if (err < val) {
+      e = mid;
+    } else if (err == val) {
+      snprintf(errstr, len, "TSDB error(0x%08X): %s", err, errors[mid].str);
+
+      return errstr;
+    } else {
+      break;
+    }
+  }
+
+  snprintf(errstr, len, "Unknown error(0x%08X).", err);
+
+  return errstr;
+}
+
 const char* terrstr() { return tstrerror(terrno); }
+const char* terrstr2(char *errstr, int len) { return tstrerror2(terrno, errstr, len); }
 
 int32_t  taosGetErrSize() { return sizeof(errors)/sizeof(errors[0]); }

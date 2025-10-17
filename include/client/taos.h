@@ -300,6 +300,7 @@ DLL_EXPORT int         taos_get_current_db(TAOS *taos, char *database, int len, 
 
 DLL_EXPORT const char *taos_errstr(TAOS_RES *res);
 DLL_EXPORT int         taos_errno(TAOS_RES *res);
+DLL_EXPORT const char *taos_errstr2(TAOS_RES *res, char *errstr, int len);
 
 DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param);
 DLL_EXPORT void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid);

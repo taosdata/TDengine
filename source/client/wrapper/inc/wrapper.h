@@ -122,6 +122,7 @@ extern const char *(*fp_taos_get_client_info)();
 extern int (*fp_taos_get_current_db)(TAOS *taos, char *database, int len, int *required);
 
 extern const char *(*fp_taos_errstr)(TAOS_RES *res);
+extern const char *(*fp_taos_errstr2)(TAOS_RES *res, char *errstr, int len);
 extern int (*fp_taos_errno)(TAOS_RES *res);
 
 extern void (*fp_taos_query_a)(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param);

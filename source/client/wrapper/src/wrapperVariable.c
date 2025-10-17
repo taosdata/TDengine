@@ -102,6 +102,7 @@ const char *(*fp_taos_get_client_info)() = NULL;
 int (*fp_taos_get_current_db)(TAOS *taos, char *database, int len, int *required) = NULL;
 
 const char *(*fp_taos_errstr)(TAOS_RES *res) = NULL;
+const char *(*fp_taos_errstr2)(TAOS_RES *res, char *errstr, int len) = NULL;
 int (*fp_taos_errno)(TAOS_RES *res) = NULL;
 
 void (*fp_taos_query_a)(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) = NULL;

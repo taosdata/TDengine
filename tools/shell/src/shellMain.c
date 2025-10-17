@@ -42,20 +42,22 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 
 // init arguments
 void initArgument(SShellArgs *pArgs) {
-  pArgs->host     = NULL;
-  pArgs->port     = 0;
-  pArgs->user     = NULL;
+  pArgs->host = NULL;
+  pArgs->port = 0;
+  pArgs->user = NULL;
   pArgs->database = NULL;
 
   // conn mode
-  pArgs->dsn      = NULL;
+  pArgs->dsn = NULL;
   pArgs->connMode = CONN_MODE_INVALID;
 
   pArgs->port_inputted = false;
 }
 
 int main(int argc, char *argv[]) {
-  int code  = 0;
+  int  code = 0;
+  char errstr[256] = {0};
+
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
 #endif
@@ -109,8 +111,8 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "failed to set config dir:%s  code:[0x%08X]\r\n", configDirShell, code);
       return -1;
     }
-    //printf("Load with input config dir:%s\n", configDirShell);
-  }  
+    // printf("Load with input config dir:%s\n", configDirShell);
+  }
 
 #ifndef TD_ASTRA
   // dump config
@@ -122,7 +124,7 @@ int main(int argc, char *argv[]) {
 
   // taos_init
   if (taos_init() != 0) {
-    fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
+    fprintf(stderr, "failed to init shell since %s\r\n", taos_errstr2(NULL, errstr, 256));
     return -1;
   }
 

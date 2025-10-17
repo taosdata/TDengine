@@ -18,10 +18,10 @@
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
+#include "../../inc/pub.h"
 #include "geosWrapper.h"
 #include "shellAuto.h"
 #include "shellInt.h"
-#include "../../inc/pub.h"
 
 SShellObj shell = {0};
 
@@ -59,7 +59,7 @@ static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static int32_t shellGetGrantInfo(char* buf);
+static int32_t shellGetGrantInfo(char *buf);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -1093,7 +1093,9 @@ void shellCleanupHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
+  char    errstr[256] = {0};
+
+  fprintf(stderr, "\r\n%s (%.6fs)\r\n", taos_errstr2(tres, errstr, 256), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -1164,6 +1166,8 @@ void shellSourceFile(const char *file) {
 int32_t shellGetGrantInfo(char *buf) {
   int32_t verType = TSDB_VERSION_UNKNOWN;
   char    sinfo[256] = {0};
+  char    errstr[256] = {0};
+
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
   strtok(sinfo, "\r\n");
 
@@ -1176,7 +1180,7 @@ int32_t shellGetGrantInfo(char *buf) {
   if (code != TSDB_CODE_SUCCESS) {
     if (code != TSDB_CODE_OPS_NOT_SUPPORT && code != TSDB_CODE_MND_NO_RIGHTS &&
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
-      fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
+      fprintf(stderr, "Failed to check Server Edition, Reason: %s\r\n\r\n", taos_errstr2(tres, errstr, 256));
     }
     taos_free_result(tres);
     return verType;
@@ -1299,63 +1303,62 @@ void *shellThreadLoop(void *arg) {
 }
 #pragma GCC diagnostic pop
 
-TAOS* createConnect(SShellArgs *pArgs) {
+TAOS *createConnect(SShellArgs *pArgs) {
   char     show[256] = "\0";
-  char *   host = NULL;
+  char    *host = NULL;
   uint16_t port = 0;
-  char *   user = NULL;
-  char *   pwd  = NULL;
+  char    *user = NULL;
+  char    *pwd = NULL;
   int32_t  code = 0;
-  char *   dsnc = NULL;
+  char    *dsnc = NULL;
 
   // set mode
   if (pArgs->connMode != CONN_MODE_NATIVE && pArgs->dsn) {
-      dsnc = strToLowerCopy(pArgs->dsn);
-      if (dsnc == NULL) {
-          return NULL;
-      }
+    dsnc = strToLowerCopy(pArgs->dsn);
+    if (dsnc == NULL) {
+      return NULL;
+    }
 
-      char *cport = NULL;
-      char error[512] = "\0";
-      code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
-      if (code) {
-          printf("%s dsn=%s\n", error, dsnc);
-          free(dsnc);
-          return NULL;
-      }
+    char *cport = NULL;
+    char  error[512] = "\0";
+    code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
+    if (code) {
+      printf("%s dsn=%s\n", error, dsnc);
+      free(dsnc);
+      return NULL;
+    }
 
-      // default ws port
-      if (cport == NULL) {
-          if (user)
-              port = DEFAULT_PORT_WS_CLOUD;
-          else
-              port = DEFAULT_PORT_WS_LOCAL;
-      } else {
-          port = atoi(cport);
-      }
+    // default ws port
+    if (cport == NULL) {
+      if (user)
+        port = DEFAULT_PORT_WS_CLOUD;
+      else
+        port = DEFAULT_PORT_WS_LOCAL;
+    } else {
+      port = atoi(cport);
+    }
 
-      // websocket
-      memcpy(show, pArgs->dsn, 20);
-      memcpy(show + 20, "...", 3);
-      memcpy(show + 23, pArgs->dsn + strlen(pArgs->dsn) - 10, 10);
+    // websocket
+    memcpy(show, pArgs->dsn, 20);
+    memcpy(show + 20, "...", 3);
+    memcpy(show + 23, pArgs->dsn + strlen(pArgs->dsn) - 10, 10);
 
   } else {
+    host = (char *)pArgs->host;
+    user = (char *)pArgs->user;
+    pwd = pArgs->password;
 
-      host = (char *)pArgs->host;
-      user = (char *)pArgs->user;
-      pwd  = pArgs->password;
+    if (pArgs->port_inputted) {
+      port = pArgs->port;
+    } else {
+      port = defaultPort(pArgs->connMode, pArgs->dsn);
+    }
 
-      if (pArgs->port_inputted) {
-          port = pArgs->port;
-      } else {
-          port = defaultPort(pArgs->connMode, pArgs->dsn);
-      }
-
-      sprintf(show, "host:%s port:%d ", host, port);
+    sprintf(show, "host:%s port:%d ", host, port);
   }
 
   // connect main
-  TAOS * taos = NULL;
+  TAOS *taos = NULL;
   if (pArgs->auth) {
     taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
   } else {
@@ -1369,17 +1372,18 @@ TAOS* createConnect(SShellArgs *pArgs) {
 
 int32_t shellExecute(int argc, char *argv[]) {
   int32_t code = 0;
-  printf(shell.info.clientVersion, shell.info.cusName, 
-             workingMode(shell.args.connMode, shell.args.dsn) == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
-             taos_get_client_info(), shell.info.cusName);
+  char    errstr[256] = {0};
+
+  printf(shell.info.clientVersion, shell.info.cusName,
+         workingMode(shell.args.connMode, shell.args.dsn) == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
+         taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
   shell.conn = createConnect(pArgs);
 
   if (shell.conn == NULL) {
-    printf("failed to connect to server, reason: %s [0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL),
-           ERROR_CODE_DETAIL);
+    printf("failed to connect to server, reason: %s\n%s", taos_errstr2(NULL, errstr, 256), ERROR_CODE_DETAIL);
     fflush(stdout);
     return -1;
   }

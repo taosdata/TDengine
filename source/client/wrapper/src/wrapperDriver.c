@@ -53,6 +53,7 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
 
 int32_t taosDriverInit(EDriverType driverType) {
   int32_t     code = -1;
+  char        errstr[256] = {0};
   char        driverPath[PATH_MAX + 32] = {0};
   const char *driverName = NULL;
   const char *funcName = NULL;
@@ -66,7 +67,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   // load from develop build path
   if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
     tsDriver = taosLoadDll(driverPath);
-  }  
+  }
 
   // load from system path
   if (tsDriver == NULL) {
@@ -82,7 +83,7 @@ int32_t taosDriverInit(EDriverType driverType) {
 #endif
 
   if (tsDriver == NULL) {
-    printf("failed to load %s since %s [0x%X]\r\n", driverName, terrstr(), terrno);
+    printf("failed to load %s since %s\r\n", driverName, terrstr2(errstr, 256));
     showWrapperHint(terrno);
     return code;
   }
@@ -174,6 +175,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_get_current_db, "taos_get_current_db");
 
   LOAD_FUNC(fp_taos_errstr, "taos_errstr");
+  LOAD_FUNC(fp_taos_errstr2, "taos_errstr2");
   LOAD_FUNC(fp_taos_errno, "taos_errno");
 
   LOAD_FUNC(fp_taos_query_a, "taos_query_a");

@@ -209,11 +209,12 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       code = taosGetIpFromFqdn(tsEnableIpv6, val, &addr);
       if (code == 0) {
         code = tIpStrToUint(&addr, &pObj->optionInfo.userDualIp);
-      } 
+      }
       if (code != 0) {
-        tscError("ipv6 flag %d failed to convert user ip %s to dual ip since %s", tsEnableIpv6 ?  1:0, val, tstrerror(code));
-        pObj->optionInfo.userIp = INADDR_NONE; 
-        pObj->optionInfo.userDualIp = dualIp;  
+        tscError("ipv6 flag %d failed to convert user ip %s to dual ip since %s", tsEnableIpv6 ? 1 : 0, val,
+                 tstrerror(code));
+        pObj->optionInfo.userIp = INADDR_NONE;
+        pObj->optionInfo.userDualIp = dualIp;
         code = 0;
       }
     } else {
@@ -505,7 +506,7 @@ int32_t fetchWhiteListDualStackCallbackFn(void *param, SDataBuf *pMsg, int32_t c
   SGetUserWhiteListRsp wlRsp = {0};
 
   SFetchWhiteListDualStackInfo *pInfo = (SFetchWhiteListDualStackInfo *)param;
-  TAOS *taos = &pInfo->connId;
+  TAOS                         *taos = &pInfo->connId;
 
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
@@ -689,6 +690,27 @@ const char *taos_errstr(TAOS_RES *res) {
   }
 }
 
+const char *taos_errstr2(TAOS_RES *res, char *errstr, int len) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+    return tstrerror2(terrno, errstr, len);
+  }
+
+  if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
+    snprintf(errstr, len, "%s", "success");
+
+    return errstr;
+  }
+
+  SRequestObj *pRequest = (SRequestObj *)res;
+  if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
+    snprintf(errstr, len, "TSDB error(0x%08X): %s", pRequest->code, pRequest->msgBuf);
+
+    return errstr;
+  } else {
+    return tstrerror2(pRequest->code, errstr, len);
+  }
+}
+
 void taos_free_result(TAOS_RES *res) {
   if (NULL == res) {
     return;
@@ -762,7 +784,7 @@ TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res) {
   if (taos_num_fields(res) == 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   }
-  SReqResultInfo* pResInfo = tscGetCurResInfo(res);
+  SReqResultInfo *pResInfo = tscGetCurResInfo(res);
   return pResInfo->fields;
 }
 
@@ -1435,7 +1457,8 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     if (pQuery->haveResultSet) {
-      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema, pRequest->isStmtBind);
+      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema,
+                              pRequest->isStmtBind);
       setResPrecision(&pRequest->body.resInfo, pQuery->precision);
     }
   }
@@ -1460,8 +1483,8 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     // return to app directly
-    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
-             pRequest->requestId);
+    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self,
+             tstrerror(code), pRequest->requestId);
     pRequest->code = code;
     returnToUser(pRequest);
   }
@@ -1672,8 +1695,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);
       if (code != 0) {
-        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
-                pRequest->requestId);
+        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
+                tstrerror(code), pRequest->requestId);
       }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
