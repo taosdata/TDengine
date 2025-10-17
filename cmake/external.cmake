@@ -1644,10 +1644,10 @@ if(${BUILD_LIBSASL})      # {
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND
+            COMMAND ./autogen.sh
         CONFIGURE_COMMAND
-            COMMAND ./configure -prefix=${_ins} --enable-static --disable-shared --without-openssl    # NOTE: why disable-initial-exec-tls
-                    CFLAGS=-Wno-missing-braces
-                    CXXFLAGS=-Wno-missing-braces
+            COMMAND ./configure -prefix=${_ins} --enable-static --disable-shared --without-openssl CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
         BUILD_COMMAND
             COMMAND make
         INSTALL_COMMAND
