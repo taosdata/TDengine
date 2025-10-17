@@ -83,7 +83,7 @@ int32_t taosDriverInit(EDriverType driverType) {
 #endif
 
   if (tsDriver == NULL) {
-    printf("failed to load %s since %s\r\n", driverName, terrstr2(errstr, 256));
+    printf("failed to load %s since %s\r\n", driverName, terrstr2(errstr, sizeof(errstr)));
     showWrapperHint(terrno);
     return code;
   }

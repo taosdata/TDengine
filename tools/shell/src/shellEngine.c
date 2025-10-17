@@ -1095,7 +1095,7 @@ void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
   char    errstr[256] = {0};
 
-  fprintf(stderr, "\r\n%s (%.6fs)\r\n", taos_errstr2(tres, errstr, 256), (et - st) / 1E6);
+  fprintf(stderr, "\r\n%s (%.6fs)\r\n", taos_errstr2(tres, errstr, sizeof(errstr)), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -1180,7 +1180,7 @@ int32_t shellGetGrantInfo(char *buf) {
   if (code != TSDB_CODE_SUCCESS) {
     if (code != TSDB_CODE_OPS_NOT_SUPPORT && code != TSDB_CODE_MND_NO_RIGHTS &&
         code != TSDB_CODE_PAR_PERMISSION_DENIED) {
-      fprintf(stderr, "Failed to check Server Edition, Reason: %s\r\n\r\n", taos_errstr2(tres, errstr, 256));
+      fprintf(stderr, "Failed to check Server Edition, Reason: %s\r\n\r\n", taos_errstr2(tres, errstr, sizeof(errstr)));
     }
     taos_free_result(tres);
     return verType;
@@ -1383,7 +1383,8 @@ int32_t shellExecute(int argc, char *argv[]) {
   shell.conn = createConnect(pArgs);
 
   if (shell.conn == NULL) {
-    printf("failed to connect to server, reason: %s\n%s", taos_errstr2(NULL, errstr, 256), ERROR_CODE_DETAIL);
+    printf("failed to connect to server, reason: %s\n%s", taos_errstr2(NULL, errstr, sizeof(errstr)),
+           ERROR_CODE_DETAIL);
     fflush(stdout);
     return -1;
   }

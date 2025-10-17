@@ -702,7 +702,7 @@ const char *taos_errstr2(TAOS_RES *res, char *errstr, int len) {
   }
 
   SRequestObj *pRequest = (SRequestObj *)res;
-  if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
+  if (NULL != pRequest->msgBuf && (pRequest->msgBuf[0] != '\0' || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {
     snprintf(errstr, len, "TSDB error(0x%08X): %s", pRequest->code, pRequest->msgBuf);
 
     return errstr;

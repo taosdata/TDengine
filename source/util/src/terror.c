@@ -982,8 +982,6 @@ const char* tstrerror(int32_t err) {
       e = mid;
     } else if (err == val) {
       return errors[mid].str;
-    } else {
-      break;
     }
   }
 
@@ -1007,9 +1005,12 @@ const char* tstrerror2(int32_t err, char *errstr, int len) {
   #endif
   if ((err & 0x00ff0000) == 0x00ff0000) {
     int32_t code = err & 0x0000ffff;
+    char errbuf[256] = {0};
+
     // strerror can handle any invalid code
     // invalid code return Unknown error
-    snprintf(errstr, len, "System error(%d): %s", code, strerror(code));
+    strerror_r(code, errbuf, sizeof(errbuf));
+    snprintf(errstr, len, "System error(%d): %s", code, errbuf);
 
     return errstr;
   }
@@ -1028,8 +1029,6 @@ const char* tstrerror2(int32_t err, char *errstr, int len) {
       snprintf(errstr, len, "TSDB error(0x%08X): %s", err, errors[mid].str);
 
       return errstr;
-    } else {
-      break;
     }
   }
 

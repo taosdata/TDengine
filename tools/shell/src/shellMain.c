@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
 
   // taos_init
   if (taos_init() != 0) {
-    fprintf(stderr, "failed to init shell since %s\r\n", taos_errstr2(NULL, errstr, 256));
+    fprintf(stderr, "failed to init shell since %s\r\n", taos_errstr2(NULL, errstr, sizeof(errstr)));
     return -1;
   }
 
