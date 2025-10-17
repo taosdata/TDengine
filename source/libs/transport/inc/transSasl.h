@@ -15,6 +15,7 @@
 #define _TD_TRANSPORT_SASL_H
 
 #if defined(TD_ENTERPRISE) && defined(LINUX)
+#include <sasl/sasl.h>
 #else
 typedef struct {
   void* p;
