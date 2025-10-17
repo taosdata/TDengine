@@ -860,7 +860,10 @@ int32_t streamBackendInit(const char* streamPath, int64_t chkpId, int32_t vgId, 
   rocksdb_options_set_max_total_wal_size(opts, dbMemLimit);
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 3);
-  rocksdb_options_set_info_log_level(opts, 1);
+  rocksdb_options_set_info_log_level(opts, 2);
+  rocksdb_options_set_max_log_file_size(opts, 8 << 20);
+  rocksdb_options_set_keep_log_file_num(opts, 2);
+
   rocksdb_options_set_db_write_buffer_size(opts, dbMemLimit);
   rocksdb_options_set_write_buffer_size(opts, dbMemLimit / 2);
   rocksdb_options_set_atomic_flush(opts, 1);
@@ -2372,7 +2375,10 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   // rocksdb_options_set_max_total_wal_size(opts, dbMemLimit);
   // rocksdb_options_set_ecycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 3);
-  rocksdb_options_set_info_log_level(opts, 1);
+  rocksdb_options_set_info_log_level(opts, 2);
+  rocksdb_options_set_max_log_file_size(opts, 8 << 20);
+  rocksdb_options_set_keep_log_file_num(opts, 2);
+
   rocksdb_options_set_db_write_buffer_size(opts, 256 << 20);
   rocksdb_options_set_write_buffer_size(opts, 128 << 20);
   rocksdb_options_set_atomic_flush(opts, 1);
@@ -4605,7 +4611,10 @@ int32_t streamStatePutBatchOptimize(SStreamState* pState, int32_t cfIdx, rocksdb
   }
   int32_t klen = ginitDict[cfIdx].enFunc((void*)key, buf);
 
-  ginitDict[cfIdx].toStrFunc((void*)key, toString);
+  if (ginitDict[cfIdx].toStrFunc((void*)key, toString) < 0) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
+  }
   stTrace("[StreamInternal] write cfIdx:%d key:%s user len:%d, rocks len:%zu", cfIdx, toString, vlen, size);
 
   char*   ttlV = tmpBuf;
