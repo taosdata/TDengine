@@ -45,9 +45,9 @@ typedef struct {
   void (*fp)(void *);
 } SRefSet;
 
-volatile SRefSet       tsRefSetList[TSDB_REF_OBJECTS];
-volatile TdThreadOnce  tsRefModuleInit = PTHREAD_ONCE_INIT;
-volatile TdThreadMutex tsRefMutex;
+SRefSet       tsRefSetList[TSDB_REF_OBJECTS];
+TdThreadOnce  tsRefModuleInit = PTHREAD_ONCE_INIT;
+TdThreadMutex tsRefMutex;
 volatile int32_t       tsRefSetNum = 0;
 volatile int32_t       tsNextId = 0;
 
