@@ -988,6 +988,10 @@ const char* tstrerror(int32_t err) {
   return "";
 }
 
+#ifdef WINDOWS
+#define strerror_r(errno, buf, len) strerror_s(buf, len, errno)
+#endif
+
 const char* tstrerror2(int32_t err, char *errstr, int len) {
   (void)taosThreadOnce(&tsErrorInit, tsSortError);
 
@@ -1009,12 +1013,7 @@ const char* tstrerror2(int32_t err, char *errstr, int len) {
 
     // strerror can handle any invalid code
     // invalid code return Unknown error
-    #ifdef WINDOWS
-    strerror_s(code, errbuf, sizeof(errbuf));
-    #else
     strerror_r(code, errbuf, sizeof(errbuf));
-    #endif
-
     snprintf(errstr, len, "System error(%d): %s", code, errbuf);
 
     return errstr;
