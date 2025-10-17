@@ -843,7 +843,7 @@ int32_t transGetRefMgt() {
 
 int32_t transGetSvrRefMgt() { 
   tDebug("====>ref transGetSvrRefMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  ttDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
   return transSvrRefMgt; 
 }
 
