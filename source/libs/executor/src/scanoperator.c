@@ -1682,6 +1682,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->currentTable = 0;
   pInfo->scanMode = 0;
   pInfo->countState = 0;
+  pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
 
   tableListDestroy(pInfo->base.pTableListInfo);
   pInfo->base.pTableListInfo = tableListCreate();
@@ -4605,6 +4606,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
     pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
   }
   pInfo->base.dataReader = NULL;
+  pInfo->base.scanFlag = MAIN_SCAN;
 
   pInfo->base.limitInfo = (SLimitInfo){0};
   pInfo->base.limitInfo.limit.limit = -1;
