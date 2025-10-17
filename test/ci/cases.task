@@ -364,6 +364,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/05-Compare/test_fun_cmp_if.py
 #,,y,.,./ci/pytest.sh pytest cases/22-Functions/05-others/test_resinfo.py
 
+## 06-System
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/06-System/test_fun_sys_info.py
+
 # 23-UDFs
 #,,y,.,./ci/pytest.sh pytest cases/23-UDFs/test_udf_c.py
 #,,y,.,./ci/pytest.sh pytest cases/23-UDFs/test_udf_py.py
@@ -1088,7 +1091,6 @@
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_cachemodel.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_sysinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_control.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_manage.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege.py
