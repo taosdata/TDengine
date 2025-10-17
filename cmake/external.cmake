@@ -1625,3 +1625,22 @@ IF(TD_WEBSOCKET)
     add_dependencies(build_externals ext_taosws)
 ENDIF()
 
+if(${BUILD_LIBSASL})      # {
+    if(${TD_LINUX})
+        set(ext_addr2line_static libaddr2line.a)
+    elseif(${TD_DARWIN})
+        set(ext_addr2line_static libaddr2line.a)
+    endif()
+    INIT_EXT(ext_addr2line
+        INC_DIR          include
+        LIB              lib/${ext_addr2line_static}
+    )
+    # GIT_REPOSITORY https://github.com/davea42/libdwarf-addr2line.git
+    # GIT_TAG main
+    get_from_local_repo_if_exists("https://github.com/cyrusimap/cyrus-sasl.git")
+    ExternalProject_Add(ext_addr2line
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG cyrus-sasl-2.1.27 
+    )
+    add_dependencies(build_externals ext_addr2line)     # this is for github workflow in cache-miss step.
+endif(${BUILD_LIBSASL})   # }
