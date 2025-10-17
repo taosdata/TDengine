@@ -6739,6 +6739,17 @@ static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t num
   return bucketIndex;
 }
 
+void tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock) {
+  *pBlock = pReader->resBlockInfo.pResBlock;
+}
+
+void tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock) {
+  pReader->resBlockInfo.pResBlock = pBlock;
+  if (pBlock) {
+    pReader->status.pPrimaryTsCol = taosArrayGet(pBlock->pDataBlock,  pReader->suppInfo.slotId[0]);
+  }
+}
+
 int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pTableBlockInfo) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
