@@ -79,7 +79,7 @@ static void setNullCol(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowIdx
   if (pCol->notFillCol) {
     bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfo, rowIdx);
     if (!filled) {
-      setNotFillColumn(pFillInfo, pDstColInfo, rowIdx, colIdx);
+      TAOS_UNUSED(setNotFillColumn(pFillInfo, pDstColInfo, rowIdx, colIdx));
     }
   } else {
     colDataSetNULL(pDstColInfo, rowIdx);
@@ -203,7 +203,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
       bool             filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfoData, index);
       if (!filled) {
-        setNotFillColumn(pFillInfo, pDstColInfoData, index, i);
+        TAOS_UNUSED(setNotFillColumn(pFillInfo, pDstColInfoData, index, i));
       }
     }
   } else if (pFillInfo->type == TSDB_FILL_NEXT) {
@@ -213,7 +213,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
       bool             filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfoData, index);
       if (!filled) {
-        setNotFillColumn(pFillInfo, pDstColInfoData, index, i);
+        TAOS_UNUSED(setNotFillColumn(pFillInfo, pDstColInfoData, index, i));
       }
     }
   } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
@@ -231,7 +231,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
         if (pCol->notFillCol) {
           bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstCol, index);
           if (!filled) {
-            setNotFillColumn(pFillInfo, pDstCol, index, i);
+            TAOS_UNUSED(setNotFillColumn(pFillInfo, pDstCol, index, i));
           }
         } else {
           SRowVal*    pRVal = &pFillInfo->prev;
@@ -273,7 +273,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
       if (pCol->notFillCol) {
         bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDst, index);
         if (!filled) {
-          setNotFillColumn(pFillInfo, pDst, index, i);
+          TAOS_UNUSED(setNotFillColumn(pFillInfo, pDst, index, i));
         }
       } else {
         SVariant* pVar = &pFillInfo->pFillCol[i].fillVal;
@@ -677,7 +677,8 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
       if (!pCol->notFillCol) {
         if (pCol->fillVal.nType == TSDB_DATA_TYPE_VARBINARY || pCol->fillVal.nType == TSDB_DATA_TYPE_VARCHAR ||
-            pCol->fillVal.nType == TSDB_DATA_TYPE_NCHAR || pCol->fillVal.nType == TSDB_DATA_TYPE_JSON) {
+            pCol->fillVal.nType == TSDB_DATA_TYPE_NCHAR || pCol->fillVal.nType == TSDB_DATA_TYPE_JSON ||
+            pCol->fillVal.nType == TSDB_DATA_TYPE_DECIMAL) {
           if (pCol->fillVal.pz) {
             taosMemoryFree(pCol->fillVal.pz);
             pCol->fillVal.pz = NULL;
@@ -1086,7 +1087,7 @@ static int32_t tFillFromHeadForCol(struct SFillInfo* pFillInfo, TSKEY ts, int32_
     SFillBlock* pFillBlock = (SFillBlock*)pListNode->data;
     const SColumnFillProgress* pProgress = taosArrayGet(pFillInfo->pColFillProgress, colIdx);
     for (int32_t rowIdx = pProgress->rowIdx; rowIdx < pFillBlock->pBlock->info.rows; ++rowIdx) {
-      doFillOneCol(pFillInfo, pFillBlock->pBlock, ts, colIdx, rowIdx, outOfBound);
+      TAOS_UNUSED(doFillOneCol(pFillInfo, pFillBlock->pBlock, ts, colIdx, rowIdx, outOfBound));
     }
     SBlockFillProgress* pMyBlockProgress = taosArrayGet(pFillBlock->pFillProgress, colIdx);
     pMyBlockProgress->rowIdx = pFillBlock->pBlock->info.rows;
@@ -1159,7 +1160,7 @@ static void tryExtractReadyBlocks(struct SFillInfo* pFillInfo, SSDataBlock* pDst
     if (allFinished || noMoreBlocks) {
       TSWAP(pDstBlock->info.rows, pFillBlock->pBlock->info.rows);
       TSWAP(pDstBlock->pDataBlock, pFillBlock->pBlock->pDataBlock);
-      tdListPopNode(pFillInfo->pFillSavedBlockList, pListNode);
+      SListNode *tNode = tdListPopNode(pFillInfo->pFillSavedBlockList, pListNode);
       destroyFillBlock(pListNode->data);
       taosMemFreeClear(pListNode);
     }
@@ -1318,7 +1319,7 @@ int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstB
           // Cause when we meet non-null value for this col, we will fill till the last row of last block in list.
           bool saved = tFillTrySaveColProgress(pFillInfo, colIdx, pFillBlockListNode, rowIdx);
           if (!saved) {
-            doFillOneCol(pFillInfo, pFillBlock->pBlock, blockCurTs, colIdx, rowIdx, false);
+            TAOS_UNUSED(doFillOneCol(pFillInfo, pFillBlock->pBlock, blockCurTs, colIdx, rowIdx, false));
           }
         }
         tryResetColNextPrev(pFillInfo, colIdx);
