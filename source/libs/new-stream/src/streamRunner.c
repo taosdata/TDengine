@@ -414,6 +414,10 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   if (pTask->notification.calcNotifyOnly) return 0;
   bool needCalcTbName = pExec->tbname[0] == '\0';
   if (pBlock && pBlock->info.rows > 0) {
+    if (tsStreamPerfLogEnabled && 1 == taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)) {
+      stRunnerLogWinLatency(pTask, pExec);
+    }
+
     if (*createTb && needCalcTbName) {
       code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
       stDebug("stRunnerOutputBlock tbname: %s", pExec->tbname);
@@ -437,9 +441,6 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         printDataBlock(pBlock, "output block to sink", "runner", pTask->task.streamId);
         if(code == TSDB_CODE_SUCCESS) {
           *createTb = false;  // if output block success, then no need to create table
-          if (tsStreamPerfLogEnabled && 1 == taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)) {
-            stRunnerLogWinLatency(pTask, pExec);
-          }
         }
       } else {
         ST_TASK_ELOG("failed to init tag vals for output block: %s", tstrerror(code));
