@@ -328,7 +328,7 @@ class TestVTableQuery:
         """
         self.run_normal_query("test_vstable_select_test_projection")
         self.run_normal_query("test_vstable_select_test_projection_filter")
-        #self.run_normal_query("test_vstable_select_test_function")
+        self.run_normal_query("test_vstable_select_test_function")
 
         self.run_normal_query("test_vstable_select_test_interval")
         self.run_normal_query("test_vstable_select_test_state")
