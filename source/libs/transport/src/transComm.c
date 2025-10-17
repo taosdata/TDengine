@@ -21,12 +21,12 @@
 #ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
 
-static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+ TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-static int32_t transRefMgmt = -1;
-static int32_t transSvrRefMgt = -2;
-static int32_t transInstMgt = -3;
-static int32_t transSyncMsgMgt = -4;
+ volatile int32_t transRefMgmt = -1;
+ volatile int32_t transSvrRefMgt = -2;
+ volatile int32_t transInstMgt = -3;
+ volatile int32_t transSyncMsgMgt = -4;
 
 void transDestroySyncMsg(void* msg);
 
@@ -827,6 +827,7 @@ int32_t transInit() {
     tDebug("====>testStaticVars:%d", testStaticVars);
   }
 
+  taosMsleep(5000);
   tDebug("====>ref transInit code:%d, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", code, transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
   tDebug("====>testStaticVars:%d", testStaticVars);
   return code;
