@@ -21,12 +21,12 @@
 #ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
 
-static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-static int32_t refMgt;
-static int32_t svrRefMgt;
-static int32_t instMgt;
-static int32_t transSyncMsgMgt;
+volatile int32_t refMgt;
+volatile int32_t svrRefMgt;
+volatile int32_t instMgt;
+volatile int32_t transSyncMsgMgt;
 
 void transDestroySyncMsg(void* msg);
 
@@ -814,6 +814,9 @@ int32_t transInit() {
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
+#if defined(_TD_RISCV_64)
+  __sync_synchronize();
+#endif
   return code;
 }
 
