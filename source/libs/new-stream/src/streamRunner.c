@@ -401,7 +401,7 @@ static void stRunnerLogWinLatency(SStreamRunnerTask* pTask, SStreamRunnerTaskExe
   SSTriggerCalcParam* pWin = (SSTriggerCalcParam*)taosArrayGetLast(pRuntime->pStreamPesudoFuncVals);
 
   ST_TASK_ILOG("group %" PRId64 " winEnd %" PRId64 " stream latency: %" PRId64 "ms", 
-      pRuntime->groupId, pWin->triggerTime, taosGetTimestampMs() - convertTimePrecision(pWin->triggerTime, pRuntime->precision, TSDB_TIME_PRECISION_MILLI));
+      pRuntime->groupId, pWin->triggerTime, taosGetTimestampMs() - pWin->triggerTime/1000000UL);
 }
 
 static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock,
