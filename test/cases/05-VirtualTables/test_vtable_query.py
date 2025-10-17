@@ -219,14 +219,15 @@ class TestVTableQuery:
 
         1. test vstable select normal table projection
         2. test vstable select normal table projection filter
-        3. test vstable select normal table interval
-        4. test vstable select normal table state
-        5. test vstable select normal table session
-        6. test vstable select normal table event
-        7. test vstable select normal table count
-        8. test vstable select normal table partition
-        9. test vstable select normal table group
-        10. test vstable select chnormalild table orderby
+        3. test vstable select normal table projection timerange filter
+        4. test vstable select normal table interval
+        5. test vstable select normal table state
+        6. test vstable select normal table session
+        7. test vstable select normal table event
+        8. test vstable select normal table count
+        9. test vstable select normal table partition
+        10. test vstable select normal table group
+        11. test vstable select normal table orderby
 
         Catalog:
             - VirtualTable
@@ -240,10 +241,12 @@ class TestVTableQuery:
         History:
             - 2025-3-15 Jing Sima Created
             - 2025-5-6 Huo Hong Migrated to new test framework
+            - 2025-10-17 Jing Sima Add timerange filter test case
 
         """
         self.run_normal_query("test_vtable_select_test_projection")
         self.run_normal_query("test_vtable_select_test_projection_filter")
+        self.run_normal_query("test_vtable_select_test_projection_timerange_filter")
         self.run_normal_query("test_vtable_select_test_function")
 
         self.run_normal_query("test_vtable_select_test_interval")
@@ -261,14 +264,15 @@ class TestVTableQuery:
 
         1. test vstable select child table projection
         2. test vstable select child table projection filter
-        3. test vstable select child table interval
-        4. test vstable select child table state
-        5. test vstable select child table session
-        6. test vstable select child table event
-        7. test vstable select child table count
-        8. test vstable select child table partition
-        9. test vstable select child table group
-        10. test vstable select child table orderby
+        3. test vstable select child table projection timerange filter
+        4. test vstable select child table interval
+        5. test vstable select child table state
+        6. test vstable select child table session
+        7. test vstable select child table event
+        8. test vstable select child table count
+        9. test vstable select child table partition
+        10. test vstable select child table group
+        11. test vstable select child table orderby
 
         Catalog:
             - VirtualTable
@@ -282,10 +286,12 @@ class TestVTableQuery:
         History:
             - 2025-3-15 Jing Sima Created
             - 2025-5-6 Huo Hong Migrated to new test framework
+            - 2025-10-17 Jing Sima Add timerange filter test case
 
         """
         self.run_normal_query("test_vctable_select_test_projection")
         self.run_normal_query("test_vctable_select_test_projection_filter")
+        self.run_normal_query("test_vctable_select_test_projection_timerange_filter")
         self.run_normal_query("test_vctable_select_test_function")
 
         self.run_normal_query("test_vctable_select_test_interval")
@@ -303,14 +309,15 @@ class TestVTableQuery:
 
         1. test vstable select super table projection
         2. test vstable select super table projection filter
-        3. test vstable select super table interval
-        4. test vstable select super table state
-        5. test vstable select super table session
-        6. test vstable select super table event
-        7. test vstable select super table count
-        8. test vstable select super table partition
-        9. test vstable select super table group
-        10. test vstable select super table orderby
+        3. test vstable select super table projection timerange filter
+        4. test vstable select super table interval
+        5. test vstable select super table state
+        6. test vstable select super table session
+        7. test vstable select super table event
+        8. test vstable select super table count
+        9. test vstable select super table partition
+        10. test vstable select super table group
+        11. test vstable select super table orderby
 
         Catalog:
             - VirtualTable
@@ -328,6 +335,7 @@ class TestVTableQuery:
         """
         self.run_normal_query("test_vstable_select_test_projection")
         self.run_normal_query("test_vstable_select_test_projection_filter")
+        self.run_normal_query("test_vstable_select_test_projection_timerange_filter")
         self.run_normal_query("test_vstable_select_test_function")
 
         self.run_normal_query("test_vstable_select_test_interval")
