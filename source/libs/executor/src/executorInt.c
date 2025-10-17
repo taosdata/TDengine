@@ -595,7 +595,7 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
       filterExecute(pFilterInfo, pBlock, pRet != NULL ? pRet : &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
-  code = extractQualifiedTupleByFilterResult(pBlock, pRet != NULL ? *pRet : p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, pRet != NULL ? *pRet : p, status, pRet != NULL ? true : false);
   QUERY_CHECK_CODE(code, lino, _err);
 
   if (pColMatchInfo != NULL) {
@@ -625,7 +625,7 @@ _err:
   return code;
 }
 
-int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status) {
+int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status, bool isFromStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int8_t* pIndicator = (int8_t*)p->pData;
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
@@ -634,7 +634,11 @@ int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnIn
     code = trimDataBlock(pBlock, pBlock->info.rows, NULL);
     pBlock->info.rows = 0;
   } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
-    code = trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);
+    if (isFromStream) {
+      code = trimDataBlock2(pBlock, pBlock->info.rows, (bool*)pIndicator);
+    } else {
+      code = trimDataBlock(pBlock, pBlock->info.rows, (bool*)pIndicator);
+    }
   } else {
     qError("unknown filter result type: %d", status);
   }
