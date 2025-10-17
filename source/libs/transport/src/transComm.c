@@ -803,11 +803,11 @@ void transInitEnv() {
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   TAOS_UNUSED(uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1"));
   testStaticVars = 11;
-  taosMsleep(500);
+  // taosMsleep(500);
   // __sync_synchronize();
   testStaticVars = 12;
   tDebug("====>ref transInitEnv, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  // tDebug("====>testStaticVars:%d %p transInitEnv", testStaticVars, &testStaticVars);
 }
 void transDestroyEnv() {
   transCloseRefMgt(transRefMgmt);
@@ -819,43 +819,43 @@ void transDestroyEnv() {
 
 int32_t transInit() {
   // init env
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  tDebug("====>testStaticVars:%d transInit 1", testStaticVars);
   int32_t code = taosThreadOnce(&transModuleInit, transInitEnv);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     tDebug("====>ref transInit Error, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-    tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+    // tDebug("====>testStaticVars:%d %p transInit 2", testStaticVars, &testStaticVars);
   }
 
-  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  // tDebug("====>testStaticVars:%d %p transInit 3", testStaticVars, &testStaticVars);
   __sync_synchronize();
-  taosMsleep(500);
+  // taosMsleep(500);
   tDebug("====>ref transInit code:%d, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", code, transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  // tDebug("====>testStaticVars:%d %p transInit 4", testStaticVars, &testStaticVars);
   return code;
 }
 
 int32_t transGetRefMgt() { 
   tDebug("====>ref transGetRefMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  // tDebug("====>testStaticVars:%d %p transGetRefMgt", testStaticVars, &testStaticVars);
   return transRefMgmt; 
 }
 
 int32_t transGetSvrRefMgt() { 
   tDebug("====>ref transGetSvrRefMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  // tDebug("====>testStaticVars:%d %p transGetSvrRefMgt", testStaticVars, &testStaticVars);
   return transSvrRefMgt; 
 }
 
 int32_t transGetInstMgt() { 
   tDebug("====>ref transGetInstMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  // tDebug("====>testStaticVars:%d %p transGetInstMgt", testStaticVars, &testStaticVars);
   return transInstMgt;
 }
 
 int32_t transGetSyncMsgMgt() {
   tDebug("====>ref transSyncMsgMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  // tDebug("====>testStaticVars:%d %p transSyncMsgMgt", testStaticVars, &testStaticVars);
   return transSyncMsgMgt; 
 }
 
@@ -875,14 +875,14 @@ int64_t transAddExHandle(int32_t refMgt, void* p) {
   // acquire extern handle
   int64_t ret = taosAddRef(refMgt, p);
   tDebug("====>ref transAddExHandle, refMgt:%d transRefMgmt:%d %p ret:%d data:%p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", refMgt, transRefMgmt, &transRefMgmt, (int32_t)ret, p, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  // tDebug("====>testStaticVars:%d", testStaticVars);
   return ret;
 }
 void transRemoveExHandle(int32_t refMgt, int64_t refId) {
   // acquire extern handle
   int32_t code = taosRemoveRef(refMgt, refId);
   tDebug("====>ref transRemoveExHandle, refMgt:%d, transRefMgmt:%d %p refId:%d, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", refMgt, transRefMgmt, &transRefMgmt,  (int32_t)refId, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  // tDebug("====>testStaticVars:%d", testStaticVars);
 
   if (code != 0) {
     tTrace("failed to remove %" PRId64 " from resetId:%d", refId, refMgt);
