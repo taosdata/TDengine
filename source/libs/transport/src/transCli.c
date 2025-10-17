@@ -1972,18 +1972,26 @@ int32_t cliHandleState_mayUpdateStateCtx(SCliConn* pConn, SCliReq* pReq) {
 int32_t cliMayGetStateByQid(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn) {
   int32_t code = 0;
   int64_t qid = pReq->msg.info.qId;
+
+  int32_t refMgt = transGetRefMgt();
+  tDebug("=====> qid:0x%"PRIx64", %p, refMgt:%d %d", qid, pReq->msg.info.ahandle, transGetRefMgt(), refMgt);
   if (qid == 0) {
     return TSDB_CODE_RPC_NO_STATE;
   } else {
+    tDebug("======> 1 refMgt:%d %d", refMgt, transGetRefMgt());
     SExHandle* exh = transAcquireExHandle(transGetRefMgt(), qid);
     if (exh == NULL) {
+      tDebug("======> 2 refMgt:%d %d", refMgt, transGetRefMgt());
       return TSDB_CODE_RPC_STATE_DROPED;
     }
 
     SReqState* pState = taosHashGet(pThrd->pIdConnTable, &qid, sizeof(qid));
 
+    tDebug("======> 3 refMgt:%d %d", refMgt, transGetRefMgt());
     if (pState == NULL) {
       if (pReq->ctx == NULL) {
+        tDebug("======> 4 refMgt:%d %d", refMgt, transGetRefMgt());
+    
         transReleaseExHandle(transGetRefMgt(), qid);
         return TSDB_CODE_RPC_STATE_DROPED;
       }
