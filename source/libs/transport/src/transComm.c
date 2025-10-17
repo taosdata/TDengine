@@ -814,9 +814,6 @@ int32_t transInit() {
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
-#if defined(_TD_RISCV_64)
-  __sync_synchronize();
-#endif
   return code;
 }
 

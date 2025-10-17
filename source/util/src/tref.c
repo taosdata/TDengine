@@ -181,9 +181,6 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
 
   taosUnlockList(pSet->lockedBy + hash);
 
-#if defined(_TD_RISCV_64)
-  __sync_synchronize();
-#endif
   return rid;
 }
 
