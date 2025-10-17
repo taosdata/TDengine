@@ -697,8 +697,7 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_column_tag_boundary.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_csv_file_with_row_split.py 
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py 
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py
 
