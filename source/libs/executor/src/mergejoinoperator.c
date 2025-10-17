@@ -317,7 +317,7 @@ int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo
     }
   }
 
-  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, p, status, false);
 
 _err:
   colDataDestroy(p);
@@ -384,7 +384,7 @@ int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SM
     }
   }
 
-  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, p, status, false);
 
 _return:
   colDataDestroy(p);

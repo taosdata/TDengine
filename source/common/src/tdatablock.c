@@ -3604,6 +3604,182 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t trimDataBlock2(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
+  //  int32_t totalRows = pBlock->info.rows;
+  int32_t code = 0;
+  int32_t bmLen = BitmapLen(totalRows);
+  char*   pBitmap = NULL;
+  int32_t maxRows = 0;
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  if (!pBoolList) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+      // it is a reserved column for scalar function, and no data in this column yet.
+      if (pDst->pData == NULL) {
+        continue;
+      }
+
+      int32_t numOfRows = 0;
+      if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+        pDst->varmeta.length = 0;
+      } else {
+        memset(pDst->nullbitmap, 0, bmLen);
+      }
+    }
+    return code;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+    // it is a reserved column for scalar function, and no data in this column yet.
+    if (pDst->pData == NULL || (IS_VAR_DATA_TYPE(pDst->info.type) && pDst->varmeta.length == 0)) {
+      continue;
+    }
+
+    int32_t numOfRows = 0;
+    if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+      int32_t j = 0;
+      pDst->varmeta.length = 0;
+
+      while (j < totalRows) {
+        if (pBoolList[j] == 0) {
+          j += 1;
+          continue;
+        }
+
+        if (colDataIsNull_var(pDst, j)) {
+          colDataSetNull_var(pDst, numOfRows);
+        } else {
+          pDst->varmeta.offset[numOfRows] = pDst->varmeta.offset[j];
+        }
+        numOfRows += 1;
+        j += 1;
+      }
+
+      if (maxRows < numOfRows) {
+        maxRows = numOfRows;
+      }
+    } else {
+      if (pBitmap == NULL) {
+        pBitmap = taosMemoryCalloc(1, bmLen);
+        if (pBitmap == NULL) {
+          return terrno;
+        }
+      }
+
+      memcpy(pBitmap, pDst->nullbitmap, bmLen);
+      memset(pDst->nullbitmap, 0, bmLen);
+
+      int32_t j = 0;
+
+      switch (pDst->info.type) {
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_UBIGINT:
+        case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+
+            if (BMIsNull(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              ((int64_t*)pDst->pData)[numOfRows] = ((int64_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+          }
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_UINT:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (BMIsNull(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              ((int32_t*)pDst->pData)[numOfRows] = ((int32_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+          }
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_USMALLINT:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (BMIsNull(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              ((int16_t*)pDst->pData)[numOfRows] = ((int16_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+          }
+          break;
+        case TSDB_DATA_TYPE_BOOL:
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_UTINYINT:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (BMIsNull(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+          }
+          break;
+        case TSDB_DATA_TYPE_DECIMAL64:
+        case TSDB_DATA_TYPE_DECIMAL:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (BMIsNull(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              memcpy(pDst->pData + numOfRows * pDst->info.bytes, pDst->pData + j * pDst->info.bytes, pDst->info.bytes);
+            }
+            numOfRows += 1;
+            j += 1;
+          }
+          break;
+        case TSDB_DATA_TYPE_BLOB:
+        case TSDB_DATA_TYPE_MEDIUMBLOB: {
+          // impl later
+          break;
+        }
+      }
+    }
+
+    if (maxRows < numOfRows) {
+      maxRows = numOfRows;
+    }
+  }
+
+  pBlock->info.rows = maxRows;
+  if (pBitmap != NULL) {
+    taosMemoryFree(pBitmap);
+  }
+
+  return code;
+}
+
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
   //  int32_t totalRows = pBlock->info.rows;
   int32_t code = 0;

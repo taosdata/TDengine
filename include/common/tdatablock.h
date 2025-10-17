@@ -304,6 +304,7 @@ int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_
                                char** dstTableName);
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
+int32_t trimDataBlock2(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
 
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
