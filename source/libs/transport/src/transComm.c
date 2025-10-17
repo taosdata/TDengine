@@ -813,7 +813,8 @@ void transDestroyEnv() {
 
 int32_t transInit() {
   // init env
-  int32_t code = taosThreadOnce(&transModuleInit, transInitEnv);
+  int32_t code = 0;
+  transInitEnv();
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     tDebug("====>ref transInit Error, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
