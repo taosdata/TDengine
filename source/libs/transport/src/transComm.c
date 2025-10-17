@@ -803,7 +803,7 @@ void transInitEnv() {
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   TAOS_UNUSED(uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1"));
   testStaticVars = 11;
-  __sync_synchronize();
+  // __sync_synchronize();
   testStaticVars = 12;
   tDebug("====>ref transInitEnv, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
   tDebug("====>testStaticVars:%d", testStaticVars);
