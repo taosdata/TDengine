@@ -53,7 +53,11 @@ class TestSysinfo:
         
     def check_current_user(self):
         tdSql.query('select current_user()')
-        tdSql.checkData(0,0,'root')
+        user = tdSql.getData(0,0).split('@')[0]
+        if user == 'root':
+            tdLog.info(f"current_user is {user}")
+        else:
+            tdLog.exit(f"current_user is {user}, expected root")
 
     def test_fun_sys_client_version(self):
         """ Fun: client_version()

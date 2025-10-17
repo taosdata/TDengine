@@ -193,23 +193,22 @@ class TestGeometry:
         tdSql.checkEqual(tdSql.queryResult[1][0], "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)")
         tdSql.checkEqual(tdSql.queryResult[2][0], "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))")
 
-    def test_geometry(self):
-        """summary: xxx
+    def test_fun_geo_basic(self):
+        """ Geometry Basic Test
 
-        description: xxx
+        1. Create super/child/normal tables and insert geometry data
+        2. Query with ST_GeomFromText() and check results
+        3. Query with ST_AsText() and check results
+        4. Verify TD-28365 Bug
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-17 Alex Duan create doc
 
         """
 
@@ -293,3 +292,51 @@ class TestGeometry:
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
+    def test_fun_geo_st_geomfromtext(self):
+        """ Fun: st_geomfromtext()
+
+        1. Create 1 super table 2 child tables and 1 normal table
+        2. Insert geometry data and null into above tables 
+        3. Insert invalid geometry data into child/normal table and expect error
+        4. Use st_geomfromtext() to query geometry data from above tables and check the results
+        5. Query with invalid parameter "POIN(1.0 1.5)"
+        6. Query with invalid parameter "LINESTRING(1.0 1.0, 2.0 2.0, 5.0 5.0,)"
+        7. Query with invalid parameter "POLYGON((3.0 6.0, 5.0 6.0, 5.0 8.0, 3.0 8.0))"
+        8. Query with invalid parameter "XXX"
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-17 Alex Duan add doc
+
+        """
+        pass
+
+    def test_fun_geo_st_astext(self):
+        """ Fun: st_astext()
+
+        1. Create 1 super table 2 child tables and 1 normal table
+        2. Insert geometry data and null into above tables 
+        3. Insert invalid geometry data into child/normal table and expect error
+        4. Query with st_astext() on super/child/normal tables and check the results
+        5. Query with parameter "NULL"
+        6. Query with invalid parameter "XXX"
+        7. Query with no parameter 
+        8. Query on not geometry datatype column
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-17 Alex Duan add doc
+
+        """
+        pass

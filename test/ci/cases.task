@@ -363,9 +363,10 @@
 ## 05-Compare
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/05-Compare/test_fun_cmp_if.py
 #,,y,.,./ci/pytest.sh pytest cases/22-Functions/05-others/test_resinfo.py
-
 ## 06-System
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/06-System/test_fun_sys_info.py
+## 07-Geometry
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/07-Geometry/test_fun_geo_basic.py
 
 # 23-UDFs
 #,,y,.,./ci/pytest.sh pytest cases/23-UDFs/test_udf_c.py
@@ -999,7 +1000,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4348_td_27939.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_backslash_g.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4467.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_geometry.py
 
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_queryQnode.py
 
