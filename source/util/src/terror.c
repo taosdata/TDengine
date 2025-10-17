@@ -1009,7 +1009,12 @@ const char* tstrerror2(int32_t err, char *errstr, int len) {
 
     // strerror can handle any invalid code
     // invalid code return Unknown error
+    #ifdef WINDOWS
+    strerror_s(code, errbuf, sizeof(errbuf));
+    #else
     strerror_r(code, errbuf, sizeof(errbuf));
+    #endif
+
     snprintf(errstr, len, "System error(%d): %s", code, errbuf);
 
     return errstr;
