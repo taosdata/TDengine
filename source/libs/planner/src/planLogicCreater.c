@@ -1129,6 +1129,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(addInsColumnScanCol((SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pInsColumnsScan)->pScanCols, &((SScanLogicNode*)pInsColumnsScan)->node.pTargets));
   ((SScanLogicNode *)pInsColumnsScan)->virtualStableScan = true;
+  ((SScanLogicNode *)pInsColumnsScan)->stableId = pVtableScan->stableId;
 
   // Dynamic query control node -> Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
@@ -1328,15 +1329,16 @@ static int32_t createLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSel
   SLogicNode* pNode = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
   PLAN_ERR_JRET(doCreateLogicNodeByTable(pCxt, pSelect, pTable, &pNode));
-  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
+/*  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
     SLogicNode* pVScan = (SLogicNode*)nodesListGetNode(((SDynQueryCtrlLogicNode*)pNode)->node.pChildren, 0);
     pVScan->pConditions = NULL;
     PLAN_ERR_JRET(nodesCloneNode(pSelect->pWhere, &pVScan->pConditions));
   } else {
     pNode->pConditions = NULL;
     PLAN_ERR_JRET(nodesCloneNode(pSelect->pWhere, &pNode->pConditions));
-  }
-
+  }*/
+  pNode->pConditions = NULL;
+  PLAN_ERR_JRET(nodesCloneNode(pSelect->pWhere, &pNode->pConditions));
   pNode->precision = pSelect->precision;
   *pLogicNode = pNode;
   pCxt->pCurrRoot = pNode;
