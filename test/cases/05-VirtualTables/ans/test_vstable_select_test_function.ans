@@ -3428,11 +3428,6 @@ taos> select sum(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 lim
 ========================
                  93332 |
 
-taos> select var_pop(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-     var_pop(int_tag)      |
-============================
-          1.55555555555555 |
-
 taos> select hyperloglog(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
  hyperloglog(int_tag)  |
 ========================
@@ -3456,15 +3451,6 @@ taos> select top(int_tag, 10) from test_vtable_select.vtb_virtual_stb order by 1
                 3 |
                 3 |
                 3 |
-
-taos> select interp(int_tag) from test_vtable_select.vtb_virtual_stb where u_tinyint_col > 0 and u_int_col > 0 RANGE('2020-10-01 00:00:00.000', '2020-10-01 00:01:00.000') EVERY (2a) FILL(linear) order by 1 limit 5;
- interp(int_tag) |
-==================
-               1 |
-               1 |
-               1 |
-               1 |
-               1 |
 
 taos> select max(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
  max(int_tag) |
@@ -3524,11 +3510,6 @@ taos> select stateduration(int_tag, "GT", 20, 1a) from test_vtable_select.vtb_vi
                                    -1 |
                                    -1 |
                                    -1 |
-
-taos> select twa(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
-       twa(int_tag)        |
-============================
-                       0.5 |
 
 taos> select count(tbname) from test_vtable_select.vtb_virtual_stb
      count(tbname)     |

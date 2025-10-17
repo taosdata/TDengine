@@ -404,6 +404,9 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
           }
           continue;
         }
+        if (tsortIsNullVal(pTupleHandle, i)) {
+          continue;
+        }
         int32_t slotKey = blockId << 16 | i;
         void*   slotId = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
         if (slotId == NULL) {
