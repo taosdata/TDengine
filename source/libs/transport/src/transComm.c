@@ -803,11 +803,11 @@ void transInitEnv() {
   transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   TAOS_UNUSED(uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1"));
   testStaticVars = 11;
-  taosMsleep(5000);
+  taosMsleep(500);
   // __sync_synchronize();
   testStaticVars = 12;
   tDebug("====>ref transInitEnv, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
 }
 void transDestroyEnv() {
   transCloseRefMgt(transRefMgmt);
@@ -824,36 +824,38 @@ int32_t transInit() {
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     tDebug("====>ref transInit Error, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-    tDebug("====>testStaticVars:%d", testStaticVars);
+    tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
   }
 
-  taosMsleep(5000);
+  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
+  __sync_synchronize();
+  taosMsleep(500);
   tDebug("====>ref transInit code:%d, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", code, transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
   return code;
 }
 
 int32_t transGetRefMgt() { 
   tDebug("====>ref transGetRefMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
   return transRefMgmt; 
 }
 
 int32_t transGetSvrRefMgt() { 
   tDebug("====>ref transGetSvrRefMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  ttDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
   return transSvrRefMgt; 
 }
 
 int32_t transGetInstMgt() { 
   tDebug("====>ref transGetInstMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
   return transInstMgt;
 }
 
 int32_t transGetSyncMsgMgt() {
   tDebug("====>ref transSyncMsgMgt, transRefMgmt:%d %p, transSvrRefMgt:%d transInstMgt:%d transSyncMsgMgt:%d", transRefMgmt, &transRefMgmt, transSvrRefMgt, transInstMgt, transSyncMsgMgt);
-  tDebug("====>testStaticVars:%d", testStaticVars);
+  tDebug("====>testStaticVars:%d %p", testStaticVars, &testStaticVars);
   return transSyncMsgMgt; 
 }
 
