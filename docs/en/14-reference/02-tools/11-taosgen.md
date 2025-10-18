@@ -254,10 +254,10 @@ The `tdengine/insert-data` action writes data to specified child tables. Support
     - last_to_first: First row time of this batch - last row time of last batch.
     - literal: Send based on time value of first row, simulating real-time data.
   - fixed_interval: Effective only if interval_strategy = fixed:
-    - base_interval (int): Fixed interval value in ms.
+    - base_interval (int): Fixed interval value in milliseconds, default is 1000.
   - dynamic_interval: Effective only if interval_strategy = first_to_first / last_to_first:
-    - min_interval (int): Default: -1, minimum interval threshold.
-    - max_interval (int): Default: -1, maximum interval threshold.
+    - min_interval (int): Minimum interval threshold in milliseconds, default is -1 (inactive).
+    - max_interval (int): Maximum interval threshold in milliseconds, default is -1 (inactive).
   - wait_strategy (string): Wait strategy between requests when interval control is enabled, default: sleep. Options:
     - sleep: Sleep, yield thread to OS.
     - busy_wait: Busy wait, keep thread active.
