@@ -50,12 +50,15 @@ class TestQueryJson:
         tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
         tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
         tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
-        cmd = "%s -f %s/json/taosc_query.json" % (binPath, os.path.dirname(__file__))
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        cmd = "%s -f %s/json/taosc_query1.json" % (binPath, os.path.dirname(__file__))
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
+        json_file = os.path.join(os.path.dirname(__file__), "json", "taosc_query.json")
+        cmd = f"{binPath} -f {json_file}"
+        tdLog.info(cmd)
+        # os.system(cmd)
+        self.benchmark(f"-f {json_file}")
+        json_file = os.path.join(os.path.dirname(__file__), "json", "taosc_query1.json")
+        tdLog.info(cmd)
+        # os.system(cmd)
+        self.benchmark(f"-f {json_file}")
 
         with open("%s" % "taosc_query_specified-0", "r+") as f1:
             for line in f1.readlines():
