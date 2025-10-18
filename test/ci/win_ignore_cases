@@ -21,7 +21,7 @@ cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt2.py
 cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
 cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py
-cases/uncatalog/system-test/0-others/test_mounts.py
+#cases/uncatalog/system-test/0-others/test_mounts.py
 
 # udf not supported in Windows CI
 cases/uncatalog/system-test/0-others/test_udf_test.py
