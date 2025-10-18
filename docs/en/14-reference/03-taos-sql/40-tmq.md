@@ -107,4 +107,4 @@ Displays the allocation relationship and consumption information between consume
 
 ## MQTT Data Subscription
 
-TDengine 3.3.7.0 includes MQTT-based data subscription, allowing data to be subscribed to directly via an MQTT client. For details, refer to the MQTT Data Subscription section.
+TDengine 3.3.7.5 includes MQTT-based data subscription, allowing data to be subscribed to directly via an MQTT client. For details, refer to the MQTT Data Subscription section.
