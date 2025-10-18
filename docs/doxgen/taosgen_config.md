@@ -122,9 +122,7 @@ schema:
   columns:
     - name: ts
       type: timestamp
-      start: 1700000000000
       precision : ms
-      step: 300s
     - name: current
       type: float
     - name: voltage
@@ -140,6 +138,7 @@ schema:
     interlace: 1
     rows_per_table: 10000
     rows_per_batch: 10000
+    tables_reuse_data: false
 
 jobs:
   # TDengine insert job
