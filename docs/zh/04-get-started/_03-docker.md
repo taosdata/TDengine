@@ -62,6 +62,14 @@ docker exec -it tdengine bash
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine。
 
+5. 停止并清理：
+
+   当您使用完容器后，可以运行以下命令来停止容器并删除相关数据卷。
+
+   ```shell
+   docker stop tdengine
+   docker rm -v tdengine
+
 ## 故障排查
 
 如果启动 TDengine 服务时出现异常，请查看数据库日志以获取更多信息。你也可以参考 TDengine 的官方文档中的故障排除部分，或者在 TDengine 开源社区中寻求帮助。

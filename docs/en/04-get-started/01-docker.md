@@ -65,7 +65,7 @@ To install TDengine on your local machine instead of in a container, see [Get St
 
    ```bash
    docker stop tdengine
-   docker container rm tdengine -v
+   docker rm tdengine -v
    ```
 
 
