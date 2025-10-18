@@ -397,10 +397,10 @@ class TaosD:
                     
                     if self.taosd_valgrind and not self.taosc_valgrind:
                         killCmd = [
-                            "ps -ef|grep -wi valgrind.bin | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
+                            "ps -efww | grep -wi valgrind.bin | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
                     if self.taosc_valgrind:
                         killCmd = [
-                            "ps -ef|grep -wi valgrind.bin | grep -v grep | grep -v taostest | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
+                            "ps -efww | grep -wi valgrind.bin | grep -v grep | grep -v taostest | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
                         self._remote.cmd(fqdn, killCmd)
                     if self.taosd_valgrind:
                         self._remote.cmd(fqdn, [f'mkdir -p /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null', f'cp -rf {i["config"]["logDir"]}/* /var/log/valgrind/valgrind_{self.run_time} 2>/dev/null'])
