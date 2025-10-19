@@ -1014,7 +1014,7 @@ void mpCheckUpateCfg(void) {
 }
 
 void mpUpdateSystemAvailableMemorySize() {
-  static int64_t errorTimes = 0;
+  static USE_VOLTAILE int64_t errorTimes = 0;
   int64_t sysAvailSize = 0;
   
   int32_t code = taosGetSysAvailMemory(&sysAvailSize);
@@ -1033,7 +1033,7 @@ void mpUpdateSystemAvailableMemorySize() {
 }
 
 void mpSchedTrim(int64_t* loopTimes) {
-  static int64_t trimTimes = 0;
+  static USE_VOLTAILE int64_t trimTimes = 0;
   
   atomic_store_8(&tsNeedTrim, 1);
   if (loopTimes) {

@@ -2957,7 +2957,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
 
   handle->db = db;
 
-  static int32_t cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
+  static USE_VOLTAILE int32_t cfLen = sizeof(ginitDict) / sizeof(ginitDict[0]);
   for (int i = 0; i < nCf; i++) {
     char* cf = cfs[i];
     if (i == 0) continue;  // skip default column family, not set opt

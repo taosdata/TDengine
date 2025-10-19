@@ -26,13 +26,13 @@
 
 #define HTTP_RECV_BUF_SIZE 1024
 
-static int32_t httpRefMgt = 0;
-static int32_t FAST_FAILURE_LIMIT = 1;
+static USE_VOLTAILE int32_t httpRefMgt = 0;
+static USE_VOLTAILE int32_t FAST_FAILURE_LIMIT = 1;
 
-static int64_t httpDefaultChanId = -1;
+static USE_VOLTAILE int64_t httpDefaultChanId = -1;
 
-static int64_t httpSeqNum = 0;
-static int32_t httpRecvRefMgt = 0;
+static USE_VOLTAILE int64_t httpSeqNum = 0;
+static USE_VOLTAILE int32_t httpRecvRefMgt = 0;
 
 typedef struct SHttpModule {
   uv_loop_t*  loop;

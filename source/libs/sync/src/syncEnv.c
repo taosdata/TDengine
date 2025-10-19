@@ -19,8 +19,8 @@
 #include "tref.h"
 
 static SSyncEnv gSyncEnv = {0};
-static int32_t  gNodeRefId = -1;
-static int32_t  gHbDataRefId = -1;
+static USE_VOLTAILE int32_t  gNodeRefId = -1;
+static USE_VOLTAILE int32_t  gHbDataRefId = -1;
 
 SSyncEnv *syncEnv() { return &gSyncEnv; }
 

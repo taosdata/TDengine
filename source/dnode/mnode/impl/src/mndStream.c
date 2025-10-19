@@ -33,7 +33,7 @@ typedef struct {
   int8_t placeHolder;  // // to fix windows compile error, define place holder
 } SMStreamNodeCheckMsg;
 
-static int32_t  mndNodeCheckSentinel = 0;
+static USE_VOLTAILE int32_t  mndNodeCheckSentinel = 0;
 SStreamExecInfo execInfo;
 
 static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);

@@ -104,7 +104,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
   char    tmpPath[PATH_MAX];
   int32_t len = strlen(inputTmpDir);
   (void)memcpy(tmpPath, inputTmpDir, len);
-  static uint64_t seqId = 0;
+  static USE_VOLTAILE uint64_t seqId = 0;
 
   if (tmpPath[len - 1] != '/') {
     tmpPath[len++] = '/';

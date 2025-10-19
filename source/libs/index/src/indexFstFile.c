@@ -21,7 +21,7 @@
 #include "osDef.h"
 #include "tutil.h"
 
-static int32_t kBlockSize = 4096;
+static USE_VOLTAILE int32_t kBlockSize = 4096;
 
 typedef struct {
   int32_t blockId;

@@ -114,7 +114,7 @@ const char*    ROCKSDB_SST = "sst";
 const char*    ROCKSDB_CURRENT = "CURRENT";
 const char*    ROCKSDB_CHECKPOINT_META = "CHECKPOINT";
 const char*    ROCKSDB_CHECKPOINT_SELF_CHECK = "info";
-static int64_t kBlockSize = 64 * 1024;
+static USE_VOLTAILE int64_t kBlockSize = 64 * 1024;
 
 int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path, void* pMeta);
 void    streamSnapHandleDestroy(SStreamSnapHandle* handle);

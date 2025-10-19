@@ -317,8 +317,8 @@ uint64_t schGenTaskId(void) { return atomic_add_fetch_64(&schMgmt.taskId, 1); }
 
 #ifdef BUILD_NO_CALL
 uint64_t schGenUUID(void) {
-  static uint32_t hashId = 0;
-  static int32_t  requestSerialId = 0;
+  static USE_VOLTAILE uint32_t hashId = 0;
+  static USE_VOLTAILE int32_t  requestSerialId = 0;
 
   if (hashId == 0) {
     int32_t code = taosGetSystemUUID32(&hashId);

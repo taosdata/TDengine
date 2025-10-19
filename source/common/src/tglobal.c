@@ -2086,7 +2086,7 @@ int32_t taosSetReleaseCfg(SConfig *pCfg);
 
 static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag);
 
-static int8_t tsLogCreated = 0;
+static USE_VOLTAILE int8_t tsLogCreated = 0;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {

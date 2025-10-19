@@ -18,7 +18,7 @@
 #include "tutil.h"
 
 static TdThreadKey tlGeosCtxKey = 0;
-static int8_t      tlGeosCtxKeyInited = 0;
+static USE_VOLTAILE int8_t      tlGeosCtxKeyInited = 0;
 
 static threadlocal SGeosContext *tlGeosCtx = NULL;
 

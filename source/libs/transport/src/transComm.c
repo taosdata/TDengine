@@ -1126,10 +1126,10 @@ TdThreadMutex       mutex[2];
 MultiThreadQhandle* multiQ[2] = {NULL, NULL};
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-static int32_t refMgt;
-static int32_t svrRefMgt;
-static int32_t instMgt;
-static int32_t transSyncMsgMgt;
+static USE_VOLTAILE int32_t refMgt;
+static USE_VOLTAILE int32_t svrRefMgt;
+static USE_VOLTAILE int32_t instMgt;
+static USE_VOLTAILE int32_t transSyncMsgMgt;
 TdThreadMutex  mutex[2];
 
 TdThreadMutex tableMutex;

@@ -444,8 +444,8 @@ char taosGetConsoleChar() {
   }
   static TdWchar buf[SHELL_INPUT_MAX_COMMAND_SIZE];
   static char mbStr[5];
-  static unsigned long bufLen = 0;
-  static uint16_t bufIndex = 0, mbStrIndex = 0, mbStrLen = 0;
+  static USE_VOLTAILE unsigned long bufLen = 0;
+  static USE_VOLTAILE uint16_t bufIndex = 0, mbStrIndex = 0, mbStrLen = 0;
   CONSOLE_READCONSOLE_CONTROL inputControl={ sizeof(CONSOLE_READCONSOLE_CONTROL), 0, 0, 0 };
   while (bufLen == 0) {
     ReadConsoleW(console, buf, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, &inputControl);

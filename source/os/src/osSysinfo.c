@@ -647,12 +647,12 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 }
 
 int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
-  static int64_t lastSysUsed = -1;
-  static int64_t lastSysTotal = -1;
-  static int64_t lastProcTotal = -1;
-  static int64_t curSysUsed = 0;
-  static int64_t curSysTotal = 0;
-  static int64_t curProcTotal = 0;
+  static USE_VOLTAILE int64_t lastSysUsed = -1;
+  static USE_VOLTAILE int64_t lastSysTotal = -1;
+  static USE_VOLTAILE int64_t lastProcTotal = -1;
+  static USE_VOLTAILE int64_t curSysUsed = 0;
+  static USE_VOLTAILE int64_t curSysTotal = 0;
+  static USE_VOLTAILE int64_t curProcTotal = 0;
 
   if (cpu_system != NULL) *cpu_system = 0;
   if (cpu_engine != NULL) *cpu_engine = 0;
@@ -1088,14 +1088,14 @@ int32_t taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes
   if (rchars == NULL || wchars == NULL || read_bytes == NULL || write_bytes == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  static int64_t last_rchars = -1;
-  static int64_t last_wchars = -1;
-  static int64_t last_read_bytes = -1;
-  static int64_t last_write_bytes = -1;
-  static int64_t cur_rchars = 0;
-  static int64_t cur_wchars = 0;
-  static int64_t cur_read_bytes = 0;
-  static int64_t cur_write_bytes = 0;
+  static USE_VOLTAILE int64_t last_rchars = -1;
+  static USE_VOLTAILE int64_t last_wchars = -1;
+  static USE_VOLTAILE int64_t last_read_bytes = -1;
+  static USE_VOLTAILE int64_t last_write_bytes = -1;
+  static USE_VOLTAILE int64_t cur_rchars = 0;
+  static USE_VOLTAILE int64_t cur_wchars = 0;
+  static USE_VOLTAILE int64_t cur_read_bytes = 0;
+  static USE_VOLTAILE int64_t cur_write_bytes = 0;
   int32_t code = taosGetProcIO(&cur_rchars, &cur_wchars, &cur_read_bytes, &cur_write_bytes);
   if (code == 0) {
     if(last_rchars >=0 && last_wchars >=0 && last_read_bytes >=0 && last_write_bytes >= 0){
@@ -1186,8 +1186,8 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 int32_t taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
   OS_PARAM_CHECK(receive_bytes);
   OS_PARAM_CHECK(transmit_bytes);
-  static int64_t last_receive_bytes = -1;
-  static int64_t last_transmit_bytes = -1;
+  static USE_VOLTAILE int64_t last_receive_bytes = -1;
+  static USE_VOLTAILE int64_t last_transmit_bytes = -1;
   int64_t cur_receive_bytes = 0;
   int64_t cur_transmit_bytes = 0;
   int32_t code = taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes);

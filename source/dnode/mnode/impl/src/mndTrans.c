@@ -84,7 +84,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq);
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTrans(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveTransDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
-static int32_t tsMaxTransId = 0;
+static USE_VOLTAILE int32_t tsMaxTransId = 0;
 
 int32_t mndInitTrans(SMnode *pMnode) {
   SSdbTable table = {

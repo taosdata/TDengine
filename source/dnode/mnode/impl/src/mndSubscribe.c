@@ -29,7 +29,7 @@
 
 //#define MND_CONSUMER_LOST_HB_CNT          6
 
-static int32_t mqRebInExecCnt = 0;
+static USE_VOLTAILE int32_t mqRebInExecCnt = 0;
 
 static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *);
 static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw);

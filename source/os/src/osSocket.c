@@ -699,7 +699,7 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout, int8_t t) {
 
 int32_t taosWinSocketInit() {
 #ifdef WINDOWS
-  static int8_t flag = 0;
+  static USE_VOLTAILE int8_t flag = 0;
   if (atomic_val_compare_exchange_8(&flag, 0, 1) == 0) {
     WORD    wVersionRequested;
     WSADATA wsaData;

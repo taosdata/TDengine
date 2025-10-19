@@ -1907,8 +1907,8 @@ typedef enum {
 } WRITE_RAW_INIT_STATUS;
 
 static SHashObj* writeRawCache = NULL;
-static int8_t    initFlag = 0;
-static int8_t    initedFlag = WRITE_RAW_INIT_START;
+static USE_VOLTAILE int8_t    initFlag = 0;
+static USE_VOLTAILE int8_t    initedFlag = WRITE_RAW_INIT_START;
 
 typedef struct {
   SHashObj* pVgHash;

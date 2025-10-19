@@ -84,15 +84,15 @@ typedef struct time_wheel_t {
   tmr_obj_t**   slots;
 } time_wheel_t;
 
-static int32_t tsMaxTmrCtrl = TSDB_MAX_VNODES_PER_DB + 100;
+static USE_VOLTAILE int32_t tsMaxTmrCtrl = TSDB_MAX_VNODES_PER_DB + 100;
 
-static int32_t       tmrModuleInit = 0;
+static USE_VOLTAILE int32_t       tmrModuleInit = 0;
 static TdThreadMutex tmrCtrlMutex;
 static tmr_ctrl_t*   tmrCtrls;
 static tmr_ctrl_t*   unusedTmrCtrl = NULL;
 static void*         tmrQhandle;
 static void*         tmrQhandleHigh;
-static int32_t       numOfTmrCtrl = 0;
+static USE_VOLTAILE int32_t       numOfTmrCtrl = 0;
 
 int32_t          taosTmrThreads = 1;
 static uintptr_t nextTimerId = 0;

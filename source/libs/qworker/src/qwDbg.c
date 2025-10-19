@@ -243,7 +243,7 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
 }
 
 void qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped) {
-  static int32_t ignoreTime = 0;
+  static USE_VOLTAILE int32_t ignoreTime = 0;
   if (*rsped) {
     return;
   }
@@ -290,7 +290,7 @@ void qwDbgSimulateSleep(void) {
     return;
   }
 
-  static int32_t ignoreTime = 0;
+  static USE_VOLTAILE int32_t ignoreTime = 0;
   if (++ignoreTime > 10) {
     taosSsleep(taosRand() % 20);
   }
@@ -305,7 +305,7 @@ void qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped) {
     return;
   }
 
-  static int32_t ignoreTime = 0;
+  static USE_VOLTAILE int32_t ignoreTime = 0;
 
   if (++ignoreTime > 10 && 0 == taosRand() % 9) {
     if (ctx->fetchMsgType == TDMT_SCH_FETCH) {

@@ -1462,7 +1462,7 @@ void bpShowBindParam(TAOS_MULTI_BIND *bind, int32_t num) {
 }
 
 int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, bool expectFail) {
-  static int32_t n = 0;
+  static USE_VOLTAILE int32_t n = 0;
 
   if (!expectFail) {
     bpCheckColFields(stmt, bind);
@@ -2969,8 +2969,8 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
 }
 
 void* runCaseList(TAOS *taos) {
-  static int32_t caseRunIdx = 0;
-  static int32_t caseRunNum = 0;
+  static USE_VOLTAILE int32_t caseRunIdx = 0;
+  static USE_VOLTAILE int32_t caseRunNum = 0;
   int32_t caseNum = 0;
   int32_t caseIdx = (gCaseCtrl.caseIdx >= 0) ? gCaseCtrl.caseIdx : 0;
 

@@ -29,7 +29,7 @@ typedef struct SFuncMgtService {
 
 static SFuncMgtService gFunMgtService;
 static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
-static int32_t         initFunctionCode = 0;
+static USE_VOLTAILE int32_t         initFunctionCode = 0;
 
 static void doInitFunctionTable() {
   gFunMgtService.pFuncNameHashTable =

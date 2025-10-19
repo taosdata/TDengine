@@ -92,10 +92,10 @@ typedef struct {
 } SLogObj;
 
 extern SConfig *tsCfg;
-static int8_t   tsLogInited = 0;
+static USE_VOLTAILE int8_t   tsLogInited = 0;
 static SLogObj  tsLogObj = {.fileNum = 1, .slowHandle = NULL};
-static int64_t  tsAsyncLogLostLines = 0;
-static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
+static USE_VOLTAILE int64_t  tsAsyncLogLostLines = 0;
+static USE_VOLTAILE int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 static SRWLatch tsLogRotateLatch = 0;
 
 bool tsLogEmbedded = 0;
@@ -947,7 +947,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   int32_t        start = 0;
   int32_t        end = 0;
   int32_t        remainSize = 0;
-  static int64_t lostLine = 0;
+  static USE_VOLTAILE int64_t lostLine = 0;
   char           tmpBuf[128];
   int32_t        tmpBufLen = 0;
 
@@ -1075,7 +1075,7 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 #define LOG_INACTIVE_TIME 5
 #define LOG_ROTATE_BOOT   (LOG_INACTIVE_TIME + 1)
 #endif
-static int8_t tsLogRotateRunning = 0;
+static USE_VOLTAILE int8_t tsLogRotateRunning = 0;
 static void  *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
   int32_t code = 0;

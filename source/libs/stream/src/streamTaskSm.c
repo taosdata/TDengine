@@ -20,7 +20,7 @@
 #include "ttimer.h"
 #include "wal.h"
 
-static int32_t initRes = 0;
+static USE_VOLTAILE int32_t initRes = 0;
 
 #define GET_EVT_NAME(_ev)  (StreamTaskEventList[(_ev)].name)
 #define CHECK_RET_VAL(_exec)             \

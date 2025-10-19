@@ -198,7 +198,7 @@ static void *dmMonitorThreadFp(void *param) {
   int64_t     lastTimeForBasic = taosGetTimestampMs();
   setThreadName("dnode-monitor");
 
-  static int32_t TRIM_FREQ = 20;
+  static USE_VOLTAILE int32_t TRIM_FREQ = 20;
   int32_t        trimCount = 0;
 
   while (1) {

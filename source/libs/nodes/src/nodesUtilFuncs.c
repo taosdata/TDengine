@@ -43,7 +43,7 @@ struct SNodeAllocator {
 };
 
 static threadlocal SNodeAllocator* g_pNodeAllocator;
-static int32_t                     g_allocatorReqRefPool = -1;
+static USE_VOLTAILE int32_t                     g_allocatorReqRefPool = -1;
 
 char* getJoinTypeString(EJoinType type) {
   static char* joinType[] = {"", "INNER", "LEFT", "RIGHT", "FULL"};

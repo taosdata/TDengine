@@ -567,7 +567,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     goto _return;
   }
 
-  static int32_t    emptyRspNum = 0;
+  static USE_VOLTAILE int32_t emptyRspNum = 0;
   int32_t           idx = *(int32_t *)param;
   SClientHbBatchRsp pRsp = {0};
   if (TSDB_CODE_SUCCESS == code) {

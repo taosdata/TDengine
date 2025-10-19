@@ -53,7 +53,7 @@ void* taosConvInit(const char* charset) {
   }
 
   void*  conv = NULL;
-  static int32_t lock_c = 0;
+  static USE_VOLTAILE int32_t lock_c = 0;
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock_c, 0, 1) != 0; ++i) {
     if (i % 1000 == 0) {
