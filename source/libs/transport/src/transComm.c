@@ -21,12 +21,12 @@
 #ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
 
-TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-volatile int32_t refMgt;
-volatile int32_t svrRefMgt;
-volatile int32_t instMgt;
-volatile int32_t transSyncMsgMgt;
+static volatile int32_t refMgt;
+static volatile int32_t svrRefMgt;
+static volatile int32_t instMgt;
+static volatile int32_t transSyncMsgMgt;
 
 void transDestroySyncMsg(void* msg);
 

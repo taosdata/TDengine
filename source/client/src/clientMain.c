@@ -39,14 +39,14 @@
 extern void shellStopDaemon();
 #endif
 
-static int32_t sentinel = TSC_VAR_NOT_RELEASE;
-static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
+static volatile int32_t sentinel = TSC_VAR_NOT_RELEASE;
+static volatile int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
 
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
   if (arg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  static int32_t lock = 0;
+  static volatile int32_t lock = 0;
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
     if (i % 1000 == 0) {
