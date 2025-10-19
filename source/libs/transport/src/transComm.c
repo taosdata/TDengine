@@ -23,10 +23,10 @@
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-static volatile int32_t refMgt;
-static volatile int32_t svrRefMgt;
-static volatile int32_t instMgt;
-static volatile int32_t transSyncMsgMgt;
+static USE_VOLTAILE int32_t refMgt;
+static USE_VOLTAILE int32_t svrRefMgt;
+static USE_VOLTAILE int32_t instMgt;
+static USE_VOLTAILE int32_t transSyncMsgMgt;
 
 void transDestroySyncMsg(void* msg);
 

@@ -48,8 +48,8 @@ typedef struct {
 static SRefSet       tsRefSetList[TSDB_REF_OBJECTS];
 static TdThreadOnce  tsRefModuleInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex tsRefMutex;
-static volatile int32_t tsRefSetNum = 0;
-static volatile int32_t tsNextId = 0;
+static USE_VOLTAILE int32_t tsRefSetNum = 0;
+static USE_VOLTAILE int32_t tsNextId = 0;
 
 static void    taosInitRefModule(void);
 static void    taosLockList(int64_t *lockedBy);
