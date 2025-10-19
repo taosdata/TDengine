@@ -1088,14 +1088,14 @@ int32_t taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes
   if (rchars == NULL || wchars == NULL || read_bytes == NULL || write_bytes == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  static USE_VOLTAILE int64_t last_rchars = -1;
-  static USE_VOLTAILE int64_t last_wchars = -1;
-  static USE_VOLTAILE int64_t last_read_bytes = -1;
-  static USE_VOLTAILE int64_t last_write_bytes = -1;
-  static USE_VOLTAILE int64_t cur_rchars = 0;
-  static USE_VOLTAILE int64_t cur_wchars = 0;
-  static USE_VOLTAILE int64_t cur_read_bytes = 0;
-  static USE_VOLTAILE int64_t cur_write_bytes = 0;
+  static int64_t last_rchars = -1;
+  static int64_t last_wchars = -1;
+  static int64_t last_read_bytes = -1;
+  static int64_t last_write_bytes = -1;
+  static int64_t cur_rchars = 0;
+  static int64_t cur_wchars = 0;
+  static int64_t cur_read_bytes = 0;
+  static int64_t cur_write_bytes = 0;
   int32_t code = taosGetProcIO(&cur_rchars, &cur_wchars, &cur_read_bytes, &cur_write_bytes);
   if (code == 0) {
     if(last_rchars >=0 && last_wchars >=0 && last_read_bytes >=0 && last_write_bytes >= 0){
