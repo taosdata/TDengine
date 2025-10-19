@@ -3652,6 +3652,9 @@ int32_t trimDataBlock2(SSDataBlock* pBlock, int32_t totalRows, const bool* pBool
           colDataSetNull_var(pDst, numOfRows);
         } else {
           pDst->varmeta.offset[numOfRows] = pDst->varmeta.offset[j];
+          char*   p1 = colDataGetVarData(pDst, j);
+          int32_t len = calcStrBytesByType(pDst->info.type, p1);
+          pDst->varmeta.length += len;
         }
         numOfRows += 1;
         j += 1;
