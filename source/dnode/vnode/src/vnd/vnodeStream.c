@@ -1612,13 +1612,22 @@ static int32_t filterData(SSTriggerWalNewRsp* resultRsp, SStreamTriggerReaderInf
   int32_t      code = 0;
   int32_t       lino = 0;
   SColumnInfoData* pRet = NULL;
+  SSDataBlock* pBlock1 = NULL;
+
   int64_t totalRows = ((SSDataBlock*)resultRsp->dataBlock)->info.rows;
   STREAM_CHECK_RET_GOTO(qStreamFilter(((SSDataBlock*)resultRsp->dataBlock), sStreamReaderInfo->pFilterInfo, &pRet));
+  
+  STREAM_CHECK_RET_GOTO(createOneDataBlock((SSDataBlock*)resultRsp->dataBlock, false, &pBlock1));
+  STREAM_CHECK_RET_GOTO(copyDataBlock2(pBlock1, (SSDataBlock*)resultRsp->dataBlock));
+  blockDataEmpty((SSDataBlock*)resultRsp->dataBlock);
+  STREAM_CHECK_RET_GOTO(copyDataBlock((SSDataBlock*)resultRsp->dataBlock, pBlock1));
+
   if (((SSDataBlock*)resultRsp->dataBlock)->info.rows < totalRows) {
     filterIndexHash(sStreamReaderInfo->indexHash, pRet);
   }
 
 end:
+  blockDataDestroy(pBlock1);
   colDataDestroy(pRet);
   taosMemoryFree(pRet);
   return code;

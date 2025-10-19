@@ -1919,6 +1919,92 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   return code;
 }
 
+static int32_t colDataAssign2(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
+                              const SDataBlockInfo* pBlockInfo) {
+  if (pColumnInfoData->info.type != pSource->info.type || (pBlockInfo != NULL && pBlockInfo->capacity < numOfRows)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (numOfRows <= 0) {
+    return numOfRows;
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    int32_t newLen = pSource->varmeta.length;
+    if (pColumnInfoData->varmeta.allocLen < newLen) {
+      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, newLen);
+      if (tmp == NULL) {
+        return terrno;
+      }
+
+      pColumnInfoData->pData = tmp;
+      pColumnInfoData->varmeta.allocLen = newLen;
+    }
+
+    pColumnInfoData->varmeta.length = 0;
+    for (int32_t i = 0; i < numOfRows; ++i) {
+      char*   p1 = colDataGetVarData(pSource, i);
+      int32_t len = calcStrBytesByType(pSource->info.type, p1);
+      pColumnInfoData->varmeta.offset[i] = pColumnInfoData->varmeta.length;
+      pColumnInfoData->varmeta.length += len;
+      memcpy(pColumnInfoData->pData + pColumnInfoData->varmeta.offset[i], p1, len);
+    }
+  } else {
+    memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
+    if (pSource->pData != NULL) {
+      memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
+    }
+  }
+
+  pColumnInfoData->hasNull = pSource->hasNull;
+  pColumnInfoData->info = pSource->info;
+  return 0;
+}
+
+int32_t copyDataBlock2(SSDataBlock* pDst, const SSDataBlock* pSrc) {
+  blockDataCleanup(pDst);
+
+  int32_t code = blockDataEnsureCapacity(pDst, pSrc->info.rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pSrc->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
+    SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, i);
+    if (pDstCol == NULL || pSrcCol == NULL) {
+      continue;
+    }
+
+    int32_t ret = colDataAssign2(pDstCol, pSrcCol, pSrc->info.rows, &pSrc->info);
+    if (ret < 0) {
+      code = ret;
+      return code;
+    }
+  }
+
+  uint32_t cap = pDst->info.capacity;
+
+  if (IS_VAR_DATA_TYPE(pDst->info.pks[0].type)) {
+    taosMemoryFreeClear(pDst->info.pks[0].pData);
+  }
+
+  if (IS_VAR_DATA_TYPE(pDst->info.pks[1].type)) {
+    taosMemoryFreeClear(pDst->info.pks[1].pData);
+  }
+
+  pDst->info = pSrc->info;
+  code = copyPkVal(&pDst->info, &pSrc->info);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  pDst->info.capacity = cap;
+  return code;
+}
+
 int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   QRY_PARAM_CHECK(pBlock);
 
