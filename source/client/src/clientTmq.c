@@ -3171,7 +3171,7 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
   if (tmq == NULL || tname == NULL || epSet == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t     code = 0;
+  int64_t     code = 0;
   SMqVgOffset pOffset = {0};
 
   pOffset.consumerId = tmq->consumerId;
@@ -3270,7 +3270,7 @@ int64_t tmq_position(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
   taosWLockLatch(&tmq->lock);
 
   SMqClientVg* pVg = NULL;
-  int32_t      code = getClientVg(tmq, tname, vgId, &pVg);
+  int64_t      code = getClientVg(tmq, tname, vgId, &pVg);
   if (code != 0) {
     taosWUnLockLatch(&tmq->lock);
     return code;
