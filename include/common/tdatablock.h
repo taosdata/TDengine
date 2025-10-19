@@ -268,6 +268,7 @@ void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
+int32_t copyDataBlock2(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
 int32_t createDataBlock(SSDataBlock** pResBlock);
 void    blockDataDestroy(SSDataBlock* pBlock);
