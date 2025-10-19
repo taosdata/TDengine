@@ -1229,7 +1229,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  * @return
  */
 uint64_t generateRequestId() {
-  static USE_VOLTAILE uint32_t hashId = 0;
+  static uint32_t hashId = 0;
   static USE_VOLTAILE int32_t  requestSerialId = 0;
 
   if (hashId == 0) {
