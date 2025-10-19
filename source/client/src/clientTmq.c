@@ -292,9 +292,9 @@ typedef struct {
   int32_t      vgStatus;
 } SVgroupSaveInfo;
 
-static   TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
+TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
 volatile int32_t        tmqInitRes = 0;               // initialize rsp code
-static   SMqMgmt        tmqMgmt = {0};
+SMqMgmt        tmqMgmt = {0};
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));

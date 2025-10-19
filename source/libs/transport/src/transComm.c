@@ -21,7 +21,7 @@
 #ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
 
-static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
+TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static USE_VOLTAILE int32_t refMgt;
 static USE_VOLTAILE int32_t svrRefMgt;
