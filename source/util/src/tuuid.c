@@ -15,8 +15,8 @@
 
 #include "tuuid.h"
 
-static USE_VOLTAILE uint32_t tUUIDHashId = 0;
-static USE_VOLTAILE int32_t tUUIDSerialNo = 0;
+static uint32_t tUUIDHashId = 0;
+static int32_t tUUIDSerialNo = 0;
 
 int32_t taosGetSystemUUIDU32(uint32_t *uuid) {
   if (uuid == NULL) return TSDB_CODE_APP_ERROR;
