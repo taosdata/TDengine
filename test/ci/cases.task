@@ -223,8 +223,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/12-DataCompression/test_compress_alter_table.py -N 3
 
 # 20-DataQuerying
-## 01-SelectList
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-SelectList/test_selectlist_basic.py
+## 01-Select
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-Select/test_query_select_basic.py
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_column.py
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_operator.py
