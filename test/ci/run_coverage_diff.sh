@@ -765,7 +765,31 @@ function lcovFunc {
 
     echo "push result to coveralls.io"
     # push result to https://coveralls.io/
-    /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage_tdengine.info 
+    # /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage_tdengine.info
+
+    # 执行上传并捕获结果
+    local coveralls_output
+    coveralls_output=$(/usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage_tdengine.info 2>&1)
+    
+    echo "$coveralls_output"
+    
+    # 提取 URL 并调用 Python 脚本
+    local job_url=$(echo "$coveralls_output" | grep -o '"url":"[^"]*"' | sed 's/"url":"//;s/"//')
+    
+    if [ -n "$job_url" ]; then
+        echo ""
+        echo "=== 获取 Coveralls 详细信息 ==="
+        echo "调用 Python 脚本获取覆盖率详情..."
+        
+        # 等待几秒让 Coveralls 处理数据
+        sleep 10
+        
+        # 直接调用 Python 脚本
+        python3 "$TDENGINE_DIR/test/ci/tdengine_coveage_alarm.py" -url "$job_url"
+        
+        echo ""
+        echo "📊 完整报告请访问: $job_url"
+    fi 
 }
 
 ######################
