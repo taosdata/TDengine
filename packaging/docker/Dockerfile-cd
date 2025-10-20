@@ -1,0 +1,56 @@
+
+
+# 阶段1：基础镜像构建
+FROM tdengine/tdengine-debian-base AS tdengine-installer
+
+ARG dirName
+ARG pkgFile
+
+COPY ${pkgFile} /tmp/
+RUN cd /tmp && tar -zxf ${pkgFile} && \
+    cd ${dirName} && \
+    ./install.sh -e no && \
+    cd  /usr/local/taos/bin/ && \
+    rm -f taosinspect tdengine-datasource.zip* *.sh && \
+    cd /usr/local/taos/driver/ && \
+    rm -rf libjemalloc* libtcmalloc*  && \
+    ln -sf libtaos.so.* libtaos.so && \
+    ln -sf libtaosnative.so.* libtaosnative.so && \
+    ln -sf libtaosws.so.* libtaosws.so 
+
+# 阶段3：最终运行时镜像
+FROM tdengine/tdengine-debian-base 
+
+# 只复制安装好的文件（不包含安装包）
+
+
+COPY --from=tdengine-installer /usr/local/taos/bin/taos* /usr/bin/
+COPY --from=tdengine-installer /usr/local/taos/driver/ /usr/lib/
+COPY --from=tdengine-installer /usr/local/taos/include/ /usr/include/
+COPY --from=tdengine-installer /etc/taos/ /etc/taos/
+# copy 打包目录 bin 文件的 entrypoint.sh
+COPY ./bin/* /usr/bin/
+
+# 配置环境变量
+ENV LD_LIBRARY_PATH="/usr/lib/:/usr/local/lib:${LD_LIBRARY_PATH:-}" \
+    PATH="/usr/bin:${PATH:-}" \
+    TAOS_QUERY_USE_MEMORY_POOL=0
+
+# 创建初始化脚本目录
+RUN mkdir /docker-entrypoint-initdb.d
+
+# 定义数据和日志卷
+VOLUME [ "/var/lib/taos", "/var/log/taos"]
+
+# 设置容器启动命令
+ENTRYPOINT ["tini", "--", "/usr/bin/entrypoint.sh"]
+
+# 设置停止信号
+STOPSIGNAL SIGINT
+
+# 暴露端口
+# 6030 taosd
+# 6041 taosAdapter
+# 6043 taosKeeper
+# 6060 taosExplorer
+EXPOSE 6030 6041 6043 6060

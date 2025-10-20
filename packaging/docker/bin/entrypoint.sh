@@ -47,7 +47,7 @@ sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 set -e
 
 if [ $# -gt 0 ]; then
-    exec $@
+    exec "$@"
     exit 0
 fi
 
@@ -110,7 +110,7 @@ if [ "$DISABLE_ADAPTER" = "0" ]; then
     which taosadapter >/dev/null && taosadapter &
     # wait for 6041 port ready
     for _ in $(seq 1 20); do
-        nc -z localhost 6041 && break
+        curl -sf http://localhost:6041/status && break
         sleep 0.5
     done
 fi
@@ -120,7 +120,7 @@ if [ "$DISABLE_KEEPER" = "0" ]; then
     which taoskeeper >/dev/null && taoskeeper &
     # wait for 6043 port ready
     for _ in $(seq 1 20); do
-        nc -z localhost 6043 && break
+        curl -sf http://localhost:6043/status && break
         sleep 0.5
     done
 fi
@@ -129,7 +129,7 @@ if [ "$DISABLE_EXPLORER" = "0" ]; then
     which taos-explorer >/dev/null && taos-explorer &
     # wait for 6060 port ready
     for _ in $(seq 1 20); do
-        nc -z localhost 6060 && break
+        curl -sf http://localhost:6060/status && break
         sleep 0.5
     done
 fi
