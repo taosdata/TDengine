@@ -307,7 +307,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_log.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_lower.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_ltrim.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_pow.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_pow.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_round.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_rtrim.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_sin.py
