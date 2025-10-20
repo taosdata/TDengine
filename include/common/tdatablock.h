@@ -268,7 +268,6 @@ void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc);
-int32_t copyDataBlock2(SSDataBlock* pDst, const SSDataBlock* pSrc);
 
 int32_t createDataBlock(SSDataBlock** pResBlock);
 void    blockDataDestroy(SSDataBlock* pBlock);
@@ -305,8 +304,6 @@ int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_
                                char** dstTableName);
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
-int32_t trimDataBlock2(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
-
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 int32_t calcStrBytesByType(int8_t type, char* data);

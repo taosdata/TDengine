@@ -1618,11 +1618,6 @@ static int32_t filterData(SSTriggerWalNewRsp* resultRsp, SStreamTriggerReaderInf
 
   int64_t totalRows = ((SSDataBlock*)resultRsp->dataBlock)->info.rows;
   STREAM_CHECK_RET_GOTO(qStreamFilter(((SSDataBlock*)resultRsp->dataBlock), sStreamReaderInfo->pFilterInfo, &pRet));
-  
-  STREAM_CHECK_RET_GOTO(createOneDataBlock((SSDataBlock*)resultRsp->dataBlock, false, &pBlock1));
-  STREAM_CHECK_RET_GOTO(copyDataBlock2(pBlock1, (SSDataBlock*)resultRsp->dataBlock));
-  blockDataEmpty((SSDataBlock*)resultRsp->dataBlock);
-  STREAM_CHECK_RET_GOTO(copyDataBlock((SSDataBlock*)resultRsp->dataBlock, pBlock1));
 
   if (((SSDataBlock*)resultRsp->dataBlock)->info.rows < totalRows) {
     filterIndexHash(sStreamReaderInfo->indexHash, pRet);
