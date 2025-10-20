@@ -684,6 +684,46 @@ taosAdapter reports metrics to taosKeeper with these parameters:
 
   Retry interval (Default: `5s`)
 
+### Query Request Concurrency Limit Configuration
+
+Starting from version **3.3.6.29**/**3.3.8.3**, taosAdapter supports configuring concurrency limits for query requests to prevent excessive concurrent queries from exhausting system resources.
+When this feature is enabled, taosAdapter controls the number of concurrent query requests being processed simultaneously based on the configured concurrency limit. Requests exceeding the limit will enter a waiting state until processing resources become available.
+
+If the waiting time exceeds the configured timeout or the number of waiting requests exceeds the configured maximum waiting requests, taosAdapter will directly return an error response, indicating that there are too many requests.
+RESTful requests will return HTTP status code `503`, and WebSocket requests will return error code `0xFFFE`.
+
+This configuration affects the following interfaces:
+
+- **RESTful Interface**
+- **WebSocket SQL Execution Interface**
+
+**Parameter Description**
+
+- **`request.queryLimitEnable`**
+  - **When set to `true`**: Enables the query request concurrency limit feature.
+  - **When set to `false`**: Disables the query request concurrency limit feature (default value).
+- **`request.default.queryLimit`**
+  - Sets the default concurrency limit for query requests (default value: `0`, meaning no limit).
+- **`request.default.queryWaitTimeout`**
+  - Sets the maximum waiting time (in seconds) for requests that exceed the concurrency limit. Requests that time out while waiting will return an error directly. Default value: `900`.
+- **`request.default.queryMaxWait`**
+  - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded. Requests exceeding this number will return an error directly. Default value: `0`, meaning no limit.
+- **`request.excludeQueryLimitSql`**
+  - Configures a list of SQL statements that are not subject to concurrency limits. Must start with `select` (case-insensitive).
+- **`request.excludeQueryLimitSqlRegex`**
+  - Configures a list of regular expressions for SQL statements that are not subject to concurrency limits.
+
+**Customizable per User**
+
+Configurable only via the configuration file:
+
+- **`request.users.<username>.queryLimit`**
+  - Sets the query request concurrency limit for the specified user. Takes precedence over the default setting.
+- **`request.users.<username>.queryWaitTimeout`**
+  - Sets the maximum waiting time (in seconds) for requests that exceed the concurrency limit for the specified user. Takes precedence over the default setting.
+- **`request.users.<username>.queryMaxWait`**
+  - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded for the specified user. Takes precedence over the default setting.
+
 ### Environment Variables
 
 Configuration Parameters and their corresponding environment variables:
@@ -781,6 +821,12 @@ Configuration Parameters and their corresponding environment variables:
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
+| `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
+| `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |
+| `request.excludeQueryLimitSql`        | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL`        |
+| `request.excludeQueryLimitSqlRegex`   | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL_REGEX`  |
+| `request.queryLimitEnable`            | `TAOS_ADAPTER_REQUEST_QUERY_LIMIT_ENABLE`             |
 | `restfulRowLimit`                     | `TAOS_ADAPTER_RESTFUL_ROW_LIMIT`                      |
 | `smlAutoCreateDB`                     | `TAOS_ADAPTER_SML_AUTO_CREATE_DB`                     |
 | `statsd.allowPendingMessages`         | `TAOS_ADAPTER_STATSD_ALLOW_PENDING_MESSAGES`          |
@@ -1349,6 +1395,25 @@ Starting from version **3.3.6.10**, the `adapter_c_interface` table has been add
 | tmq_commit_offset_sync_total                        | DOUBLE    |         | Count of TMQ sync offset commits                         |
 | tmq_commit_offset_sync_success                      | DOUBLE    |         | Count of successful TMQ sync offset commits              |
 | endpoint                                            | NCHAR     | TAG     | Request endpoint                                         |
+
+</details>
+
+Starting from version **3.3.6.29**/**3.3.8.3**, the `adapter_request_limit` table has been added to record taosAdapter query request throttling metrics:
+
+<details>
+<summary>Details</summary>
+
+| field                 | type      | is\_tag | comment                                                                                                                            |
+|:----------------------|:----------|:--------|:-----------------------------------------------------------------------------------------------------------------------------------|
+| _ts                   | TIMESTAMP |         | Data collection timestamp                                                                                                          |
+| query_limit           | DOUBLE    |         | Maximum concurrency of query requests allowed to execute simultaneously                                                            |
+| query_max_wait        | DOUBLE    |         | Maximum number of queries allowed to wait in the queue for execution                                                               |
+| query_inflight        | DOUBLE    |         | Current number of queries being executed that are subject to concurrency limits                                                    |
+| query_wait_count      | DOUBLE    |         | Current number of queries waiting in the queue for execution                                                                       |
+| query_count           | DOUBLE    |         | Total number of query requests subject to concurrency limits received in this collection cycle                                     |
+| query_wait_fail_count | DOUBLE    |         | Number of query requests that failed due to waiting timeout or exceeding the maximum waiting queue length in this collection cycle |
+| endpoint              | NCHAR     | TAG     | Request endpoint                                                                                                                   |
+| user                  | NCHAR     | TAG     | Authenticated username that initiated the query request                                                                            |
 
 </details>
 

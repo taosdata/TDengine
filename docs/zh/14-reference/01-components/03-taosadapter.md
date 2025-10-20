@@ -686,6 +686,46 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 
   配置重试间隔时间（默认值：`5s`）。
 
+### 查询请求并发限制配置
+
+从 **3.3.6.29**/**3.3.8.3** 版本开始，taosAdapter 支持配置查询请求的并发限制，防止因过多的并发查询请求导致系统资源耗尽。
+当启用该功能后，taosAdapter 会根据配置的并发限制数来控制同时处理的查询请求数量，超过限制的请求将进入等待，直到有可用的处理资源为止。
+
+当等待时间超过配置的超时时间或等待数超过配置的最大等待请求数时，taosAdapter 将直接返回错误响应，提示用户请求过多。
+RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误码 `0xFFFE`。
+
+该配置会影响以下接口：
+
+- **RESTful 接口**
+- **WebSocket SQL 执行接口**
+
+**参数说明**
+
+- **`request.queryLimitEnable`**
+  - **设置为 `true` 时**：启用查询请求并发限制功能。
+  - **设置为 `false` 时**：禁用查询请求并发限制功能（默认值）。
+- **`request.default.queryLimit`**
+  - 设置默认的查询请求并发限制数（默认值：`0`，表示无限制）。
+- **`request.default.queryWaitTimeout`**
+    - 限制并发请求超过限制后的等待时间（单位：秒），请求等待执行超时后将直接返回错误，默认值：`900`。
+- **`request.default.queryMaxWait`**
+    - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，默认值：`0`，表示不限制。
+- **`request.excludeQueryLimitSql`**
+  - 配置不受并发限制影响的 SQL 列表，必须以 `select` 开头，SQL 忽略大小写。
+- **`request.excludeQueryLimitSqlRegex`**
+  - 配置不受并发限制影响的 SQL 正则表达式列表。
+
+**针对每个用户可单独设置**
+
+仅支持配置文件进行设置：
+
+- **`request.users.<username>.queryLimit`**
+  - 设置指定用户的查询请求并发限制数，优先级高于默认设置。
+- **`request.users.<username>.queryWaitTimeout`**
+    - 限制并发请求超过限制后的等待时间（单位：秒），请求等待执行超时后将直接返回错误，优先级高于默认设置。
+- **`request.users.<username>.queryMaxWait`**
+    - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，优先级高于默认设置。
+
 ### 环境变量
 
 配置项与环境变量对应如下表：
@@ -783,6 +823,12 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
+| `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
+| `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |
+| `request.excludeQueryLimitSql`        | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL`        |
+| `request.excludeQueryLimitSqlRegex`   | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL_REGEX`  |
+| `request.queryLimitEnable`            | `TAOS_ADAPTER_REQUEST_QUERY_LIMIT_ENABLE`             |
 | `restfulRowLimit`                     | `TAOS_ADAPTER_RESTFUL_ROW_LIMIT`                      |
 | `smlAutoCreateDB`                     | `TAOS_ADAPTER_SML_AUTO_CREATE_DB`                     |
 | `statsd.allowPendingMessages`         | `TAOS_ADAPTER_STATSD_ALLOW_PENDING_MESSAGES`          |
@@ -1346,6 +1392,25 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 | tmq_commit_offset_sync_total                        | DOUBLE    |         | tmq 同步提交偏移量的总次数        |
 | tmq_commit_offset_sync_success                      | DOUBLE    |         | tmq 同步提交偏移量成功的次数       |
 | endpoint                                            | NCHAR     | TAG     | 请求端点                   |
+
+</details>
+
+从 **3.3.6.29**/**3.3.8.3** 版本开始新增 `adapter_request_limit` 表记录 taosAdapter 查询请求限流数据：
+
+<details>
+<summary>详细信息</summary>
+
+| field                 | type      | is\_tag | comment                          |
+|:----------------------|:----------|:--------|:---------------------------------|
+| _ts                   | TIMESTAMP |         | 数据采集时间戳                          |
+| query_limit           | DOUBLE    |         | 允许同时执行的查询请求的最大并发数                |
+| query_max_wait        | DOUBLE    |         | 查询队列中允许等待执行的最大查询数量               |
+| query_inflight        | DOUBLE    |         | 当前正在执行的、受并发限制的查询数量               |
+| query_wait_count      | DOUBLE    |         | 当前在队列中等待执行的查询数量                  |
+| query_count           | DOUBLE    |         | 本采集周期内收到的、受并发限制的查询请求总数           |
+| query_wait_fail_count | DOUBLE    |         | 本采集周期内因等待超时或超过最大等待队列长度而失败的查询请求数量 |
+| endpoint              | NCHAR     | TAG     | 请求端点                             |
+| user                  | NCHAR     | TAG     | 发起查询请求的认证用户名                     |
 
 </details>
 
