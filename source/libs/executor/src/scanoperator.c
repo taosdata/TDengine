@@ -1737,8 +1737,8 @@ static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
   }
 }
 
-static cleanReaderForVTable(STableScanInfo* pInfo){
-  if (pInfo->base.readerAPI.tsdReaderClose) {
+static void cleanReaderForVTable(STableScanInfo* pInfo){
+  if (pInfo != NULL && pInfo->base.readerAPI.tsdReaderClose) {
     void *pIter = taosHashIterate(pInfo->readerCache, NULL);
     while (pIter != NULL) {
       void **reader = pIter;
