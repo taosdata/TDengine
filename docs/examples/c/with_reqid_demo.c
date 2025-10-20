@@ -54,6 +54,7 @@ static int DemoWithReqId() {
 
   TAOS_ROW    row = NULL;
   int         rows = 0;
+  char        buffer[1024];
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
@@ -66,7 +67,6 @@ static int DemoWithReqId() {
     rows++;
 
     // Print the row data
-    // char buffer[1024];
     // code = taos_print_row(buffer, row, fields, num_fields);
     // if (code > 0) {
     //   fprintf(stdout, "row %d: %s\n", rows, buffer);
