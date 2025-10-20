@@ -103,6 +103,32 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 
 int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, data); }
 
+static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
+  SVarColAttr* pAttr = &pColumnInfoData->varmeta;
+  if (pAttr->allocLen < pAttr->length + dataLen) {
+    uint32_t newSize = pAttr->allocLen;
+    if (newSize <= 1) {
+      newSize = 8;
+    }
+
+    while (newSize < pAttr->length + dataLen) {
+      newSize = newSize * 1.5;
+      if (newSize > UINT32_MAX) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+
+    char* buf = taosMemoryRealloc(*pData, newSize);
+    if (buf == NULL) {
+      return terrno;
+    }
+
+    *pData = buf;
+    pAttr->allocLen = newSize;
+  }
+  return 0;
+}
+
 static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
   if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
@@ -123,27 +149,9 @@ static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowI
       pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
     }
 
-    SVarColAttr* pAttr = &pColumnInfoData->varmeta;
-    if (pAttr->allocLen < pAttr->length + dataLen) {
-      uint32_t newSize = pAttr->allocLen;
-      if (newSize <= 1) {
-        newSize = 8;
-      }
-
-      while (newSize < pAttr->length + dataLen) {
-        newSize = newSize * 1.5;
-        if (newSize > UINT32_MAX) {
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-      }
-
-      char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
-      if (buf == NULL) {
-        return terrno;
-      }
-
-      pColumnInfoData->pData = buf;
-      pAttr->allocLen = newSize;
+    int32_t code = checkAllocLen(pColumnInfoData, &pColumnInfoData->pData, dataLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
     uint32_t len = pColumnInfoData->varmeta.length;
@@ -188,27 +196,9 @@ int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, co
     pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
   }
 
-  SVarColAttr* pAttr = &pColumnInfoData->varmeta;
-  if (pAttr->allocLen < pAttr->length + dataLen) {
-    uint32_t newSize = pAttr->allocLen;
-    if (newSize <= 1) {
-      newSize = 8;
-    }
-
-    while (newSize < pAttr->length + dataLen) {
-      newSize = newSize * 1.5;
-      if (newSize > UINT32_MAX) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-    }
-
-    char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
-    if (buf == NULL) {
-      return terrno;
-    }
-
-    pColumnInfoData->pData = buf;
-    pAttr->allocLen = newSize;
+  int32_t code = checkAllocLen(pColumnInfoData, &pColumnInfoData->pData, dataLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   uint32_t len = pColumnInfoData->varmeta.length;
@@ -3640,11 +3630,11 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
     int32_t numOfRows = 0;
     if (IS_VAR_DATA_TYPE(pDst->info.type)) {
       int32_t j = 0;
-      void * tmp = taosMemoryMalloc(pDst->varmeta.length);
+      int32_t oriLen = colDataGetLength(pDst, totalRows);
+      void * tmp = taosMemoryMalloc(oriLen);
       if (tmp == NULL) {
         return terrno;
       }
-      memcpy(tmp, pDst->pData, pDst->varmeta.length);
       pDst->varmeta.length = 0;
       while (j < totalRows) {
         if (pBoolList[j] == 0) {
@@ -3655,17 +3645,18 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
         if (colDataIsNull_var(pDst, j)) {
           colDataSetNull_var(pDst, numOfRows);
         } else {
-          pDst->varmeta.offset[numOfRows] = pDst->varmeta.length;
           char*   p1 = colDataGetVarData(pDst, j);
           int32_t len = calcStrBytesByType(pDst->info.type, p1);
-          memcpy(tmp + pDst->varmeta.offset[numOfRows], p1, len);
+          memcpy(tmp + pDst->varmeta.length, p1, len);
+          pDst->varmeta.offset[numOfRows] = pDst->varmeta.length;
           pDst->varmeta.length += len;
         }
         numOfRows += 1;
         j += 1;
       }
-      memcpy(pDst->pData, tmp, pDst->varmeta.length);
-      taosMemoryFree(tmp);
+      taosMemoryFree(pDst->pData);
+      pDst->pData = tmp;
+      pDst->varmeta.allocLen = oriLen;
       if (maxRows < numOfRows) {
         maxRows = numOfRows;
       }
