@@ -324,6 +324,16 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
     - res：[入参] 结果集。
   - **返回值**：非 `NULL`：成功，返回一个指向 TAOS_FIELD_E 结构体的指针，每个元素代表一列的元数据。`NULL`：失败。
 
+- `int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields)`
+
+  - **接口说明**：将一行查询结果按列类型格式化为文本，写入到 `str` 缓冲区，用于日志打印或调试输出。
+  - **参数说明**：
+    - `str`：[出参] 用户提供的字符缓冲区，用于接收格式化后的整行文本，需保证容量满足输出需求。
+    - `row`：[入参] 一行数据，来自 `taos_fetch_row()` 的返回值。
+    - `fields`：[入参] 列元数据数组，来自 `taos_fetch_fields()` 的返回值，用于按列类型格式化各列。
+    - `num_fields`：[入参] 列数量，通常为 `taos_num_fields()` 的返回值。
+  - **返回值**：`>=0` 表示实际写入到 `str` 的字符数（不包含末尾 `'\0'`）；`<0` 表示失败的错误码。
+
 - `void taos_stop_query(TAOS_RES *res)`
 
   - **接口说明**：停止当前查询的执行。
