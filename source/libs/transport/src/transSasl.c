@@ -15,6 +15,13 @@
 // clang-format off
 #include "transSasl.h"
 // clang-format on
+extern void saslServerInitImpl();
+extern void saslServerCleanupImpl();
+
+extern void saslClientStartImpl();
+extern void saslServerStartImpl();
+extern void saslClientStepImpl();
+extern void saslServerStepImpl();
 
 // #define DEFALUT_SSL_DIR "/etc/ssl/ssls"
 
