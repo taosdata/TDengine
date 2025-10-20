@@ -421,10 +421,10 @@ static int32_t scanCreateTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, v
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
     if (!needRefreshTableList(sStreamReaderInfo, pCreateReq->type, pCreateReq->ctb.suid, pCreateReq->uid, false)) {
-      ST_TASK_ILOG("stream reader scan create table jump, %s", pCreateReq->name);
+      ST_TASK_DLOG("stream reader scan create table jump, %s", pCreateReq->name);
       continue;
     }
-    ST_TASK_ILOG("stream reader scan create table %s", pCreateReq->name);
+    ST_TASK_DLOG("stream reader scan create table %s", pCreateReq->name);
 
     found = true;
     break;

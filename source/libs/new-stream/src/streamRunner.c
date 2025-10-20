@@ -1104,8 +1104,6 @@ int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask) {
     pNode = pNode->dl_next_;
   }
 
-  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
-
   if (pMgmgReq && taosArrayGetSize(pMgmgReq) > 0) {
     SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
     QUERY_CHECK_NULL(pReq, code, lino, _exit, terrno);
@@ -1116,6 +1114,8 @@ int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask) {
     ST_TASK_DLOG("task mgmtReq built with %d exec reqs", (int32_t)taosArrayGetSize(pMgmgReq));
     atomic_store_ptr(&pTask->task.pMgmtReq, pReq);
   }
+
+  TAOS_UNUSED(taosThreadMutexUnlock(&pMgr->lock));
 
   return code;
 
