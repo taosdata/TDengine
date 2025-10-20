@@ -1718,17 +1718,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   blockDataDestroy(pTableScanInfo->pOrgBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
   if (pTableScanInfo->virtualStableScan && pTableScanInfo->readerCache) {
-    void *pIter = taosHashIterate(pTableScanInfo->readerCache, NULL);
-    while (pIter != NULL) {
-      void **reader = pIter;
-      if (*reader && pTableScanInfo->base.readerAPI.tsdReaderClose) {
-        if (*reader == pTableScanInfo->base.dataReader) {
-          pTableScanInfo->base.dataReader = NULL;
-        }
-        pTableScanInfo->base.readerAPI.tsdReaderClose(*reader);
-      }
-      pIter = taosHashIterate(pTableScanInfo->readerCache, pIter);
-    }
+    cleanReaderForVTable(pTableScanInfo);
     taosHashCleanup(pTableScanInfo->readerCache);
   }
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
@@ -1747,6 +1737,22 @@ static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
   }
 }
 
+static cleanReaderForVTable(STableScanInfo* pInfo){
+  if (pInfo->base.readerAPI.tsdReaderClose) {
+    void *pIter = taosHashIterate(pInfo->readerCache, NULL);
+    while (pIter != NULL) {
+      void **reader = pIter;
+      if (*reader) {
+        if (*reader == pInfo->base.dataReader) {
+          pInfo->base.dataReader = NULL;
+        }
+        pInfo->base.readerAPI.tsdReaderClose(*reader);
+      }
+      pIter = taosHashIterate(pInfo->readerCache, pIter);
+    }
+  }
+}
+
 static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   int32_t         code = TSDB_CODE_SUCCESS;
   STableScanInfo*   pInfo = pOper->info;
@@ -1760,17 +1766,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->scanMode = 0;
   pInfo->countState = 0;
   if (pInfo->virtualStableScan && pInfo->readerCache) {
-    void *pIter = taosHashIterate(pInfo->readerCache, NULL);
-    while (pIter != NULL) {
-      void **reader = pIter;
-      if (*reader && pInfo->base.readerAPI.tsdReaderClose) {
-        if (*reader == pInfo->base.dataReader) {
-          pInfo->base.dataReader = NULL;
-        }
-        pInfo->base.readerAPI.tsdReaderClose(*reader);
-      }
-      pIter = taosHashIterate(pInfo->readerCache, pIter);
-    }
+    cleanReaderForVTable(pInfo);
     taosHashClear(pInfo->readerCache);
   } else {
     if (pInfo->base.readerAPI.tsdReaderClose) {
