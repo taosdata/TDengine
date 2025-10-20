@@ -66,7 +66,7 @@ static int DemoWithReqId() {
 
     rows++;
 
-    // Print the row data
+    // Print the data for easy debugging. You can uncomment them if needed.
     // code = taos_print_row(buffer, row, fields, num_fields);
     // if (code > 0) {
     //   fprintf(stdout, "row %d: %s\n", rows, buffer);

@@ -107,7 +107,7 @@ int32_t msg_process(TAOS_RES* msg) {
 
     rows++;
 
-    // Print the row data
+    // Print the data for easy debugging. You can uncomment them if needed.
     // int         num_fields = taos_num_fields(msg);
     // TAOS_FIELD* fields = taos_fetch_fields(msg);
     // int         code = taos_print_row(buffer, row, fields, num_fields);
