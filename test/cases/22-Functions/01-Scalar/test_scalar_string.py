@@ -734,3 +734,41 @@ class TestString:
         tdSql.checkData(2, 0, 2)
         tdSql.query(f'select regexp_in_set("Jinhui.*", enname, "，") from {self.tbname}')
         tdSql.checkData(2, 0, 0)
+
+    def test_fun_sca_find_in_set(self):
+        """ Fun: find_in_set()
+
+        1. Support data types varchar/nchar
+        2. Query with constant/null/single char/chinese parameter
+        3. Query with different separator
+        4. Query from normal/no table
+        5. Query with 2 ~ 3 parameters
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        pass
+
+    def test_fun_sca_like_in_set(self):
+        """ Fun: like_in_set()
+
+        1. Support data types varchar/nchar
+        2. Query with constant/null/single char/special char/chinese parameter
+        3. Query with different separator
+        4. Query from normal/no table
+        5. Query with 2 ~ 3 parameters
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        pass

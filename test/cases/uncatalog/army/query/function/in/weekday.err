@@ -1,2 +1,0 @@
-select weekday();
-select weekday('01/01/2020', 2);
