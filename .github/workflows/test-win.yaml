@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on:
       group: CI
-      labels: [self-hosted, Windows, X64, test-win, testing]
+      labels: [self-hosted, Windows, X64, testing]
       
     steps:
       - name: Checkout
