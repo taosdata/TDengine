@@ -328,7 +328,6 @@ class TestFunConcat:
         Jira: None
 
         History:
-            - 2025-10-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_concat2.py
             - 2025-10-20 Alex Duan Migrated from uncatalog/army/query/function/test_concat.py
             - 2025-09-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_concat.py
         """
