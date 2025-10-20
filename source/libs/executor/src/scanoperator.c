@@ -1712,6 +1712,22 @@ static void destroyTableScanBase(STableScanBase* pBase, TsdReader* pAPI) {
   cleanupExprSupp(&pBase->pseudoSup);
 }
 
+static void cleanReaderForVTable(STableScanInfo* pInfo){
+  if (pInfo != NULL && pInfo->base.readerAPI.tsdReaderClose) {
+    void *pIter = taosHashIterate(pInfo->readerCache, NULL);
+    while (pIter != NULL) {
+      void **reader = pIter;
+      if (*reader) {
+        if (*reader == pInfo->base.dataReader) {
+          pInfo->base.dataReader = NULL;
+        }
+        pInfo->base.readerAPI.tsdReaderClose(*reader);
+      }
+      pIter = taosHashIterate(pInfo->readerCache, pIter);
+    }
+  }
+}
+
 static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   blockDataDestroy(pTableScanInfo->pResBlock);
@@ -1733,22 +1749,6 @@ static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
       if (pCol) {
         pCol->info.noData = true;
       }
-    }
-  }
-}
-
-static void cleanReaderForVTable(STableScanInfo* pInfo){
-  if (pInfo != NULL && pInfo->base.readerAPI.tsdReaderClose) {
-    void *pIter = taosHashIterate(pInfo->readerCache, NULL);
-    while (pIter != NULL) {
-      void **reader = pIter;
-      if (*reader) {
-        if (*reader == pInfo->base.dataReader) {
-          pInfo->base.dataReader = NULL;
-        }
-        pInfo->base.readerAPI.tsdReaderClose(*reader);
-      }
-      pIter = taosHashIterate(pInfo->readerCache, pIter);
     }
   }
 }
