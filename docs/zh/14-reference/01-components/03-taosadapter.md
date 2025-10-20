@@ -707,9 +707,9 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **`request.default.queryLimit`**
   - 设置默认的查询请求并发限制数（默认值：`0`，表示无限制）。
 - **`request.default.queryWaitTimeout`**
-    - 限制并发请求超过限制后的等待时间（单位：秒），请求等待执行超时后将直接返回错误，默认值：`900`。
+  - 限制并发请求超过限制后的等待时间（单位：秒），请求等待执行超时后将直接返回错误，默认值：`900`。
 - **`request.default.queryMaxWait`**
-    - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，默认值：`0`，表示不限制。
+  - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，默认值：`0`，表示不限制。
 - **`request.excludeQueryLimitSql`**
   - 配置不受并发限制影响的 SQL 列表，必须以 `select` 开头，SQL 忽略大小写。
 - **`request.excludeQueryLimitSqlRegex`**
@@ -722,9 +722,9 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **`request.users.<username>.queryLimit`**
   - 设置指定用户的查询请求并发限制数，优先级高于默认设置。
 - **`request.users.<username>.queryWaitTimeout`**
-    - 限制并发请求超过限制后的等待时间（单位：秒），请求等待执行超时后将直接返回错误，优先级高于默认设置。
+  - 限制并发请求超过限制后的等待时间（单位：秒），请求等待执行超时后将直接返回错误，优先级高于默认设置。
 - **`request.users.<username>.queryMaxWait`**
-    - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，优先级高于默认设置。
+  - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，优先级高于默认设置。
 
 ### 环境变量
 
