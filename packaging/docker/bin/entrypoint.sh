@@ -110,7 +110,7 @@ if [ "$DISABLE_ADAPTER" = "0" ]; then
     which taosadapter >/dev/null && taosadapter &
     # wait for 6041 port ready
     for _ in $(seq 1 20); do
-        curl -sf http://localhost:6041/status && break
+        curl -sf http://localhost:6041/metrics && break
         sleep 0.5
     done
 fi
@@ -120,7 +120,7 @@ if [ "$DISABLE_KEEPER" = "0" ]; then
     which taoskeeper >/dev/null && taoskeeper &
     # wait for 6043 port ready
     for _ in $(seq 1 20); do
-        curl -sf http://localhost:6043/status && break
+        curl -sf http://localhost:6043/metrics && break
         sleep 0.5
     done
 fi
@@ -129,7 +129,7 @@ if [ "$DISABLE_EXPLORER" = "0" ]; then
     which taos-explorer >/dev/null && taos-explorer &
     # wait for 6060 port ready
     for _ in $(seq 1 20); do
-        curl -sf http://localhost:6060/status && break
+        curl -sf http://localhost:6060/metrics && break
         sleep 0.5
     done
 fi
