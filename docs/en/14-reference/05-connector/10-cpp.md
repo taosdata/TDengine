@@ -331,8 +331,7 @@ This section introduces APIs that are all synchronous interfaces. After being ca
 
   - **Interface Description**: Formats a row of query results as text according to column types and writes it to the `str` buffer for logging or debugging output.
   - **Parameter Description**:
-    - `str`: [Output] A user-provided character buffer for receiving the entire formatted row of text. Ensure the capacity meets the output requirements.
-    - `row`: [Input] A row of data, returned by `taos_fetch_row()`.
+    - `str`: [Output] A user-provided character buffer that receives the entire line of formatted text. Ensure that the capacity meets the output requirements. If the result exceeds the buffer size, it will be truncated (possibly incomplete output).
     - `fields`: [Input] An array of column metadata, returned by `taos_fetch_fields()`. Used to format each column according to its column type.
     - `num_fields`: [Input] The number of columns, typically the return value of `taos_num_fields()`.
   - **Return Value**: `>=0` indicates the number of characters actually written to `str` (excluding the trailing `'\0'`); `<0` indicates a failure error code.
