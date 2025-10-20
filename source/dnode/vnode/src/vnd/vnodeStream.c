@@ -1470,15 +1470,16 @@ end:
 }
 
 static void resetIndexHash(SSHashObj* indexHash){
-  void*   pe = NULL;
-  int32_t iter = 0;
-  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
-    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-    pInfo->startRowIdx = 0;
-    pInfo->currentRowIdx = 0;
-    pInfo->numRows = 0;
-    pInfo->gId = -1;
-  }
+  tSimpleHashClear(indexHash);
+  // void*   pe = NULL;
+  // int32_t iter = 0;
+  // while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
+  //   SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
+  //   pInfo->startRowIdx = 0;
+  //   pInfo->currentRowIdx = 0;
+  //   pInfo->numRows = 0;
+  //   pInfo->gId = -1;
+  // }
 }
 
 static void buildIndexHash(SSHashObj* indexHash, void* pTask){
