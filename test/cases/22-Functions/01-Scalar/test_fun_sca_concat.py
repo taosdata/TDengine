@@ -22,10 +22,10 @@ TS_TYPE_COL = [ TS_COL, ]
 
 class TestFunConcat:
 
+    #
+    # ----------------------- system-test -------------------
+    #
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
         pass
 
     def __concat_condition(self):  # sourcery skip: extract-method
@@ -263,24 +263,7 @@ class TestFunConcat:
             '''
         )
 
-    def test_fun_sca_concat(self):
-        """ Fun: concat()
-
-        1. CONCAT on super/child/normal table
-        2. CONCAT between all data types
-        3. CONCAT with null values
-        4. CONCAT with different number of columns
-        5. CONCAT with negative test cases
-   
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_concat.py
-        """
+    def do_concat1(self):
 
         tdSql.prepare()
 
@@ -305,3 +288,49 @@ class TestFunConcat:
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+        
+
+    #
+    # ----------------------- army -------------------
+    #    
+    def checkConcat(self):
+        # init
+        dbname = 'db'
+        tbname = f'{dbname}.tbconcat'
+        
+        tdSql.execute(f'drop database if exists {dbname}')
+        tdSql.execute(f'create database {dbname}')
+        tdSql.execute(f'use {dbname}')
+        tdSql.execute(f'create table if not exists {tbname}(ts timestamp, name varchar(20), name2 nchar(20))')
+        tdSql.execute(f'insert into {tbname} values(now(),"abcdefg","你好")')
+        tdSql.execute(f'insert into {tbname} values(now(),"abcdefgh","我好")')
+        tdSql.execute(f'insert into {tbname} values(now(),"abcdefg", "")')
+        tdSql.execute(f'select concat("你好",name2) from {tbname}')
+        tdSql.execute(f'select concat(name2,"你好") from {tbname}')
+        tdSql.execute(f'select concat(name2,"") from {tbname}')
+        tdSql.execute(f'select concat("", name2) from {tbname}')
+
+    # main
+    def test_fun_sca_concat(self):
+        """ Fun: concat()
+
+        1. CONCAT on super/child/normal table
+        2. CONCAT between all data types
+        3. CONCAT with null values
+        4. CONCAT with different number of columns
+        5. CONCAT with negative test cases
+        6. CONCAT with chinese language
+   
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_concat2.py
+            - 2025-10-20 Alex Duan Migrated from uncatalog/army/query/function/test_concat.py
+            - 2025-09-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_concat.py
+        """
+        self.do_concat1()
+        self.checkConcat()
