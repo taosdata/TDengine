@@ -3179,6 +3179,7 @@ static int32_t vnodeProcessStreamRowsMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SSTriggerWalNewRsp resultRsp = {0};
   SSDataBlock* pBlock1 = NULL;
   SSDataBlock* pBlock2 = NULL;
+  SSHashObj* ranges = NULL;
 
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
@@ -3187,25 +3188,22 @@ static int32_t vnodeProcessStreamRowsMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
   void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start, execId:%d, reset:%d, pTaskInfo:%p, scan type:%d", TD_VID(pVnode), __func__, req.execId, req.reset,
-               sStreamReaderCalcInfo->pTaskInfo, nodeType(sStreamReaderCalcInfo->calcAst->pNode));
-  
+
   SSTriggerCalcParam* pFirst = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, 0);
   SSTriggerCalcParam* pLast = taosArrayGetLast(req.pStRtFuncInfo->pStreamPesudoFuncVals);
   STREAM_CHECK_NULL_GOTO(pFirst, terrno);
   STREAM_CHECK_NULL_GOTO(pLast, terrno);
 
-  if (!node->needCalc) {
-    handle->winRange.skey = pFirst->wstart;
-    handle->winRange.ekey = pLast->wend;
-  }  
-  SSHashObj* ranges = taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type)
-
-  ST_TASK_DLOG("vgId:%d %s start, request paras size:%zu", TD_VID(pVnode), __func__, taosArrayGetSize(req->walDataNewReq.versions));
+  ranges = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  STREAM_CHECK_NULL_GOTO(ranges, terrno);
+  int64_t pRange[2] = {pFirst->wstart, pLast->wend};
+  STREAM_CHECK_CONDITION_GOTO(tSimpleHashPut(ranges, &req.pStRtFuncInfo->groupId, sizeof(req.pStRtFuncInfo->groupId), pRange, sizeof(pRange)), terrno);
+  
+  ST_TASK_DLOG("vgId:%d %s start, gid:%"PRId64",start%"PRId64",end:%"PRId64, TD_VID(pVnode), __func__, req.pStRtFuncInfo->groupId, pFirst->wstart, pLast->wend);
 
   resultRsp.dataBlock = sStreamReaderInfo->isVtableStream ? sStreamReaderInfo->calcBlock : sStreamReaderInfo->triggerBlock;
   resultRsp.isCalc = sStreamReaderInfo->isVtableStream ? true : false;
-  STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req.pWalVersions, req->walDataNewReq.ranges, &resultRsp));
+  STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req.pWalVersions, ranges, &resultRsp));
   STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
 
   if (!sStreamReaderInfo->isVtableStream){
@@ -3213,29 +3211,14 @@ static int32_t vnodeProcessStreamRowsMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcBlock, false, &pBlock2));
 
     blockDataTransform(pBlock2, pBlock1);
-    resultRsp.dataBlock = pBlock2;
   }
 
   pResList = taosArrayInit(4, POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(pResList, terrno);
-  uint64_t ts = 0;
-  bool     hasNext = false;
-  STREAM_CHECK_RET_GOTO(qExecTaskOpt(sStreamReaderCalcInfo->pTaskInfo, pResList, &ts, &hasNext, NULL, req.pOpParam != NULL));
-
-  for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
-    SSDataBlock* pBlock = taosArrayGetP(pResList, i);
-    if (pBlock == NULL) continue;
-    printDataBlock(pBlock, __func__, "fetch", ((SStreamTask*)pTask)->streamId);
-/*    
-    if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow) {
-      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo, NULL));
-      printDataBlock(pBlock, __func__, "fetch filter");
-    }
-*/    
-  }
+  STREAM_CHECK_NULL_GOTO(taosArrayPush(pResList, &pBlock2), terrno);
 
   ST_TASK_DLOG("vgId:%d %s start to build rsp", TD_VID(pVnode), __func__);
-  STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision));
+  STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, true, &buf, &size, pVnode->config.tsdbCfg.precision));
   ST_TASK_DLOG("vgId:%d %s end:", TD_VID(pVnode), __func__);
 
 end:
@@ -3251,6 +3234,7 @@ end:
   blockDataDestroy(pBlock2);
   blockDataDestroy(resultRsp.deleteBlock);
   blockDataDestroy(resultRsp.dropBlock);
+  tSimpleHashCleanup(ranges);
 
   return code;
 }
