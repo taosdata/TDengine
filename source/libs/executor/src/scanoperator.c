@@ -1759,10 +1759,25 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->currentTable = 0;
   pInfo->scanMode = 0;
   pInfo->countState = 0;
-  if (pInfo->base.readerAPI.tsdReaderClose) {
-    pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
+  if (pInfo->virtualStableScan && pInfo->readerCache) {
+    void *pIter = taosHashIterate(pInfo->readerCache, NULL);
+    while (pIter != NULL) {
+      void **reader = pIter;
+      if (*reader && pInfo->base.readerAPI.tsdReaderClose) {
+        if (*reader == pInfo->base.dataReader) {
+          pInfo->base.dataReader = NULL;
+        }
+        pInfo->base.readerAPI.tsdReaderClose(*reader);
+      }
+      pIter = taosHashIterate(pInfo->readerCache, pIter);
+    }
+    taosHashClear(pInfo->readerCache);
+  } else {
+    if (pInfo->base.readerAPI.tsdReaderClose) {
+      pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
+    }
+    pInfo->base.dataReader = NULL;
   }
-  pInfo->base.dataReader = NULL;
 
   tableListDestroy(pInfo->base.pTableListInfo);
   pInfo->base.pTableListInfo = tableListCreate();
