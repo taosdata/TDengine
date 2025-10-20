@@ -160,6 +160,7 @@ typedef struct SSTriggerRealtimeContext {
   Heap                   *pMaxDelayHeap;
   SSTriggerRealtimeGroup *pMinGroup;
   SArray                 *groupsToDelete;
+  SSHashObj              *pGroupColVals;  // SSHashObj<gid, SArray<SStreamGroupValue>*>
 
   // these fields need to be cleared each round
   SSHashObj *pSlices;  // SSHashObj<uid, SSTriggerDataSlice>
