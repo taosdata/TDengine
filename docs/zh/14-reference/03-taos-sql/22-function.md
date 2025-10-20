@@ -2595,7 +2595,7 @@ taos> SELECT NULLIF(1,1);
 NVL2(expr1, expr2, expr3)
 ```
 
-**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr1。
+**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr3。
 
 **返回结果类型**：依赖于使用的上下文。
 
@@ -3030,3 +3030,4 @@ ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 **适用表类型**：标准表和超表。
 
 **使用说明**：A 和 B 至少有一个公共点，并且这些公共点位于至少一个边界中。对于点/点输入，关系始终为 FALSE，因为点没有边界。
+
