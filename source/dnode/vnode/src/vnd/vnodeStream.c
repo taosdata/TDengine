@@ -1496,12 +1496,14 @@ static void buildIndexHash(SSHashObj* indexHash, void* pTask){
 }
 
 static void printIndexHash(SSHashObj* indexHash, void* pTask){
-  void*   pe = NULL;
-  int32_t iter = 0;
-  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
-    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-    ST_TASK_DLOG("%s uid:%" PRId64 ", gid:%" PRIu64 ", startRowIdx:%d, numRows:%d", __func__, *(int64_t*)(tSimpleHashGetKey(pe, NULL)),
-    pInfo->gId, pInfo->startRowIdx, pInfo->numRows);
+  if (qDebugFlag & DEBUG_TRACE) {
+    void*   pe = NULL;
+    int32_t iter = 0;
+    while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
+      SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
+      ST_TASK_TLOG("%s uid:%" PRId64 ", gid:%" PRIu64 ", startRowIdx:%d, numRows:%d", __func__, *(int64_t*)(tSimpleHashGetKey(pe, NULL)),
+      pInfo->gId, pInfo->startRowIdx, pInfo->numRows);
+    }
   }
 }
 
