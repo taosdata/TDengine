@@ -209,22 +209,22 @@ class TestCheckErrorCode:
 
     # run
     def test_check_error_code(self):
-        """summary: xxx
+        """Check the consistency of error codes between header file and doc files.
 
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        1. Read all error codes from include/util/taoserror.h
+        2. Read all error codes from docs/zh/14-reference/09-error-code.md
+        3. Read all error codes from docs/en/14-reference/09-error-code.md
+        4. Check whether all error codes in header file are documented in both doc files
+        5. Check whether the description, possible cause and suggested actions are provided in both doc files
         
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
         History:
-            - xxx
-            - xxx
+            - 2025-10-20 Alex Duan Migrated from uncatalog/army/whole/test_check_error_code.py
         """
         tdLog.debug(f"start to excute {__file__}")
 
