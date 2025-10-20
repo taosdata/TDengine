@@ -220,6 +220,10 @@ typedef struct TsdReader {
   int32_t (*setProgress)(void *pReader, const void *pBuf, uint64_t len);
   void    (*tsdReaderResetVer)(void* p, SQueryTableDataCond* pCond);
   int32_t (*tsdReaderResetExTimeWindow)(void* p, SQueryTableDataCond* pCond);
+<<<<<<< Updated upstream
+=======
+  int32_t (*tsdReaderSuspend)(void* pReader);
+>>>>>>> Stashed changes
 } TsdReader;
 
 typedef struct SStoreCacheReader {

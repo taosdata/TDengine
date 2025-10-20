@@ -257,6 +257,7 @@ static void releaseStreamReaderInfo(void* p) {
   pInfo->metaBlock = NULL;
   tSimpleHashCleanup(pInfo->indexHash);
   pInfo->indexHash = NULL;
+  taosMemoryFree(pInfo->triggerTableSchema);
   taosHashCleanup(pInfo->pTableMetaCacheTrigger);
   taosHashCleanup(pInfo->pTableMetaCacheCalc);
 
@@ -354,7 +355,9 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
   if (pMsg->msg.trigger.triggerTblType == TD_SUPER_TABLE) {
     sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblUid;
+    sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
   } else {
+    sStreamReaderInfo->suid = 0;
     sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
   }
 
