@@ -780,12 +780,29 @@ function lcovFunc {
         echo ""
         echo "=== 获取 Coveralls 详细信息 ==="
         echo "调用 Python 脚本获取覆盖率详情..."
-        
+    
+        # 安装必要的 Python 依赖包
+        echo "安装 Python 依赖包..."
+        pip3 install bs4 requests lxml beautifulsoup4 -q
+        local pip_exit_code=$?
+        if [ $pip_exit_code -ne 0 ]; then
+            echo "警告: 安装 Python 依赖包失败，退出码: $pip_exit_code"
+            echo "尝试继续执行脚本..."
+        else
+            echo "✓ Python 依赖包安装完成"
+        fi
+
         # 等待几秒让 Coveralls 处理数据
-        sleep 10
+        sleep 15
         
         # 直接调用 Python 脚本
         python3 "$TDENGINE_DIR/test/ci/tdengine_coveage_alarm.py" -url "$job_url"
+
+        sleep 15
+        local script_exit_code=$?
+    
+        echo ""
+        echo "Python 脚本执行完成，退出码: $script_exit_code"
         
         echo ""
         echo "📊 完整报告请访问: $job_url"
