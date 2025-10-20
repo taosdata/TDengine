@@ -1,0 +1,49 @@
+package monitor
+
+import (
+	"math"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNewNormalCollector(t *testing.T) {
+	c, err := NewNormalCollector()
+	assert.NoError(t, err)
+	assert.NotNil(t, c)
+	assert.NotNil(t, c.p)
+}
+
+func TestNormalCollectorCpuPercentRange(t *testing.T) {
+	c, err := NewNormalCollector()
+	assert.NoError(t, err)
+
+	_, err = c.CpuPercent()
+	assert.NoError(t, err)
+
+	time.Sleep(120 * time.Millisecond)
+
+	val, err := c.CpuPercent()
+	assert.NoError(t, err)
+	if math.IsNaN(val) || math.IsInf(val, 0) {
+		t.Fatalf("CpuPercent returned invalid value: %v", val)
+	}
+	if val < 0 || val > 100 {
+		t.Fatalf("CpuPercent out of expected range [0,100]: %v", val)
+	}
+}
+
+func TestNormalCollectorMemPercentRange(t *testing.T) {
+	c, err := NewNormalCollector()
+	assert.NoError(t, err)
+
+	val, err := c.MemPercent()
+	assert.NoError(t, err)
+	if math.IsNaN(val) || math.IsInf(val, 0) {
+		t.Fatalf("MemPercent returned invalid value: %v", val)
+	}
+	if val < 0 || val > 100 {
+		t.Fatalf("MemPercent out of expected range [0,100]: %v", val)
+	}
+}
