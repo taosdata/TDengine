@@ -1919,48 +1919,6 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   return code;
 }
 
-static int32_t colDataAssign2(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
-                              const SDataBlockInfo* pBlockInfo) {
-  if (pColumnInfoData->info.type != pSource->info.type || (pBlockInfo != NULL && pBlockInfo->capacity < numOfRows)) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  if (numOfRows <= 0) {
-    return numOfRows;
-  }
-
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    int32_t newLen = pSource->varmeta.length;
-    if (pColumnInfoData->varmeta.allocLen < newLen) {
-      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, newLen);
-      if (tmp == NULL) {
-        return terrno;
-      }
-
-      pColumnInfoData->pData = tmp;
-      pColumnInfoData->varmeta.allocLen = newLen;
-    }
-
-    pColumnInfoData->varmeta.length = 0;
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      char*   p1 = colDataGetVarData(pSource, i);
-      int32_t len = calcStrBytesByType(pSource->info.type, p1);
-      pColumnInfoData->varmeta.offset[i] = pColumnInfoData->varmeta.length;
-      pColumnInfoData->varmeta.length += len;
-      memcpy(pColumnInfoData->pData + pColumnInfoData->varmeta.offset[i], p1, len);
-    }
-  } else {
-    memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
-    if (pSource->pData != NULL) {
-      memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
-    }
-  }
-
-  pColumnInfoData->hasNull = pSource->hasNull;
-  pColumnInfoData->info = pSource->info;
-  return 0;
-}
-
 int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   QRY_PARAM_CHECK(pBlock);
 
