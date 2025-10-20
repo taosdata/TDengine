@@ -270,34 +270,6 @@ def clean_coverage_data(coverage_data, outlier_threshold=5.0):
         
         cleaned_data.append(data)
     
-    # 策略3: IQR方法进一步清洗（可选）
-    if len(cleaned_data) >= 5:
-        cleaned_values = [float(d['coverage_number'].replace('%', '')) for d in cleaned_data]
-        
-        # 计算四分位数
-        sorted_values = sorted(cleaned_values)
-        q1_idx = len(sorted_values) // 4
-        q3_idx = 3 * len(sorted_values) // 4
-        q1 = sorted_values[q1_idx]
-        q3 = sorted_values[q3_idx]
-        iqr = q3 - q1
-        
-        # IQR异常值检测
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
-        
-        final_cleaned_data = []
-        for data in cleaned_data:
-            value = float(data['coverage_number'].replace('%', ''))
-            if lower_bound <= value <= upper_bound:
-                final_cleaned_data.append(data)
-            else:
-                print(f"🚫 IQR检测到离群值: Build #{data['build_number']} ({value}%) - 超出范围 [{lower_bound:.2f}%, {upper_bound:.2f}%]")
-        
-        cleaned_data = final_cleaned_data
-    
-    print(f"✅ 数据清洗完成: {len(coverage_data)} → {len(cleaned_data)} 条")
-    
     # 打印清洗后的数据概览
     if cleaned_data:
         print("📋 清洗后的数据:")
