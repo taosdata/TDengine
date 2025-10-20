@@ -161,7 +161,7 @@ if [ "$DISABLE_SERVER" = "0" ]; then
         taosadapter &
         # wait for 6041 port ready
         for _ in $(seq 1 20); do
-            nc -z localhost 6041 && break
+            curl -sf http://localhost:6041/metrics && break
             sleep 0.5
         done
     fi
@@ -173,7 +173,7 @@ if [ "$DISABLE_KEEPER" = "0" ]; then
     which taoskeeper >/dev/null && taoskeeper &
     # wait for 6043 port ready
     for _ in $(seq 1 20); do
-        nc -z localhost 6043 && break
+        curl -sf http://localhost:6043/metrics && break
         sleep 0.5
     done
 fi
@@ -182,9 +182,10 @@ if [ "$DISABLE_TAOSX" = "0" ]; then
     echo "enable taosx"
     # startup taosx
     taosx serve &
-    # wait for 6050 port ready
+    # wait for 6050 6055 port ready
     for _ in $(seq 1 20); do
         nc -z localhost 6050 && break
+        nc -z localhost 6055 && break
         sleep 0.5
     done
 else
@@ -197,7 +198,7 @@ if [ "$DISABLE_EXPLORER" = "0" ]; then
     taos-explorer &
     # wait for 6060 port ready
     for _ in $(seq 1 20); do
-        nc -z localhost 6060 && break
+        curl -sf http://localhost:6060/metrics && break
         sleep 0.5
     done
 else
