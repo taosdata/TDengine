@@ -13,21 +13,6 @@ class TestTS_3821:
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def create_tables(self):
         tdSql.execute(f'''CREATE STABLE `s_e8d66f7af53e4c88866efbc44252a8cd_device_technical_indicators`

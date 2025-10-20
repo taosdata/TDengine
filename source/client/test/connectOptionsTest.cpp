@@ -18,6 +18,8 @@
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
+#include <time.h>
+#include <osSleep.h> 
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -215,6 +217,29 @@ void check_set_timezone(TAOS* optionFunc(const char *tz)){
     ASSERT(strcmp(ip, val) == 0);                   \
   }
 
+static int32_t checkUserIp(TAOS *taos, const char *ip) {
+  TAOS_RES *pRes = taos_query(taos, "select user_ip from performance_schema.perf_connections");
+
+  ASSERT(taos_errno(pRes) == 0);
+    
+  TAOS_ROW row = NULL;
+  bool     found = false;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    if (strcmp((const char *)row[0], ip) == 0) {
+      found = true;
+      break;
+    }
+  }
+  if (found == false) {
+    ASSERT(0); 
+  }
+ 
+  taos_free_result(pRes);
+  
+  ASSERT(1);
+  return 0;
+}
+
 TEST(connectionCase, setConnectionOption_Test) {
   int32_t code = taos_options_connection(NULL, TSDB_OPTION_CONNECTION_CHARSET, NULL);
   ASSERT(code != 0);
@@ -286,9 +311,14 @@ TEST(connectionCase, setConnectionOption_Test) {
   //ASSERT(code != 0); // add dual later
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
 
+  checkUserIp(pConn, "");
+  
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, NULL);
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+
+  checkUserIp(pConn, "");
+  
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "aaaaaaaaaaaaaaaaaaaaaabbbbbbb");
   //ASSERT(code != 0); // add dual later
@@ -297,11 +327,16 @@ TEST(connectionCase, setConnectionOption_Test) {
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "1292.168.0.2");
   //ASSERT(code != 0); // add dual alter
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+  taosSsleep(6);
+  checkUserIp(pConn, "");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "192.168.0.2");
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_IP(pConn, userIp, "192.168.0.2");
 
+  taosSsleep(6);
+
+  checkUserIp(pConn, "192.168.0.2");
   taosMsleep(2 * HEARTBEAT_INTERVAL);
 
   //test user APP and user IP
@@ -312,6 +347,16 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_IP(pConn, userIp, "192.168.1.2");
 
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, NULL);
+  CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+  taosSsleep(6);
+  checkUserIp(pConn, "");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "192.168.1.2");
+  CHECK_TAOS_OPTION_IP(pConn, userIp, "192.168.1.2");
+  taosSsleep(6);
+  checkUserIp(pConn, "192.168.1.2");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "user");
   ASSERT(code == 0);
