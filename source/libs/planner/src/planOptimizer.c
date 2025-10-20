@@ -429,13 +429,15 @@ static int32_t scanPathOptGetDataRequired(SNodeList* pFuncs) {
   return dataRequired;
 }
 
-static void scanPathOptSetScanWin(SScanLogicNode* pScan) {
+static void scanPathOptSetScanWin(SOsdInfo* pInfo) {
+  SScanLogicNode* pScan = pInfo->pScan;
   SLogicNode* pParent = pScan->node.pParent;
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pParent) && pParent->pParent &&
       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent->pParent)) {
     pParent = pParent->pParent;
   }
   if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent)) {
+    pInfo->scanOrder = SCAN_ORDER_ASC;  // for window, always scan in asc order
     pScan->interval = ((SWindowLogicNode*)pParent)->interval;
     pScan->offset = ((SWindowLogicNode*)pParent)->offset;
     pScan->sliding = ((SWindowLogicNode*)pParent)->sliding;
@@ -485,7 +487,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
-    scanPathOptSetScanWin(info.pScan);
+    scanPathOptSetScanWin(&info);
     if (!pCxt->pPlanCxt->streamQuery) {
       scanPathOptSetScanOrder(info.scanOrder, info.pScan);
     }
