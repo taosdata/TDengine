@@ -2009,7 +2009,7 @@ class TestDecimal2:
         Jira: None
 
         History:
-            - 2025-10-17 Alex Duan Migrated from uncatalog/system-test/2-query/test_decimal1.py
+            - 2025-10-17 Alex Duan Migrated from uncatalog/system-test/2-query/test_decimal2.py
         """
 
         self.check_decimal_ddl()
