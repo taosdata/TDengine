@@ -1223,12 +1223,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataQuerying/Operator/" class="md-nav__link">
+      <a href="../../DataQuerying/Select/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    01-Operator
+    01-Select
     
   </span>
   
@@ -2530,8 +2530,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#95-Tools.01-Check.test_resinfo.TestResinfo.test_file_changed" class="md-nav__link">
-        test header file not change 
+      <a href="#95-Tools.01-Check.test_check_error_code.TestCheckErrorCode.test_check_error_code" class="md-nav__link">
+        Check the consistency of error codes between header file and doc files. 
       </a>
       
     </li>
@@ -2762,8 +2762,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#95-Tools.01-Check.test_resinfo.TestResinfo.test_file_changed" class="md-nav__link">
-        test header file not change 
+      <a href="#95-Tools.01-Check.test_check_error_code.TestCheckErrorCode.test_check_error_code" class="md-nav__link">
+        Check the consistency of error codes between header file and doc files. 
       </a>
       
     </li>
@@ -2794,24 +2794,28 @@
   
   
   
-<h2 id="95-Tools.01-Check.test_resinfo.TestResinfo.test_file_changed" class="doc doc-heading">
+<h2 id="95-Tools.01-Check.test_check_error_code.TestCheckErrorCode.test_check_error_code" class="doc doc-heading">
 
-<a href="#95-Tools.01-Check.test_resinfo.TestResinfo.test_file_changed" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#95-Tools.01-Check.test_check_error_code.TestCheckErrorCode.test_check_error_code" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>test header file not change</strong> 
+                    <strong>Check the consistency of error codes between header file and doc files.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">test header file source/libs/function/inc/functionResInfoInt.h and include/libs/function/functionResInfo.h not change</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Read all error codes from include/util/taoserror.h</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Read all error codes from docs/zh/14-reference/09-error-code.md</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Read all error codes from docs/en/14-reference/09-error-code.md</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check whether all error codes in header file are documented in both doc files</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check whether the description, possible cause and suggested actions are provided in both doc files</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/95-Tools/01-Check/test_resinfo.py" target="_blank">
-                      cases/95-Tools/01-Check/test_resinfo.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/95-Tools/01-Check/test_check_error_code.py" target="_blank">
+                      cases/95-Tools/01-Check/test_check_error_code.py
                     </a>
                   </div>
         </div>

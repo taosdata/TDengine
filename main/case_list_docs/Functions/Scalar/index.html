@@ -1223,12 +1223,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataQuerying/Operator/" class="md-nav__link">
+      <a href="../../DataQuerying/Select/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    01-Operator
+    01-Select
     
   </span>
   
@@ -1882,6 +1882,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#22-Functions.01-Scalar.test_fun_sca_concat2.TestConcat2.test_fun_sca_concat2" class="md-nav__link">
+        Fun: concat() extend test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#22-Functions.01-Scalar.test_fun_sca_concat_ws.TestFunConcatWs.test_fun_sca_concat_ws" class="md-nav__link">
         Fun: concat_ws() 
       </a>
@@ -2456,17 +2467,6 @@
     <li class="md-nav__item">
       <a href="#22-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_salar_function" class="md-nav__link">
         Scalar: All 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#22-Functions.01-Scalar.test_scalar_cast.TestCast.test_cast_without_from" class="md-nav__link">
-        Scalar: Cast 
       </a>
       
     </li>
@@ -3620,6 +3620,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#22-Functions.01-Scalar.test_fun_sca_concat2.TestConcat2.test_fun_sca_concat2" class="md-nav__link">
+        Fun: concat() extend test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#22-Functions.01-Scalar.test_fun_sca_concat_ws.TestFunConcatWs.test_fun_sca_concat_ws" class="md-nav__link">
         Fun: concat_ws() 
       </a>
@@ -4203,17 +4214,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#22-Functions.01-Scalar.test_scalar_cast.TestCast.test_cast_without_from" class="md-nav__link">
-        Scalar: Cast 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#22-Functions.01-Scalar.test_scalar_math.TestMath.test_math" class="md-nav__link">
         Scalar: Math 
       </a>
@@ -4455,6 +4455,8 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. CAST with aggregation functions</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. CAST with union all</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">7. CAST with function embedded</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. CAST without from table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. verify JIRA TS-5972</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4523,6 +4525,7 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. CONCAT with null values</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. CONCAT with different number of columns</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. CONCAT with negative test cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. CONCAT with chinese language</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4530,6 +4533,40 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/22-Functions/01-Scalar/test_fun_sca_concat.py" target="_blank">
                       cases/22-Functions/01-Scalar/test_fun_sca_concat.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="22-Functions.01-Scalar.test_fun_sca_concat2.TestConcat2.test_fun_sca_concat2" class="doc doc-heading">
+
+<a href="#22-Functions.01-Scalar.test_fun_sca_concat2.TestConcat2.test_fun_sca_concat2" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Fun: concat() extend test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create super table and child tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data with null/chinese/single char values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query with different concat conditions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check the query result</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Flush database and re-check the result</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Clean up the environment</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/22-Functions/01-Scalar/test_fun_sca_concat2.py" target="_blank">
+                      cases/22-Functions/01-Scalar/test_fun_sca_concat2.py
                     </a>
                   </div>
         </div>
@@ -6380,45 +6417,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/22-Functions/01-Scalar/test_scalar_all.py" target="_blank">
                       cases/22-Functions/01-Scalar/test_scalar_all.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="22-Functions.01-Scalar.test_scalar_cast.TestCast.test_cast_without_from" class="doc doc-heading">
-
-<a href="#22-Functions.01-Scalar.test_scalar_cast.TestCast.test_cast_without_from" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Scalar: Cast</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. From int to other,</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. From bigint to other</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. From smallint to other</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. From tinyint to other</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. From float to other</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. From str to other</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. From bool to other</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. From timestamp to other</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. From compute to other</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Int the from clause</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Convert a floating-point number to a binary and then performing a comparison</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/22-Functions/01-Scalar/test_scalar_cast.py" target="_blank">
-                      cases/22-Functions/01-Scalar/test_scalar_cast.py
                     </a>
                   </div>
         </div>
