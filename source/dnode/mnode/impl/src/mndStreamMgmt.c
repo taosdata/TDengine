@@ -907,6 +907,17 @@ _exit:
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isOverLapTrigger(int8_t triggerType, SStreamTrigger* pTrigger) {
+  if (triggerType == WINDOW_TYPE_COUNT) {
+    return pTrigger->count.countVal > pTrigger->count.sliding;
+  } else if (triggerType == WINDOW_TYPE_INTERVAL ) {
+    return pTrigger->sliding.overlap != 0;
+  } else if (triggerType == WINDOW_TYPE_PERIOD) {
+    return pTrigger->period.period > pTrigger->period.offset;
+  }
+
+  return false;
+}
 
 int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStreamObj* pStream, SStmStatus* pInfo, bool topPlan) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -926,8 +937,8 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->addOptions = pStream->pCreate->addOptions;
-  if(pStream->pCreate->trigger.sliding.overlap) {
-    pMsg->addOptions |= CALC_SLIDING_OVERLAP;
+  if (isOverLapTrigger(pStream->pCreate->triggerType, &pStream->pCreate->trigger)) {
+    pMsg->addOptions |= CALC_WINDOW_OVERLAP;
   }
   pMsg->outCols = pInfo->pCreate->outCols;
   pMsg->outTags = pInfo->pCreate->outTags;

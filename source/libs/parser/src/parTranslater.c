@@ -8598,17 +8598,17 @@ static int32_t generateHiddenTimeRangeForPartitionRows(STranslateContext* pCxt, 
     case QUERY_NODE_EVENT_WINDOW:
     case QUERY_NODE_COUNT_WINDOW: {
       PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pStart, "_twstart", OP_TYPE_GREATER_EQUAL));
-      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "_twend", OP_TYPE_LOWER_THAN));
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "_twend", OP_TYPE_LOWER_EQUAL));
       break;
     }
     case QUERY_NODE_SLIDING_WINDOW: {
       PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pStart, "_tprev_localtime", OP_TYPE_GREATER_EQUAL));
-      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "tlocaltime", OP_TYPE_LOWER_THAN));
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "tlocaltime", OP_TYPE_LOWER_EQUAL));
       break;
     }
     case QUERY_NODE_PERIOD_WINDOW: {
       PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pStart, "_tprev_ts", OP_TYPE_GREATER_EQUAL));
-      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "_tcurrent_ts", OP_TYPE_LOWER_THAN));
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "_tcurrent_ts", OP_TYPE_LOWER_EQUAL));
       break;
     }
     default: {
