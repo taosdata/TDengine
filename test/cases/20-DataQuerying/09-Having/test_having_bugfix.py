@@ -26,7 +26,7 @@ class TestHavingBuffix:
 
         History:
             - 2024-6-5 Alex Duan Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
+            - 2025-5-08 Huo Hong Migrated from uncatalog/army/query/accuracy/test_query_accuracy.py
 
         """
         # database for case TS-4806
@@ -98,7 +98,7 @@ class TestHavingBuffix:
 
         History:
             - 2024-9-19 Feng Chao Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
+            - 2025-5-08 Huo Hong Migrated from uncatalog/army/query/accuracy/test_query_accuracy.py
 
         """
 
@@ -134,7 +134,7 @@ class TestHavingBuffix:
 
         History:
             - 2024-9-19 Feng Chao Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
+            - 2025-5-08 Huo Hong Migrated from uncatalog/army/query/accuracy/test_query_accuracy.py
 
         """
 
@@ -204,7 +204,7 @@ class TestHavingBuffix:
 
         History:
             - 2024-9-19 Feng Chao Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
+            - 2025-5-08 Huo Hong Migrated from uncatalog/army/query/accuracy/test_having.py
 
         """
         # data for TD-32059

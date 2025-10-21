@@ -40,8 +40,7 @@ class TestTs5400:
 
         History:
             - 2024-9-14 Feng Chao Created
-            - 2025-5-08 Huo Hong Migrated to new test framework
-
+            - 2025-5-08 Huo Hong Migrated from cases/uncatalog/army/query/accuracy/test_ts5400.py
         """
         self.prepare_data()
         self.testSql.execute("use db_ts5400;")

@@ -707,9 +707,6 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_query_accuracy.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_ts5400.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_having.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_desc.py -N 3 -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_null.py
