@@ -35,7 +35,7 @@ RUN apt-get update && \
         gdb \
         valgrind \ 
         && \
-    if [ "$RESTORE_ORIGINAL_SOURCES" = "true" ]; then \
+    if [ "$USE_CUSTOM_SOURCES" = "true" ] && [ "$RESTORE_ORIGINAL_SOURCES" = "true" ]; then \
         rm -f /etc/apt/sources.list; \
     fi && \
     # clean cache
