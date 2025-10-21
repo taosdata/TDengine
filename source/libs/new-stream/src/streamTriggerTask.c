@@ -9725,7 +9725,7 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
 int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pStateData == NULL || pZeroth == NULL) {
-    return false;
+    return code;
   }
 
   SValueNode* pZerothState = (SValueNode*)pZeroth;
