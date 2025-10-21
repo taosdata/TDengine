@@ -751,6 +751,195 @@ typedef uint64_t DecimalWord;
     case pred:;                   \
   }
 
+// ==================== 数据库操作权限 (0-31) ====================
+#define PRIV_DB_CREATE    (1ULL << 0)  // CREATE DATABASE
+#define PRIV_DB_ALTER     (1ULL << 1)  // ALTER DATABASE
+#define PRIV_DB_DROP      (1ULL << 2)  // DROP DATABASE
+#define PRIV_DB_USE       (1ULL << 3)  // USE DATABASE
+#define PRIV_DB_FLUSH     (1ULL << 4)  // FLUSH DATABASE
+#define PRIV_DB_COMPACT   (1ULL << 5)  // COMPACT DATABASE
+#define PRIV_DB_TRIM      (1ULL << 6)  // TRIM DATABASE
+#define PRIV_DB_ROLLUP    (1ULL << 7)  // ROLLUP DATABASE
+#define PRIV_DB_SCAN      (1ULL << 8)  // SCAN DATABASE
+#define PRIV_DB_SSMIGRATE (1ULL << 9)  // SSMIGRATE DATABASE
+
+// VGROUP 操作权限
+#define PRIV_VG_BALANCE      (1ULL << 10)  // BALANCE VGROUP
+#define PRIV_VG_MERGER       (1ULL << 11)  // MERGER VGROUP
+#define PRIV_VG_REDISTRIBUTE (1ULL << 12)  // REDISTRIBUTE VGROUP
+#define PRIV_VG_SPLIT        (1ULL << 13)  // SPLIT VGROUP
+#define PRIV_VG_COMPACT      (1ULL << 14)  // COMPACT VGROUP
+#define PRIV_VG_ROLLUP       (1ULL << 15)  // ROLLUP VGROUP
+#define PRIV_VG_SCAN         (1ULL << 16)  // SCAN VGROUP
+
+// 数据库查看权限
+#define PRIV_SHOW_DATABASES  (1ULL << 17)  // SHOW DATABASES
+#define PRIV_SHOW_VNODES     (1ULL << 18)  // SHOW VNODES
+#define PRIV_SHOW_VGROUPS    (1ULL << 19)  // SHOW VGROUPS
+#define PRIV_SHOW_COMPACTS   (1ULL << 20)  // SHOW COMPACTS
+#define PRIV_SHOW_RETENTIONS (1ULL << 21)  // SHOW RETENTIONS
+#define PRIV_SHOW_SCANS      (1ULL << 22)  // SHOW SCANS
+#define PRIV_SHOW_SSMIGRATES (1ULL << 23)  // SHOW SSMIGRATES
+
+// ==================== 表操作权限 (32-63) ====================
+#define PRIV_TABLE_CREATE      (1ULL << 32)  // CREATE TABLE
+#define PRIV_TABLE_DROP        (1ULL << 33)  // DROP TABLE
+#define PRIV_TABLE_ALTER       (1ULL << 34)  // ALTER TABLE
+#define PRIV_TABLE_SHOW        (1ULL << 35)  // SHOW TABLES
+#define PRIV_TABLE_SHOW_CREATE (1ULL << 36)  // SHOW CREATE TABLE
+#define PRIV_TABLE_READ        (1ULL << 37)  // READ TABLE
+#define PRIV_TABLE_READ_TAG    (1ULL << 38)  // READ TABLE BY TAG
+#define PRIV_TABLE_WRITE       (1ULL << 39)  // WRITE TABLE
+#define PRIV_TABLE_DELETE      (1ULL << 40)  // DELETE TABLE
+
+// ==================== 细粒度数据权限 (64-95) ====================
+#define PRIV_COLUMN_READ  (1ULL << 64)  // READ COLUMN DATA
+#define PRIV_COLUMN_WRITE (1ULL << 65)  // WRITE COLUMN DATA
+#define PRIV_ROW_READ     (1ULL << 66)  // READ ROW DATA
+#define PRIV_ROW_WRITE    (1ULL << 67)  // WRITE ROW DATA
+
+// ==================== 对象创建权限 (96-127) ====================
+// 函数权限
+#define PRIV_FUNC_CREATE (1ULL << 96)  // CREATE FUNCTION
+#define PRIV_FUNC_DROP   (1ULL << 97)  // DROP FUNCTION
+#define PRIV_FUNC_SHOW   (1ULL << 98)  // SHOW FUNCTIONS
+
+// 索引权限
+#define PRIV_INDEX_CREATE (1ULL << 99)   // CREATE INDEX
+#define PRIV_INDEX_DROP   (1ULL << 100)  // DROP INDEX
+#define PRIV_INDEX_SHOW   (1ULL << 101)  // SHOW INDEXES
+
+// SMA 权限
+#define PRIV_RSMA_CREATE      (1ULL << 102)  // CREATE RSMA
+#define PRIV_RSMA_DROP        (1ULL << 103)  // DROP RSMA
+#define PRIV_RSMA_ALTER       (1ULL << 104)  // ALTER RSMA
+#define PRIV_RSMA_SHOW        (1ULL << 105)  // SHOW RSMA
+#define PRIV_RSMA_SHOW_CREATE (1ULL << 106)  // SHOW CREATE RSMA
+#define PRIV_TSMA_CREATE      (1ULL << 107)  // CREATE TSMA
+#define PRIV_TSMA_DROP        (1ULL << 108)  // DROP TSMA
+#define PRIV_TSMA_SHOW        (1ULL << 109)  // SHOW TSMA
+
+// 视图权限
+#define PRIV_VIEW_CREATE (1ULL << 110)  // CREATE VIEW
+#define PRIV_VIEW_DROP   (1ULL << 111)  // DROP VIEW
+#define PRIV_VIEW_SHOW   (1ULL << 112)  // SHOW VIEW
+#define PRIV_VIEW_READ   (1ULL << 113)  // READ VIEW
+
+// ==================== 系统管理权限 (128-191) ====================
+// 挂载权限
+#define PRIV_MOUNT_CREATE (1ULL << 128)  // CREATE MOUNT
+#define PRIV_MOUNT_DROP   (1ULL << 129)  // DROP MOUNT
+#define PRIV_MOUNT_SHOW   (1ULL << 130)  // SHOW MOUNT
+
+// 角色权限
+#define PRIV_ROLE_CREATE (1ULL << 131)  // CREATE ROLE
+#define PRIV_ROLE_DROP   (1ULL << 132)  // DROP ROLE
+#define PRIV_ROLE_SHOW   (1ULL << 133)  // SHOW ROLE
+
+// 用户权限
+#define PRIV_USER_CREATE       (1ULL << 134)  // CREATE USER
+#define PRIV_USER_DROP         (1ULL << 135)  // DROP USER
+#define PRIV_USER_SET_SECURITY (1ULL << 136)  // SET USER SECURITY INFO
+#define PRIV_USER_SET_AUDIT    (1ULL << 137)  // SET USER AUDIT INFO
+#define PRIV_USER_SET_BASIC    (1ULL << 138)  // SET USER BASIC INFO
+#define PRIV_USER_ENABLE       (1ULL << 139)  // ENABLE USER
+#define PRIV_USER_DISABLE      (1ULL << 140)  // DISABLE USER
+#define PRIV_USER_SHOW         (1ULL << 141)  // SHOW USERS
+
+// 令牌权限
+#define PRIV_TOKEN_CREATE (1ULL << 142)  // CREATE TOKEN
+#define PRIV_TOKEN_DROP   (1ULL << 143)  // DROP TOKEN
+#define PRIV_TOKEN_ALTER  (1ULL << 144)  // ALTER TOKEN
+#define PRIV_TOKEN_SHOW   (1ULL << 145)  // SHOW TOKEN
+
+// 密码权限
+#define PRIV_PASS_ALTER      (1ULL << 146)  // ALTER PASS
+#define PRIV_PASS_ALTER_SELF (1ULL << 147)  // ALTER SELF PASS
+
+// ==================== 高级管理权限 (192-255) ====================
+// 权限授予权限
+#define PRIV_GRANT_PRIVILEGE  (1ULL << 192)  // GRANT PRIVILEGE
+#define PRIV_REVOKE_PRIVILEGE (1ULL << 193)  // REVOKE PRIVILEGE
+#define PRIV_GRANT_SYSDBA     (1ULL << 194)  // GRANT SYSDBA PRIVILEGE
+#define PRIV_REVOKE_SYSDBA    (1ULL << 195)  // REVOKE SYSDBA PRIVILEGE
+#define PRIV_GRANT_SYSSEC     (1ULL << 196)  // GRANT SYSSEC PRIVILEGE
+#define PRIV_REVOKE_SYSSEC    (1ULL << 197)  // REVOKE SYSSEC PRIVILEGE
+#define PRIV_GRANT_SYSAUDIT   (1ULL << 198)  // GRANT SYSAUDIT PRIVILEGE
+#define PRIV_REVOKE_SYSAUDIT  (1ULL << 199)  // REVOKE SYSAUDIT PRIVILEGE
+
+// 节点管理权限
+#define PRIV_DNODE_CREATE (1ULL << 200)  // CREATE DNODE
+#define PRIV_DNODE_DROP   (1ULL << 201)  // DROP DNODE
+#define PRIV_DNODE_SHOW   (1ULL << 202)  // SHOW DNODES
+#define PRIV_MNODE_CREATE (1ULL << 203)  // CREATE MNODE
+#define PRIV_MNODE_DROP   (1ULL << 204)  // DROP MNODE
+#define PRIV_MNODE_SHOW   (1ULL << 205)  // SHOW MNODES
+// ... 其他节点权限 QNODE, SNODE, BNODE
+
+// 系统参数权限
+#define PRIV_VAR_SECURITY_ALTER (1ULL << 210)  // ALTER SECURITY VARIABLE
+#define PRIV_VAR_AUDIT_ALTER    (1ULL << 211)  // ALTER AUDIT VARIABLE
+#define PRIV_VAR_SYSTEM_ALTER   (1ULL << 212)  // ALTER SYSTEM VARIABLE
+#define PRIV_VAR_DEBUG_ALTER    (1ULL << 213)  // ALTER DEBUG VARIABLE
+#define PRIV_VAR_SECURITY_SHOW  (1ULL << 214)  // SHOW SECURITY VARIABLE
+#define PRIV_VAR_AUDIT_SHOW     (1ULL << 215)  // SHOW AUDIT VARIABLE
+#define PRIV_VAR_SYSTEM_SHOW    (1ULL << 216)  // SHOW SYSTEM VARIABLE
+#define PRIV_VAR_DEBUG_SHOW     (1ULL << 217)  // SHOW DEBUG VARIABLE
+
+// 密钥权限
+#define PRIV_KEY_UPDATE  (1ULL << 218)  // UPDATE KEY
+#define PRIV_TOTP_CREATE (1ULL << 219)  // CREATE TOTP
+#define PRIV_TOTP_SHOW   (1ULL << 220)  // SHOW TOTP
+#define PRIV_TOTP_DROP   (1ULL << 221)  // DROP TOTP
+#define PRIV_TOTP_UPDATE (1ULL << 222)  // UPDATE TOTP
+
+// ==================== 功能模块权限 (256-319) ====================
+// 订阅权限
+#define PRIV_TOPIC_CREATE      (1ULL << 256)  // CREATE TOPIC
+#define PRIV_TOPIC_DROP        (1ULL << 257)  // DROP TOPIC
+#define PRIV_TOPIC_SHOW        (1ULL << 258)  // SHOW TOPICS
+#define PRIV_CONSUMER_SHOW     (1ULL << 259)  // SHOW CONSUMERS
+#define PRIV_SUBSCRIPTION_SHOW (1ULL << 260)  // SHOW SUBSCRIPTIONS
+
+// 流计算权限
+#define PRIV_STREAM_CREATE (1ULL << 261)  // CREATE STREAM
+#define PRIV_STREAM_DROP   (1ULL << 262)  // DROP STREAM
+#define PRIV_STREAM_SHOW   (1ULL << 263)  // SHOW STREAM
+#define PRIV_STREAM_START  (1ULL << 264)  // START STREAM
+#define PRIV_STREAM_STOP   (1ULL << 265)  // STOP STREAM
+#define PRIV_STREAM_RECALC (1ULL << 266)  // RECALC STREAM
+
+// 系统管理权限
+#define PRIV_TRANS_SHOW      (1ULL << 267)  // SHOW TRANS
+#define PRIV_TRANS_KILL      (1ULL << 268)  // KILL TRANS
+#define PRIV_CONNECTION_SHOW (1ULL << 269)  // SHOW CONNECTIONS
+#define PRIV_CONNECTION_KILL (1ULL << 270)  // KILL CONNECTION
+#define PRIV_QUERY_SHOW      (1ULL << 271)  // SHOW QUERIES
+#define PRIV_QUERY_KILL      (1ULL << 272)  // KILL QUERY
+
+// ==================== 系统信息权限 (320-383) ====================
+#define PRIV_INFO_SCHEMA_USE        (1ULL << 320)  // USE INFORMATION_SCHEMA
+#define PRIV_PERF_SCHEMA_USE        (1ULL << 321)  // USE PERFORMANCE_SCHEMA
+#define PRIV_INFO_SCHEMA_READ_LIMIT (1ULL << 322)  // READ INFORMATION_SCHEMA LIMIT
+#define PRIV_INFO_SCHEMA_READ_SEC   (1ULL << 323)  // READ INFORMATION_SCHEMA SECURITY
+#define PRIV_INFO_SCHEMA_READ_AUDIT (1ULL << 324)  // READ INFORMATION_SCHEMA AUDIT
+#define PRIV_INFO_SCHEMA_READ_BASIC (1ULL << 325)  // READ INFORMATION_SCHEMA BASIC
+#define PRIV_PERF_SCHEMA_READ_LIMIT (1ULL << 326)  // READ PERFORMANCE_SCHEMA LIMIT
+#define PRIV_PERF_SCHEMA_READ_BASIC (1ULL << 327)  // READ PERFORMANCE_SCHEMA BASIC
+#define PRIV_GRANTS_SHOW            (1ULL << 328)  // SHOW GRANTS
+#define PRIV_CLUSTER_SHOW           (1ULL << 329)  // SHOW CLUSTER
+#define PRIV_APPS_SHOW              (1ULL << 330)  // SHOW APPS
+
+// ==================== 审计管理权限 (384-447) ====================
+#define PRIV_AUDIT_DB_CREATE (1ULL << 384)  // CREATE AUDIT DATABASE
+#define PRIV_AUDIT_DB_DROP   (1ULL << 385)  // DROP AUDIT DATABASE
+#define PRIV_AUDIT_DB_ALTER  (1ULL << 386)  // ALTER AUDIT DATABASE
+#define PRIV_AUDIT_DB_READ   (1ULL << 387)  // READ AUDIT DATABASE
+#define PRIV_AUDIT_DB_WRITE  (1ULL << 388)  // WRITE AUDIT DATABASE
+
+// ==================== 预留扩展空间 (448-511) ====================
+// 为未来功能预留 64 个权限位
+
 #ifdef __cplusplus
 }
 #endif
