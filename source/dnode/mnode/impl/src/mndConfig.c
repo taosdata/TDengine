@@ -909,7 +909,9 @@ static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pVal
     SConfigObj *pTmp = NULL;
     int32_t     syncTimeout = 0;
     char        tmp[10] = {0};
-    sscanf(pValue, "%d", &syncTimeout);
+    if (sscanf(pValue, "%d", &syncTimeout) != 1) {
+      syncTimeout = 0;
+    }
 
     sprintf(tmp, "%d", syncTimeout);
 
@@ -1047,7 +1049,9 @@ static int32_t mndConfigUpdateTransWithDnode(SMnode *pMnode, const char *name, c
     SConfigObj *pTmp = NULL;
     int32_t     syncTimeout = 0;
     char        tmp[10] = {0};
-    sscanf(pValue, "%d", &syncTimeout);
+    if (sscanf(pValue, "%d", &syncTimeout) != 1) {
+      syncTimeout = 0;
+    }
 
     sprintf(tmp, "%d", syncTimeout);
 
