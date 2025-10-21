@@ -382,12 +382,13 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   return code;
 }
 
-void setExecTaskInfoWalVersions(qTaskInfo_t* pTaskInfo, SSHashObj* pWalVersions) {
+void swapExecTaskInfoWalVersions(qTaskInfo_t* pTaskInfo, SSHashObj** pWalVersions) {
   if (pTaskInfo == NULL) {
     return;
   }
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
-  (*pTask)->pWalVersions = pWalVersions;
+  (*pTask)->pWalVersions = *pWalVersions;
+  *pWalVersions = NULL;
 }
 
 static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr,

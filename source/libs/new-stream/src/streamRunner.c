@@ -797,7 +797,7 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SSTriggerCalcRequest*
   } else {
     code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, NULL, vgId, taskId);
   }
-  setExecTaskInfoWalVersions(&pExec->pExecutor, pReq->pWalVersions);
+  swapExecTaskInfoWalVersions(&pExec->pExecutor, &pReq->pWalVersions);
 
   if (code) {
     ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));
