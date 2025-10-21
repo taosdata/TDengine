@@ -6298,6 +6298,18 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         SSTriggerWindow *pHead = TRINGBUF_HEAD(&pGroup->winBuf);
         SSTriggerWindow *p = pHead;
         do {
+          if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+            // for state trigger, check if state equals to the zeroth state
+            bool stEqualZeroth = false;
+            void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ?
+                  (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
+            code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (stEqualZeroth) {
+              TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
+              continue;
+            }
+          }
           SSTriggerCalcParam param = {
               .triggerTime = now,
               .wstart = p->range.skey,
@@ -7573,25 +7585,6 @@ _end:
   return code;
 }
 
-bool stIsStateEqualZeroth(char* pStateData, void* pZeroth, int32_t bytes) {
-  if (pStateData == NULL || pZeroth == NULL) {
-    return false;
-  }
-
-  SValueNode* pZerothState = (SValueNode*)pZeroth;
-  int8_t type = pZerothState->node.resType.type;
-  if (IS_VAR_DATA_TYPE(type)) {
-    return memcmp(pStateData, pZerothState->datum.p, bytes) == 0;
-  } 
-  if (IS_INTEGER_TYPE(type)) {
-    return memcmp(pStateData, &pZerothState->datum.i, bytes) == 0;
-  }
-  if (IS_BOOLEAN_TYPE(type)) {
-    return memcmp(pStateData, &pZerothState->datum.b, bytes) == 0;
-  }
-  return false;
-}
-
 static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -7673,7 +7666,10 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
               startTs = pWin->range.ekey + 1;
             }
-            if (stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, bytes)) {
+            bool stEqualZeroth = false;
+            code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (stEqualZeroth) {
               pWin = taosArrayPop(pContext->pWindows);
               stRealtimeContextDestroyWindow((void*)pWin);
             } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
@@ -9567,12 +9563,19 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
+        bool stEqualZeroth = false;
+        code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
-                                               &pExtraNotifyContent);
+        if (stEqualZeroth) {
+          TRINGBUF_DEQUEUE(&pGroup->winBuf);
+        } else {   
+          code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
           QUERY_CHECK_CODE(code, lino, _end);
+          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
+            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
+                                                 &pExtraNotifyContent);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
         }
         code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -9717,4 +9720,29 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
       return TSDB_CODE_INVALID_PARA;
     }
   }
+}
+
+int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pStateData == NULL || pZeroth == NULL) {
+    return false;
+  }
+
+  SValueNode* pZerothState = (SValueNode*)pZeroth;
+  int8_t type = pZerothState->node.resType.type;
+  if (IS_VAR_DATA_TYPE(type)) {
+    *pIsEqual = compareLenPrefixedStr(pStateData, pZerothState->datum.p) == 0;
+  } else if (IS_INTEGER_TYPE(type)) {
+    *pIsEqual = memcmp(pStateData, &pZerothState->datum.i, pZerothState->node.resType.bytes) == 0;
+  } else if (IS_BOOLEAN_TYPE(type)) {
+    *pIsEqual = memcmp(pStateData, &pZerothState->datum.b, pZerothState->node.resType.bytes) == 0;
+  } else {
+    *pIsEqual = false;
+    code = TSDB_CODE_INVALID_PARA;
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed since %s, zeroth state param type: %d", __func__, tstrerror(code), type);
+  }
+  return code;
 }

@@ -456,6 +456,22 @@ class TestStateWindowZeroth:
         # check results
         for s in streams:
             s.checkResults()
+    
+    def check_zeroth_state_stream_trigger_history(self):
+        stream = StreamItem (
+            id=12,
+            stream='''create stream st12 state_window(cbool, 0, true) from ctb2 STREAM_OPTIONS(fill_history)
+                        into res_st12 as select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt_all, sum(cfloat) sum_cfloat from %%trows;''',
+            res_query='''select wstart, wdur, wend, cnt_all, sum_cfloat from res_st12''',
+            exp_query='''select _wstart, _wduration, _wend, count(*), sum(cfloat)
+                        from ctb2 where ts >= "2025-10-01" and ts < "2025-10-02"
+                        state_window(cbool) having(cbool != true)''',
+        )
+        stream.createStream()
+        tdStream.checkStreamStatus()
+        stream.checkResults()
+        
 
     # run tests
     def test_state_window_zeroth(self):
@@ -481,3 +497,4 @@ class TestStateWindowZeroth:
         self.check_zeroth_state_query()
         self.check_zeroth_state_stream_compute()
         self.check_zeroth_state_stream_trigger()
+        self.check_zeroth_state_stream_trigger_history()
