@@ -473,7 +473,7 @@ function run_thread() {
             fi
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
-                cmd="$runcase_script sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+                cmd="$runcase_script \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
             else
                 cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
