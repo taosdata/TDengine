@@ -1654,8 +1654,7 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
 }
 
 static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
-  *listAdded = false;
+                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, void* pStreamInfo) {
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1751,7 +1750,6 @@ static int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SN
     terrno = code;
     QUERY_CHECK_CODE(code, lino, end);
   }
-  *listAdded = true;
 
 end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1764,6 +1762,38 @@ end:
   colDataDestroy(output.columnData);
   taosMemoryFreeClear(output.columnData);
   return code;
+}
+
+static int32_t processNonSuperTableUidList(STableListInfo* pListInfo, void* pVnode, SScanPhysiNode* pScanNode, 
+  SStorageAPI* pStorageAPI, SNode* pTagCond, SArray* pUidList) {
+  pListInfo->idInfo.uid = pScanNode->uid;
+  if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
+    void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
+    if (tmp == NULL) {
+      return terrno;
+    }
+  }
+  code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, false, &listAdded, pStreamInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+}
+
+static int32_t setTableList(STableListInfo* pListInfo, SArray* pUidList){
+  for (int i = 0; i < taosArrayGetSize(pUidList); i++) {
+    void* tmp = taosArrayGet(pUidList, i);
+    if (tmp == NULL) {
+      return terrno;
+    }
+    STableKeyInfo info = {.uid = *(uint64_t*)tmp, .groupId = 0};
+
+    void* p = taosArrayPush(pListInfo->pTableList, &info);
+    if (p == NULL) {
+      return terrno;
+    }
+
+    qTrace("tagfilter get uid:%" PRIu64, info.uid);
+  }
+  return 0;
 }
 
 int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
@@ -1835,10 +1865,9 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, tsTagFilterCache, &listAdded, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    // let's add the filter results into meta-cache
-    numOfTables = taosArrayGetSize(pUidList);
-
     if (tsTagFilterCache) {
+      // let's add the filter results into meta-cache
+      numOfTables = taosArrayGetSize(pUidList);
       size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
       char*  pPayload = taosMemoryMalloc(size);
       QUERY_CHECK_NULL(pPayload, code, lino, _end, terrno);
