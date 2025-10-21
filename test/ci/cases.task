@@ -242,10 +242,11 @@
 ## 07-SLimit
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/07-SLimit/test_slimit.py
 ## 08-SubQuery
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/08-SubQuery/test_subquery_basic.py
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/08-SubQuery/test_subquery_lastrow.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/08-SubQuery/test_query_sub.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/08-SubQuery/test_query_sub_lastrow.py
 ## 09-Having
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/09-Having/test_query_having_bugfix.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/09-Having/test_query_having_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/09-Having/test_query_having.py
 ## 10-Distinct
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/10-Distinct/test_distinct.py
@@ -569,10 +570,8 @@
 
 
 # 50-Meta
+,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_meta_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ddl_in_sysdb.py
-#,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ins_stables.py
-,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ins_tables.py
-
 
 # 51-Perf
 
@@ -707,11 +706,7 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/window/test_window_base.py
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/sys/test_tb_perf_queries_exist.py -N 3
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_join.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_join_const.py

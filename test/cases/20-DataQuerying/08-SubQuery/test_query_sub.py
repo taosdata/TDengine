@@ -1,21 +1,18 @@
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
-class TestSubQueryBasic:
+class TestQuerySub:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_subquery_basic(self):
+    def test_query_sub(self):
         """Subquery basic
 
         1. Perform projection queries on subquery results
         2. Perform aggregate queries on subquery results
         3. Perform window queries on subquery results
         4. Perform DIFF function queries on subquery results
-
-        Catalog:
-            - Query:SubQuery
 
         Since: v3.0.0.0
 

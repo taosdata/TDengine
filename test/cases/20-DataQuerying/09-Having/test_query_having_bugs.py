@@ -4,7 +4,7 @@ import string
 import os
 
 
-class TestHavingBuffix:
+class TestHavingBugs:
     """Add test case to verify the complicated query accuracy"""
 
     def setup_class(cls):

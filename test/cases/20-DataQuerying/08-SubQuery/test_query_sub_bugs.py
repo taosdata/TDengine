@@ -174,32 +174,28 @@ class TestSubqueryBugs:
         tdSql.checkDataMem(sql2, rows)
 
     # run
-    def test_subquery_bugs(self):
-        """summary: xxx
+    def test_query_sub_bugs(self):
+        """Subquery bugs
 
-        description: xxx
+        1. Verify bug TS-30189
+        2. Verify bug TS-5443
+        3. Verify bug TS-5878
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/subquery/test_subquery_bugs.py
 
         """
 
-        tdLog.debug(f"start to excute {__file__}")
         # TS-30189
         self.ts_30189()
         # TS-5443
         self.ts_5443()
         # TS-5878
         self.ts_5878()
-        tdLog.success(f"{__file__} successfully executed")
 
