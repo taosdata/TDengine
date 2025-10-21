@@ -608,15 +608,18 @@ async fn fetch_ntables_meta(taos: &Taos, db: &str) -> anyhow::Result<Vec<MetaUni
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DbMeta {
     pub name: String,
-    pub create_time: i64,          // TIMESTAMP(8)
-    pub ntables: i64,              // BIGINT(8)
-    pub strict: String,            // VARCHAR(4)
-    pub status: String,            // VARCHAR(10)
-    pub retentions: String,        // VARCHAR(60)
-    pub ss_chunkpages: i32,        // INT(4)
-    pub ss_keeplocal: String,      // VARCHAR(10)
-    pub ss_compact: i8,            // TINYINT(1)
-    pub with_arbitrator: i8,       // TINYINT(1)
+    pub create_time: i64,   // TIMESTAMP(8)
+    pub ntables: i64,       // BIGINT(8)
+    pub strict: String,     // VARCHAR(4)
+    pub status: String,     // VARCHAR(10)
+    pub retentions: String, // VARCHAR(60)
+    /// ss_chunkpages is available since TDengine v3.3.8
+    pub ss_chunkpages: Option<i32>, // INT(4)
+    /// ss_keeplocal is available since TDengine v3.3.8
+    pub ss_keeplocal: Option<String>, // VARCHAR(10)
+    /// ss_compact is available since TDengine v3.3.8
+    pub ss_compact: Option<i8>, // TINYINT(1)
+    pub with_arbitrator: i8, // TINYINT(1)
     pub encrypt_algorithm: String, // VARCHAR(16)
     #[serde(flatten)]
     pub opts: Option<DatabaseOptions>, // database options
@@ -656,9 +659,15 @@ impl Display for DbMeta {
         }
 
         write!(f, " ENCRYPT_ALGORITHM '{}'", self.encrypt_algorithm)?;
-        write!(f, " SS_CHUNKPAGES {}", self.ss_chunkpages)?;
-        write!(f, " SS_KEEPLOCAL {}", self.ss_keeplocal)?;
-        write!(f, " SS_COMPACT {}", self.ss_compact)?;
+        if let Some(v) = self.ss_chunkpages {
+            write!(f, " SS_CHUNKPAGES {}", v)?;
+        }
+        if let Some(v) = &self.ss_keeplocal {
+            write!(f, " SS_KEEPLOCAL {}", v)?;
+        }
+        if let Some(v) = self.ss_compact {
+            write!(f, " SS_COMPACT {}", v)?;
+        }
 
         Ok(())
     }
