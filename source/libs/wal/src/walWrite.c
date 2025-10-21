@@ -717,7 +717,7 @@ _exit:
   return code;
 }
 
-int32_t walFsync(SWal *pWal, bool forceFsync) {
+int32_t walFsync(SWal *pWal, int64_t index, bool forceFsync) {
   int32_t code = 0;
 
   if (pWal->cfg.level == TAOS_WAL_SKIP) {
@@ -726,11 +726,19 @@ int32_t walFsync(SWal *pWal, bool forceFsync) {
 
   TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
   if (forceFsync || (pWal->cfg.level == TAOS_WAL_FSYNC && pWal->cfg.fsyncPeriod == 0)) {
+    if (pWal->cfg.vgId == 1) {
+      wInfo("vgId:%d, fileId:%" PRId64 ".log,index:%" PRId64 " before fsync", pWal->cfg.vgId,
+            walGetCurFileFirstVer(pWal), index);
+    }
     wTrace("vgId:%d, fileId:%" PRId64 ".log, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
     if (taosFsyncFile(pWal->pLogFile) < 0) {
       wError("vgId:%d, file:%" PRId64 ".log, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),
              strerror(ERRNO));
       code = terrno;
+    }
+    if (pWal->cfg.vgId == 1) {
+      wInfo("vgId:%d, fileId:%" PRId64 ".log,index:%" PRId64 " after fsync", pWal->cfg.vgId,
+            walGetCurFileFirstVer(pWal), index);
     }
   }
   TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));

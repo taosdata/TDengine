@@ -173,7 +173,7 @@ void    walClose(SWal *);
 // By assigning index by the caller, wal gurantees linearizability
 int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen,
                      const STraceId *trace);
-int32_t walFsync(SWal *, bool force);
+int32_t walFsync(SWal *,int64_t index, bool force);
 
 // apis for lifecycle management
 int32_t walCommit(SWal *, int64_t ver);
