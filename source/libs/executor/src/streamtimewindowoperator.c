@@ -3141,11 +3141,13 @@ int32_t closeSessionWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SSHa
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pHashMap, pIte, &iter)) != NULL) {
     SResultWindowInfo* pWinInfo = pIte;
+    
     if (isCloseWindow(&pWinInfo->sessionWin.win, pTwSup)) {
       if (pTwSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE && pClosed) {
         code = saveResult(*pWinInfo, pClosed);
         QUERY_CHECK_CODE(code, lino, _end);
       }
+
       SSessionKey* pKey = tSimpleHashGetKey(pIte, NULL);
       code = tSimpleHashIterateRemove(pHashMap, pKey, sizeof(SSessionKey), &pIte, &iter);
       QUERY_CHECK_CODE(code, lino, _end);

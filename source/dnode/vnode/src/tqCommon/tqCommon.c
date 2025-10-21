@@ -75,6 +75,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
       .fillHistory = pTask->info.fillHistory,
       .winRange = pTask->dataRange.window,
       .pOtherBackend = NULL,
+      .enableMaxDelay = (pTask->info.delaySchedParam != 0)
   };
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__MERGE) {

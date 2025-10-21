@@ -47,6 +47,7 @@ typedef struct {
   SMsgCb*     pMsgCb;
   int64_t     version;
   uint64_t    checkpointId;
+  bool        enableMaxDelay;
   bool        initTableReader;
   bool        initTqReader;
   bool        skipRollup;
