@@ -45,6 +45,8 @@ int32_t        compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SA
 
 static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype,
                                     int32_t tsmmConfigVersion);
+static int32_t mndConfigUpdateTransWithDnode(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype,
+                                             int32_t tsmmConfigVersion, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq);
 static int32_t mndFindConfigsToAdd(SMnode *pMnode, SArray *addArray);
 static int32_t mndFindConfigsToDelete(SMnode *pMnode, SArray *deleteArray);
 static int32_t mndExecuteConfigSyncTrans(SMnode *pMnode, SArray *addArray, SArray *deleteArray);
@@ -631,6 +633,42 @@ _err:
   TAOS_RETURN(code);
 }
 
+static int32_t mndBuildCfgDnodeRedoAction(STrans *pTrans, SDnodeObj *pDnode, SDCfgDnodeReq *pDcfgReq) {
+  int32_t code = 0;
+  SEpSet  epSet = mndGetDnodeEpset(pDnode);
+  int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, pDcfgReq);
+  void   *pBuf = taosMemoryMalloc(bufLen);
+
+  if (pBuf == NULL) {
+    code = terrno;
+    return code;
+  }
+
+  if ((bufLen = tSerializeSDCfgDnodeReq(pBuf, bufLen, pDcfgReq)) <= 0) {
+    code = bufLen;
+    taosMemoryFree(pBuf);
+    return code;
+  }
+
+  STransAction action = {
+      .epSet = epSet,
+      .pCont = pBuf,
+      .contLen = bufLen,
+      .msgType = TDMT_DND_CONFIG_DNODE,
+      .acceptableCode = 0,
+      .groupId = -1,
+  };
+
+  mInfo("dnode:%d, append redo action to trans, config:%s value:%s", pDnode->id, pDcfgReq->config, pDcfgReq->value);
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pBuf);
+    return code;
+  }
+
+  return code;
+}
+
 static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
   int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;
@@ -762,24 +800,38 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     code = TSDB_CODE_CFG_NOT_FOUND;
     goto _err_out;
   }
-  if (pItem->category == CFG_CATEGORY_GLOBAL) {
-    TAOS_CHECK_GOTO(mndConfigUpdateTrans(pMnode, dcfgReq.config, dcfgReq.value, pItem->dtype, ++vObj->i32), &lino,
-                    _err_out);
+
+  // Audit log
+  {
+    char obj[50] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
+    auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
   }
-_send_req :
 
-{  // audit
-  char obj[50] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
+  dcfgReq.version = vObj->i32 + 1;
 
-  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
-}
+  if (pItem->category == CFG_CATEGORY_GLOBAL) {
+    // Use transaction to update SDB and send to dnode atomically
+    TAOS_CHECK_GOTO(mndConfigUpdateTransWithDnode(pMnode, dcfgReq.config, dcfgReq.value, pItem->dtype, dcfgReq.version,
+                                                  cfgReq.dnodeId, &dcfgReq),
+                    &lino, _err_out);
+  } else {
+    // For local config, still use the old method (only send to dnode)
+    goto _send_req;
+  }
+
+  // For global config, transaction has handled everything, go to success
+  goto _success;
+
+_send_req:
   dcfgReq.version = vObj->i32;
   code = mndSendCfgDnodeReq(pMnode, cfgReq.dnodeId, &dcfgReq);
   if (code != 0) {
     mError("failed to send config req to dnode:%d, since %s", cfgReq.dnodeId, tstrerror(code));
     goto _err_out;
   }
+
+_success:
   // dont care suss or succ;
   if (updateIpWhiteList) mndRefreshUserIpWhiteList(pMnode);
   tFreeSMCfgDnodeReq(&cfgReq);
@@ -954,6 +1006,173 @@ static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pVal
 _OVER:
   if (code != 0) {
     mError("failed to update config:%s to value:%s, since %s", name, pValue, tstrerror(code));
+  }
+  mndTransDrop(pTrans);
+  tFreeSConfigObj(pVersion);
+  taosMemoryFree(pVersion);
+  tFreeSConfigObj(pObj);
+  taosMemoryFree(pObj);
+  return code;
+}
+
+static int32_t mndConfigUpdateTransWithDnode(SMnode *pMnode, const char *name, char *pValue, ECfgDataType dtype,
+                                             int32_t tsmmConfigVersion, int32_t dnodeId, SDCfgDnodeReq *pDcfgReq) {
+  int32_t     code = -1;
+  int32_t     lino = -1;
+  SConfigObj *pVersion = taosMemoryMalloc(sizeof(SConfigObj)), *pObj = taosMemoryMalloc(sizeof(SConfigObj));
+  if (pVersion == NULL || pObj == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  tstrncpy(pVersion->name, "tsmmConfigVersion", CFG_NAME_MAX_LEN);
+  pVersion->dtype = CFG_DTYPE_INT32;
+  pVersion->i32 = tsmmConfigVersion;
+
+  pObj->dtype = dtype;
+  tstrncpy(pObj->name, name, CFG_NAME_MAX_LEN);
+
+  TAOS_CHECK_GOTO(mndUpdateObj(pObj, name, pValue), &lino, _OVER);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "update-config-with-dnode");
+  if (pTrans == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  mInfo("trans:%d, used to update config:%s to value:%s and send to dnode", pTrans->id, name, pValue);
+
+  // Add commit logs for SDB config updates
+  TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pVersion), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pObj), &lino, _OVER);
+
+  if (taosStrncasecmp(name, "syncTimeout", CFG_NAME_MAX_LEN) == 0) {
+    SConfigObj *pTmp = NULL;
+    int32_t     syncTimeout = 0;
+    char        tmp[10] = {0};
+    sscanf(pValue, "%d", &syncTimeout);
+
+    sprintf(tmp, "%d", syncTimeout);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "arbSetAssignedTimeoutMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    sprintf(tmp, "%d", syncTimeout / 4);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "arbHeartBeatIntervalMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "arbCheckSyncIntervalMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 2);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "syncVnodeElectIntervalMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "syncMnodeElectIntervalMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "statusTimeoutMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 4);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "statusSRTimeoutMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 8);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "syncVnodeHeartbeatIntervalMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "syncMnodeHeartbeatIntervalMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+
+    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+    pTmp->dtype = CFG_DTYPE_INT32;
+    tstrncpy(pTmp->name, "statusIntervalMs", CFG_NAME_MAX_LEN);
+    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+  }
+
+  // Add redo actions to send config to dnodes
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  int64_t curMs = taosGetTimestampMs();
+
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    if (pDnode->id == dnodeId || dnodeId == -1 || dnodeId == 0) {
+      bool online = mndIsDnodeOnline(pDnode, curMs);
+      if (!online) {
+        mWarn("dnode:%d, is offline, still add to trans for retry", pDnode->id);
+      }
+
+      code = mndBuildCfgDnodeRedoAction(pTrans, pDnode, pDcfgReq);
+      if (code != 0) {
+        mError("failed to build config redo action for dnode:%d, since %s", pDnode->id, tstrerror(code));
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDnode);
+        goto _OVER;
+      }
+    }
+    sdbRelease(pSdb, pDnode);
+  }
+
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
+  code = 0;
+
+_OVER:
+  if (code != 0) {
+    mError("failed to update config:%s to value:%s and send to dnode, since %s", name, pValue, tstrerror(code));
   }
   mndTransDrop(pTrans);
   tFreeSConfigObj(pVersion);
