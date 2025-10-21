@@ -603,7 +603,7 @@ class TSMATestSQLGenerator:
 
 
 class TestTsma:
-    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 3, 'debugFlag': 143}
+    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 10, 'debugFlag': 143}
 
     def setup_class(cls):
         cls.vgroups = 4
