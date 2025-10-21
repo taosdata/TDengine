@@ -1765,7 +1765,7 @@ end:
 }
 
 static int32_t processNonSuperTableUidList(STableListInfo* pListInfo, void* pVnode, SScanPhysiNode* pScanNode, 
-  SStorageAPI* pStorageAPI, SNode* pTagCond, SArray* pUidList) {
+  SStorageAPI* pStorageAPI, SNode* pTagCond, SArray* pUidList, void* pStreamInfo) {
   pListInfo->idInfo.uid = pScanNode->uid;
   if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
     void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
@@ -1773,9 +1773,7 @@ static int32_t processNonSuperTableUidList(STableListInfo* pListInfo, void* pVno
       return terrno;
     }
   }
-  code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, false, &listAdded, pStreamInfo);
-  QUERY_CHECK_CODE(code, lino, _end);
-
+  return doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, false, pStreamInfo);
 }
 
 static int32_t setTableList(STableListInfo* pListInfo, SArray* pUidList){
@@ -1796,6 +1794,17 @@ static int32_t setTableList(STableListInfo* pListInfo, SArray* pUidList){
   return 0;
 }
 
+static int32_t getFromCache(SNode* pTagCond){
+  // try to retrieve the result from meta cache
+  int32_t code = genTagFilterDigest(pTagCond, &context);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  bool acquired = false;
+  code = pStorageAPI->metaFn.getCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),
+                                                pUidList, &acquired);
+  QUERY_CHECK_CODE(code, lino, _error);
+}
+
 int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI, void* pStreamInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1811,12 +1820,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
   if (pScanNode->tableType != TSDB_SUPER_TABLE) {
-    pListInfo->idInfo.uid = pScanNode->uid;
-    if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
-      void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
-      QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
-    }
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false, &listAdded, pStreamInfo);
+    code = processNonSuperTableUidList(pListInfo, pVnode, pScanNode, pStorageAPI, pTagCond, pUidList, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
     T_MD5_CTX context = {0};
