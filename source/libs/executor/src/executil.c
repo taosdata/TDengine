@@ -1780,7 +1780,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   QUERY_CHECK_NULL(pUidList, code, lino, _error, terrno);
 
   SIdxFltStatus status = SFLT_NOT_INDEX;
-  if (pScanNode->tableType != TSDB_SUPER_TABLE) {
+  if (pScanNode->tableType != TSDB_SUPER_TABLE && !pScanNode->virtualStableScan) {
     pListInfo->idInfo.uid = pScanNode->uid;
     if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
       void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
@@ -2902,6 +2902,9 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->slimit = slimit;
   pLimitInfo->remainOffset = limit.offset;
   pLimitInfo->remainGroupOffset = slimit.offset;
+  pLimitInfo->numOfOutputRows = 0;
+  pLimitInfo->numOfOutputGroups = 0;
+  pLimitInfo->currentGroupId = 0;
 }
 
 void resetLimitInfoForNextGroup(SLimitInfo* pLimitInfo) {

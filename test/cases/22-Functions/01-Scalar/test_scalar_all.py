@@ -140,6 +140,12 @@ class TestScalarFunction:
     def run_trim(self):
         self.run_normal_query_new("trim")
 
+    def run_base64(self):
+        self.run_normal_query_new("base64")
+    
+    def run_crc32(self):
+        self.run_normal_query_new("crc32")        
+
     def run_timediff(self):
         self.run_normal_query_new("timediff")
         tdSql.error("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
@@ -465,33 +471,606 @@ class TestScalarFunction:
             - 2025-5-08 Huo Hong Migrated to new test framework
 
         """
-        self.run_pi()
         self.run_round()
-        self.run_exp()
-        self.run_truncate()
-        self.run_ln()
-        self.run_mod()
-        self.run_sign()
-        self.run_degrees()
-        self.run_radians()
-        self.run_rand()
-        self.run_greatest()
-        self.run_least()
         self.run_greatest_large_table()
-        
-        self.run_char_length()
-        self.run_char()
-        self.run_ascii()
-        self.run_position()
-        self.run_replace()
-        self.run_repeat()
-        self.run_substr()
-        self.run_substr_idx()
-        self.run_trim()
 
         self.run_timediff()
-        self.run_week()
-        self.run_weekday()
-        self.run_weekofyear()
-        self.run_dayofweek()
+
+
+    def test_fun_sca_degrees(self):
+        """ Fun: degrees()
+
+        1. Support datatype types
+        2. Query with constant parameter
+        3. Query with function parameter (abs/sin/cos)
+        4. Query with limit
+        5. Query with order by
+        6. Query with null value
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_degrees()
+
+    def test_fun_sca_exp(self):
+        """ Fun: exp()
+
+        1. Support datatype types
+        2. Query with constant/boundary/null/expr parameter
+        3. Query with function parameter (abs/log/round)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_exp()
+
+    def test_fun_sca_greatest(self):
+        """ Fun: greatest()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_greatest()
+
+    def test_fun_sca_least(self):
+        """ Fun: least()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_least()
+        
+    def test_fun_sca_ln(self):
+        """ Fun: ln()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_ln()
+
+    def test_fun_sca_mod(self):
+        """ Fun: mod()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_mod()
+
+    def test_fun_sca_pi(self):
+        """ Fun: pi()
+
+        1. Support data types
+        2. Query with constant/boundary/null/chinese/now parameter
+        3. Query with function parameter (cast)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_pi()
+
+    def test_fun_sca_radians(self):
+        """ Fun: radians()
+
+        1. Support data types
+        2. Query with constant/boundary/null parameter
+        3. Query with function parameter (sqrt/degrees)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_radians()
+
+    def test_fun_sca_rand(self):
+        """ Fun: rand()
+
+        1. Support data types
+        2. Query with constant/boundary/null/big parameter
+        3. Query with limit
+        4. Query with order by
+        5. Query on stable/notable
+        6. Query on where clause
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_rand()
+
+    def test_fun_sca_sign(self):
+        """ Fun: sign()
+
+        1. Support data types
+        2. Query with constant/boundary/null parameter
+        3. Query with function parameter (sqrt/abs/round/log)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with string parameter
+        9. Error query with two parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_sign()
+        
+    def test_fun_sca_truncate(self):
+        """ Fun: truncate()
+
+        1. Support data types
+        2. Query with constant/boundary/null parameter
+        3. Query with function parameter (exp/abs/log)
+        4. Query with limit
+        5. Query with order by
+        6. Query on stable/notable
+        7. Query like TRUNCATE(TRUNCATE(TRUNCATE(...
+        8. Error query with no parameter
+        9. Error query with string parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_truncate()
+        
+    def test_fun_sca_crc32(self):
+        """ Fun: crc32()
+
+        1. Support data types
+        2. Query with constant/null/blank/chinese parameter
+        3. Query with function parameter (to_timestamp/to_char)
+        4. Query with float/int/expr parameter
+        5. Error query with no parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        self.run_crc32()
+
+    def test_fun_sca_base64(self):
+        """ Fun: base64()
+
+        1. Support data types
+        2. Query with constant/boundary/null/blank/chinese parameter
+        3. Query with function parameter (trim/repeat/concat/lower)
+        4. Error query with no parameter
+        5. Error query with number parameter
+        6. Error query with cast as integer parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_base64()
+        
+    def test_fun_sca_ascii(self):
+        """ Fun: ascii()
+
+        1. Support data types
+        2. Query with constant/null/blank/special char/chinese parameter
+        3. Query with input parameter cast/concat/substring
+        4. Query with output parameter pow/sqrt/cast
+        5. Query with limit/order by
+        6. Query on super/no table
+        7. Error query with no parameter
+        8. Error query with number parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_ascii()
+
+    def test_fun_sca_char(self):
+        """ Fun: char()
+
+        1. Support data types
+        2. Query with constant/null/string/float/int/expr parameter
+        3. Query with output parameter concat/cast
+        4. Query with 1 ~ 5 parameter
+        5. Query with limit/order by
+        6. Query on super/no table
+        7. Error query with no parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_char()
+
+    def test_fun_sca_char_length(self):
+        """ Fun: char_length()
+
+        1. Support data types
+        2. Query with constant/null/blank/chinese/japanese parameter
+        3. Query with input parameter concat/cast
+        4. Query with output parameter sqrt/cast/min/max/avg
+        5. Query with limit/order by/group by/
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with number parameter
+
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_char_length()
+
+    def test_fun_sca_position(self):
+        """ Fun: position()
+
+        1. Support datatype varchar/nchar
+        2. Query with constant/null/blank/expr parameter
+        3. Call in function abs/pow
+        4. Call with function input substring/trim/upper/concat 
+        5. Query with limit/order by
+        6. Query on stable/notable
+        7. Error query with no parameter
+        8. Error query with 1 parameter
+        9. Error query with number parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_position()
+        
+    def test_fun_sca_repeat(self):
+        """ Fun: repeat()
+
+        1. Support datatype varchar/nchar
+        2. Query with first parameter null or second parameter null
+        3. Call in function concat/concat_ws/position
+        4. Call with function input trim/concat/length
+        5. Query with limit/order by/where
+        6. Query on stable/notable
+        7. Query on column/tag
+        8. Error query with no parameter
+        9. Error query with 1 and 3 parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_repeat()
+
+    def test_fun_sca_replace(self):
+        """ Fun: replace()
+
+        1. Support datatype varchar/nchar
+        2. Query with first and second parameter null
+        3. Call with function input lower/substr/concat/upper/trim
+        4. Query with limit/order by/where
+        5. Query on stable/notable
+        6. Query on column/tag/constant
+        7. Error query with no parameter
+        8. Error query with invalid datatype parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_replace()
+
+    def test_fun_sca_substr(self):
+        """ Fun: substr()
+
+        1. Support datatype varchar/nchar
+        2. Query with 1 ~ 3 parameter null
+        3. Query with from/for keyword
+        4. Call with function input concat/upper/trim/sign
+        5. Query with limit/order by/where
+        6. Query on stable/notable
+        7. Query on column/tag/constant
+        8. Query with alias name substring
+        9. Error query with no parameter
+        10. Error query with invalid datatype parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_substr()
+
+    def test_fun_sca_substring_index(self):
+        """ Fun: substring_index()
+
+        1. Support datatype varchar/nchar
+        2. Query with 1 ~ 3 parameter null
+        3. Call with function input concat/upper/trim/length
+        4. Query with limit/order by/where
+        5. Query on stable/child/notable
+        6. Error query with no parameter
+        7. Error query with first parameter number
+        8. Error query with second parameter string
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        self.run_substr_idx()
+
+    def test_fun_sca_trim(self):
+        """ Fun: trim()
+
+        1. Support data types varchar/nchar
+        2. Query with keyword both/leading/trailing/from
+        3. Query with constant/null/chinese parameter
+        4. Query with input function parameter concat/upper/substring/replace
+        5. Query with limit/order by asc/where
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with number parameter
+        9. Error query with both from with number parameter
+
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-14 Alex Duan add doc
+
+        """
+        self.run_trim()
+
+    def test_fun_sca_date(self):
+        """ Fun: date()
+
+        1. Support data type timestamp/bigint/float
+        2. Query with group by
+        3. Query with null/boundary/0/-1000 parameter
+        4. Query with parameter "9999-12-31"/"01-JAN-25"/"#$@!+-*/"/"abcd"
+        5. Query with limit/order by asc/where
+        6. Query on super/no table
+        7. Error query with no parameter
+        8. Error query with invalid parameter
+
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
         self.run_date()
+
+    def test_fun_sca_dayofweek(self):
+        """ Fun: dayofweek()
+
+        1. Support data types timestamp/varchar/bigint
+        2. Query with null/'9999-12-31'/'01-JAN-20'/'abc' parameter
+        3. Query with input parameter timediff
+        4. Query with output parameter sum
+        5. Query with limit/order by/group by
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with 2 parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_dayofweek()
+
+    def test_fun_sca_week(self):
+        """ Fun: week()
+
+        1. Support data types timestamp/varchar/bigint
+        2. Query with null/'abc'/'01-JAN-20'/'9999-12-31' parameter
+        3. Query with second parameter mode 0/1/2/3/4/5/6/7
+        4. Query with input parameter timediff
+        5. Query with output parameter sum
+        6. Query with limit/order by/group by
+        7. Query on super/child/no table
+        8. Error query with no parameter
+        9. Error query with no input first parameter
+        10. Error query with input second float parameter
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_week()
+
+    def test_fun_sca_weekday(self):
+        """ Fun: weekday()
+
+        1. Support data types timestamp/varchar/bigint
+        2. Query with null/'abc'/'01-JAN-20'/'9999-12-31' parameter
+        3. Query with input parameter timediff
+        4. Query with output parameter sum
+        5. Query with limit/order by/group by
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with 2 parameters
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_weekday()
+
+
+    def test_fun_sca_weekofyear(self):
+        """ Fun: weekofyear()
+
+        1. Support data types timestamp/varchar/bigint
+        2. Query with null/'abc'/'11/01/31'/'01-JAN-20'/'9999-12-31' parameter
+        3. Query with input parameter timediff
+        4. Query with output parameter sum
+        5. Query with limit/order by/group by/where
+        6. Query on super/child/no table
+        7. Error query with no parameter
+        8. Error query with 2 parameters
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.run_weekofyear()   

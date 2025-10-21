@@ -82,6 +82,9 @@ typedef struct SSysTableScanInfo {
   // file set iterate
   struct SFileSetReader* pFileSetReader;
   SHashObj*              pExtSchema;
+
+  // for virtual supertable scan
+  STableListInfo*        pSubTableListInfo;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -832,6 +835,19 @@ _end:
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
+static bool virtualChildTableNeedCollect(STableListInfo* pTableListInfo, tb_uid_t tableUid) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
+    tb_uid_t* childUid = taosArrayGet(pTableListInfo->pTableList, i);
+    if (childUid == NULL) {
+      return false;
+    }
+    if (*childUid == tableUid) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -916,7 +932,9 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
-
+      if (!virtualChildTableNeedCollect(pInfo->pSubTableListInfo, pInfo->pCur->mr.me.uid)) {
+        continue;
+      }
       colRef = &pInfo->pCur->mr.me.colRef;
       int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
       void*   schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
@@ -3402,44 +3420,50 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
   }
 }
 
-// static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
-//   SSysTableScanInfo* pInfo = pOper->info;
-//   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
-//   SSystemTableScanPhysiNode* pPhynode = (SSystemTableScanPhysiNode*)pOper->pPhyNode;
+static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
+  SSysTableScanInfo* pInfo = pOper->info;
 
-//   blockDataEmpty(pInfo->pRes);
+  pOper->status = OP_NOT_OPENED;
+  blockDataEmpty(pInfo->pRes);
 
-//   if (pInfo->name.type == TSDB_TABLE_NAME_T) {
-//     const char* name = tNameGetTableName(&pInfo->name);
-//     if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-//         strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
-//         strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
-//       if (pInfo->pAPI != NULL && pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
-//         pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-//       }
+  if (pInfo->name.type == TSDB_TABLE_NAME_T) {
+    const char* name = tNameGetTableName(&pInfo->name);
+    if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
+      if (pInfo->pAPI != NULL && pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
+        pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      }
 
-//       pInfo->pCur = NULL;
-//     }
-//   } else {
-//     qError("pInfo->name is not initialized");
-//   }
+      pInfo->pCur = NULL;
+    }
+  } else {
+    qError("pInfo->name is not initialized");
+  }
 
-//   if (pInfo->pIdx) {
-//     taosArrayDestroy(pInfo->pIdx->uids);
-//     taosMemoryFree(pInfo->pIdx);
-//     pInfo->pIdx = NULL;
-//   }
+  if (pInfo->pIdx) {
+    taosArrayDestroy(pInfo->pIdx->uids);
+    taosMemoryFree(pInfo->pIdx);
+    pInfo->pIdx = NULL;
+  }
 
-//   if (pInfo->pSchema) {
-//     taosHashCleanup(pInfo->pSchema);
-//     pInfo->pSchema = NULL;
-//   }
+  if (pInfo->pSchema) {
+    taosHashCleanup(pInfo->pSchema);
+    pInfo->pSchema = NULL;
+  }
 
-//   return 0;
-// }
+  if (pInfo->pExtSchema) {
+    taosHashCleanup(pInfo->pExtSchema);
+    pInfo->pExtSchema = NULL;
+  }
+  pInfo->readHandle.mnd = NULL;
 
-int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode, const char* pUser,
-                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  return 0;
+}
+
+int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
+                                       STableListInfo* pTableListInfo, const char* pUser, SExecTaskInfo* pTaskInfo,
+                                       SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -3452,6 +3476,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     goto _error;
   }
 
+  pOperator->pPhyNode = pScanPhyNode;
   SScanPhysiNode*     pScanNode = &pScanPhyNode->scan;
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
   QUERY_CHECK_CODE(code, lino, _error);
@@ -3508,12 +3533,14 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     pInfo->readHandle = *(SReadHandle*)readHandle;
   }
 
+  pInfo->pSubTableListInfo = pTableListInfo;
+
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScanNext, NULL, destroySysScanOperator,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  // setOperatorResetStateFn(pOperator, resetSysTableScanOperState);
+  setOperatorResetStateFn(pOperator, resetSysTableScanOperState);
   
   *pOptrInfo = pOperator;
   return code;
@@ -3592,6 +3619,7 @@ void destroySysScanOperator(void* param) {
     taosHashCleanup(pInfo->pExtSchema);
     pInfo->pExtSchema = NULL;
   }
+  tableListDestroy(pInfo->pSubTableListInfo);
 
   taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFreeClear(pInfo->pUser);
