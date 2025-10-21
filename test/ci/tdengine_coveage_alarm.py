@@ -381,19 +381,19 @@ def compare_cells(data1, data2, webhook_urls):
         notifier = "xyguo@taosdata.com"
         return message, notifier, highest_coverage_thistime_value, webhook_urls['alert']
     elif (data1_1 - data2_1) > 0 and (data1_1*100 > highest_coverage_thistime_value):
-        message = f" Taosd && taosc 代码覆盖率由{data2}上升到{data1}，产生新的覆盖率记录，当前覆盖率为 {round(data1_1*100, 3)}%超过历史最高覆盖率 {round(highest_coverage_thistime_value,3)}%，继续加油!失败的case:{fail_case_message}" 
+        message = f" Taosd && taosc 代码覆盖率由{data2}上升到{data1}，产生新的覆盖率记录，当前覆盖率为 {round(data1_1*100, 3)}% 超过历史最高覆盖率 {round(highest_coverage_thistime_value,3)}%，继续加油!失败的case:{fail_case_message}" 
         notifier = "slguan@taosdata.com"
         return message, notifier, highest_coverage_thistime_value, webhook_urls['alert']
     elif (data1_1 - data2_1) > 0 and (data1_1*100 <= highest_coverage_thistime_value):
-        message = f" Taosd && taosc 代码覆盖率由{data2}上升到{data1}，当前覆盖率为 {round(data1_1*100, 3)}%离历史最高覆盖率 {round(highest_coverage_thistime_value,3)}% 还差 {round(highest_coverage_thistime_value - data1_1 * 100, 3)}%，继续加油!失败的case:{fail_case_message}" 
+        message = f" Taosd && taosc 代码覆盖率由{data2}上升到{data1}，当前覆盖率为 {round(data1_1*100, 3)}% 离历史最高覆盖率 {round(highest_coverage_thistime_value,3)}% 还差 {round(highest_coverage_thistime_value - data1_1 * 100, 3)}%，继续加油!失败的case:{fail_case_message}" 
         notifier = "slguan@taosdata.com"
         return message, notifier, highest_coverage_thistime_value, webhook_urls['alert']
     elif (data1_1 - data2_1) < -0.003:
-        message = f" Taosd && taosc 代码覆盖率由{data2}下降到{data1}，当前覆盖率为 {round(data1_1*100, 3)}%离历史最高覆盖率 {round(highest_coverage_thistime_value,3)}% 还差 {round(highest_coverage_thistime_value - data1_1 * 100, 3)}%，请关注!失败的case:{fail_case_message}" 
+        message = f" Taosd && taosc 代码覆盖率由{data2}下降到{data1}，当前覆盖率为 {round(data1_1*100, 3)}% 离历史最高覆盖率 {round(highest_coverage_thistime_value,3)}% 还差 {round(highest_coverage_thistime_value - data1_1 * 100, 3)}%，请关注!失败的case:{fail_case_message}" 
         notifier = "slguan@taosdata.com"
         return message, notifier, highest_coverage_thistime_value, webhook_urls['alert']
     else:
-        message = " Taosd && taosc 代码覆盖率基本不变（<0.1%），请继续保持!" 
+        message = f" Taosd && taosc 本次代码覆盖率基本不变（<0.1%），当前覆盖率为 {round(data1_1*100, 3)}% 离历史最高覆盖率 {round(highest_coverage_thistime_value,3)}% 还差 {round(highest_coverage_thistime_value - data1_1 * 100, 3)}%，请继续保持!" 
         notifier = "xyguo@taosdata.com"
         return message, notifier, highest_coverage_thistime_value, webhook_urls['notify']
     
