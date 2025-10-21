@@ -85,16 +85,14 @@ nav:
         - 06-Limit: case_list_docs/DataQuerying/Limit.md
         - 07-SLimit: case_list_docs/DataQuerying/SLimit.md
         - 08-SubQuery: case_list_docs/DataQuerying/SubQuery.md
-        - 09-SelectList: case_list_docs/DataQuerying/SelectList.md
-        - 10-Union: case_list_docs/DataQuerying/Union.md
-        - 11-Interp: case_list_docs/DataQuerying/Interp.md
-        - 12-Having: case_list_docs/DataQuerying/Having.md
-        - 13-Distinct: case_list_docs/DataQuerying/Distinct.md
-        - 14-Explain: case_list_docs/DataQuerying/Explain.md
-        - 16-PsedoColumn: case_list_docs/DataQuerying/PsedoColumn.md
-        - 17-Tags: case_list_docs/DataQuerying/Tags.md
-        - 18-Regexp: case_list_docs/DataQuerying/Regexp.md
-        - 99-Others: case_list_docs/DataQuerying/Others.md
+        - 09-Having: case_list_docs/DataQuerying/Having.md
+        - 10-Distinct: case_list_docs/DataQuerying/Distinct.md
+        - 11-PseudoColumn: case_list_docs/DataQuerying/PseudoColumn.md
+        - 12-Interp: case_list_docs/DataQuerying/Interp.md
+        - 13-CaseWhen: case_list_docs/DataQuerying/CaseWhen.md
+        - 14-Tags: case_list_docs/DataQuerying/Tags.md
+        - 15-Explain: case_list_docs/DataQuerying/Explain.md
+        - 17-BiMode: case_list_docs/DataQuerying/BiMode.md
     - 21-Operators: case_list_docs/Operators.md
     - 22-Functions:
         - 01-Scalar: case_list_docs/Functions/Scalar.md

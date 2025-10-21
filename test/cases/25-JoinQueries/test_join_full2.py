@@ -3396,22 +3396,24 @@ class TestJoin:
         self.total_sql_num += sql_num
 
     def test_join(self):
-        """summary: xxx
+        """Join Test Full2
+        
+        1. Create necessary databases and tables
+        2. Insert test data into the tables
+        3. Join with inner/left/outer/full/semi/anti/asof
+        4. Join with composite primary key (int32, int64, str)
+        5. Validate the results of each join query against expected outcomes
+        6. Join with us/ns/ms precision timestamps
+        7. Error join checked
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/test_join.py
 
         """
         # common check points for all join types with common data
