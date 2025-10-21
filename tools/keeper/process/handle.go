@@ -543,7 +543,6 @@ func (p *Processor) Process() {
 }
 
 func (p *Processor) buildFQName(tableName string, column string) string {
-
 	// keep same metric name
 	tempFQName := tableName + "_" + column
 	if _, ok := metricNameMap[tempFQName]; ok {
