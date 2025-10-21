@@ -8780,6 +8780,7 @@ dependencies = [
  "assert_fs",
  "async-stream",
  "awc",
+ "base64 0.22.1",
  "bitfield",
  "bytes",
  "captcha",

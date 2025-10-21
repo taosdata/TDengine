@@ -242,7 +242,7 @@ async function login() {
       }
       const phone_email = registered_user;
       const lang = localStorage.getItem('local_language') || '';
-      if (phone_email) {
+      if (phone_email && phone_email != 'skipped') {
         reportTaosdInfo({
           phone_email,
           lang,
