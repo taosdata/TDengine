@@ -1,6 +1,8 @@
 package util
 
 import (
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 )
 
@@ -49,5 +51,70 @@ func TestHandleIp(t *testing.T) {
 				t.Errorf("HandleIp(%q) = %q, want %q", tc.host, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestReadUint_ReadFileError_ReturnsZeroAndError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nonexistent")
+	v, err := ReadUint(path)
+	if err == nil {
+		t.Fatalf("expected error for missing file, got nil")
+	}
+	if v != 0 {
+		t.Fatalf("expected value 0 on error, got %d", v)
+	}
+}
+
+func TestParseUint_NegativeWithinRange_ReturnsZeroNil(t *testing.T) {
+	v, err := ParseUint("-1", 10, 64)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v != 0 {
+		t.Fatalf("want 0, got %d", v)
+	}
+}
+
+func TestParseUint_NegativeOverflow_ReturnsZeroNil(t *testing.T) {
+	v, err := ParseUint("-9223372036854775809", 10, 64)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v != 0 {
+		t.Fatalf("want 0, got %d", v)
+	}
+}
+
+func TestSafeSubstring(t *testing.T) {
+	res := SafeSubstring("hello world", 5)
+	if res != "hello" {
+		t.Fatalf("expected 'hello', got '%s'", res)
+	}
+}
+
+func TestGetQidOwn_CounterWraps_ResetsToOne(t *testing.T) {
+	const boundary = 0x00ffffffffffffff
+
+	atomic.StoreUint64(&globalCounter64, boundary)
+
+	inst := uint8(0xAB)
+	got := GetQidOwn(inst)
+
+	if got>>56 != uint64(inst) {
+		t.Fatalf("instance id mismatch: got 0x%x, want 0x%x", got>>56, inst)
+	}
+	if (got & boundary) != 1 {
+		t.Fatalf("low 56 bits = %d, want 1", got&boundary)
+	}
+	if atomic.LoadUint64(&globalCounter64) != 1 {
+		t.Fatalf("globalCounter64 = %d, want 1", atomic.LoadUint64(&globalCounter64))
+	}
+}
+
+func TestGetQid(t *testing.T) {
+	atomic.StoreUint32(&globalCounter32, 0)
+	qid := GetQid("0xzxx")
+	if qid != 1<<8 {
+		t.Fatalf("qid=%d, want %d", qid, 1<<8)
 	}
 }
