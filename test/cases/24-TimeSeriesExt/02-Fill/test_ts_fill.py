@@ -2081,7 +2081,39 @@ class TestFill:
         tdSql.checkData(0, 1, "2017-07-14 10:40:00.000")
         tdSql.checkData(0, 2, "2017-07-14 10:40:02.990")
         print("do fill null .......................... [passed]")
-    
+
+    #
+    # ------------------- test_window_fill_value.py ----------------
+    #
+    def do_window_fill_value(self):
+        # init dtabase, table, data
+        tdSql.execute("create database test_db;")
+        tdSql.execute("create table test_db.test_tb (ts timestamp, k int);")
+        tdSql.execute("insert into test_db.test_tb values \
+                      ('2024-05-03 00:00:00.000', 2) \
+                      ('2024-06-03 00:00:00.000', 3);")
+        # query and check
+        tdSql.queryAndCheckResult(["""
+            select _wstart, _wend, ts, max(k) 
+            from test_db.test_tb 
+            where ts between '2024-05-03 00:00:00.000' and '2024-06-03 00:00:00.000' 
+            interval(1h) fill(value, 0, 0) limit 2;"""], 
+            [[
+                ['2024-05-03 00:00:00.000', '2024-05-03 01:00:00.000', '2024-05-03 00:00:00.000', 2], 
+                ['2024-05-03 01:00:00.000', '2024-05-03 02:00:00.000', '1970-01-01 00:00:00.000', 0], # fill `ts` with 0
+            ]]
+        )
+        tdSql.queryAndCheckResult(["""
+            select _wstart, _wend, ts, max(k) 
+            from test_db.test_tb 
+            where ts between '2024-05-03 00:00:00.000' and '2024-06-03 00:00:00.000' 
+            interval(1h) fill(value, 1000, 10) limit 2;"""], 
+            [[
+                ['2024-05-03 00:00:00.000', '2024-05-03 01:00:00.000', '2024-05-03 00:00:00.000', 2], 
+                ['2024-05-03 01:00:00.000', '2024-05-03 02:00:00.000', '1970-01-01 00:00:01.000', 10], # fill `ts` with 1000, `k` with 10
+            ]]
+        )
+        print("do fill window ........................ [passed]")
 
     #
     # ------------------- main ----------------
@@ -2090,7 +2122,8 @@ class TestFill:
         """Fill: basic test
 
         1. Test fill + value, while generating multiple columns simultaneously
-        2. Test various methods such as prev, NULL, none, next, linear, null, null_f, and more.
+        2. Test various methods such as prev, NULL, none, next, linear, null, null_f, and more
+        3. Test insert two rows and check fill(value, 0, 0) and fill(value, 1000, 10)
 
         Since: v3.0.0.0
 
@@ -2106,9 +2139,11 @@ class TestFill:
             - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/fill/test_fill_compare_asc_desc.py
             - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/fill/test_fill_desc.py
             - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/fill/test_fill_null.py
+            - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/window/test_window_fill_value.py
 
         """
         self.do_sim_fill()
         self.do_fill_compare_asc_desc()
         self.do_fill_desc()
         self.do_fill_null()
+        self.do_window_fill_value()
