@@ -360,3 +360,23 @@ class TestTDgptBasic:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.9999999)
 
+    def test_fun_sca_corr(self):
+        """ Fun: corr()
+
+        1. Query with int and float data type parameter
+        2. Query with constant/null/bool parameter
+        3. Query with corr(cast(...
+        4. Query on super/child/no table
+        
+        Catalog:
+            - Functions:Scalar
+
+        Since: v3.3.0.0
+
+        Labels: common,ci,ignore
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+
+        """
+        pass

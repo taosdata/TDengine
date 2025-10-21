@@ -455,7 +455,7 @@ class TestFunTan:
         pass
 
     def test_fun_sca_tan(self):
-        """ Function TAN()
+        """ Fun: tan()
 
         1. Support types
         2. Basic query

@@ -39,30 +39,7 @@ Support all platforms that can run Node.js.
 
 ## Exception Handling
 
-After an error occurs when calling the connector API, the error information and error code can be obtained through try-catch.
-
-Error description: Node.js connector error codes range from 100 to 110, errors outside this range are from other TDengine modules.
-
-For specific connector error codes, please refer to:
-
-| Error Code | Description                                                     | Suggested Actions                                                                                                             |
-| ---------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| 100        | invalid variables                                               | The parameters are illegal, please check the corresponding interface specifications and adjust the parameter types and sizes. |
-| 101        | invalid url                                                     | URL error, please check if the URL is correctly filled.                                                                       |
-| 102        | received server data but did not find a callback for processing | Received server data but no upper layer callback was found                                                                    |
-| 103        | invalid message type                                            | Received message type unrecognized, please check if the server is normal.                                                     |
-| 104        | connection creation failed                                      | Connection creation failed, please check if the network is normal.                                                            |
-| 105        | websocket request timeout                                       | Request timed out                                                                                                             |
-| 106        | authentication fail                                             | Authentication failed, please check if the username and password are correct.                                                 |
-| 107        | unknown sql type in tdengine                                    | Please check the Data Type types supported by TDengine.     |
-| 108        | connection has been closed                                      | The connection has been closed, please check if the Connection is used again after closing, or if the connection is normal. |
-| 109        | fetch block data parse fail                                     | Failed to parse the fetched query data.   |
-| 110        | websocket connection has reached its maximum limit              | WebSocket connection has reached its maximum limit.     |
-| 111     | topic partitions and positions are not equal in length             | The data obtained for the current offset of the given partition does not match the topic partition.    |
-| 112     | version mismatch. The minimum required TDengine version is 3.3.2.0 | TDengine versions lower than 3.3.2.0 are not supported by connectors, and users need to upgrade to versions 3.3.2.0 or higher.  |
-
-- [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
-- For errors from other TDengine modules, please refer to [Error Codes](../../error-codes/)
+For error code information please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 
