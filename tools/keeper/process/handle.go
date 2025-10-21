@@ -266,7 +266,6 @@ type Value struct {
 }
 
 func NewProcessor(conf *config.Config) *Processor {
-
 	conn, err := db.NewConnectorWithRetryForever(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host, conf.TDengine.Port, conf.TDengine.Usessl)
 	if err != nil {
 		panic(err)
