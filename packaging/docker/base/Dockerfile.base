@@ -31,6 +31,7 @@ RUN apt-get update && \
         tini \
         # 监控和调试工具
         net-tools \
+        netcat-openbsd \
         gdb \
         valgrind \ 
         && \
