@@ -3738,8 +3738,8 @@ static int32_t stRealtimeContextRetryDropRequest(SSTriggerRealtimeContext *pCont
   code = tmsgSendReq(&pRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_DLOG("send calc request to node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
-  ST_TASK_DLOG("trigger calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
+  ST_TASK_DLOG("%s send drop table request to node:%d task:%" PRIx64, __func__, pRunner->addr.nodeId, pRunner->addr.taskId);
+  ST_TASK_DLOG("%s trigger drop table req 0x%" PRIx64 ":0x%" PRIx64 " sent", __func__, msg.info.traceId.rootId, msg.info.traceId.msgId);
 
   pNode = tdListPopNode(&pContext->dropTableReqs, pNode);
   taosMemoryFreeClear(pNode);

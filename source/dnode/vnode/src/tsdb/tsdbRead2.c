@@ -14,6 +14,7 @@
  */
 
 #include "osDef.h"
+#include "tdb.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
@@ -21,6 +22,7 @@
 #include "tsdbReadUtil.h"
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
+#include "vnode.h"
 
 #define ASCENDING_TRAVERSE(o)       (o == TSDB_ORDER_ASC)
 #define getCurrentKeyInSttBlock(_r) (&((_r)->currentKey))
@@ -76,7 +78,7 @@ static int32_t mergeRowsInSttBlocks(SSttBlockReader* pSttBlockReader, STableBloc
 static int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t order, SReadCostSummary* pCost);
 static void getTsdbByRetentions(SVnode* pVnode, SQueryTableDataCond* pCond, SRetention* retentions, const char* idstr,
                                 int8_t* pLevel, STsdb** pTsdb);
-static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level);
+static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond);
 static int32_t       doBuildDataBlock(STsdbReader* pReader);
 static int32_t       getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader, TSDBKEY* key);
 static bool          hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo);
@@ -721,7 +723,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
 
   pReader->info.suid = pCond->suid;
   pReader->info.order = pCond->order;
-  pReader->info.verRange = getQueryVerRange(pVnode, pCond, level);
+  pReader->info.verRange = getQueryVerRange(pVnode, pCond);
   code = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows, &pReader->info.window);
   TSDB_CHECK_CODE(code, lino, _end);
 
@@ -4610,7 +4612,7 @@ static void getTsdbByRetentions(SVnode* pVnode, SQueryTableDataCond* pCond, SRet
   *pTsdb = VND_TSDB(pVnode);
 }
 
-SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level) {
+SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond) {
   int64_t startVer = (pCond->startVersion == -1) ? 0 : pCond->startVersion;
 
   int64_t endVer = 0;
@@ -6649,6 +6651,52 @@ _end:
   return code;
 }
 
+void tsdReaderResetVer(void* p, SQueryTableDataCond* pCond){
+  STsdbReader* pReader = (STsdbReader*)p;
+  pReader->info.verRange.minVer = pCond->startVersion;
+  pReader->info.verRange.maxVer = pCond->endVersion;
+}
+
+int32_t tsdReaderResetExTimeWindow(void* p, SQueryTableDataCond* pCond){
+  int32_t code = TSDB_CODE_SUCCESS;
+  STsdbReader* pReader = (STsdbReader*)p;
+
+  if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
+    // update the SQueryTableDataCond to create inner reader
+    STimeWindow window = pCond->twindows;
+    int32_t order = pCond->order;
+    if (order == TSDB_ORDER_ASC) {
+      pCond->twindows = pCond->extTwindows[0];
+      pCond->order = TSDB_ORDER_DESC;
+    } else {
+      pCond->twindows = pCond->extTwindows[1];
+      pCond->order = TSDB_ORDER_ASC;
+    }
+    STsdbReader* tmp = ((STsdbReader*)pReader)->innerReader[0];
+    code = tsdbReaderReset2(tmp, pCond);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    tsdReaderResetVer(tmp, pCond);
+
+    if (order == TSDB_ORDER_ASC) {
+      pCond->twindows = pCond->extTwindows[1];
+    } else {
+      pCond->twindows = pCond->extTwindows[0];
+    }
+    pCond->order = order;
+    tmp = ((STsdbReader*)pReader)->innerReader[1];
+    code = tsdbReaderReset2(tmp, pCond);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    tsdReaderResetVer(tmp, pCond);
+
+    pCond->twindows = window;
+  }
+  return code;
+}
+
 int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -6660,6 +6708,7 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   TSDB_CHECK_CODE(code, lino, _end);
   acquired = true;
 
+  pReader->step = 0;
   if (pReader->flag == READER_STATUS_SUSPEND) {
     code = tsdbReaderResume2(pReader);
     TSDB_CHECK_CODE(code, lino, _end);
