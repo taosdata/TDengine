@@ -3221,7 +3221,7 @@ static int32_t vnodeProcessStreamRowsMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   STREAM_CHECK_NULL_GOTO(taosArrayPush(pResList, &pBlock2), terrno);
 
   ST_TASK_DLOG("vgId:%d %s start to build rsp", TD_VID(pVnode), __func__);
-  STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, true, &buf, &size, pVnode->config.tsdbCfg.precision));
+  STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, false, &buf, &size, pVnode->config.tsdbCfg.precision));
   ST_TASK_DLOG("vgId:%d %s end:", TD_VID(pVnode), __func__);
 
 end:
