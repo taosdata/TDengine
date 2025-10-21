@@ -124,12 +124,12 @@ typedef struct SParseStreamInfo {
   bool             calcClause;
   bool             triggerClause;
   bool             outTableClause;
-  bool             withExtWindow;
   bool             extLeftEq; // used for external window, true means include left border
   bool             extRightEq; // used for external window, true means include right border
   SNode*           triggerTbl;
   SNodeList*       triggerPartitionList;
   SHashObj*        calcDbs;
+  ENodeType        triggerWinType;
 } SParseStreamInfo;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);

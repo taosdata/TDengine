@@ -8552,12 +8552,96 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
   return code;
 }
 
+static int32_t generateTsOperatorByFuncNameAndOpType(SOperatorNode** pOp, const char* funcName, EOperatorType opType) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SOperatorNode* pOperator = NULL;
+  SFunctionNode* pFunc = NULL;
+  SColumnNode*   pCol = NULL;
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc));
+  tstrncpy(pFunc->functionName, funcName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, funcName, TSDB_FUNC_NAME_LEN);
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOperator));
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+  pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  tstrncpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME, TSDB_COL_NAME_LEN);
+
+  pOperator->pLeft = (SNode*)pCol;
+  pOperator->pRight = (SNode*)pFunc;
+  pOperator->opType = opType;
+
+  *pOp = pOperator;
+  return code;
+
+_return:
+  parserError("%s failed since %d, error msg: %s", __FUNCTION__, code, tstrerror(code));
+  nodesDestroyNode((SNode*)pOperator);
+  nodesDestroyNode((SNode*)pFunc);
+  nodesDestroyNode((SNode*)pCol);
+  return code;
+}
+
+static int32_t createLogicCondNode(SNode** pCond1, SNode** pCond2, SNode** pCond, ELogicConditionType logicCondType);
+
+static int32_t generateHiddenTimeRangeForPartitionRows(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SLogicConditionNode* pCondition = NULL;
+  SOperatorNode*       pStart = NULL;
+  SOperatorNode*       pEnd = NULL;
+
+  switch (pCxt->streamInfo.triggerWinType) {
+    case QUERY_NODE_INTERVAL_WINDOW:
+    case QUERY_NODE_SESSION_WINDOW:
+    case QUERY_NODE_STATE_WINDOW:
+    case QUERY_NODE_EVENT_WINDOW:
+    case QUERY_NODE_COUNT_WINDOW: {
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pStart, "_twstart", OP_TYPE_GREATER_EQUAL));
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "_twend", OP_TYPE_LOWER_THAN));
+      break;
+    }
+    case QUERY_NODE_SLIDING_WINDOW: {
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pStart, "_tprev_localtime", OP_TYPE_GREATER_EQUAL));
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "tlocaltime", OP_TYPE_LOWER_THAN));
+      break;
+    }
+    case QUERY_NODE_PERIOD_WINDOW: {
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pStart, "_tprev_ts", OP_TYPE_GREATER_EQUAL));
+      PAR_ERR_JRET(generateTsOperatorByFuncNameAndOpType(&pEnd, "_tcurrent_ts", OP_TYPE_LOWER_THAN));
+      break;
+    }
+    default: {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_WINDOW_TYPE, "window type not supported"));
+    }
+  }
+
+  PAR_ERR_JRET(createLogicCondNode((SNode**)&pStart, (SNode**)&pEnd, (SNode**)&pCondition, LOGIC_COND_TYPE_AND));
+  PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, (SNode**)&pCondition));
+
+  return code;
+_return:
+  parserError("%s failed since %d, error msg:%s", __func__ , code, tstrerror(code));
+  if (pCondition) {
+    nodesDestroyNode((SNode*)pCondition);
+  } else {
+    nodesDestroyNode((SNode*)pStart);
+    nodesDestroyNode((SNode*)pEnd);
+  }
+  return code;
+}
+
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pSelect->pWhere && BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && inStreamCalcClause(pCxt)) {
-    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                        "%%%%trows can not be used with WHERE clause."));
+  if (BIT_FLAG_TEST_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && inStreamCalcClause(pCxt) &&
+      nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
+    if (pSelect->pWhere) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                          "%%%%trows can not be used with WHERE clause."));
+    } else {
+      PAR_ERR_RET(generateHiddenTimeRangeForPartitionRows(pCxt, pSelect));
+    }
   }
   PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
   PAR_ERR_RET(getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable));
@@ -15208,7 +15292,16 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     PAR_ERR_JRET(terrno);
   }
 
+  ENodeType triggerWinType = nodeType(pTriggerWindow);
+  if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
+    SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
+    if (!pIntervalWindow->pInterval) {
+      triggerWinType = QUERY_NODE_SLIDING_WINDOW;
+    }
+  }
+
   pCxt->streamInfo.calcDbs = pDbs;
+  pCxt->streamInfo.triggerWinType = triggerWinType;
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery, pNotifyCond, pTriggerWindow));
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
@@ -15237,16 +15330,9 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .mgmtEpSet = pCxt->pParseCxt->mgmtEpSet,
                           .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
-                          .streamTriggerWinType = nodeType(pTriggerWindow),
+                          .streamTriggerWinType = triggerWinType,
                           .pStreamCalcVgArray = pVgArray,
                           .streamTriggerScanList = NULL};
-
-  if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
-    SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
-    if (!pIntervalWindow->pInterval) {
-      calcCxt.streamTriggerWinType = QUERY_NODE_SLIDING_WINDOW;
-    }
-  }
 
   PAR_ERR_JRET(qCreateQueryPlan(&calcCxt, &calcPlan, NULL));
   pReq->vtableCalc = (int8_t)calcCxt.streamVtableCalc;
