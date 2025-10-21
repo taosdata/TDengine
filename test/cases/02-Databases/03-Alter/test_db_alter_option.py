@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck, etool
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, etool
 
 
 class TestDatabaseAlterOption:

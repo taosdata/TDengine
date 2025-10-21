@@ -305,10 +305,15 @@ class TestFunConcat:
         tdSql.execute(f'insert into {tbname} values(now(),"abcdefg","你好")')
         tdSql.execute(f'insert into {tbname} values(now(),"abcdefgh","我好")')
         tdSql.execute(f'insert into {tbname} values(now(),"abcdefg", "")')
-        tdSql.execute(f'select concat("你好",name2) from {tbname}')
-        tdSql.execute(f'select concat(name2,"你好") from {tbname}')
-        tdSql.execute(f'select concat(name2,"") from {tbname}')
-        tdSql.execute(f'select concat("", name2) from {tbname}')
+        
+        tdSql.query(f'select concat("您好",name2) from {tbname}')
+        tdSql.checkData(0, 0, '您好你好')
+        tdSql.query(f'select concat(name2,"您好") from {tbname}')
+        tdSql.checkData(0, 0, '你好您好')
+        tdSql.query(f'select concat(name2,"") from {tbname}')
+        tdSql.checkData(0, 0, '你好')
+        tdSql.query(f'select concat("", name2) from {tbname}')
+        tdSql.checkData(0, 0, '你好')
 
     # main
     def test_fun_sca_concat(self):
