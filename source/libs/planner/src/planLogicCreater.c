@@ -90,9 +90,7 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_TNEXT_LOCALTIME:
     case FUNCTION_TYPE_TLOCALTIME:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      if (!isPartitionBy) {
-        pCol->isPrimTs = true;
-      }
+      pCol->isPrimTs = true;
       break;
     default:
       break;
