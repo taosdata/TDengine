@@ -223,8 +223,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/12-DataCompression/test_compress_alter_table.py -N 3
 
 # 20-DataQuerying
-## 01-SelectList
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-SelectList/test_selectlist_basic.py
+## 01-Select
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-Select/test_query_select_basic.py
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_column.py
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_operator.py
@@ -288,7 +288,6 @@
 
 ## 01-Scalar
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_all.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_cast.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_math.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_string.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_time.py
@@ -300,6 +299,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_cast.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_ceil.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_concat.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_concat2.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_concat_ws.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_cos.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_floor.py
@@ -648,6 +648,11 @@
 
 # 93-Changes
 
+# 95-Tools
+
+# 01-Check
+,,y,.,./ci/pytest.sh pytest cases/95-Tools/01-Check/test_check_error_code.py
+
 # 99-Others
 ## 01-Valgrind
 ,,y,.,./ci/pytest.sh pytest cases/99-Others/01-Valgrind/test_valgrind_basic1.py
@@ -709,15 +714,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_desc.py -N 3 -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_null.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_compare_asc_desc.py
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_elapsed.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_selection_function_with_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_paramnum.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_percentile.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_resinfo.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interp.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval_diff_tz.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3
 
@@ -879,8 +875,6 @@
 
 ,,n,.,pytest cases/uncatalog/army/user/test_passwd.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/whole/test_check_error_code.py
-
 ## system_test
 ### 2-query
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_error.py
@@ -986,7 +980,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4382.py
