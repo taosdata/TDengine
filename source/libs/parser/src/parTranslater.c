@@ -15658,6 +15658,8 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,
                           .mgmtEpSet = pCxt->pParseCxt->mgmtEpSet,
                           .pAstRoot = pStmt->pQuery,
+                          .pMsg = pCxt->pParseCxt->pMsg,
+                          .msgLen = pCxt->pParseCxt->msgLen,
                           .streamCalcQuery = true,
                           .streamTriggerWinType = nodeType(pTriggerWindow),
                           .streamCalcScanPlanArray = pScanPlanArray,
