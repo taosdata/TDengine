@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -157,5 +159,28 @@ func Test_adapterTableSql(t *testing.T) {
 		} else {
 			assert.NoError(t, err)
 		}
+	}
+}
+
+func TestAdapter_tableName(t *testing.T) {
+	a := &Adapter{}
+	endpoint := strings.Repeat("x", util.MAX_TABLE_NAME_LEN)
+
+	gotRest := a.tableName(endpoint, rest)
+	sumRest := md5.Sum([]byte(fmt.Sprintf("%s%d", endpoint, rest)))
+	wantRest := fmt.Sprintf("adapter_req_%s", hex.EncodeToString(sumRest[:]))
+	if gotRest != wantRest {
+		t.Fatalf("unexpected hashed table name (rest): want %q, got %q", wantRest, gotRest)
+	}
+
+	gotWS := a.tableName(endpoint, ws)
+	sumWS := md5.Sum([]byte(fmt.Sprintf("%s%d", endpoint, ws)))
+	wantWS := fmt.Sprintf("adapter_req_%s", hex.EncodeToString(sumWS[:]))
+	if gotWS != wantWS {
+		t.Fatalf("unexpected hashed table name (ws): want %q, got %q", wantWS, gotWS)
+	}
+
+	if gotRest == gotWS {
+		t.Fatalf("hashed names for rest and ws should differ; got the same %q", gotRest)
 	}
 }

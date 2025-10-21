@@ -22,7 +22,7 @@ func TestNormalCollectorCpuPercentRange(t *testing.T) {
 	_, err = c.CpuPercent()
 	assert.NoError(t, err)
 
-	time.Sleep(120 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	val, err := c.CpuPercent()
 	assert.NoError(t, err)
