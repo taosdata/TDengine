@@ -14,7 +14,7 @@
 #ifndef _TD_TRANSPORT_SASL_H
 #define _TD_TRANSPORT_SASL_H
 
-#if defined(TD_ENTERPRISE) && defined(LINUX)
+#if defined(LINUX)
 #include <sasl/sasl.h>
 #else
 typedef struct {
@@ -34,10 +34,23 @@ typedef struct {
 #include "transLog.h"
 #include "tversion.h"
 
-// #ifdef __cplusplus
-// extern "C" {
-// #endif
+typedef struct {
+  int32_t      state;
+  int8_t       completed;
+  sasl_conn_t* conn;
 
+  char* authUser;
+} SSaslConn;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int32_t saslConnCreate(SSaslConn** ppConn);
+
+void saslConnSetState(SSaslConn* pConn, int32_t state);
+
+int32_t sslConnInit(SSaslConn* pConn);
 // typedef struct {
 //   char*    certfile;  // certificate file path
 //   char*    keyfile;   // private key file path
@@ -106,8 +119,8 @@ typedef struct {
 // #define SSL_BUFFER_DATA(buf)              ((buf)->buf)
 // #define SSL_BUFFER_OFFSET_DATA(b, offset) ((b)->buf + (offset))
 
-// #ifdef __cplusplus
-// }
-// #endif
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // _TD_TRANSPORT_SASL_H
