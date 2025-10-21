@@ -1233,7 +1233,9 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     
     SColumnInfoData* pColData = taosArrayGetLast(pBlock->pDataBlock);
     STREAM_CHECK_NULL_GOTO(pColData, terrno);
-    STREAM_CHECK_RET_GOTO(colDataSetNItems(pColData, blockStart, (const char*)&ver, numOfRows, 1, false));
+    if (pColData->info.colId == INT16_MIN) {
+      STREAM_CHECK_RET_GOTO(colDataSetNItems(pColData, blockStart, (const char*)&ver, numOfRows, 1, false));
+    }
   }
 
   ST_TASK_DLOG("%s process submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
@@ -3201,18 +3203,19 @@ static int32_t vnodeProcessStreamRowsMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   
   ST_TASK_DLOG("vgId:%d %s start, gid:%"PRId64",start%"PRId64",end:%"PRId64, TD_VID(pVnode), __func__, req.pStRtFuncInfo->groupId, pFirst->wstart, pLast->wend);
 
-  resultRsp.dataBlock = sStreamReaderInfo->isVtableStream ? sStreamReaderInfo->calcBlock : sStreamReaderInfo->triggerBlock;
+  resultRsp.dataBlock = sStreamReaderInfo->isVtableStream ? sStreamReaderInfo->calcResBlock : sStreamReaderInfo->triggerResBlock;
   resultRsp.isCalc = sStreamReaderInfo->isVtableStream ? true : false;
   STREAM_CHECK_RET_GOTO(processWalVerDataNew(pVnode, sStreamReaderInfo, req.pWalVersions, ranges, &resultRsp));
   STREAM_CHECK_CONDITION_GOTO(resultRsp.totalRows == 0, TDB_CODE_SUCCESS);
 
   if (!sStreamReaderInfo->isVtableStream){
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerBlock, true, &pBlock1));
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcBlock, false, &pBlock2));
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, true, &pBlock1));
+    STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &pBlock2));
 
     blockDataTransform(pBlock2, pBlock1);
   }
-
+  printDataBlock(pBlock1, __func__, "data1", ((SStreamTask*)pTask)->streamId);
+  printDataBlock(pBlock2, __func__, "data2", ((SStreamTask*)pTask)->streamId);
   pResList = taosArrayInit(4, POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(pResList, terrno);
   STREAM_CHECK_NULL_GOTO(taosArrayPush(pResList, &pBlock2), terrno);
