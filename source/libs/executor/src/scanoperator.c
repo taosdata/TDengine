@@ -1765,10 +1765,12 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->currentTable = 0;
   pInfo->scanMode = 0;
   pInfo->countState = 0;
-  if (pInfo->virtualStableScan && pInfo->readerCache) {
-    cleanReaderForVTable(pInfo);
-    taosHashClear(pInfo->readerCache);
-  } else {
+  if (!pInfo->virtualStableScan) {
+  // if (pInfo->virtualStableScan && pInfo->readerCache) {
+  //   cleanReaderForVTable(pInfo);
+  //   taosHashClear(pInfo->readerCache);
+  //   pInfo->readerCache = false;
+  // } else {
     if (pInfo->base.readerAPI.tsdReaderClose) {
       pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
     }

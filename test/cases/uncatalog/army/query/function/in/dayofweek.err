@@ -1,2 +1,0 @@
-select dayofweek();
-select dayofweek('2020-01-01',1);

@@ -226,7 +226,7 @@ class TestFunTimediff:
         tdSql.checkData(0, 0, 0)    
     
     def test_fun_sca_timediff(self):
-        """ Function TIMEDIFF()
+        """ Fun: timediff()
 
         1. Constant timestamp test
         2. Normal table test
