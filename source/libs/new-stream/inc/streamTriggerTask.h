@@ -18,6 +18,7 @@
 
 #include "common/tmsg.h"
 #include "streamTriggerMerger.h"
+#include "tcompare.h"
 #include "theap.h"
 #include "tobjpool.h"
 #include "tringbuf.h"
@@ -304,6 +305,7 @@ typedef struct SStreamTriggerTask {
     struct {  // for state window
       int64_t stateSlotId;
       int64_t stateExtend;
+      SNode  *pStateZeroth;
       int64_t stateTrueFor;
       SNode  *pStateExpr;
     };
@@ -411,6 +413,10 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg);
 int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, bool force);
 int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg);
+
+// helper function in trigger task
+// check whether the state data equals to the zeroth state
+int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual);
 
 #ifdef __cplusplus
 }

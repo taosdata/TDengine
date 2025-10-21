@@ -47,7 +47,7 @@ TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col, extend) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -221,6 +221,19 @@ select _wstart, _wduration, _wend, count(*) from state_window_test state_window(
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:03.001 |                  2999 | 2025-01-01 00:00:06.000 |                     3 |
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
+Zeroth_state 指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置zeroth_extend数值时，extend值为强制输入项，不允许留空或省略。
+仍以相同数据为例
+
+当 `zeroth_state` 值为 `2` 时
+
+```
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
 状态窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个状态窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
