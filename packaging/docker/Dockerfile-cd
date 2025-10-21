@@ -32,7 +32,7 @@ COPY --from=tdengine-installer /etc/taos/ /etc/taos/
 COPY ./bin/* /usr/bin/
 
 # 配置环境变量
-ENV LD_LIBRARY_PATH="/usr/lib/:/usr/local/lib:${LD_LIBRARY_PATH:-}" \
+ENV LD_LIBRARY_PATH="/usr/lib/:/usr/local/lib" \
     PATH="/usr/bin:${PATH:-}" \
     TAOS_QUERY_USE_MEMORY_POOL=0
 
