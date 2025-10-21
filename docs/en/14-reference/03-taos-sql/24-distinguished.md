@@ -219,7 +219,7 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-The zeroth_state parameter specifies the "zero state". Windows with this state in the state column will not be calculated or output. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted. Take previous data as an example:
+The zeroth_state parameter specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted. Take previous data as an example:
 
 ```
 taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);

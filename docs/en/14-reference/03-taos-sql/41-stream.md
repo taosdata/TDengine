@@ -150,7 +150,7 @@ A state window trigger divides the written data of the trigger table into window
 
 - col: The name of the state column.
 - extend (optional): Specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively.
-- zeroth_state (optional): Specifies the "zero state". Windows with this state in the state column will not be calculated or output. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted.
+- zeroth_state (optional): Specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted.
 - duration_time (optional): Specifies the minimum duration of a window. If the duration of a window is shorter than this value, the window will be discarded and no trigger will be generated.
 
 Usage Notes:
