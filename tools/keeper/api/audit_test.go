@@ -164,3 +164,33 @@ func TestAudit(t *testing.T) {
 		assert.Equal(t, 11, len(data.Data))
 	})
 }
+
+func TestNewAudit(t *testing.T) {
+	cfg := config.Config{
+		TDengine: config.TDengineRestful{
+			Username: "root",
+			Password: "taosdata",
+			Host:     "localhost",
+			Port:     6041,
+			Usessl:   false,
+		},
+		Audit: config.AuditConfig{
+			Database: config.Database{
+				Name: "",
+			},
+			Enable: true,
+		},
+	}
+
+	a, err := NewAudit(&cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, "audit", a.db)
+}
+
+func Test_handleDetails(t *testing.T) {
+	details := handleDetails("\"")
+	assert.Equal(t, "\\\"", details)
+
+	details = handleDetails(strings.Repeat("a", 60000))
+	assert.Equal(t, 50000, len(details))
+}
