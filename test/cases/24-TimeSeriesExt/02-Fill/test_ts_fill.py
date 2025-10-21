@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, etool, tdCom
 
 
 class TestFill:
@@ -6,7 +6,10 @@ class TestFill:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_fill(self):
+    #
+    # ------------------- sim ----------------
+    #
+    def do_sim_fill(self):
         """Fill: basic test
 
         1. Test fill + value, while generating multiple columns simultaneously
@@ -37,6 +40,8 @@ class TestFill:
         tdStream.dropAllStreamsAndDbs()
         self.ForceFill()
         tdStream.dropAllStreamsAndDbs()
+        print("\n")
+        print("do fill sim ........................... [passed]")
 
     def ParserFill(self):
         dbPrefix = "m_fl_db"
@@ -1928,3 +1933,182 @@ class TestFill:
         )
         tdSql.checkRows(14400)
         tdSql.checkData(0, 0, None)
+
+    #
+    # ------------------- army ----------------
+    #
+    
+    # test_fill_compare_asc_desc.py
+    def prepare_data1(self):
+        tdSql.execute("create database db;")
+        tdSql.execute("use db;")
+        # data for fill(prev)
+        tdSql.execute("create stable st_pre (ts timestamp, c1 int) tags(t1 int);")
+        tdSql.execute("create table ct1 using st_pre tags(1);")
+        start_ts = 1705783972000
+        sql = "insert into ct1 values "
+        for i in range(100):
+            sql += f"({start_ts + i * 1000}, {str(i + 1)})"
+        sql += ";"
+        tdSql.execute(sql)
+
+        # data for fill(next)
+        tdSql.execute("create stable st_next (ts timestamp, c1 int) tags(t1 int);")
+        tdSql.execute("create table ct2 using st_next tags(1);")
+        start_ts = 1705783972000
+        sql = "insert into ct1 values "
+        for i in range(100):
+            sql += f"({start_ts + i * 1000}, NULL)"
+        sql += ";"
+        tdSql.execute(sql)
+
+        # data for fill(linear)
+        tdSql.execute("create stable st_linear (ts timestamp, c1 int) tags(t1 int);")
+        tdSql.execute("create table ct3 using st_linear tags(1);")
+        start_ts = 1705783972000
+        sql = "insert into ct1 values "
+        for i in range(100):
+            if i % 2 == 0:
+                sql += f"({start_ts + i * 1000}, {str(i + 1)})"
+            else:
+                sql += f"({start_ts + i * 1000}, NULL)"
+        sql += ";"
+        tdSql.execute(sql)
+        tdLog.info("prepare data done")
+
+    def run_fill_pre_compare_asc_desc(self):
+        tdSql.execute("use db;")
+        for func in ["avg(c1)", "count(c1)", "first(c1)", "last(c1)", "max(c1)", "min(c1)", "sum(c1)"]:
+            tdSql.query(
+                f"select _wstart, {func} from st_pre where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(prev) order by _wstart asc;")
+            res1 = tdSql.queryResult
+            tdSql.query(
+                f"select _wstart, {func} from st_pre where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(prev) order by _wstart desc;")
+            res2 = tdSql.queryResult
+            assert len(res1) == len(res2)
+            for i in range(len(res1)):
+                assert res1[i] in res2
+            tdLog.info(f"fill(prev) {func} compare asc and desc done")
+        tdLog.info("Finish the test case 'test_fill_pre_compare_asc_desc'")
+
+    def run_fill_next_compare_asc_desc(self):
+        tdSql.execute("use db;")
+        for func in ["avg(c1)", "count(c1)", "first(c1)", "last(c1)", "max(c1)", "min(c1)", "sum(c1)"]:
+            tdSql.query(
+                f"select _wstart, {func} from st_next where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(next) order by _wstart asc;")
+            res1 = tdSql.queryResult
+            tdSql.query(
+                f"select _wstart, {func} from st_next where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(next) order by _wstart desc;")
+            res2 = tdSql.queryResult
+            assert len(res1) == len(res2)
+            for i in range(len(res1)):
+                assert res1[i] in res2
+            tdLog.info(f"fill(next) {func} compare asc and desc done")
+        tdLog.info("Finish the test case 'test_fill_next_compare_asc_desc'")
+
+    def run_fill_linear_compare_asc_desc(self):
+        tdSql.execute("use db;")
+        for func in ["avg(c1)", "count(c1)", "first(c1)", "last(c1)", "max(c1)", "min(c1)", "sum(c1)"]:
+            tdSql.query(
+                f"select _wstart, {func} from st_linear where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(linear) order by _wstart asc;")
+            res1 = tdSql.queryResult
+            tdSql.query(
+                f"select _wstart, {func} from st_linear where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(linear) order by _wstart desc;")
+            res2 = tdSql.queryResult
+            assert len(res1) == len(res2)
+            for i in range(len(res1)):
+                assert res1[i] in res2
+            tdLog.info(f"fill(linear) {func} compare asc and desc done")
+        tdLog.info("Finish the test case 'test_fill_linear_compare_asc_desc'")
+
+    def do_fill_compare_asc_desc(self):
+        self.prepare_data1()
+        self.run_fill_pre_compare_asc_desc()
+        self.run_fill_next_compare_asc_desc()
+        self.run_fill_linear_compare_asc_desc()
+        print("do fill army compare asc desc ......... [passed]")
+        
+    # test_fill_desc.py
+    def do_fill_desc(self):
+        dbname = "db"
+        stbname = "ocloud_point"
+        tbname = "ocloud_point_170658_3837620225_1701134595725266945"
+
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table")
+
+        tdSql.execute(
+            f'''create stable if not exists {dbname}.{stbname}
+            (wstart timestamp, point_value float) tags (location binary(64), groupId int)
+            '''
+        )
+
+        tdSql.execute(
+            f'''create table if not exists {dbname}.{tbname} using {dbname}.{stbname} tags("California.SanFrancisco", 2)'''
+        )
+
+        sqls = []
+        for i in range(35, 41):
+            if i == 38 or i == 40:
+                sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:{i}:00.000', null)")
+            else:
+                sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:{i}:00.000', 5.0)")
+
+        tdSql.executes(sqls)
+        tdLog.printNoPrefix("==========step3:fill data")
+
+        sql = f"select first(point_value) as pointValue from {dbname}.{tbname} where wstart between '2023-12-26 10:35:00' and '2023-12-26 10:40:00' interval(1M) fill(prev) order by wstart desc limit 100"
+        data = []
+        for i in range(6):
+           row = [5]
+           data.append(row)
+        tdSql.checkDataMem(sql, data)
+        print("do fill desc .......................... [passed]")
+    
+    # test_fill_null.py
+    def do_fill_null(self):
+        # init
+        dbname = "ts_5054"
+
+        etool.benchMark(command=f"-d {dbname} -t 1 -n 1000 -S 10 -y")
+        tdSql.execute(f"use {dbname}")
+        tdSql.execute("select database();")
+        tdSql.query(
+            "select _wstart, first(ts), last(ts) from meters where ts >= '2017-07-14 10:40:00.000' and ts < '2017-07-14 10:40:10.000' partition by groupid interval(3s) fill(NULL);"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, "2017-07-14 10:40:00.000")
+        tdSql.checkData(0, 2, "2017-07-14 10:40:02.990")
+        print("do fill null .......................... [passed]")
+    
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_ts_fill(self):
+        """Fill: basic test
+
+        1. Test fill + value, while generating multiple columns simultaneously
+        2. Test various methods such as prev, NULL, none, next, linear, null, null_f, and more.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-8-27 Simon Guan Migrated from tsim/parser/fill.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/parser/fill_stb.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/parser/fill_us.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/query/forceFill.sim
+            - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/fill/test_fill_compare_asc_desc.py
+            - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/fill/test_fill_desc.py
+            - 2025-10-21 Alex Duan Migrated from uncatalog/army/query/fill/test_fill_null.py
+
+        """
+        self.do_sim_fill()
+        self.do_fill_compare_asc_desc()
+        self.do_fill_desc()
+        self.do_fill_null()

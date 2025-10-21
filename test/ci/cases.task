@@ -245,8 +245,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/08-SubQuery/test_subquery_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/08-SubQuery/test_subquery_lastrow.py
 ## 09-Having
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/09-Having/test_having_bugfix.py
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/09-Having/test_having.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/09-Having/test_query_having_bugfix.py
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/09-Having/test_query_having.py
 ## 10-Distinct
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/10-Distinct/test_distinct.py
 ## 11-Psedocolumn
@@ -382,7 +382,7 @@
 ## 01-PartitionBy
 ,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/01-PartitionBy/test_partitonby.py
 ## 02-Fill
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/02-Fill/test_fill.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/02-Fill/test_ts_fill.py -N 3 -L 3 -D 2
 ## 03-TimeWindow
 ,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_auto.py
 ,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_basic.py
@@ -707,11 +707,6 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py
 
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_desc.py -N 3 -L 3 -D 2
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_null.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_compare_asc_desc.py
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/window/test_window_base.py
@@ -724,7 +719,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_case_when.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_bugs.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_having.py
 
 #newstm,,n,.,pytest cases/uncatalog/army/storage/ss/test_ss_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_one_stage_comp.py -N 3 -L 3 -D 1
