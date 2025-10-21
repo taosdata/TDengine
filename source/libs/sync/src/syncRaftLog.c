@@ -248,7 +248,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     TAOS_RETURN(err);
   }
 
-  code = walFsync(pWal, forceSync);
+  code = walFsync(pWal, pEntry->index, forceSync);
   if (TSDB_CODE_SUCCESS != code) {
     sNError(pData->pSyncNode, "wal fsync failed since %s", tstrerror(code));
     TAOS_RETURN(code);
