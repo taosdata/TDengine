@@ -254,7 +254,7 @@ function run_thread() {
         local case_redo_time
         case_redo_time=$(echo "$line" | cut -d, -f2)
         if [ -z "$case_redo_time" ]; then
-            case_redo_time=${DEFAULT_RETRY_TIME:-2}
+            case_redo_time=${DEFAULT_RETRY_TIME:-1}
         fi
         local case_build_san
         case_build_san=$(echo "$line" | cut -d, -f3)
