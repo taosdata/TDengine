@@ -477,11 +477,13 @@ function run_thread() {
             else
                 cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
+            echo "tar sim.tar.gz cmd: $cmd"
             bash -c "$cmd"
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                echo "scp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd"
                 if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
                     cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
@@ -489,6 +491,7 @@ function run_thread() {
                 fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                echo "cp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd"
                 if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
                     cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
