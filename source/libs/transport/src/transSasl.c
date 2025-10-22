@@ -88,7 +88,7 @@ int32_t saslConnInit(SSaslConn* pConn, int8_t isServer) {
   return code;
 }
 
-int32_t saslEncode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen) {
+int32_t saslConnEncode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen) {
   int32_t code = 0;
   int     result = 0;
 
@@ -115,7 +115,7 @@ int32_t saslEncode(SSaslConn* pConn, const char* input, int32_t len, const char*
   return code;
 }
 
-int32_t saslDecode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen) {
+int32_t saslConnDecode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen) {
   int32_t code = 0;
   int     result = 0;
 
@@ -131,7 +131,7 @@ int32_t saslDecode(SSaslConn* pConn, const char* input, int32_t len, const char*
   return code;
 }
 
-void saslCleanup(SSaslConn* pConn) {
+void saslConnCleanup(SSaslConn* pConn) {
   if (pConn == NULL || pConn->conn == NULL) {
     return;
   }
@@ -149,7 +149,7 @@ void saslCleanup(SSaslConn* pConn) {
   taosMemFree(pConn);
 }
 
-int32_t saslHandleHandshake(SSaslConn* pConn) {
+int32_t saslConnHandleHandshake(SSaslConn* pConn) {
   int32_t code = 0;
 
   if (pConn == NULL || pConn->conn == NULL) {
@@ -220,7 +220,7 @@ int32_t transSaslInit() {
   result = sasl_server_new(SASL_MECHANISM_SCRAM_SHA256, "tdengine", NULL, NULL, NULL, callbacks, 0, NULL);
   if (result != SASL_OK) {
     tError("sasl_server_new failed: %s", sasl_errstring(result, NULL, NULL));
-    return TSDB_CODE_THIRDPARTY_ERROR;
+    code = TSDB_CODE_THIRDPARTY_ERROR;
   }
 
   return code;
