@@ -7281,31 +7281,59 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SGroupKeyInfo*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  bool isWindow = pCtx->hasWindowOrGroup && pCtx->hasWindow;
+
+  if (pInfo->hasResult && (!isWindow || !pInfo->isNull)) {
+    // if has result already for 'group by' 
+    // or has non-null result for 'window',
+    // skip rest of data blocks.
+    goto _group_value_over;
+  }
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  int32_t startIndex = pInput->startRowIndex;
+  if (isWindow) {
+    // if it is 'window', need to scan all rows to find the first non-null value
+    // since window may contain null values at the beginning
+    for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+      int32_t rowIndex = pInput->startRowIndex + i;
+      if (pInputCol->pData != NULL && !colDataIsNull_s(pInputCol, rowIndex)) {
+        char* data = colDataGetData(pInputCol, rowIndex);
+        if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
+          int32_t bytes = calcStrBytesByType(pInputCol->info.type, data);
+          (void)memcpy(pInfo->data, data, bytes);
+        } else {
+          (void)memcpy(pInfo->data, data, pInputCol->info.bytes);
+        }
+        pInfo->hasResult = true;
+        pInfo->isNull = false;
+        goto _group_value_over;
+      }
+    }
 
-  // escape rest of data blocks to avoid first entry to be overwritten.
-  if (pInfo->hasResult) {
-    goto _group_value_over;
-  }
-
-  if (pInputCol->pData == NULL || colDataIsNull_s(pInputCol, startIndex)) {
-    pInfo->isNull = true;
+    // all values are null
     pInfo->hasResult = true;
-    goto _group_value_over;
-  }
-
-  char* data = colDataGetData(pInputCol, startIndex);
-  if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
-    int32_t bytes = calcStrBytesByType(pInputCol->info.type, data);
-    (void)memcpy(pInfo->data, data, bytes);
+    pInfo->isNull = true;
   } else {
-    (void)memcpy(pInfo->data, data, pInputCol->info.bytes);
+    // if it is 'group by', just take the first row
+    int32_t startIndex = pInput->startRowIndex;
+    if (pInputCol->pData == NULL || colDataIsNull_s(pInputCol, startIndex)) {
+      pInfo->hasResult = true;
+      pInfo->isNull = true;
+      goto _group_value_over;
+    }
+
+    char* data = colDataGetData(pInputCol, startIndex);
+    if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
+      int32_t bytes = calcStrBytesByType(pInputCol->info.type, data);
+      (void)memcpy(pInfo->data, data, bytes);
+    } else {
+      (void)memcpy(pInfo->data, data, pInputCol->info.bytes);
+    }
+    pInfo->hasResult = true;
+    pInfo->isNull = false;
   }
-  pInfo->hasResult = true;
 
 _group_value_over:
 
