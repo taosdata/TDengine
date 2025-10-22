@@ -2666,7 +2666,6 @@ class TestHaving:
             sql_values.append("('{}', {}, {}, {})".format(t[0], t[1], t[2], t[3]))
         sql = "insert into ct_1 values " + ",".join(sql_values) + ";"
         tdSql.execute(sql)
-        tdLog.debug("sql: %s" % sql)
 
     def run_agg_having(self):
         tdSql.query("select voltage, sum(voltage), count(*) from ct_1 group by voltage;")
@@ -2733,14 +2732,14 @@ class TestHaving:
             ('2020-06-01 02:15:00.000', 0.5209450, 18, 0.7271070)
         ]
 
-        sql = "insert into ct_join_1 values";
+        sql = "insert into ct_join_1 values"
         for t in data_join_1:
             sql += "('{}', {}, {}, {}),".format(t[0], t[1], t[2], t[3])
         sql += ";"
         tdSql.execute(sql)
         tdLog.debug("ct_join_1 sql: %s" % sql)
 
-        sql = "insert into ct_join_2 values";
+        sql = "insert into ct_join_2 values"
         for t in data_join_2:
             sql += "('{}', {}, {}, {}),".format(t[0], t[1], t[2], t[3])
         sql += ";"
