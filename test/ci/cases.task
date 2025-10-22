@@ -427,7 +427,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_bug_ts5400.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_timezone.py
 ## 04-StateWindow
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_block.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_extend.py
 ## 05-EventWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/05-EventWindow/test_event.py
 ## 06-SessionWindow
@@ -977,7 +979,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_odbc.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill_with_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_state_window_extend.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
 
 
