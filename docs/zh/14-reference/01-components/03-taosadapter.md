@@ -726,6 +726,35 @@ RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误�
 - **`request.users.<username>.queryMaxWait`**
   - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，优先级高于默认设置。
 
+**示例说明**
+
+```toml
+[request]
+queryLimitEnable = true
+excludeQueryLimitSql = ["select 1","select server_version()"]
+excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']
+
+[request.default]
+queryLimit = 200
+queryWaitTimeout = 900
+queryMaxWait = 0
+
+[request.users.root]
+queryLimit = 100
+queryWaitTimeout = 200
+queryMaxWait = 10
+```
+
+- `queryLimitEnable = true` 启用了查询请求并发限制功能。
+- `excludeQueryLimitSql = ["select 1","select server_version()"]` 排除了两个常用做 ping 的查询 SQL。
+- `excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']` 排除了所有查询 information_schema 这个数据库的 SQL。
+- `request.default` 配置了默认的查询请求并发限制数为 200，等待超时为 900 秒，最大等待请求数为 0（无限制）。
+- `request.users.root` 配置了用户 root 的查询请求并发限制数为 100，等待超时为 200 秒，最大等待请求数为 10。
+
+当用户 root 发起查询请求时，taosAdapter 会根据上述配置进行并发限制处理。当查询请求超过 100 个时，后续请求将进入等待，直到有可用的资源为止。如果等待时间超过 200 秒或等待请求数超过 10 个，taosAdapter 将直接返回错误响应。
+
+当其他用户发起查询请求时，将使用默认的并发限制配置进行处理。每个用户配置独立，不共享 `request.default` 的并发限制。比如用户 user1 发起 200 个并发查询请求时，用户 user2 也可以同时发起 200 个并发查询请求而不会阻塞。
+
 ### 环境变量
 
 配置项与环境变量对应如下表：

@@ -724,6 +724,39 @@ Configurable only via the configuration file:
 - **`request.users.<username>.queryMaxWait`**
   - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded for the specified user. Takes precedence over the default setting.
 
+**Example**
+
+```toml
+[request]
+queryLimitEnable = true
+excludeQueryLimitSql = ["select 1","select server_version()"]
+excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']
+
+[request.default]
+queryLimit = 200
+queryWaitTimeout = 900
+queryMaxWait = 0
+
+[request.users.root]
+queryLimit = 100
+queryWaitTimeout = 200
+queryMaxWait = 10
+```
+
+- `queryLimitEnable = true` enables the query request concurrency limit feature.
+- `excludeQueryLimitSql = ["select 1","select server_version()"]` excludes two commonly used SQL queries for ping.
+- `excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']` excludes all SQL queries that query the information_schema database.
+- `request.default` configures the default query request concurrency limit to 200, wait timeout to 900 seconds, and maximum wait requests to 0 (unlimited).
+- `request.users.root` configures the query request concurrency limit for user root to 100, wait timeout to 200 seconds, and maximum wait requests to 10.
+
+When user root initiates a query request, taosAdapter will perform concurrency limit processing based on the above configuration. 
+When the number of query requests exceeds 100, subsequent requests will enter a waiting state until resources are available. 
+If the wait time exceeds 200 seconds or the number of waiting requests exceeds 10, taosAdapter will directly return an error response.
+
+When other users initiate query requests, the default concurrency limit configuration will be used for processing. 
+Each user's configuration is independent and does not share the concurrency limit of `request.default`. 
+For example, when user user1 initiates 200 concurrent query requests, user user2 can also initiate 200 concurrent query requests simultaneously without blocking.
+
 ### Environment Variables
 
 Configuration Parameters and their corresponding environment variables:
