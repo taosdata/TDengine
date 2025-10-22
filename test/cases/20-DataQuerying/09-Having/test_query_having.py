@@ -2661,10 +2661,10 @@ class TestHaving:
             ('2020-06-01 06:00:00.000', 2.5980761, 10, 0.8860250)
         ]
 
-        sql = "insert into ct_1 values";
+        sql_values = []
         for t in data:
-            sql += "('{}', {}, {}, {}),".format(t[0], t[1], t[2], t[3])
-        sql += ";"
+            sql_values.append("('{}', {}, {}, {})".format(t[0], t[1], t[2], t[3]))
+        sql = "insert into ct_1 values " + ",".join(sql_values) + ";"
         tdSql.execute(sql)
         tdLog.debug("sql: %s" % sql)
 
