@@ -42,7 +42,7 @@ Select a target database from the **Target Database** dropdown list, or click th
 In the **Connection Configuration** area:
 
 1. OPC-UA Service Address: The OPC UA server endpoint, for example: 127.0.0.1:6666/OPCUA/ServerPath. If an Agent is used, this address must be accessible from the Agent. If no Agent is used, this address must be accessible from the server where the TDengine system resides.
-2. Failover Service Address: The OPC server’s failover server endpoints. You can specify multiple addresses, separated by commas (`,`). (Supported starting from version 3.3.8.3).
+2. Failover Service Address: The OPC server’s failover server endpoints. You can specify multiple addresses, separated by commas (`,`). (Since version 3.3.8.3).
 
 configure the data transmission security mode, with three security modes available:
 
