@@ -136,8 +136,9 @@ nav:
         - 02-taos-CLI: case_list_docs/Tools/taos-CLI.md
         - 03-taosBenchmark: case_list_docs/Tools/taosBenchmark.md
         - 04-taosdump: case_list_docs/Tools/taosdump.md
+        - 05-Valgrind: case_list_docs/Tools/Valgrind.md
     - 82-UnitTest: case_list_docs/UnitTest.md
-    - 83-DocTest: case_list_docs/DocTest.md    
+    - 83-DocTest: case_list_docs/DocTest.md
 
   - Util funcs docs:
       - new_test_framework:
