@@ -29,6 +29,12 @@
 #define CFG_RESERVE_SIZE  63
 #define CFG_ALTER_TIMEOUT 3 * 1000
 
+// Sync timeout ratio constants
+#define SYNC_TIMEOUT_DIVISOR       4
+#define SYNC_TIMEOUT_ELECT_DIVISOR 2
+#define SYNC_TIMEOUT_SR_DIVISOR    4
+#define SYNC_TIMEOUT_HB_DIVISOR    8
+
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
@@ -855,6 +861,82 @@ static int32_t mndTryRebuildConfigSdbRsp(SRpcMsg *pRsp) {
   return 0;
 }
 
+// Helper function to create and commit a config object
+static int32_t mndCreateAndCommitConfigObj(STrans *pTrans, const char *srcName, const char *cfgName, char *value,
+                                           int32_t *lino) {
+  int32_t     code = 0;
+  SConfigObj *pTmp = taosMemoryMalloc(sizeof(SConfigObj));
+  if (pTmp == NULL) {
+    code = terrno;
+    return code;
+  }
+
+  pTmp->dtype = CFG_DTYPE_INT32;
+  tstrncpy(pTmp->name, cfgName, CFG_NAME_MAX_LEN);
+  code = mndUpdateObj(pTmp, srcName, value);
+  if (code != 0) {
+    tFreeSConfigObj(pTmp);
+    taosMemoryFree(pTmp);
+    return code;
+  }
+
+  code = mndSetCreateConfigCommitLogs(pTrans, pTmp);
+  tFreeSConfigObj(pTmp);
+  taosMemoryFree(pTmp);
+  return code;
+}
+
+// Helper function to handle syncTimeout related config updates
+static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, const char *pValue, int32_t *lino) {
+  int32_t code = 0;
+  int32_t syncTimeout = 0;
+  char    tmp[10] = {0};
+
+  if (sscanf(pValue, "%d", &syncTimeout) != 1) {
+    syncTimeout = 0;
+  }
+
+  int32_t baseTimeout = syncTimeout - syncTimeout / SYNC_TIMEOUT_DIVISOR;
+
+  // arbSetAssignedTimeoutMs = syncTimeout
+  sprintf(tmp, "%d", syncTimeout);
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbSetAssignedTimeoutMs", tmp, lino), lino, _OVER);
+
+  // arbHeartBeatIntervalMs = syncTimeout / 4
+  sprintf(tmp, "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbHeartBeatIntervalMs", tmp, lino), lino, _OVER);
+
+  // arbCheckSyncIntervalMs = syncTimeout / 4
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbCheckSyncIntervalMs", tmp, lino), lino, _OVER);
+
+  // syncVnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
+  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeElectIntervalMs", tmp, lino), lino, _OVER);
+
+  // syncMnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncMnodeElectIntervalMs", tmp, lino), lino, _OVER);
+
+  // statusTimeoutMs = (syncTimeout - syncTimeout / 4) / 2
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusTimeoutMs", tmp, lino), lino, _OVER);
+
+  // statusSRTimeoutMs = (syncTimeout - syncTimeout / 4) / 4
+  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusSRTimeoutMs", tmp, lino), lino, _OVER);
+
+  // syncVnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
+  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeHeartbeatIntervalMs", tmp, lino), lino, _OVER);
+
+  // syncMnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncMnodeHeartbeatIntervalMs", tmp, lino), lino, _OVER);
+
+  // statusIntervalMs = (syncTimeout - syncTimeout / 4) / 8
+  TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusIntervalMs", tmp, lino), lino, _OVER);
+
+_OVER:
+  return code;
+}
+
 // get int32_t value from 'SMCfgDnodeReq'
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pMCfgReq, int32_t optLen, int32_t *pOutValue) {
   int32_t code = 0;
@@ -906,102 +988,7 @@ static int32_t mndConfigUpdateTrans(SMnode *pMnode, const char *name, char *pVal
   TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pObj), &lino, _OVER);
 
   if (taosStrncasecmp(name, "syncTimeout", CFG_NAME_MAX_LEN) == 0) {
-    SConfigObj *pTmp = NULL;
-    int32_t     syncTimeout = 0;
-    char        tmp[10] = {0};
-    if (sscanf(pValue, "%d", &syncTimeout) != 1) {
-      syncTimeout = 0;
-    }
-
-    sprintf(tmp, "%d", syncTimeout);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "arbSetAssignedTimeoutMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    sprintf(tmp, "%d", syncTimeout / 4);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "arbHeartBeatIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "arbCheckSyncIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 2);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "syncVnodeElectIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "syncMnodeElectIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "statusTimeoutMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 4);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "statusSRTimeoutMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 8);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "syncVnodeHeartbeatIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "syncMnodeHeartbeatIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "statusIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
+    TAOS_CHECK_GOTO(mndHandleSyncTimeoutConfigs(pTrans, name, pValue, &lino), &lino, _OVER);
   }
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
   code = 0;
@@ -1046,102 +1033,7 @@ static int32_t mndConfigUpdateTransWithDnode(SMnode *pMnode, const char *name, c
   TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pObj), &lino, _OVER);
 
   if (taosStrncasecmp(name, "syncTimeout", CFG_NAME_MAX_LEN) == 0) {
-    SConfigObj *pTmp = NULL;
-    int32_t     syncTimeout = 0;
-    char        tmp[10] = {0};
-    if (sscanf(pValue, "%d", &syncTimeout) != 1) {
-      syncTimeout = 0;
-    }
-
-    sprintf(tmp, "%d", syncTimeout);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "arbSetAssignedTimeoutMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    sprintf(tmp, "%d", syncTimeout / 4);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "arbHeartBeatIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "arbCheckSyncIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 2);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "syncVnodeElectIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "syncMnodeElectIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "statusTimeoutMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 4);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "statusSRTimeoutMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    sprintf(tmp, "%d", (syncTimeout - syncTimeout / 4) / 8);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "syncVnodeHeartbeatIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "syncMnodeHeartbeatIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
-
-    pTmp = taosMemoryMalloc(sizeof(SConfigObj));
-    pTmp->dtype = CFG_DTYPE_INT32;
-    tstrncpy(pTmp->name, "statusIntervalMs", CFG_NAME_MAX_LEN);
-    TAOS_CHECK_GOTO(mndUpdateObj(pTmp, name, tmp), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pTmp), &lino, _OVER);
-    tFreeSConfigObj(pTmp);
-    taosMemoryFree(pTmp);
+    TAOS_CHECK_GOTO(mndHandleSyncTimeoutConfigs(pTrans, name, pValue, &lino), &lino, _OVER);
   }
 
   // Add redo actions to send config to dnodes
