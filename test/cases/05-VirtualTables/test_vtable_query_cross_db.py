@@ -225,14 +225,16 @@ class TestVtableQueryCrossDB:
 
         1. test vstable select normal table cross db projection
         2. test vstable select normal table cross db projection filter
-        3. test vstable select normal table cross db interval
-        4. test vstable select normal table cross db state
-        5. test vstable select normal table cross db session
-        6. test vstable select normal table cross db event
-        7. test vstable select normal table cross db count
-        8. test vstable select normal table cross db partition
-        9. test vstable select normal table cross db group
-        10. test vstable select normal table cross db orderby
+        3. test vstable select normal table cross db projection timerange filter
+        4. test vstable select normal table cross db function
+        5. test vstable select normal table cross db interval
+        6. test vstable select normal table cross db state
+        7. test vstable select normal table cross db session
+        8. test vstable select normal table cross db event
+        9. test vstable select normal table cross db count
+        10. test vstable select normal table cross db partition
+        11. test vstable select normal table cross db group
+        12. test vstable select normal table cross db orderby
 
         Catalog:
             - VirtualTable
@@ -250,6 +252,7 @@ class TestVtableQueryCrossDB:
         """
         self.run_normal_query("test_vtable_select_test_projection")
         self.run_normal_query("test_vtable_select_test_projection_filter")
+        self.run_normal_query("test_vtable_select_test_projection_timerange_filter")
         self.run_normal_query("test_vtable_select_test_function")
 
         self.run_normal_query("test_vtable_select_test_interval")
@@ -267,14 +270,16 @@ class TestVtableQueryCrossDB:
 
         1. test vstable select child table cross db projection
         2. test vstable select child table cross db projection filter
-        3. test vstable select child table cross db interval
-        4. test vstable select child table cross db state
-        5. test vstable select child table cross db session
-        6. test vstable select child table cross db event
-        7. test vstable select child table cross db count
-        8. test vstable select child table cross db partition
-        9. test vstable select child table cross db group
-        10. test vstable select child table cross db orderby
+        3. test vstable select child table cross db projection timerange filter
+        4. test vstable select child table cross db function
+        5. test vstable select child table cross db interval
+        6. test vstable select child table cross db state
+        7. test vstable select child table cross db session
+        8. test vstable select child table cross db event
+        9. test vstable select child table cross db count
+        10. test vstable select child table cross db partition
+        11. test vstable select child table cross db group
+        12. test vstable select child table cross db orderby
 
         Since: v3.3.6.0
 
@@ -289,6 +294,7 @@ class TestVtableQueryCrossDB:
         """
         self.run_normal_query("test_vctable_select_test_projection")
         self.run_normal_query("test_vctable_select_test_projection_filter")
+        self.run_normal_query("test_vctable_select_test_projection_timerange_filter")
         self.run_normal_query("test_vctable_select_test_function")
 
         self.run_normal_query("test_vctable_select_test_interval")

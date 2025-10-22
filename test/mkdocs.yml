@@ -78,7 +78,7 @@ nav:
     - 11-DataDeletion: case_list_docs/DataDeletion.md
     - 12-DataCompression: case_list_docs/DataCompression.md
     - 20-DataQuerying:
-        - 01-Operator: case_list_docs/DataQuerying/Operator.md
+        - 01-Select: case_list_docs/DataQuerying/Select.md
         - 02-Filter: case_list_docs/DataQuerying/Filter.md
         - 03-GroupBy: case_list_docs/DataQuerying/GroupBy.md
         - 04-OrderBy: case_list_docs/DataQuerying/OrderBy.md
