@@ -139,6 +139,7 @@ static void stRunnerTaskReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     ST_TASK_ELOG("failed to lock stream runner task exec mgr mutex, code:%s", tstrerror(code));
     return;
   }
+  clearTaskInfoPVersions((SExecTaskInfo*)pExec->pExecutor);
   SListNode* pNode = listNode(pExec);
   pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
   tdListPrependNode(pMgr->pFreeExecs, pNode);
@@ -797,7 +798,7 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SSTriggerCalcRequest*
   } else {
     code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, NULL, vgId, taskId);
   }
-  swapExecTaskInfoWalVersions(&pExec->pExecutor, &pReq->pWalVersions);
+  moveExecTaskInfoWalVersions(&pExec->pExecutor, &pReq->pWalVersions);
 
   if (code) {
     ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));

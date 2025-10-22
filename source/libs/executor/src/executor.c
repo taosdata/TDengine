@@ -382,7 +382,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   return code;
 }
 
-void swapExecTaskInfoWalVersions(qTaskInfo_t* pTaskInfo, SSHashObj** pWalVersions) {
+void moveExecTaskInfoWalVersions(qTaskInfo_t* pTaskInfo, SSHashObj** pWalVersions) {
   if (pTaskInfo == NULL) {
     return;
   }
@@ -1617,10 +1617,7 @@ int32_t clearStatesForOperator(SOperatorInfo* pOper) {
   return code;
 }
 
-int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
-  int32_t        code = 0;
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
-
+void clearTaskInfoPVersions(SExecTaskInfo* pTaskInfo) {
   if (pTaskInfo->pWalVersions != NULL) {
     int32_t iter = 0;
     void*   px = tSimpleHashIterate(pTaskInfo->pWalVersions, NULL, &iter);
@@ -1632,6 +1629,13 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
     tSimpleHashCleanup(pTaskInfo->pWalVersions);
     pTaskInfo->pWalVersions = NULL;
   }
+}
+
+int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
+  int32_t        code = 0;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
+
+  clearTaskInfoPVersions(pTaskInfo);
 
   SOperatorInfo* pOper = pTaskInfo->pRoot;
   pTaskInfo->code = TSDB_CODE_SUCCESS;

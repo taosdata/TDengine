@@ -117,7 +117,7 @@ typedef enum {
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, SStreamInserterParam* pInsertParams, int32_t vgId, int32_t taskId);
 int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range);
 
-void swapExecTaskInfoWalVersions(qTaskInfo_t* pTaskInfo, SSHashObj** pWalVersions);
+void moveExecTaskInfoWalVersions(qTaskInfo_t* pTaskInfo, SSHashObj** pWalVersions);
 /**
  * Create the exec task for queue mode
  * @param pMsg
@@ -259,6 +259,7 @@ int32_t  qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t  qStreamOperatorReloadState(qTaskInfo_t tInfo);
 int32_t  streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
 int32_t  streamClearStatesForOperators(qTaskInfo_t tInfo);
+void     clearTaskInfoPVersions(SExecTaskInfo* pTaskInfo);
 int32_t  streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppBlock, uint64_t* ts, bool* finished);
 void     streamDestroyExecTask(qTaskInfo_t tInfo);
 int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
