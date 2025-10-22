@@ -192,22 +192,25 @@ class TestAlterConfig:
 
     # run
     def test_alter_config(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        """Configuration basic
         
+        1. Verify alter support vnodes config
+        2. Verify alter ttl config
+        3. Verify alter bypass flag config
+        4. Verify alter audit config
+        5. Verify alter config on dnode 1
+        6. Verify alter timezone config
+        7. Verify alter memPoolReservedSizeMB config
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
         History:
-            - xxx
-            - xxx
+            - 2025-10-22 Alex Duan Migrated from uncatalog/army/alter/test_alter_config_refresh.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 

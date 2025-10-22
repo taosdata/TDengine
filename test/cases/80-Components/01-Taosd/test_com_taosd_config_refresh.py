@@ -15,7 +15,7 @@ from new_test_framework.utils import tdLog, tdSql, etool, sc
 from time import sleep
 
 
-class TestAlterConfigRefresh:
+class TestComTaosdConfigRefresh:
     """This test case is used to veirfy hot refresh configurations
     """
 
@@ -554,23 +554,24 @@ class TestAlterConfigRefresh:
             else:
                 raise Exception(f"unknown key: {key}")
 
-    def test_alter_config_refresh(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+    def test_com_taod_config_refresh(self):
+        """Configuration item hot refresh
         
+        1. Alter taos.cfg item by "alter" sql
+        2. Verify the altered item value take effect
+        3. Stop and restart taosd
+        4. Verify the altered item value take effect after restart
+        5. Config item include server and client side
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
         History:
-            - xxx
-            - xxx
+            - 2025-10-22 Alex Duan Migrated from uncatalog/army/alter/test_alter_config_refresh.py
+
         """
         self.configuration_alter()
         for key in self.configration_dic:

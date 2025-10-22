@@ -634,7 +634,12 @@
 
 # 72-Recovery
 
-# 80-Benchmark
+# 80-Components
+
+# 01-Taosd
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_config.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_config_refresh.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_config_refresh.py -N 3 -M 3
 
 # 81-Taosdump
 
@@ -673,11 +678,6 @@
 
 # uncatalogf
 # army
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_db_option.py -N 3
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/authorith/test_auth_basic.py -N 3
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator.py -N 3
