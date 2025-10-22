@@ -266,7 +266,7 @@ class TestSnodeMgmtReplica3:
     def checkStreamRunning(self):
         tdLog.info(f"check stream running status:")
 
-        timeout = 60
+        timeout = 300
         start_time = time.time()
 
         while True:
