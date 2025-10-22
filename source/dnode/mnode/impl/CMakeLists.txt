@@ -28,6 +28,7 @@ target_include_directories(
   mnode
   PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+  PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/privilege/inc"
 )
 target_link_libraries(
   mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw
