@@ -110,7 +110,7 @@ docker run \
     --privileged=true \
     --name "$CONTAINER_NAME" \
     $DOCKER_MOUNTS \
-    --ulimit core=-1 \
+    --rm --ulimit core=-1 \
     "$DOCKER_IMAGE" \
     sh -c "bash $CONTAINER_TESTDIR/test/ci/run_coverage_diff.sh $COVERAGE_ARGS"
 
