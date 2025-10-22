@@ -12,7 +12,7 @@ h5py==3.12.1
 itsdangerous==2.2.0
 Jinja2==3.1.6
 joblib==1.4.2
-keras==3.9.0
+keras==3.11.3
 kiwisolver==1.4.7
 markdown-it-py==3.0.0
 MarkupSafe==3.0.1
