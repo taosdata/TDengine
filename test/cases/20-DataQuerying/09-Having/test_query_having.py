@@ -2876,10 +2876,10 @@ class TestHaving:
             ('2020-06-01 02:15:00.000', 2.1213200, 18, 0.7271070)
         ]
 
-        sql = "insert into ct_win values";
+        sql_values = []
         for t in data_win:
-            sql += "('{}', {}, {}, {}),".format(t[0], t[1], t[2], t[3])
-        sql += ";"
+            sql_values.append("('{}', {}, {}, {})".format(t[0], t[1], t[2], t[3]))
+        sql = "insert into ct_steam_win values " + ",".join(sql_values) + ";"
         tdSql.execute(sql)
         tdLog.debug("data_win sql: %s" % sql)
 
