@@ -1,7 +1,7 @@
 from new_test_framework.utils import tdLog, tdSql, etool, TDSql
 import taos
 
-class TestAuthBasic:
+class TestPrivBasic:
     """Add test case to cover the basic privilege test
     """
     def setup_class(cls):
@@ -188,23 +188,21 @@ class TestAuthBasic:
         self.delete_user("test")
         self.delete_user("test1")
 
-    def test_auth_basic(self):
-        """summary: xxx
+    def test_priv_basic(self):
+        """Privileges basic
+        
+        1. Test common user privileges
+        2. Test common user with create database privilege
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-22 Alex Duan Migrated from uncatalog/army/authorith/test_auth_basic.py
+
         """
         self.run_test_common_user_privileges()
         self.run_test_common_user_with_createdb_privileges()

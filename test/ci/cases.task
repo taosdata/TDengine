@@ -605,6 +605,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py 
 
 # 25-Privileges
+,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
 
 # 26-NodeManager
 
@@ -702,8 +703,6 @@
 
 
 # army
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/authorith/test_auth_basic.py -N 3
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator_restart.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_snapshot.py -N 3 -L 3 -D 2
@@ -877,7 +876,6 @@
 ,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_retry.py -B
 ,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_tiny_int.py -B
 
-,,n,.,pytest cases/uncatalog/army/user/test_passwd.py
 
 ## system_test
 ### 2-query

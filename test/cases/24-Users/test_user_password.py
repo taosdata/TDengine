@@ -1,35 +1,19 @@
+import os
+import platform
+import subprocess
 import time
+
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
 class TestUserPassword:
 
     def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
-
-    def test_user_password(self):
-        """Password: basic test
-
-        1. Creation and modification of users with various password formats (valid/invalid patterns)
-        2. Verification of password complexity requirements (length/special characters)
-        3. Testing cross-user permission restrictions during password changes
-        4. Validation of system behavior with maximum password length boundaries
-        5. Special character handling in passwords and error case verification
-
-        Catalog:
-            - User
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-30 Simon Guan Migrated from tsim/user/password.sim
-
-        """
-
+        tdLog.debug(f"start to execute {__file__}")        
+    #
+    # ------------------- sim ----------------
+    #
+    def do_sim_user_password(self):
         tdLog.info(f"============= step1")
         tdSql.execute(f"create user u_read pass 'tbx12F132!'")
         tdSql.execute(f"create user u_write pass 'tbx12145&*'")
@@ -314,3 +298,87 @@ class TestUserPassword:
         tdSql.error(f"alter USER `_xTest1` PASS '2729c41a99b2c5222aa7dd9fc1ce3de7';")
         tdSql.error(f"alter USER `_xTest1` PASS '2729c417';")
         tdSql.error(f"alter USER `_xTest1` PASS '2xF';")
+        print(f"\n")
+        print("do sim password ....................... [passed]")
+
+    #
+    # ------------------- army ----------------
+    #
+    def apiPath(self):
+        apiPath = None
+        currentFilePath = os.path.dirname(os.path.realpath(__file__))
+        tdLog.info(f"current file path: {currentFilePath}")
+        if (os.sep.join(["community", "test"]) in currentFilePath):
+            testFilePath = currentFilePath[:currentFilePath.find(os.sep.join(["community", "test"]))+ len(os.sep.join(["community", "test"]))]
+        else:
+            testFilePath = currentFilePath[:currentFilePath.find(os.sep.join(["TDengine", "test"]))+ len(os.sep.join(["TDengine", "test"]))]
+        tdLog.info(f"test file path: {testFilePath}")
+        for root, dirs, files in os.walk(testFilePath):
+            if ("passwdTest.c" in files):
+                apiPath = root
+                break
+        return apiPath
+
+    def do_army_passwd(self):
+        apiPath = self.apiPath()
+        tdLog.info(f"api path: {apiPath}")
+        if platform.system().lower() == 'linux':
+            p = subprocess.Popen(f"cd {apiPath} && make", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = p.communicate()
+            if 0 != p.returncode:
+                tdLog.exit("Test script passwdTest.c make failed")
+        else:
+            p = subprocess.Popen(f"cd {apiPath} && jom -f makefile_win64.mak", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = p.communicate()
+            if 0 != p.returncode:
+                tdLog.exit("Test script passwdTest.c make failed")
+        
+        p = subprocess.Popen(f"ls {apiPath}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        tdLog.info(f"test files: {out}")
+        if apiPath:
+            test_file_cmd = os.sep.join([apiPath, "passwdTest localhost"])
+            try:
+                p = subprocess.Popen(test_file_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                out, err = p.communicate()
+                if 0 != p.returncode:
+                    tdLog.exit("Failed to run passwd test with output: %s \n error: %s" % (out, err))
+                else:
+                    tdLog.info(out)
+                tdLog.success(f"{__file__} successfully executed")
+            except Exception as e:
+                tdLog.exit(f"Failed to execute {__file__} with error: {e}")
+        else:
+            tdLog.exit("passwdTest.c not found")
+        print("do army password ...................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_user_password(self):
+        """Password: basic test
+
+        1. Creation and modification of users with various password formats (valid/invalid patterns)
+        2. Verification of password complexity requirements (length/special characters)
+        3. Testing cross-user permission restrictions during password changes
+        4. Validation of system behavior with maximum password length boundaries
+        5. Special character handling in passwords and error case verification
+        6. Python build passwdTest.c and run to test user password related cases
+
+        Catalog:
+            - User
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-4-30 Simon Guan Migrated from tsim/user/password.sim
+            - 2025-10-22 Alex Duan Migrated from uncatalog/army/user/test_passwd.py
+
+        """
+        self.do_sim_user_password()
+        self.do_army_passwd()
+            
