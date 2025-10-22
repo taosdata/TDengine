@@ -37,6 +37,7 @@ extern "C" {
 #define MND_STREAM_CHKPT_UPDATE_NAME "stream-chkpt-update"
 #define MND_STREAM_CHKPT_CONSEN_NAME "stream-chkpt-consen"
 #define MND_STREAM_STOP_NAME         "stream-stop"
+#define MND_STREAM_RESET_NAME        "stream-reset"
 
 typedef struct SStreamTransInfo {
   int64_t     startTime;
@@ -146,6 +147,7 @@ int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
 int32_t mndStreamSetDropAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetDropActionFromList(SMnode *pMnode, STrans *pTrans, SArray *pList);
 int32_t mndStreamSetResetTaskAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream, int64_t chkptId);
+int32_t mndStreamSetResetStreamAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndStreamSetUpdateChkptAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int64_t chkptId);
 int32_t mndStreamSetChkptIdAction(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream, int64_t checkpointId, SArray *pList);

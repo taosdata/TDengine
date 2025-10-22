@@ -375,6 +375,7 @@ typedef enum ENodeType {
   QUERY_NODE_ASSIGN_LEADER_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_VTABLE_STMT,
+  QUERY_NODE_RESET_STREAM_STMT2,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -4213,6 +4214,14 @@ typedef struct {
   int64_t  streamId;
   int32_t  taskId;
 } SVPauseStreamTaskReq;
+
+typedef struct {
+  SMsgHead head;
+  // int64_t  streamId;
+  // int32_t  taskId;
+  int64_t  transId;
+  int64_t  resetTs;
+} SVResetStreamReq;
 
 typedef struct {
   SMsgHead head;

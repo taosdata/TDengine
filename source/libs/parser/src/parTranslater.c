@@ -15031,7 +15031,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_RESUME_STREAM_STMT:
       code = translateResumeStream(pCxt, (SResumeStreamStmt*)pNode);
       break;
-    case QUERY_NODE_RESET_STREAM_STMT:
+    case QUERY_NODE_RESET_STREAM_STMT2:
       code = translateResetStream(pCxt, (SResetStreamStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:

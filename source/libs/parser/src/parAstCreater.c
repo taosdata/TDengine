@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <regex.h>
+#include "cmdnodes.h"
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
@@ -4345,8 +4346,8 @@ _err:
 SNode* createResetStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkStreamName(pCxt, pStreamName));
-  SPauseStreamStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_RESET_STREAM_STMT, (SNode**)&pStmt);
+  SResetStreamStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RESET_STREAM_STMT2, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
   pStmt->ignoreNotExists = ignoreNotExists;

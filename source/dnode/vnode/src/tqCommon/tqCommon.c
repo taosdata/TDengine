@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tmsg.h"
 #include "tmsgcb.h"
 #include "tq.h"
 #include "tstream.h"
@@ -1124,6 +1125,51 @@ int32_t tqStreamTaskProcessAllTaskStopReq(SStreamMeta* pMeta, SMsgCb* pMsgCb, SR
 
   } else {  // stop only one stream tasks
 
+  }
+
+  // always return success
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tqStreamProcessStreamResetMsg(SStreamMeta* pMeta, SMsgCb* pMsgCb, char* msg, int32_t msgLen) {
+  int32_t           code = 0;
+  int32_t           vgId = pMeta->vgId;
+  SVResetStreamReq* pReq = (SVResetStreamReq*)msg;
+
+  tqDebug("vgId:%d recv msg to reset all streams in sync, stop all stream firstly", vgId);
+
+  // discard the reset request if already started all tasks for the same or higher transId
+  if (pMeta->startInfo.triggerTrans >= pReq->transId) {
+    tqError("vgId:%d already started all tasks for transId:%" PRId64 ", not start again", vgId, pReq->transId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // ignore the reset request if already started all tasks recently(less than 180s)
+  if (pMeta->startInfo.transTs != 0 && pReq->resetTs - pMeta->startInfo.transTs < 180 * 1000) {
+    tqWarn("vgId:%d already started all tasks recently for transId:%" PRId64 " at ts:%" PRId64
+           ", less than 180s, ignore reset req",
+           vgId, pMeta->startInfo.triggerTrans, pMeta->startInfo.transTs);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // update the trigger transId and ts
+  pMeta->startInfo.triggerTrans = pReq->transId;
+  pMeta->startInfo.transTs = pReq->resetTs;
+
+  code = streamMetaStopAllTasks(pMeta);
+  if (code) {
+    tqError("vgId:%d failed to stop all tasks, code:%s", vgId, tstrerror(code));
+  }
+
+  tqInfo("vgId:%d start all tasks after stop all of them", vgId);
+
+  // clear the start all tasks flag
+  pMeta->startInfo.startAllTasks = 0;
+  pMeta->startInfo.restartCount = 0;
+
+  code = tqStreamTaskStartAsync(pMeta, pMsgCb, true);
+  if (code) {
+    tqError("vgId:%d async start all tasks, failed, code:%s", vgId, tstrerror(code));
   }
 
   // always return success

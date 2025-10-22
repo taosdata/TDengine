@@ -642,7 +642,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_RESUME_STREAM_STMT:
       code = makeNode(type, sizeof(SResumeStreamStmt), &pNode);
       break;
-    case QUERY_NODE_RESET_STREAM_STMT:
+    case QUERY_NODE_RESET_STREAM_STMT2:
       code = makeNode(type, sizeof(SResetStreamStmt), &pNode);
       break;
     case QUERY_NODE_BALANCE_VGROUP_STMT:
@@ -1577,7 +1577,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_STREAM_STMT:                     // no pointer field
     case QUERY_NODE_PAUSE_STREAM_STMT:                    // no pointer field
     case QUERY_NODE_RESUME_STREAM_STMT:                   // no pointer field
-    case QUERY_NODE_RESET_STREAM_STMT:                    // no pointer field
+    case QUERY_NODE_RESET_STREAM_STMT2:                    // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:                  // no pointer field
     case QUERY_NODE_ASSIGN_LEADER_STMT: 
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:           // no pointer field

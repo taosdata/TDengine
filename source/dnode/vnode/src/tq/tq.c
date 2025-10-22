@@ -1403,6 +1403,10 @@ int32_t tqProcessAllTaskStopReq(STQ* pTq, SRpcMsg* pMsg) {
   return tqStreamTaskProcessAllTaskStopReq(pTq->pStreamMeta, &pTq->pVnode->msgCb, pMsg);
 }
 
+int32_t tqProcessStreamResetMsg(STQ* pTq, char* msg, int32_t msgLen) {
+  return tqStreamProcessStreamResetMsg(pTq->pStreamMeta, &pTq->pVnode->msgCb, msg, msgLen);
+}
+
 int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t vgId = TD_VID(pTq->pVnode);
 

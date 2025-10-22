@@ -18,8 +18,11 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
+#include "osTime.h"
 #include "taoserror.h"
+#include "thash.h"
 #include "tmisce.h"
+#include "tmsg.h"
 
 static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask) {
   SVPauseStreamTaskReq *pReq = taosMemoryCalloc(1, sizeof(SVPauseStreamTaskReq));
@@ -50,6 +53,50 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
 
   mDebug("pause stream task in node:%d, epset:%s", pTask->info.nodeId, buf);
   code = setTransAction(pTrans, pReq, sizeof(SVPauseStreamTaskReq), TDMT_STREAM_TASK_PAUSE, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
+  if (code != 0) {
+    taosMemoryFree(pReq);
+    return code;
+  }
+  return 0;
+}
+
+static int32_t doSetResetStreamAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, SHashObj* pVgHashMap, int64_t ts) {
+  void* p = taosHashGet(pVgHashMap, (char*)&pTask->info.nodeId, sizeof(int32_t));
+  if (p != NULL) {
+    // already set reset action for this vgroup
+    return 0;
+  }
+
+  SVResetStreamReq *pReq = taosMemoryCalloc(1, sizeof(SVResetStreamReq));
+  if (pReq == NULL) {
+    mError("failed to malloc in reset streams, size:%" PRIzu ", code:%s", sizeof(SVResetStreamReq),
+           tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return terrno;
+  }
+
+  pReq->head.vgId = htonl(pTask->info.nodeId);
+  pReq->transId = pTrans->id;
+  pReq->resetTs = ts;
+
+  SEpSet  epset = {0};
+  bool    hasEpset = false;
+  int32_t code = extractNodeEpset(pMnode, &epset, &hasEpset, pTask->id.taskId, pTask->info.nodeId);
+  if (code != TSDB_CODE_SUCCESS || !hasEpset) {
+    terrno = code;
+    taosMemoryFree(pReq);
+    return code;
+  }
+
+  char buf[256] = {0};
+  code = epsetToStr(&epset, buf, tListLen(buf));
+  if (code != 0) {  // print error and continue
+    mError("failed to convert epset to str, code:%s", tstrerror(code));
+  }
+
+  mDebug("reset streams in node:%d, epset:%s", pTask->info.nodeId, buf);
+
+  // NOTE: we use the TDMT_STREAM_TASK_RESTORE_CHECKPOINT to denote the reset-stream action here
+  code = setTransAction(pTrans, pReq, sizeof(SVResetStreamReq), TDMT_STREAM_TASK_RESTORE_CHECKPOINT, &epset, 0, TSDB_CODE_VND_INVALID_VGROUP_ID);
   if (code != 0) {
     taosMemoryFree(pReq);
     return code;
@@ -432,6 +479,48 @@ int32_t mndStreamSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
   }
 
   destroyStreamTaskIter(pIter);
+  return code;
+}
+
+int32_t mndStreamSetResetStreamAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
+  SStreamTaskIter *pIter = NULL;
+  int64_t          now = taosGetTimestampMs();
+  int32_t          code = createStreamTaskIter(pStream, &pIter);
+  if (code) {
+    mError("failed to create stream task iter:%s", pStream->name);
+    return code;
+  }
+
+  SHashObj* pVgHashMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (pVgHashMap == NULL) {
+    destroyStreamTaskIter(pIter);
+    return terrno;
+  }
+
+  while (streamTaskIterNextTask(pIter)) {
+    SStreamTask *pTask = NULL;
+    code = streamTaskIterGetCurrent(pIter, &pTask);
+    if (code) {
+      destroyStreamTaskIter(pIter);
+      taosHashCleanup(pVgHashMap);
+      return code;
+    }
+
+    code = doSetResetStreamAction(pMnode, pTrans, pTask, pVgHashMap,now);
+    if (code) {
+      destroyStreamTaskIter(pIter);
+      taosHashCleanup(pVgHashMap);
+      return code;
+    }
+
+    if (atomic_load_8(&pTask->status.taskStatus) != TASK_STATUS__PAUSE) {
+      atomic_store_8(&pTask->status.statusBackup, pTask->status.taskStatus);
+      atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
+    }
+  }
+
+  destroyStreamTaskIter(pIter);
+  taosHashCleanup(pVgHashMap);
   return code;
 }
 

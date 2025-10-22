@@ -518,6 +518,8 @@ typedef struct STaskStartInfo {
   EStartStage        curStage;      // task start stage
   SArray*            pRecvChkptIdTasks;// tasks that recv consensus checkpoint id
   bool               partialTasksStarted; // false
+  int64_t            triggerTrans;
+  int64_t            transTs;
   SArray*            pStagesList;   // history stage list with timestamp, SArrya<SStartTaskStageInfo>
   startComplete_fn_t completeFn;    // complete callback function
 } STaskStartInfo;

@@ -122,6 +122,7 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_CHECK_POINT_SOURCE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_STREAM_ALL_STOP_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_RESTORE_CHECKPOINT_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_BEGIN_CHECKPOINT, mndProcessStreamCheckpoint);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_DROP_ORPHANTASKS, mndProcessDropOrphanTaskReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_TASK_RESET, mndProcessResetStatusReq);
@@ -2090,6 +2091,119 @@ static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
       TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
   }
+
+  mInfo("stream:%s,%" PRId64 " start to reset stream", resetReq.name, pStream->uid);
+
+  if ((code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb)) != 0) {
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  // check if it is conflict with other trans in both sourceDb and targetDb.
+  // code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_PAUSE_NAME, true);
+  // if (code) {
+  //   sdbRelease(pMnode->pSdb, pStream);
+  //   TAOS_RETURN(code);
+  // }
+
+  bool updated = mndStreamNodeIsUpdated(pMnode);
+  if (updated) {
+    mError("tasks are not allowed for reset, node update detected");
+    sdbRelease(pMnode->pSdb, pStream);
+    TAOS_RETURN(TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  }
+
+  // todo: record the reset timestamp
+
+  // {  // check for tasks, if tasks are not ready, not allowed to reset
+    // bool found = false;
+  //   bool readyToPause = true;
+  //   streamMutexLock(&execInfo.lock);
+
+  //   for (int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
+  //     STaskId *p = taosArrayGet(execInfo.pTaskList, i);
+  //     if (p == NULL) {
+  //       continue;
+  //     }
+
+  //     STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, p, sizeof(*p));
+  //     if (pEntry == NULL) {
+  //       continue;
+  //     }
+
+  //     if (pEntry->id.streamId != pStream->uid) {
+  //       continue;
+  //     }
+
+  //     if (pEntry->status == TASK_STATUS__UNINIT || pEntry->status == TASK_STATUS__CK) {
+  //       mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64 " status:%s, not ready for pause", pStream->name,
+  //              pStream->uid, pEntry->nodeId, pEntry->id.taskId, streamTaskGetStatusStr(pEntry->status));
+  //       readyToPause = false;
+  //     }
+
+  //     found = true;
+  //   }
+
+    // streamMutexUnlock(&execInfo.lock);
+    // if (!found) {
+    //   mError("stream:%s task not report status yet, not ready for pause", pauseReq.name);
+    //   sdbRelease(pMnode->pSdb, pStream);
+    //   TAOS_RETURN(TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+    // }
+
+    // if (!readyToPause) {
+    //   mError("stream:%s task not ready for pause yet", pauseReq.name);
+    //   sdbRelease(pMnode->pSdb, pStream);
+    //   TAOS_RETURN(TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+    // }
+  // }
+
+  STrans *pTrans = NULL;
+  code = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_RESET_NAME, "reset all streams", &pTrans);
+  if (pTrans == NULL || code) {
+    mError("stream:%s failed to pause stream since %s", resetReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  code = mndStreamRegisterTrans(pTrans, MND_STREAM_RESET_NAME, pStream->uid);
+  if (code) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  // if nodeUpdate happened, not send pause trans
+  code = mndStreamSetResetStreamAction(pMnode, pTrans, pStream);
+  if (code) {
+    mError("stream:%s, failed to reset task since %s", resetReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  // reset all streams
+  taosWLockLatch(&pStream->lock);
+  code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
+  if (code) {
+    taosWUnLockLatch(&pStream->lock);
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  taosWUnLockLatch(&pStream->lock);
+
+  code = mndTransPrepare(pMnode, pTrans);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("trans:%d, failed to prepare reset stream trans since %s", pTrans->id, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+  mndTransDrop(pTrans);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }

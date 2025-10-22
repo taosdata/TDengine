@@ -207,7 +207,7 @@ const char* nodesNodeName(ENodeType type) {
       return "PauseStreamStmt";
     case QUERY_NODE_RESUME_STREAM_STMT:
       return "ResumeStreamStmt";
-    case QUERY_NODE_RESET_STREAM_STMT:
+    case QUERY_NODE_RESET_STREAM_STMT2:
       return "ResetStreamStmt";
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return "BalanceVgroupStmt";
