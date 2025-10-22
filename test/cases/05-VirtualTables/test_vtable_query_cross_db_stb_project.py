@@ -223,6 +223,9 @@ class TestVtableQueryCrossDbStb:
 
         1. test vstable select super table cross db projection
         2. test vstable select super table cross db projection filter
+        3. test vstable select super table cross db projection timerange filter
+        4. test vstable select super table cross db projection function
+
 
         Since: v3.3.6.0
 
@@ -237,5 +240,6 @@ class TestVtableQueryCrossDbStb:
         """
         self.run_normal_query("test_vstable_select_test_projection")
         self.run_normal_query("test_vstable_select_test_projection_filter")
-        #self.test_normal_query("test_vstable_select_test_function")
+        self.run_normal_query("test_vstable_select_test_projection_timerange_filter")
+        self.run_normal_query("test_vstable_select_test_function")
 
