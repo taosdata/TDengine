@@ -11264,6 +11264,10 @@ void tDestroySResFetchReq(SResFetchReq *pReq) {
   if (pReq != NULL) {
     (void)tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
     taosMemoryFree(pReq->pStRtFuncInfo);
+    if (pReq->pWalVersions != NULL) {
+      taosArrayDestroy(pReq->pWalVersions);
+      pReq->pWalVersions = NULL;
+    }
   }
 }
 
