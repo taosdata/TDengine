@@ -58,10 +58,10 @@ static int saslCallBackFn(SSaslConn* conn, int id, const char** result, unsigned
   }
   return SASL_FAIL;
 }
-void saslConnInit(SSaslConn* pConn, int8_t isServer) {
+int32_t saslConnInit(SSaslConn* pConn, int8_t isServer) {
   int32_t code = 0;
-  if (pConn == NULL) {
-    return;
+  if (pConn == NULL || pConn->conn == NULL) {
+    return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
   sasl_callback_t callbacks[] = {
@@ -75,17 +75,47 @@ void saslConnInit(SSaslConn* pConn, int8_t isServer) {
     result = sasl_server_new("tdengine", NULL, NULL, NULL, NULL, callbacks, 0, &pConn->conn);
     if (result != SASL_OK) {
       tError("sasl_server_new failed: %s", sasl_errstring(result, NULL, NULL));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
     }
   } else {
     result = sasl_client_new("tdengine", NULL, NULL, NULL, callbacks, 0, &pConn->conn);
     if (result != SASL_OK) {
       tError("sasl_client_new failed: %s", sasl_errstring(result, NULL, NULL));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
     }
   }
-  return;
+  pConn->completed = 0;
+  return code;
 }
 
 int32_t saslEncode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen) {
+  int32_t code = 0;
+  int     result = 0;
+
+  const char* outBuf = NULL;
+  unsigned    outBufLen = 0;
+  if (pConn == NULL || pConn->conn == NULL) {
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
+  result = sasl_encode(pConn->conn, input, len, (const char**)outBuf, &outBufLen);
+  if (result != SASL_OK) {
+    tError("sasl_encode64 failed: %s", sasl_errstring(result, NULL, NULL));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+  } else {
+    *output = taosMemoryMalloc(outBufLen);
+    if (*output == NULL) {
+      tError("saslEncode failed to alloc memory");
+      return terrno;
+    }
+
+    memcpy((void*)*output, outBuf, outBufLen);
+    *outputLen = outBufLen;
+  }
+  return code;
+}
+
+int32_t saslDecode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen) {
   int32_t code = 0;
   int     result = 0;
 
@@ -93,9 +123,9 @@ int32_t saslEncode(SSaslConn* pConn, const char* input, int32_t len, const char*
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
-  result = sasl_encode(pConn->conn, input, len, (const char**)output, outputLen);
+  result = sasl_decode(pConn->conn, input, len, (const char**)output, outputLen);
   if (result != SASL_OK) {
-    tError("sasl_encode64 failed: %s", sasl_errstring(result, NULL, NULL));
+    tError("sasl_decode64 failed: %s", sasl_errstring(result, NULL, NULL));
     code = TSDB_CODE_THIRDPARTY_ERROR;
   }
   return code;
@@ -129,55 +159,30 @@ int32_t saslHandleHandshake(SSaslConn* pConn) {
 }
 int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len) {
   int32_t     code = 0;
-  int         result = 0;
-  const char* output = NULL;
-  unsigned    outputLen = 0;
+  const char* mechanism = SASL_MECHANISM_SCRAM_SHA256;
 
-  if (pConn == NULL || pConn->conn == NULL) {
-    return TSDB_CODE_THIRDPARTY_ERROR;
+  const char* clientOut = NULL;
+  unsigned    clientOutLen = 0;
+
+  int result = sasl_server_start(pConn->conn, mechanism, input, len, &clientOut, &clientOutLen);
+  while (result == SASL_CONTINUE) {
+    const char* serverOut = NULL;
+    unsigned    serverOutLen = 0;
+    result = sasl_server_step(pConn->conn, input, len, &clientOut, &serverOutLen);
   }
 
-  if (pConn->completed == 1) {
-    return 0;
-  }
+  if (result == SASL_OK) {
+    pConn->completed = 1;
 
-  if (pConn->state == STATE_SALA_AUTH) {
-    result = sasl_server_start(pConn->conn, SASL_MECHANISM_SCRAM_SHA256, input, len, &output, &outputLen);
-  } else {
-    result = sasl_server_step(pConn->conn, input, len, &output, &outputLen);
-  }
-
-  switch (result) {
-    case SASL_OK: {
-      pConn->completed = 1;
-      pConn->state = STATE_READY;
-
-      result = sasl_getprop(pConn->conn, SASL_USERNAME, (const void**)&pConn->authUser);
-      if (result != SASL_OK) {
-        tError("sasl_getprop SASL_USERNAME failed: %s", sasl_errstring(result, NULL, NULL));
-        code = TSDB_CODE_THIRDPARTY_ERROR;
-        break;
-      }
-
-      if (outputLen > 0) {
-        // do ssl write
-        // write encrypted data
-      }
-
-      break;
-    }
-    case SASL_CONTINUE: {
-      // pConn->state = STATE_SALA_AUTH;
-      if (outputLen > 0) {
-        // do ssl write
-        // write encrypted data
-      }
-      break;
-    }
-    default:
-      tError("sasl authentication failed: %s", sasl_errstring(result, NULL, NULL));
+    result = sasl_getprop(pConn->conn, SASL_USERNAME, (const void**)&pConn->authUser);
+    if (result != SASL_OK) {
+      tError("sasl_getprop SASL_USERNAME failed: %s", sasl_errstring(result, NULL, NULL));
       code = TSDB_CODE_THIRDPARTY_ERROR;
-      break;
+    }
+
+  } else {
+    tError("sasl_server_step failed: %s", sasl_errstring(result, NULL, NULL));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
   }
 
   return code;
