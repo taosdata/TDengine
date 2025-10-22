@@ -12529,8 +12529,8 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   SMCreateXnodeTaskReq createReq = {0};
 
   createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
-  createReq.source = pStmt->source->source;
-  createReq.sink = pStmt->sink->sink;
+  createReq.source = xCloneTaskSourceRef(&pStmt->source->source);
+  createReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
   covertXNodeTaskOptions(pStmt->options, &createReq.options);
   printXnodeTaskOptions(&createReq.options);
 

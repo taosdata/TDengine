@@ -93,7 +93,7 @@ typedef enum {
   MND_OPER_DROP_XNODE_TASK,
   MND_OPER_CREATE_XNODE_JOB,
   MND_OPER_UPDATE_XNODE_JOB,
-  MND_OPER_DROP_XNODE_JOB  
+  MND_OPER_DROP_XNODE_JOB
 } EOperType;
 
 typedef enum {
@@ -303,6 +303,7 @@ typedef struct {
   int32_t  version;
   int32_t  nameLen;
   int32_t  status;
+  int32_t  via;
   SRWLatch lock;
   char*    name;
   char*    sourceType;
@@ -1063,33 +1064,33 @@ typedef struct {
 } SCompactObj;
 
 typedef struct {
-  int32_t nodeId;    // dnode id of the leader vnode
+  int32_t nodeId;  // dnode id of the leader vnode
   int32_t vgId;
-  int32_t fid;       // file set id
+  int32_t fid;  // file set id
   int32_t state;
-  int64_t startTime; // migration start time of this file set in seconds
+  int64_t startTime;  // migration start time of this file set in seconds
 } SSsMigrateFileSet;
 
 typedef enum {
-  SSMIGRATE_VGSTATE_INIT = 0,                  // initial state
-  SSMIGRATE_VGSTATE_WAITING_FSET_LIST = 1,     // waiting for file set list
-  SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED = 2,    // file set list received
-  SSMIGRATE_VGSTATE_FSET_STARTING = 3,         // fset ssmigrate request was sent, waiting for response
-  SSMIGRATE_VGSTATE_FSET_STARTED = 4,          // fset ssmigrate response received
+  SSMIGRATE_VGSTATE_INIT = 0,                // initial state
+  SSMIGRATE_VGSTATE_WAITING_FSET_LIST = 1,   // waiting for file set list
+  SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED = 2,  // file set list received
+  SSMIGRATE_VGSTATE_FSET_STARTING = 3,       // fset ssmigrate request was sent, waiting for response
+  SSMIGRATE_VGSTATE_FSET_STARTED = 4,        // fset ssmigrate response received
 } ESsMigrateVgroupState;
 
 typedef struct {
-  int32_t id;                 // migration id
-  int64_t dbUid;
-  char    dbname[TSDB_TABLE_FNAME_LEN];
-  int64_t startTime;          // migration start time in seconds
-  int64_t stateUpdateTime;    // last state(vgState or currFest.state) update time in seconds
-  int32_t vgIdx;              // index of current vgroup
-  int32_t vgState;            // vgroup migration state
-  int32_t fsetIdx;            // index of current file set
-  SSsMigrateFileSet currFset; // current file set being processed
-  SArray* vgroups;            // SArray<int32_t>, vgroup ids of current migration
-  SArray* fileSets;           // SArray<int32_t>, file set ids of current vgroup
+  int32_t           id;  // migration id
+  int64_t           dbUid;
+  char              dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t           startTime;        // migration start time in seconds
+  int64_t           stateUpdateTime;  // last state(vgState or currFest.state) update time in seconds
+  int32_t           vgIdx;            // index of current vgroup
+  int32_t           vgState;          // vgroup migration state
+  int32_t           fsetIdx;          // index of current file set
+  SSsMigrateFileSet currFset;         // current file set being processed
+  SArray*           vgroups;          // SArray<int32_t>, vgroup ids of current migration
+  SArray*           fileSets;         // SArray<int32_t>, file set ids of current vgroup
 } SSsMigrateObj;
 
 // SGrantLogObj

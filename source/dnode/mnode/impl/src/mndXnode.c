@@ -647,9 +647,11 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   xnodeObj.createdTime = taosGetTimestampMs();
   xnodeObj.updateTime = xnodeObj.createdTime;
   xnodeObj.version = 0;
+  xnodeObj.via = 0;
   xnodeObj.name = taosMemoryCalloc(1, pCreate->name.len);
   if (xnodeObj.name == NULL) goto _OVER;
   (void)memcpy(xnodeObj.name, pCreate->name.ptr, pCreate->name.len);
+  xnodeObj.nameLen = pCreate->name.len;
 
   mInfo("create xnode task, id:%d, name: %s, time:%ld", xnodeObj.id, xnodeObj.name, xnodeObj.createdTime);
 
@@ -1179,6 +1181,11 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     if (code != 0) goto _end;
 
     // TODO: sink
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, name, false);
+    if (code != 0) goto _end;
+
+    // TODO: parser
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, name, false);
     if (code != 0) goto _end;

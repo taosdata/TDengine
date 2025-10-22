@@ -79,13 +79,13 @@
     }                                                                        \
   } while (0)
 
-#define COPY_COW_STR_FROM_ID_TOKEN(cow, pToken)                       \
-  do {                                                                \
-    if (pToken->z[0] == '`') {                                        \
-      (cow) = xCreateCowStr((pToken)->n, (pToken)->z, true);          \
-    } else {                                                          \
-      (cow) = xCreateCowStr((pToken)->n - 2, (pToken)->z + 1, false); \
-    }                                                                 \
+#define COPY_COW_STR_FROM_ID_TOKEN(cow, pToken)                  \
+  do {                                                           \
+    if (pToken->z[0] == '`') {                                   \
+      (cow) = xCreateCowStr((pToken)->n - 2, (pToken)->z + 1, true); \
+    } else {                                                     \
+      (cow) = xCreateCowStr((pToken)->n, (pToken)->z, true); \
+    }                                                            \
   } while (0)
 #define COPY_COW_STR_FROM_STR_TOKEN(cow, pToken)                     \
   do {                                                               \
@@ -4198,7 +4198,7 @@ SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken
     goto _err;
   }
   pSource->source.type = XNODE_TASK_SOURCE_DATABASE;
-  COPY_COW_STR_FROM_STR_TOKEN(pSource->source.cstr, pToken);
+  COPY_COW_STR_FROM_ID_TOKEN(pSource->source.cstr, pToken);
   return (SNode*)pSource;
 _err:
   return NULL;

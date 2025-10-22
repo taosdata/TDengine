@@ -3017,7 +3017,7 @@ int32_t tDeserializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq
 void    tFreeSMUpdateXnodeReq(SMUpdateXnodeReq* pReq);
 
 typedef struct {
-  bool        free;
+  bool        shouldFree;
   int32_t     len;
   const char* ptr;
 } CowStr;
@@ -3036,9 +3036,9 @@ CowStr xCreateCowStr(int32_t len, const char* ptr, bool shouldClone);
  * @param cow: pointer to the CowStr object.
  * @param len: length of the string.
  * @param ptr: pointer to the string input.
- * @param free: whether to free the string.
+ * @param shouldFree: whether to free the string.
  */
-void xSetCowStr(CowStr* cow, int32_t len, const char* ptr, bool free);
+void xSetCowStr(CowStr* cow, int32_t len, const char* ptr, bool shouldFree);
 /**
  * @brief Clone a CowStr object without copy the string.
  *
@@ -3100,6 +3100,7 @@ void xFreeTaskSource(xTaskSource* source);
  * @return xTaskSource object
  */
 xTaskSource xCreateClonedTaskSource(ENodeXTaskSourceType sourceType, int32_t len, char* ptr);
+xTaskSource xCloneTaskSourceRef(xTaskSource* source);
 xTaskSource xCreateTaskSource(ENodeXTaskSourceType sourceType, int32_t len, char* ptr);
 const char* xGetTaskSourceTypeAsStr(xTaskSource* source);
 const char* xGetTaskSourceStr(xTaskSource* source);
@@ -3126,6 +3127,7 @@ void xFreeTaskSink(xTaskSink* sink);
  */
 xTaskSink   xCreateClonedTaskSink(ENodeXTaskSinkType sinkType, int32_t len, char* ptr);
 xTaskSink   xCreateTaskSink(ENodeXTaskSinkType sinkType, int32_t len, char* ptr);
+xTaskSink   xCloneTaskSinkRef(xTaskSink* sink);
 const char* xGetTaskSinkTypeAsStr(xTaskSink* sink);
 const char* xGetTaskSinkStr(xTaskSink* sink);
 int32_t     xSerializeTaskSink(SEncoder* encoder, xTaskSink* sink);

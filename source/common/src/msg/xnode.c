@@ -17,12 +17,10 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include "libs/nodes/nodes.h"
 #include "osMemPool.h"
 #include "osMemory.h"
 #include "taoserror.h"
 #include "tencode.h"
-#include "tglobal.h"
 #include "tmsg.h"
 #include "tutil.h"
 
@@ -31,21 +29,22 @@ CowStr xCreateCowStr(int32_t len, const char *ptr, bool shouldClone) {
   if (shouldClone) {
     cow.len = len;
     cow.ptr = taosStrndupi(ptr, (int64_t)len);
-    cow.free = true;
+    cow.shouldFree = true;
   } else {
     cow.len = len;
     cow.ptr = ptr;
-    cow.free = false;
+    cow.shouldFree = false;
   }
   return cow;
 }
-void xSetCowStr(CowStr *cow, int32_t len, const char *ptr, bool free) {
+void xSetCowStr(CowStr *cow, int32_t len, const char *ptr, bool shouldFree) {
   if (cow == NULL) {
+    printf("Set CowStr with NULL pointer\n");
     return;
   }
   cow->len = len;
   cow->ptr = taosStrndupi(ptr, (int64_t)len);
-  cow->free = free;
+  cow->shouldFree = shouldFree;
 }
 CowStr xCloneRefCowStr(CowStr *cow) {
   CowStr ref = {0};
@@ -54,19 +53,21 @@ CowStr xCloneRefCowStr(CowStr *cow) {
   }
   ref.len = cow->len;
   ref.ptr = cow->ptr;
-  ref.free = cow->free;
+  ref.shouldFree = false;
   return ref;
 }
 void xFreeCowStr(CowStr *cow) {
+  // printf("Free CowStr: cow=%p, ptr=%p, len=%d, shouldFree=%d\n", cow, cow->ptr, cow->len, cow->shouldFree);
   if (cow == NULL) {
     return;
   }
-  if (cow->free) {
+  if (cow->shouldFree && cow->ptr != NULL && cow->len > 0) {
     taosMemoryFreeClear(cow->ptr);
+    cow->ptr = NULL;
   }
   cow->len = 0;
   cow->ptr = NULL;
-  cow->free = false;
+  cow->shouldFree = false;
 }
 int32_t xEncodeCowStr(SEncoder *encoder, CowStr *cow) { return tEncodeCStrWithLen(encoder, cow->ptr, cow->len); }
 int32_t xDecodeCowStr(SDecoder *decoder, CowStr *cow, bool shouldClone) {
@@ -80,10 +81,10 @@ int32_t xDecodeCowStr(SDecoder *decoder, CowStr *cow, bool shouldClone) {
     uint64_t len = 0;
     TAOS_CHECK_EXIT(tDecodeCStrAndLenAlloc(decoder, (char **)&cow->ptr, (uint64_t *)&len));
     cow->len = (int32_t)len;
-    cow->free = true;
+    cow->shouldFree = true;
   } else {
     TAOS_CHECK_EXIT(tDecodeCStrAndLen(decoder, (char **)&cow->ptr, (uint32_t *)&cow->len));
-    cow->free = false;
+    cow->shouldFree = false;
   }
 _exit:
   return code;
@@ -194,17 +195,28 @@ void xFreeTaskSource(xTaskSource *source) {
   xFreeCowStr(&source->cstr);
 }
 xTaskSource xCreateClonedTaskSource(ENodeXTaskSourceType sourceType, int32_t len, char *source) {
+  printf("clone task source from %p\n", source);
   xTaskSource taskSource = {0};
   taskSource.type = sourceType;
   taskSource.cstr = xCreateCowStr(len, source, true);
   return taskSource;
 }
 xTaskSource xCreateTaskSource(ENodeXTaskSourceType sourceType, int32_t len, char *ptr) {
-  xTaskSource taskSource = {0};
+   xTaskSource taskSource = {0};
   taskSource.type = sourceType;
   taskSource.cstr = xCreateCowStr(len, ptr, false);
+   return taskSource;
+}
+xTaskSource xCloneTaskSourceRef(xTaskSource *source) {
+  xTaskSource taskSource = {0};
+  if (source == NULL) {
+    return taskSource;
+  }
+  taskSource.type = source->type;
+  taskSource.cstr = xCloneRefCowStr(&source->cstr);
   return taskSource;
 }
+
 const char *xGetTaskSourceTypeAsStr(xTaskSource *source) {
   switch (source->type) {
     case XNODE_TASK_SOURCE_DATABASE:
@@ -256,6 +268,15 @@ xTaskSink xCreateTaskSink(ENodeXTaskSinkType sinkType, int32_t len, char *ptr) {
   xTaskSink taskSink = {0};
   taskSink.type = sinkType;
   taskSink.cstr = xCreateCowStr(len, ptr, false);
+  return taskSink;
+}
+xTaskSink   xCloneTaskSinkRef(xTaskSink* sink) {
+  xTaskSink taskSink = {0};
+  if (sink == NULL) {
+    return taskSink;
+  }
+  taskSink.type = sink->type;
+  taskSink.cstr = xCloneRefCowStr(&sink->cstr);
   return taskSink;
 }
 const char *xGetTaskSinkTypeAsStr(xTaskSink *sink) {
