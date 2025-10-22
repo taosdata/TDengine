@@ -3670,7 +3670,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
     if (IS_VAR_DATA_TYPE(pDst->info.type)) {
       int32_t j = 0;
       int32_t oriLen = colDataGetLength(pDst, totalRows);
-      void * tmp = taosMemoryMalloc(oriLen);
+      char * tmp = (char*)taosMemoryMalloc(oriLen);
       if (tmp == NULL) {
         return terrno;
       }
