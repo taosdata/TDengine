@@ -14,6 +14,7 @@ use deadpool::managed::{PoolError, TimeoutType};
 use faststr::FastStr;
 use flume::Sender;
 use futures::future::Either;
+use futures_ext::OptionFuture;
 use futures_util::{Sink, Stream, StreamExt};
 use persist::{get_stream, PersistComponent, PersistComponents};
 use ring_channel::{ring_channel, RingReceiver};
@@ -1190,7 +1191,7 @@ async fn consume_lush_record_with_transform(
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
     breakpoint_db: Option<BreakpointDb>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode with transform");
@@ -2026,7 +2027,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     macro_rules! metrics_failed {
         ($rows:expr, $cols:expr) => {
@@ -2294,7 +2295,7 @@ async fn consume_flat_record(
 async fn handle_flat_abnormal<'a>(
     abnormal_stragy: ProcessOnAbnormalEnum<'a>,
     batch: &RecordBatch,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     match abnormal_stragy {
         ProcessOnAbnormalEnum::DatabaseConnectionError(database_connection_error) => {
@@ -2338,7 +2339,13 @@ async fn handle_flat_abnormal<'a>(
     }
 }
 
-fn process_cache(batch: &RecordBatch, archive_tx: Sender<ArchiveType>) -> anyhow::Result<()> {
+fn process_cache(
+    batch: &RecordBatch,
+    archive_tx: Option<Sender<ArchiveType>>,
+) -> anyhow::Result<()> {
+    let Some(archive_tx) = archive_tx else {
+        return Ok(());
+    };
     if batch.num_rows() > 0 {
         archive_tx
             .send(ArchiveType::Cache(batch.clone()))
@@ -2350,7 +2357,7 @@ fn process_cache(batch: &RecordBatch, archive_tx: Sender<ArchiveType>) -> anyhow
 async fn process_archive(
     err: &str,
     batch: &RecordBatch,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     // possible difference in schema, so archive them separately
     let err_vec = vec![err.to_string(); batch.num_rows()];
@@ -2375,7 +2382,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_error_strategy: IpcErrorStrategy,
     metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -2665,7 +2672,7 @@ async fn ipc_flat_stream_worker(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
@@ -2684,7 +2691,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 metrics_arc,
                 batch_counter,
-                archive_tx.clone(),
+                archive_tx,
                 persist_component,
             )
             .await;
@@ -2753,7 +2760,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let stream = ipc_reader.into_raw_stream_with_capycity(
@@ -2924,16 +2931,21 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     persist_component: Option<PersistComponents>,
 ) -> anyhow::Result<()> {
     // the queue for transmitting cache and archived data
-    let (archive_tx, archive_rx) = flume::bounded(0);
+    let (archive_tx, archive_rx) = if parser.is_some() && task_id.is_some() {
+        let (archive_tx, archive_rx) = flume::bounded(0);
+        (Some(archive_tx), Some(archive_rx))
+    } else {
+        (None, None)
+    };
     // clone the configurations
     let parser_clone = parser.clone();
     let cancel_clone = cancel.clone();
     // spawn a thread to write data to files
-    let process_archive = tokio::spawn(async move {
-        let _a = crate::utils::defer::defer(|| {
-            tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
-        });
-        if parser_clone.is_some() && task_id.is_some() {
+    let process_archive = archive_rx.map(|archive_rx| {
+        tokio::spawn(async move {
+            let _a = crate::utils::defer::defer(|| {
+                tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
+            });
             let (cache, archive) = match parser_clone {
                 Some(parser) => (
                     parser.global().process_on_abnormal.cache.clone(),
@@ -2942,35 +2954,27 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 None => (Cache::default(), Archive::default()),
             };
             let metrics = get_metrics_arc_from_i64(task_id).await;
-
-            match ArchiveConsumer::new(task_id.unwrap_or(-1), cache, archive, |num_rows: u64| {
-                let metrics = metrics.ipc();
-                metrics.add_archived_rows(num_rows);
-                Ok::<_, anyhow::Error>(())
-            })
-            .consume(archive_rx)
-            .await
-            {
-                Ok(_) => Ok(()),
-                Err(err) => {
-                    tracing::error!("archive consumer error: {err:#}");
-                    Err(err)
-                }
-            }
-        } else {
-            drop(archive_rx);
-            loop {
-                tokio::select! {
-                    _ = cancel_clone.cancelled() => {
-                        tracing::info!("stop the 'cache & archive' thread, task cancelled");
-                        break;
-                    }
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {
+            let mut fut =
+                ArchiveConsumer::new(task_id.unwrap_or(-1), cache, archive, |num_rows: u64| {
+                    let metrics = metrics.ipc();
+                    metrics.add_archived_rows(num_rows);
+                    Ok::<_, anyhow::Error>(())
+                });
+            tokio::select! {
+                res = fut.consume(archive_rx) => {
+                    match res {
+                        Ok(_) => Ok(()),
+                        Err(err) => {
+                            tracing::error!("archive consumer error: {err:#}");
+                            Err(err)
+                        }
                     }
                 }
+                _ = cancel_clone.cancelled() => {
+                    Ok(())
+                }
             }
-            Ok(())
-        }
+        })
     });
     // spawn a thread to rewrite cache data to files
     let pool_clone = pool.clone();
@@ -2984,12 +2988,15 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
         if task_id.is_none() {
             return Ok(());
         }
+        let Some(archive_tx) = archive_tx_clone else {
+            return Ok(());
+        };
         if let Some(parser) = parser_clone {
             read_cache_and_rewrite(
                 task_id.unwrap(),
                 &pool_clone,
                 &parser,
-                archive_tx_clone,
+                archive_tx,
                 &cancel_clone,
             )
             .await
@@ -2998,11 +3005,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
         }
     });
 
-    let abort_handle_process_archive = process_archive.abort_handle();
-    let future_process_archive = async move {
-        process_archive.await??;
-        anyhow::Ok(())
-    };
+    let abort_handle_process_archive = process_archive.as_ref().map(|f| f.abort_handle());
     let abort_handle_process_cache = process_cache.abort_handle();
 
     info!("IPC stream processing...");
@@ -3119,16 +3122,18 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
 
     tokio::select! {
         res = future_ipc => {
-            tracing::info!("IPC stream processing done, future_ipc: {res:?}",);
+            tracing::info!("IPC stream processing done, future_ipc: {res:?}");
             res?
         }
-        res = future_process_archive => {
-            tracing::info!("IPC stream processing done, future_consume: {res:?}",);
-            res?
+        res = OptionFuture::from(process_archive) => {
+            tracing::info!("IPC stream processing done, future_consume: {res:?}");
+            res??
         }
         _ = cancel.cancelled() => {}
     };
-    abort_handle_process_archive.abort();
+    if let Some(abort_handle_process_archive) = abort_handle_process_archive {
+        abort_handle_process_archive.abort();
+    }
     abort_handle_process_cache.abort();
     Ok(())
 }
@@ -3323,7 +3328,7 @@ impl IpcStreamWorker {
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
         notifier: Option<&crate::TaskNotifySender>,
-        archive_tx: Sender<ArchiveType>,
+        archive_tx: Option<Sender<ArchiveType>>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3903,17 +3908,23 @@ pub async fn channel_based_transformer(
     flume::Receiver<LushAck>,
 )> {
     // the queue for transmitting cache and archived data
-    let (archive_tx, archive_rx) = flume::bounded(0);
+    let (archive_tx, archive_rx) = if parser.is_some() && task_id.is_some() {
+        let (archive_tx, archive_rx) = flume::bounded(0);
+        (Some(archive_tx), Some(archive_rx))
+    } else {
+        (None, None)
+    };
+
     // clone the configurations
     let parser_clone = parser.clone();
     let cancel_clone = cancel.clone();
     // spawn a thread to write data to files
-    let process_archive = tokio::spawn(async move {
-        let _a = crate::utils::defer::defer(|| {
-            tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
-        });
+    let process_archive = archive_rx.map(|archive_rx| {
+        tokio::spawn(async move {
+            let _a = crate::utils::defer::defer(|| {
+                tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
+            });
 
-        if parser_clone.is_some() && task_id.is_some() {
             let (cache, archive) = match parser_clone {
                 Some(parser) => (
                     parser.global().process_on_abnormal.cache.clone(),
@@ -3923,27 +3934,21 @@ pub async fn channel_based_transformer(
             };
             let metrics = get_metrics_arc_from_i64(task_id).await;
 
-            ArchiveConsumer::new(task_id.unwrap_or(-1), cache, archive, |num_rows: u64| {
-                let metrics = metrics.ipc();
-                metrics.add_archived_rows(num_rows);
-                Ok::<_, anyhow::Error>(())
-            })
-            .consume(archive_rx)
-            .await
-        } else {
-            drop(archive_rx);
-
-            loop {
-                tokio::select! {
-                    _ = cancel_clone.cancelled() => {
-                        tracing::info!("stop the 'cache & archive' thread, task cancelled");
-                        break;
-                    }
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+            let mut fut =
+                ArchiveConsumer::new(task_id.unwrap_or(-1), cache, archive, |num_rows: u64| {
+                    let metrics = metrics.ipc();
+                    metrics.add_archived_rows(num_rows);
+                    Ok::<_, anyhow::Error>(())
+                });
+            tokio::select! {
+                res = fut.consume(archive_rx) => {
+                    res
+                }
+                _ = cancel_clone.cancelled() => {
+                    Ok(())
                 }
             }
-            Ok(())
-        }
+        })
     });
 
     // spawn a thread to rewrite cache data to files
@@ -3956,26 +3961,14 @@ pub async fn channel_based_transformer(
             tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
         });
 
-        match (parser_clone, task_id) {
-            (Some(parser), Some(task_id)) => {
-                read_cache_and_rewrite(
-                    task_id,
-                    &pool_clone,
-                    &parser,
-                    archive_tx_clone,
-                    &cancel_clone,
-                )
-                .await
+        match (parser_clone, task_id, archive_tx_clone) {
+            (Some(parser), Some(task_id), Some(archive_tx)) => {
+                read_cache_and_rewrite(task_id, &pool_clone, &parser, archive_tx, &cancel_clone)
+                    .await
             }
             _ => Ok(()),
         }
     });
-
-    let abort_handle_process_archive = process_archive.abort_handle();
-    let future_process_archive = async move {
-        process_archive.await??;
-        anyhow::Ok(())
-    };
     let abort_handle_process_cache = process_cache.abort_handle();
 
     let taos = target.get().await?;
@@ -4003,6 +3996,7 @@ pub async fn channel_based_transformer(
         Arc::new(CoreMetrics::IPC(IpcMetrics::default()))
     })
     .await;
+    let abort_handle_process_archive = process_archive.as_ref().map(|f| f.abort_handle());
     tokio::spawn(
         async move {
             tokio::select! {
@@ -4031,13 +4025,16 @@ pub async fn channel_based_transformer(
                         tracing::error!("ipc flat stream worker error: {e}");
                     }
                 },
-                status = future_process_archive => {
+                status = OptionFuture::from(process_archive) => {
                     if let Err(e) = status {
                         tracing::error!("archive consumer error: {e:#}");
                     }
                 }
             }
-            abort_handle_process_archive.abort();
+            if let Some(abort_handle_process_archive) = abort_handle_process_archive {
+                abort_handle_process_archive.abort();
+            }
+
             abort_handle_process_cache.abort();
         }
         .in_current_span(),
@@ -4087,7 +4084,7 @@ pub async fn read_cache_and_rewrite(
                             target_precision,
                             metrics,
                             parser,
-                            archive_tx.clone(),
+                            Some(archive_tx.clone()),
                             cancel,
                         ).await {
                             Ok(_) => {
@@ -4113,7 +4110,7 @@ async fn read_file_and_rewrite(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let batches = read_parquet_file(file.clone())?;
@@ -4291,7 +4288,7 @@ mod tests {
                 &parser.global().process_on_abnormal.database_not_exist,
             ),
             &batch,
-            archive_tx.clone(),
+            Some(archive_tx.clone()),
         )
         .await?;
         let rs = rx.recv();
@@ -4311,7 +4308,7 @@ mod tests {
                 &parser.global().process_on_abnormal.database_not_exist,
             ),
             &batch,
-            archive_tx.clone(),
+            Some(archive_tx.clone()),
         )
         .await;
         assert!(rs.is_err());
@@ -4341,7 +4338,7 @@ mod tests {
                     .database_connection_error,
             ),
             &batch,
-            cache_tx.clone(),
+            Some(cache_tx.clone()),
         )
         .await?;
         let rs = rx.recv();
@@ -4364,7 +4361,7 @@ mod tests {
                     .database_connection_error,
             ),
             &batch,
-            cache_tx.clone(),
+            Some(cache_tx.clone()),
         )
         .await;
         dbg!(&rs);

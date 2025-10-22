@@ -438,7 +438,7 @@ pub async fn flat_write_with_sql(
     _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the success
     macro_rules! metrics_success {
@@ -891,7 +891,7 @@ async fn handle_primary_timestamp_null_and_rewrite(
     stable: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // loop the batches
@@ -980,7 +980,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // get the length of the field
@@ -1297,7 +1297,7 @@ async fn handle_ingesting_error(
     global: &TableOptions,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -1336,7 +1336,7 @@ pub async fn flat_write_with_raw_block(
     notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the error
     macro_rules! metrics_failed {
@@ -2083,7 +2083,7 @@ pub async fn handling_database_not_exist(
     global: &TableOptions,
     messages: &[MessageArrowRecords],
     err: taos::Error,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -2122,7 +2122,7 @@ pub async fn handle_sql_too_long(
     _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
     qid: &mut Qid,
     max_lengths: &mut HashMap<String, usize>,
 ) -> anyhow::Result<usize> {
@@ -2214,7 +2214,7 @@ impl FlatSink {
         metrics_arc: Arc<CoreMetrics>,
         notifier: crate::TaskNotifySender,
         cancel: CancellationToken,
-        archive_tx: Sender<ArchiveType>,
+        archive_tx: Option<Sender<ArchiveType>>,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -2577,7 +2577,7 @@ async fn consume_flat_record_with_sink(
     batch: &RecordBatch,
     count: &mut usize,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let batch = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
 
@@ -2605,7 +2605,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2792,7 +2792,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2935,7 +2935,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
@@ -3582,7 +3582,7 @@ pub mod tests {
             None,
             &CancellationToken::new(),
             &TableOptions::default(),
-            tx.clone(),
+            Some(tx.clone()),
         )
         .await?;
 
@@ -3752,7 +3752,7 @@ pub mod tests {
             None,
             &cancel,
             &parser,
-            archive_tx.clone(),
+            Some(archive_tx.clone()),
             &mut qid,
             &mut max_lengths,
         )

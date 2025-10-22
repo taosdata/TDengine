@@ -430,7 +430,7 @@ pub async fn write(
     table_id_column: &str,
     breakpoints_db: Option<BreakpointDb>,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let table_break_points = get_break_point(&messages, table_id_column);
     let timeout = parser
@@ -715,7 +715,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &WriteError,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     // get the length of the field
     let desc = taos.as_ref().unwrap().describe(stable).await;
@@ -1571,7 +1571,7 @@ mod tests {
         let messages = builder.build();
         let (tx, _rx) = flume::bounded(10);
 
-        if let Err(e) = process_archive("error", &messages[0].records, tx).await {
+        if let Err(e) = process_archive("error", &messages[0].records, Some(tx)).await {
             dbg!(e);
         }
     }
