@@ -88,6 +88,24 @@ int32_t saslConnInit(SSaslConn* pConn, int8_t isServer) {
   return code;
 }
 
+void saslConnCleanup(SSaslConn* pConn) {
+  if (pConn == NULL || pConn->conn == NULL) {
+    return;
+  }
+
+  if (pConn->conn != NULL) {
+    sasl_dispose(&pConn->conn);
+    pConn->conn = NULL;
+  }
+
+  if (pConn->authUser != NULL) {
+    taosMemFreeClear(pConn->authUser);
+    pConn->authUser = NULL;
+  }
+
+  taosMemFree(pConn);
+}
+
 int32_t saslConnEncode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen) {
   int32_t code = 0;
   int     result = 0;
@@ -131,32 +149,6 @@ int32_t saslConnDecode(SSaslConn* pConn, const char* input, int32_t len, const c
   return code;
 }
 
-void saslConnCleanup(SSaslConn* pConn) {
-  if (pConn == NULL || pConn->conn == NULL) {
-    return;
-  }
-
-  if (pConn->conn != NULL) {
-    sasl_dispose(&pConn->conn);
-    pConn->conn = NULL;
-  }
-
-  if (pConn->authUser != NULL) {
-    taosMemFreeClear(pConn->authUser);
-    pConn->authUser = NULL;
-  }
-
-  taosMemFree(pConn);
-}
-
-int32_t saslConnHandleHandshake(SSaslConn* pConn) {
-  int32_t code = 0;
-
-  if (pConn == NULL || pConn->conn == NULL) {
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
-  return code;
-}
 int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len) {
   int32_t     code = 0;
 
@@ -193,38 +185,6 @@ int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len) {
   return code;
 }
 
-int32_t saslConnHandleRead(SSaslConn* pConn, const char* input, int32_t len) {
-  int32_t code = 0;
-  if (pConn == NULL || pConn->conn == NULL) {
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
-
-  return code;
-}
-
-int32_t transSaslInit() {
-  int32_t code = 0;
-
-  int32_t result = sasl_server_init(NULL, "tdengine");
-  if (result != SASL_OK) {
-    tError("sasl_server_init failed: %s", sasl_errstring(result, NULL, NULL));
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
-
-  sasl_callback_t callbacks[] = {
-      {SASL_CB_GETOPT, NULL, NULL},
-      {SASL_CB_SERVER_USERDB_CHECKPASS, NULL, NULL},
-      {SASL_CB_LIST_END, NULL, NULL},
-  };
-
-  result = sasl_server_new(SASL_MECHANISM_SCRAM_SHA256, "tdengine", NULL, NULL, NULL, callbacks, 0, NULL);
-  if (result != SASL_OK) {
-    tError("sasl_server_new failed: %s", sasl_errstring(result, NULL, NULL));
-    code = TSDB_CODE_THIRDPARTY_ERROR;
-  }
-
-  return code;
-}
 // int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return transTlsCtxCreateImpl(pInit, ppCtx); }
 
 // void transTlsCtxDestroy(SSslCtx* pCtx) { transTlsCtxDestroyImpl(pCtx); }

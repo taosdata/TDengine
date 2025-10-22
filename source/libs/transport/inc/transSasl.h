@@ -48,9 +48,15 @@ extern "C" {
 
 int32_t saslConnCreate(SSaslConn** ppConn);
 
-void saslConnSetState(SSaslConn* pConn, int32_t state);
-
 int32_t sslConnInit(SSaslConn* pConn);
+void    saslConnCleanup(SSaslConn* pConn);
+
+void saslConnSetState(SSaslConn* pConn, int32_t state);
+int32_t saslConnEncode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen);
+int32_t saslConnDecode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen);
+
+int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len);
+
 // typedef struct {
 //   char*    certfile;  // certificate file path
 //   char*    keyfile;   // private key file path
