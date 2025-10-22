@@ -82,6 +82,9 @@ typedef struct SSysTableScanInfo {
   // file set iterate
   struct SFileSetReader* pFileSetReader;
   SHashObj*              pExtSchema;
+
+  // for virtual supertable scan
+  STableListInfo*        pSubTableListInfo;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -832,6 +835,19 @@ _end:
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
+static bool virtualChildTableNeedCollect(STableListInfo* pTableListInfo, tb_uid_t tableUid) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
+    tb_uid_t* childUid = taosArrayGet(pTableListInfo->pTableList, i);
+    if (childUid == NULL) {
+      return false;
+    }
+    if (*childUid == tableUid) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -882,7 +898,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   }
 
   if (!pInfo->pCur || !pInfo->pSchema) {
-    qError("sysTableScanUserCols failed since %s", terrstr());
+    qError("sysTableScanUserVcCols failed since %s", terrstr());
     blockDataDestroy(pDataBlock);
     pInfo->loadInfo.totalRows = 0;
     return NULL;
@@ -903,7 +919,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
     } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
       continue;
     } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
-      qDebug("sysTableScanUserCols cursor get virtual normal table, %s", GET_TASKID(pTaskInfo));
+      qDebug("sysTableScanUserVcCols cursor get virtual normal table, %s", GET_TASKID(pTaskInfo));
 
       STR_TO_VARSTR(typeName, "VIRTUAL_NORMAL_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
@@ -912,11 +928,15 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       colRef = &pInfo->pCur->mr.me.colRef;
       schemaRow = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
     } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
-      qDebug("sysTableScanUserCols cursor get virtual child table, %s", GET_TASKID(pTaskInfo));
+      qDebug("sysTableScanUserVcCols cursor get virtual child table, %s", GET_TASKID(pTaskInfo));
 
       STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
-
+      if (!virtualChildTableNeedCollect(pInfo->pSubTableListInfo, pInfo->pCur->mr.me.uid)) {
+        qDebug("skip virtual child table:%s uid:%" PRId64 " %s", varDataVal(tableName), pInfo->pCur->mr.me.uid,
+              GET_TASKID(pTaskInfo));
+        continue;
+      }
       colRef = &pInfo->pCur->mr.me.colRef;
       int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
       void*   schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
@@ -927,7 +947,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
-          qError("sysTableScanUserCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
+          qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
                  GET_TASKID(pTaskInfo));
 
           pAPI->metaReaderFn.clearReader(&smrSuperTable);
@@ -943,7 +963,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
-          qError("sysTableScanUserCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
+          qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
                  GET_TASKID(pTaskInfo));
 
           pAPI->metaReaderFn.clearReader(&smrSuperTable);
@@ -970,7 +990,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     } else {
-      qDebug("sysTableScanUserCols cursor get invalid table, %s", GET_TASKID(pTaskInfo));
+      qDebug("sysTableScanUserVcCols cursor get invalid table, %s", GET_TASKID(pTaskInfo));
       continue;
     }
 
@@ -3405,6 +3425,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
   SSysTableScanInfo* pInfo = pOper->info;
 
+  SSystemTableScanPhysiNode* pScanPhyNode = (SSystemTableScanPhysiNode*)pOper->pPhyNode;
   pOper->status = OP_NOT_OPENED;
   blockDataEmpty(pInfo->pRes);
 
@@ -3412,7 +3433,8 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
     const char* name = tNameGetTableName(&pInfo->name);
     if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
         strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
-        strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
+        strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_VC_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
       if (pInfo->pAPI != NULL && pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
         pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
       }
@@ -3421,6 +3443,28 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
     }
   } else {
     qError("pInfo->name is not initialized");
+  }
+
+  initLimitInfo(pScanPhyNode->scan.node.pLimit, pScanPhyNode->scan.node.pSlimit, &pInfo->limitInfo);
+  pInfo->loadInfo.totalRows = 0;
+
+  if (pScanPhyNode->scan.virtualStableScan) {
+    SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
+    tableListDestroy(pInfo->pSubTableListInfo);
+    pInfo->pSubTableListInfo = tableListCreate();
+    if (!pInfo->pSubTableListInfo) {
+      pTaskInfo->code = terrno;
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
+    }
+
+    int32_t code = createScanTableListInfo((SScanPhysiNode*)pScanPhyNode, NULL, false, &pInfo->readHandle, pInfo->pSubTableListInfo, NULL,
+                                    NULL, pTaskInfo, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTaskInfo->code = code;
+      tableListDestroy(pInfo->pSubTableListInfo);
+      return code;
+    }
   }
 
   if (pInfo->pIdx) {
@@ -3443,8 +3487,9 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
   return 0;
 }
 
-int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode, const char* pUser,
-                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode,
+                                       STableListInfo* pTableListInfo, const char* pUser, SExecTaskInfo* pTaskInfo,
+                                       SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -3513,6 +3558,8 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     pInfo->epSet = pScanPhyNode->mgmtEpSet;
     pInfo->readHandle = *(SReadHandle*)readHandle;
   }
+
+  pInfo->pSubTableListInfo = pTableListInfo;
 
   setOperatorInfo(pOperator, "SysTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -3598,6 +3645,7 @@ void destroySysScanOperator(void* param) {
     taosHashCleanup(pInfo->pExtSchema);
     pInfo->pExtSchema = NULL;
   }
+  tableListDestroy(pInfo->pSubTableListInfo);
 
   taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFreeClear(pInfo->pUser);

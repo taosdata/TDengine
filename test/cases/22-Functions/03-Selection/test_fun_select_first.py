@@ -309,7 +309,7 @@ class TestFunFirst:
     # ------------------ main ------------------
     #
     def test_func_select_first(self):
-        """ Function FIRST()
+        """ Fun: first()
 
         1. Sim case
         2. Query on all data types

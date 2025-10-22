@@ -78,6 +78,7 @@ void* prepare_data(void* arg) {
 
 // ANCHOR: msg_process
 int32_t msg_process(TAOS_RES* msg) {
+  char        buffer[1024];
   int32_t     rows = 0;
   const char* topicName = tmq_get_topic_name(msg);
   const char* dbName = tmq_get_db_name(msg);
@@ -91,6 +92,17 @@ int32_t msg_process(TAOS_RES* msg) {
     // Add your data processing logic here
 
     rows++;
+
+    // Print the data for easy debugging. You can uncomment them if needed.
+    // int         num_fields = taos_num_fields(msg);
+    // TAOS_FIELD* fields = taos_fetch_fields(msg);
+    // int         code = taos_print_row(buffer, row, fields, num_fields);
+    // if (code > 0) {
+    //   fprintf(stdout, "row %d: %s\n", rows, buffer);
+    // } else {
+    //   fprintf(stderr, "Failed to print row %d data, ErrCode: 0x%x, ErrMessage: %s\n", rows, taos_errno(NULL),
+    //           taos_errstr(NULL));
+    // }
   }
 
   return rows;
