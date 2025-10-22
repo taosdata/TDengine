@@ -1620,6 +1620,19 @@ int32_t clearStatesForOperator(SOperatorInfo* pOper) {
 int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   int32_t        code = 0;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
+
+  if (pTaskInfo->pWalVersions != NULL) {
+    int32_t iter = 0;
+    void*   px = tSimpleHashIterate(pTaskInfo->pWalVersions, NULL, &iter);
+    while (px != NULL) {
+      SArray* pVersions = *(SArray**)px;
+      taosArrayDestroy(pVersions);
+      px = tSimpleHashIterate(pTaskInfo->pWalVersions, px, &iter);
+    }
+    tSimpleHashCleanup(pTaskInfo->pWalVersions);
+    pTaskInfo->pWalVersions = NULL;
+  }
+
   SOperatorInfo* pOper = pTaskInfo->pRoot;
   pTaskInfo->code = TSDB_CODE_SUCCESS;
   code = clearStatesForOperator(pOper);

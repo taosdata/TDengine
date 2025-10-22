@@ -296,6 +296,17 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
     freeOperatorParam(pTaskInfo->pOpParam, OP_GET_PARAM);
     pTaskInfo->pOpParam = NULL;
   }
+  if (pTaskInfo->pWalVersions != NULL) {
+    int32_t iter = 0;
+    void*   px = tSimpleHashIterate(pTaskInfo->pWalVersions, NULL, &iter);
+    while (px != NULL) {
+      SArray* pVersions = *(SArray**)px;
+      taosArrayDestroy(pVersions);
+      px = tSimpleHashIterate(pTaskInfo->pWalVersions, px, &iter);
+    }
+    tSimpleHashCleanup(pTaskInfo->pWalVersions);
+    pTaskInfo->pWalVersions = NULL;
+  }
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

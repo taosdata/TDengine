@@ -1032,7 +1032,6 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     req.sId = pSource->sId;
     req.clientId = pSource->clientId;
     req.taskId = pSource->taskId;
-    qInfo("fixtaskid send fetch req %" PRIx64, pSource->taskId);
     req.queryId = pTaskInfo->id.queryId;
     req.execId = pSource->execId;
     if (pTaskInfo->pStreamRuntimeInfo) {

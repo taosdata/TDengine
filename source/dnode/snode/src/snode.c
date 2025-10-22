@@ -232,7 +232,6 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
 
   TAOS_CHECK_EXIT(streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
   if(pTask->task.type != STREAM_RUNNER_TASK) {
-    stInfo("fixtaskid %" PRIx64 " is not runner task, but %d", calcReq.runnerTaskId, pTask->task.type);
     TAOS_CHECK_EXIT((TSDB_CODE_STREAM_TASK_IVLD_STATUS));
   }
 
