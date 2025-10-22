@@ -73,6 +73,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
+  pOperator->exprSupp.hasWindow = true;
 
   SEventWinodwPhysiNode* pEventWindowNode = (SEventWinodwPhysiNode*)physiNode;
 

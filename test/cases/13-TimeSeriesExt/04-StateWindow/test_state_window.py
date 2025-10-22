@@ -120,7 +120,6 @@ class TestStateWindow:
     def check_crash_for_state_window1(self):
         tdSql.execute("drop database if exists test")
         self.prepareTestEnv()
-        tdSql.execute("alter local 'queryPolicy' '3'")
         self.prepare_original_data()
         tdSql.execute("insert into t0 values(now, 4,4,4,4,4,4,4,4,4)", queryTimes=1)
         tdSql.execute("select bottom(c1, 1), c2 from t0 state_window(c2) order by ts", queryTimes=1)
@@ -128,7 +127,6 @@ class TestStateWindow:
     def check_crash_for_state_window2(self):
         tdSql.execute("drop database if exists test")
         self.prepareTestEnv()
-        tdSql.execute("alter local 'queryPolicy' '3'")
         self.prepare_original_data()
         tdSql.execute("insert into t0 values(now, 4,NULL,4,4,4,4,4,4,4)", queryTimes=1)
         tdSql.execute("insert into t0 values(now, 4,4,4,4,4,4,4,4,4)", queryTimes=1)
@@ -137,7 +135,6 @@ class TestStateWindow:
     def check_crash_for_state_window3(self):
         tdSql.execute("drop database if exists test")
         self.prepareTestEnv()
-        tdSql.execute("alter local 'queryPolicy' '3'")
         self.prepare_original_data()
         tdSql.execute("insert into t0 values(now, 4,NULL,4,4,4,4,4,4,4)", queryTimes=1)
         tdSql.execute("insert into t0 values(now, 4,5,4,4,4,4,4,4,4)", queryTimes=1)
@@ -146,7 +143,6 @@ class TestStateWindow:
     def check_crash_for_state_window4(self):
         tdSql.execute("drop database if exists test")
         self.prepareTestEnv()
-        tdSql.execute("alter local 'queryPolicy' '3'")
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
@@ -163,7 +159,6 @@ class TestStateWindow:
     def check_crash_for_state_window5(self):
         tdSql.execute("drop database if exists test")
         self.prepareTestEnv()
-        tdSql.execute("alter local 'queryPolicy' '3'")
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
@@ -181,7 +176,6 @@ class TestStateWindow:
     def check_crash_for_session_window(self):
         tdSql.execute("drop database if exists test")
         self.prepareTestEnv()
-        tdSql.execute("alter local 'queryPolicy' '3'")
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
         tdSql.execute("insert into t0 values(now, 2,2,2,2,2,2,2,2,2)", queryTimes=1)
@@ -239,5 +233,102 @@ class TestStateWindow:
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+    
+    def test_state_window_start_with_null(self):
+        """summary: test state window start with null
+
+        description: when state window starts with null values, 
+            the aggregation result should be correct, especially selecting the state column itself.
+
+        Since: v3.3.8.2
+
+        Labels: state window
+
+        Jira: TD-38341
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2025-10-22: Tony Zhang created
+
+        """
+        
+        tdSql.execute("drop database if exists testdb")
+        tdSql.execute("create database if not exists testdb keep 3650", show=True)
+        tdSql.execute("use testdb")
+        values = '''
+                ('2025-09-01 10:00:00', null,    20),
+                ('2025-09-01 10:00:01', 'a',     23.5),
+                ('2025-09-01 10:00:02', 'a',     25.9),
+                ('2025-09-01 10:00:03', null,    26),
+                ('2025-09-01 10:00:04', 'a',     28),
+                ('2025-09-01 10:00:05', null,    24.3),
+                ('2025-09-01 10:00:06', null,    null),
+                ('2025-09-01 10:00:07', 'b',     18),
+                ('2025-09-01 10:00:08', 'b',     14.4),
+                ('2025-09-01 10:00:09', 'a',     17.7),
+                ('2025-09-01 10:00:10', 'a',     null),
+                ('2025-09-01 10:00:11', null,    22.3),
+                ('2025-09-01 10:00:12', 'b',     18.18),
+                ('2025-09-01 10:00:13', 'b',     19.5),
+                ('2025-09-01 10:00:14', null,    9.9)'''
+        # normal table
+        tdSql.execute("create table ntb (ts timestamp, s varchar(10), v double)", show=True)
+        tdSql.execute(f"insert into ntb values {values}", show=True)
+
+        tdSql.query("""
+            select _wstart, _wduration, _wend, count(*), count(s), count(v),
+            avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
+            from ntb state_window(s, 2)
+        """, show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
+        tdSql.checkData(0, 1, 4000)
+        tdSql.checkData(0, 2, "2025-09-01 10:00:04.000")
+        tdSql.checkData(0, 3, 5)
+        tdSql.checkData(0, 4, 3)
+        tdSql.checkData(0, 5, 5)
+        tdSql.checkData(0, 6, 24.68)
+        tdSql.checkData(0, 7, 20)
+        tdSql.checkData(0, 8, "2025-09-01 10:00:04.000")
+        tdSql.checkData(0, 9, "2025-09-01 10:00:04.000")
+        tdSql.checkData(0, 10, "a")
+
+        tdSql.checkData(1, 0, "2025-09-01 10:00:04.001")
+        tdSql.checkData(1, 1, 3999)
+        tdSql.checkData(1, 2, "2025-09-01 10:00:08.000")
+        tdSql.checkData(1, 3, 4)
+        tdSql.checkData(1, 4, 2)
+        tdSql.checkData(1, 5, 3)
+        tdSql.checkData(1, 6, 18.9)
+        tdSql.checkData(1, 7, 24.3)
+        tdSql.checkData(1, 8, "2025-09-01 10:00:08.000")
+        tdSql.checkData(1, 9, "2025-09-01 10:00:08.000")
+        tdSql.checkData(1, 10, "b")
+
+        tdSql.checkData(2, 0, "2025-09-01 10:00:08.001")
+        tdSql.checkData(2, 1, 1999)
+        tdSql.checkData(2, 2, "2025-09-01 10:00:10.000")
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 4, 2)
+        tdSql.checkData(2, 5, 1)
+        tdSql.checkData(2, 6, 17.7)
+        tdSql.checkData(2, 7, 17.7)
+        tdSql.checkData(2, 8, "2025-09-01 10:00:09.000")
+        tdSql.checkData(2, 9, "2025-09-01 10:00:10.000")
+        tdSql.checkData(2, 10, "a")
+
+        tdSql.checkData(3, 0, "2025-09-01 10:00:10.001")
+        tdSql.checkData(3, 1, 2999)
+        tdSql.checkData(3, 2, "2025-09-01 10:00:13.000")
+        tdSql.checkData(3, 3, 3)
+        tdSql.checkData(3, 4, 2)
+        tdSql.checkData(3, 5, 3)
+        tdSql.checkData(3, 6, 19.9933333333333)
+        tdSql.checkData(3, 7, 22.3)
+        tdSql.checkData(3, 8, "2025-09-01 10:00:13.000")
+        tdSql.checkData(3, 9, "2025-09-01 10:00:13.000")
+        tdSql.checkData(3, 10, "b")
 
 event = threading.Event()

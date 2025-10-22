@@ -579,6 +579,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
 
   pOperator->pPhyNode = (SNode*)pAggNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
+  pOperator->exprSupp.hasWindow = false;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
   if (pResBlock == NULL) {

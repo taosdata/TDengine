@@ -134,7 +134,8 @@ struct SExprSupp {
   SqlFunctionCtx* pCtx;
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
   SFilterInfo*    pFilterInfo;
-  bool            hasWindowOrGroup;
+  bool            hasWindowOrGroup;    // denote that the function is used with time window or group
+  bool            hasWindow;           // denote that the function is used with time window
   bool            hasIndefRowsFunc;
 };
 
