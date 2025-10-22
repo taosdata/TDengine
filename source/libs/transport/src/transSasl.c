@@ -132,7 +132,7 @@ int32_t saslDecode(SSaslConn* pConn, const char* input, int32_t len, const char*
 }
 
 void saslCleanup(SSaslConn* pConn) {
-  if (pConn == NULL) {
+  if (pConn == NULL || pConn->conn == NULL) {
     return;
   }
 
@@ -152,13 +152,18 @@ void saslCleanup(SSaslConn* pConn) {
 int32_t saslHandleHandshake(SSaslConn* pConn) {
   int32_t code = 0;
 
-  if (pConn == NULL) {
+  if (pConn == NULL || pConn->conn == NULL) {
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
   return code;
 }
 int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len) {
   int32_t     code = 0;
+
+  if (pConn == NULL || pConn->conn == NULL) {
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
   const char* mechanism = SASL_MECHANISM_SCRAM_SHA256;
 
   const char* clientOut = NULL;
@@ -190,7 +195,7 @@ int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len) {
 
 int32_t saslConnHandleRead(SSaslConn* pConn, const char* input, int32_t len) {
   int32_t code = 0;
-  if (pConn == NULL) {
+  if (pConn == NULL || pConn->conn == NULL) {
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
