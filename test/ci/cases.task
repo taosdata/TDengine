@@ -572,7 +572,7 @@
 
 # 50-Meta
 ,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_meta_bugs.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_ddl_in_sysdb.py
+,,y,.,./ci/pytest.sh pytest cases/50-Meta/test_meta_sysdb.py
 
 # 51-Perf
 
