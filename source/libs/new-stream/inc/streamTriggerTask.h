@@ -27,7 +27,7 @@
 extern "C" {
 #endif
 
-#define TRIGGER_USE_HISTORY_META 0  // todo(kjq): remove the flag
+#define TRIGGER_USE_HISTORY_META 1  // todo(kjq): remove the flag
 
 // #define SKIP_SEND_CALC_REQUEST
 
