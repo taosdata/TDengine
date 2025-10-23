@@ -2966,17 +2966,10 @@ static void initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
   }
 
   // early filter for invalid time window
-  if (asc && w.skey > w.ekey) {
+  if (w.skey > w.ekey) {
     pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
-    tsdbDebug("uid:%" PRIu64 " set no stt-file data for asc order, skey:%" PRId64 " > ekey:%" PRId64 " %s",
+    tsdbDebug("uid:%" PRIu64 " set no stt-file data, skey:%" PRId64 " > ekey:%" PRId64 " %s",
               pScanInfo->uid, w.skey, w.ekey, pReader->idStr);
-    goto _end;
-  }
-
-  if (!asc && w.ekey < w.skey) {
-    pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
-    tsdbDebug("uid:%" PRIu64 " set no stt-file data for desc order, ekey:%" PRId64 " < skey:%" PRId64 " %s",
-              pScanInfo->uid, w.ekey, w.skey, pReader->idStr);
     goto _end;
   }
 
