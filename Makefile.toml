@@ -495,8 +495,9 @@ docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev:${RUST_VERSI
 """
 [tasks.install-taosx-dev-docker-image]
 install_script = """
-echo "Prepare zigbuilder image for aarch64"
-docker images --format json | jq -e 'select(.Repository == "taosx/dev" and .Tag == "$RUST_VERSION")' || cargo make build-docker-dev
+#!/bin/bash
+echo "Prepare dev image for version $RUST_VERSION"
+docker images --format json | jq 'select(.Repository == "taosx/dev" and .Tag == "'$RUST_VERSION'")' |grep Tag || cargo make build-docker-dev
 """
 
 [tasks.check-aarch64]

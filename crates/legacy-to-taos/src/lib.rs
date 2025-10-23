@@ -1281,6 +1281,7 @@ pub async fn sync_super_table_schema_with_subs(
         tables += 1;
 
         if sql.len() + e.len() > max_sql_length {
+            tracing::debug!(sql, "Create child table {new_table_name}");
             to.exec(&sql).await?;
 
             if let Some(duration) = target_opts.interval {
