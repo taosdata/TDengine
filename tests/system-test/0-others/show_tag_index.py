@@ -72,6 +72,20 @@ class TDTestCase:
             tdSql.checkData(i, 5, 't1')
             tdSql.checkData(i, 6, 'tag_index')
 
+    def ts_7526(self):
+        print("=======show create table with empty nchar tag========")
+        # TS-7526
+        tdSql.execute("create table ts_7526 (ts timestamp, c1 int) tags (t1 nchar(20), t2 nchar(20))")
+        tdSql.execute("create table ctb7526 using ts_7526 tags ('', '')")
+        tdSql.query("show create table ctb7526;")
+        tdSql.checkData(0, 0, "ctb7526")
+        tdSql.checkData(0, 1, 'CREATE TABLE `ctb7526` USING `ts_7526` (`t1`, `t2`) TAGS ("", "")')
+    
+        tdSql.execute("alter table ctb7526 set tag t1='测试'")
+        tdSql.query("show create table ctb7526;")
+        tdSql.checkData(0, 0, "ctb7526")
+        tdSql.checkData(0, 1, 'CREATE TABLE `ctb7526` USING `ts_7526` (`t1`, `t2`) TAGS ("测试", "")')
+
     def run(self):
         tdSql.execute(f'create database db')
         tdSql.execute(f'use db')
@@ -193,6 +207,8 @@ class TDTestCase:
         tdSql.error(f'create index idx1 on db2.stb (t1);', expectErrInfo='Database not exist')
         tdSql.error(f'use db2;', expectErrInfo='Database not exist')
         tdSql.error(f' alter stable db2.stb add column c2 int;', expectErrInfo='Database not exist')
+
+        self.ts_7526()
 
         
 
