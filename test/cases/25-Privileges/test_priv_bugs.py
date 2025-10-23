@@ -60,28 +60,24 @@ class TestGrantBugs:
 
     # run
     def test_grant_bugs(self):
-        """summary: xxx
+        """Privileges bugs
+        
+        1. Verify bug TD-3064
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-22 Alex Duan Migrated from uncatalog/army/grant/test_grant_bugs.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 
         # TD-30642
         self.td_30642()
-
 
         tdLog.success(f"{__file__} successfully executed")
 
