@@ -463,6 +463,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
@@ -519,6 +520,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
   rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSasl = tsEnableSasl;
 
   rpcInit.enableSSL = tsEnableTLS;
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
@@ -578,6 +580,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
@@ -642,6 +645,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.shareConnLimit = tsShareConnLimit * 16;
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));

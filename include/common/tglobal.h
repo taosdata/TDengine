@@ -83,6 +83,7 @@ extern char tsTLSSvrKeyPath[];
 extern char tsTLSCliCertPath[];
 extern char tsTLSCliKeyPath[];
 extern int8_t tsEnableTLS;
+extern int8_t tsEnableSasl;
 
 // common
 extern int32_t tsMaxShellConns;

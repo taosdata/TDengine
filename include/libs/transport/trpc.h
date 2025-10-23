@@ -135,6 +135,7 @@ typedef struct SRpcInit {
   int64_t readTimeout;  // s
   int8_t  ipv6;
   int8_t  enableSSL;
+  int8_t  enableSasl;
 
   char caPath[PATH_MAX];
   char certPath[PATH_MAX];
