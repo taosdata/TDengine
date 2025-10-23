@@ -703,7 +703,7 @@ _end:
 void metaCacheClear(SMeta* pMeta) {
   metaWLock(pMeta);
   metaCacheClose(pMeta);
-  metaCacheOpen(pMeta);
+  (void)metaCacheOpen(pMeta);
   metaULock(pMeta);
 }
 
@@ -986,7 +986,7 @@ int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid) {
     goto _return;
   }
 
-  taosHashRemove(pEntryHashMap, &suid, sizeof(uint64_t));
+  (void)taosHashRemove(pEntryHashMap, &suid, sizeof(uint64_t));
 
   metaDebug("vgId:%d suid:%" PRId64 " cached virtual stable ref db cleared", vgId, suid);
 

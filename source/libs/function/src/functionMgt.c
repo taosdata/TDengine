@@ -767,7 +767,7 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
   return NULL;
 }
 
-const bool fmIsStreamPesudoColVal(int32_t funcId) {
+bool fmIsStreamPesudoColVal(int32_t funcId) {
   return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN;
 }
 

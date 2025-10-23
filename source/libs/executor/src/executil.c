@@ -1777,10 +1777,10 @@ end:
 typedef struct {
   int32_t code;
   SStreamRuntimeFuncInfo* pStreamRuntimeInfo;
-} PlcaeHolderContext;
+} PlaceHolderContext;
 
 static EDealRes replacePlaceHolderColumn(SNode** pNode, void* pContext) {
-  PlcaeHolderContext* pData = (PlcaeHolderContext*)pContext;
+  PlaceHolderContext* pData = (PlaceHolderContext*)pContext;
   if (QUERY_NODE_FUNCTION != nodeType((*pNode))) {
     return DEAL_RES_CONTINUE;
   }
@@ -1788,60 +1788,12 @@ static EDealRes replacePlaceHolderColumn(SNode** pNode, void* pContext) {
   if (!fmIsStreamPesudoColVal(pFuncNode->funcId)) {
     return DEAL_RES_CONTINUE;
   }
-  SNodeList* list = pFuncNode->pParameterList;
-
-  if (LIST_LENGTH(list) != 2){
-    pData->code = TSDB_CODE_INTERNAL_ERROR;
+  pData->code = fmSetStreamPseudoFuncParamVal(pFuncNode->funcId, pFuncNode->pParameterList, pData->pStreamRuntimeInfo);
+  if (pData->code != TSDB_CODE_SUCCESS) {
     return DEAL_RES_ERROR;
   }
-  SNode* pFirstParam = nodesListGetNode(list, 0);
-  SNode* pSecondParam = nodesListGetNode(list, 1);
-  if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
-    uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), pFuncNode->funcId);
-    pData->code = TSDB_CODE_INTERNAL_ERROR;
-    return DEAL_RES_ERROR;
-  }
-  
-  SArray* pVal = pData->pStreamRuntimeInfo->pStreamPartColVals;
-  int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
-  if (idx - 1 < 0 || idx - 1 >= taosArrayGetSize(pVal)) {
-    uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, pFuncNode->funcId, (int32_t)taosArrayGetSize(pVal));
-    pData->code = TSDB_CODE_INTERNAL_ERROR;
-    return DEAL_RES_ERROR;
-  }
-  SStreamGroupValue* pValue = taosArrayGet(pVal, idx - 1);
-  if (pValue == NULL) {
-    uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, pFuncNode->funcId, (int32_t)taosArrayGetSize(pVal));
-    pData->code = TSDB_CODE_INTERNAL_ERROR;
-    return DEAL_RES_ERROR;
-  }
-  if (!pValue->isNull){
-    if (pValue->data.type != ((SValueNode*)pFirstParam)->node.resType.type){
-      uError("invalid value type: %d for func: %d, should be: %d", pValue->data.type, pFuncNode->funcId, ((SValueNode*)pFirstParam)->node.resType.type);
-      pData->code = TSDB_CODE_INTERNAL_ERROR;
-      return DEAL_RES_ERROR;
-    }
-    if (IS_VAR_DATA_TYPE(((SValueNode*)pFirstParam)->node.resType.type)) {
-      char* tmp = taosMemoryCalloc(1, pValue->data.nData + VARSTR_HEADER_SIZE); 
-      if (tmp == NULL) {
-        pData->code = TSDB_CODE_OUT_OF_MEMORY;
-        return DEAL_RES_ERROR;
-      }
-      taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
-      ((SValueNode*)pFirstParam)->datum.p = tmp;
-      memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
-      varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
-    } else {
-      pData->code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&pValue->data, pValue->data.type));
-      if (pData->code != TSDB_CODE_SUCCESS) {
-        uError("failed to set value node value for func: %d", pFuncNode->funcId);
-        return DEAL_RES_ERROR;
-      }
-    }
-  }
-  ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
+  SNode* pFirstParam = nodesListGetNode(pFuncNode->pParameterList, 0);
   ((SValueNode*)pFirstParam)->translate = true;
-
   SValueNode* res = NULL;
   pData->code = nodesCloneNode(pFirstParam, (SNode**)&res);
   if (NULL == res) {
@@ -1881,8 +1833,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     if (tsTagFilterCache) {
       if (pStreamInfo != NULL) {
         SNode* tmp = NULL;
-        nodesCloneNode((SNode*)pTagCond, &tmp);
-        PlcaeHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
+        code = nodesCloneNode((SNode*)pTagCond, &tmp);
+        QUERY_CHECK_CODE(code, lino, _error);
+
+        PlaceHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
         nodesRewriteExpr(&tmp, replacePlaceHolderColumn, (void*)&ctx);
         if (TSDB_CODE_SUCCESS != ctx.code) {
           nodesDestroyNode(tmp);
