@@ -3077,7 +3077,6 @@ end:
   return code;
 }
 
-int64_t queryTimes = 0;
 static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t            code = 0;
   int32_t            lino = 0;
@@ -3179,14 +3178,10 @@ end:
   tmsgSendRsp(&rsp);
   tDestroySResFetchReq(&req);
   int64_t endTime = taosGetTimestampMs();
-  int64_t val = atomic_add_fetch_64(&queryTimes, 1);
-  if (val % 1000 == 0) {
-    ST_TASK_ILOG("vgId:%d %s total time:%"PRId64"ms", TD_VID(pVnode), __func__, endTime - startTime);
-  }
+  (void)atomic_add_fetch_64(&queryTimes, 1);
+  (void)atomic_add_fetch_64(&queryTimeAll, endTime - startTime);
   return code;
 }
-
-int64_t rowTimes = 0;
 
 static int32_t vnodeProcessStreamRowsMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t            code = 0;
@@ -3265,10 +3260,8 @@ end:
   blockDataDestroy(resultRsp.dropBlock);
   tSimpleHashCleanup(ranges);
   int64_t endTime = taosGetTimestampMs();
-  int64_t val = atomic_add_fetch_64(&rowTimes, 1);
-  if (val % 1000 == 0) {
-    ST_TASK_ILOG("vgId:%d %s total time:%"PRId64"ms", TD_VID(pVnode), __func__, endTime - startTime);
-  }
+  (void)atomic_add_fetch_64(&rowTimes, 1);
+  (void)atomic_add_fetch_64(&rowTimeAll, endTime - startTime);
   return code;
 }
 

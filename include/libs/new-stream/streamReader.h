@@ -116,6 +116,11 @@ void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
 void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
 
+extern int64_t rowTimes;
+extern int64_t rowTimeAll;
+
+extern int64_t queryTimes;
+extern int64_t queryTimeAll;
 #ifdef __cplusplus
 }
 #endif

@@ -8,6 +8,12 @@
 #include "thash.h"
 #include "tsimplehash.h"
 
+int64_t rowTimes = 0;
+int64_t rowTimeAll = 0;
+
+int64_t queryTimes = 0;
+int64_t queryTimeAll = 0;
+
 void releaseStreamTask(void* p) {
   if (p == NULL) return;
   SStreamReaderTaskInner* pTask = *((SStreamReaderTaskInner**)p);
@@ -555,6 +561,10 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
   }
   (*ppTask)->info = NULL;
 
+  stInfo("undeploy stream reader task, streamId:%" PRIx64 "row:%"PRId64"/%"PRId64"=%"PRId64",query:%"PRId64"/%"PRId64"=%"PRId64, 
+    (*ppTask)->task.streamId, 
+    rowTimeAll, rowTimes, rowTimeAll/rowTimes,
+    queryTimeAll, queryTimes, queryTimeAll/queryTimes);
 end:
   STREAM_PRINT_LOG_END(code, lino);
   (*cb)(ppTask);
