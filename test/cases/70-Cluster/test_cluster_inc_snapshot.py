@@ -15,22 +15,27 @@ class TestIncSnapshot:
         cls.childtable_count = 10
 
     def test_inc_snapshot(self):
-        """summary: xxx
+        """Check data correct after remove wal
 
-        description: xxx
+        1. Create 3 dnode cluster environment
+        2. Create database with 2 vgroups and 3 replicas
+        3. Create stable and child tables
+        4. Insert initial data and flush
+        5. Stop one dnode and insert more data
+        6. Take incremental snapshot
+        7. Stop all dnodes and remove wal directories
+        8. Restart all dnodes and check vgroup status
+        9. Check data correctness and aggregation correctness
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-23 Alex Duan Migrated from test/cases/uncatalog/army/cluster/test_inc_snapshot.py
+
         """
         tdSql.prepare()
         autoGen = AutoGen()
@@ -75,5 +80,3 @@ class TestIncSnapshot:
             tdLog.debug("delete dir: %s " % (directory))
         except OSError as e:
             tdLog.exit("delete fail dir: %s " % (directory))
-
-

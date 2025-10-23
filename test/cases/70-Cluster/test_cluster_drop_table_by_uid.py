@@ -5,7 +5,7 @@ from enum import Enum
 import random
 
 
-class TestDropTableByUid:
+class TestClusterDropTableByUid:
     
     class TableType(Enum):
         STABLE = 0
@@ -329,24 +329,25 @@ class TestDropTableByUid:
             tdSql.execute("drop user test;")
 
     def test_drop_table_by_uid(self):
-        """summary: xxx
+        """Verify drop table by uid on cluster
 
-        description: This class is used to verify the feature of 'drop table by uid' for task TS-5111
+        1. Create cluster with 3 dnodes
+        2. Verify the feature of 'drop table by uid' for TS-5111 on cluster
+        
         FS: https://taosdata.feishu.cn/wiki/JgeDwZkH3iTNv2ksVkWcHenKnTf
         TS: https://taosdata.feishu.cn/wiki/DX3FwopwGiXCeRkBNXFcj0MBnnb
+        
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
             - 2024-09-23 created by Charles
-            - xxx
+            - 2025-10-23 Alex Duan Migrated from uncatalog/army/cluster/test_drop_table_by_uid.py
+
         """
         # normal cases
         self.run_drop_single_table_by_uid()

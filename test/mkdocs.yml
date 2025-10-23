@@ -131,6 +131,7 @@ nav:
         - 01-taosd: case_list_docs/Components/taosd.md
         - 02-taosc: case_list_docs/Components/taosc.md
         - 10-TDgpt: case_list_docs/Components/TDgpt.md
+    - 70-Cluster: case_list_docs/Cluster.md
     - 81-Tools: 
         - 01-Check: case_list_docs/Tools/Check.md
         - 02-taos-CLI: case_list_docs/Tools/taos-CLI.md

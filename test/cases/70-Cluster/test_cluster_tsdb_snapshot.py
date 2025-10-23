@@ -22,7 +22,7 @@ import platform
 import json
 
 
-class TestTsdbSnapshot:
+class TestClusterTsdbSnapshot:
     def setup_class(cls):
         # super(TDTestCase, self).init(conn, logSql, replicaVar=3, db="db")
         tdLog.debug(f"start to excute {__file__}")
@@ -224,22 +224,28 @@ class TestTsdbSnapshot:
         subprocess.run(f'taosBenchmark -f {json_file}', shell=True, check=True)
 
     def test_tsdb_snapshot(self):
-        """summary: xxx
+        """Remove wal files to check on cluster
 
-        description: xxx
+        1. Create 3 dnode cluster environment
+        2. taosBenchmark insert 1 stb 100 child tables with 3 replica
+        3. flush database
+        4. stop dnode 3
+        5. taosBenchmark insert more data into the stb again
+        6. flush database
+        7. stop all dnodes
+        8. remove wal files from dnode1 and dnode2
+        9. start all dnodes
+        10. check coredump not happen
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-23 Alex Duan Migrated from test/cases/uncatalog/army/cluster/test_tsdb_snapshot.py
+
         """
         tdLog.info("============== write bulk data ===============")
         self._write_bulk_data()
@@ -274,7 +280,7 @@ class TestTsdbSnapshot:
         cluster.dnodes[1].starttaosd()
         cluster.dnodes[2].starttaosd()
 
-        tdLog.sleep(60)
+        tdLog.sleep(10)
 
         tdLog.success(f"{__file__} successfully executed")
 

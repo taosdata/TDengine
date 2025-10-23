@@ -1,5 +1,7 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
+import os
+
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck, epath
 
 
 class TestUserPassword:
@@ -7,29 +9,10 @@ class TestUserPassword:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_user_password(self):
-        """Password: basic test
-
-        1. Creation and modification of users with various password formats (valid/invalid patterns)
-        2. Verification of password complexity requirements (length/special characters)
-        3. Testing cross-user permission restrictions during password changes
-        4. Validation of system behavior with maximum password length boundaries
-        5. Special character handling in passwords and error case verification
-
-        Catalog:
-            - User
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-30 Simon Guan Migrated from tsim/user/password.sim
-
-        """
-
+    #
+    # ------------------- sim ----------------
+    #
+    def do_user_password(self):
         tdLog.info(f"============= step1")
         tdSql.execute(f"create user u_read pass 'tbx12F132!'")
         tdSql.execute(f"create user u_write pass 'tbx12145&*'")
@@ -314,3 +297,74 @@ class TestUserPassword:
         tdSql.error(f"alter USER `_xTest1` PASS '2729c41a99b2c5222aa7dd9fc1ce3de7';")
         tdSql.error(f"alter USER `_xTest1` PASS '2729c417';")
         tdSql.error(f"alter USER `_xTest1` PASS '2xF';")
+        print("do sim password ....................... [passed]")
+
+    #
+    # ------------------- army ----------------
+    #
+    def do_strong_password(self):
+        self.checkColName="c1"
+        # strong
+        tdSql.error("create user test pass '12345678' sysinfo 0;", expectErrInfo="Invalid password", fullMatched=False)
+
+        tdSql.execute("create user test pass '12345678@Abc' sysinfo 0;")
+
+        tdSql.error("alter user test pass '23456789'", expectErrInfo="Invalid password", fullMatched=False)
+
+        tdSql.execute("alter user test pass '23456789@Abc';")
+
+        # change setting
+        tdSql.execute("ALTER ALL DNODES 'enableStrongPassword' '0'")
+
+        time.sleep(3)
+
+        # weak
+        tdSql.execute("create user test1 pass '12345678' sysinfo 0;")
+
+        tdSql.execute("alter user test1 pass '12345678';")
+
+        # pass length    
+        tdSql.error("alter user test1 pass '1234567';", expectErrInfo="Password too short or empty")
+        
+        tdSql.error("create user test2 pass '1234567' sysinfo 0;", expectErrInfo="Password too short or empty")
+
+        tdSql.error("create user test2 pass '1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456' sysinfo 0;", expectErrInfo="Name or password too long", fullMatched=False)
+
+        tdSql.execute("create user test2 pass '123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345' sysinfo 0;")
+
+        cmd = 'taos -u test2 -p123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345 -s "show databases;"'
+        if os.system(cmd) != 0:
+            raise Exception("failed to execute system command. cmd: %s" % cmd)
+
+        tdSql.error("alter user test2 pass '1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456';", expectErrInfo="Name or password too long", fullMatched=False)      
+        tdLog.success(f"{__file__} successfully executed")    
+
+        print("do army password ...................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_user_password(self):
+        """Password: basic
+
+        1. Creation and modification of users with various password formats (valid/invalid patterns)
+        2. Verification of password complexity requirements (length/special characters)
+        3. Testing cross-user permission restrictions during password changes
+        4. Validation of system behavior with maximum password length boundaries
+        5. Special character handling in passwords and error case verification
+        6. Login with strong password
+
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-4-30 Simon Guan Migrated from tsim/user/password.sim
+            - 2025-10-23 Alex Duan Migrated from test/cases/uncatalog/army/cluster/test_strong_password.py
+
+        """
+        self.do_user_password()
+        self.do_strong_password()

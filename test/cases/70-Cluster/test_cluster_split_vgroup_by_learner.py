@@ -16,7 +16,7 @@ import json
 import time
 import threading
 
-class TestSplitVgroupByLearner:
+class TestClusterSplitVgroupByLearner:
     updatecfgDict = {
         'slowLogScope' : "others"
     }
@@ -96,22 +96,26 @@ class TestSplitVgroupByLearner:
 
     # run
     def test_split_vgroup_by_learner(self):
-        """summary: xxx
+        """Check data correct after cluster actions
 
-        description: xxx
+        1. Create 3 dnode cluster environment
+        2. taosBenchmark insert data with full data-type columns
+        3. Check taosBenchmark insert data correct
+        4. Save snapshot with snapshot aggregation like avg, min, max, sum, count
+        5. Do cluster action: split vgroups, trim, balance vgroup leaders, alter replica, compact
+        6. Check snapshot aggregation result correct
+        7. Check taosBenchmark insert data correct again
+        8. Check float double value correct again
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-23 Alex Duan Migrated from test/cases/uncatalog/army/cluster/test_cluster_snapshot.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 
@@ -127,8 +131,6 @@ class TestSplitVgroupByLearner:
         t1.join()
         t2.join()
         t3.join()
-        tdLog.success(f"{__file__} successfully executed")
-
         tdLog.success(f"{__file__} successfully executed")
 
 
