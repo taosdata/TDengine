@@ -2100,11 +2100,11 @@ static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
   }
 
   // check if it is conflict with other trans in both sourceDb and targetDb.
-  // code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_PAUSE_NAME, true);
-  // if (code) {
-  //   sdbRelease(pMnode->pSdb, pStream);
-  //   TAOS_RETURN(code);
-  // }
+  code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_RESET_NAME, true);
+  if (code) {
+    sdbRelease(pMnode->pSdb, pStream);
+    TAOS_RETURN(code);
+  }
 
   bool updated = mndStreamNodeIsUpdated(pMnode);
   if (updated) {
@@ -2113,55 +2113,42 @@ static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
     TAOS_RETURN(TSDB_CODE_STREAM_TASK_IVLD_STATUS);
   }
 
-  // todo: record the reset timestamp
+  {  // check for tasks, if tasks are not ready, not allowed to reset
+    bool readyToReset = true;
+    streamMutexLock(&execInfo.lock);
 
-  // {  // check for tasks, if tasks are not ready, not allowed to reset
-    // bool found = false;
-  //   bool readyToPause = true;
-  //   streamMutexLock(&execInfo.lock);
+    for (int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
+      STaskId *p = taosArrayGet(execInfo.pTaskList, i);
+      if (p == NULL) {
+        continue;
+      }
 
-  //   for (int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
-  //     STaskId *p = taosArrayGet(execInfo.pTaskList, i);
-  //     if (p == NULL) {
-  //       continue;
-  //     }
+      STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, p, sizeof(*p));
+      if (pEntry == NULL) {
+        continue;
+      }
 
-  //     STaskStatusEntry *pEntry = taosHashGet(execInfo.pTaskMap, p, sizeof(*p));
-  //     if (pEntry == NULL) {
-  //       continue;
-  //     }
+      if (pEntry->status != TASK_STATUS__READY && pEntry->status != TASK_STATUS__CK) {
+        mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64 " status:%s, no need for reset", pStream->name,
+               pStream->uid, pEntry->nodeId, pEntry->id.taskId, streamTaskGetStatusStr(pEntry->status));
+        readyToReset = false;
+      }
+    }
 
-  //     if (pEntry->id.streamId != pStream->uid) {
-  //       continue;
-  //     }
+    streamMutexUnlock(&execInfo.lock);
 
-  //     if (pEntry->status == TASK_STATUS__UNINIT || pEntry->status == TASK_STATUS__CK) {
-  //       mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64 " status:%s, not ready for pause", pStream->name,
-  //              pStream->uid, pEntry->nodeId, pEntry->id.taskId, streamTaskGetStatusStr(pEntry->status));
-  //       readyToPause = false;
-  //     }
 
-  //     found = true;
-  //   }
-
-    // streamMutexUnlock(&execInfo.lock);
-    // if (!found) {
-    //   mError("stream:%s task not report status yet, not ready for pause", pauseReq.name);
-    //   sdbRelease(pMnode->pSdb, pStream);
-    //   TAOS_RETURN(TSDB_CODE_STREAM_TASK_IVLD_STATUS);
-    // }
-
-    // if (!readyToPause) {
-    //   mError("stream:%s task not ready for pause yet", pauseReq.name);
-    //   sdbRelease(pMnode->pSdb, pStream);
-    //   TAOS_RETURN(TSDB_CODE_STREAM_TASK_IVLD_STATUS);
-    // }
-  // }
+    if (!readyToReset) {
+      mError("stream:%s task not allowed for reset yet", resetReq.name);
+      sdbRelease(pMnode->pSdb, pStream);
+      TAOS_RETURN(TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+    }
+  }
 
   STrans *pTrans = NULL;
   code = doCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_RESET_NAME, "reset all streams", &pTrans);
   if (pTrans == NULL || code) {
-    mError("stream:%s failed to pause stream since %s", resetReq.name, tstrerror(code));
+    mError("stream:%s failed to reset streams since %s", resetReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
