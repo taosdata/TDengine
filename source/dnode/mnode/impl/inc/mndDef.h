@@ -431,7 +431,9 @@ typedef struct {
   int64_t       ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
 
-  SHashObj* readDbs;
+  SHashObj* roles;
+
+  SHashObj* readDbs;  //      db.*, *.*
   SHashObj* writeDbs;
   SHashObj* topics;
   SHashObj* readTbs;
@@ -444,6 +446,14 @@ typedef struct {
   SRWLatch  lock;
   int8_t    passEncryptAlgorithm;
 } SUserObj;
+
+typedef struct { // 拥有的就是权限集合，包括系统权限, 对象权限。
+  char     name[TSDB_USER_LEN];
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int64_t  uid;
+  SPrivSet privSet;
+} SRoleObj;
 
 typedef struct {
   int32_t numOfVgroups;
