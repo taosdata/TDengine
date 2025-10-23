@@ -433,13 +433,18 @@ static int32_t scanPathOptGetDataRequired(SNodeList* pFuncs) {
   return dataRequired;
 }
 
-static void scanPathOptSetScanWin(SScanLogicNode* pScan) {
+static void scanPathOptSetScanWin(SOsdInfo* pInfo) {
+  SScanLogicNode* pScan = pInfo->pScan;
   SLogicNode* pParent = pScan->node.pParent;
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pParent) && pParent->pParent &&
       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent->pParent)) {
     pParent = pParent->pParent;
   }
   if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent)) {
+    if (pInfo->scanOrder == SCAN_ORDER_BOTH) {
+      // for window, only keep asc order when both first and last exist
+      pInfo->scanOrder = SCAN_ORDER_ASC;
+    }
     pScan->interval = ((SWindowLogicNode*)pParent)->interval;
     pScan->offset = ((SWindowLogicNode*)pParent)->offset;
     pScan->sliding = ((SWindowLogicNode*)pParent)->sliding;
@@ -493,7 +498,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
-    scanPathOptSetScanWin(info.pScan);
+    scanPathOptSetScanWin(&info);
     scanPathOptSetScanOrder(info.scanOrder, info.pScan);
     scanPathOptSetGroupOrderScan(info.pScan);
   }
@@ -537,14 +542,14 @@ static int32_t pushDownCondOptRebuildTbanme(SNode** pTagCond) {
   return code;
 }
 
-static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
+static int32_t rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (nodeType(*pCond) == QUERY_NODE_LOGIC_CONDITION) {
     SLogicConditionNode* pCondNode = *(SLogicConditionNode**)pCond;
     if (pCondNode->condType == LOGIC_COND_TYPE_AND) {
       SNode* pNode = NULL;
       WHERE_EACH(pNode, pCondNode->pParameterList) {
-        rewriteDnodeConds(&cell->pNode, pDnodeConds);
+        PLAN_ERR_JRET(rewriteDnodeConds(&cell->pNode, pDnodeConds));
         if (cell->pNode == NULL) {
           ERASE_NODE(pCondNode->pParameterList);
           continue;
@@ -552,19 +557,12 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
         WHERE_NEXT;
       }
       if (pCondNode->pParameterList->length == 1) {
-        code = nodesCloneNode(pCondNode->pParameterList->pHead->pNode, pCond);
-        if (TSDB_CODE_SUCCESS != code) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-          nodesDestroyNode(*pCond);
-          *pCond = NULL;
-        }
+        PLAN_ERR_JRET(nodesCloneNode(pCondNode->pParameterList->pHead->pNode, pCond));
         nodesDestroyList(pCondNode->pParameterList);
       } else if (pCondNode->pParameterList->length == 0) {
         nodesDestroyNode(*pCond);
         *pCond = NULL;
       }
-    } else {
-      return;
     }
   } else if (nodeType(*pCond) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pOperNode = *(SOperatorNode**)pCond;
@@ -573,15 +571,17 @@ static void rewriteDnodeConds(SNode** pCond, SNodeList* pDnodeConds) {
       SNode* pRight = pOperNode->pRight;
       if ((QUERY_NODE_COLUMN == nodeType(pLeft) && strcmp(((SColumnNode*)pLeft)->node.aliasName, "dnode_id") == 0) ||
           (QUERY_NODE_COLUMN == nodeType(pRight) && strcmp(((SColumnNode*)pRight)->node.aliasName, "dnode_id") == 0)) {
-        code = nodesListAppend(pDnodeConds, (SNode*)pOperNode);
-        if (TSDB_CODE_SUCCESS != code) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        }
+        PLAN_ERR_JRET(nodesListAppend(pDnodeConds, (SNode*)pOperNode));
         *pCond = NULL;
       }
     }
   }
-  return;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNodeList** pDnodeConds) {
@@ -596,8 +596,8 @@ static int32_t filterDnodeConds(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
-  return TSDB_CODE_SUCCESS;
+  code = rewriteDnodeConds(&pScan->node.pConditions, *pDnodeConds);
+  return code;
 }
 
 static int32_t pushDownDnodeConds(SScanLogicNode* pScan, SNodeList* pDnodeConds) {

@@ -166,7 +166,7 @@ bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnI
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_DURATION) {
       // TODO: include endpoint
-      code = colDataSetVal(pDstColInfoData, rowIndex, (const char*)&pFillInfo->interval.sliding, false);
+      code = colDataSetVal(pDstColInfoData, rowIndex, (const char*)&pFillInfo->interval.interval, false);
       QUERY_CHECK_CODE(code, lino, _end);
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_IS_WINDOW_FILLED) {
