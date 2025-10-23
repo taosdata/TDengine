@@ -492,12 +492,15 @@ void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
 }
 
 int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SArray* pTagVals = NULL;
   STag*   pTag = (STag*)pCfg->pTags;
 
   if (NULL == pCfg->pTags || pCfg->numOfTags <= 0) {
     qError("tag missed in table cfg, pointer:%p, numOfTags:%d", pCfg->pTags, pCfg->numOfTags);
-    return TSDB_CODE_APP_ERROR;
+    code = TSDB_CODE_APP_ERROR;
+    TSDB_CHECK_CODE(code, lino, _return);
   }
 
   if (tTagIsJson(pTag)) {
@@ -505,15 +508,15 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     if (pJson) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
       taosMemoryFree(pJson);
+    } else {
+      code = terrno;
     }
 
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t code = tTagToValArray((const STag*)pCfg->pTags, &pTagVals);
-  if (code) {
     return code;
   }
+
+  code = tTagToValArray((const STag*)pCfg->pTags, &pTagVals);
+  TSDB_CHECK_CODE(code, lino, _return);
 
   int16_t valueNum = taosArrayGetSize(pTagVals);
   int32_t num = 0;
@@ -533,16 +536,18 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     if (pSchema->colId > pTagVal->cid) {
       qError("tag value and column mismatch, schemaId:%d, valId:%d", pSchema->colId, pTagVal->cid);
       taosArrayDestroy(pTagVals);
-      return TSDB_CODE_APP_ERROR;
+      code = TSDB_CODE_APP_ERROR;
+      TSDB_CHECK_CODE(code, lino, _return);
     } else if (pSchema->colId == pTagVal->cid) {
       char    type = pTagVal->type;
       int32_t tlen = 0;
 
       if (IS_VAR_DATA_TYPE(type)) {
-        dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
       } else {
-        dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
       }
+      TSDB_CHECK_CODE(code, lino, _return);
       *len += tlen;
       j++;
     } else {
@@ -578,9 +583,13 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     */
   }
 
+_return:
   taosArrayDestroy(pTagVals);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed to append tag values, lino:%d, since %s", __func__, lino, tstrerror(code));
+  }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
