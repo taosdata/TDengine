@@ -9,6 +9,7 @@ collectd write_tsdb 插件是 collectd 官方提供的插件，支持将数据�
 - 在 taosAdapter 配置文件（默认位置为 /etc/taos/taosadapter.toml）中使能配置项
 
 ```toml
+# 写入 Schemaless 数据时自动创建数据库
 smlAutoCreateDB = true
 [opentsdb_telnet]
 enable = true

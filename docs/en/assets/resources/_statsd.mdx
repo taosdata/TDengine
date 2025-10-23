@@ -5,6 +5,7 @@ Method to configure taosAdapter to receive StatsD data:
 - Enable the configuration item in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
 
     ```toml
+    # Automatically create the database when writing data with the schemaless feature if set to true.
     smlAutoCreateDB = true
     [statsd]
     enable = true

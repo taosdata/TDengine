@@ -12,6 +12,7 @@ Method to configure taosAdapter to receive collectd write_tsdb plugin data:
 - Enable the configuration item in the taosAdapter configuration file (default location is /etc/taos/taosadapter.toml)
 
     ```toml
+    # Automatically create the database when writing data with the schemaless feature if set to true.
     smlAutoCreateDB = true
     [opentsdb_telnet]
     enable = true
