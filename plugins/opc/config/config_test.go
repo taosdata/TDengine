@@ -243,3 +243,27 @@ func TestPointsUAConfig_Validate(t *testing.T) {
 	err = conf.ValidateGetPoints()
 	assert.NoError(t, err)
 }
+
+func TestGetAutoReconnect(t *testing.T) {
+	cfg := &ConnectConfig{
+		Ua: UaConnectConfig{},
+	}
+	assert.Equal(t, true, cfg.Ua.GetAutoReconnect())
+	vf := false
+	vt := true
+	pf := &vf
+	pt := &vt
+	cfg = &ConnectConfig{
+		Ua: UaConnectConfig{
+			AutoReconnect: pf,
+		},
+	}
+	assert.Equal(t, false, cfg.Ua.GetAutoReconnect())
+
+	cfg = &ConnectConfig{
+		Ua: UaConnectConfig{
+			AutoReconnect: pt,
+		},
+	}
+	assert.Equal(t, true, cfg.Ua.GetAutoReconnect())
+}

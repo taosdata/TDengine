@@ -12,6 +12,7 @@ taos.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
+serde_json.workspace = true
 
 source-csv.path = "../source-csv"
 source-historian.path = "../source-historian"

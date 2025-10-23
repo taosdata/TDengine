@@ -238,7 +238,7 @@ async fn ipc_stream_writer(
                                 metrics_arc,
                                 tables_messages_in_progress,
                                 None,
-                                archive_tx.clone(),
+                                Some(archive_tx.clone()),
                             )
                             .await
                         {

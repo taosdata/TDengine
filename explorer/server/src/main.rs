@@ -395,10 +395,15 @@ async fn main() -> anyhow::Result<()> {
                 Embed::new("/docs/", &StaticAssets)
                     .index_file("index.html")
                     .fallback_handler(|_: &_| {
-                        let embed = StaticAssets::get("docs/index.html").unwrap();
-                        HttpResponse::Ok()
-                            .content_type(ContentType::html())
-                            .body(embed.data)
+                        if let Some(embed) = StaticAssets::get("docs/index.html") {
+                            HttpResponse::Ok()
+                                .content_type(ContentType::html())
+                                .body(embed.data)
+                        } else {
+                            HttpResponse::NotFound()
+                                .content_type(ContentType::html())
+                                .body("404 Not Found")
+                        }
                     }),
             )
             .service(web::redirect("/docs-en", "/docs-en/"))
@@ -406,10 +411,15 @@ async fn main() -> anyhow::Result<()> {
                 Embed::new("/docs-en/", &StaticAssets)
                     .index_file("index.html")
                     .fallback_handler(|_: &_| {
-                        let embed = StaticAssets::get("docs-en/index.html").unwrap();
-                        HttpResponse::Ok()
-                            .content_type(ContentType::html())
-                            .body(embed.data)
+                        if let Some(embed) = StaticAssets::get("docs-en/index.html") {
+                            HttpResponse::Ok()
+                                .content_type(ContentType::html())
+                                .body(embed.data)
+                        } else {
+                            HttpResponse::NotFound()
+                                .content_type(ContentType::html())
+                                .body("404 Not Found")
+                        }
                     }),
             );
 
@@ -614,20 +624,26 @@ where
  */
 #[instrument(skip_all)]
 async fn check_binding(args: web::Data<Args>) -> impl Responder {
-    let binding_record_file =
-        PathBuf::from(args.cfg_path.as_ref().unwrap()).join("explorer-register.cfg");
-    let server = args.profile.cluster.as_deref().unwrap();
-    let check_result = verification::check_phone_email_verified(&binding_record_file, server);
-    match check_result {
-        Ok(_) => HttpResponse::Ok().json(R::success(true)),
-        Err(err) => {
-            error!(
-                "check {} in file {:?}, Failed to check binding: {}",
-                server, binding_record_file, err
-            );
-            HttpResponse::Ok().json(R::success(false))
-        }
-    }
+    let is_bound = *EXPLORER_SKIP_REGISTER
+        || args
+            .cfg_path
+            .as_ref()
+            .zip(args.profile.cluster.as_deref())
+            .and_then(|(cfg_path, server)| {
+                let binding_record_file = PathBuf::from(cfg_path).join("explorer-register.cfg");
+                verification::check_phone_email_verified(&binding_record_file, server)
+                    .inspect_err(|err| {
+                        error!(
+                            "check {} in file {}, Failed to check binding: {}",
+                            server,
+                            binding_record_file.display(),
+                            err
+                        );
+                    })
+                    .ok()
+            })
+            .is_some();
+    HttpResponse::Ok().json(R::success(is_bound))
 }
 
 #[instrument(skip_all)]

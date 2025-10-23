@@ -25,7 +25,7 @@ export default {
     },
     success: {
       "verificationCodeSend": "验证码发送成功",
-      "registerSuccess": "注册成功，请使用数据库用户名密码登录",
+      "registerSuccess": "注册成功",
     }
   }
 }

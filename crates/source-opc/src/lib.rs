@@ -36,6 +36,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing_subscriber::fmt::MakeWriter;
 
+pub mod failover;
 mod point_updater;
 mod schema;
 

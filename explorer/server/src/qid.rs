@@ -105,6 +105,9 @@ mod tests {
 
         INSTANCE_ID.get_or_init(|| 1);
 
+        let qid = Qid::from(0x0200000000000000);
+        assert_eq!(qid.inner.instance_id(), 2);
+
         let mut qid = Qid::init();
         assert_eq!(qid.get(), 0x0100000000000000);
 
@@ -119,5 +122,17 @@ mod tests {
 
         qid.inner.set_session_id(1);
         assert_eq!(qid.get(), 0x0100000000010101)
+    }
+
+    #[test]
+    fn test_on_request() {
+        INSTANCE_ID.get_or_init(|| 1);
+
+        let qid1 = Qid::init_on_request(&actix_web::test::TestRequest::default().to_srv_request());
+        let qid2 = Qid::init_on_request(&actix_web::test::TestRequest::default().to_srv_request());
+
+        assert_eq!(qid1.inner.instance_id(), 1);
+        assert_eq!(qid2.inner.instance_id(), 1);
+        assert_ne!(qid1.inner.session_id(), qid2.inner.session_id());
     }
 }

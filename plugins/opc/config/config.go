@@ -48,6 +48,7 @@ type UaConnectConfig struct {
 	AuthCertificate string   `json:"auth_certificate,omitempty" yaml:"auth_certificate" toml:"auth_certificate"` // Required for auth_method = "Certificate"
 	AuthPrivateKey  string   `json:"auth_private_key,omitempty" yaml:"auth_private_key" toml:"auth_private_key"` // Required for auth_method = "Certificate"
 	MaxAge          *float64 `json:"max_age,omitempty" yaml:"max_age" toml:"max_age"`                            // MaxAge is the maximum age of the value to be read in milliseconds. If the server has no value within this time, it returns a Bad_Timeout.
+	AutoReconnect   *bool    `json:"auto_reconnect,omitempty" yaml:"auto_reconnect" toml:"auto_reconnect"`
 }
 
 type DaConnectConfig struct {
@@ -203,6 +204,13 @@ func (c *UaConnectConfig) validateAuthMethod() error {
 		return errors.New("auth_certificate and auth_private_key is required for `Certificate` auth method")
 	}
 	return nil
+}
+
+func (c *UaConnectConfig) GetAutoReconnect() bool {
+	if c.AutoReconnect == nil {
+		return true
+	}
+	return *c.AutoReconnect
 }
 
 func (d *DaConnectConfig) Validate() error {
