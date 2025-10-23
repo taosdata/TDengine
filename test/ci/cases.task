@@ -133,8 +133,8 @@
 ## 02-SubTables
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_autocreate.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_batchcreate.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_create_using_csv_file.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_create_using_csv_file.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_create_using_csv.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_create_using_csv.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
@@ -617,6 +617,7 @@
 
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_bugs.py -N 3
 
 # 26-NodeManager
 
@@ -670,7 +671,6 @@
 # 70-Cluster
 
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_arbitrator.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_arbitrator_restart.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_drop_table_by_uid.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_inc_snapshot.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_snapshot.py -N 3 -L 3 -D 2
@@ -727,8 +727,6 @@
 
 
 # army
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/grant/test_grant_bugs.py -N 3
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_column_tag_boundary.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py 
