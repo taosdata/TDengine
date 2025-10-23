@@ -131,6 +131,10 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
 
     code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
+    if (code == TSDB_CODE_STREAM_WALVERSION_NOT_FOUND) {
+      pExchangeInfo->current++;
+      continue;
+    }
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
@@ -143,13 +147,13 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
         T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
 
-      int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
-      if (pDataInfo->seqId != currSeqId) {
-        qDebug("%s seq rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", 
-            GET_TASKID(pTaskInfo), pDataInfo->seqId, pExchangeInfo, currSeqId);
-        taosMemoryFreeClear(pDataInfo->pRsp);
-        continue;
-      }
+      // int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
+      // if (pDataInfo->seqId != currSeqId) {
+      //   qDebug("%s seq rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", 
+      //       GET_TASKID(pTaskInfo), pDataInfo->seqId, pExchangeInfo, currSeqId);
+      //   taosMemoryFreeClear(pDataInfo->pRsp);
+      //   continue;
+      // }
 
       break;
     }
@@ -166,7 +170,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
              GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId,
              tstrerror(pDataInfo->code));
       pTaskInfo->code = pDataInfo->code;
-      T_LONG_JMP(pTaskInfo->env, code);
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
     SRetrieveTableRsp*   pRsp = pDataInfo->pRsp;
@@ -399,7 +403,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
       }
-    } else if (IS_STREAM_MODE(pOperator->pTaskInfo))   {
+    } else if (IS_STREAM_MODE(pOperator->pTaskInfo)) {
       streamConcurrentlyLoadRemoteData(pOperator, pExchangeInfo, pTaskInfo);
     } else {
       concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
@@ -408,7 +412,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pOperator->pTaskInfo->code));
       T_LONG_JMP(pTaskInfo->env, pOperator->pTaskInfo->code);
     }
-    
+
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
       qDebug("empty resultBlockList");
       return NULL;
@@ -426,7 +430,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       qDebug("block with rows:%" PRId64 " loaded", p->info.rows);
       return p;
     }
-}
+  }
 }
 
 static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -1043,6 +1047,11 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
       } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
         SArray** ppTmp = tSimpleHashGet(pTaskInfo->pWalVersions, &req.header.vgId, sizeof(req.header.vgId));
+        if(!ppTmp) {
+          qDebug("%s has not wal version for vgId:%d", GET_TASKID(pTaskInfo), req.header.vgId);
+          taosMemoryFree(pWrapper);
+          return TSDB_CODE_STREAM_WALVERSION_NOT_FOUND;
+        }
         req.pWalVersions = ppTmp ? *ppTmp : NULL;
         needStreamPesudoFuncVals = true;
         // code = getCurrentWinCalcTimeRange(req.pStRtFuncInfo, &req.pStRtFuncInfo->curWindow);

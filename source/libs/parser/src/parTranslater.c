@@ -15127,7 +15127,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
 
   return code;
 _return:
-  parserError("translateStreamCalcQuery failed, code:%d", code);
+  parserError("translateStreamCalcQuery failed, code:0x%0x", code);
   return code;
 }
 

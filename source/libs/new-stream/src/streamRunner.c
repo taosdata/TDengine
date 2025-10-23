@@ -798,7 +798,6 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SSTriggerCalcRequest*
   } else {
     code = qCreateStreamExecTaskInfo(&pExec->pExecutor, (void*)pExec->pPlan, &handle, NULL, vgId, taskId);
   }
-  moveExecTaskInfoWalVersions(&pExec->pExecutor, &pReq->pWalVersions);
 
   if (code) {
     ST_TASK_ELOG("failed to build task, code:%s", tstrerror(code));
@@ -855,6 +854,9 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     STREAM_CHECK_RET_GOTO(stRunnerBuildTask(pTask, pReq, pExec));
   } else if (pReq->brandNew) {
     STREAM_CHECK_RET_GOTO(stRunnerResetTaskExec(pTask, pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
+  }
+  if (pTask->topTask) {
+    moveExecTaskInfoWalVersions(&pExec->pExecutor, &pReq->pWalVersions);
   }
 
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
