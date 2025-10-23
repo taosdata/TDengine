@@ -26,24 +26,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
 ,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_drop.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_meta.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_create.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_select.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop_child.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_vstable.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb_window.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb_group.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_schema_is_old.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/decimal/test_TS6333.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py

@@ -11,9 +11,9 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
-import time
+import os
 
-class TestVTableQuery:
+class TestVTableQuerySameDBStbWindow:
 
     def setup_class(cls):
         tdLog.info(f"prepare org tables.")
@@ -213,98 +213,14 @@ class TestVTableQuery:
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-
-    def test_select_virtual_normal_table(self):
-        """test select virtual normal table.
-
-        1 test vstable select normal table projection
-        2 test vstable select normal table projection filter
-        3 test vstable select normal table interval
-        4 test vstable select normal table state
-        5 test vstable select normal table session
-        6 test vstable select normal table event
-        7 test vstable select normal table count
-        8 test vstable select normal table partition
-        9 test vstable select normal table group
-        10 test vstable select chnormalild table orderby
-
-        Since: v3.3.6.0
-
-        Labels: virtual
-
-        Jira: None
-
-        History:
-            - 2025-3-15 Jing Sima Created
-            - 2025-5-6 Huo Hong Migrated to new test framework
-
-        """
-        self.run_normal_query("test_vtable_select_test_projection")
-        self.run_normal_query("test_vtable_select_test_projection_filter")
-        self.run_normal_query("test_vtable_select_test_function")
-
-        self.run_normal_query("test_vtable_select_test_interval")
-        self.run_normal_query("test_vtable_select_test_state")
-        self.run_normal_query("test_vtable_select_test_session")
-        self.run_normal_query("test_vtable_select_test_event")
-        self.run_normal_query("test_vtable_select_test_count")
-
-        self.run_normal_query("test_vtable_select_test_partition")
-        self.run_normal_query("test_vtable_select_test_group")
-        self.run_normal_query("test_vtable_select_test_orderby")
-
-    def test_select_virtual_child_table(self):
-        """test select virtual child table.
-
-        1 test vstable select child table projection
-        2 test vstable select child table projection filter
-        3 test vstable select child table interval
-        4 test vstable select child table state
-        5 test vstable select child table session
-        6 test vstable select child table event
-        7 test vstable select child table count
-        8 test vstable select child table partition
-        9 test vstable select child table group
-        10 test vstable select child table orderby
-
-        Since: v3.3.6.0
-
-        Labels: virtual
-
-        Jira: None
-
-        History:
-            - 2025-3-15 Jing Sima Created
-            - 2025-5-6 Huo Hong Migrated to new test framework
-
-        """
-        self.run_normal_query("test_vctable_select_test_projection")
-        self.run_normal_query("test_vctable_select_test_projection_filter")
-        self.run_normal_query("test_vctable_select_test_function")
-
-        self.run_normal_query("test_vctable_select_test_interval")
-        self.run_normal_query("test_vctable_select_test_state")
-        self.run_normal_query("test_vctable_select_test_session")
-        self.run_normal_query("test_vctable_select_test_event")
-        self.run_normal_query("test_vctable_select_test_count")
-
-        self.run_normal_query("test_vctable_select_test_partition")
-        self.run_normal_query("test_vctable_select_test_group")
-        self.run_normal_query("test_vctable_select_test_orderby")
-
     def test_select_virtual_super_table(self):
-        """test select virtual super table.
+        """Query: virtual super table from same db window query
 
-        1 test vstable select super table projection
-        2 test vstable select super table projection filter
-        3 test vstable select super table interval
-        4 test vstable select super table state
-        5 test vstable select super table session
-        6 test vstable select super table event
-        7 test vstable select super table count
-        8 test vstable select super table partition
-        9 test vstable select super table group
-        10 test vstable select super table orderby
+        1. test vstable select super table same db interval
+        2. test vstable select super table same db state
+        3. test vstable select super table same db session
+        4. test vstable select super table same db event
+        5. test vstable select super table same db count
 
         Since: v3.3.6.0
 
@@ -315,20 +231,12 @@ class TestVTableQuery:
         History:
             - 2025-3-15 Jing Sima Created
             - 2025-5-6 Huo Hong Migrated to new test framework
+            - 2025-10-23 Jing Sima Split from test_vtable_query.py
 
         """
-        self.run_normal_query("test_vstable_select_test_projection")
-        self.run_normal_query("test_vstable_select_test_projection_filter")
-        #self.run_normal_query("test_vstable_select_test_function")
 
         self.run_normal_query("test_vstable_select_test_interval")
         self.run_normal_query("test_vstable_select_test_state")
         self.run_normal_query("test_vstable_select_test_session")
         self.run_normal_query("test_vstable_select_test_event")
         self.run_normal_query("test_vstable_select_test_count")
-
-        self.run_normal_query("test_vstable_select_test_partition")
-        self.run_normal_query("test_vstable_select_test_group")
-        self.run_normal_query("test_vstable_select_test_orderby")
-
-
