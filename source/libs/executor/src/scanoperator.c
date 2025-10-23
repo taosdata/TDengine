@@ -1670,6 +1670,109 @@ static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
   }
 }
 
+static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  STableScanInfo*   pInfo = pOper->info;
+  pOper->status = OP_NOT_OPENED;
+
+  pInfo->scanTimes = 0;
+  pInfo->currentGroupId = -1;
+  pInfo->tableEndIndex = -1;
+  pInfo->tableStartIndex = 0;
+  pInfo->currentTable = 0;
+  pInfo->scanMode = 0;
+  pInfo->countState = 0;
+  pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
+
+  tableListDestroy(pInfo->base.pTableListInfo);
+  pInfo->base.pTableListInfo = tableListCreate();
+  if (!pInfo->base.pTableListInfo) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
+  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
+  
+  STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
+  if (!pTableScanNode->scan.node.dynamicOp) {
+    code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                    &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
+                                    pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+    if (code) {
+      qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
+      return code;
+    }
+  }
+
+  initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->base.limitInfo);
+  cleanupQueryTableDataCond(&pInfo->base.cond);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle, true);
+  if (code) {
+    qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
+    return code;
+  }
+  pInfo->base.cond.startVersion = 0;
+  pInfo->base.cond.endVersion = pInfo->base.readHandle.version;
+  if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
+    cleanupQueryTableDataCond(&pInfo->base.orgCond);
+    memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
+    memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
+    if (pInfo->base.readerAPI.tsdReaderClose) {
+      pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
+    }
+    pInfo->base.dataReader = NULL;
+  } else {
+    // reuse tsdb reader
+    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
+      setOperatorCompleted(pOper);
+      return code;
+    }
+
+    taosRLockLatch(&pTaskInfo->lock);
+    do {
+      int32_t        num = 0;
+      STableKeyInfo* pList = NULL;
+      code = initNextGroupScan(pInfo, &pList, &num);
+      if (code) {
+        qError("%s failed to initNextGroupScan, code:%s", __func__, tstrerror(code));
+        break;
+      }
+      code = pInfo->base.readerAPI.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
+      if (code) {
+        qError("%s failed to tsdSetQueryTableList, code:%s", __func__, tstrerror(code));
+        break;
+      }
+      code = pInfo->base.readerAPI.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+      if (code) {
+        qError("%s failed to tsdReaderResetStatus, code:%s", __func__, tstrerror(code));
+        break;
+      }
+      pInfo->base.readerAPI.tsdReaderResetVer(pInfo->base.dataReader, &pInfo->base.cond);
+      code = pInfo->base.readerAPI.tsdReaderResetExTimeWindow(pInfo->base.dataReader, &pInfo->base.cond);
+      if (code) {
+        qError("%s failed to tsdReaderResetStatus, code:%s", __func__, tstrerror(code));
+        break;
+      }
+        
+    } while (0);
+    taosRUnLockLatch(&pTaskInfo->lock);
+    if (code) return code;
+
+    if (pInfo->filesetDelimited) {
+      pInfo->base.readerAPI.tsdSetFilesetDelimited(pInfo->base.dataReader);
+    }
+
+    if (pInfo->pResBlock->info.capacity > pOper->resultInfo.capacity) {
+      pOper->resultInfo.capacity = pInfo->pResBlock->info.capacity;
+    }
+  }
+
+  pOper->resultInfo.totalRows = 0;
+  blockDataEmpty(pInfo->pResBlock);
+  blockDataEmpty(pInfo->pOrgBlock);
+  taosHashClear(pInfo->pIgnoreTables);
+  return code;
+}
+
 int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
@@ -1683,7 +1786,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
     code = terrno;
     goto _error;
   }
-
+  pOperator->pPhyNode = pTableScanNode;
   SScanPhysiNode*     pScanNode = &pTableScanNode->scan;
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
 
@@ -1763,7 +1866,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL, destroyTableScanOperatorInfo,
                                          optrDefaultBufFn, getTableScannerExecInfo, optrDefaultGetNextExtFn, NULL);
-
+  setOperatorResetStateFn(pOperator, resetTableScanOperatorState);                                    
   // for non-blocking operator, the open cost is always 0
   pOperator->cost.openCost = 0;
   *pOptrInfo = pOperator;
@@ -4456,7 +4559,6 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   pTableScanInfo->pSortInputBlock = NULL;
   // end one reader variable
 
-  cleanupQueryTableDataCond(&pTableScanInfo->base.cond);
   destroyTableScanBase(&pTableScanInfo->base, &pTableScanInfo->base.readerAPI);
 
   blockDataDestroy(pTableScanInfo->pResBlock);
@@ -4492,6 +4594,75 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  STableMergeScanInfo*   pInfo = pOper->info;
+  pOper->status = OP_NOT_OPENED;
+
+  pInfo->tableEndIndex = 0;
+  pInfo->tableStartIndex = 0;
+  pInfo->hasGroupId = false;
+  if (pInfo->base.readerAPI.tsdReaderClose) {
+    pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
+  }
+  pInfo->base.dataReader = NULL;
+  pInfo->base.scanFlag = MAIN_SCAN;
+
+  pInfo->base.limitInfo = (SLimitInfo){0};
+  pInfo->base.limitInfo.limit.limit = -1;
+  pInfo->base.limitInfo.slimit.limit = -1;
+
+  tableListDestroy(pInfo->base.pTableListInfo);
+  pInfo->base.pTableListInfo = tableListCreate();
+  if (!pInfo->base.pTableListInfo) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return terrno;
+  }
+  SExecTaskInfo*         pTaskInfo = pOper->pTaskInfo;
+  
+  STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pTaskInfo->pSubplan->pNode;
+  code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                  &pInfo->base.readHandle, pInfo->base.pTableListInfo, 
+                                  pTaskInfo->pSubplan->pTagCond, pTaskInfo->pSubplan->pTagIndexCond, pTaskInfo, NULL);
+  if (code) {
+    qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
+    return code;
+  }
+
+  initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
+  cleanupQueryTableDataCond(&pInfo->base.cond);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, &pInfo->base.readHandle, false);
+  if (code) {
+    qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
+    return code;
+  }
+
+  tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
+
+  taosHashCleanup(pInfo->mSkipTables);
+  pInfo->mSkipTables = NULL;
+  pOper->resultInfo.totalRows = 0;
+
+  pInfo->bGroupProcessed = false;
+  pInfo->bNewFilesetEvent = false;
+  pInfo->bNextDurationBlockEvent = false;
+  pInfo->rtnNextDurationBlocks = false;
+  pInfo->nextDurationBlocksIdx = 0;
+  pInfo->bSortRowId = false;
+
+  for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
+    if (pInfo->nextDurationBlocks[i] != NULL) {
+      blockDataDestroy(pInfo->nextDurationBlocks[i]);
+      pInfo->nextDurationBlocks[i] = NULL;
+    }
+  }
+  pInfo->numNextDurationBlocks = 0;
+
+  stopSubTablesTableMergeScan(pInfo);
+  return code;
+}
+
 int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                          SOperatorInfo** pOptrInfo) {
@@ -4506,6 +4677,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
     goto _error;
   }
 
+  pOperator->pPhyNode = pTableScanNode;
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
@@ -4605,6 +4777,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
       optrDummyOpenFn, pTableScanNode->paraTablesSort ? doTableMergeScanParaSubTablesNext : doTableMergeScanNext, NULL,
       destroyTableMergeScanOperatorInfo, optrDefaultBufFn, getTableMergeScanExplainExecInfo, optrDefaultGetNextExtFn,
       NULL);
+  setOperatorResetStateFn(pOperator, resetTableMergeScanOperatorState);                                    
   pOperator->cost.openCost = 0;
 
   *pOptrInfo = pOperator;
