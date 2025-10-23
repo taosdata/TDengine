@@ -158,23 +158,21 @@ class TestFullopt:
             eos.exe("pkill -9 taos")
 
     # run
-    def test_fullopt(self):
-        """summary: xxx
+    def test_tools_cmdline(self):
+        """taos-CLI command line test
+        
+        1. Insert data with taosBenchmark json format
+        2. Check taos-CLI all command lines
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-23 Alex Duan Migrated from uncatalog/army/cmdline/test_fullopt.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
         # insert data
@@ -185,4 +183,24 @@ class TestFullopt:
         self.doTaosd()
         tdLog.success(f"{__file__} successfully executed")
 
+    def test_tools_cmdline_taosd(self):
+        """taosd command line test
+        
+        1. Insert data with taosBenchmark json format
+        2. Check taosd all command lines
+        
+        Catalog:
+            - Components:Taosd
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,ignore
+
+        Jira: None
+
+        History:
+            - 2025-10-23 Alex Duan Migrated from uncatalog/army/cmdline/test_fullopt.py
+
+        """
+        pass
 

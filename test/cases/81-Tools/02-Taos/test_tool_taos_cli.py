@@ -400,23 +400,27 @@ class TestTaosCli:
             self.checkListString(rlist, "Query OK,")
 
     # run
-    def test_taos_cli(self):
-        """summary: xxx
+    def test_tool_taos_cli(self):
+        """taos-CLI basic test
+        
+        1. Insert data with taosBenchmark json format
+        2. Check describe show full
+        3. Check basic command in different conn mode
+        4. Check version and help
+        5. Check command options
+        6. Check data dump in/out
+        7. Check conn mode priority and except cmd
+        8. Check max password length
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-23 Alex Duan Migrated from uncatalog/army/cmdline/test_taos_cli.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 

@@ -46,23 +46,23 @@ class TestCreateCtbUsingCsvFile:
         tdSql.checkRows(127)
         
     # run
-    def test_create_ctb_using_csv_file(self):
-        """summary: xxx
+    def test_subtable_create_using_csv(self):
+        """Child table create using csv
+        
+        1. Create database with vgroups 20 stt_trigger 1
+        2. Create super table according to csvfile format
+        3. Create child table using csv file
+        4. Check created child table number
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-23 Alex Duan Migrated from uncatalog/army/create/test_create_ctb_using_csv_file.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 

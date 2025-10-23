@@ -115,22 +115,27 @@ class TestCreateStbKeep:
         
     # run
     def test_create_stb_keep(self):
-        """summary: xxx
+        """Create table keep options
+        
+        1. prepare database
+        2. check create stb with keep
+        3. check create stb with err keep duration
+        4. check alter stb with keep
+        5. check alter stb with keep err
+        6. check child table with keep
+        7. check normal table with keep
+        8. check stb keep show create
+        9. check stb keep ins_stables
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-23 Alex Duan Migrated from uncatalog/army/create/test_create_stb_keep.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 

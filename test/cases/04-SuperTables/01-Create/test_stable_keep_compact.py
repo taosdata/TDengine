@@ -660,32 +660,26 @@ class TestStbKeepCompact:
         expected_preserved_count = 3
         
         tdSql.query(f"SELECT COUNT(*) FROM stb_alter_keep") 
-        tdSql.checkEqual(tdSql.getData(0, 0), expected_preserved_count)    
-        
-    def test_stb_keep_compact(self):
-        """summary: xxx
+        tdSql.checkEqual(tdSql.getData(0, 0), expected_preserved_count)
 
-        description: Test case to verify super table keep parameter behavior with compaction
+    def test_super_table_keep_compact(self):
+        """Verify super table keep parameter
     
-            This test verifies that:
-            1. Super table keep parameter only takes effect during compaction
-            2. Before compaction, all historical data is visible regardless of keep settings
-            3. After compaction, data older than the keep period is removed
-            4. Different combinations of database keep and super table keep behave as expected
+        1. Super table keep parameter only takes effect during compaction
+        2. Before compaction, all historical data is visible regardless of keep settings
+        3. After compaction, data older than the keep period is removed
+        4. Different combinations of database keep and super table keep behave as expected
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-        """
+            - 2025-10-23 Alex Duan Migrated from uncatalog/army/create/test_stb_keep_compact.py
+
+        """        
         tdLog.debug(f"Start to execute {__file__}")
 
         # 1. Test case 1: STB keep=2, DB keep=10

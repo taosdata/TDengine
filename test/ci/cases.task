@@ -133,9 +133,12 @@
 ## 02-SubTables
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_autocreate.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_batchcreate.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_create_using_csv_file.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_create_using_csv_file.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
+
 ## 03-PrimaryKey
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_create.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_delete.py
@@ -145,10 +148,15 @@
 
 ## 01-Create
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_basic.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_keep.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_keep.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_presuf.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_rowlength64k.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_rowlength64k_call.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_rowlength64k_benchmark.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_table_comment.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_table_param_ttl.py
 ## 02-Drop
@@ -680,6 +688,10 @@
 
 ## 01-Check
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_error_code.py
+## 02-Taos
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
+,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
+
 ## 05-Valgrind
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_basic1.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_basic2.py
@@ -715,18 +727,6 @@
 
 
 # army
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cmdline/test_taos_cli.py -B
-,,n,.,pytest cases/uncatalog/army/cmdline/test_fullopt.py
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_stb_keep.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_stb_keep.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py -N 3 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py -N 3
-
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/grant/test_grant_bugs.py -N 3
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_column_tag_boundary.py
