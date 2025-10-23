@@ -5,7 +5,6 @@ setlocal
 if "%TD_CONFIG%"=="" set "TD_CONFIG=Debug"
 if "%BUILD_TEST%"=="" set "BUILD_TEST=true"
 
-
 for /F "tokens=1,* delims= " %%A in ("%*") do (
     if "%%A" EQU "gen" (
         call :do_gen %%B
