@@ -5,7 +5,9 @@ use super::{
     transform::{modeler::Modeler, Parser},
 };
 use crate::{
-    plugins::transform::{handling_strategy::HandlingResult, MessageTableMeta, TableOptions},
+    plugins::transform::{
+        handling_strategy::HandlingResult, ConcatBatches, MessageTableMeta, TableOptions,
+    },
     runners::pi::transform::{
         PIElementModelConfig, PIPointModelConfig, PiModelType, SuperTableConfig,
     },
@@ -443,6 +445,7 @@ pub async fn write(
         match pool.get().await {
             Ok(taos) => break taos,
             Err(err) => {
+                tracing::error!("lush pool get error: {err:#}");
                 if Utc::now() - retry_start > TimeDelta::seconds(timeout as i64) {
                     match parser
                         .global()
@@ -454,9 +457,12 @@ pub async fn write(
                             return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
                         }
                         Ok((HandlingResult::Archive, err)) => {
-                            for m in messages {
+                            if let Some(batch) = messages
+                                .concat_batches()
+                                .context("lush concat db connection error")?
+                            {
                                 if let Err(e) =
-                                    process_archive(&err, &m.records, archive_tx.clone()).await
+                                    process_archive(&err, &batch, archive_tx.clone()).await
                                 {
                                     tracing::error!("archive error: {e:#}");
                                 }
@@ -517,147 +523,161 @@ pub async fn write(
                     written_rows += n;
                     break;
                 }
-                Err(err) => match err {
-                    WriteError::ConnectionPoolError(_) => {
-                        let timeout = parser
-                            .global()
-                            .process_on_abnormal
-                            .connection_timeout_in_second_value
-                            as u32;
-                        let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
-                        tokio::time::sleep(Duration::from_millis(sleep)).await;
-                        taos.replace(pool.get().await?);
-                        continue;
-                    }
-                    WriteError::TableNotExits(_) => {
-                        match parser
-                            .global()
-                            .process_on_abnormal
-                            .table_not_exist
-                            .handle(format!("{err:#}"))
-                        {
-                            Ok((HandlingResult::Skip, _)) => {
-                                break;
-                            }
-                            Ok((HandlingResult::Archive, err)) => {
-                                for batch in &records.batches {
-                                    if let Err(e) =
-                                        process_archive(&err, batch, archive_tx.clone()).await
+                Err(err) => {
+                    tracing::error!("lush write error: {err:#}");
+                    match err {
+                        WriteError::ConnectionPoolError(_) => {
+                            let timeout = parser
+                                .global()
+                                .process_on_abnormal
+                                .connection_timeout_in_second_value
+                                as u32;
+                            let sleep =
+                                ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
+                            tokio::time::sleep(Duration::from_millis(sleep)).await;
+                            taos.replace(pool.get().await?);
+                            continue;
+                        }
+                        WriteError::TableNotExits(_) => {
+                            match parser
+                                .global()
+                                .process_on_abnormal
+                                .table_not_exist
+                                .handle(format!("{err:#}"))
+                            {
+                                Ok((HandlingResult::Skip, _)) => {
+                                    break;
+                                }
+                                Ok((HandlingResult::Archive, err)) => {
+                                    if let Some(batch) = records
+                                        .batches
+                                        .concat_batches()
+                                        .context("lush concat table not exist error")?
                                     {
-                                        tracing::error!("archive error: {e:#}");
+                                        if let Err(e) =
+                                            process_archive(&err, &batch, archive_tx.clone()).await
+                                        {
+                                            tracing::error!("archive error: {e:#}");
+                                        }
+                                    }
+
+                                    break;
+                                }
+                                Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                                Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                                Ok((HandlingResult::Retry, _)) => {
+                                    // do nothing, continue the below codes
+                                }
+                                Err(e) => {
+                                    return Err(e)?;
+                                }
+                            }
+
+                            if let Some(stable_sql) = messages[0].stable_sql() {
+                                tracing::info!("{stable_sql}");
+                                assert_create_table(pool, taos, &stable_sql, true, metrics)
+                                    .in_current_span()
+                                    .await?;
+                            }
+                            for m in &messages {
+                                let sql = m.table_sql();
+                                tracing::info!("{sql}");
+                                for retry in 0..12 {
+                                    if let Err(err) =
+                                        assert_create_table(pool, taos, &sql, false, metrics)
+                                            .in_current_span()
+                                            .await
+                                    {
+                                        match err {
+                                            WriteError::ContainerLengthTooShort(field) => {
+                                                // 尝试修改超级表
+                                                if let Err(alter) = alter_stable(
+                                                    pool, taos, stable, &field, &messages,
+                                                )
+                                                .in_current_span()
+                                                .await
+                                                {
+                                                    tracing::error!(
+                                                        stable,
+                                                        field,
+                                                        "Alter table error: {alter:#}"
+                                                    );
+                                                    let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                                                    if error.is_err() {
+                                                        error = error.context(context);
+                                                    } else {
+                                                        error = Err(
+                                                            WriteError::ContainerLengthTooShort(
+                                                                field,
+                                                            ),
+                                                        )
+                                                        .context(context);
+                                                    }
+                                                }
+                                                // 无论成功失败都重试建表
+                                            }
+                                            _ => Err(err)?,
+                                        }
+                                    } else {
+                                        // 成功创建子表则退出循环
+                                        break;
                                     }
                                 }
-
-                                break;
-                            }
-                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
-                            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                            Ok((HandlingResult::Retry, _)) => {
-                                // do nothing, continue the below codes
-                            }
-                            Err(e) => {
-                                return Err(e)?;
                             }
                         }
-
-                        if let Some(stable_sql) = messages[0].stable_sql() {
-                            tracing::info!("{stable_sql}");
-                            assert_create_table(pool, taos, &stable_sql, true, metrics)
-                                .in_current_span()
-                                .await?;
-                        }
-                        for m in &messages {
-                            let sql = m.table_sql();
-                            tracing::info!("{sql}");
-                            for retry in 0..12 {
-                                if let Err(err) =
-                                    assert_create_table(pool, taos, &sql, false, metrics)
+                        WriteError::ContainerLengthTooShort(ref field) => {
+                            // 是否自动扩展长度
+                            if parser.global().process_on_abnormal.field_length_extend {
+                                if let Err(alter) =
+                                    alter_stable(pool, taos, stable, field, &messages)
                                         .in_current_span()
                                         .await
                                 {
-                                    match err {
-                                        WriteError::ContainerLengthTooShort(field) => {
-                                            // 尝试修改超级表
-                                            if let Err(alter) =
-                                                alter_stable(pool, taos, stable, &field, &messages)
-                                                    .in_current_span()
-                                                    .await
-                                            {
-                                                tracing::error!(
-                                                    stable,
-                                                    field,
-                                                    "Alter table error: {alter:#}"
-                                                );
-                                                let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
-                                                if error.is_err() {
-                                                    error = error.context(context);
-                                                } else {
-                                                    error = Err(
-                                                        WriteError::ContainerLengthTooShort(field),
-                                                    )
-                                                    .context(context);
-                                                }
-                                            }
-                                            // 无论成功失败都重试建表
-                                        }
-                                        _ => Err(err)?,
+                                    tracing::error!(stable, field, "Alter table error: {alter:#}");
+                                    let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                                    if error.is_err() {
+                                        error = error.context(context);
+                                    } else {
+                                        error =
+                                            Err(WriteError::ContainerLengthTooShort(field.clone()))
+                                                .context(context);
                                     }
                                 } else {
-                                    // 成功创建子表则退出循环
-                                    break;
+                                    retry -= 1;
+                                    let context = format!("Try alter table {stable} field `{field}` round {retry} success");
+                                    if error.is_err() {
+                                        error = error.context(context);
+                                    } else {
+                                        error =
+                                            Err(WriteError::ContainerLengthTooShort(field.clone()))
+                                                .context(context);
+                                    }
+                                    continue;
                                 }
                             }
+                            // handling abnormal
+                            handle_field_length_overflow_and_rewrite(
+                                pool,
+                                taos,
+                                metrics,
+                                parser,
+                                target_precision,
+                                super_table_name,
+                                &messages[0].table,
+                                &messages[0].opts,
+                                stable,
+                                field,
+                                &records.batches,
+                                &err,
+                                archive_tx.clone(),
+                            )
+                            .await?;
+                        }
+                        _ => {
+                            return Err(err)?;
                         }
                     }
-                    WriteError::ContainerLengthTooShort(ref field) => {
-                        // 是否自动扩展长度
-                        if parser.global().process_on_abnormal.field_length_extend {
-                            if let Err(alter) = alter_stable(pool, taos, stable, field, &messages)
-                                .in_current_span()
-                                .await
-                            {
-                                tracing::error!(stable, field, "Alter table error: {alter:#}");
-                                let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
-                                if error.is_err() {
-                                    error = error.context(context);
-                                } else {
-                                    error = Err(WriteError::ContainerLengthTooShort(field.clone()))
-                                        .context(context);
-                                }
-                            } else {
-                                retry -= 1;
-                                let context = format!("Try alter table {stable} field `{field}` round {retry} success");
-                                if error.is_err() {
-                                    error = error.context(context);
-                                } else {
-                                    error = Err(WriteError::ContainerLengthTooShort(field.clone()))
-                                        .context(context);
-                                }
-                                continue;
-                            }
-                        }
-                        // handling abnormal
-                        handle_field_length_overflow_and_rewrite(
-                            pool,
-                            taos,
-                            metrics,
-                            parser,
-                            target_precision,
-                            super_table_name,
-                            &messages[0].table,
-                            &messages[0].opts,
-                            stable,
-                            field,
-                            &records.batches,
-                            &err,
-                            archive_tx.clone(),
-                        )
-                        .await?;
-                    }
-                    _ => {
-                        return Err(err)?;
-                    }
-                },
+                }
             }
             if retry > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
                 match parser
@@ -670,8 +690,13 @@ pub async fn write(
                         break;
                     }
                     Ok((HandlingResult::Archive, err)) => {
-                        for batch in &records.batches {
-                            if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
+                        if let Some(batch) = records
+                            .batches
+                            .concat_batches()
+                            .context("lush concat db connection error")?
+                        {
+                            if let Err(e) = process_archive(&err, &batch, archive_tx.clone()).await
+                            {
                                 tracing::error!("archive error: {e:#}");
                             }
                         }
@@ -725,6 +750,8 @@ async fn handle_field_length_overflow_and_rewrite(
     let desc = desc.unwrap();
     let length = desc.iter().find(|f| f.field() == field).unwrap().length();
 
+    let mut is_archive = false;
+    let mut err_msg = format!("{err:?}");
     // loop the batches
     for batch in batches {
         let field_values = batch
@@ -754,10 +781,9 @@ async fn handle_field_length_overflow_and_rewrite(
                 // do nothing
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(&err, batch, archive_tx.clone()).await;
-                if let Err(e) = res {
-                    tracing::error!("archive error: {e:#}");
-                }
+                is_archive = true;
+                err_msg = err;
+                break;
             }
             Ok((HandlingResult::Modify(values), _)) => {
                 // modify and rewrite
@@ -797,15 +823,24 @@ async fn handle_field_length_overflow_and_rewrite(
                     tracing::error!("rewrite error: {e:#}");
                 }
                 // archive
-                if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
-                    tracing::error!("archive error: {e:#}");
-                }
+                is_archive = true;
+                err_msg = err;
             }
             Ok((HandlingResult::Retry, _)) => unreachable!(),
             Err(e) => {
                 return Err(e);
             }
         };
+    }
+    if is_archive {
+        if let Some(batch) = batches
+            .concat_batches()
+            .context("concat archive field length overflow error")?
+        {
+            if let Err(e) = process_archive(&err_msg, &batch, archive_tx.clone()).await {
+                tracing::error!("archive error: {e:#}");
+            }
+        }
     }
     Ok(())
 }
