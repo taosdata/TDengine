@@ -7325,7 +7325,6 @@ int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
     pInfo->isNull = false;
   } else {
     // all values are null or first value is null for group by
-    pInfo->hasResult = true;
     pInfo->isNull = true;
   }
 
