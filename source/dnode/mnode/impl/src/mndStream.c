@@ -2114,7 +2114,7 @@ static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
   }
 
   {  // check for tasks, if tasks are not ready, not allowed to reset
-    bool readyToReset = true;
+    bool ready = false;
     streamMutexLock(&execInfo.lock);
 
     for (int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
@@ -2128,18 +2128,17 @@ static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
         continue;
       }
 
-      if (pEntry->status != TASK_STATUS__READY && pEntry->status != TASK_STATUS__CK) {
+      if (pEntry->status == TASK_STATUS__UNINIT && pEntry->status == TASK_STATUS__STOP) {
         mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64 " status:%s, no need for reset", pStream->name,
                pStream->uid, pEntry->nodeId, pEntry->id.taskId, streamTaskGetStatusStr(pEntry->status));
-        readyToReset = false;
+        ready = true;
       }
     }
 
     streamMutexUnlock(&execInfo.lock);
 
-
-    if (!readyToReset) {
-      mError("stream:%s task not allowed for reset yet", resetReq.name);
+    if (!ready) {
+      mError("stream:%s tasks aren't allowed for reset yet", resetReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       TAOS_RETURN(TSDB_CODE_STREAM_TASK_IVLD_STATUS);
     }
