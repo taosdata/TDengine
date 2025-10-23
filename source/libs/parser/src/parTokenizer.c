@@ -413,6 +413,10 @@ static SKeyword keywordTable[] = {
     {"SCANS",                TK_SCANS},
     {"_ANOMALYMASK",         TK_ANOMALYMASK},
     {"ENCRYPT_ALGORITHMS",   TK_ENCRYPT_ALGORITHMS},
+    {"NAME",   TK_NAME},
+    {"TYPE",   TK_TYPE},
+    {"ENCRYPT_ALGR",   TK_ENCRYPT_ALGR},
+    {"OSSL_ALGR_NAME",   TK_OSSL_ALGR_NAME},
 };
 // clang-format on
 

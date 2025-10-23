@@ -455,6 +455,7 @@ typedef enum ENodeType {
   QUERY_NODE_ROLLUP_DATABASE_STMT,
   QUERY_NODE_ROLLUP_VGROUPS_STMT,
   QUERY_NODE_KILL_RETENTION_STMT,
+  QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -1378,6 +1379,20 @@ typedef struct {
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 void    tFreeSCreateUserReq(SCreateUserReq* pReq);
+
+typedef struct {
+  char    algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  char    type[TSDB_ENCRYPT_ALGR_TYPE_LEN];
+  char    osslAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SCreateEncryptAlgrReq;
+
+int32_t tSerializeSCreateEncryptAlgrReq(void* buf, int32_t bufLen, SCreateEncryptAlgrReq* pReq);
+int32_t tDeserializeSCreateEncryptAlgrReq(void* buf, int32_t bufLen, SCreateEncryptAlgrReq* pReq);
+void    tFreeSCreateEncryptAlgrReq(SCreateEncryptAlgrReq* pReq);
 
 typedef struct {
   int32_t dnodeId;

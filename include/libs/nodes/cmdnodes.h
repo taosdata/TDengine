@@ -413,6 +413,15 @@ typedef struct SCreateUserStmt {
   SNodeList* pNodeListIpRanges;
 } SCreateUserStmt;
 
+typedef struct SCreateEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  char      algrType[TSDB_ENCRYPT_ALGR_TYPE_LEN];
+  char      osslAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SCreateEncryptAlgrStmt;
+
 typedef struct SAlterUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];

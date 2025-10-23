@@ -10529,6 +10529,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateUserReq, pReq);
       break;
     }
+    case TDMT_MND_CREATE_ENCRYPT_ALGR: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateEncryptAlgrReq, pReq);
+      break;
+    }
     case TDMT_MND_ALTER_USER: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAlterUserReq, pReq);
       break;
@@ -12362,6 +12366,21 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   }
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
   tFreeSCreateUserReq(&createReq);
+  return code;
+}
+
+static int32_t translateCreateEncryptAlgr(STranslateContext* pCxt, SCreateEncryptAlgrStmt* pStmt) {
+  int32_t               code = 0;
+  SCreateEncryptAlgrReq createReq = {0};
+
+  tstrncpy(createReq.algorithmId, pStmt->algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(createReq.name, pStmt->name, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(createReq.desc, pStmt->desc, TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(createReq.type, pStmt->algrType, TSDB_ENCRYPT_ALGR_TYPE_LEN);
+  tstrncpy(createReq.osslAlgrName, pStmt->osslAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+
+  code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ENCRYPT_ALGR, (FSerializeFunc)tSerializeSCreateEncryptAlgrReq, &createReq);
+  tFreeSCreateEncryptAlgrReq(&createReq);
   return code;
 }
 
@@ -17152,6 +17171,9 @@ _return:
 #endif
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
+      code = translateCreateEncryptAlgr(pCxt, (SCreateEncryptAlgrStmt*)pNode);
       break;
     case QUERY_NODE_ALTER_USER_STMT:
       code = translateAlterUser(pCxt, (SAlterUserStmt*)pNode);

@@ -601,6 +601,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
+      code = makeNode(type, sizeof(SCreateEncryptAlgrStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_USER_STMT:
       code = makeNode(type, sizeof(SAlterUserStmt), &pNode);
       break;
@@ -1639,6 +1642,9 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
       nodesDestroyList(pStmt->pNodeListIpRanges);
+      break;
+    }
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT: {
       break;
     }
     case QUERY_NODE_ALTER_USER_STMT: {

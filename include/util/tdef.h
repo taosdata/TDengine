@@ -305,6 +305,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
 #define TSDB_ENCRYPT_ALGR_NAME_LEN          64
 #define TSDB_ENCRYPT_ALGR_DESC_LEN          128
+#define TSDB_ENCRYPT_ALGR_TYPE_LEN          64
 #define TSDB_ENCRYPT_ALGR_PROVIDER_LEN      128
 #define TSDB_ENCRYPT_ALGR_PROVIDER_PATH_LEN 128
 #define TSDB_ENCRYPT_ALGR_SM4_NAME          "SM4-CBC:SM4"

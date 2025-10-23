@@ -223,7 +223,7 @@ static void mndSetAESEncryptAlgr(SEncryptAlgrObj *Obj){
   strncpy(Obj->ossl_algr_name, "AES-128-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
   strncpy(Obj->ossl_provider_path, "", TSDB_ENCRYPT_ALGR_PROVIDER_PATH_LEN);
 }
-
+/*
 static void mndSetTestEncryptAlgr(SEncryptAlgrObj *Obj){
   Obj->id = 3;
   strncpy(Obj->algorithm_id, "vigenere", TSDB_ENCRYPT_ALGR_NAME_LEN);
@@ -235,7 +235,7 @@ static void mndSetTestEncryptAlgr(SEncryptAlgrObj *Obj){
   strncpy(Obj->ossl_algr_name, "vigenere", TSDB_ENCRYPT_ALGR_NAME_LEN);
   strncpy(Obj->ossl_provider_path, "", TSDB_ENCRYPT_ALGR_PROVIDER_PATH_LEN);
 }
-
+*/
 static SSdbRaw * mndCreateEncryptAlgrRaw(STrans *pTrans, SEncryptAlgrObj *Obj) {
   int32_t code = 0;
 
@@ -256,7 +256,7 @@ static SSdbRaw * mndCreateEncryptAlgrRaw(STrans *pTrans, SEncryptAlgrObj *Obj) {
   return pRaw;
 }
 
-#define ALGR_NUM 3
+#define ALGR_NUM 2
 static int32_t  mndCreateBuiltinEncryptAlgr(SMnode *pMnode){
   int32_t code = 0;
   SArray* objArray = NULL;
@@ -280,8 +280,8 @@ static int32_t  mndCreateBuiltinEncryptAlgr(SMnode *pMnode){
   mndSetSM4EncryptAlgr(Obj1);
   SEncryptAlgrObj *Obj2 = taosArrayGet(objArray, 1);
   mndSetAESEncryptAlgr(Obj2);
-  SEncryptAlgrObj *Obj3 = taosArrayGet(objArray, 2);
-  mndSetTestEncryptAlgr(Obj3);
+  // SEncryptAlgrObj *Obj3 = taosArrayGet(objArray, 2);
+  // mndSetTestEncryptAlgr(Obj3);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-enc-algr");
   if (pTrans == NULL) {
@@ -406,7 +406,87 @@ _OVER:
   return numOfRows;
 }
 
+static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
+  SMnode               *pMnode = pReq->info.node;
+  int32_t               code = 0;
+  int32_t               lino = 0;
+  SCreateEncryptAlgrReq createReq = {0};
+  STrans               *pTrans = NULL;
+
+  if (tDeserializeSCreateEncryptAlgrReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
+  }
+
+  mInfo("algr:%s, start to create, ossl_name:%s", createReq.algorithmId, createReq.osslAlgrName);
+
+  // TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_USER), &lino, _OVER);
+
+  SEncryptAlgrObj *exist = mndAcquireEncryptAlgrByAId(pMnode, createReq.algorithmId);
+  if (exist != NULL) {
+    mndReleaseEncryptAlgr(pMnode, exist);
+    TAOS_CHECK_GOTO(TSDB_CODE_ALGR_EXIST, &lino, _OVER);
+  }
+
+  SEncryptAlgrObj Obj = {0};
+  int32_t         id = sdbGetMaxId(pMnode->pSdb, SDB_ENCRYPT_ALGORITHMS);
+  if (id < 100) id = 101;
+  strncpy(Obj.algorithm_id, createReq.algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj.name, createReq.name, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj.desc, createReq.desc, TSDB_ENCRYPT_ALGR_DESC_LEN);
+  if (strncmp(createReq.type, "Symmetric_Ciphers_CBC_mode", TSDB_ENCRYPT_ALGR_TYPE_LEN) == 0) {
+    Obj.type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
+  } else {
+    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_ENCRYPT_ALGR_TYPE, &lino, _OVER);
+  }
+  Obj.source = ENCRYPT_ALGR_SOURCE_BUILTIN;
+  strncpy(Obj.ossl_algr_name, createReq.osslAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-enc-algr");
+  if (pTrans == NULL) {
+    mError("failed to create since %s", terrstr());
+    code = terrno;
+    goto _OVER;
+  }
+  mInfo("trans:%d, used to create encrypt_algr", pTrans->id);
+
+  SSdbRaw *pRaw = mndCreateEncryptAlgrRaw(pTrans, &Obj);
+  if (pRaw == NULL) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    goto _OVER;
+  }
+
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    goto _OVER;
+  }
+
+  /*
+    char detail[1000] = {0};
+    (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
+                    createReq.superUser, createReq.sysInfo);
+    char operation[15] = {0};
+    if (createReq.isImport == 1) {
+      tstrncpy(operation, "importUser", sizeof(operation));
+    } else {
+      tstrncpy(operation, "createUser", sizeof(operation));
+    }
+
+    auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail));
+  */
+
+  return code;
+_OVER:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("algr:%s, failed to create at line %d since %s", createReq.algorithmId, lino, tstrerror(code));
+  }
+
+  tFreeSCreateEncryptAlgrReq(&createReq);
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
 int32_t mndInitEncryptAlgr(SMnode *pMnode) {
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_ALGR, mndProcessCreateEncryptAlgrReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS, mndRetrieveEncryptAlgr);
 
   SSdbTable table = {

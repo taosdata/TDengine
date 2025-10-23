@@ -4084,6 +4084,22 @@ _err:
   return NULL;
 }
 
+SNode* createCreateAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId, const SToken* name, const SToken* desc,
+                            const SToken* type, const SToken* osslAlgrName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateEncryptAlgrStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(algorithmId->z, algorithmId->n, pStmt->algorithmId, sizeof(pStmt->algorithmId));
+  (void)trimString(name->z, name->n, pStmt->name, sizeof(pStmt->name));
+  (void)trimString(desc->z, desc->n, pStmt->desc, sizeof(pStmt->desc));
+  (void)trimString(type->z, type->n, pStmt->algrType, sizeof(pStmt->algrType));
+  (void)trimString(osslAlgrName->z, osslAlgrName->n, pStmt->osslAlgrName, sizeof(pStmt->osslAlgrName));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateAnodeStmt* pStmt = NULL;

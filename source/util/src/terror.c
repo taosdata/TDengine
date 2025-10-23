@@ -478,6 +478,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No Snode is available
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL,   "Request is not matched with local dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_ENCRYPT_ALGR_NOT_EXIST, "Encrypt algorithm not exists in list")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_CIPHER_NOT_EXIST,       "Encrypt cipher not exists in loaded provider")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_ENCRYPT_ALGR_TYPE,    "Invalid encryption algorithm type, support Symmetric_Ciphers_CBC_mode now")
+TAOS_DEFINE_ERROR(TSDB_CODE_ALGR_EXIST,                   "Encryption algorithm already exists, please keep algorithm_id unique")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
