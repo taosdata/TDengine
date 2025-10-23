@@ -68,13 +68,7 @@ func TestCommandProcess_BothTransferAndDropSet_ReturnsEarly_NoPanic(t *testing.T
 		Drop:     "old_taosd_metric_stables",
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("Process should return early without panic, got panic: %v", r)
-		}
-	}()
-
-	c.Process(conf)
+	assert.NotPanics(t, func() { c.Process(conf) })
 }
 
 func TestCommandProcess_TransferUnsupported_ReturnsEarly_NoPanic(t *testing.T) {
@@ -380,12 +374,8 @@ func TestCommand_lineWriteBody_ClientDoError_ReturnsError(t *testing.T) {
 	buf.WriteString("m  1\n")
 
 	err := cmd.lineWriteBody(&buf)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-	if !errors.Is(err, sentinel) {
-		t.Fatalf("unexpected error: got %v, want %v", err, sentinel)
-	}
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, sentinel)
 }
 
 func TestCommand_lineWriteBody__UnexpectedStatus_ReadsBodyAndReturnsError(t *testing.T) {

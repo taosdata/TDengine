@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGinLog_StatusNot200_TriggersErrorPath(t *testing.T) {
@@ -87,7 +88,5 @@ func TestGinRecoverLog_HandlesPanicWithWriter(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("status=%d, want=%d", w.Code, http.StatusInternalServerError)
-	}
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

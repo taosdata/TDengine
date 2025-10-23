@@ -197,9 +197,7 @@ func Test_logData_NilData_TracesNoData(t *testing.T) {
 	logData(nil, entry)
 
 	got := buf.String()
-	if !strings.Contains(got, "No data to display") {
-		t.Fatalf("expected trace 'No data to display', got: %q", got)
-	}
+	assert.Contains(t, got, "No data to display")
 }
 
 func Test_logData_MarshalError_LogsError(t *testing.T) {

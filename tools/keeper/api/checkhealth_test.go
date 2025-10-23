@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCheckHealthInit(t *testing.T) {
@@ -20,15 +21,9 @@ func TestCheckHealthInit(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status=%d, want=200", w.Code)
-	}
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var body map[string]string
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
-	}
-	if body["version"] != "1.2.3" {
-		t.Fatalf("version=%q, want=%q", body["version"], "1.2.3")
-	}
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "1.2.3", body["version"])
 }

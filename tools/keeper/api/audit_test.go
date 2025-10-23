@@ -212,16 +212,11 @@ func TestAudit_handleBatchFunc_NoConnection_Returns500(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("status=%d, want=%d", w.Code, http.StatusInternalServerError)
-	}
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
 	var body map[string]string
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("unmarshal error: %v, raw=%q", err, w.Body.String())
-	}
-	if body["error"] != "no connection" {
-		t.Fatalf(`error=%q, want "no connection"`, body["error"])
-	}
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "no connection", body["error"])
 }
 
 type errorReader struct{ err error }

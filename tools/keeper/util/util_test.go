@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleIp(t *testing.T) {
@@ -57,39 +59,25 @@ func TestHandleIp(t *testing.T) {
 func TestReadUint_ReadFileError_ReturnsZeroAndError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nonexistent")
 	v, err := ReadUint(path)
-	if err == nil {
-		t.Fatalf("expected error for missing file, got nil")
-	}
-	if v != 0 {
-		t.Fatalf("expected value 0 on error, got %d", v)
-	}
+	assert.Error(t, err)
+	assert.Equal(t, uint64(0), v)
 }
 
 func TestParseUint_NegativeWithinRange_ReturnsZeroNil(t *testing.T) {
 	v, err := ParseUint("-1", 10, 64)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if v != 0 {
-		t.Fatalf("want 0, got %d", v)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), v)
 }
 
 func TestParseUint_NegativeOverflow_ReturnsZeroNil(t *testing.T) {
 	v, err := ParseUint("-9223372036854775809", 10, 64)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if v != 0 {
-		t.Fatalf("want 0, got %d", v)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), v)
 }
 
 func TestSafeSubstring(t *testing.T) {
 	res := SafeSubstring("hello world", 5)
-	if res != "hello" {
-		t.Fatalf("expected 'hello', got '%s'", res)
-	}
+	assert.Equal(t, "hello", res)
 }
 
 func TestGetQidOwn_CounterWraps_ResetsToOne(t *testing.T) {

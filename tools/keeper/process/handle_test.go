@@ -128,14 +128,7 @@ func Test_withDBName(t *testing.T) {
 }
 
 func Test_exchangeDBType_UnsupportedType_Panics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatalf("expected panic, got none")
-		} else if s, ok := r.(string); !ok || s != "unsupported type" {
-			t.Fatalf("unexpected panic: %v", r)
-		}
-	}()
-	_ = exchangeDBType("DECIMAL_UNSUPPORTED")
+	assert.PanicsWithValue(t, "unsupported type", func() { _ = exchangeDBType("DECIMAL_UNSUPPORTED") })
 }
 
 func TestProcessorGetMetric(t *testing.T) {

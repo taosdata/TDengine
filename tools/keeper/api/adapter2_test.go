@@ -173,20 +173,14 @@ func TestAdapter_tableName(t *testing.T) {
 	gotRest := a.tableName(endpoint, rest)
 	sumRest := md5.Sum([]byte(fmt.Sprintf("%s%d", endpoint, rest)))
 	wantRest := fmt.Sprintf("adapter_req_%s", hex.EncodeToString(sumRest[:]))
-	if gotRest != wantRest {
-		t.Fatalf("unexpected hashed table name (rest): want %q, got %q", wantRest, gotRest)
-	}
+	assert.Equal(t, wantRest, gotRest)
 
 	gotWS := a.tableName(endpoint, ws)
 	sumWS := md5.Sum([]byte(fmt.Sprintf("%s%d", endpoint, ws)))
 	wantWS := fmt.Sprintf("adapter_req_%s", hex.EncodeToString(sumWS[:]))
-	if gotWS != wantWS {
-		t.Fatalf("unexpected hashed table name (ws): want %q, got %q", wantWS, gotWS)
-	}
+	assert.Equal(t, wantWS, gotWS)
 
-	if gotRest == gotWS {
-		t.Fatalf("hashed names for rest and ws should differ; got the same %q", gotRest)
-	}
+	assert.NotEqual(t, gotRest, gotWS)
 }
 
 func TestAdapter_handleFunc_NoConnection_Returns500(t *testing.T) {
@@ -262,9 +256,7 @@ func TestAdapter_handleFunc_TraceReceiveData_LogsWhenEnabled(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
-	}
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestAdapter_handleFunc_ParseError_ReturnsBadRequest(t *testing.T) {

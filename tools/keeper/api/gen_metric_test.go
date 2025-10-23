@@ -478,9 +478,7 @@ func Test_writeTags_ReturnsEarlyWhenStableNameKeyPresent(t *testing.T) {
 	writeTags(tags, stb, &buf)
 
 	got := buf.String()
-	if got != ",x=v,priv_stn=custom_sub" {
-		t.Fatalf("unexpected output: got %q, want %q", got, ",x=v")
-	}
+	assert.Equal(t, ",x=v,priv_stn=custom_sub", got)
 }
 
 func Test_writeTags_LogErrorWhenNoSubTableName(t *testing.T) {

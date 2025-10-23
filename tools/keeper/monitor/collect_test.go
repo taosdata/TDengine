@@ -26,12 +26,10 @@ func TestNormalCollectorCpuPercentRange(t *testing.T) {
 
 	val, err := c.CpuPercent()
 	assert.NoError(t, err)
-	if math.IsNaN(val) || math.IsInf(val, 0) {
-		t.Fatalf("CpuPercent returned invalid value: %v", val)
-	}
-	if val < 0 || val > 100 {
-		t.Fatalf("CpuPercent out of expected range [0,100]: %v", val)
-	}
+
+	assert.False(t, math.IsNaN(val) || math.IsInf(val, 0))
+	assert.GreaterOrEqual(t, val, 0.0)
+	assert.LessOrEqual(t, val, 100.0)
 }
 
 func TestNormalCollectorMemPercentRange(t *testing.T) {

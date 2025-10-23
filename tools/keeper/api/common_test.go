@@ -3,6 +3,8 @@ package api
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_generateCreateDBSql(t *testing.T) {
@@ -12,10 +14,7 @@ func Test_generateCreateDBSql(t *testing.T) {
 		"strict":    true,
 	}
 	sql := generateCreateDBSql("mydb", opts)
-
-	if !strings.HasPrefix(sql, "create database if not exists mydb") {
-		t.Fatalf("prefix mismatch: %q", sql)
-	}
+	assert.True(t, strings.HasPrefix(sql, "create database if not exists mydb"))
 
 	cases := []string{
 		" precision 'ms' ",
@@ -23,12 +22,8 @@ func Test_generateCreateDBSql(t *testing.T) {
 		" strict true ",
 	}
 	for _, sub := range cases {
-		if !strings.Contains(sql, sub) {
-			t.Fatalf("expected to contain %q, got %q", sub, sql)
-		}
+		assert.Contains(t, sql, sub)
 	}
 
-	if !strings.HasSuffix(sql, " ") {
-		t.Fatalf("expected trailing space, got %q", sql)
-	}
+	assert.True(t, strings.HasSuffix(sql, " "))
 }

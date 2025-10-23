@@ -248,9 +248,7 @@ func TestFileHookFire_ReturnsFlushError(t *testing.T) {
 		Message: "msg",
 	}
 
-	if err := fh.Fire(entry); err == nil || err.Error() != sentinel.Error() {
-		t.Fatalf("expected %v, got %v", sentinel, err)
-	}
+	assert.EqualError(t, fh.Fire(entry), sentinel.Error())
 }
 
 func TestSetLevel_Invalid_ReturnsErrorAndLeavesLevelUnchanged(t *testing.T) {

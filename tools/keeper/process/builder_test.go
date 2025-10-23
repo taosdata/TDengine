@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
 )
 
-func TestExpandMetricsFromConfig_DuplicateTables_ContinueBranch(t *testing.T) {
+func TestExpandMetricsFromConfig(t *testing.T) {
 	ctx := context.Background()
 	cfg := &config.MetricsConfig{
 		Tables: []string{"t1", "t1", "t2", "t2"},
@@ -16,11 +17,7 @@ func TestExpandMetricsFromConfig_DuplicateTables_ContinueBranch(t *testing.T) {
 		},
 	}
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatalf("expected panic due to nil connector after selected code executed")
-		}
-	}()
-
-	_, _ = ExpandMetricsFromConfig(ctx, nil, cfg)
+	assert.Panics(t, func() {
+		_, _ = ExpandMetricsFromConfig(ctx, nil, cfg)
+	})
 }
