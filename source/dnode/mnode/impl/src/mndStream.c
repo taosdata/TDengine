@@ -2128,8 +2128,8 @@ static int32_t mndProcessResetStreamReq(SRpcMsg *pReq) {
         continue;
       }
 
-      if (pEntry->status == TASK_STATUS__UNINIT && pEntry->status == TASK_STATUS__STOP) {
-        mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64 " status:%s, no need for reset", pStream->name,
+      if (ready == false && pEntry->status == TASK_STATUS__UNINIT && pEntry->status == TASK_STATUS__STOP) {
+        mError("stream:%s uid:0x%" PRIx64 " vgId:%d task:0x%" PRIx64 " status:%s, reset allowed", pStream->name,
                pStream->uid, pEntry->nodeId, pEntry->id.taskId, streamTaskGetStatusStr(pEntry->status));
         ready = true;
       }
