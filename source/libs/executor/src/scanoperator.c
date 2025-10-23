@@ -1793,6 +1793,8 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
     return code;
   }
+  pInfo->base.cond.startVersion = 0;
+  pInfo->base.cond.endVersion = pInfo->base.readHandle.version;
   if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));

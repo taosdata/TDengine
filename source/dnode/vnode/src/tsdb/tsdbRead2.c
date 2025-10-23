@@ -6655,6 +6655,8 @@ void tsdReaderResetVer(void* p, SQueryTableDataCond* pCond){
   STsdbReader* pReader = (STsdbReader*)p;
   pReader->info.verRange.minVer = pCond->startVersion;
   pReader->info.verRange.maxVer = pCond->endVersion;
+  tsdbDebug("tsdb/reader-reset-ver: %p, ver range [%" PRId64 ", %" PRId64 "]", pReader,
+            pReader->info.verRange.minVer, pReader->info.verRange.maxVer);
 }
 
 int32_t tsdReaderResetExTimeWindow(void* p, SQueryTableDataCond* pCond){
