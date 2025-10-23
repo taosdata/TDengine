@@ -14,6 +14,7 @@
 
 #include "transComm.h"
 #include "transLog.h"
+#include "transSasl.h"
 #include "transTLS.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
@@ -71,6 +72,7 @@ typedef struct SSvrConn {
   int8_t enableSSL;
 
   STransTLS* pTls;  // TLS connection
+  SSaslConn* saslConn;
 } SSvrConn;
 
 typedef struct SSvrRespMsg {
@@ -1573,6 +1575,11 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
     pConn->pTls->pStream = pConn->pTcp;
   }
 
+  if (pInst->enableSasl) {
+    code = saslConnInit(&pConn->saslConn, 1);
+    TAOS_CHECK_GOTO(code, &lino, _end);
+  }
+
   transRefSrvHandle(pConn);
   return pConn;
 _end:
@@ -1596,6 +1603,9 @@ _end:
       sslDestroy(pConn->pTls);
       pConn->pTls = NULL;
     }
+
+    saslConnCleanup(pConn->saslConn);
+    pConn->saslConn = NULL;
 
     taosMemoryFree(pConn);
     pConn = NULL;
@@ -1661,6 +1671,9 @@ static void uvDestroyConn(uv_handle_t* handle) {
 
   destroyWQ(&conn->wq);
   sslDestroy(conn->pTls);
+
+  saslConnCleanup(conn->saslConn);
+  conn->saslConn = NULL;
 
   taosMemoryFree(conn->buf);
   tDebug("%s conn:%p destroy successful", transLabel(pInst), conn);

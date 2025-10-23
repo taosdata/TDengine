@@ -95,6 +95,7 @@ typedef struct {
   int8_t        startReadTimer;
   int64_t       readTimeout;
   int8_t        ipv6;
+  int8_t        enableSasl;
   TdThreadMutex mutex;
 
   void* pSSLContext;  // SSL context for mTLS

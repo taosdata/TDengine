@@ -118,6 +118,8 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
   pRpc->ipv6 = pInit->ipv6;
 
+  pRpc->enableSasl = pInit->enableSasl;
+
   if (pInit->enableSSL == 1) {
     code = transTlsCtxCreate(pInit, (SSslCtx**)&pRpc->pSSLContext);
     TAOS_CHECK_GOTO(code, NULL, _end);

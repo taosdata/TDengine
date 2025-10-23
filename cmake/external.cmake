@@ -1628,6 +1628,7 @@ ENDIF()
 if(${BUILD_LIBSASL})      # {
     if(${TD_LINUX})
         set(ext_sasl2 libsasl2.a)
+        set(_c_flags_list -fPIC)
     endif()
 
     INIT_EXT(ext_sasl2
@@ -1647,9 +1648,9 @@ if(${BUILD_LIBSASL})      # {
         PATCH_COMMAND
             COMMAND ./autogen.sh
         CONFIGURE_COMMAND
-            COMMAND ./configure -prefix=${_ins} --enable-static --disable-shared --without-openssl CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
+            COMMAND ./configure -prefix=${_ins} --with-pic --enable-static --disable-shared --without-openssl  CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
         BUILD_COMMAND
-            COMMAND make
+            COMMAND make 
         INSTALL_COMMAND
             COMMAND make install
         EXCLUDE_FROM_ALL TRUE

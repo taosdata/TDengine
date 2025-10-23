@@ -19,6 +19,7 @@
 #include "tmisce.h"
 #include "transLog.h"
 #include "transTLS.h"
+#include "transSasl.h"
 // clang-format on
 
 #ifndef TD_ASTRA_RPC
@@ -93,6 +94,7 @@ typedef struct SCliConn {
   int8_t     enableSSL;  // enable SSL or not
   int8_t     sslConnected;
 
+  SSaslConn* saslConn;
 } SCliConn;
 
 typedef struct {
@@ -175,8 +177,8 @@ static void*   createConnPool(int size);
 static void*   destroyConnPool(SCliThrd* thread);
 static void    addConnToPool(void* pool, SCliConn* conn);
 static void    doCloseIdleConn(void* param);
-static int32_t cliCreateConn2(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn);
-static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int port);
+static int32_t cliCreateConn(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pConn);
+static int32_t cliCreateConnImpl(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int port);
 static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn);
 static void    cliBatchSendCb(uv_write_t* req, int status);
 void           cliBatchSendImpl(SCliConn* pConn);
@@ -896,7 +898,7 @@ static int32_t cliGetOrCreateConn(SCliThrd* pThrd, SCliReq* pReq, SCliConn** pCo
   if (code == TSDB_CODE_RPC_MAX_SESSIONS) {
     return code;
   } else if (code == TSDB_CODE_RPC_NETWORK_BUSY) {
-    code = cliCreateConn2(pThrd, pReq, pConn);
+    code = cliCreateConn(pThrd, pReq, pConn);
   } else {
   }
   return code;
@@ -1051,13 +1053,13 @@ _error:
   }
 }
 
-static int32_t cliCreateConn2(SCliThrd* pThrd, SCliReq* pReq, SCliConn** ppConn) {
+static int32_t cliCreateConn(SCliThrd* pThrd, SCliReq* pReq, SCliConn** ppConn) {
   int32_t   code = 0;
   SCliConn* pConn = NULL;
   char*     ip = EPSET_GET_INUSE_IP(pReq->ctx->epSet);
   int32_t   port = EPSET_GET_INUSE_PORT(pReq->ctx->epSet);
 
-  TAOS_CHECK_GOTO(cliCreateConn(pThrd, &pConn, ip, port), NULL, _exception);
+  TAOS_CHECK_GOTO(cliCreateConnImpl(pThrd, &pConn, ip, port), NULL, _exception);
 
   code = cliHandleState_mayUpdateState(pConn, pReq);
 
@@ -1081,7 +1083,7 @@ void cliDestroyMsg(void* arg) {
   }
   destroyReq(pReq);
 }
-static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int32_t port) {
+static int32_t cliCreateConnImpl(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int32_t port) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -1142,6 +1144,10 @@ static int32_t cliCreateConn(SCliThrd* pThrd, SCliConn** pCliConn, char* ip, int
 
   TAOS_CHECK_GOTO(initWQ(&conn->wq), NULL, _failed);
 
+  if (pInst->enableSasl) {
+    TAOS_CHECK_GOTO(saslConnInit(&conn->saslConn, 0), NULL, _failed);
+  }
+
   QUEUE_INIT(&conn->batchSendq);
 
   conn->stream->data = conn;
@@ -1159,6 +1165,8 @@ _failed:
     transDestroyBuffer(&conn->readBuf);
     transQueueDestroy(&conn->reqsToSend);
     transQueueDestroy(&conn->reqsSentOut);
+    saslConnCleanup(conn->saslConn);
+
     taosMemoryFree(conn->dstAddr);
     taosMemoryFree(conn->ipStr);
   }
@@ -1228,6 +1236,8 @@ static void cliDestroy(uv_handle_t* handle) {
   }
 
   if (conn->pTls) sslDestroy(conn->pTls);
+
+  if (conn->saslConn) saslConnCleanup(conn->saslConn);
 
   taosMemoryFree(conn->buf);
   destroyWQ(&conn->wq);

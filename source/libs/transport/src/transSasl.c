@@ -58,33 +58,43 @@ static int saslCallBackFn(SSaslConn* conn, int id, const char** result, unsigned
   }
   return SASL_FAIL;
 }
-int32_t saslConnInit(SSaslConn* pConn, int8_t isServer) {
+int32_t saslConnInit(SSaslConn** pConn, int8_t isServer) {
   int32_t code = 0;
-  if (pConn == NULL || pConn->conn == NULL) {
-    return TSDB_CODE_THIRDPARTY_ERROR;
-  }
+  int32_t lino = 0;
+  int     result;
 
   sasl_callback_t callbacks[] = {
       {SASL_CB_USER, (int (*)())saslCallBackFn, NULL},
       {SASL_CB_LIST_END, NULL, NULL},
   };
 
-  int result;
+  code = saslConnCreate(pConn);
+  TAOS_CHECK_GOTO(code, &lino, _error);
 
   if (isServer) {
-    result = sasl_server_new("tdengine", NULL, NULL, NULL, NULL, callbacks, 0, &pConn->conn);
+    result = sasl_server_new("tdengine", NULL, NULL, NULL, NULL, callbacks, 0, &(*pConn)->conn);
     if (result != SASL_OK) {
       tError("sasl_server_new failed: %s", sasl_errstring(result, NULL, NULL));
       code = TSDB_CODE_THIRDPARTY_ERROR;
+      TAOS_CHECK_GOTO(code, &lino, _error);
     }
   } else {
-    result = sasl_client_new("tdengine", NULL, NULL, NULL, callbacks, 0, &pConn->conn);
+    result = sasl_client_new("tdengine", NULL, NULL, NULL, callbacks, 0, &(*pConn)->conn);
     if (result != SASL_OK) {
       tError("sasl_client_new failed: %s", sasl_errstring(result, NULL, NULL));
       code = TSDB_CODE_THIRDPARTY_ERROR;
+      TAOS_CHECK_GOTO(code, &lino, _error);
     }
   }
-  pConn->completed = 0;
+  (*pConn)->completed = 0;
+
+_error:
+  if (code != 0) {
+    if (pConn) {
+      saslConnCleanup(*pConn);
+      *pConn = NULL;
+    }
+  }
   return code;
 }
 
