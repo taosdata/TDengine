@@ -3089,6 +3089,21 @@ static void initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
     w.ekey = pScanInfo->sttKeyInfo.nextProcKey.ts;
   }
 
+  // early filter for invalid time window
+  if (asc && w.skey > w.ekey) {
+    pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
+    tsdbDebug("uid:%" PRIu64 " set no stt-file data for asc order, skey:%" PRId64 " > ekey:%" PRId64 " %s",
+              pScanInfo->uid, w.skey, w.ekey, pReader->idStr);
+    goto _end;
+  }
+
+  if (!asc && w.ekey < w.skey) {
+    pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
+    tsdbDebug("uid:%" PRIu64 " set no stt-file data for desc order, ekey:%" PRId64 " < skey:%" PRId64 " %s",
+              pScanInfo->uid, w.ekey, w.skey, pReader->idStr);
+    goto _end;
+  }
+
   st = taosGetTimestampUs();
   tsdbDebug("init stt block reader, window:%" PRId64 "-%" PRId64 ", uid:%" PRIu64 ", %s", w.skey, w.ekey,
             pScanInfo->uid, pReader->idStr);
