@@ -330,6 +330,7 @@ extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
 extern bool    tsCompareAsStrInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
+extern int32_t tsRpcRecvLogThreshold;        // in seconds, default 3
 
 // shared storage
 extern int32_t tsSsEnabled;

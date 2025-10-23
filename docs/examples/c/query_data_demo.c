@@ -34,7 +34,7 @@ static int DemoQueryData() {
   TAOS *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
     fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
-           taos_errstr(NULL));
+            taos_errstr(NULL));
     taos_cleanup();
     return -1;
   }
@@ -45,7 +45,7 @@ static int DemoQueryData() {
   code = taos_errno(result);
   if (code != 0) {
     fprintf(stderr, "Failed to query data from power.meters, sql: %s, ErrCode: 0x%x, ErrMessage: %s\n.", sql, code,
-           taos_errstr(result));
+            taos_errstr(result));
     taos_close(taos);
     taos_cleanup();
     return -1;
@@ -53,7 +53,8 @@ static int DemoQueryData() {
 
   TAOS_ROW    row = NULL;
   int         rows = 0;
-  int         num_fields = taos_field_count(result);
+  char        buffer[1024];
+  int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
   fprintf(stdout, "query successfully, got %d fields, the sql is: %s.\n", num_fields, sql);
@@ -63,6 +64,15 @@ static int DemoQueryData() {
     // Add your data processing logic here
 
     rows++;
+
+    // Print the data for easy debugging. You can uncomment them if needed.
+    // code = taos_print_row(buffer, row, fields, num_fields);
+    // if (code > 0) {
+    //   fprintf(stdout, "row %d: %s\n", rows, buffer);
+    // } else {
+    //   fprintf(stderr, "Failed to print row %d data, ErrCode: 0x%x, ErrMessage: %s\n", rows, taos_errno(NULL),
+    //           taos_errstr(NULL));
+    // }
   }
   fprintf(stdout, "total rows: %d\n", rows);
   taos_free_result(result);
@@ -74,6 +84,4 @@ static int DemoQueryData() {
   // ANCHOR_END: query_data
 }
 
-int main(int argc, char *argv[]) {
-  return DemoQueryData();
-}
+int main(int argc, char *argv[]) { return DemoQueryData(); }

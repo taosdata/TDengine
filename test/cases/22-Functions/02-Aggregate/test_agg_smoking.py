@@ -25,7 +25,6 @@ class TestFuncAggSmoking:
 
         """
 
-        self.smoking_gconcat()
         tdStream.dropAllStreamsAndDbs()
         self.smoking_std_variance()
         tdStream.dropAllStreamsAndDbs()
@@ -89,3 +88,84 @@ class TestFuncAggSmoking:
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '2.5')
+
+
+    def test_fun_agg_stddev_samp(self):
+        """ Fun: stddev_samp()
+
+        1. create normal table with timestamp,int columns
+        2. insert 5 rows with int values 1,2,3,4,5
+        3. query stddev_samp(int column) and check the result
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        pass
+
+    def test_fun_agg_variance(self):
+        """ Fun: variance()
+
+        1. create normal table with timestamp,int columns
+        2. insert 5 rows with int values 1,2,3,4,5
+        3. query variance(int column) and check the result
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        pass
+
+    def test_func_agg_var_pop(self):
+        """ Fun: var_pop()
+
+        same with variance()
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        """
+        pass
+
+    def test_fun_agg_var_samp(self):
+        """ Fun: var_samp()
+
+        1. create normal table with timestamp,int columns
+        2. insert 5 rows with int values 1,2,3,4,5
+        3. query var_samp(int column) and check the result
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        pass
+
+    def test_fun_agg_group_concat(self):
+        """ Fun: group_concat()
+
+        1. create normal table with timestamp,int columns
+        2. insert 10 rows with int values 1,2,3,4,5,6,7,8,9,10
+        3. query group_concat(int column) and check the result
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        self.smoking_gconcat()

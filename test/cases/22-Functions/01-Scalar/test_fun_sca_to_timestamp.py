@@ -157,7 +157,7 @@ class TestFuncToTimestamp:
         tdSql.query("select to_timestamp('%s', '%s')" % (time_str, format))
 
     def test_func_sca_to_timestamp(self):
-        """ Function TO_TIMESTAMP()
+        """ Fun: to_timestamp()
 
         1. Query from child/super/without table
         2. Query from ns/us/ms precision database
@@ -222,4 +222,24 @@ class TestFuncToTimestamp:
         tdSql.query("select to_timestamp(to_char(ts2, 'yyyy-mm-dd hh:mi:ss.ns'), 'yyyy-mm-dd hh:mi:ss.ns') from meters_ns", queryTimes=1)
         tdSql.checkData(0, 0, 1688140800123456000)
         tdSql.checkData(1, 0, 1690819200123456789)
-event = threading.Event()
+
+    def test_fun_sca_to_char(self):
+        """ Fun: to_char()
+
+        1. Support data types
+        2. Query with 'yyyy-mm-dd hh:mi:ss.ns'
+        3. Query with 'yyyy-mm-dd'
+        4. Query with 'yyyy-mm-dd hh:mi:ss.ns'
+        5. Query with 'yy-mon-dd hh24:mi:ss.msa.m.TZH Day'
+        6. Query on super/no table
+
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-15 Alex Duan add doc
+
+        """
+        pass

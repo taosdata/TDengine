@@ -38,29 +38,8 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 ## 处理异常
 
-在调用连接器 api 报错后，通过 try catch 可以获取到错误的信息和错误码。
-
-错误说明：Node.js 连接器错误码在 100 到 110 之间，之外的错误为 TDengine TSDB 其他功能模块的报错。
-
-具体的连接器错误码请参考：
-
-| Error Code | Description                                                  | Suggested Actions                                                                         |
-| ---------- | -------------------------------------------------------------| ----------------------------------------------------------------------------------------- |
-| 100     | invalid variables                                               | 参数不合法，请检查相应接口规范，调整参数类型及大小。                                |
-| 101     | invalid url                                                     | url 错误，请检查 url 是否填写正确。                                                |
-| 102     | received server data but did not find a callback for processing | 接收到服务端数据但没有找到上层回调                                      |
-| 103     | invalid message type                                            | 接收到的消息类型无法识别，请检查服务端是否正常。               |
-| 104     | connection creation failed                                      | 连接创建失败，请检查网络是否正常。                           |
-| 105     | websocket request timeout                                       | 请求超时                                          |
-| 106     | authentication fail                                             | 认证失败，请检查用户名，密码是否正确。                                 |
-| 107     | unknown sql type in tdengine                                    | 请检查 TDengine TSDB 支持的 Data Type 类型。                                 |
-| 108     | connection has been closed                                      | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。  |
-| 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败。                    |
-| 110     | websocket connection has reached its maximum limit              | WebSocket 连接达到上限。                                                   |
-| 111     | topic partitions and positions are not equal in length          | 获取给定分区当前的偏移量的数据与主题分区不匹配。    |
-| 112     | version mismatch. The minimum required TDengine TSDB version is 3.3.2.0 | TDengine TSDB 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。    |
-- [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
-- TDengine TSDB 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
+在调用连接器 api 报错后，通过 try catch 可以获取到错误的信息和错误码。  
+错误码信息请参考 [错误码](../../../reference/error-code)    
 
 ## 数据类型映射
 

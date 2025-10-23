@@ -330,7 +330,7 @@ class TestFunHyperloglog:
         )
 
     def test_fun_agg_hyperloglog(self):
-        """ Function HISTOGRAM
+        """ Fun: hyperloglog()
 
         1. Query on super/child/normal table
         2. Query with group by 

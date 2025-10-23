@@ -12,8 +12,6 @@ TDengine TSDB 对 SQL 语言提供了全面的支持，允许用户以熟悉的 
 下面介绍使用各语言连接器通过执行 SQL 完成建库、建表、写入数据和查询数据。
 
 :::note
-
-REST 连接：各编程语言的连接器封装使用 `HTTP` 请求的连接，支持数据写入和查询操作，开发者依然使用连接器提供的接口访问 `TDengine TSDB`。  
 REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据写入和查询操作。代码示例使用 `curl` 命令来演示。
 
 :::
@@ -39,10 +37,6 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 
 ```python title="原生连接"
 {{#include docs/examples/python/create_db_native.py}}
-```
-
-```python title="Rest 连接"
-{{#include docs/examples/python/create_db_rest.py}}
 ```
 
 </TabItem>
@@ -123,10 +117,6 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW 
 {{#include docs/examples/python/insert_native.py}}
 ```
 
-```python title="Rest 连接"
-{{#include docs/examples/python/insert_rest.py}}
-```
-
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -197,10 +187,6 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 
 ```python title="原生连接"
 {{#include docs/examples/python/query_native.py}}
-```
-
-```python title="Rest 连接"
-{{#include docs/examples/python/query_rest.py}}
 ```
 
 </TabItem>
@@ -285,10 +271,6 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 
 ```python title="原生连接"
 {{#include docs/examples/python/reqid_native.py}}
-```
-
-```python title="Rest 连接"
-{{#include docs/examples/python/reqid_rest.py}}
 ```
 
 </TabItem>

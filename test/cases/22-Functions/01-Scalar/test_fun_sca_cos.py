@@ -467,7 +467,7 @@ class TestFunCos:
         self.check_result_auto_cos( f" select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select cos(t1) , cos(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
     def test_fun_sca_cos(self):
-        """ Function COS()
+        """ Fun: cos()
 
         1. Support types
         2. Basic query

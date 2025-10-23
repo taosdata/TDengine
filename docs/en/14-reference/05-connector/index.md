@@ -11,27 +11,14 @@ import InstallOnMacOS from "../../assets/resources/_macos_install.mdx";
 import VerifyWindows from "../../assets/resources/_verify_windows.mdx";
 import VerifyLinux from "../../assets/resources/_verify_linux.mdx";
 import VerifyMacOS from "../../assets/resources/_verify_macos.mdx";
+import ConnectorType from "../../assets/resources/_connector_type.mdx";
+import PlatformSupported from "../../assets/resources/_platform_supported.mdx";
 
-TDengine provides a rich set of application development interfaces. To facilitate users in quickly developing their own applications, TDengine supports connectors for multiple programming languages, including official connectors for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support connecting to the TDengine cluster using the native interface (taosc) and WebSocket interface. Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, Lua connector, and [PHP connector](https://github.com/Yurunsoft/php-tdengine).
-
-![TDengine client library architecture](../../assets/client-libraries-01.png)
-
+<ConnectorType /> 
 
 ## Supported Platforms
 
-Currently, the native interface connectors for TDengine support platforms including: X64/ARM64 hardware platforms, as well as Linux/Win64 development environments. The compatibility matrix is as follows:
-
-| **CPU**       | **OS**    | **Java** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
-| ------------- | --------- | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
-| **X86 64bit** | **Linux** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
-| **X86 64bit** | **Win64** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
-| **X86 64bit** | **macOS** | ●        | ●          | ●      | ○           | ○      | ●        | ●     |
-| **ARM64**     | **Linux** | ●        | ●          | ●      | ●           | ○      | ○        | ●     |
-| **ARM64**     | **macOS** | ●        | ●          | ●      | ○           | ○      | ●        | ●     |
-
-Where ● indicates official testing and verification passed, ○ indicates unofficial testing and verification passed, -- indicates unverified.
-
-Using REST connections can support a wider range of operating systems as they do not depend on client drivers.
+<PlatformSupported /> 
 
 ## Version Support
 
@@ -48,44 +35,36 @@ TDengine version updates often add new features. The list below shows the best m
 
 ## Feature Support
 
-The following table compares the support for TDengine features by the connector:
+The following table outlines the support for TDengine TSDB features across different connectors:
 
-### Using Native Interface (taosc)
 
-| **Feature**          | **Java** | **Python** | **Go** | **C#** | **Rust** | **C/C++** |
-| -------------------- | -------- | ---------- | ------ | ------ | -------- | --------- |
-| **Connection Management** | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Execute SQL**      | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Parameter Binding**| Supported | Supported | Supported | Supported | Supported | Supported |
-| **Data Subscription (TMQ)** | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Schema-less Write**| Supported | Supported | Supported | Supported | Supported | Supported |
+### WebSocket/Native Connections
+
+| **Feature**              | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** | **C/C++** |
+| ------------------------- | -------- | ---------- | ------ | ------ | ----------- | -------- | --------- |
+| **Connection Management** | Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
+| **Execute SQL**         | Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
+| **Parameter Binding**     | Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
+| **Data Subscription (TMQ)**| Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
+| **Schema-less Write**   | Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
+
+**Note**: The Node.js connector does not support native connections.
 
 :::info
-Due to different database framework specifications in various programming languages, it does not imply that all C/C++ interfaces need corresponding encapsulation support.
+Due to differences in database framework specifications across programming languages, it does not mean that all C/C++ interfaces require corresponding encapsulation support.
 :::
 
-### Using HTTP REST Interface
-
-| **Feature**          | **Java** | **Python** | **Go** |
-| -------------------- | -------- | ---------- | ------ |
-| **Connection Management** | Supported | Supported | Supported |
-| **Execute SQL**      | Supported | Supported | Supported |
-
-### Using WebSocket Interface
-
-| **Feature**          | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** | **C/C++** |
-| -------------------- | -------- | ---------- | ------ | ------ | ----------- | -------- | --------- |
-| **Connection Management** | Supported | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Execute SQL**      | Supported | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Parameter Binding**| Supported | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Data Subscription (TMQ)** | Supported | Supported | Supported | Supported | Supported | Supported | Supported |
-| **Schema-less Write**| Supported | Supported | Supported | Supported | Supported | Supported | Supported |
 
 :::warning
 
-- Regardless of the programming language connector chosen, it is recommended for database applications using TDengine version 2.0 and above to establish an independent connection for each thread, or to establish a connection pool based on threads, to avoid interference of the "USE statement" state variable among threads (however, the connection's query and write operations are thread-safe).
+- Regardless of the programming language connector used, for TDengine TSDB version 2.0 and above, it is recommended that each thread of a database application establishes an independent connection or creates a thread-based connection pool. This avoids mutual interference of the "USE statement" state within the connection between threads (however, the connection's query and write operations are thread-safe).
 
 :::
+
+### REST API
+
+Supports **Execute SQL**
+
 
 ## Install Client Driver
 

@@ -1329,7 +1329,7 @@ class TestFunStddev:
     # ------------------ main ------------------
     #
     def test_func_agg_stddev(self):
-        """ Function STDDEV
+        """ Fun: stddev()
 
         1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.
         2. Query on super/child/normal table
@@ -1358,3 +1358,27 @@ class TestFunStddev:
         self.do_stddev()
         self.do_stddev_test()
         self.do_distribute_stddev()
+
+    def test_func_agg_std(self):
+        """ Fun: std()
+
+        same with stddev() 
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        """
+        pass
+
+    def test_func_agg_stddev_pop(self):
+        """ Fun: stddev_pop()
+
+        same with stddev() 
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        """
+        pass

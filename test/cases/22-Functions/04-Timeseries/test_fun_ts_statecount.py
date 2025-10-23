@@ -475,7 +475,7 @@ class TestFunStatecount:
     # ------------------ main ------------------
     #
     def test_func_ts_statedcount(self):
-        """ Function STATECOUNT()
+        """ Fun: statecount()
 
         1. Basic query for different params
         2. Query on super/child/normal table

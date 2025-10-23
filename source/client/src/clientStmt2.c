@@ -424,7 +424,7 @@ static int32_t stmtCleanBindInfo(STscStmt2* pStmt) {
     taosMemoryFreeClear(pStmt->bInfo.boundTags);
   }
 
-  if (pStmt->bInfo.boundCols) {
+  if (!pStmt->bInfo.boundColsCached) {
     tSimpleHashCleanup(pStmt->bInfo.boundCols);
     pStmt->bInfo.boundCols = NULL;
   }
@@ -1786,6 +1786,7 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
     if (pStmt->sql.autoCreateTbl) {
       pStmt->bInfo.tagsCached = true;
     }
+    pStmt->bInfo.boundColsCached = true;
 
     if (pStmt->queue.stopQueue) {
       STMT2_ELOG_E("stmt bind thread is stopped,cannot enqueue bind request");
@@ -2421,6 +2422,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   if (pStmt->sql.stbInterlaceMode) {
     pStmt->bInfo.tagsCached = false;
   }
+  pStmt->bInfo.boundColsCached = false;
 
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 

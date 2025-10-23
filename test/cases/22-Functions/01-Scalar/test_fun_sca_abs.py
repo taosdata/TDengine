@@ -574,7 +574,7 @@ class TestFunAbs:
         pass
 
     def test_fun_sca_abs(self):
-        """ Function ABS()
+        """ Fun: abs()
 
         1. Support types
         2. Basic query
@@ -635,3 +635,19 @@ class TestFunAbs:
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
+    def test_fun_sca_now(self):
+        """ Fun: now()
+
+        1. Insert with now +/- and d/s/a
+        2. Query with where now +/- d/m/h
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+
+        """
+        pass

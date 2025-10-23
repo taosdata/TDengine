@@ -1,8 +1,0 @@
-#Column Define
-#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
-#NA,NA,y or n,script,./test.sh -f tsim/analytics/basic0.sim
-
-#tdgpt-test
-,,y,script,./test.sh -f tsim/analytics/basic0.sim
-#,,n,system-test,python3 ./test.py -f 9-tdgpt/test_gpt.py
-

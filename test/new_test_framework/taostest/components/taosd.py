@@ -115,10 +115,15 @@ class TaosD:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
             if error_output:
+                # use ASAN options abort_on_error=1 to generate core dump when error occurs
+                asan_options = [
+                    "detect_odr_violation=0",
+                    "abort_on_error=1",
+                ]
                 cmds = [
                     'export LD_PRELOAD="$(realpath $(gcc -print-file-name=libasan.so)) '
                     '$(realpath $(gcc -print-file-name=libstdc++.so))"',
-                    'export ASAN_OPTIONS=detect_odr_violation=0',
+                    f'export ASAN_OPTIONS="{":".join(asan_options)}"',
                     f'{taosd_path} -c {dnode["config_dir"]} 2>{error_output}',
                 ]
                 run_cmd = " && ".join(cmds)

@@ -184,6 +184,7 @@ toc_max_heading_level: 4
 | cDebugFlag | taosc | 客户端模块的日志开关 |
 | simDebugFlag | taosc | 测试工具的日志开关 |
 | tqClientDebugFlag | taosc | 测试工具的日志开关 |
+| rpcRecvLogThreshold| taosd| rpc模块的警告日志的阈值|
 | **调试相关** | | |
 | enableCoreFile | both | crash 时是否生成 core 文件 |
 | configDir | both | 配置文件所在目录 |

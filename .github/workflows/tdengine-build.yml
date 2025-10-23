@@ -36,8 +36,6 @@ jobs:
           - windows-2022
     env:
       TD_CONFIG: Release
-      RUSTUP_DIST_SERVER: https://rsproxy.cn
-      RUSTUP_UPDATE_ROOT: https://rsproxy.cn/rustup
 
     steps:
       - name: Get CPU Cores

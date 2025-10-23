@@ -19,7 +19,7 @@ import RequestId from "./_request_id.mdx";
 ## 支持的平台
 
 - 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
-- WebSocket/REST 连接支持所有能运行 Go 的平台。
+- WebSocket 连接支持所有能运行 Go 的平台。
 
 ## 版本历史
 
@@ -103,39 +103,27 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 
 ## 常见问题
 
-1. database/sql 中 stmt（参数绑定）相关接口崩溃
-
-   REST 不支持参数绑定相关接口，建议使用`db.Exec`和`db.Query`。
-
-2. 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
-
-   在 REST 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
-
-3. 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
-
-   因为 REST 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
-
-4. `readBufferSize` 参数调大后无明显效果
+1. `readBufferSize` 参数调大后无明显效果
 
    `readBufferSize` 调大后会减少获取结果时 `syscall` 的调用。如果查询结果的数据量不大，修改该参数不会带来明显提升，如果该参数修改过大，瓶颈会在解析 JSON 数据。如果需要优化查询速度，需要根据实际情况调整该值来达到查询效果最优。
 
-5. `disableCompression` 参数设置为 `false` 时查询效率降低
+2. `disableCompression` 参数设置为 `false` 时查询效率降低
 
    当 `disableCompression` 参数设置为 `false` 时查询结果会使用 `gzip` 压缩后传输，拿到数据后要先进行 `gzip` 解压。
 
-6. `go get` 命令无法获取包，或者获取包超时
+3. `go get` 命令无法获取包，或者获取包超时
 
   设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
 
-7. 查询结果时区处理
+4. 查询结果时区处理
 
-  WebSocket 连接和原生连接查询结果使用 `time.Unix` 从时间戳转成本地时区，restful 连接直接解析查询结果字符串使用的标准 UTC 时区（0 时区）。
+  WebSocket 连接和原生连接查询结果使用 `time.Unix` 从时间戳转成本地时区。
 
 ## API 参考
 
 ### database/sql 驱动
 
-`driver-go` 实现了 Go 的 `database/sql/driver` 接口，可以直接使用 Go 的 `database/sql` 包。提供了三个驱动：`github.com/taosdata/driver-go/v3/taosSql` 、`github.com/taosdata/driver-go/v3/taosRestful` 和 `github.com/taosdata/driver-go/v3/taosWS` 分别对应 `原生连接`、`REST 连接` 和 `WebSocket 连接`。
+`driver-go` 实现了 Go 的 `database/sql/driver` 接口，可以直接使用 Go 的 `database/sql` 包。提供了两个驱动：`github.com/taosdata/driver-go/v3/taosSql` 和 `github.com/taosdata/driver-go/v3/taosWS` 分别对应 `原生连接` 和 `WebSocket 连接`。
 
 #### DSN 规范
 
@@ -184,32 +172,6 @@ taos, err := sql.Open("taosSql", taosUri)
 * `cgoAsyncHandlerPoolSize` 指定异步函数的 handle 大小，默认为 10000。
 * `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
 
-##### Rest 连接
-
-导入驱动：
-
-```go
-import (
-    "database/sql"
-    _ "github.com/taosdata/driver-go/v3/taosRestful"
-)
-```
-
-使用 `taosRestful` 作为 `driverName` 并且使用一个正确的 DSN 作为 `dataSourceName` 如下：
-
-```go
-var taosUri = "root:taosdata@http(localhost:6041)/"
-taos, err := sql.Open("taosRestful", taosUri)
-```
-
-支持的 DSN 参数：
-
-* `disableCompression` 是否接受压缩数据，默认为 true 不接受压缩数据，如果传输数据使用 gzip 压缩设置为 false。
-* `readBufferSize` 读取数据的缓存区大小默认为 4K（4096），当查询结果数据量多时可以适当调大该值。
-* `token` 连接云服务时使用的 token。
-* `skipVerify` 是否跳过证书验证，默认为 false 不跳过证书验证，如果连接的是不安全的服务设置为 true。
-* `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
-
 ##### WebSocket 连接
 
 导入驱动：
@@ -234,13 +196,6 @@ taos, err := sql.Open("taosWS", taosUri)
 * `readTimeout` 读取数据的超时时间，默认为 5m。
 * `writeTimeout` 写入数据的超时时间，默认为 10s。
 * `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
-
-:::note
-
-- 与原生连接方式不同，REST 接口是无状态的。在使用 REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。
-- 如果在 DSN 中指定了 dbname，那么，REST 连接会默认使用/rest/sql/dbname 作为 restful 请求的 url，在 SQL 中不需要指定 dbname。
-
-:::
 
 ### 连接功能
 

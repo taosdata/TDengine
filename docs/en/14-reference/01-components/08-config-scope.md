@@ -75,6 +75,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | minIntervalTime | taosc | Minimum allowable value for interval |
 | compareAsStrInGreatest | taosc | Comparison type conversion rules for greatest and least functions |
 | showFullCreateTableColumn | taosc | Whether show create table returns column compression information |
+| rpcRecvLogThreshold| taosd| The threshold for warning logs in the RPC module |
 | **Region Related** | | |
 | timezone | both | Time zone |
 | locale | both | System locale information and encoding format |

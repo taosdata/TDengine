@@ -19,7 +19,7 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define TSDB_REF_OBJECTS        100
+#define TSDB_REF_OBJECTS        2000
 #define TSDB_REF_STATE_EMPTY    0
 #define TSDB_REF_STATE_ACTIVE   1
 #define TSDB_REF_STATE_DELETED  2

@@ -43,7 +43,8 @@ static int DemoQueryData() {
 
   TAOS_ROW    row = NULL;
   int         rows = 0;
-  int         num_fields = taos_field_count(result);
+  char        buffer[1024];
+  int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
   fprintf(stdout, "query successfully, got %d fields, the sql is: %s.\n", num_fields, sql);
@@ -53,6 +54,15 @@ static int DemoQueryData() {
     // Add your data processing logic here
 
     rows++;
+
+    // Print the data for easy debugging. You can uncomment them if needed.
+    // code = taos_print_row(buffer, row, fields, num_fields);
+    // if (code > 0) {
+    //   fprintf(stdout, "row %d: %s\n", rows, buffer);
+    // } else {
+    //   fprintf(stderr, "Failed to print row %d data, ErrCode: 0x%x, ErrMessage: %s\n", rows, taos_errno(NULL),
+    //           taos_errstr(NULL));
+    // }
   }
   fprintf(stdout, "total rows: %d\n", rows);
   taos_free_result(result);

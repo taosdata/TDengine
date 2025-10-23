@@ -72,29 +72,7 @@ The version number of the TDengine client driver strictly corresponds to the ver
 
 ## Error Codes
 
-In the design of the C interface, error codes are represented by integer types, and each error code corresponds to a specific error state. If not otherwise specified, when the return value of the API is an integer, _0_ represents success, and the others are error codes representing the cause of failure. When the return value is a pointer, _NULL_ represents failure.
-
-### General Error Codes
-
-All error codes and their corresponding causes are described in the `taoserror.h` file.
-
-For detailed error code descriptions, refer to: [Error Codes](../../error-codes/).
-
-### WebSocket Connection Specific Error Codes
-
-In addition to general error codes, WebSocket connections also have the following specific error codes:
-
-| Error Code | Error Description           | Possible Error Scenarios or Reasons                         | Recommended User Actions                                       |
-| ---------- | --------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
-| 0xE000     | DSN Error                   | DSN does not meet specifications                            | Check if the DSN string meets specifications                   |
-| 0xE001     | Internal Error              | Uncertain                                                   | Preserve the scene and logs, report issue on GitHub            |
-| 0xE002     | Connection Closed           | Network disconnected                                        | Please check the network condition, review `taosadapter` logs. |
-| 0xE003     | Send Timeout                | Network disconnected                                        | Please check the network condition                             |
-| 0xE004     | Receive Timeout             | Slow query, or network disconnected                         | Investigate `taosadapter` logs                                 |
-| 0xE005     | I/O error                   | Network I/O exception or disk error                         | Check network connection and disk status                       |
-| 0xE006     | Authentication failed       | Username and password incorrect or insufficient permissions | Check username and password, confirm user permissions          |
-| 0xE007     | Encoding and decoding error | Data encoding and decoding exception                        | Check data format, check `taosadapter` log                     |
-| 0xE008     | Disconnected                | WebSocket connection disconnected                           | Check network status and reestablish connection                |
+Please refer to: [Error Codes](../../error-codes/).
 
 ## Example Program
 
@@ -348,6 +326,15 @@ This section introduces APIs that are all synchronous interfaces. After being ca
   - **Parameter Description**:
     - res: [Input] Result set.
   - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_FIELD_E structure, where each element represents the metadata of a column. `NULL`: Failure.
+
+- `int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields)`
+
+  - **Interface Description**: Formats a row of query results as text according to column types and writes it to the `str` buffer for logging or debugging output.
+  - **Parameter Description**:
+    - `str`: [Output] A user-provided character buffer that receives the entire line of formatted text. Ensure that the capacity meets the output requirements. If the result exceeds the buffer size, it will be truncated (possibly incomplete output).
+    - `fields`: [Input] An array of column metadata, returned by `taos_fetch_fields()`. Used to format each column according to its column type.
+    - `num_fields`: [Input] The number of columns, typically the return value of `taos_num_fields()`.
+  - **Return Value**: `>=0` indicates the number of characters actually written to `str` (excluding the trailing `'\0'`); `<0` indicates a failure error code.
 
 - `void taos_stop_query(TAOS_RES *res)`
 

@@ -53,7 +53,7 @@ match conn.exec(sql) {
 }
 ```
 
-The error code of the error message can be referred to: [Error Codes](../../error-codes/)
+For specific error codes, please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 

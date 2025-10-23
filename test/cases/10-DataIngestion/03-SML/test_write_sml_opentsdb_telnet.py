@@ -1467,7 +1467,7 @@ class TestOpentsdbTelnetLineTaoscInsert:
         # self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
 
     def test_write_sml_opentsdb_telnet(self):
-        """ Schemaless Write with OpenTSDB Telnet Protocol
+        """ OpenTSDB Telnet Protocol
 
         1. Basic OpenTSDB Telnet protocol parsing
         2. Automatic table schema creation and evolution
