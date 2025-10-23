@@ -240,3 +240,4 @@ class TestVTableQuerySameDBStbWindow:
         self.run_normal_query("test_vstable_select_test_session")
         self.run_normal_query("test_vstable_select_test_event")
         self.run_normal_query("test_vstable_select_test_count")
+

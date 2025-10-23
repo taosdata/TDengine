@@ -219,7 +219,7 @@ class TestVTableQuerySameDBStbProject:
         1. test vstable select super table projection
         2. test vstable select super table projection filter
         3. test vstable select super table projection timerange filter
-        4. test vstable select super table interval
+        4. test vstable select super table function
 
         Catalog:
             - VirtualTable
@@ -240,3 +240,4 @@ class TestVTableQuerySameDBStbProject:
         self.run_normal_query("test_vstable_select_test_projection_filter")
         self.run_normal_query("test_vstable_select_test_projection_timerange_filter")
         self.run_normal_query("test_vstable_select_test_function")
+
