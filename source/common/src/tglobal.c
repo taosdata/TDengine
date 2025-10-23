@@ -762,7 +762,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableTLS", tsEnableTLS, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
 
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableTLS", tsEnableSasl, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableSasl", tsEnableSasl, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
