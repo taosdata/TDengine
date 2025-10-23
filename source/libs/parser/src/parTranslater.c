@@ -9366,9 +9366,6 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
 
   if (NULL == pSelect->pFromTable) {
-    if (inStreamCalcClause(pCxt)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "Stream query must have from clause");
-    }
     return translateSelectWithoutFrom(pCxt, pSelect);
   } else {
     return translateSelectFrom(pCxt, pSelect);

@@ -2588,6 +2588,8 @@ static int32_t createExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogicNo
 
 static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList* pChildren, SWindowPhysiNode* pWindow,
                                              SWindowLogicNode* pWindowLogicNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   pWindow->triggerType = pWindowLogicNode->triggerType;
   pWindow->watermark = pWindowLogicNode->watermark;
   pWindow->deleteMark = pWindowLogicNode->deleteMark;
@@ -2604,53 +2606,51 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;
   SNodeList* pProjs = pWindowLogicNode->pProjs;
-  int32_t    code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
+
+  if (LIST_LENGTH(pChildren) == 0) {
+    QUERY_CHECK_NULL(pWindowLogicNode->pProjs, code, lino, _return, TSDB_CODE_INVALID_PARA);
+    PLAN_ERR_JRET(nodesCloneList(pProjs, &pWindow->pProjs));
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pWindow->pProjs, pWindow->node.pOutputDataBlockDesc));
+    PLAN_RET(setConditionsSlotId(pCxt, (const SLogicNode*)pWindowLogicNode, (SPhysiNode*)pWindow));
+  }
+
+  PLAN_ERR_JRET(rewritePrecalcExprs(pCxt, pWindowLogicNode->pFuncs, &pPrecalcExprs, &pFuncs));
 
   SDataBlockDescNode* pChildTupe = NULL;
-  if (TSDB_CODE_SUCCESS == code) {
-    code = getChildTuple(&pChildTupe, pChildren);
-  }
+  PLAN_ERR_JRET(getChildTuple(&pChildTupe, pChildren));
+
   // push down expression to pOutputDataBlockDesc of child node
-  if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
+  if (NULL != pPrecalcExprs) {
     SNodeList* pOutput;
-    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pOutput);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pOutput, pChildTupe);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      if (pWindow->pExprs == NULL) {
-        pWindow->pExprs = pOutput;
-      } else {
-        code = nodesListAppendList(pWindow->pExprs, pOutput);
-      }
+    PLAN_ERR_JRET(setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pOutput));
+
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pOutput, pChildTupe));
+
+    if (pWindow->pExprs == NULL) {
+      pWindow->pExprs = pOutput;
+    } else {
+      PLAN_ERR_JRET(nodesListAppendList(pWindow->pExprs, pOutput));
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pTspk, &pWindow->pTspk);
-  }
-  if (TSDB_CODE_SUCCESS == code && pWindowLogicNode->pTsEnd) {
-    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pTsEnd, &pWindow->pTsEnd);
+  PLAN_ERR_JRET(setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pTspk, &pWindow->pTspk));
+  if (pWindowLogicNode->pTsEnd) {
+    PLAN_ERR_JRET(setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pTsEnd, &pWindow->pTsEnd));
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pFuncs) {
-    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncs, &pWindow->pFuncs);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pWindow->pFuncs, pWindow->node.pOutputDataBlockDesc);
-    }
+  if (NULL != pFuncs) {
+    PLAN_ERR_JRET(setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncs, &pWindow->pFuncs));
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pWindow->pFuncs, pWindow->node.pOutputDataBlockDesc));
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pProjs) {
-    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pProjs, &pWindow->pProjs);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pWindow->pProjs, pWindow->node.pOutputDataBlockDesc);
-    }
+  if (NULL != pProjs) {
+    PLAN_ERR_JRET(setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pProjs, &pWindow->pProjs));
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pWindow->pProjs, pWindow->node.pOutputDataBlockDesc));
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setConditionsSlotId(pCxt, (const SLogicNode*)pWindowLogicNode, (SPhysiNode*)pWindow);
-  }
+  PLAN_ERR_JRET(setConditionsSlotId(pCxt, (const SLogicNode*)pWindowLogicNode, (SPhysiNode*)pWindow));
 
+_return:
   nodesDestroyList(pPrecalcExprs);
   nodesDestroyList(pFuncs);
 
