@@ -2,6 +2,7 @@
 from datetime import datetime
 import pandas
 from sqlalchemy import create_engine, text
+from sqlalchemy.types import Integer, Float, TIMESTAMP, String
 
 def connect():
     """Create a connection to TDengine using SQLAlchemy"""
@@ -14,8 +15,6 @@ def connect():
 # ANCHOR: pandas_to_sql_example
 def pandas_to_sql_example(conn):
     """Test writing data to TDengine using pandas DataFrame.to_sql() method and verify the results"""
-    from sqlalchemy.types import Integer, Float, TIMESTAMP, String
-
     try:
         conn.execute(text("CREATE DATABASE IF NOT EXISTS power"))
         conn.execute(text(
@@ -85,7 +84,8 @@ def pandas_read_sql_table_example(conn):
         )
 
         total_rows = 0
-        for i, chunk in enumerate(table_df):
+        for i, chunk in enumerate(table_df, start=1):
+            print(f"Processing chunk {i}")
             for index, row in chunk.iterrows():
                 total_rows += 1
                 print(f"no: {total_rows}")
@@ -103,7 +103,12 @@ def pandas_read_sql_table_example(conn):
 # ANCHOR_END: pandas_read_sql_table_example
 
 if __name__ == "__main__":
-    conn = connect()
-    pandas_to_sql_example(conn)
-    pandas_read_sql_example(conn)
-    pandas_read_sql_table_example(conn)
+    conn = None
+    try:
+        conn = connect()
+        pandas_to_sql_example(conn)
+        pandas_read_sql_example(conn)
+        pandas_read_sql_table_example(conn)
+    finally:
+        if conn:
+            conn.close()
