@@ -293,7 +293,7 @@ function collect_info_from_tests() {
         local max_jobs=$(nproc 2>/dev/null || echo "4")
         
         # *** 可配置的批次大小参数 ***
-        local MERGE_BATCH_SIZE=${MERGE_BATCH_SIZE:-4}  # 默认2个文件一批，可通过环境变量调整
+        local MERGE_BATCH_SIZE=${MERGE_BATCH_SIZE:-5}  # 默认5个文件一批，可通过环境变量调整
         
         echo "并发配置: $max_jobs 个CPU核心，统一批次大小 $MERGE_BATCH_SIZE 个文件"
         merge_files_uniform_batch "$filtered_info_files" "$final_info_count" "$MERGE_BATCH_SIZE" "$max_jobs"
@@ -767,115 +767,199 @@ function lcovFunc {
     # push result to https://coveralls.io/
     # /usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage_tdengine.info
 
-    # 执行上传并捕获结果
-    local coveralls_output
-    coveralls_output=$(/usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage_tdengine.info 2>&1)
+    # # 执行上传并捕获结果
+    # local coveralls_output
+    # coveralls_output=$(/usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage_tdengine.info 2>&1)
     
-    echo "$coveralls_output"
-    
-    # 提取 URL 并调用 Python 脚本
-    local job_url=$(echo "$coveralls_output" | grep -o '"url":"[^"]*"' | sed 's/"url":"//;s/"//')
-    
-    if [ -n "$job_url" ]; then
+    # echo "$coveralls_output"
+
+    # Coveralls 上传重试机制
+    local max_upload_attempts=10
+    local upload_attempt=1
+    local upload_success=false
+    local coveralls_output=""
+
+    while [ $upload_attempt -le $max_upload_attempts ]; do
         echo ""
-        echo "=== 获取 Coveralls 详细信息 ==="
-        echo "调用 Python 脚本获取覆盖率详情..."
-        echo "Coveralls URL: $job_url"
-
-        # 检查 Python 脚本是否存在
-        local script_path="$TDENGINE_DIR/test/ci/tdengine_coveage_alarm.py"
-        if [ ! -f "$script_path" ]; then
-            echo "警告: Python 脚本不存在: $script_path"
-            echo "📊 完整报告请访问: $job_url"
-            return
-        fi
-
-        # 安装必要的 Python 依赖包
-        echo "安装 Python 依赖包..."
-        pip3 install bs4 requests lxml beautifulsoup4 -q
-        local pip_exit_code=$?
-        if [ $pip_exit_code -ne 0 ]; then
-            echo "警告: 安装 Python 依赖包失败，退出码: $pip_exit_code"
-            echo "尝试继续执行脚本..."
-        else
-            echo "✓ Python 依赖包安装完成"
-        fi
-
-        # 重试机制获取覆盖率详情
-        local max_attempts=3
-        local attempt=1
-        local success=false
+        echo "=== 第 $upload_attempt/$max_upload_attempts 次尝试上传到 Coveralls ==="
         
-        while [ $attempt -le $max_attempts ]; do
-            echo ""
-            echo "第 $attempt/$max_attempts 次尝试获取覆盖率详情..."
+        # 执行上传并捕获结果
+        coveralls_output=$(/usr/local/bin/coveralls-lcov -t WOjivt0JCvDfqHDpyBQXtqhYbOGANrrps -b $BRANCH $TDENGINE_DIR/coverage_tdengine.info 2>&1)
+        local upload_exit_code=$?
+        
+        echo "上传输出:"
+        echo "$coveralls_output"
+        echo "上传退出码: $upload_exit_code"
+        
+        # 判断是否成功
+        if [ $upload_exit_code -eq 0 ] && echo "$coveralls_output" | grep -q '"url"'; then
+            echo "✓ 成功上传到 Coveralls"
+            upload_success=true
+            break
+        else
+            echo "✗ 上传失败"
             
-            # 计算等待时间：第一次30秒，第二次60秒，第三次90秒
-            local wait_time=$((attempt * 30))
-            echo "等待 Coveralls 处理数据（${wait_time}秒）..."
-            sleep $wait_time
-            
-            echo "开始调用 Python 脚本..."
-            echo "命令: python3 $script_path -url $job_url"
-            
-            # 调用 Python 脚本并捕获输出
-            local script_output
-            script_output=$(python3 "$script_path" -url "$job_url" 2>&1)
-            local script_exit_code=$?
-            
-            echo "Python 脚本输出:"
-            echo "$script_output"
-            echo "Python 脚本执行完成，退出码: $script_exit_code"
-            
-            # 判断是否成功
-            if [ $script_exit_code -eq 0 ]; then
-                # 检查 JSON 输出中的状态
-                local status=$(echo "$script_output" | grep '"status"' | grep -o '"[^"]*"' | tail -1 | tr -d '"')
-                local coverage_change=$(echo "$script_output" | grep '"coverage_change"' | grep -o ': *"[^"]*"' | sed 's/: *"//;s/"//')
-                
-                echo ""
-                echo "=== 结果分析 ==="
-                echo "状态: $status"
-                echo "覆盖率变化: $coverage_change"
-                
-                if [ "$status" = "success" ] || [ -n "$coverage_change" ] && [ "$coverage_change" != "null" ]; then
-                    echo "✓ 成功获取覆盖率详情"
-                    success=true
-                    break
-                elif [ "$status" = "error" ]; then
-                    echo "⚠ 获取详情失败，状态为 error"
-                    if [ $attempt -lt $max_attempts ]; then
-                        echo "可能 Coveralls 数据还在处理中，将重试..."
-                    else
-                        echo "已达到最大重试次数，但脚本执行正常"
-                    fi
-                else
-                    echo "⚠ 未知状态: $status"
-                fi
+            # 分析失败原因
+            if echo "$coveralls_output" | grep -qi "Connection reset by peer\|ECONNRESET"; then
+                echo "原因: 网络连接被重置"
+            elif echo "$coveralls_output" | grep -qi "timeout\|timed out"; then
+                echo "原因: 连接超时"
+            elif echo "$coveralls_output" | grep -qi "No such file or directory"; then
+                echo "原因: 文件不存在或路径错误"
             else
-                echo "✗ Python 脚本执行失败，退出码: $script_exit_code"
+                echo "原因: 未知错误"
             fi
             
-            ((attempt++))
-        done
-        
-        # 最终结果总结
-        echo ""
-        echo "=== 最终结果 ==="
-        if [ "$success" = true ]; then
-            echo "✓ 成功获取 Coveralls 覆盖率详情"
-        else
-            echo "⚠ 未能获取完整的覆盖率详情"
-            echo "可能的原因："
-            echo "  1. Coveralls 数据处理需要更长时间"
-            echo "  2. 上传需要更长的处理时间"
-            echo ""
-            echo "建议："
-            echo "  • 稍后手动检查 Coveralls 页面"
+            if [ $upload_attempt -lt $max_upload_attempts ]; then
+                # 计算等待时间：2分钟 = 120秒
+                local wait_time=120
+                echo "等待 ${wait_time} 秒后重试..."
+                sleep $wait_time
+            else
+                echo "已达到最大重试次数 ($max_upload_attempts 次)"
+            fi
         fi
         
+        ((upload_attempt++))
+    done
+
+    echo ""
+    echo "=== Coveralls 上传结果分析 ==="
+    if [ "$upload_success" = true ]; then
+        echo "✓ 覆盖率数据已成功上传到 Coveralls (尝试次数: $((upload_attempt - 1)))"
+        
+        
+        # 提取 URL 并调用 Python 脚本
+        local job_url=$(echo "$coveralls_output" | grep -o '"url":"[^"]*"' | sed 's/"url":"//;s/"//')
+        
+        if [ -n "$job_url" ]; then
+            echo ""
+            echo "=== 获取 Coveralls 详细信息 ==="
+            echo "调用 Python 脚本获取覆盖率详情..."
+            echo "Coveralls URL: $job_url"
+
+            # 检查 Python 脚本是否存在
+            local script_path="$TDENGINE_DIR/test/ci/tdengine_coveage_alarm.py"
+            if [ ! -f "$script_path" ]; then
+                echo "警告: Python 脚本不存在: $script_path"
+                echo "📊 完整报告请访问: $job_url"
+                return
+            fi
+
+            # 安装必要的 Python 依赖包
+            echo "安装 Python 依赖包..."
+            pip3 install bs4 requests lxml beautifulsoup4 -q
+            local pip_exit_code=$?
+            if [ $pip_exit_code -ne 0 ]; then
+                echo "警告: 安装 Python 依赖包失败，退出码: $pip_exit_code"
+                echo "尝试继续执行脚本..."
+            else
+                echo "✓ Python 依赖包安装完成"
+            fi
+
+            # 重试机制获取覆盖率详情
+            local max_attempts=5  # 增加到5次
+            local attempt=1
+            local success=false
+
+            while [ $attempt -le $max_attempts ]; do
+                echo ""
+                echo "第 $attempt/$max_attempts 次尝试获取覆盖率详情..."
+                
+                # 计算等待时间：递增等待 - 60s, 120s, 180s, 240s, 300s
+                local wait_time=$((attempt * 60))
+                echo "等待 Coveralls 处理数据（${wait_time}秒）..."
+                sleep $wait_time
+                
+                echo "开始调用 Python 脚本..."
+                echo "命令: python3 $script_path -url $job_url"
+                
+                # 调用 Python 脚本并捕获输出
+                local script_output
+                script_output=$(python3 "$script_path" -url "$job_url" 2>&1)
+                local script_exit_code=$?
+                
+                echo "Python 脚本输出:"
+                echo "$script_output"
+                echo "Python 脚本执行完成，退出码: $script_exit_code"
+                
+                # 判断是否成功
+                if [ $script_exit_code -eq 0 ]; then
+                    # 提取 JSON 中的 status 字段
+                    local status=$(echo "$script_output" | grep '"status"' | head -1 | grep -o '"status"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+                    local coverage_change=$(echo "$script_output" | grep '"coverage_change"' | head -1 | grep -o '"coverage_change"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"coverage_change"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+                    
+                    echo ""
+                    echo "=== 结果分析 ==="
+                    echo "状态: $status"
+                    echo "覆盖率变化: $coverage_change"
+                    
+                    # 只有 status 为 "success" 才认为成功
+                    if [ "$status" = "success" ]; then
+                        echo "✓ 成功获取完整的覆盖率详情（status=success）"
+                        success=true
+                        break
+                    elif [ "$status" = "error" ]; then
+                        echo "⚠ Coveralls 数据尚未完全处理（status=error）"
+                        
+                        # 检查是否有覆盖率变化信息
+                        if [ -n "$coverage_change" ] && [ "$coverage_change" != "null" ]; then
+                            echo "  已获取覆盖率变化: $coverage_change"
+                            echo "  但详细信息尚未就绪，需要继续等待..."
+                        else
+                            echo "  详细信息尚未就绪..."
+                        fi
+                        
+                        if [ $attempt -lt $max_attempts ]; then
+                            echo "  将在 $((attempt * 30)) 秒后重试..."
+                        else
+                            echo "  已达到最大重试次数，但已获取基本覆盖率信息"
+                        fi
+                    else
+                        echo "⚠ 未知状态: '$status'"
+                        if [ $attempt -lt $max_attempts ]; then
+                            echo "  将重试..."
+                        fi
+                    fi
+                else
+                    echo "✗ Python 脚本执行失败，退出码: $script_exit_code"
+                    if [ $attempt -lt $max_attempts ]; then
+                        echo "  将重试..."
+                    fi
+                fi
+                
+                ((attempt++))
+            done
+            
+            # 最终结果总结
+            echo ""
+            echo "=== 最终结果 ==="
+            if [ "$success" = true ]; then
+                echo "✓ 成功获取 Coveralls 覆盖率详情"
+                echo "  重试次数: $((attempt - 1))"
+                echo "  总等待时间: $(( (attempt - 1) * attempt * 15 )) 秒"
+            else
+                echo "⚠ 未能获取完整的覆盖率详情"
+                echo "可能的原因："
+                echo "  1. Coveralls 数据处理需要更长时间"
+                echo "  2. 上传需要更长的处理时间"
+                echo ""
+                echo "建议："
+                echo "  • 稍后手动检查 Coveralls 页面"
+            fi
+            
+            echo ""
+            echo "📊 完整报告请访问: $job_url"
+        fi
+    
+    else
+        echo "✗ 覆盖率数据上传到 Coveralls 失败 (尝试次数: $upload_attempt)"
+        echo "最后一次错误输出:"
+        echo "$coveralls_output"
         echo ""
-        echo "📊 完整报告请访问: $job_url"
+        echo "可能的解决方案："
+        echo "  1. 检查网络连接是否稳定"
+        echo "  2. 稍后手动上传或重新运行测试"
     fi
 }
 
