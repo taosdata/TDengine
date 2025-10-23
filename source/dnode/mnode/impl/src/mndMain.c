@@ -25,6 +25,7 @@
 #include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndEncryptAlgr.h"
 #include "mndFunc.h"
 #include "mndGrant.h"
 #include "mndIndex.h"
@@ -584,17 +585,17 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .retentionPeriod = 0,
                  .retentionSize = 0,
                  .level = TAOS_WAL_FSYNC,
-                 .encryptAlgorithm = 0,
-                 .encryptKey = {0}};
+                 .encryptAlgr = 0,
+                 .encryptData = {0}};
 
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
-    cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
+    cfg.encryptAlgr = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
     if (tsEncryptKey[0] == '\0') {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       TAOS_RETURN(code);
     } else {
-      tstrncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(cfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -670,6 +671,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-encrypt-algorithms", mndInitEncryptAlgr, mndCleanupEncryptAlgr));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode));

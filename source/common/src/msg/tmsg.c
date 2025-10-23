@@ -5196,6 +5196,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactStartTime));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->compactEndTime));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
 
   tEndEncode(&encoder);
 
@@ -5300,6 +5301,12 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
     pReq->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
     pReq->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
     pReq->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
+  } else {
+    pReq->encryptAlgrName[0] = '\0';
   }
 
   tEndDecode(&decoder);
@@ -8692,10 +8699,11 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->changeVersion));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->keepTimeOffset));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encryptAlgorithm));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encryptAlgr));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssChunkSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
 
   tEndEncode(&encoder);
 
@@ -8795,15 +8803,18 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
-  pReq->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+  pReq->encryptAlgr = TSDB_DEFAULT_ENCRYPT_ALGO;
   pReq->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
   pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
   pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encryptAlgorithm));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encryptAlgr));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssChunkSize));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
   }
 
   tEndDecode(&decoder);

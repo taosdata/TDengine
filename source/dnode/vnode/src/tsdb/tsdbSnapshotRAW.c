@@ -494,10 +494,9 @@ static int32_t tsdbSnapRAWWriteTimeSeriesData(STsdbSnapRAWWriter* writer, STsdbD
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t encryptAlgorithm = writer->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char*   encryptKey = writer->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->tsdb->pVnode->config.tsdbCfg.encryptData);
 
-  code = tsdbFSetRAWWriteBlockData(writer->ctx->fsetWriter, bHdr, encryptAlgorithm, encryptKey);
+  code = tsdbFSetRAWWriteBlockData(writer->ctx->fsetWriter, bHdr, pEncryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

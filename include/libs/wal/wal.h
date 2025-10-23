@@ -54,8 +54,8 @@ typedef struct {
   int64_t  segSize;
   int64_t  committed;
   EWalType level;  // wal level
-  int32_t  encryptAlgorithm;
-  char     encryptKey[ENCRYPT_KEY_LEN + 1];
+  int32_t      encryptAlgr;
+  SEncryptData encryptData;
   int8_t   clearFiles;
 } SWalCfg;
 

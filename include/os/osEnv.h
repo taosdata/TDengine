@@ -48,6 +48,7 @@ extern char configDir[];
 extern char tsDataDir[];
 extern char tsLogDir[];
 extern char tsTempDir[];
+extern char tsEncryptExtDir[];
 
 extern SDiskSpace tsDataSpace;
 extern SDiskSpace tsLogSpace;

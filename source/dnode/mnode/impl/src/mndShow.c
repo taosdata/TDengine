@@ -134,6 +134,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VIEWS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCRYPT_ALGORITHMS, len) == 0) {
+    type = TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SCANS, len) == 0) {
     type = TSDB_MGMT_TABLE_SCAN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {

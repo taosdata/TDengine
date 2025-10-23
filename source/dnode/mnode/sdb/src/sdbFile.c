@@ -385,7 +385,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
         goto _OVER;
       }
 
-      SCryptOpts opts;
+      SCryptOpts opts = {0};
       opts.len = ENCRYPTED_LEN(pRaw->dataLen);
       opts.source = pRaw->pData;
       opts.result = plantContent;
@@ -394,7 +394,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
 
       count = CBC_Decrypt(&opts);
 
-      // mDebug("read sdb, CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
+      // mDebug("read sdb, CBC Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
 
       memcpy(pRaw->pData, plantContent, pRaw->dataLen);
       taosMemoryFree(plantContent);
@@ -530,7 +530,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
             break;
           }
 
-          SCryptOpts opts;
+          SCryptOpts opts = {0};
           opts.len = newDataLen;
           opts.source = pRaw->pData;
           opts.result = newData;
@@ -539,7 +539,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
 
           int32_t count = CBC_Encrypt(&opts);
 
-          // mDebug("write sdb, CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s",
+          // mDebug("write sdb, CBC Encrypt encryptedDataLen:%d, dataLen:%d, %s",
           //       newDataLen, pRaw->dataLen, __FUNCTION__);
         }
 

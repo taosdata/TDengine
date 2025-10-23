@@ -14,16 +14,19 @@
  */
 
 #define _DEFAULT_SOURCE
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/provider.h>
 #include "dmMgmt.h"
+#include "dmUtil.h"
 #include "mnode.h"
 #include "osFile.h"
-#include "tconfig.h"
-#include "tglobal.h"
-#include "version.h"
-#include "tconv.h"
-#include "dmUtil.h"
 #include "qworker.h"
+#include "tconfig.h"
+#include "tconv.h"
+#include "tglobal.h"
 #include "tss.h"
+#include "version.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -588,6 +591,21 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     return code;
   };
+
+  dInfo("load encrypt ext from %s", tsEncryptExtDir);
+
+  OSSL_PROVIDER *prov = OSSL_PROVIDER_load(NULL, tsEncryptExtDir);
+
+  dInfo("load encrypt ext %p", prov);
+
+  prov = OSSL_PROVIDER_load(NULL, "default");
+
+  dInfo("load encrypt default ext %p", prov);
+
+  // OSSL_PROVIDER_unload(prov);
+
+  // EVP_CIPHER *cipher = EVP_CIPHER_fetch(NULL, "vigenere", NULL);
+  // dInfo("cipher %p", cipher);
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {
