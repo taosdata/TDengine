@@ -128,15 +128,15 @@ nav:
     - 29-Escape Characters: case_list_docs/Escape.md
     - 30-Name & Limits: case_list_docs/NameLimits.md
     - 80-Components: 
-        - 01-taosd: case_list_docs/Components/taosd.md
-        - 02-taosc: case_list_docs/Components/taosc.md
+        - 01-Taosd: case_list_docs/Components/Taosd.md
+        - 02-Taosc: case_list_docs/Components/Taosc.md
         - 10-TDgpt: case_list_docs/Components/TDgpt.md
     - 70-Cluster: case_list_docs/Cluster.md
     - 81-Tools: 
         - 01-Check: case_list_docs/Tools/Check.md
-        - 02-taos-CLI: case_list_docs/Tools/taos-CLI.md
-        - 03-taosBenchmark: case_list_docs/Tools/taosBenchmark.md
-        - 04-taosdump: case_list_docs/Tools/taosdump.md
+        - 02-Taos: case_list_docs/Tools/Taos.md
+        - 03-TaosBenchmark: case_list_docs/Tools/TaosBenchmark.md
+        - 04-Taosdump: case_list_docs/Tools/Taosdump.md
         - 05-Valgrind: case_list_docs/Tools/Valgrind.md
     - 82-UnitTest: case_list_docs/UnitTest.md
     - 83-DocTest: case_list_docs/DocTest.md

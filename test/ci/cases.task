@@ -671,10 +671,10 @@
 
 # 80-Components
 
-# 01-taosd
-,,y,.,./ci/pytest.sh pytest cases/80-Components/01-taosd/test_com_taosd_config.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/80-Components/01-taosd/test_com_taosd_config_refresh.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/80-Components/01-taosd/test_com_taosd_config_refresh.py -N 3 -M 3
+# 01-Taosd
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3 -M 3
 
 # 81-Tools
 
