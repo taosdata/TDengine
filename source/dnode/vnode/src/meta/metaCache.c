@@ -530,6 +530,12 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
   *acquireRes = 0;
   uint64_t key[4];
   initCacheKey(key, pTableMap, suid, (const char*)pKey, keyLen);
+  
+  // void* tmp = NULL;
+  // uint32_t len = 0;
+  // (void)taosAscii2Hex((const char*)key, 32, &tmp, &len);
+  // qDebug("metaGetCachedTableUidList %p %"PRId64" key: %s", pTableMap, suid, tmp);
+  // taosMemoryFree(tmp);
 
   (void)taosThreadMutexLock(pLock);
   pMeta->pCache->sTagFilterResCache.accTimes += 1;
@@ -657,6 +663,12 @@ int32_t metaUidFilterCachePut(void* pVnode, uint64_t suid, const void* pKey, int
 
   uint64_t key[4] = {0};
   initCacheKey(key, pTableEntry, suid, pKey, keyLen);
+
+  // void* tmp = NULL;
+  // uint32_t len = 0;
+  // (void)taosAscii2Hex((const char*)key, 32, &tmp, &len);
+  // qDebug("metaUidFilterCachePut %p %"PRId64" key: %s", pTableEntry, suid, tmp);
+  // taosMemoryFree(tmp);
 
   (void)taosThreadMutexLock(pLock);
   STagFilterResEntry** pEntry = taosHashGet(pTableEntry, &suid, sizeof(uint64_t));

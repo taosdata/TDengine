@@ -19,6 +19,7 @@
 #include "os.h"
 #include "query.h"
 #include "querynodes.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
@@ -30,6 +31,7 @@
 #include "querytask.h"
 #include "storageapi.h"
 #include "tcompression.h"
+#include "tutil.h"
 
 typedef struct tagFilterAssist {
   SHashObj* colHash;
@@ -707,6 +709,12 @@ static int32_t genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
   tMD5Init(pContext);
   tMD5Update(pContext, (uint8_t*)payload, (uint32_t)len);
   tMD5Final(pContext);
+
+  // void* tmp = NULL;
+  // uint32_t size = 0;
+  // (void)taosAscii2Hex((const char*)pContext->digest, 16, &tmp, &size);
+  // qInfo("tag filter digest payload: %s", tmp);
+  // taosMemoryFree(tmp);
 
   taosMemoryFree(payload);
   return TSDB_CODE_SUCCESS;
@@ -1766,6 +1774,85 @@ end:
   return code;
 }
 
+typedef struct {
+  int32_t code;
+  SStreamRuntimeFuncInfo* pStreamRuntimeInfo;
+} PlcaeHolderContext;
+
+static EDealRes replacePlaceHolderColumn(SNode** pNode, void* pContext) {
+  PlcaeHolderContext* pData = (PlcaeHolderContext*)pContext;
+  if (QUERY_NODE_FUNCTION != nodeType((*pNode))) {
+    return DEAL_RES_CONTINUE;
+  }
+  SFunctionNode* pFuncNode = *(SFunctionNode**)(pNode);
+  if (!fmIsStreamPesudoColVal(pFuncNode->funcId)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SNodeList* list = pFuncNode->pParameterList;
+
+  if (LIST_LENGTH(list) != 2){
+    pData->code = TSDB_CODE_INTERNAL_ERROR;
+    return DEAL_RES_ERROR;
+  }
+  SNode* pFirstParam = nodesListGetNode(list, 0);
+  SNode* pSecondParam = nodesListGetNode(list, 1);
+  if (nodeType(pSecondParam) != QUERY_NODE_VALUE) {
+    uError("invalid param node type: %d for func: %d", nodeType(pSecondParam), pFuncNode->funcId);
+    pData->code = TSDB_CODE_INTERNAL_ERROR;
+    return DEAL_RES_ERROR;
+  }
+  
+  SArray* pVal = pData->pStreamRuntimeInfo->pStreamPartColVals;
+  int32_t idx = ((SValueNode*)pSecondParam)->datum.i;
+  if (idx - 1 < 0 || idx - 1 >= taosArrayGetSize(pVal)) {
+    uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, pFuncNode->funcId, (int32_t)taosArrayGetSize(pVal));
+    pData->code = TSDB_CODE_INTERNAL_ERROR;
+    return DEAL_RES_ERROR;
+  }
+  SStreamGroupValue* pValue = taosArrayGet(pVal, idx - 1);
+  if (pValue == NULL) {
+    uError("invalid idx: %d for func: %d, should be in [1, %d]", idx, pFuncNode->funcId, (int32_t)taosArrayGetSize(pVal));
+    pData->code = TSDB_CODE_INTERNAL_ERROR;
+    return DEAL_RES_ERROR;
+  }
+  if (!pValue->isNull){
+    if (pValue->data.type != ((SValueNode*)pFirstParam)->node.resType.type){
+      uError("invalid value type: %d for func: %d, should be: %d", pValue->data.type, pFuncNode->funcId, ((SValueNode*)pFirstParam)->node.resType.type);
+      pData->code = TSDB_CODE_INTERNAL_ERROR;
+      return DEAL_RES_ERROR;
+    }
+    if (IS_VAR_DATA_TYPE(((SValueNode*)pFirstParam)->node.resType.type)) {
+      char* tmp = taosMemoryCalloc(1, pValue->data.nData + VARSTR_HEADER_SIZE); 
+      if (tmp == NULL) {
+        pData->code = TSDB_CODE_OUT_OF_MEMORY;
+        return DEAL_RES_ERROR;
+      }
+      taosMemoryFree(((SValueNode*)pFirstParam)->datum.p);
+      ((SValueNode*)pFirstParam)->datum.p = tmp;
+      memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
+      varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
+    } else {
+      pData->code = nodesSetValueNodeValue((SValueNode*)pFirstParam, VALUE_GET_DATUM(&pValue->data, pValue->data.type));
+      if (pData->code != TSDB_CODE_SUCCESS) {
+        uError("failed to set value node value for func: %d", pFuncNode->funcId);
+        return DEAL_RES_ERROR;
+      }
+    }
+  }
+  ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
+  ((SValueNode*)pFirstParam)->translate = true;
+
+  SValueNode* res = NULL;
+  pData->code = nodesCloneNode(pFirstParam, (SNode**)&res);
+  if (NULL == res) {
+    return DEAL_RES_ERROR;
+  }
+  nodesDestroyNode(*pNode);
+  *pNode = (SNode*)res;
+
+  return DEAL_RES_CONTINUE;
+}
+
 int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI, void* pStreamInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1792,10 +1879,23 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     T_MD5_CTX context = {0};
 
     if (tsTagFilterCache) {
+      if (pStreamInfo != NULL) {
+        SNode* tmp = NULL;
+        nodesCloneNode((SNode*)pTagCond, &tmp);
+        PlcaeHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
+        nodesRewriteExpr(&tmp, replacePlaceHolderColumn, (void*)&ctx);
+        if (TSDB_CODE_SUCCESS != ctx.code) {
+          nodesDestroyNode(tmp);
+          code = ctx.code;
+          goto _error;
+        }
+        code = genTagFilterDigest(tmp, &context);
+        nodesDestroyNode(tmp);
+      } else {
+        code = genTagFilterDigest(pTagCond, &context);
+      }
       // try to retrieve the result from meta cache
-      code = genTagFilterDigest(pTagCond, &context);
-      QUERY_CHECK_CODE(code, lino, _error);
-
+      QUERY_CHECK_CODE(code, lino, _error);      
       bool acquired = false;
       code = pStorageAPI->metaFn.getCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),
                                                     pUidList, &acquired);
