@@ -130,8 +130,14 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
 
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
 
+    static int64_t queryCount = 0;
+    static int64_t resultRows = 0;
+    static int64_t queryAllCost = 0;
+    int64_t startTime = taosGetTimestampUs();
+
     code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
     if (code == TSDB_CODE_STREAM_WALVERSION_NOT_FOUND) {
+      pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       pExchangeInfo->current++;
       continue;
     }
@@ -175,6 +181,20 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
 
     SRetrieveTableRsp*   pRsp = pDataInfo->pRsp;
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
+
+    int64_t cost = taosGetTimestampUs() - startTime;
+    int64_t counts = atomic_add_fetch_64(&queryCount, 1);
+    int64_t sum = atomic_add_fetch_64(&queryAllCost, cost);
+    int64_t rows = atomic_add_fetch_64(&resultRows, pRsp->numOfRows);
+    if (counts % 1000 == 0) {
+      static int64_t lastSum = 0;
+      qInfo(
+          "streamConcurrentlyLoadRemoteData %s avg fetch data time per query %.2f ms this batch per query: %.2f ms, "
+          "total queries: %" PRId64 " total cost: %" PRId64 " total rows: %" PRId64,
+          GET_TASKID(pTaskInfo), (double)sum / (double)counts / 1000.0, (double)(sum - lastSum) / 1000.0, counts, sum,
+          rows);
+      lastSum = sum;
+    }
 
     if (pRsp->numOfRows == 0) {
       qDebug("exhausted %p,%s vgId:%d, clientId:0x%" PRIx64 " taskID:0x%" PRIx64
@@ -1416,6 +1436,11 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
     pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
 
+    static int64_t queryCount = 0;
+    static int64_t queryAllCost = 0;
+    static int64_t resultRows = 0;
+    int64_t        startTime = taosGetTimestampUs();
+
     code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, pExchangeInfo->current);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1431,7 +1456,8 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
       int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
       if (pDataInfo->seqId != currSeqId) {
-        qDebug("seq rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pDataInfo->seqId, pExchangeInfo, currSeqId);
+        qDebug("seq rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it",
+               pDataInfo->seqId, pExchangeInfo, currSeqId);
         taosMemoryFreeClear(pDataInfo->pRsp);
         continue;
       }
@@ -1449,6 +1475,19 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
 
     SRetrieveTableRsp*   pRsp = pDataInfo->pRsp;
     SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
+
+    int64_t cost = taosGetTimestampUs() - startTime;
+    int64_t counts = atomic_add_fetch_64(&queryCount, 1);
+    int64_t sum = atomic_add_fetch_64(&queryAllCost, cost);
+    int64_t rows = atomic_add_fetch_64(&resultRows, pRsp->numOfRows);
+    if (counts % 1000 == 0) {
+      static int64_t lastSum = 0;
+      qInfo(
+          "seqLoadRemoteData %s avg fetch data time per query %.2f ms this batch per query: %.2f ms, "
+          "total queries: %" PRId64 " total cost: %" PRId64 " total rows: %" PRId64,
+          GET_TASKID(pTaskInfo), (double)sum / (double)counts / 1000.0, (double)(sum - lastSum) / 1000.0, counts, sum, rows);
+      lastSum = sum;
+    }
 
     if (pRsp->numOfRows == 0) {
       qDebug("exhausted %p,%s vgId:%d, clientId:0x%" PRIx64 " taskID:0x%" PRIx64

@@ -3084,7 +3084,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   size_t             size = 0;
   void*              taskAddr = NULL;
   SArray*            pResList = NULL;
-  int64_t startTime = taosGetTimestampMs();
+  int64_t startTime = taosGetTimestampUs();
 
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
@@ -3177,9 +3177,16 @@ end:
   SRpcMsg rsp = {.msgType = pMsg->msgType + 1, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   tDestroySResFetchReq(&req);
-  int64_t endTime = taosGetTimestampMs();
-  (void)atomic_add_fetch_64(&queryTimes, 1);
-  (void)atomic_add_fetch_64(&queryTimeAll, endTime - startTime);
+  int64_t endTime = taosGetTimestampUs();
+  int64_t count = atomic_add_fetch_64(&queryTimes, 1);
+  int64_t costSum = atomic_add_fetch_64(&queryTimeAll, endTime - startTime);
+  if (count % 1000 == 0) {
+    static int64_t lastCostTime = 0;
+    ST_TASK_ILOG("stream query total cost time:%" PRId64 " ms, last 1000 cost time:%" PRId64
+                 " ms, total query:%" PRId64,
+                 costSum / 1000, costSum - lastCostTime, count);
+    lastCostTime = costSum;
+  }
   return code;
 }
 
@@ -3195,7 +3202,7 @@ static int32_t vnodeProcessStreamRowsMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SSHashObj* ranges = NULL;
   SResFetchReq req = {0};
 
-  int64_t startTime = taosGetTimestampMs();
+  int64_t startTime = taosGetTimestampUs();
   SSHashObj* indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(indexHash, terrno);
 
@@ -3259,9 +3266,17 @@ end:
   blockDataDestroy(resultRsp.deleteBlock);
   blockDataDestroy(resultRsp.dropBlock);
   tSimpleHashCleanup(ranges);
-  int64_t endTime = taosGetTimestampMs();
-  (void)atomic_add_fetch_64(&rowTimes, 1);
-  (void)atomic_add_fetch_64(&rowTimeAll, endTime - startTime);
+
+  int64_t endTime = taosGetTimestampUs();
+  int64_t count = atomic_add_fetch_64(&queryTimes, 1);
+  int64_t costSum = atomic_add_fetch_64(&queryTimeAll, endTime - startTime);
+  if (count % 1000 == 0) {
+    static int64_t lastCostTime = 0;
+    ST_TASK_ILOG("vnodeProcessStreamRowsMsg total cost time:%" PRId64 " ms, last 1000 cost time:%" PRId64
+                 " ms, total query:%" PRId64,
+                 costSum / 1000, costSum - lastCostTime, count);
+    lastCostTime = costSum;
+  }
   return code;
 }
 
