@@ -21,6 +21,13 @@ export default {
           type: 'input'
         },
         {
+          label: '故障切换服务地址',
+          description: "OPC 服务器的故障切换服务器端点，可以指定多个，用逗号分割。",
+          field: 'failover_endpoints',
+          required: false,
+          type: 'input'
+        },
+        {
           label: '安全模式',
           description:
             'Security mode（安全模式）是 OPC UA 协议中用于保护通信安全的一种机制。安全模式定义了如何加密和验证通信数据，以防止未经授权的访问和篡改。\n',

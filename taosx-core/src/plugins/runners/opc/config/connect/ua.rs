@@ -20,6 +20,7 @@ pub struct UaConnectConfig {
     pub password: Option<String>,
     pub auth_certificate: Option<String>,
     pub auth_private_key: Option<String>,
+    pub auto_reconnect: bool,
 }
 
 impl UaConnectConfig {
@@ -45,6 +46,7 @@ impl UaConnectConfig {
         } else {
             AuthMethod::Anonymous
         };
+        let auto_reconnect = dsn.get("failover_endpoints").is_none_or(|v| v.is_empty());
 
         Ok(Self {
             endpoint,
@@ -59,6 +61,7 @@ impl UaConnectConfig {
             password,
             auth_certificate,
             auth_private_key,
+            auto_reconnect,
         })
     }
 

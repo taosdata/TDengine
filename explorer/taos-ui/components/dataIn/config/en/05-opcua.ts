@@ -10,7 +10,7 @@ export default {
       field: 'connection_options',
       children: [
         {
-          label: 'Server endpoint',
+          label: 'Server Endpoint',
           description:
             'OPC UA server endpoint, such as `127.0.0.1:6666/OPCUA/ServerPath`.\nIf using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.\n',
           field: 'endpoint',
@@ -18,6 +18,13 @@ export default {
           placeholder: '127.0.0.1:6666/OPCUA/ServerPath',
           pattern: null,
           defaultValue: '',
+          type: 'input'
+        },
+        {
+          label: 'Failover Server Endpoints',
+          description: "The failover server endpoint for the OPC server; multiple endpoints can be specified, separated by commas.",
+          field: 'failover_endpoints',
+          required: false,
           type: 'input'
         },
         {

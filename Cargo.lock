@@ -9296,6 +9296,7 @@ dependencies = [
  "flume",
  "legacy-to-taos",
  "local-to-taos",
+ "serde_json",
  "sink-kafka",
  "sink-mqtt",
  "sink-parquet",
