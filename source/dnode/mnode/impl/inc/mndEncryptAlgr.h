@@ -24,7 +24,7 @@ extern "C" {
 #define ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS 1
 
 #define ENCRYPT_ALGR_SOURCE_BUILTIN 1
-
+#define ENCRYPT_ALGR_SOURCE_CUSTOMIZED 2
 
 int32_t mndInitEncryptAlgr(SMnode *pMnode);
 void    mndCleanupEncryptAlgr(SMnode *pMnode);

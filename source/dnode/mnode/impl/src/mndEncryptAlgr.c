@@ -35,9 +35,7 @@ static int32_t tSerializeSEncryptAlgrObj(void *buf, int32_t bufLen, const SEncry
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->desc));
   TAOS_CHECK_EXIT(tEncodeI16(&encoder, pObj->type));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->source));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->ossl_provider));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->ossl_algr_name));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->ossl_provider_path));
 
   tEndEncode(&encoder);
 
@@ -64,9 +62,7 @@ static int32_t tDeserializeSEncryptAlgrObj(void *buf, int32_t bufLen, SEncryptAl
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->desc));
   TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pObj->type));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->source));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->ossl_provider));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->ossl_algr_name));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->ossl_provider_path));
 
   tEndDecode(&decoder);
 
@@ -207,9 +203,7 @@ static void mndSetSM4EncryptAlgr(SEncryptAlgrObj *Obj){
   strncpy(Obj->desc, "商密分组密码标准", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_provider, "default", TSDB_ENCRYPT_ALGR_PROVIDER_LEN);
   strncpy(Obj->ossl_algr_name, "SM4-CBC:SM4", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->ossl_provider_path, "", TSDB_ENCRYPT_ALGR_PROVIDER_PATH_LEN);
 }
 
 static void mndSetAESEncryptAlgr(SEncryptAlgrObj *Obj){
@@ -219,9 +213,7 @@ static void mndSetAESEncryptAlgr(SEncryptAlgrObj *Obj){
   strncpy(Obj->desc, "AES symmetric encryption", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_provider, "default", TSDB_ENCRYPT_ALGR_PROVIDER_LEN);
   strncpy(Obj->ossl_algr_name, "AES-128-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->ossl_provider_path, "", TSDB_ENCRYPT_ALGR_PROVIDER_PATH_LEN);
 }
 /*
 static void mndSetTestEncryptAlgr(SEncryptAlgrObj *Obj){
@@ -328,6 +320,7 @@ _OVER:
 
 #define SYMCBC "Symmetric Ciphers CBC mode"
 #define BUILTIN "build-in"
+#define CUSTOMIZED "customized"
 static int32_t mndRetrieveEncryptAlgr(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows){
   SMnode      *pMnode = pMsg->info.node;
   SSdb        *pSdb = pMnode->pSdb;
@@ -373,22 +366,14 @@ static int32_t mndRetrieveEncryptAlgr(SRpcMsg *pMsg, SShowObj *pShow, SSDataBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if(pObj->source == ENCRYPT_ALGR_SOURCE_BUILTIN){
       tstrncpy(varDataVal(tmpBuf), BUILTIN, strlen(BUILTIN) + 1);
+    } else if (pObj->source == ENCRYPT_ALGR_SOURCE_CUSTOMIZED) {
+      tstrncpy(varDataVal(tmpBuf), CUSTOMIZED, strlen(CUSTOMIZED) + 1);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pObj, &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    tstrncpy(varDataVal(tmpBuf), pObj->ossl_provider, TSDB_ENCRYPT_ALGR_PROVIDER_LEN);
-    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pObj, &lino, _OVER);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     tstrncpy(varDataVal(tmpBuf), pObj->ossl_algr_name, TSDB_ENCRYPT_ALGR_NAME_LEN);
-    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pObj, &lino, _OVER);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    tstrncpy(varDataVal(tmpBuf), pObj->ossl_provider_path, TSDB_ENCRYPT_ALGR_PROVIDER_PATH_LEN);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pObj, &lino, _OVER);
 
@@ -430,6 +415,7 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   SEncryptAlgrObj Obj = {0};
   int32_t         id = sdbGetMaxId(pMnode->pSdb, SDB_ENCRYPT_ALGORITHMS);
   if (id < 100) id = 101;
+  Obj.id = id;
   strncpy(Obj.algorithm_id, createReq.algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
   strncpy(Obj.name, createReq.name, TSDB_ENCRYPT_ALGR_NAME_LEN);
   strncpy(Obj.desc, createReq.desc, TSDB_ENCRYPT_ALGR_DESC_LEN);
@@ -438,7 +424,7 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   } else {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_ENCRYPT_ALGR_TYPE, &lino, _OVER);
   }
-  Obj.source = ENCRYPT_ALGR_SOURCE_BUILTIN;
+  Obj.source = ENCRYPT_ALGR_SOURCE_CUSTOMIZED;
   strncpy(Obj.ossl_algr_name, createReq.osslAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-enc-algr");

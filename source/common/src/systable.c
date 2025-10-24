@@ -430,9 +430,7 @@ static const SSysDbTableSchema userEncryptAlgrSchema[] = {
     {.name = "desc", .bytes = TSDB_ENCRYPT_ALGR_DESC_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "type", .bytes = 200, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "source", .bytes = 200, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "ossl_provider", .bytes = TSDB_ENCRYPT_ALGR_PROVIDER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "ossl_algr_name", .bytes = TSDB_ENCRYPT_ALGR_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "ossl_provider_path", .bytes = TSDB_ENCRYPT_ALGR_PROVIDER_PATH_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userScansSchema[] = {
