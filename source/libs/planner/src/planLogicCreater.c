@@ -1771,8 +1771,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
 
   int32_t code = TSDB_CODE_SUCCESS;
   // no agg func
-  if (!pSelect->hasAggFuncs) {
-    if (pSelect->hasIndefiniteRowsFunc) {
+  if (!pSelect->hasAggFuncs || !pSelect->pFromTable) {
+    if (pSelect->hasIndefiniteRowsFunc && pSelect->pFromTable) {
       pWindow->node.requireDataOrder = getRequireDataOrder(pSelect->hasTimeLineFunc, pSelect);
       pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
       nodesDestroyList(pWindow->pFuncs);
