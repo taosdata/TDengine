@@ -1028,7 +1028,7 @@
 ,,n,.,pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
 
 ### 6-cluster
-,,n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
+90,,n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_create_db_replica1.py -N 4 -M 1
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
