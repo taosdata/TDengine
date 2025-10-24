@@ -2380,6 +2380,9 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       continue;  // skip column data format
     }
+    if (pTbData->flags & SUBMIT_REQ_ONLY_CREATE_TABLE) {
+      continue;  // skip only crate table request
+    }
 
     code = metaGetInfo(pVnode->pMeta, pTbData->uid, &info, NULL);
     if (code) {
@@ -2426,6 +2429,10 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
   for (int32_t i = 0; i < numTbData; ++i) {
     int32_t        affectedRows = 0;
     SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
+
+    if (pTbData->flags & SUBMIT_REQ_ONLY_CREATE_TABLE) {
+      continue;
+    }
 
     if (hasBlob) {
       code = vnodeSubmitBlobData(pVnode, pTbData);
@@ -2530,7 +2537,7 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
   int32_t numRows = taosArrayGetSize(pTbData->aRowP);
   SRow  **aRow = (SRow **)TARRAY_DATA(pTbData->aRowP);
 
-  if (numRows <= 0) {
+  if (numRows <= 0 && (pTbData->flags & SUBMIT_REQ_ONLY_CREATE_TABLE) == 0) {
     code = TSDB_CODE_INVALID_MSG;
     vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " numRows:%d", TD_VID(pVnode), __func__,
            __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, numRows);
