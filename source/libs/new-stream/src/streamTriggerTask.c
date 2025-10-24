@@ -893,14 +893,13 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
     goto _end;
   }
 
-  // use weighted average to select the free slot
-  int32_t rnd = taosRand() % nIdleSlots;
-  for (int32_t i = 0; i < nCalcNodes; i++) {
-    pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, i);
-    if (TD_DLIST_NELES(&pNode->idleSlots) > rnd) {
-      break;
+  // select a free slot with payload balance
+  pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, 0);
+  for (int32_t i = 1; i < nCalcNodes; i++) {
+    SSTriggerCalcNode *pTmpNode = TARRAY_GET_ELEM(pTask->pCalcNodes, i);
+    if (TD_DLIST_NELES(&pTmpNode->idleSlots) > TD_DLIST_NELES(&pNode->idleSlots)) {
+      pNode = pTmpNode;
     }
-    rnd -= TD_DLIST_NELES(&pNode->idleSlots);
   }
   SSTriggerCalcSlot *pSlot = TD_DLIST_HEAD(&pNode->idleSlots);
   QUERY_CHECK_NULL(pSlot, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2255,7 +2254,12 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
   switch (pMsg->msgType) {
     case STREAM_MSG_START: {
       if (pTask->task.status != STREAM_STATUS_INIT) {
-        // redundant message, ignore it
+        ST_TASK_DLOG("ignore redundant start message, current status: %d", pTask->task.status);
+        break;
+      }
+      if (taosArrayGetSize(pTask->pVirTableInfoRsp) > 0 && taosArrayGetSize(pTask->readerList) == 0) {
+        ST_TASK_DLOG("ignore start message since orig table readers are not ready, vir table count: %" PRId64,
+                     TARRAY_SIZE(pTask->pVirTableInfoRsp));
         break;
       }
       if (pTask->pRealtimeContext == NULL) {
@@ -2303,7 +2307,8 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
     }
     case STREAM_MSG_ORIGTBL_READER_INFO: {
       if (pTask->task.status != STREAM_STATUS_INIT || taosArrayGetSize(pTask->readerList) > 0) {
-        // redundant message, ignore it
+        ST_TASK_DLOG("ignore redundant original reader info, current status: %d, reader count: %" PRId64,
+                     pTask->task.status, TARRAY_SIZE(pTask->readerList));
         break;
       }
       SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
