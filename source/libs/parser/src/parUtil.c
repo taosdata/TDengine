@@ -58,6 +58,16 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid tag name: %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
       return "Name or password too long";
+    case TSDB_CODE_PAR_ALGR_ID_TOO_LONG:
+      return "Algorithm ID too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_NAME_TOO_LONG:
+      return "Algorithm name too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_DESC_TOO_LONG:
+      return "Algorithm description too long, max lenght is 127 character";
+    case TSDB_CODE_PAR_ALGR_TYPE_TOO_LONG:
+      return "Algorithm type too long, max lenght is 63 character";
+    case TSDB_CODE_PAR_ALGR_OSSL_NAME_TOO_LONG:
+      return "Algorithm OpenSSL name too long, max lenght is 63 character";
     case TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY:
       return "Password too short or empty";
     case TSDB_CODE_PAR_INVALID_PORT:
