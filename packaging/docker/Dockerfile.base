@@ -12,7 +12,7 @@ ARG APT_SECURITY_SOURCE="http://mirrors.aliyun.com/debian-security/"
 ARG RESTORE_ORIGINAL_SOURCES=true
 
 
-# 使用构建参数配置镜像源
+# use custom apt sources if specified
 RUN if [ "$USE_CUSTOM_SOURCES" = "true" ]; then \
         echo "deb ${APT_SOURCE} bookworm main non-free contrib" > /etc/apt/sources.list && \
         echo "deb ${APT_SOURCE} bookworm-updates main non-free contrib" >> /etc/apt/sources.list && \
@@ -20,16 +20,16 @@ RUN if [ "$USE_CUSTOM_SOURCES" = "true" ]; then \
         echo "deb ${APT_SECURITY_SOURCE} bookworm-security main non-free contrib" >> /etc/apt/sources.list; \
     fi
     
-# 安装系统依赖
+# install system dependencies
 RUN apt-get update && \
     apt-get upgrade -y && \
-    # 安装基础包（根据实际需求调整）
+    # install basic packages (adjust according to actual needs)
     apt-get install -y --no-install-recommends \
         curl \
         locales \
         tzdata \
         tini \
-        # 监控和调试工具
+        # monitoring and debugging tools
         net-tools \
         netcat-openbsd \
         gdb \
@@ -41,12 +41,12 @@ RUN apt-get update && \
     # clean cache
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    # 6. 设置locale
+    # set locale
     echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
     echo "zh_CN.UTF-8 UTF-8" >> /etc/locale.gen && \
     locale-gen
 
-# 设置环境变量和时区
+# set environment variables and timezone
 ENV DEBIAN_FRONTEND=noninteractive \
     LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \

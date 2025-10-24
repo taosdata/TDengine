@@ -1,6 +1,6 @@
-
-
-# 阶段1：基础镜像构建
+# build arg: dirName tdengine-tsdb-enterprise-3.3.8.1
+# build arg: pkgFile tdengine-tsdb-enterprise-*-linux-*.tar.gz
+# stage1: build the installer image
 FROM tdengine/tdengine-debian-base AS tdengine-installer
 
 ARG dirName
@@ -18,37 +18,36 @@ RUN cd /tmp && tar -zxf ${pkgFile} && \
     ln -sf libtaosnative.so.* libtaosnative.so && \
     ln -sf libtaosws.so.* libtaosws.so 
 
-# 阶段3：最终运行时镜像
+# stage2: runtime image
 FROM tdengine/tdengine-debian-base 
 
-# 只复制安装好的文件（不包含安装包）
-
-
+# copy bin/lib/confg/include file from installer stage
 COPY --from=tdengine-installer /usr/local/taos/bin/taos* /usr/bin/
 COPY --from=tdengine-installer /usr/local/taos/driver/ /usr/lib/
 COPY --from=tdengine-installer /usr/local/taos/include/ /usr/include/
 COPY --from=tdengine-installer /etc/taos/ /etc/taos/
-# copy 打包目录 bin 文件的 entrypoint.sh
+
+# copy entrypoint.sh from packaging directory
 COPY ./bin/* /usr/bin/
 
-# 配置环境变量
+# set environment variables
 ENV LD_LIBRARY_PATH="/usr/lib/:/usr/local/lib" \
     PATH="/usr/bin:${PATH:-}" \
     TAOS_QUERY_USE_MEMORY_POOL=0
 
-# 创建初始化脚本目录
+# create initialization script directory
 RUN mkdir /docker-entrypoint-initdb.d
 
-# 定义数据和日志卷
+# define data and log volumes
 VOLUME [ "/var/lib/taos", "/var/log/taos"]
 
-# 设置容器启动命令
+# set container startup command
 ENTRYPOINT ["tini", "--", "/usr/bin/entrypoint.sh"]
 
-# 设置停止信号
+# set stop signal
 STOPSIGNAL SIGINT
 
-# 暴露端口
+# expose ports
 # 6030 taosd
 # 6041 taosAdapter
 # 6043 taosKeeper
