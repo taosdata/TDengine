@@ -348,7 +348,7 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
 
       *str = '"';
       int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1);
-      if (length <= 0) {
+      if (length < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       *(str + length + 1) = '"';
