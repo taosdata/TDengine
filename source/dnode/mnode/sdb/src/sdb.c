@@ -127,6 +127,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->deployFps[sdbType] = table.deployFp;
   pSdb->encodeFps[sdbType] = table.encodeFp;
   pSdb->decodeFps[sdbType] = table.decodeFp;
+  pSdb->upgradeFps[sdbType] = table.upgradeFp;
   pSdb->afterRestoredFps[sdbType] = table.afterRestoredFp;
   pSdb->validateFps[sdbType] = table.validateFp;
 

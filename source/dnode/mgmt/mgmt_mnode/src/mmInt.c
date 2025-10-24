@@ -156,8 +156,25 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 }
 
 static int32_t mmStart(SMnodeMgmt *pMgmt) {
+  int32_t code = 0;
   dDebug("mnode-mgmt start to run");
-  return mndStart(pMgmt->pMnode);
+  SMnodeOpt option = {0};
+  if ((code = mmReadFile(pMgmt->path, &option)) != 0) {
+    dError("failed to read file since %s", tstrerror(code));
+    mmClose(pMgmt);
+    return code;
+  }
+  if ((code = mndStart(pMgmt->pMnode)) != 0) {
+    return code;
+  }
+  if (mndNeedUpgrade(pMgmt->pMnode, option.version)) {
+    option.version = mndGetVersion(pMgmt->pMnode);
+    if ((code = mmWriteFile(pMgmt->path, &option)) != 0) {
+      dError("failed to write mnode file since %s", tstrerror(code));
+      return code;
+    }
+  }
+  return code;
 }
 
 static void mmStop(SMnodeMgmt *pMgmt) {

@@ -802,6 +802,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   mndSetOptions(pMnode, pOption);
 
   pMnode->deploy = pOption->deploy;
+  pMnode->version = pOption->version;
   pMnode->pSteps = taosArrayInit(24, sizeof(SMnodeStep));
   if (pMnode->pSteps == NULL) {
     taosMemoryFree(pMnode);
@@ -873,10 +874,19 @@ int32_t mndStart(SMnode *pMnode) {
     }
     mndSetRestored(pMnode, true);
   }
+  if (sdbUpgrade(pMnode->pSdb, pMnode->version) != 0) {
+    mError("failed to upgrade sdb while start mnode");
+    return -1;
+  }
+  pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
 
   return mndInitTimer(pMnode);
 }
+
+bool mndNeedUpgrade(SMnode *pMnode, int32_t version) { return pMnode->version > version; }
+
+int32_t mndGetVersion(SMnode *pMnode) { return pMnode->version; }
 
 int32_t mndIsCatchUp(SMnode *pMnode) {
   int64_t rid = pMnode->syncMgmt.sync;

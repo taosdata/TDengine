@@ -22,6 +22,8 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
 
   tjsonGetInt32ValueFromDouble(pJson, "deployed", pOption->deploy, code);
   if (code < 0) return code;
+  tjsonGetInt32ValueFromDouble(pJson, "version", pOption->version, code);
+  if (code < 0) return code;
   tjsonGetInt32ValueFromDouble(pJson, "selfIndex", pOption->selfIndex, code);
   if (code < 0) return code;
   tjsonGetInt32ValueFromDouble(pJson, "lastIndex", pOption->lastIndex, code);
@@ -156,6 +158,8 @@ static int32_t mmEncodeOption(SJson *pJson, const SMnodeOpt *pOption) {
   if ((code = tjsonAddDoubleToObject(pJson, "lastIndex", pOption->lastIndex)) < 0) return code;
 
   if ((code = tjsonAddDoubleToObject(pJson, "deployed", pOption->deploy)) < 0) return code;
+
+  if ((code = tjsonAddDoubleToObject(pJson, "version", pOption->version)) < 0) return code;
 
   return code;
 }

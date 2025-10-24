@@ -223,9 +223,7 @@ static void mndSetTestEncryptAlgr(SEncryptAlgrObj *Obj){
   strncpy(Obj->desc, "AES symmetric encryption", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_provider, "default", TSDB_ENCRYPT_ALGR_PROVIDER_LEN);
   strncpy(Obj->ossl_algr_name, "vigenere", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->ossl_provider_path, "", TSDB_ENCRYPT_ALGR_PROVIDER_PATH_LEN);
 }
 */
 static SSdbRaw * mndCreateEncryptAlgrRaw(STrans *pTrans, SEncryptAlgrObj *Obj) {
@@ -249,11 +247,13 @@ static SSdbRaw * mndCreateEncryptAlgrRaw(STrans *pTrans, SEncryptAlgrObj *Obj) {
 }
 
 #define ALGR_NUM 2
-static int32_t  mndCreateBuiltinEncryptAlgr(SMnode *pMnode){
+static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
   int32_t code = 0;
   SArray* objArray = NULL;
   STrans* pTrans = NULL;
   SArray* rawArray = NULL;
+
+  if (version >= TSDB_MNODE_BUILTIN_DATA_VERSION) return 0;
 
   objArray = taosArrayInit(ALGR_NUM, sizeof(SEncryptAlgrObj));
   if (objArray == NULL) {
@@ -478,7 +478,7 @@ int32_t mndInitEncryptAlgr(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_ENCRYPT_ALGORITHMS,
       .keyType = SDB_KEY_INT32,
-      .deployFp = (SdbDeployFp)mndCreateBuiltinEncryptAlgr,
+      .upgradeFp = (SdbUpgradeFp)mndCreateBuiltinEncryptAlgr,
       .encodeFp = (SdbEncodeFp)mndEncryptAlgrActionEncode,
       .decodeFp = (SdbDecodeFp)mndEncryptAlgrActionDecode,
       .insertFp = (SdbInsertFp)mndEncryptAlgrActionInsert,
