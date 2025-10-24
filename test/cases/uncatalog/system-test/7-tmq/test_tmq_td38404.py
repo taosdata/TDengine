@@ -38,8 +38,8 @@ class TestCase:
 
         tdSql.execute("create topic db_38404_topic with meta as database db_td38404")
         buildPath = tdCom.getBuildPath()
-        # cmdStr = '%s/build/bin/tmq_td38404'%(buildPath)
-        cmdStr = '/Users/mingming/code/TDengine2/debug/build/bin/tmq_td38404'
+        cmdStr = '%s/build/bin/tmq_td38404'%(buildPath)
+        # cmdStr = '/Users/mingming/code/TDengine2/debug/build/bin/tmq_td38404'
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
