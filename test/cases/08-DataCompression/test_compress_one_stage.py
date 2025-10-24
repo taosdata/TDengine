@@ -100,22 +100,26 @@ class TestOneStageComp:
 
     # run
     def test_one_stage_comp(self):
-        """summary: xxx
+        """Check compress data accuracy
 
-        description: xxx
+        1. taosBenchmark create 1 stb 10 ctb
+        2. Insert each child table 100000 rows with fixed column values
+        3. Check data accuracy with column value is not equal to fixed value
+        4. Check data accuracy with column value is equal to fixed value
+        5. Do snapshot aggregation
+        6. Check aggregation result correctness
+        7. Insert null values into all columns except timestamp column
+        8. Check null values correctness
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/storage/test_one_stage_comp.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 

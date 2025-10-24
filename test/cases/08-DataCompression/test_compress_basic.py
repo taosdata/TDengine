@@ -21,7 +21,7 @@ class TestCompressBasic:
     # compress
     compresses = ["lz4","zlib","zstd","disabled","xz"]
 
-    compressDefaultDict = {};
+    compressDefaultDict = {}
     compressDefaultDict["BOOL"] = "zstd"
     compressDefaultDict["TINYINT"] = "zlib"
     compressDefaultDict["SMALLINT"] = "zlib"
@@ -343,22 +343,26 @@ class TestCompressBasic:
  
     # run
     def test_compress_basic(self):
-        """summary: xxx
+        """Tool system tables inspect
 
-        description: xxx
+        1. Create 1 stb(17 columns) and 4 child tables
+        2. Insert each child table 1000 rows data
+        3. Check default encode/compress/level is correct
+        4. Alter encode/compress/level for columns and insert data
+        5. flush database
+        6. Add columns with encode/compress/level and insert data
+        7. Check all data is correct
+        8. Check error create/alter/add column with encode/compress/level
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
+        Jira: None
 
-        Catalog:
-            - xxx:xxx
-        
         History:
-            - xxx
-            - xxx
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/storage/test_compress_basic.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 
