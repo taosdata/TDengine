@@ -21,13 +21,12 @@ jobs:
         
       - name: Run your script
         shell: cmd 
-        run: where python3
+        run: which python3 ; which pytest
 
-      - name: Run your script
-        run: where python3
         
       - name: Run your script
-        run: python3 c:\\test.py
+        shell: cmd 
+        run: python3 -V
 
 
 
