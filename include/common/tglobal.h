@@ -319,7 +319,6 @@ extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsQueryTrimIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
-extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int32_t tsStreamBufferSize;
 extern int64_t tsStreamBufferSizeBytes;
