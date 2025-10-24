@@ -176,6 +176,8 @@ function run_thread() {
     fi
     local count=0
     local script="${workdirs[index]}/TDengine/test/ci/run_container.sh"
+    local group_running_file="${workdirs[index]}/tmp/group_running${index}.txt"
+    touch "$group_running_file"
     if [ $ent -ne 0 ]; then
         local script="${workdirs[index]}/TDinternal/community/test/ci/run_container.sh -e"
     fi
@@ -184,7 +186,60 @@ function run_thread() {
     # script="echo"
     while true; do
         local line
-        line=$(flock -x "$lock_file" -c "head -n1 $task_file;sed -i \"1d\" $task_file")
+
+        flock -x "$lock_file" -c "
+            # check if host lock file is not empty
+            if [ -s '$group_running_file' ]; then
+                # has group cases running, get case without same group id
+                # read group id from host lock file
+                group_ids=\$(cat '$group_running_file' 2>/dev/null)
+                echo "Host ${hosts[index]} is running cases with group ids: \$group_ids"
+                if [ -n \"\$group_ids\" ]; then
+                    # build exclude pattern
+                    exclude_pattern=\"\"
+                    for num in \$group_ids; do
+                        if [ -n \"\$exclude_pattern\" ]; then
+                            exclude_pattern=\"\$exclude_pattern|^\$num\"
+                        else
+                            exclude_pattern=\"^\$num\"
+                        fi
+                    done
+                    # find first line not match exclude pattern and get its group id
+                    selected_line=\$(sed -n \"/\$exclude_pattern/!p\" '$task_file' | head -n1)
+                    if [ -n \"\$selected_line\" ]; then
+                        case_group_id=\$(echo \"\$selected_line\" | cut -d, -f1)
+                        if [ -n \"\$case_group_id\" ]; then
+                            echo \"\$case_group_id\n\" >> '$group_running_file'
+                        fi
+                        line=\"\$selected_line\"
+                        # delete first line not match exclude pattern
+                        sed -i \"/\$exclude_pattern/!{1d;q}\" '$task_file'
+                    fi
+                else
+                    # file is empty, get head case
+                    selected_line=\$(head -n1 '$task_file')
+                    if [ -n \"\$selected_line\" ]; then
+                        case_group_id=\$(echo \"\$selected_line\" | cut -d, -f1)
+                        if [ -n \"\$case_group_id\" ]; then
+                            echo \"\$case_group_id\n\" >> '$group_running_file'
+                        fi
+                        line=\"\$selected_line\"
+                        sed -i '1d' '$task_file'
+                    fi
+                fi
+            else
+                # no group cases running, get head case
+                selected_line=\$(head -n1 '$task_file')
+                if [ -n \"\$selected_line\" ]; then
+                    case_group_id=\$(echo \"\$selected_line\" | cut -d, -f1)
+                    if [ -n \"\$case_group_id\" ]; then
+                        echo \"\$case_group_id\n\" >> '$group_running_file'
+                    fi
+                    line=\"\$selected_line\"
+                    sed -i '1d' '$task_file'
+                fi
+            fi
+        "
         if [ "x$line" = "x%%FINISHED%%" ]; then
             break
         fi
@@ -195,6 +250,12 @@ function run_thread() {
             continue
         fi
         local case_redo_time
+        case_group_id=$(echo "$line" | cut -d, -f1)
+        if [ -z "$case_group_id" ]; then
+            case_group_id="0"
+        else
+            echo "Running group cases. group id: ${case_group_id}"
+        fi
         case_redo_time=$(echo "$line" | cut -d, -f2)
         if [ -z "$case_redo_time" ]; then
             case_redo_time=${DEFAULT_RETRY_TIME:-2}
@@ -343,6 +404,9 @@ function run_thread() {
         total_time=$((end_time - start_time))
         echo "${hosts[index]} total time: ${total_time}s" >>"$case_log_file"
         # echo "$thread_no ${line} DONE"
+
+        # remove group id from group running file
+        flock -x "$lock_file" -c "sed -i '/^${case_group_id}$/d' '$group_running_file'"
 
         local scpcmd=""
         local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
