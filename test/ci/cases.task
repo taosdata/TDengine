@@ -450,6 +450,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_force_drop_topic.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_topic.py
 ## 02-Native
+,,y,.,./ci/pytest.sh pytest cases/7-DataSubscription/02-Native/test_tmq_bugs.py -N 3
 ,,n,.,pytest cases/17-DataSubscription/02-Native/test_tmq_cons1_v1_snapshot.py
 ,,n,.,pytest cases/17-DataSubscription/02-Native/test_tmq_cons1_v1_t1.py
 ,,n,.,pytest cases/17-DataSubscription/02-Native/test_tmq_cons1_v1_tn.py
@@ -741,8 +742,6 @@
 
 #newstm,,n,.,pytest cases/uncatalog/army/storage/ss/test_ss_basic.py -N 3
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/stream/test_stream_vtable.py
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tmq/test_tmq_bugs.py -N 3
 
 # army/tools
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline.py

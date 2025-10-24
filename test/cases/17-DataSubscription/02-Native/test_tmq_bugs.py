@@ -54,7 +54,7 @@ class TestTmqBugs:
                 val = res.value()
                 if val is None:
                     continue
-                cnt = 0;
+                cnt = 0
                 for block in val:
                     cnt += len(block.fetchall())
 
@@ -73,22 +73,19 @@ class TestTmqBugs:
         tdSql.execute(f'drop database d1')
 
     def test_tmq_bugs(self):
-        """summary: xxx
+        """Consumer bugs
 
-        description: xxx
+        1. Verify bug TD-31283
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/tmq/test_tmq_bugs.py
+
         """
         self.td_31283_test()
         
