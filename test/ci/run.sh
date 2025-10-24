@@ -115,7 +115,12 @@ while true; do
 done
 
 function prepare_cases() {
-    cat "$t_file" >>"$task_file"
+    {
+        # 1. 有数字的行按数字逆序排序
+        grep "^[0-9]" $t_file | sort -nr
+        # 2. 无数字且非注释且非空的行保持原顺序
+        grep -v "^[0-9]" $t_file | grep -v "^#" | grep -v "^$"
+    } > $task_file
     echo "" >>"$task_file"
     local i=0
     while [ $i -lt "$1" ]; do

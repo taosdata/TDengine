@@ -1,4 +1,4 @@
-#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#priority,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 
 ### 82-unit-test
@@ -10,9 +10,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal1.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal2.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal3.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal1.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal2.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal3.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py
@@ -200,7 +200,7 @@
 ## 01-SQL
 ,,n,.,pytest cases/10-DataIngestion/01-SQL/test_write.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_basic.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_bug.py
+90,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_bug.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_column_value.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_datatypes.py
@@ -571,7 +571,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
 # 42-TSMAs
-,,y,.,./ci/pytest.sh pytest cases/42-TSMAs/test_tsma.py
+80,,y,.,./ci/pytest.sh pytest cases/42-TSMAs/test_tsma.py
 
 ## 43-RSMAs
 ,,y,.,./ci/pytest.sh pytest cases/43-RSMAs/test_rsma.py
@@ -1007,7 +1007,7 @@
 
 
 # ​​​Special gap before priority support
-,,n,.,pytest cases/41-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
+90,,n,.,pytest cases/41-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_odbc.py
