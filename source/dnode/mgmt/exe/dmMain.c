@@ -12,14 +12,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #define _DEFAULT_SOURCE
-#include <openssl/err.h>
-#include <openssl/evp.h>
+
 #include <openssl/provider.h>
 #include "dmMgmt.h"
 #include "dmUtil.h"
 #include "mnode.h"
+#include "osEnv.h"
 #include "osFile.h"
 #include "qworker.h"
 #include "tconfig.h"
@@ -592,20 +591,25 @@ int mainWindows(int argc, char **argv) {
     return code;
   };
 
-  dInfo("load encrypt ext from %s", tsEncryptExtDir);
+  if (tsEncryptExtDir[0] != '\0') {
+    dInfo("load encrypt ext from %s", tsEncryptExtDir);
 
-  OSSL_PROVIDER *prov = OSSL_PROVIDER_load(NULL, tsEncryptExtDir);
+    tsProvCustomized = OSSL_PROVIDER_load(NULL, tsEncryptExtDir);
+    if (tsProvCustomized == NULL) {
+      dError("failed to load provider:%s", tsEncryptExtDir);
+      return TSDB_CODE_DNODE_FAIL_LOAD_ENCRYPT_PROV;
+    }
 
-  dInfo("load encrypt ext %p", prov);
+    dInfo("load encrypt ext %p", tsProvCustomized);
 
-  prov = OSSL_PROVIDER_load(NULL, "default");
+    tsProvDefault = OSSL_PROVIDER_load(NULL, "default");
+    if (tsProvDefault == NULL) {
+      dError("failed to load default provider");
+      return TSDB_CODE_DNODE_FAIL_LOAD_ENCRYPT_PROV;
+    }
 
-  dInfo("load encrypt default ext %p", prov);
-
-  // OSSL_PROVIDER_unload(prov);
-
-  // EVP_CIPHER *cipher = EVP_CIPHER_fetch(NULL, "vigenere", NULL);
-  // dInfo("cipher %p", cipher);
+    dInfo("load encrypt default ext %p", tsProvDefault);
+  }
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {

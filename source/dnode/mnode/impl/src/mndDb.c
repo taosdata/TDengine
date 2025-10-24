@@ -868,7 +868,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     if (pEncryptAlgr != NULL) {
       dbObj.cfg.encryptAlgorithm = pEncryptAlgr->id;
     } else {
-      code = TSDB_CODE_DNODE_ENCRYPT_ALGR_NOT_EXIST;
+      code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
       mError("db:%s, faile to create, encrypt algorithm not exist, %s", pCreate->db, pCreate->encryptAlgrName);
       TAOS_RETURN(code);
     }

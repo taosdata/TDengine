@@ -409,7 +409,7 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   SEncryptAlgrObj *exist = mndAcquireEncryptAlgrByAId(pMnode, createReq.algorithmId);
   if (exist != NULL) {
     mndReleaseEncryptAlgr(pMnode, exist);
-    TAOS_CHECK_GOTO(TSDB_CODE_ALGR_EXIST, &lino, _OVER);
+    TAOS_CHECK_GOTO(TSDB_CODE_MNODE_ALGR_EXIST, &lino, _OVER);
   }
 
   SEncryptAlgrObj Obj = {0};
@@ -422,7 +422,7 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   if (strncmp(createReq.type, "Symmetric_Ciphers_CBC_mode", TSDB_ENCRYPT_ALGR_TYPE_LEN) == 0) {
     Obj.type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
   } else {
-    TAOS_CHECK_GOTO(TSDB_CODE_INVALID_ENCRYPT_ALGR_TYPE, &lino, _OVER);
+    TAOS_CHECK_GOTO(TSDB_CODE_MNODE_INVALID_ENCRYPT_ALGR_TYPE, &lino, _OVER);
   }
   Obj.source = ENCRYPT_ALGR_SOURCE_CUSTOMIZED;
   strncpy(Obj.ossl_algr_name, createReq.osslAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
