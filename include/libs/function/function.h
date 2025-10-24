@@ -285,6 +285,7 @@ typedef struct SqlFunctionCtx {
   SFuncInputRowIter    rowIter;
   bool                 bInputFinished;
   bool                 hasWindowOrGroup;  // denote that the function is used with time window or group
+  bool                 hasWindow;         // denote that the function is used with time window
   bool                 needCleanup;       // denote that the function need to be cleaned up
   int32_t              inputType; // save the fuction input type funcs like finalize
 } SqlFunctionCtx;
