@@ -1,5 +1,6 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
-
+import os
+import time
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, etool
 
 class TestDatatypeGeometry:
 
@@ -7,34 +8,17 @@ class TestDatatypeGeometry:
         tdLog.debug(f"start to execute {__file__}")
         tdSql.prepare(dbname="db", drop=True)
 
-    def test_datatype_geometry(self):
-        """DataTypes: geometry
-
-        1. Create table
-        2. Insert data
-        3. Auto-create table
-        4. Alter tag value
-        5. Handle illegal input
-
-        Catalog:
-            - DataTypes
-            - Tables:SubTables:Create
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_geometry.sim
-
-        """
+    #
+    # ------------------- sim ----------------
+    #
+    def do_sim_geometry(self):
         self.create_table()
         self.insert_data()
         self.auto_create_table()
         self.alter_tag_value()
         self.illegal_input()
+        print("\n")
+        print("do sim geometry ....................... [passed]")
 
     def create_table(self):
         tdLog.info(f"create super table")
@@ -338,3 +322,76 @@ class TestDatatypeGeometry:
         tdSql.error(
             f"insert into st_geometry_1015 using mt_varbinary tags(NULL) values(now(), toDay)"
         )
+
+    #
+    # ------------------- army ----------------
+    #   
+    def checkGeometry(self):
+        tdLog.info(f"check geometry")
+
+        tdSql.execute("create database db_geometry;")
+        tdSql.execute("use db_geometry;")
+        tdSql.execute("create table t_ge (ts timestamp, id int, c1 GEOMETRY(512));")
+        tdSql.execute("insert into t_ge values(1717122943000, 1, 'MULTIPOINT ((0 0), (1 1))');")
+        tdSql.execute("insert into t_ge values(1717122944000, 1, 'MULTIPOINT (0 0, 1 1)');")
+        tdSql.execute("insert into t_ge values(1717122945000, 2, 'POINT (0 0)');")
+        tdSql.execute("insert into t_ge values(1717122946000, 2, 'POINT EMPTY');")
+        tdSql.execute("insert into t_ge values(1717122947000, 3, 'LINESTRING (0 0, 0 1, 1 2)');")
+        tdSql.execute("insert into t_ge values(1717122948000, 3, 'LINESTRING EMPTY');")
+        tdSql.execute("insert into t_ge values(1717122949000, 4, 'POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))');")
+        tdSql.execute("insert into t_ge values(1717122950000, 4, 'POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0), (1 1, 1 2, 2 2, 2 1, 1 1))');")
+        tdSql.execute("insert into t_ge values(1717122951000, 4, 'POLYGON EMPTY');")
+        tdSql.execute("insert into t_ge values(1717122952000, 5, 'MULTILINESTRING ((0 0, 1 1), (2 2, 3 3))');")
+        tdSql.execute("insert into t_ge values(1717122953000, 6, 'MULTIPOLYGON (((1 1, 1 3, 3 3, 3 1, 1 1)), ((4 3, 6 3, 6 1, 4 1, 4 3)))');")
+        tdSql.execute("insert into t_ge values(1717122954000, 7, 'GEOMETRYCOLLECTION (MULTIPOINT((0 0), (1 1)), POINT(3 4), LINESTRING(2 3, 3 4))');")
+        tdSql.query("select * from t_ge;")
+        tdSql.checkRows(12)
+        tdSql.query("select * from t_ge where id=1;")
+        tdSql.checkRows(2)
+        tdSql.query("select * from t_ge where id=2;")
+        tdSql.checkRows(2)
+        tdSql.query("select * from t_ge where id=3;")
+        tdSql.checkRows(2)
+        tdSql.query("select * from t_ge where id=4;")
+        tdSql.checkRows(3)
+        tdSql.query("select * from t_ge where id=5;")
+        tdSql.checkRows(1)
+        tdSql.query("select * from t_ge where id=6;")
+        tdSql.checkRows(1)
+        tdSql.query("select * from t_ge where id=7;")
+        tdSql.checkRows(1)
+
+ 
+    def do_army_geometry(self):
+        self.checkGeometry()
+        print("do army geometry ...................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_datatype_geometry(self):
+        """DataTypes: geometry
+
+        1. Create stable with geometry datatype on column and tag
+        2. Insert and query data with geometry datatype
+        3. Automatically create child table with geometry datatype on tag
+        4. Alter tag value with geometry datatype
+        5. Test illegal input for geometry datatype
+        6. Create normal table with geometry datatype on column
+        7. Insert and query data with geometry datatype
+        8. Insert geometry column/tag with NULL value
+        9. Insert geometry format: POINT/LINESTRING/POLYGON,/MULTIPOINT/MULTILINESTRING/MULTIPOLYGON/GEOMETRYCOLLECTION
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-5-12 Simon Guan Migrated from tsim/parser/columnValue_geometry.sim
+            - 2025-10-24 Alex Duan Migrated from test/cases/uncatalog/army/insert/test_insert_basic.py
+
+        """
+        self.do_sim_geometry()
+        self.do_army_geometry()
