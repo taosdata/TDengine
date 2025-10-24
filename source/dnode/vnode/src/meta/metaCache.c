@@ -986,7 +986,7 @@ int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid) {
     goto _return;
   }
 
-  (void)taosHashRemove(pEntryHashMap, &suid, sizeof(uint64_t));
+  code = taosHashRemove(pEntryHashMap, &suid, sizeof(uint64_t));
 
   metaDebug("vgId:%d suid:%" PRId64 " cached virtual stable ref db cleared", vgId, suid);
 
