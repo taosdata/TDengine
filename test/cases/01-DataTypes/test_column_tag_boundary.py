@@ -163,22 +163,28 @@ class TestColumnTagBoundary:
             tdSql.checkData(row_num, 1, bytes.fromhex(column))
 
     def test_column_tag_boundary(self):
-        """summary: xxx
+        """Column and tag boundary
 
-        description: xxx
+        1. Create stable with max column and tag length
+        2. Insert data with max column and tag length
+        3. Verify data correctness with query
+        4. Create column/tag with binary
+        5. Create column/tag with varchar
+        6. Create column/tag with nchar
+        7. Create column/tag with varbinary
+        8. Create tag with json
+        9. Insert data with chinese sring on nchar
+        
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/create/test_column_tag_boundary.py
+
         """
         self.prepare_data()
         self.run_test_binary_boundary()

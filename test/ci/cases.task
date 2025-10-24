@@ -4,7 +4,7 @@
 
 # 01-DataTypes
 
-
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_column_tag_boundary.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
@@ -138,7 +138,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
-
 ## 03-PrimaryKey
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_create.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_delete.py
@@ -727,10 +726,6 @@
 
 
 # army
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_column_tag_boundary.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py 
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py
 
 #newstm,,n,.,pytest cases/uncatalog/army/storage/ss/test_ss_basic.py -N 3
