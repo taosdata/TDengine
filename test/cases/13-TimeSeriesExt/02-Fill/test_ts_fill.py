@@ -2147,3 +2147,150 @@ class TestFill:
         self.do_fill_desc()
         self.do_fill_null()
         self.do_window_fill_value()
+
+    def test_fill_sliding_duration(self):
+        """Fill with sliding test case
+
+        1. check the correctness of duration when filling null for sliding interval window
+
+        Since: v3.3.6
+
+        Labels: common,ci, fill, duration
+
+        Jira: TS-7496
+
+        History:
+            - 2025-10-23 Tony Zhang created
+
+        """
+        tdSql.execute("create database if not exists " \
+                        "test_fill_sliding_duration;", show=True)
+        tdSql.execute("use test_fill_sliding_duration;")
+        tdSql.execute("create table tt (ts timestamp, v float)")
+        tdSql.execute('''insert into tt values
+                            ('2025-10-10 12:01:00', 1),
+                            ('2025-10-10 12:03:00', 2),
+                            ('2025-10-10 12:06:00', 3),
+                            ('2025-10-10 12:07:00', 4),
+                            ('2025-10-10 12:09:00', 5),
+                            ('2025-10-10 12:19:00', 6),
+                            ('2025-10-10 12:20:00', 7),
+                            ('2025-10-10 12:21:00', 8),
+                            ('2025-10-10 12:22:00', 9),
+                            ('2025-10-10 12:25:00', 10),
+                            ('2025-10-10 12:28:00', 11),
+                            ('2025-10-10 12:29:00', 12);''', show=True)
+
+        tdSql.query("select _wstart, _wduration, _wend, first(ts) as f, "
+                        "last(ts) as l from tt "
+                        "where ts >= '2025-10-10 12:00:00.000' "
+                        "and ts <= '2025-10-10 12:30:00.000' "
+                        "interval(5m) sliding(2m) fill(null)", show=True)
+        tdSql.checkRows(18)
+        tdSql.checkData(0, 0, "2025-10-10 11:56:00.000")
+        tdSql.checkData(0, 1, 300000)
+        tdSql.checkData(0, 2, "2025-10-10 12:01:00.000")
+        tdSql.checkData(0, 3, None)
+        tdSql.checkData(0, 4, None)
+
+        tdSql.checkData(1, 0, "2025-10-10 11:58:00.000")
+        tdSql.checkData(1, 1, 300000)
+        tdSql.checkData(1, 2, "2025-10-10 12:03:00.000")
+        tdSql.checkData(1, 3, "2025-10-10 12:01:00.000")
+        tdSql.checkData(1, 4, "2025-10-10 12:01:00.000")
+
+        tdSql.checkData(2, 0, "2025-10-10 12:00:00.000")
+        tdSql.checkData(2, 1, 300000)
+        tdSql.checkData(2, 2, "2025-10-10 12:05:00.000")
+        tdSql.checkData(2, 3, "2025-10-10 12:01:00.000")
+        tdSql.checkData(2, 4, "2025-10-10 12:03:00.000")
+
+        tdSql.checkData(3, 0, "2025-10-10 12:02:00.000")
+        tdSql.checkData(3, 1, 300000)
+        tdSql.checkData(3, 2, "2025-10-10 12:07:00.000")
+        tdSql.checkData(3, 3, "2025-10-10 12:03:00.000")
+        tdSql.checkData(3, 4, "2025-10-10 12:06:00.000")
+
+        tdSql.checkData(4, 0, "2025-10-10 12:04:00.000")
+        tdSql.checkData(4, 1, 300000)
+        tdSql.checkData(4, 2, "2025-10-10 12:09:00.000")
+        tdSql.checkData(4, 3, "2025-10-10 12:06:00.000")
+        tdSql.checkData(4, 4, "2025-10-10 12:07:00.000")
+
+        tdSql.checkData(5, 0, "2025-10-10 12:06:00.000")
+        tdSql.checkData(5, 1, 300000)
+        tdSql.checkData(5, 2, "2025-10-10 12:11:00.000")
+        tdSql.checkData(5, 3, "2025-10-10 12:06:00.000")
+        tdSql.checkData(5, 4, "2025-10-10 12:09:00.000")
+
+        tdSql.checkData(6, 0, "2025-10-10 12:08:00.000")
+        tdSql.checkData(6, 1, 300000)
+        tdSql.checkData(6, 2, "2025-10-10 12:13:00.000")
+        tdSql.checkData(6, 3, "2025-10-10 12:09:00.000")
+        tdSql.checkData(6, 4, "2025-10-10 12:09:00.000")
+
+        tdSql.checkData(7, 0, "2025-10-10 12:10:00.000")
+        tdSql.checkData(7, 1, 300000)
+        tdSql.checkData(7, 2, "2025-10-10 12:15:00.000")
+        tdSql.checkData(7, 3, None)
+        tdSql.checkData(7, 4, None)
+
+        tdSql.checkData(8, 0, "2025-10-10 12:12:00.000")
+        tdSql.checkData(8, 1, 300000)
+        tdSql.checkData(8, 2, "2025-10-10 12:17:00.000")
+        tdSql.checkData(8, 3, None)
+        tdSql.checkData(8, 4, None)
+
+        tdSql.checkData(9, 0, "2025-10-10 12:14:00.000")
+        tdSql.checkData(9, 1, 300000)
+        tdSql.checkData(9, 2, "2025-10-10 12:19:00.000")
+        tdSql.checkData(9, 3, None)
+        tdSql.checkData(9, 4, None)
+
+        tdSql.checkData(10, 0, "2025-10-10 12:16:00.000")
+        tdSql.checkData(10, 1, 300000)
+        tdSql.checkData(10, 2, "2025-10-10 12:21:00.000")
+        tdSql.checkData(10, 3, "2025-10-10 12:19:00.000")
+        tdSql.checkData(10, 4, "2025-10-10 12:20:00.000")
+
+        tdSql.checkData(11, 0, "2025-10-10 12:18:00.000")
+        tdSql.checkData(11, 1, 300000)
+        tdSql.checkData(11, 2, "2025-10-10 12:23:00.000")
+        tdSql.checkData(11, 3, "2025-10-10 12:19:00.000")
+        tdSql.checkData(11, 4, "2025-10-10 12:22:00.000")
+
+        tdSql.checkData(12, 0, "2025-10-10 12:20:00.000")
+        tdSql.checkData(12, 1, 300000)
+        tdSql.checkData(12, 2, "2025-10-10 12:25:00.000")
+        tdSql.checkData(12, 3, "2025-10-10 12:20:00.000")
+        tdSql.checkData(12, 4, "2025-10-10 12:22:00.000")
+
+        tdSql.checkData(13, 0, "2025-10-10 12:22:00.000")
+        tdSql.checkData(13, 1, 300000)
+        tdSql.checkData(13, 2, "2025-10-10 12:27:00.000")
+        tdSql.checkData(13, 3, "2025-10-10 12:22:00.000")
+        tdSql.checkData(13, 4, "2025-10-10 12:25:00.000")
+
+        tdSql.checkData(14, 0, "2025-10-10 12:24:00.000")
+        tdSql.checkData(14, 1, 300000)
+        tdSql.checkData(14, 2, "2025-10-10 12:29:00.000")
+        tdSql.checkData(14, 3, "2025-10-10 12:25:00.000")
+        tdSql.checkData(14, 4, "2025-10-10 12:28:00.000")
+
+        tdSql.checkData(15, 0, "2025-10-10 12:26:00.000")
+        tdSql.checkData(15, 1, 300000)
+        tdSql.checkData(15, 2, "2025-10-10 12:31:00.000")
+        tdSql.checkData(15, 3, "2025-10-10 12:28:00.000")
+        tdSql.checkData(15, 4, "2025-10-10 12:29:00.000")
+
+        tdSql.checkData(16, 0, "2025-10-10 12:28:00.000")
+        tdSql.checkData(16, 1, 300000)
+        tdSql.checkData(16, 2, "2025-10-10 12:33:00.000")
+        tdSql.checkData(16, 3, "2025-10-10 12:28:00.000")
+        tdSql.checkData(16, 4, "2025-10-10 12:29:00.000")
+
+        tdSql.checkData(17, 0, "2025-10-10 12:30:00.000")
+        tdSql.checkData(17, 1, 300000)
+        tdSql.checkData(17, 2, "2025-10-10 12:35:00.000")
+        tdSql.checkData(17, 3, None)
+        tdSql.checkData(17, 4, None)

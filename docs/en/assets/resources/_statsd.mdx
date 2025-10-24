@@ -5,7 +5,8 @@ Method to configure taosAdapter to receive StatsD data:
 - Enable the configuration item in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
 
     ```toml
-    ...
+    # Automatically create the database when writing data with the schemaless feature if set to true.
+    smlAutoCreateDB = true
     [statsd]
     enable = true
     port = 6044
@@ -22,10 +23,11 @@ Method to configure taosAdapter to receive StatsD data:
     deleteGauges = true
     deleteSets = true
     deleteTimings = true
-    ...
     ```
 
     The default database name written by taosAdapter is `statsd`, but you can also modify the db item in the taosAdapter configuration file to specify a different name. Fill in the user and password with the actual TDengine configuration values. After modifying the configuration file, taosAdapter needs to be restarted.
+
+    The `smlAutoCreateDB` configuration item is used to enable the automatic database creation feature. When set to true, taosAdapter will automatically create the corresponding database upon receiving data if it does not already exist.
 
 - You can also use taosAdapter command line arguments or set environment variables to enable the taosAdapter to receive StatsD data. For more details, please refer to the taosAdapter reference manual.
 
