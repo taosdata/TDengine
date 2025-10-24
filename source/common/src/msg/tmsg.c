@@ -7268,7 +7268,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI16(encoder, pRsp->sstTrigger));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->keepTimeOffset));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->withArbitrator));
-  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->encryptAlgorithm));
+  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->encryptAlgr));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->ssChunkSize));
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->ssKeepLocal));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->ssCompact));
@@ -7278,6 +7278,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI32v(encoder, pRsp->compactEndTime));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->compactTimeOffset));
   TAOS_CHECK_RETURN(tEncodeU8(encoder, pRsp->flags));
+  TAOS_CHECK_RETURN(tEncodeCStr(encoder, pRsp->algorithmsId));
 
   return 0;
 }
@@ -7360,13 +7361,13 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   }
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->withArbitrator));
-    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->encryptAlgorithm));
+    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->encryptAlgr));
     TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->ssChunkSize));
     TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->ssKeepLocal));
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->ssCompact));
   } else {
     pRsp->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
-    pRsp->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
+    pRsp->encryptAlgr = TSDB_DEFAULT_ENCRYPT_ALGO;
     pRsp->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
     pRsp->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
     pRsp->ssCompact = TSDB_DEFAULT_SS_COMPACT;
@@ -7390,6 +7391,9 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
 
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeU8(decoder, &pRsp->flags));
+  }
+  if (!tDecodeIsEnd(decoder)) {
+    TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pRsp->algorithmsId));
   }
 
   return 0;

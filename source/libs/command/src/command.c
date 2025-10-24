@@ -411,15 +411,21 @@ static const char* cacheModelStr(int8_t cacheModel) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
-static const char* encryptAlgorithmStr(int8_t encryptAlgorithm) {
-  switch (encryptAlgorithm) {
-    case TSDB_ENCRYPT_ALGO_NONE:
-      return TSDB_ENCRYPT_ALGO_NONE_STR;
-    case TSDB_ENCRYPT_ALGO_SM4:
-      return TSDB_ENCRYPT_ALGO_SM4_STR;
-    default:
-      break;
+static const char* encryptAlgorithmStr(int8_t encryptAlgorithm, char* algorithmsId) {
+  if (algorithmsId[0] != '\0') {
+    return algorithmsId;
+  } else if (encryptAlgorithm != 0) {
+    switch (encryptAlgorithm) {
+      case TSDB_ENCRYPT_ALGO_NONE:
+        return TSDB_ENCRYPT_ALGO_NONE_STR;
+      case TSDB_ENCRYPT_ALGO_SM4:
+        return TSDB_ENCRYPT_ALGO_SM4_STR;
+      default:
+        break;
+    }
+    return TSDB_CACHE_MODEL_NONE_STR;
   }
+
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
@@ -510,9 +516,9 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
                   pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str, keep1Str, keep2Str,
                   pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
                   1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
-                  pCfg->walRetentionSize, pCfg->keepTimeOffset, encryptAlgorithmStr(pCfg->encryptAlgorithm),
-                  pCfg->ssChunkSize, pCfg->ssKeepLocal, pCfg->ssCompact, compactIntervalStr, compactStartTimeStr,
-                  compactEndTimeStr, pCfg->compactTimeOffset);
+                  pCfg->walRetentionSize, pCfg->keepTimeOffset,
+                  encryptAlgorithmStr(pCfg->encryptAlgr, pCfg->algorithmsId), pCfg->ssChunkSize, pCfg->ssKeepLocal,
+                  pCfg->ssCompact, compactIntervalStr, compactStartTimeStr, compactEndTimeStr, pCfg->compactTimeOffset);
 
     if (pRetentions) {
       len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,

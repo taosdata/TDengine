@@ -44,6 +44,7 @@
 #include "systable.h"
 #include "thttp.h"
 #include "tjson.h"
+#include "mndEncryptAlgr.h"
 
 #define DB_VER_NUMBER   1
 #define DB_RESERVE_SIZE 14
@@ -1459,7 +1460,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
+static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId) {
   tstrncpy(cfgRsp->db, pDb->name, sizeof(cfgRsp->db));
   cfgRsp->dbId = pDb->uid;
   cfgRsp->cfgVersion = pDb->cfgVersion;
@@ -1499,12 +1500,13 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->ssKeepLocal = pDb->cfg.ssKeepLocal;
   cfgRsp->ssCompact = pDb->cfg.ssCompact;
   cfgRsp->withArbitrator = pDb->cfg.withArbitrator;
-  cfgRsp->encryptAlgorithm = pDb->cfg.encryptAlgorithm;
+  // cfgRsp->encryptAlgr = pDb->cfg.encryptAlgorithm;
   cfgRsp->compactInterval = pDb->cfg.compactInterval;
   cfgRsp->compactStartTime = pDb->cfg.compactStartTime;
   cfgRsp->compactEndTime = pDb->cfg.compactEndTime;
   cfgRsp->compactTimeOffset = pDb->cfg.compactTimeOffset;
   cfgRsp->flags = pDb->cfg.flags;
+  tstrncpy(cfgRsp->algorithmsId, algorithmsId, sizeof(cfgRsp->algorithmsId));
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
@@ -1524,7 +1526,9 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    mndDumpDbCfgInfo(&cfgRsp, pDb);
+    char algrId[TSDB_ENCRYPT_ALGR_NAME_LEN] = {0};
+    mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, algrId);
+    mndDumpDbCfgInfo(&cfgRsp, pDb, algrId);
   }
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
@@ -2133,7 +2137,9 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
     if (pDbCacheInfo->cfgVersion < pDb->cfgVersion) {
       rsp.cfgRsp = taosMemoryCalloc(1, sizeof(SDbCfgRsp));
-      mndDumpDbCfgInfo(rsp.cfgRsp, pDb);
+      char algrId[TSDB_ENCRYPT_ALGR_NAME_LEN] = {0};
+      mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, algrId);
+      mndDumpDbCfgInfo(rsp.cfgRsp, pDb, algrId);
     }
 
     if (pDbCacheInfo->tsmaVersion != pDb->tsmaVersion) {

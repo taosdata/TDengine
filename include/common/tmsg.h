@@ -1970,7 +1970,8 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLast;
-  int8_t  encryptAlgorithm;
+  int8_t  encryptAlgr;
+  char    algorithmsId[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int32_t ssChunkSize;
   int32_t ssKeepLocal;
   int8_t  ssCompact;
