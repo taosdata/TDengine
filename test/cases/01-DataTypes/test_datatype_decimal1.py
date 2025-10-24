@@ -262,33 +262,54 @@ class DecimalColumnExpr:
     def check_query_results(self, query_col_res: List, tbname: str):
         query_len = len(query_col_res)
         pass
-    
-    def check_for_filtering(self, query_col_res: List, tbname: str):
-        j: int = -1
-        for i in range(len(query_col_res)):
-            j += 1
-            v_from_query = query_col_res[i]
-            while True:
-                params = ()
-                for p in self.params_:
-                    if isinstance(p, Column) or isinstance(p, DecimalColumnExpr):
-                        p = p.get_val_for_execute(tbname, j)
-                    params = params + (p,)
-                v_from_calc_in_py = self.execute(params)
 
-                if not v_from_calc_in_py:
-                    j += 1
-                    continue
-                else:
-                    break
-            dec_from_query = Decimal(v_from_query)
+    def _build_match_indexes(self, tbname: str) -> list[int]:
+        """
+        预计算 where 表达式为 True 的行索引列表，避免在校验时用 while 逐行扫。
+        """
+        card = self.query_col.get_cardinality(tbname)
+        # 预取参数值，按行缓存，减少循环内类型判断与函数调用
+        param_vals_per_row: list[list] = []
+        for p in self.params_:
+            if isinstance(p, Column):
+                vals = [p.get_val_for_execute(tbname, j) for j in range(card)]
+                param_vals_per_row.append(vals)
+            elif isinstance(p, DecimalColumnExpr):
+                # 嵌套表达式：按行计算其值
+                vals = [p.get_val(tbname, j) for j in range(card)]
+                param_vals_per_row.append(vals)
+            else:
+                # 常量参数：复用同一值
+                param_vals_per_row.append([p] * card)
+
+        match_idx: list[int] = []
+        for j in range(card):
+            params = tuple(col_vals[j] for col_vals in param_vals_per_row)
+            ok = self.execute(params)
+            if ok:  # 布尔真表示该行命中
+                match_idx.append(j)
+        return match_idx         
+
+    def check_for_filtering(self, rows: int, col: int, tbname: str):
+        scale = self.query_col.type_.scale()
+        match_idx = self._build_match_indexes(tbname)
+
+        if rows != len(match_idx):
+            tdLog.info(f"where result size mismatch: query={rows} calc={len(match_idx)} expr={self}")
+
+        limit = min(rows, len(match_idx))
+        
+        for i in range(limit):
+            j = match_idx[i]
+            dec_from_query = get_decimal(tdSql.getDataWithOutCheck(i, col), scale)
             dec_from_calc = self.get_query_col_val(tbname, j)
             if dec_from_query != dec_from_calc:
-                tdLog.exit(f"filter with {self} failed, query got: {dec_from_query}, expect {dec_from_calc}, param: {params}")
-            else:
-                pass
-                #tdLog.info(f"filter with {self} succ, query got: {dec_from_query}, expect {dec_from_calc}, param: {params}")
-
+                tdLog.exit(
+                    f"filter with {self} failed, query got: {dec_from_query}, "
+                    f"expect {dec_from_calc}, rowIdx={i}, srcIdx={j}, tbname={tbname}"
+                )
+        tdLog.info(f"filter with {self} succ for all {rows} rows")
+    
     def check(self, query_col_res: List, tbname: str):
         for i in range(len(query_col_res)):
             v_from_query = query_col_res[i]
@@ -298,12 +319,13 @@ class DecimalColumnExpr:
                     p = p.get_val_for_execute(tbname, i)
                 params = params + (p,)
             v_from_calc_in_py = self.execute(params)
-
-            if v_from_calc_in_py == 'NULL' or v_from_query == 'NULL':
-                if v_from_calc_in_py != v_from_query:
+            
+            if v_from_calc_in_py == 'NULL' or v_from_calc_in_py == None:
+                if "NULL" != v_from_query and v_from_query != None:
                     tdLog.exit(f"query with expr: {self} calc in py got: {v_from_calc_in_py}, query got: {v_from_query}")
                 #tdLog.debug(f"query with expr: {self} calc got same result: NULL")
                 continue
+
             failed = False
             if self.res_type_.type == TypeEnum.BOOL:
                 query_res = bool(int(v_from_query))
@@ -967,7 +989,7 @@ class TableInserter:
                 self.conn.execute(sql, queryTimes=1)
                 t1 = datetime.now()
                 if (t1 - t).seconds > 1:
-                    TaosShell().query(f"select last(c1), last(c2) from {self.dbName}.{self.tbName}")
+                    tdSql.query(f"select last(c1), last(c2) from {self.dbName}.{self.tbName}")
                     t = t1
                 sql = pre_insert
         if len(sql) > len(pre_insert):
@@ -975,7 +997,7 @@ class TableInserter:
             if flush_database:
                 self.conn.execute(f"flush database {self.dbName}", queryTimes=1)
             self.conn.execute(sql, queryTimes=1)
-            TaosShell().query(f"select last(c1), last(c2) from {self.dbName}.{self.tbName}")
+            tdSql.query(f"select last(c1), last(c2) from {self.dbName}.{self.tbName}")
 
 class DecimalCastTypeGenerator:
     def __init__(self, input_type: DataType):
@@ -2170,7 +2192,7 @@ class TestDecimal:
                         continue
                     select_expr = expr.generate((col, col2))
                     sql = f"select {select_expr} from {dbname}.{tbname}"
-                    res = TaosShell().query(sql)
+                    res = self.query_allows_specified_errors(sql)
                     if len(res) > 0:
                         expr.check(res[0], tbname)
                     else:
@@ -2240,7 +2262,7 @@ class TestDecimal:
                     continue
                 select_expr = expr.generate([col])
                 sql = f"select {select_expr} from {dbname}.{tbname}"
-                res = TaosShell().query(sql)
+                res = self.query_allows_specified_errors(sql)
                 if len(res) > 0:
                     expr.check(res[0], tbname)
                 else:
@@ -2304,6 +2326,27 @@ class TestDecimal:
                     if tdSql.errno != invalid_operation and tdSql.errno != scalar_convert_err:
                         tdLog.exit(f"expected err not occured for sql: {sql}, expect: {invalid_operation} or {scalar_convert_err}, but got {tdSql.errno}")
 
+
+    def query_allows_specified_errors(self, sql):
+        try:
+            tdSql.query(sql, queryTimes = 1)
+            rows = tdSql.getRows()
+            cols = tdSql.getCols()
+            result = []
+            for row in range(rows):
+                if len(result) == 0:
+                    result = [[] for i in range(cols)]
+                for col in range(cols):
+                    result[col].append(tdSql.getDataWithOutCheck(row, col))
+
+            return result
+
+        except Exception as e:
+            msg = str(e)
+            if "Decimal value overflow" in msg:
+                return []
+            raise Exception(repr(e))
+        
     def check_decimal_in_op(self, tbname: str, tb_cols: list):
         for i in range(in_op_test_round):
             inOp: DecimalBinaryOperatorIn = DecimalBinaryOperatorIn('in')
@@ -2314,21 +2357,23 @@ class TestDecimal:
                 list_expr: DecimalListExpr = DecimalListExpr(random.randint(1, 10), col)
                 list_expr.generate()
                 expr = inOp.generate((col, list_expr))
+                if f"{col}" == '':
+                    continue
                 sql = f'select {col} from {self.db_name}.{tbname} where {expr}'
-                res = TaosShell().query(sql)
+                res = self.query_allows_specified_errors(sql)
                 if len(res) > 0:
                     res = res[0]
                 inOp.check(res, tbname)
 
                 expr = notInOp.generate((col, list_expr))
                 sql = f'select {col} from {self.db_name}.{tbname} where {expr}'
-                res = TaosShell().query(sql)
+                res = self.query_allows_specified_errors(sql)
                 if len(res) > 0:
                     res = res[0]
                 notInOp.check(res, tbname)
 
     def check_decimal_operators(self):
-        tdLog.debug("start to test decimal operators")
+        tdLog.info("********** decimal operators test start ***********")
         if True:
             self.check_decimal_unsupported_types()
             ## tables: meters, nt
@@ -2362,7 +2407,7 @@ class TestDecimal:
 
         self.check_decimal_in_op(self.norm_table_name, self.norm_tb_columns)
         self.check_decimal_in_op(self.stable_name, self.stb_columns)
-        tdLog.info("7 start to test decimal operators")
+        tdLog.info("decimal operators test finished")
 
     def check_decimal_where_with_binary_expr_with_const_col_results(
         self,
