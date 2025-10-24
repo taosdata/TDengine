@@ -26,15 +26,7 @@ class TestTaosinspect:
         
         assert get_column == True, f"Cannot find {column_name} in {stable_name}"
                 
-    def run_system_table_schema_verification(self):
-        """验证巡检工具依赖的系统表结构
-        
-        验证所有巡检工具运行所依赖的系统表结构是否正确
-
-        Since: v3.1
-
-        """
-        
+    def run_system_table_schema_verification(self):        
         tdLog.info("===== Testing scenario: Verify definition of system tables for inspect tools =====")
         # 1. server_version
         tdSql.query("select server_version()")
@@ -222,22 +214,34 @@ class TestTaosinspect:
 
     # Run tests
     def test_taosinspect(self):
-        """summary: xxx
+        """Tool system tables inspect
 
-        description: xxx
+        1. Check columns completeness on information_schema tables:
+        2. information_schema.ins_stables
+        3. information_schema.ins_dnode_variables
+        4. information_schema.ins_dnodes
+        5. information_schema.ins_mnodes
+        6. information_schema.ins_vnodes
+        7. information_schema.ins_users
+        8. information_schema.ins_user_privileges
+        9. information_schema.ins_grants
+        10. information_schema.ins_databases
+        11. information_schema.ins_tables
+        12. information_schema.ins_streams
+        13. information_schema.ins_topics
+        14. information_schema.ins_subscriptions
+        15. information_schema.ins_vgroups
+        16. information_schema.ins_stream_tasks
+        
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/inspect-tools/test_taosinspect.py
+
         """
         tdLog.debug(f"Start to execute {__file__}")
 
