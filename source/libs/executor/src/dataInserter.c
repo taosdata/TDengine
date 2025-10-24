@@ -2011,8 +2011,8 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
   if (dataInsertInfo->isLastBlock) {
     int32_t nRows = taosArrayGetSize(tbData->aRowP);
     if (taosArrayGetSize(tbData->aRowP) == 0) {
-      stDebug("no valid data to insert, skip this block");
-      code = TSDB_CODE_STREAM_NO_DATA;
+      tbData->flags |= SUBMIT_REQ_ONLY_CREATE_TABLE;
+      stDebug("no valid data to insert, try to only create tabale:%s", pInsertParam->tbname);
     }
     stDebug("appendInsertData, isLastBlock:%d, needSortMerge:%d, totalRows:%d", dataInsertInfo->isLastBlock,
             dataInsertInfo->needSortMerge, nRows);
