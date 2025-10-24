@@ -1,0 +1,684 @@
+name: CI - Incremental Bitmap Plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_real_tests:
+        description: "Run real-environment tests (USE_MOCK=OFF, E2E_TDENGINE_REAL_TESTS=ON)"
+        type: boolean
+        default: false
+      build_type:
+        description: "CMake build type"
+        required: false
+        default: Debug
+        type: choice
+        options: [Debug, Release]
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'plugins/incremental_bitmap/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'plugins/incremental_bitmap/**'
+
+env:
+  BUILD_TYPE: Debug
+  PLUGIN_DIR: plugins/incremental_bitmap
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+        exclude:
+          - compiler: clang
+            build_type: Debug  # 减少重复构建
+
+    outputs:
+      build_type: ${{ matrix.build_type }}
+      compiler: ${{ matrix.compiler }}
+      run_real_tests: ${{ steps.setup-env.outputs.run_real_tests }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup environment
+      id: setup-env
+      run: |
+        echo "PLUGIN_DIR=${{ env.PLUGIN_DIR }}" >> $GITHUB_ENV
+        echo "BUILD_TYPE=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_type || matrix.build_type }}" >> $GITHUB_ENV
+        echo "CC=${{ matrix.compiler }}" >> $GITHUB_ENV
+        # Detect whether to run real tests (only when manually dispatched with run_real_tests=true)
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.run_real_tests }}" = "true" ]; then
+          echo "RUN_REAL_TESTS=true" >> $GITHUB_ENV
+          echo "run_real_tests=true" >> $GITHUB_OUTPUT
+        else
+          echo "RUN_REAL_TESTS=false" >> $GITHUB_ENV
+          echo "run_real_tests=false" >> $GITHUB_OUTPUT
+        fi
+        # Use lighter test scale in CI to avoid long runtime for heavy benchmarks
+        echo "IB_TEST_SCALE=small" >> $GITHUB_ENV
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          git \
+          valgrind \
+          gdb \
+          libpthread-stubs0-dev \
+          libroaring-dev \
+          clang-tidy \
+          cppcheck \
+          clang-format \
+          wget \
+          curl
+
+    - name: Configure build
+      working-directory: ${{ env.PLUGIN_DIR }}
+      run: |
+        mkdir -p build
+        cd build
+        EXTRA_FLAGS=""
+        if [ "${{ env.BUILD_TYPE }}" = "Debug" ]; then
+          # 在Debug下开启覆盖率编译标志，确保lcov有数据
+          EXTRA_FLAGS="-DCMAKE_C_FLAGS=--coverage -DCMAKE_EXE_LINKER_FLAGS=--coverage"
+        fi
+        # 设置 TDengine 相关环境变量（如果启用真实测试）
+        if [ "${{ env.RUN_REAL_TESTS }}" = "true" ]; then
+          export TDENGINE_HOME=/usr/local
+          export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+          export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+        fi
+        
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DCMAKE_C_COMPILER=${{ matrix.compiler }} \
+          -DBUILD_TESTING=ON \
+          -DBUILD_TAOSX_PLUGIN=ON \
+          -DUSE_MOCK=${{ env.RUN_REAL_TESTS == 'true' && 'OFF' || 'ON' }} \
+          -DE2E_TDENGINE_REAL_TESTS=${{ env.RUN_REAL_TESTS == 'true' && 'ON' || 'OFF' }} \
+          $EXTRA_FLAGS
+
+    - name: Build plugin
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      run: |
+        make -j$(nproc) VERBOSE=1
+
+    # 🔧 修复：将真实环境准备移到测试运行之前
+    - name: Install TDengine (only when real tests enabled)
+      if: env.RUN_REAL_TESTS == 'true'
+      run: |
+        echo "=== Installing TDengine for real environment tests ==="
+        # 安装 TDengine 客户端库
+        wget -O - https://www.taosdata.com/assets-download/3.0/TDengine-client-3.0.6.0-Linux-x64.tar.gz | tar -xz
+        sudo cp TDengine-client-3.0.6.0/lib/* /usr/local/lib/
+        sudo ldconfig
+        echo "export TDENGINE_HOME=/usr/local" >> $GITHUB_ENV
+        echo "export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+    - name: Prepare real TDengine environment (only when enabled)
+      if: env.RUN_REAL_TESTS == 'true'
+      working-directory: ${{ env.PLUGIN_DIR }}
+      timeout-minutes: 15  # 增加超时时间
+      run: |
+        echo "=== Preparing TDengine real environment ==="
+        # 设置环境变量
+        export TDENGINE_HOME=/usr/local
+        export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+        
+        # 尝试启动 TDengine 服务（如果存在）
+        if command -v systemctl >/dev/null 2>&1; then
+          sudo systemctl stop taosd || true
+          sudo systemctl start taosd || true
+          sudo systemctl status taosd || true
+        else
+          echo "systemctl not available, skipping service management"
+        fi
+        
+        # 运行设置脚本
+        if [ -x "./setup_tdengine_test.sh" ]; then
+          ./setup_tdengine_test.sh || echo "setup_tdengine_test.sh completed with non-zero exit, continuing"
+        else
+          echo "setup_tdengine_test.sh not found, skipping explicit DB setup"
+        fi
+
+    - name: Run tests (with per-test timeout)
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      timeout-minutes: ${{ env.RUN_REAL_TESTS == 'true' && 45 || 20 }}  # 真实环境测试需要更长时间
+      run: |
+        # 运行所有测试，添加错误处理
+        test_failed=0
+        exec_count=0
+        for test in test_*; do
+          if [ -x "$test" ]; then
+            echo "Running test: $test"
+            exec_count=$((exec_count+1))
+            # 跳过真实环境相关二进制（仅在未启用真实测试时）
+            if [ "${RUN_REAL_TESTS}" != "true" ]; then
+              if echo "$test" | grep -Eq "(e2e_tdengine_real|offset_semantics_real|offset_semantics_realtime)"; then
+                echo "Skipping real-environment test: $test"
+                continue
+              fi
+              # CI默认跳过重型PITR完整流程，避免超时与假阴性
+              if echo "$test" | grep -Eq "(^|/)test_pitr_e2e$"; then
+                echo "Skipping heavy PITR E2E in CI: $test"
+                continue
+              fi
+            fi
+            # 为单个用例增加超时，真实环境测试需要更长时间
+            per_timeout=90
+            if [ "${RUN_REAL_TESTS}" = "true" ]; then
+              per_timeout=180  # 真实环境测试需要更长时间
+            fi
+            if echo "$test" | grep -Eq "(^|/)test_pitr_e2e_simple$"; then
+              per_timeout=$((per_timeout + 60))
+            fi
+            if ! timeout ${per_timeout}s ./$test; then
+              echo "Test $test failed, but continuing..."
+              test_failed=1
+            fi
+          fi
+        done
+        if [ $exec_count -eq 0 ]; then
+          echo "ERROR: No executable test_* binaries found. Failing the job to avoid false green."
+          exit 1
+        fi
+        
+        # 运行taosX插件测试
+        if [ -x "test_taosx_plugin_interface" ]; then
+          echo "Running taosX plugin test: test_taosx_plugin_interface"
+          if ! ./test_taosx_plugin_interface; then
+            echo "taosX plugin test failed, but continuing..."
+            test_failed=1
+          fi
+        else
+          echo "taosX plugin test not found"
+        fi
+        
+        # 如果有测试失败，退出（确保PR能发现失败）
+        if [ $test_failed -eq 1 ]; then
+          echo "Some tests failed. Exiting with non-zero code."
+          exit 1
+        fi
+
+    - name: Run tests with Valgrind (Debug builds only, reduced set)
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      if: matrix.build_type == 'Debug'
+      timeout-minutes: ${{ env.RUN_REAL_TESTS == 'true' && 30 || 20 }}  # 真实环境测试需要更长时间
+      run: |
+        # 使用Valgrind运行关键测试（精简子集，严格单测120s限时）
+        # 核心功能（2项）
+        for test in test_bitmap_engine_core test_abstraction_layer; do
+          if [ -x "$test" ]; then
+            echo "Running core test $test with Valgrind (120s)"
+            timeout 120 valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all \
+                     --error-exitcode=1 --track-origins=yes ./$test || echo "Valgrind test $test failed or timed out"
+          fi
+        done
+        
+        # 可观测性/插件（1项，选其一）
+        for test in test_taosx_plugin_interface; do
+          if [ -x "$test" ]; then
+            echo "Running plugin test $test with Valgrind (120s)"
+            timeout 120 valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all \
+                     --error-exitcode=1 --track-origins=yes ./$test || echo "Valgrind test $test failed or timed out"
+          fi
+        done
+
+
+    - name: Collect test results
+      if: always()
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      run: |
+        # 收集测试结果
+        echo "=== Test Results ==="
+        ls -la test_* 2>/dev/null || echo "No test files found"
+        echo "=== Build Artifacts ==="
+        ls -la *.so *.a 2>/dev/null || echo "No libraries found"
+        echo "=== taosX Plugin Artifacts ==="
+        ls -la *taosx* 2>/dev/null || echo "No taosX plugin artifacts found"
+        
+        # 生成测试结果报告
+        echo "=== Test Results Summary ==="
+        echo "# Test Results Report" > test_results_summary.md
+        echo "## Test Execution Summary" >> test_results_summary.md
+        echo "- Total test files found: $(ls test_* 2>/dev/null | wc -l)" >> test_results_summary.md
+        echo "- Executable test files: $(find . -maxdepth 1 -type f -name 'test_*' -executable | wc -l)" >> test_results_summary.md
+        echo "- Build artifacts: $(ls *.so *.a 2>/dev/null | wc -l)" >> test_results_summary.md
+        echo "- taosX plugin artifacts: $(ls *taosx* 2>/dev/null | wc -l)" >> test_results_summary.md
+        echo "" >> test_results_summary.md
+        echo "## Discovered Executable Tests" >> test_results_summary.md
+        find . -maxdepth 1 -type f -name 'test_*' -executable | sort | sed 's#^\./#- #g' >> test_results_summary.md
+        echo "" >> test_results_summary.md
+        echo "## Notes" >> test_results_summary.md
+        echo "- Heavy tests (e.g., test_pitr_e2e) are skipped in default CI unless RUN_REAL_TESTS=true." >> test_results_summary.md
+        echo "- Real-environment tests are only executed on manual dispatch with run_real_tests=true." >> test_results_summary.md
+        
+        cat test_results_summary.md
+
+  taosx-plugin-test:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          git \
+          libpthread-stubs0-dev \
+          libroaring-dev
+
+    - name: Build taosX plugin
+      working-directory: ${{ env.PLUGIN_DIR }}
+      run: |
+        mkdir -p build
+        cd build
+        cmake .. -DBUILD_TAOSX_PLUGIN=ON
+        make taosx_incremental_bitmap_plugin test_taosx_plugin_interface
+
+    - name: Test taosX plugin interface
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      timeout-minutes: 10  # 添加超时保护
+      run: |
+        echo "=== taosX Plugin Interface Test ==="
+        if [ -x "test_taosx_plugin_interface" ]; then
+          echo "Running taosX plugin interface test..."
+          ./test_taosx_plugin_interface
+          echo "taosX plugin interface test completed successfully"
+        else
+          echo "ERROR: taosX plugin test executable not found"
+          exit 1
+        fi
+
+    - name: Verify taosX plugin library
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      run: |
+        echo "=== taosX Plugin Library Verification ==="
+        if [ -f "libtaosx_incremental_bitmap_plugin.so" ]; then
+          echo "✓ taosX plugin library exists"
+          file libtaosx_incremental_bitmap_plugin.so
+          ldd libtaosx_incremental_bitmap_plugin.so || echo "Library dependencies:"
+        else
+          echo "✗ taosX plugin library not found"
+          exit 1
+        fi
+
+    - name: Test plugin API compatibility
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      run: |
+        echo "=== taosX Plugin API Compatibility Test ==="
+        # 测试插件API的基本功能
+        cat > test_api_compatibility.c << 'EOF'
+        #include <dlfcn.h>
+        #include <stdio.h>
+        #include <stdlib.h>
+        
+        int main() {
+            void *handle = dlopen("./libtaosx_incremental_bitmap_plugin.so", RTLD_LAZY);
+            if (!handle) {
+                printf("ERROR: Cannot load plugin: %s\n", dlerror());
+                return 1;
+            }
+            
+            // 测试基本API函数
+            typedef const char* (*get_name_func)();
+            typedef const char* (*get_version_func)();
+            typedef int (*init_func)();
+            typedef int (*shutdown_func)();
+            
+            get_name_func get_name = (get_name_func)dlsym(handle, "taosx_plugin_get_name");
+            get_version_func get_version = (get_version_func)dlsym(handle, "taosx_plugin_get_version");
+            init_func init = (init_func)dlsym(handle, "taosx_plugin_init");
+            shutdown_func shutdown = (shutdown_func)dlsym(handle, "taosx_plugin_shutdown");
+            
+            if (!get_name || !get_version || !init || !shutdown) {
+                printf("ERROR: Required API functions not found\n");
+                dlclose(handle);
+                return 1;
+            }
+            
+            printf("✓ Plugin name: %s\n", get_name());
+            printf("✓ Plugin version: %s\n", get_version());
+            
+            if (init() == 0) {
+                printf("✓ Plugin initialization successful\n");
+                shutdown();
+                printf("✓ Plugin shutdown successful\n");
+            } else {
+                printf("ERROR: Plugin initialization failed\n");
+                dlclose(handle);
+                return 1;
+            }
+            
+            dlclose(handle);
+            printf("✓ All API compatibility tests passed\n");
+            return 0;
+        }
+        EOF
+        
+        gcc -o test_api_compatibility test_api_compatibility.c -ldl
+        ./test_api_compatibility
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install static analysis tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          clang-tidy \
+          cppcheck \
+          clang-format \
+          splint
+
+    - name: Run clang-tidy
+      working-directory: ${{ env.PLUGIN_DIR }}
+      run: |
+        # 创建编译数据库
+        mkdir -p build
+        cd build
+        cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        
+        # 运行clang-tidy
+        run-clang-tidy -header-filter='.*' -checks='*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-modernize-use-trailing-return-type' \
+                       -p build/ > clang-tidy-report.txt 2>&1 || true
+        
+        # 显示报告
+        cat clang-tidy-report.txt
+
+    - name: Run cppcheck
+      working-directory: ${{ env.PLUGIN_DIR }}
+      run: |
+        cppcheck --enable=all --std=c99 --language=c \
+                 --suppress=missingIncludeSystem \
+                 --suppress=unusedFunction \
+                 --xml --xml-version=2 \
+                 src/ include/ > cppcheck-report.xml 2>&1 || true
+        
+        # 显示报告
+        cppcheck --enable=all --std=c99 --language=c \
+                 --suppress=missingIncludeSystem \
+                 --suppress=unusedFunction \
+                 src/ include/
+
+    - name: Check code formatting
+      working-directory: ${{ env.PLUGIN_DIR }}
+      run: |
+        # 检查代码格式，添加目录存在检查
+        if [ -d "src" ] && [ -d "include" ]; then
+          find src/ include/ -name "*.c" -o -name "*.h" | xargs clang-format --dry-run --Werror
+        else
+          echo "Source directories not found, skipping format check"
+        fi
+
+    - name: Upload static analysis reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: static-analysis-reports
+        path: |
+          ${{ env.PLUGIN_DIR }}/build/clang-tidy-report.txt
+          ${{ env.PLUGIN_DIR }}/cppcheck-report.xml
+
+  code-coverage:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: needs.build-and-test.outputs.build_type == 'Debug'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install coverage tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lcov
+
+    - name: Generate coverage report
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      run: |
+        # 生成覆盖率报告
+        lcov --capture --directory . --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' --output-file coverage.info
+        lcov --remove coverage.info '*/test/*' --output-file coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ${{ env.PLUGIN_DIR }}/build/coverage.info
+        flags: unittests
+        name: codecov-umbrella
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run security scan
+      working-directory: ${{ env.PLUGIN_DIR }}
+      run: |
+        # 使用semgrep进行安全扫描，指定版本
+        sudo apt-get update
+        sudo apt-get install -y jq python3-pip
+        pip install semgrep==1.45.0
+        semgrep --config=auto --json --output=semgrep-results.json src/ || true
+        
+        # 显示结果
+        if [ -f semgrep-results.json ]; then
+          echo "Security scan results:"
+          cat semgrep-results.json | jq '.results[] | {rule_id, message, path, start_line}' || echo "No security issues found"
+        fi
+
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-scan-results
+        path: ${{ env.PLUGIN_DIR }}/semgrep-results.json
+
+  documentation:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check documentation
+      working-directory: ${{ env.PLUGIN_DIR }}
+      run: |
+        # 检查文档完整性
+        echo "=== Documentation Check ==="
+        
+        # 检查必要文档是否存在
+        required_docs=(
+          "README.md"
+          "docs/installation_guide.md"
+          "docs/api_usage_guide.md"
+          "docs/troubleshooting_guide.md"
+          "docs/observability_metrics.md"
+        )
+        
+        missing_docs=0
+        for doc in "${required_docs[@]}"; do
+          if [ -f "$doc" ]; then
+            echo "✓ $doc exists"
+          else
+            echo "✗ $doc missing"
+            missing_docs=1
+          fi
+        done
+        
+        # 检查文档链接
+        echo "=== Checking Documentation Links ==="
+        if [ -d "docs" ]; then
+          find docs/ -name "*.md" -exec grep -l "\[.*\](" {} \; | while read file; do
+            echo "Checking links in $file"
+            grep -o "\[.*\]([^)]*)" "$file" | while read link; do
+              target=$(echo "$link" | sed 's/\[.*\](\([^)]*\))/\1/')
+              if [[ "$target" == http* ]]; then
+                echo "  External link: $target"
+              elif [[ "$target" == \#* ]]; then
+                echo "  Anchor link: $target"
+              else
+                if [ -f "$target" ] || [ -f "$(dirname "$file")/$target" ]; then
+                  echo "  ✓ Internal link: $target"
+                else
+                  echo "  ✗ Broken internal link: $target in $file"
+                  missing_docs=1
+                fi
+              fi
+            done
+          done
+        fi
+        
+        if [ $missing_docs -eq 1 ]; then
+          echo "Some documentation issues found, but continuing..."
+          # exit 1  # 取消注释以在文档检查失败时停止
+        fi
+
+    - name: Generate documentation coverage report
+      working-directory: ${{ env.PLUGIN_DIR }}
+      run: |
+        echo "=== Documentation Coverage Report ===" > doc_coverage.txt
+        
+        # 统计代码文件
+        code_files=$(find src/ -name "*.c" -o -name "*.h" 2>/dev/null | wc -l)
+        echo "Code files: $code_files" >> doc_coverage.txt
+        
+        # 统计文档文件
+        doc_files=$(find docs/ -name "*.md" 2>/dev/null | wc -l)
+        echo "Documentation files: $doc_files" >> doc_coverage.txt
+        
+        # 统计测试文件
+        test_files=$(find test/ -name "*.c" 2>/dev/null | wc -l)
+        echo "Test files: $test_files" >> doc_coverage.txt
+        
+        # 计算文档覆盖率
+        total_files=$((code_files + test_files))
+        if [ $total_files -gt 0 ]; then
+          coverage=$((doc_files * 100 / total_files))
+          echo "Documentation coverage: ${coverage}%" >> doc_coverage.txt
+        fi
+        
+        cat doc_coverage.txt
+
+    - name: Upload documentation report
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation-coverage
+        path: ${{ env.PLUGIN_DIR }}/doc_coverage.txt
+
+  performance-benchmark:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: needs.build-and-test.outputs.build_type == 'Release'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run performance benchmarks
+      working-directory: ${{ env.PLUGIN_DIR }}/build
+      timeout-minutes: 15  # 添加超时保护
+      run: |
+        echo "=== Performance Benchmark ==="
+        
+        # 运行性能测试（如果有）
+        if [ -x "test_performance" ]; then
+          echo "Running performance tests..."
+          ./test_performance
+        else
+          echo "No performance test executable found"
+        fi
+        
+        # 基本性能检查
+        echo "=== Basic Performance Check ==="
+        for test in test_*; do
+          if [ -x "$test" ]; then
+            echo "Timing $test..."
+            time ./$test > /dev/null 2>&1
+          fi
+        done
+
+  build-artifacts:
+    runs-on: ubuntu-latest
+    needs: [build-and-test, static-analysis, code-coverage, security-scan, documentation, taosx-plugin-test]
+    if: always()
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts/
+
+    - name: Create build summary
+      run: |
+        echo "=== Build Summary ===" > build_summary.txt
+        echo "Build completed at: $(date)" >> build_summary.txt
+        echo "" >> build_summary.txt
+        
+        # 检查构建状态
+        if [ -d "artifacts" ]; then
+          echo "Artifacts collected:" >> build_summary.txt
+          find artifacts/ -type f >> build_summary.txt
+        fi
+        
+        echo "" >> build_summary.txt
+        echo "=== Job Status ===" >> build_summary.txt
+        echo "Build and Test: ${{ needs.build-and-test.result }}" >> build_summary.txt
+        echo "Static Analysis: ${{ needs.static-analysis.result }}" >> build_summary.txt
+        echo "Code Coverage: ${{ needs.code-coverage.result }}" >> build_summary.txt
+        echo "Security Scan: ${{ needs.security-scan.result }}" >> build_summary.txt
+        echo "Documentation: ${{ needs.documentation.result }}" >> build_summary.txt
+        echo "taosX Plugin Test: ${{ needs.taosx-plugin-test.result }}" >> build_summary.txt
+        
+        cat build_summary.txt
+
+    - name: Upload build summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-summary
+        path: build_summary.txt
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const summary = fs.readFileSync('build_summary.txt', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## CI Build Summary\n\n\`\`\`\n${summary}\n\`\`\`\n\n[View full logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+          });

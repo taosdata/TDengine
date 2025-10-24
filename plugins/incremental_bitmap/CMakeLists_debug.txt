@@ -1,0 +1,17 @@
+# 添加调试测试
+add_executable(test_pitr_e2e_debug
+    test/test_pitr_e2e_debug.c
+    test/pitr_e2e_test.c
+)
+
+target_link_libraries(test_pitr_e2e_debug
+    incremental_bitmap_plugin
+    ${ROARING_LIBRARIES}
+    pthread
+    m
+)
+
+target_include_directories(test_pitr_e2e_debug PRIVATE
+    include
+    src
+)
