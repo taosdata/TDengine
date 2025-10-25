@@ -2301,9 +2301,9 @@ class TestDecimal2:
                     tdLog.info(f"sql2: {sql} checking for filtering")
                     rows, cols = expr.query_allows_specified_errors(sql)
                     if rows >0:
-                         expr.check_for_filtering(rows, 0, tbname)
+                        expr.check_for_filtering(rows, 0, tbname)
                     else:
-                       tdLog.info(f"sql: {sql} got no output")
+                        tdLog.info(f"sql: {sql} got no output")
 
 
     def check_decimal_where_with_binary_expr_with_col_results(
@@ -2326,7 +2326,7 @@ class TestDecimal2:
                         expr.query_col = col
                     else:
                         expr.query_col = col2
-                    sql = f"select {expr.query_col} from {dbname}.{tbname} where {select_expr}"                   
+                    sql = f"select {expr.query_col} from {dbname}.{tbname} where {select_expr}"
                     rows, cols = expr.query_allows_specified_errors(sql)
                     if rows >0:
                         expr.check_for_filtering(rows, 0, tbname)
