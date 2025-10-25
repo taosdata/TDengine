@@ -4025,7 +4025,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
           code = stTriggerTaskAcquireRequest(pTask, pContext->sessionId, pGroup->gid, &pContext->pCalcReq);
           QUERY_CHECK_CODE(code, lino, _end);
           if (pContext->pCalcReq == NULL) {
-            if (pTask->lowLatencyCalc && pContext->calcParamPool.size >= STREAM_TRIGGER_MAX_PENDING_PARAMS) {
+            if (pTask->lowLatencyCalc || pContext->calcParamPool.size >= STREAM_TRIGGER_MAX_PENDING_PARAMS) {
               ST_TASK_DLOG("pause due to no available runner for group %" PRId64, pGroup->gid);
               goto _end;
             } else {
@@ -8225,6 +8225,8 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
                pGroup->pPendingCalcParams.neles);
 
   if (pGroup->pPendingCalcParams.neles > 0) {
+    int64_t origNele = pGroup->pPendingCalcParams.neles;
+    int64_t origTotal = pContext->calcParamPool.size;
     int32_t             nele = 0;
     SSTriggerCalcParam *pParam = NULL;
     SObjListIter        iter = {0};
@@ -8237,6 +8239,10 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
       nele++;
     }
     taosObjListPopHeadTo(&pGroup->pPendingCalcParams, pParam, nele);
+    int64_t freedNele = origNele - pGroup->pPendingCalcParams.neles;
+    ST_TASK_DLOG("group %" PRId64 " retrieved %" PRId64 " pending params, calc param pool size from %" PRId64
+                 " to %" PRId64,
+                 pGroup->gid, freedNele, origTotal, pContext->calcParamPool.size);
   }
 
   SSTriggerCalcParam *pLastParam = taosArrayGetLast(pContext->pCalcReq->params);
