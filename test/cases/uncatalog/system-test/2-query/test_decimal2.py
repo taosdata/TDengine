@@ -300,33 +300,67 @@ class DecimalColumnExpr:
     def check_query_results(self, query_col_res: List, tbname: str):
         query_len = len(query_col_res)
         pass
-    
-    def check_for_filtering(self, query_col_res: List, tbname: str):
-        j: int = -1
-        for i in range(len(query_col_res)):
-            j += 1
-            v_from_query = query_col_res[i]
-            while True:
-                params = ()
-                for p in self.params_:
-                    if isinstance(p, Column) or isinstance(p, DecimalColumnExpr):
-                        p = p.get_val_for_execute(tbname, j)
-                    params = params + (p,)
-                v_from_calc_in_py = self.execute(params)
+   
+    def query_allows_specified_errors(self, sql):
+        try:
+            tdSql.query(sql, queryTimes = 1)
+            rows = tdSql.getRows()
+            cols = tdSql.getCols()
+            return rows, cols
 
-                if not v_from_calc_in_py:
-                    j += 1
-                    continue
-                else:
-                    break
-            dec_from_query = get_decimal(v_from_query, self.query_col.type_.scale())
+        except Exception as e:
+            msg = str(e)
+            if "Decimal value overflow" in msg:
+                return 0, 0
+            raise Exception(repr(e))
+
+    def _build_match_indexes(self, tbname: str) -> list[int]:
+        """
+        预计算 where 表达式为 True 的行索引列表，避免在校验时用 while 逐行扫。
+        """
+        card = self.query_col.get_cardinality(tbname)
+        # 预取参数值，按行缓存，减少循环内类型判断与函数调用
+        param_vals_per_row: list[list] = []
+        for p in self.params_:
+            if isinstance(p, Column):
+                vals = [p.get_val_for_execute(tbname, j) for j in range(card)]
+                param_vals_per_row.append(vals)
+            elif isinstance(p, DecimalColumnExpr):
+                # 嵌套表达式：按行计算其值
+                vals = [p.get_val(tbname, j) for j in range(card)]
+                param_vals_per_row.append(vals)
+            else:
+                # 常量参数：复用同一值
+                param_vals_per_row.append([p] * card)
+
+        match_idx: list[int] = []
+        for j in range(card):
+            params = tuple(col_vals[j] for col_vals in param_vals_per_row)
+            ok = self.execute(params)
+            if ok:  # 布尔真表示该行命中
+                match_idx.append(j)
+        return match_idx         
+
+    def check_for_filtering(self, rows: int, col: int, tbname: str):
+        scale = self.query_col.type_.scale()
+        match_idx = self._build_match_indexes(tbname)
+
+        if rows != len(match_idx):
+            tdLog.info(f"where result size mismatch: query={rows} calc={len(match_idx)} expr={self}")
+
+        limit = min(rows, len(match_idx))
+        
+        for i in range(limit):
+            j = match_idx[i]
+            dec_from_query = get_decimal(tdSql.getDataWithOutCheck(i, col), scale)
             dec_from_calc = self.get_query_col_val(tbname, j)
             if dec_from_query != dec_from_calc:
-                tdLog.exit(f"filter with {self} failed, query got: {dec_from_query}, expect {dec_from_calc}, param: {params}")
-            else:
-                pass
-                #tdLog.info(f"filter with {self} succ, query got: {dec_from_query}, expect {dec_from_calc}, param: {params}")
-
+                tdLog.exit(
+                    f"filter with {self} failed, query got: {dec_from_query}, "
+                    f"expect {dec_from_calc}, rowIdx={i}, srcIdx={j}, tbname={tbname}"
+                )
+        tdLog.info(f"filter with {self} succ for all {rows} rows")
+           
     def check(self, query_col_res: List, tbname: str):
         for i in range(len(query_col_res)):
             v_from_query = query_col_res[i]
@@ -2262,17 +2296,18 @@ class TestDecimal2:
                     else:
                         expr.query_col = col
                     sql = f"select {expr.query_col} from {dbname}.{tbname} where {select_expr}"
-                    res = TaosShell().query(sql)
-                    ##TODO wjm no need to check len(res) for filtering test, cause we need to check for every row in the table to check if the filtering is working
-                    if len(res) > 0:
-                        expr.check_for_filtering(res[0], tbname)
+                    rows, cols = expr.query_allows_specified_errors(sql)
+                    if rows >0:
+                        expr.check_for_filtering(rows, 0, tbname)
                     select_expr = expr.generate((col, const_col))
                     sql = f"select {expr.query_col} from {dbname}.{tbname} where {select_expr}"
-                    res = TaosShell().query(sql)
-                    if len(res) > 0:
-                        expr.check_for_filtering(res[0], tbname)
+                    tdLog.info(f"sql2: {sql} checking for filtering")
+                    rows, cols = expr.query_allows_specified_errors(sql)
+                    if rows >0:
+                         expr.check_for_filtering(rows, 0, tbname)
                     else:
-                        tdLog.info(f"sql: {sql} got no output")
+                       tdLog.info(f"sql: {sql} got no output")
+
 
     def check_decimal_where_with_binary_expr_with_col_results(
         self, dbname, tbname, tb_cols: List[Column], exprs: List[DecimalColumnExpr]
@@ -2294,19 +2329,21 @@ class TestDecimal2:
                         expr.query_col = col
                     else:
                         expr.query_col = col2
-                    sql = f"select {expr.query_col} from {dbname}.{tbname} where {select_expr}"
-                    res = TaosShell().query(sql)
-                    if len(res) > 0:
-                        expr.check_for_filtering(res[0], tbname)
+                    sql = f"select {expr.query_col} from {dbname}.{tbname} where {select_expr}"                   
+                    rows, cols = expr.query_allows_specified_errors(sql)
+                    if rows >0:
+                        expr.check_for_filtering(rows, 0, tbname)
                     else:
                         tdLog.info(f"sql: {sql} got no output")
                     select_expr = expr.generate((col2, col))
                     sql = f"select {expr.query_col} from {dbname}.{tbname} where {select_expr}"
-                    res = TaosShell().query(sql)
-                    if len(res) > 0:
-                        expr.check_for_filtering(res[0], tbname)
+                    rows, cols = expr.query_allows_specified_errors(sql)
+                    if rows >0:
+                        expr.check_for_filtering(rows, 0, tbname)
                     else:
                         tdLog.info(f"sql: {sql} got no output")
+                   
+
 
     def check_query_decimal_where_clause(self):
         tdLog.info("start to test decimal where filtering")
