@@ -421,10 +421,10 @@ static int32_t scanCreateTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, v
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
     if (!needRefreshTableList(sStreamReaderInfo, pCreateReq->type, pCreateReq->ctb.suid, pCreateReq->uid, false)) {
-      ST_TASK_ILOG("stream reader scan create table jump, %s", pCreateReq->name);
+      ST_TASK_DLOG("stream reader scan create table jump, %s", pCreateReq->name);
       continue;
     }
-    ST_TASK_ILOG("stream reader scan create table %s", pCreateReq->name);
+    ST_TASK_DLOG("stream reader scan create table %s", pCreateReq->name);
 
     found = true;
     break;
@@ -1470,15 +1470,16 @@ end:
 }
 
 static void resetIndexHash(SSHashObj* indexHash){
-  void*   pe = NULL;
-  int32_t iter = 0;
-  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
-    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-    pInfo->startRowIdx = 0;
-    pInfo->currentRowIdx = 0;
-    pInfo->numRows = 0;
-    pInfo->gId = -1;
-  }
+  tSimpleHashClear(indexHash);
+  // void*   pe = NULL;
+  // int32_t iter = 0;
+  // while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
+  //   SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
+  //   pInfo->startRowIdx = 0;
+  //   pInfo->currentRowIdx = 0;
+  //   pInfo->numRows = 0;
+  //   pInfo->gId = -1;
+  // }
 }
 
 static void buildIndexHash(SSHashObj* indexHash, void* pTask){
@@ -1496,12 +1497,14 @@ static void buildIndexHash(SSHashObj* indexHash, void* pTask){
 }
 
 static void printIndexHash(SSHashObj* indexHash, void* pTask){
-  void*   pe = NULL;
-  int32_t iter = 0;
-  while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
-    SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
-    ST_TASK_DLOG("%s uid:%" PRId64 ", gid:%" PRIu64 ", startRowIdx:%d, numRows:%d", __func__, *(int64_t*)(tSimpleHashGetKey(pe, NULL)),
-    pInfo->gId, pInfo->startRowIdx, pInfo->numRows);
+  if (qDebugFlag & DEBUG_TRACE) {
+    void*   pe = NULL;
+    int32_t iter = 0;
+    while ((pe = tSimpleHashIterate(indexHash, pe, &iter)) != NULL) {
+      SStreamWalDataSlice* pInfo = (SStreamWalDataSlice*)pe;
+      ST_TASK_TLOG("%s uid:%" PRId64 ", gid:%" PRIu64 ", startRowIdx:%d, numRows:%d", __func__, *(int64_t*)(tSimpleHashGetKey(pe, NULL)),
+      pInfo->gId, pInfo->startRowIdx, pInfo->numRows);
+    }
   }
 }
 
@@ -1950,7 +1953,9 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
 */                                             
     sStreamReaderCalcInfo->tmpRtFuncInfo.curIdx = 0;
     sStreamReaderCalcInfo->tmpRtFuncInfo.triggerType = req->pStRtFuncInfo->triggerType;
-    
+    sStreamReaderCalcInfo->tmpRtFuncInfo.isWindowTrigger = req->pStRtFuncInfo->isWindowTrigger;
+    sStreamReaderCalcInfo->tmpRtFuncInfo.precision = req->pStRtFuncInfo->precision;
+
     SSTriggerCalcParam* pFirst = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, 0);
     SSTriggerCalcParam* pLast = taosArrayGetLast(req->pStRtFuncInfo->pStreamPesudoFuncVals);
     STREAM_CHECK_NULL_GOTO(pFirst, terrno);

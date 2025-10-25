@@ -160,6 +160,7 @@ typedef struct SSTriggerRealtimeContext {
   Heap                   *pMaxDelayHeap;
   SSTriggerRealtimeGroup *pMinGroup;
   SArray                 *groupsToDelete;
+  SSHashObj              *pGroupColVals;  // SSHashObj<gid, SArray<SStreamGroupValue>*>
 
   // these fields need to be cleared each round
   SSHashObj *pSlices;  // SSHashObj<uid, SSTriggerDataSlice>
@@ -329,6 +330,7 @@ typedef struct SStreamTriggerTask {
   bool    isStbPartitionByTag;
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
+  int8_t  precision;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // trigger options: old version, to be removed

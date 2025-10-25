@@ -250,9 +250,9 @@ void taosObjListPopHeadTo(SObjList *pList, void *pObj, int32_t nele) {
   // add all nodes before pNode back to pool
   pPrevNode->nextIdx = pPool->freeHeadIdx;
   if (pPool->freeHeadIdx != TOBJPOOL_INVALID_IDX) {
-    TOBJPOOL_GET_NODE(pPool, pPool->freeHeadIdx)->prevIdx = pPrevNode->prevIdx;
+    TOBJPOOL_GET_NODE(pPool, pPool->freeHeadIdx)->prevIdx = pNode->prevIdx;
   } else {
-    pPool->freeTailIdx = pPrevNode->prevIdx;
+    pPool->freeTailIdx = pNode->prevIdx;
   }
   pPool->freeHeadIdx = pList->headIdx;
   pPool->size -= nele;
