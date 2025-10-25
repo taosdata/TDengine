@@ -2334,20 +2334,19 @@ class TestDecimal:
             tdSql.query(sql, queryTimes = 1)
             rows = tdSql.getRows()
             cols = tdSql.getCols()
-            result = []
+            if rows == 0:
+                return []
+            result = [[] for _ in range(cols)]
             for row in range(rows):
-                if len(result) == 0:
-                    result = [[] for i in range(cols)]
                 for col in range(cols):
                     result[col].append(tdSql.getDataWithOutCheck(row, col))
-
             return result
 
         except Exception as e:
             msg = str(e)
             if "Decimal value overflow" in msg:
                 return []
-            raise Exception(repr(e))
+            raise
         
     def check_decimal_in_op(self, tbname: str, tb_cols: list):
         for i in range(in_op_test_round):
@@ -2359,7 +2358,7 @@ class TestDecimal:
                 list_expr: DecimalListExpr = DecimalListExpr(random.randint(1, 10), col)
                 list_expr.generate()
                 expr = inOp.generate((col, list_expr))
-                if f"{col}" == '':
+                if not str(col):
                     continue
                 sql = f'select {col} from {self.db_name}.{tbname} where {expr}'
                 res = self.query_allows_specified_errors(sql)

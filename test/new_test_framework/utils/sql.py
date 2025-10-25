@@ -896,7 +896,7 @@ class TDSql:
             The data at the specified row and column.
 
         Raises:
-            SystemExit: If the specified row or column is out of range.
+            IndexError: If the specified row or column is out of range.
         """
         return self.queryResult[row][col]
 
