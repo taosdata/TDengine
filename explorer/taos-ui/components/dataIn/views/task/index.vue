@@ -92,11 +92,8 @@
             <Activities :data="rowData.row.activities" />
           </template>
         </el-table-column>
-        <el-table-column v-if="false" :label="t('dataIn.taskid')" prop="taskid" width="80">
+        <el-table-column :label="t('dataIn.taskid')" prop="taskid" min-width="50" max-width="100">
           <template #default="scope">
-            <span>
-              <i class="el-circle" :class="getStatusClass(scope.row.healthStatus)"></i>
-            </span>
             <span style="padding-left: 5px">{{ scope.row.taskid }}</span>
           </template>
         </el-table-column>
@@ -113,7 +110,7 @@
         <el-table-column
           :label="t('dataIn.type')"
           prop="localtype"
-          width="180"
+          min-width="180"
           sortable
           :filters="filterMap.type"
           :filter-method="filterHandler"
@@ -124,14 +121,14 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.target')" prop="target" width="120">
+        <el-table-column :label="t('dataIn.target')" prop="target" sortable min-width="120">
           <template #default="scope">
             <el-tooltip :content="scope.row.target" placement="top-start">
               <span class="nowrap">{{ scope.row.target }}</span>
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.createat')" prop="created_at" width="220">
+        <el-table-column :label="t('dataIn.createat')" prop="created_at" sortable min-width="220">
           <template #default="scope">
             <span>{{ getTimeParser(scope.row.created_at) }}</span>
           </template>
@@ -144,7 +141,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('dataIn.metrics')" prop="finished_at" width="120">
+        <el-table-column :label="t('dataIn.metrics')" prop="finished_at" min-width="120">
           <template #default="scope">
             <el-button
               size="small"
@@ -162,7 +159,7 @@
           sortable
           :filters="filterMap.status"
           :filter-method="filterHandler"
-          width="150"
+          min-width="150"
         >
           <template #default="scope">
             <div class="status-operation" style="display: flex; white-space: nowrap">
@@ -435,7 +432,7 @@ async function getList() {
         statusFilterSet[item.status] = true;
       }
 
-      ((item['taskid'] = item.id), (item['localname'] = item.name));
+      (item['taskid'] = item.id), (item['localname'] = item.name);
       item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
       item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
@@ -538,7 +535,7 @@ async function refreshCurrentTask(data: Recordable) {
       index,
       1,
       [].concat(result).map((item: any) => {
-        ((item['taskid'] = item.id), (item['localname'] = item.name));
+        (item['taskid'] = item.id), (item['localname'] = item.name);
         item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
         // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
         item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
