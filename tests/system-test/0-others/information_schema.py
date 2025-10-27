@@ -302,6 +302,7 @@ class TDTestCase:
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
             'orc':'ORC',
+            'kinghist':'KingHistorian',
             'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
             'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
             'idmp_element':'TDengine IDMP Elements',
