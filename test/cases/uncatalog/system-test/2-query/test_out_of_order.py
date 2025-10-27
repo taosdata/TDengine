@@ -45,53 +45,14 @@ class TestOutOfOrder:
         tdSql.query(sql1)
         expect = tdSql.getData(0,0)
 
-        sql2 = "select count(ts) from %s.meters" %dbname
-        self.sql_base_check(sql1,expect)
+        columns = ['ts', '_c0', 'c0', 'c1', 'c2', 'c3', 't0', 't1']
+        for col in columns:
+            sql = f"select count({col}) from {dbname}.meters"
+            self.sql_base_check(sql, expect)
 
-        sql2 = "select count(_c0) from %s.meters" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(c0) from %s.meters" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(c1) from %s.meters" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(c2) from %s.meters" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(c3) from %s.meters" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(t0) from %s.meters" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(t1) from %s.meters" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(ts) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(_c0) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(c0) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(c1) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(c2) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(c3) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(t0) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,expect)
-
-        sql2 = "select count(t1) from (select * from %s.meters)" %dbname
-        self.sql_base_check(sql1,expect)
+        for col in columns:
+            sql = f"select count({col}) from (select * from {dbname}.meters)"
+            self.sql_base_check(sql, expect)
 
         # TD-22520
         tdSql.query("select tbname, ts from %s.meters where ts < '2017-07-14 10:40:00' order by ts asc limit 150;" %dbname)
@@ -163,8 +124,8 @@ class TestOutOfOrder:
         startTime = time.time()
         self.run_benchmark(dbname,tables,per_table_num,order,replica)
         midTime = time.time()
-        print("prepare data time %ds" % (midTime - startTime))
+        tdLog.info("prepare data time %ds" % (midTime - startTime))
         self.run_sql(dbname)        
         endTime = time.time()
-        print("total time %ds" % (endTime - startTime))
+        tdLog.info("total time %ds" % (endTime - startTime))
         tdLog.success("%s successfully executed" % __file__)
