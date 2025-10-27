@@ -30,11 +30,11 @@
 #include "ttime.h"
 #include "tutil.h"
 
-#define STREAM_TRIGGER_CHECK_INTERVAL_MS    1000                    // 1s
-#define STREAM_TRIGGER_IDLE_TIME_NS         1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
-#define STREAM_TRIGGER_MAX_PENDING_PARAMS   1 * 1024 * 1024         // 1M
-#define STREAM_TRIGGER_REALTIME_SESSIONID   1
-#define STREAM_TRIGGER_HISTORY_SESSIONID    2
+#define STREAM_TRIGGER_CHECK_INTERVAL_MS  1000                    // 1s
+#define STREAM_TRIGGER_IDLE_TIME_NS       1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
+#define STREAM_TRIGGER_MAX_PENDING_PARAMS 1 * 1024 * 1024         // 1M
+#define STREAM_TRIGGER_REALTIME_SESSIONID 1
+#define STREAM_TRIGGER_HISTORY_SESSIONID  2
 
 #define STREAM_TRIGGER_HISTORY_STEP_MS (10 * MILLISECOND_PER_DAY)     // 10d
 #define STREAM_TRIGGER_RECALC_MERGE_MS (30 * MILLISECOND_PER_MINUTE)  // 30min
@@ -5213,7 +5213,10 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
                pContext->status == STRIGGER_CONTEXT_IDLE) {
       // continue check if there are delayed requests to be processed
       SSTriggerRealtimeGroup *pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
-      if (pMinGroup->nextExecTime > taosGetTimestampNs()) {
+      int64_t                 now = taosGetTimestampNs();
+      if (pMinGroup->nextExecTime <= now) {
+        ST_TASK_DLOG("wake trigger for available runner since next exec time: %" PRId64 ", now: %" PRId64,
+                     pMinGroup->nextExecTime, now);
         SListIter  iter = {0};
         SListNode *pNode = NULL;
         taosWLockLatch(&gStreamTriggerWaitLatch);
