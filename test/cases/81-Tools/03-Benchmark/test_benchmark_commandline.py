@@ -17,7 +17,7 @@ import time
 from new_test_framework.utils import tdLog, tdSql, etool, sc
 
 
-class TestCommandlinePartialColNumpy:
+class TestBenchmarkCommandline:
     #
     # ------------------- test_commandline_partial_col_numpy.py ----------------
     #
@@ -46,11 +46,7 @@ class TestCommandlinePartialColNumpy:
     #
     def do_commandline_retry(self):
         binPath = etool.benchMarkFile()
-        cmd = (
-            "%s -t 1 -n 10 -i 1000 -r 1 -k 10 -z 1000 -y &"
-            #            "%s -t 1 -n 10 -i 5000 -r 1 -y &"
-            % binPath
-        )
+        cmd = "%s -t 1 -n 10 -i 1000 -r 1 -k 10 -z 1000 -y &" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(2)
@@ -499,7 +495,7 @@ class TestCommandlinePartialColNumpy:
         tdSql.query("describe test.meters")
         tdSql.checkData(4, 1, "JSON")
 
-        cmd = "%s -f ./tools/benchmark/basic/json/insert-sample.json -j ./insert_json_res.json" % binPath
+        cmd = "%s -f ./81-Tools/03-Benchmark/json/insert-sample.json -j ./insert_json_res.json" % binPath
         tdLog.info("%s" % cmd)
         ret = os.system("%s" % cmd)
         if not os.path.exists("./insert_json_res.json"):

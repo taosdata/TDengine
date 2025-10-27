@@ -554,7 +554,7 @@ class TestComTaosdConfigRefresh:
             else:
                 raise Exception(f"unknown key: {key}")
 
-    def test_com_taod_config_refresh(self):
+    def test_com_taosd_config_refresh(self):
         """Configuration item hot refresh
         
         1. Alter taos.cfg item by "alter" sql
