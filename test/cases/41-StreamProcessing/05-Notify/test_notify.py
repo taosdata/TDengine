@@ -47,6 +47,7 @@ class TestStreamNotifyTrigger:
         # streams.append(self.Basic11())      #
         streams.append(self.Basic12())      #
         streams.append(self.Basic13())      #
+        streams.append(self.Basic14())
 
         tdStream.checkAll(streams)
 
@@ -1586,3 +1587,87 @@ class TestStreamNotifyTrigger:
                 sql=f"select * from {self.db}.res_ct0",
                 func=lambda: tdSql.getRows() == 7
             )
+
+
+    class Basic14(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb14"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, c0 int, c1 int) tags (tag1 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+            tdLog.info(f"=============== create stream")
+            tdSql.execute(
+                f"create stream if not exists `sdb14`.`s1` "
+                f"event_window( start with (`c0`)>= 5 end with (`c1`)<5 ) true_for(5s) "
+                f"from `sdb14`.`stb` partition by tbname stream_options(ignore_disorder|event_type(window_open|window_close)) "
+                f"notify('ws://localhost:6042/eventReceive') on(window_open|window_close) "
+                f"into `sdb14`.`res_st` output_subtable(concat('ana_', tbname,'_end')) "
+                f"as select _c0 as output_timestamp, `c0` from %%tbname where ts >= _twstart and ts <_twend "
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into ct0 open window data")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:00.000', 6, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:01.000', 7, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:02.000', 8, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:03.000', 9, 7);",
+                "insert into ct0 values ('2025-01-01 00:00:04.000', 10, 7);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdLog.info("desc the stream ana_ct0_end")
+            tdSql.query(f"desc {self.db}.ana_ct0_end")
+            tdSql.checkRows(3)
+            tdSql.query(f"select * from {self.db}.ana_ct0_end")
+            tdSql.checkRows(0)
+
+        def insert2(self):
+            tdLog.info(f"=============== insert data into ct0 close windows data")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:05.000', 11, 8);",
+                "insert into ct0 values ('2025-01-01 00:00:06.000', 5, 1);",
+            ]
+
+            tdSql.executes(sqls)
+
+        def check2(self):
+            tdLog.info("desc the stream ana_ct0_end")
+            tdSql.query(f"desc {self.db}.ana_ct0_end")
+            tdSql.checkRows(3)
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.ana_ct0_end",
+                func=lambda: tdSql.getRows() == 6
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+                and tdSql.compareData(0, 1, 6)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(1, 1, 7)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:02.000")
+                and tdSql.compareData(2, 1, 8)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:03.000")
+                and tdSql.compareData(3, 1, 9)
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:04.000")
+                and tdSql.compareData(4, 1, 10)
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:06.000")
+                and tdSql.compareData(5, 1, 11),
+            )
+
