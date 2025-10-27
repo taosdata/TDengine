@@ -13,22 +13,21 @@ class TestCase:
         tdLog.debug(f"start to excute {__file__}")
 
     def test_tmq_td38404(self):
-        """summary: xxx
+        """summary: TD-38404:  tmq_get_json_meta return " if tag is ""
 
-        description: xxx
+        description: the interface of tmq_get_json_meta return " if tag is "" 
 
-        Since: xxx
+        Since: v3.3.8.4
 
-        Labels: xxx
+        Labels: taosx,tmq
 
-        Jira: xxx
+        Jira: https://jira.taosdata.com:18080/browse/TD-38404
 
         Catalog:
-        - xxx:xxx
+        - taosc:tmq
 
         History:
-        - xxx
-        - xxx
+        - 2025-10-27 Mark Wang Created
 
         """
         tdSql.execute(f'create database if not exists db_td38404 vgroups 1')
