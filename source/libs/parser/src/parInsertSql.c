@@ -507,9 +507,11 @@ static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
 #endif
 }
 
-static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken* pToken, uint8_t** pData,
-                           uint32_t* nData, SSchema* pSchema) {
-  int32_t bytes = pSchema->bytes;
+static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken* pToken, SColVal* pVal,
+                           SSchema* pSchema) {
+  int32_t   bytes = pSchema->bytes;
+  uint8_t** pData = &pVal->value.pData;
+  uint32_t* nData = &pVal->value.nData;
 
   if (TK_NK_ID == pToken->type) {
     char*   input = NULL;
@@ -523,7 +525,14 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_STRING != pToken->type) {
+      if (TK_NULL == pToken->type) {
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_RP == pToken->type) {
+          pVal->flag = CV_FLAG_NULL;
+
+          return TSDB_CODE_SUCCESS;
+        }
+      } else if (TK_NK_STRING != pToken->type) {
         return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
       }
 
@@ -554,7 +563,14 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_STRING != pToken->type) {
+      if (TK_NULL == pToken->type) {
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_RP == pToken->type) {
+          pVal->flag = CV_FLAG_NULL;
+
+          return TSDB_CODE_SUCCESS;
+        }
+      } else if (TK_NK_STRING != pToken->type) {
         return buildSyntaxErrMsg(&pCxt->msg, "string expected", pToken->z);
       }
 
@@ -592,6 +608,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
     *nData = pToken->n;
   }
 
+  pVal->flag = CV_FLAG_VALUE;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1925,11 +1942,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {
-      int32_t code = parseBinary(pCxt, pSql, pToken, &pVal->value.pData, &pVal->value.nData, pSchema);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-      break;
+      return parseBinary(pCxt, pSql, pToken, pVal, pSchema);
     }
     case TSDB_DATA_TYPE_VARBINARY: {
       int32_t code = parseVarbinary(pToken, &pVal->value.pData, &pVal->value.nData, pSchema->bytes);
