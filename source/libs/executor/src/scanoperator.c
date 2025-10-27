@@ -885,6 +885,9 @@ static int32_t initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo
   code = tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, pKeyInfo, size);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  if (*size <= 0) {
+    goto _end;
+  }
   pInfo->tableStartIndex = TARRAY_ELEM_IDX(pInfo->base.pTableListInfo->pTableList, *pKeyInfo);
   pInfo->tableEndIndex = (pInfo->tableStartIndex + (*size) - 1);
   pInfo->pResBlock->info.blankFill = false;
