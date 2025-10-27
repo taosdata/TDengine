@@ -2747,7 +2747,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   STSchema* piSchema = NULL;
   if (piRow->type == TSDBROW_ROW_FMT) {
     piSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
-    TSDB_CHECK_NULL(pSchema, code, lino, _end, terrno);
+    TSDB_CHECK_NULL(piSchema, code, lino, _end, terrno);
   }
 
   // merge is not initialized yet, due to the fact that the pReader->info.pSchema is not initialized
@@ -3089,6 +3089,14 @@ static void initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
     w.skey = pScanInfo->sttKeyInfo.nextProcKey.ts;
   } else {
     w.ekey = pScanInfo->sttKeyInfo.nextProcKey.ts;
+  }
+
+  // early filter for invalid time window
+  if (w.skey > w.ekey) {
+    pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
+    tsdbDebug("uid:%" PRIu64 " set no stt-file data, skey:%" PRId64 " > ekey:%" PRId64 " %s",
+              pScanInfo->uid, w.skey, w.ekey, pReader->idStr);
+    goto _end;
   }
 
   st = taosGetTimestampUs();
