@@ -22,7 +22,6 @@ RUN if [ "$USE_CUSTOM_SOURCES" = "true" ]; then \
     
 # install system dependencies
 RUN apt-get update && \
-    apt-get upgrade -y && \
     # install basic packages (adjust according to actual needs)
     apt-get install -y --no-install-recommends \
         curl \
