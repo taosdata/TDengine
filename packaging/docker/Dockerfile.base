@@ -32,7 +32,7 @@ RUN apt-get update && \
         net-tools \
         netcat-openbsd \
         gdb \
-        valgrind \ 
+        valgrind \
         && \
     if [ "$USE_CUSTOM_SOURCES" = "true" ] && [ "$RESTORE_ORIGINAL_SOURCES" = "true" ]; then \
         rm -f /etc/apt/sources.list; \

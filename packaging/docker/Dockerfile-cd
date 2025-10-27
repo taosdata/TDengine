@@ -21,7 +21,7 @@ RUN cd /tmp && tar -zxf ${pkgFile} && \
 # stage2: runtime image
 FROM tdengine/tdengine-debian-base 
 
-# copy bin/lib/confg/include file from installer stage
+# copy bin/lib/config/include file from installer stage
 COPY --from=tdengine-installer /usr/local/taos/bin/taos* /usr/bin/
 COPY --from=tdengine-installer /usr/local/taos/driver/ /usr/lib/
 COPY --from=tdengine-installer /usr/local/taos/include/ /usr/include/
