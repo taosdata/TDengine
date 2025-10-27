@@ -441,7 +441,7 @@ def add_common_methods(request):
     def balanceVGroupLeaderOn(self, vgId):
         sql = f"balance vgroup leader on {vgId}"
         tdSql.execute(sql, show=True)
-        if self.waitTransactionZero() is False:
+        if self.waitTransactionZero(seconds=600) is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
     
