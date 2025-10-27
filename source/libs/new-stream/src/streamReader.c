@@ -563,8 +563,8 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
 
   stInfo("undeploy stream reader task, streamId:%" PRIx64 "row:%"PRId64"/%"PRId64"=%"PRId64",query:%"PRId64"/%"PRId64"=%"PRId64, 
     (*ppTask)->task.streamId, 
-    rowTimeAll, rowTimes, rowTimeAll/rowTimes,
-    queryTimeAll, queryTimes, queryTimeAll/queryTimes);
+    rowTimeAll, rowTimes, rowTimes > 0 ? rowTimeAll/rowTimes : 0,
+    queryTimeAll, queryTimes, queryTimes > 0 ? queryTimeAll/queryTimes : 0);
 end:
   STREAM_PRINT_LOG_END(code, lino);
   (*cb)(ppTask);
