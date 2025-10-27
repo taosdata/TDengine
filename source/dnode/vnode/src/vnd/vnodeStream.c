@@ -989,7 +989,7 @@ static int32_t setColData(int64_t rows, int32_t rowStart, int32_t rowEnd, SColDa
 }
 
 static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTriggerReaderInfo* sStreamReaderInfo, 
-  STSchema** schemas, SSHashObj* ranges, SSHashObj* gidHash, SSTriggerWalNewRsp* rsp, int64_t ver) {
+  SSHashObj* ranges, SSHashObj* gidHash, SSTriggerWalNewRsp* rsp, int64_t ver) {
   int32_t code = 0;
   int32_t lino = 0;
   uint64_t id = 0;
@@ -1047,9 +1047,10 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  if (*schemas == NULL) {
-    *schemas = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
-    STREAM_CHECK_NULL_GOTO(*schemas, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
+  if (sStreamReaderInfo->triggerTableSchema->version != submitTbData.sver) {
+    taosMemoryFree(sStreamReaderInfo->triggerTableSchema);
+    sStreamReaderInfo->triggerTableSchema = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
+    STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerTableSchema, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
   }
 
   SStreamWalDataSlice* pSlice = (SStreamWalDataSlice*)tSimpleHashGet(sStreamReaderInfo->indexHash, &submitTbData.uid, LONG_BYTES);
@@ -1200,10 +1201,10 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
         SColVal colVal = {0};
         int32_t sourceIdx = 0;
         while (1) {
-          if (sourceIdx >= (*schemas)->numOfCols) {
+          if (sourceIdx >= sStreamReaderInfo->triggerTableSchema->numOfCols) {
             break;
           }
-          STREAM_CHECK_RET_GOTO(tRowGet(pRow, *schemas, sourceIdx, &colVal));
+          STREAM_CHECK_RET_GOTO(tRowGet(pRow, sStreamReaderInfo->triggerTableSchema, sourceIdx, &colVal));
           if (colVal.cid == colId) {
             break;
           }
@@ -1265,7 +1266,6 @@ static int32_t scanSubmitData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamR
   void* data, int32_t len, SSHashObj* ranges, SSTriggerWalNewRsp* rsp, int64_t ver) {
   int32_t  code = 0;
   int32_t  lino = 0;
-  STSchema* schemas = NULL;
   SDecoder decoder = {0};
   SSHashObj* gidHash = NULL;
   void* pTask = sStreamReaderInfo->pTask;
@@ -1288,7 +1288,7 @@ static int32_t scanSubmitData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamR
   }
 
   for (int32_t i = 0; i < nSubmitTbData; i++) {
-    STREAM_CHECK_RET_GOTO(scanSubmitTbData(pVnode, &decoder, sStreamReaderInfo, &schemas, ranges, gidHash, rsp, ver));
+    STREAM_CHECK_RET_GOTO(scanSubmitTbData(pVnode, &decoder, sStreamReaderInfo, ranges, gidHash, rsp, ver));
   }
 
   tEndDecode(&decoder);
@@ -1309,7 +1309,6 @@ static int32_t scanSubmitData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamR
   
 
 end:
-  taosMemoryFree(schemas);
   tSimpleHashCleanup(gidHash);
   tDecoderClear(&decoder);
   return code;
@@ -3206,6 +3205,8 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(pVnode, sStreamReaderInfo, false));  
         STREAM_CHECK_RET_GOTO(generateTablistForStreamReader(pVnode, sStreamReaderInfo, true));
         STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamReaderInfo->pConditions, &sStreamReaderInfo->pFilterInfo, 0, NULL));
+        sStreamReaderInfo->triggerTableSchema = metaGetTbTSchema(pVnode->pMeta, sStreamReaderInfo->uid, -1, 1);
+        STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerTableSchema, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
       }
       (void)taosThreadMutexUnlock(&sStreamReaderInfo->mutex);
       sStreamReaderInfo->pVnode = pVnode;
