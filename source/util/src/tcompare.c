@@ -105,10 +105,9 @@ int32_t compareInt32Val(const void *pLeft, const void *pRight) {
 int32_t compareInt32ValDesc(const void *pLeft, const void *pRight) { return compareInt32Val(pRight, pLeft); }
 
 int32_t compareInt64Val(const void *pLeft, const void *pRight) {
-  int64_t left = GET_INT64_VAL(pLeft), right = GET_INT64_VAL(pRight);
-  if (left > right) return 1;
-  if (left < right) return -1;
-  return 0;
+  int64_t left = GET_INT64_VAL(pLeft);
+  int64_t right = GET_INT64_VAL(pRight);
+  return (left > right) - (left < right);
 }
 
 int32_t compareInt64ValDesc(const void *pLeft, const void *pRight) { return compareInt64Val(pRight, pLeft); }

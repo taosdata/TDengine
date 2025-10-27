@@ -8,6 +8,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal1.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal2.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal3.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py
@@ -37,6 +40,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic5.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic6.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_commit.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create_encrypt.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_tables.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_name_all.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_name_len.py
@@ -45,6 +49,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_keep.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_table_hash.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_table_prefix_suffix.py
+
 ## 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_catalog.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse_vnode.py
@@ -176,29 +181,34 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_with_null_value.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 
 # 10-DataIngestion
-,,n,.,pytest cases/10-DataIngestion/test_write.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_basic.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_bug.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_column_value.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_commit.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_datatypes.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_delete.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_insert_select.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_morevgroup.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_out_of_order_data.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_stb.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update.py
-,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/test_write_update_multi_rows.py
-
 
 ## 01-SQL
+,,n,.,pytest cases/10-DataIngestion/01-SQL/test_write.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_basic.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_bug.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_column_value.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_commit.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_datatypes.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_delete.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_insert_select.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_morevgroup.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_out_of_order_data.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_stb.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_update.py
+,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/01-SQL/test_write_update_multi_rows.py
 ## 02-STMT
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/02-STMT/test_stmt_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/10-DataIngestion/02-STMT/test_write_stmt_error.py
@@ -219,8 +229,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/12-DataCompression/test_compress_alter_table.py -N 3
 
 # 20-DataQuerying
-## 01-SelectList
-,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-SelectList/test_selectlist_basic.py
+## 01-Select
+,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/01-Select/test_query_select_basic.py
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_column.py
 ,,y,.,./ci/pytest.sh pytest cases/20-DataQuerying/02-Filter/test_filter_operator.py
@@ -278,14 +288,12 @@
 ## 06-Logical
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_case_when.py
-,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_if.py
 ,,y,.,./ci/pytest.sh pytest cases/21-Operator/06-Logical/test_if_smoking.py
 
 # 22-Functions
 
 ## 01-Scalar
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_all.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_cast.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_math.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_string.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_scalar_time.py
@@ -297,6 +305,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_cast.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_ceil.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_concat.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_concat2.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_concat_ws.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_cos.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_floor.py
@@ -304,6 +313,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_log.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_lower.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_ltrim.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_pow.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_round.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_rtrim.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_sin.py
@@ -313,6 +323,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timediff.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timetruncate.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_timezone.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_json.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_iso8601.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/01-Scalar/test_fun_sca_to_unixtimestamp.py
@@ -337,6 +348,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_cols.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_first.py
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_first_last.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_last.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_last_row.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_max.py
@@ -360,31 +372,36 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/22-Functions/04-Timeseries/test_fun_ts_twa.py
-## 05-Others
+## 05-Compare
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/05-Compare/test_fun_cmp_if.py
 #,,y,.,./ci/pytest.sh pytest cases/22-Functions/05-others/test_resinfo.py
+## 06-System
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/06-System/test_fun_sys_info.py
+## 07-Geometry
+,,y,.,./ci/pytest.sh pytest cases/22-Functions/07-Geometry/test_fun_geo_basic.py
 
 # 23-UDFs
 #,,y,.,./ci/pytest.sh pytest cases/23-UDFs/test_udf_c.py
 #,,y,.,./ci/pytest.sh pytest cases/23-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/23-UDFs/test_udf_with_const.py
 
-# 24-TimeSeriesExtensions
+# 24-TimeSeriesExt
 ## 01-PartitionBy
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/01-PartitionBy/test_partitonby.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/01-PartitionBy/test_partitonby.py
 ## 02-Fill
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/02-Fill/test_fill.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/02-Fill/test_fill.py
 ## 03-TimeWindow
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/03-TimeWindow/test_interval_auto.py
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/03-TimeWindow/test_interval_basic.py
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/03-TimeWindow/test_interval_bug_ts5400.py
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/03-TimeWindow/test_interval_timezone.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_auto.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_basic.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_bug_ts5400.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/03-TimeWindow/test_interval_timezone.py
 ## 04-StateWindow
 ## 05-EventWindow
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/05-EventWindow/test_event.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/05-EventWindow/test_event.py
 ## 06-SessionWindow
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/06-SessionWindow/test_session.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/06-SessionWindow/test_session.py
 ## 07-CountWindow
-,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExtensions/07-CountWindow/test_count.py
+,,y,.,./ci/pytest.sh pytest cases/24-TimeSeriesExt/07-CountWindow/test_count.py
 
 # 25-JoinQueries
 ,,y,.,./ci/pytest.sh pytest cases/25-JoinQueries/test_join_full.py
@@ -568,7 +585,8 @@
 
 # 52-Show
 ,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_alive.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_basic.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_diskinfo.py 
 ,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_table_distributed.py
 ,,y,.,./ci/pytest.sh pytest cases/52-Show/test_show_tables.py
@@ -637,6 +655,11 @@
 
 # 93-Changes
 
+# 95-Tools
+
+# 01-Check
+,,y,.,./ci/pytest.sh pytest cases/95-Tools/01-Check/test_check_error_code.py
+
 # 99-Others
 ## 01-Valgrind
 ,,y,.,./ci/pytest.sh pytest cases/99-Others/01-Valgrind/test_valgrind_basic1.py
@@ -682,14 +705,12 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py -N 3
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/db-encrypt/test_basic.py -N 3 -M 3
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/grant/test_grant_bugs.py -N 3
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_column_tag_boundary.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_csv_file_with_row_split.py 
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py 
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py
 
@@ -700,16 +721,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_desc.py -N 3 -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_null.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_compare_asc_desc.py
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_elapsed.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_function.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_selection_function_with_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_paramnum.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_percentile.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_resinfo.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interp.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval_diff_tz.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3
 
@@ -722,7 +733,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_compare.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_case_when.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_basic.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_show.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_having.py
 
@@ -872,8 +882,6 @@
 
 ,,n,.,pytest cases/uncatalog/army/user/test_passwd.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/whole/test_check_error_code.py
-
 ## system_test
 ### 2-query
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pk_error.py
@@ -904,9 +912,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_decimal3.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbnameIn.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQuery2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_interp_extension.py
@@ -966,7 +971,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_not.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_Now.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_orderBy.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_pow.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_query_cols_tags_and_or.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaBasic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_smaTest.py
@@ -983,8 +987,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_projectionDesc.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_join2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_union1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_concat2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_json_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_nestedQueryInterval.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_systable_func.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4382.py
@@ -998,7 +1000,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_ts_4348_td_27939.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_backslash_g.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_ts4467.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_geometry.py
 
 ,,n,.,pytest cases/uncatalog/system-test/2-query/test_queryQnode.py
 
@@ -1011,6 +1012,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_fill_with_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_operator.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_state_window_extend.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_state_window_zeroth.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
 
 
@@ -1087,7 +1089,6 @@
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_cachemodel.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_sysinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_control.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_manage.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege.py
@@ -1132,7 +1133,6 @@
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_dumpsdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_tag_index.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py
@@ -1148,7 +1148,6 @@
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_pseudo_column.py
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_ts_range.py
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_tag_scan.py
-,,n,.,pytest cases/uncatalog/develop-test/2-query/test_show_create_db.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/test_new/storage/compact/test_compact_meta.py
 ### 7-tmq

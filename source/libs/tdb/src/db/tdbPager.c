@@ -499,7 +499,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
 
   tdb_fd_t jfd = pTxn->jfd;
 
-  ret = tdbGetFileSize(jfd, pPager->pageSize, &journalSize);
+  ret = tdbGetFileSize(jfd, pPager->pageSize + sizeof(SPgno), &journalSize);
   if (ret < 0) {
     return ret;
   }
@@ -1044,7 +1044,7 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
     return 0;
   }
 
-  ret = tdbGetFileSize(jfd, pPager->pageSize, &journalSize);
+  ret = tdbGetFileSize(jfd, pPager->pageSize + sizeof(SPgno), &journalSize);
   if (ret < 0) {
     return TAOS_SYSTEM_ERROR(ERRNO);
   }

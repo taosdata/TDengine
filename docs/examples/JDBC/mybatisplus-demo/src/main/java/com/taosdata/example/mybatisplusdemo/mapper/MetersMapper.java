@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.taosdata.example.mybatisplusdemo.domain.Meters;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.apache.ibatis.executor.BatchResult;
 
@@ -18,4 +19,7 @@ public interface MetersMapper extends BaseMapper<Meters> {
     int insertOne(Meters one);
     @Update("drop stable if exists meters")
     void dropTable();
+
+    @Select("select count(*) from meters where tbname = '${tbname}'")
+    int countBySql(String tbname);
 }

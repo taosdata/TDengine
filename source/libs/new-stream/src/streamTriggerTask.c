@@ -30,11 +30,11 @@
 #include "ttime.h"
 #include "tutil.h"
 
-#define STREAM_TRIGGER_CHECK_INTERVAL_MS    1000                    // 1s
-#define STREAM_TRIGGER_IDLE_TIME_NS         1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
-#define STREAM_TRIGGER_MAX_PENDING_PARAMS   1 * 1024 * 1024         // 1M
-#define STREAM_TRIGGER_REALTIME_SESSIONID   1
-#define STREAM_TRIGGER_HISTORY_SESSIONID    2
+#define STREAM_TRIGGER_CHECK_INTERVAL_MS  1000                    // 1s
+#define STREAM_TRIGGER_IDLE_TIME_NS       1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
+#define STREAM_TRIGGER_MAX_PENDING_PARAMS 1 * 1024 * 1024         // 1M
+#define STREAM_TRIGGER_REALTIME_SESSIONID 1
+#define STREAM_TRIGGER_HISTORY_SESSIONID  2
 
 #define STREAM_TRIGGER_HISTORY_STEP_MS (10 * MILLISECOND_PER_DAY)     // 10d
 #define STREAM_TRIGGER_RECALC_MERGE_MS (30 * MILLISECOND_PER_MINUTE)  // 30min
@@ -1798,6 +1798,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       const SStateWinTrigger *pState = &pMsg->trigger.stateWin;
       pTask->stateSlotId = pState->slotId;
       pTask->stateExtend = pState->extend;
+      code = nodesStringToNode(pState->zeroth, &pTask->pStateZeroth);
+      QUERY_CHECK_CODE(code, lino, _end);
       pTask->stateTrueFor = pState->trueForDuration;
       code = nodesStringToNode(pState->expr, &pTask->pStateExpr);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2053,6 +2055,10 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    if (pTask->pStateZeroth != NULL) {
+      nodesDestroyNode(pTask->pStateZeroth);
+      pTask->pStateZeroth = NULL;
+    }
     if (pTask->pStateExpr != NULL) {
       nodesDestroyNode(pTask->pStateExpr);
       pTask->pStateExpr = NULL;
@@ -5207,7 +5213,10 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
                pContext->status == STRIGGER_CONTEXT_IDLE) {
       // continue check if there are delayed requests to be processed
       SSTriggerRealtimeGroup *pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
-      if (pMinGroup->nextExecTime > taosGetTimestampNs()) {
+      int64_t                 now = taosGetTimestampNs();
+      if (pMinGroup->nextExecTime <= now) {
+        ST_TASK_DLOG("wake trigger for available runner since next exec time: %" PRId64 ", now: %" PRId64,
+                     pMinGroup->nextExecTime, now);
         SListIter  iter = {0};
         SListNode *pNode = NULL;
         taosWLockLatch(&gStreamTriggerWaitLatch);
@@ -6292,6 +6301,18 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         SSTriggerWindow *pHead = TRINGBUF_HEAD(&pGroup->winBuf);
         SSTriggerWindow *p = pHead;
         do {
+          if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+            // for state trigger, check if state equals to the zeroth state
+            bool stEqualZeroth = false;
+            void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ?
+                  (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
+            code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (stEqualZeroth) {
+              TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
+              continue;
+            }
+          }
           SSTriggerCalcParam param = {
               .triggerTime = now,
               .wstart = p->range.skey,
@@ -7648,7 +7669,13 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
               startTs = pWin->range.ekey + 1;
             }
-            if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+            bool stEqualZeroth = false;
+            code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (stEqualZeroth) {
+              pWin = taosArrayPop(pContext->pWindows);
+              stRealtimeContextDestroyWindow((void*)pWin);
+            } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
               code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
                                                    &pWin->pWinCloseNotify);
               QUERY_CHECK_CODE(code, lino, _end);
@@ -9539,12 +9566,19 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
+        bool stEqualZeroth = false;
+        code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
-                                               &pExtraNotifyContent);
+        if (stEqualZeroth) {
+          TRINGBUF_DEQUEUE(&pGroup->winBuf);
+        } else {   
+          code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
           QUERY_CHECK_CODE(code, lino, _end);
+          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
+            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
+                                                 &pExtraNotifyContent);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
         }
         code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -9689,4 +9723,29 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
       return TSDB_CODE_INVALID_PARA;
     }
   }
+}
+
+int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pStateData == NULL || pZeroth == NULL) {
+    return code;
+  }
+
+  SValueNode* pZerothState = (SValueNode*)pZeroth;
+  int8_t type = pZerothState->node.resType.type;
+  if (IS_VAR_DATA_TYPE(type)) {
+    *pIsEqual = compareLenPrefixedStr(pStateData, pZerothState->datum.p) == 0;
+  } else if (IS_INTEGER_TYPE(type)) {
+    *pIsEqual = memcmp(pStateData, &pZerothState->datum.i, pZerothState->node.resType.bytes) == 0;
+  } else if (IS_BOOLEAN_TYPE(type)) {
+    *pIsEqual = memcmp(pStateData, &pZerothState->datum.b, pZerothState->node.resType.bytes) == 0;
+  } else {
+    *pIsEqual = false;
+    code = TSDB_CODE_INVALID_PARA;
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed since %s, zeroth state param type: %d", __func__, tstrerror(code), type);
+  }
+  return code;
 }

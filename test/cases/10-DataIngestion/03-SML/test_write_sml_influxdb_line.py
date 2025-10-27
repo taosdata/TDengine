@@ -1349,7 +1349,7 @@ class TestInfluxdbLineTaoscInsert:
 
 
     def test_write_sml_influxdb_line(self):
-        """ Schemaless Write with InfluxDB Line Protocol
+        """ InfluxDB Line Protocol
 
         1. Basic InfluxDB line protocol parsing
         2. Automatic table schema creation  

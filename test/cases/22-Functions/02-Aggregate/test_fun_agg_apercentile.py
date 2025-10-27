@@ -319,7 +319,7 @@ class TestFunApercentile:
     # ------------------ main ------------------
     #
     def test_func_agg_apercentile(self):
-        """ Function APERCENTILE
+        """ Fun: apercentile()
 
         1. Sim case including time windows, t-digest input, null value
         2. Query on super/child/normal table

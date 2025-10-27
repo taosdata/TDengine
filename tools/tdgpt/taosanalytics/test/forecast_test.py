@@ -60,7 +60,6 @@ class ForecastTest(unittest.TestCase):
         )
 
         r = s.execute()
-
         draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
 
     def test_holt_winter_invalid_params(self):

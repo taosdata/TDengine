@@ -182,6 +182,8 @@ int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);
 void     tsdReaderResetVer(void* p, SQueryTableDataCond* pCond);
 int32_t  tsdReaderResetExTimeWindow(void* p, SQueryTableDataCond* pCond);
 int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+void     tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock);
+void     tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock);
 int64_t  tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle, uint32_t *rows);
 void    *tsdbGetIdx2(SMeta *pMeta);
 void    *tsdbGetIvtIdx2(SMeta *pMeta);
