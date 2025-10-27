@@ -21,66 +21,13 @@ message(STATUS "Contrib directory: " ${TD_CONTRIB_DIR})
 add_subdirectory(enterprise/contrib)
 
 include(community/cmake/preinclude.cmake)
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/cmake.platform")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/cmake.platform)
-endif()
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/platform.cmake")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/platform.cmake)
-endif()
-
+include(community/cmake/platform.cmake)
 include(enterprise/cmake/enterprise_options.cmake)
 include(enterprise/cmake/enterprise_defines.cmake)
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/cmake.options")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/cmake.options)
-endif()
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/options.cmake")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/options.cmake)
-endif()
-
+include(community/cmake/options.cmake)
 include(community/cmake/check_env.cmake)
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/cmake.define")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/cmake.define)
-endif()
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/defines.cmake")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/defines.cmake)
-endif()
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/define.cmake")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/define.cmake)
-endif()
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/cmake.version")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/cmake.version)
-endif()
-
-set(FILE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/community/cmake/version.cmake")
-
-if(EXISTS ${FILE_PATH})
-  include(community/cmake/version.cmake)
-endif()
-
+include(community/cmake/define.cmake)
+include(community/cmake/version.cmake)
 include(community/cmake/external.cmake)
 
 if(${BUILD_TEST})

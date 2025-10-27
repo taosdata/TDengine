@@ -1,0 +1,28 @@
+@startuml
+participant app
+participant taosc
+
+app -> taosc : dynamic_mask
+taosc -> taosc : parse SQL
+taosc -> mnode : get mask rules
+mnode -> mnode : read mask rules
+mnode --> taosc : return
+taosc -> taosc : continue parse SQL commands
+taosc -> mnode : get metadata
+mnode --> taosc : return
+taosc -> taosc : check privilege
+taosc -> taosc : translate
+taosc -> taosc : update catalog info
+taosc -> taosc : make logic plan 
+taosc -> taosc : optimize ……
+taosc -> taosc : make physic plan
+taosc -> vnode1 : read data
+taosc -> vnode2 : read data
+vnode1 --> taosc : return
+vnode2 --> taosc : return
+taosc -> taosc : mrege data
+taosc -> taosc : mask data
+taosc --> app : RSP
+
+
+@enduml
