@@ -250,12 +250,12 @@ def before_test_class(request):
             tdLog.info("All dnodes are ready")
             break
         else:
-            tdLog.info(
-                f"{request.session.create_dnode_num} dnodes not all ready, ready number: {status}, total number: {tdSql.queryRows}")
+            tdLog.info(f"{request.session.create_dnode_num} dnodes not all ready, ready number: {status}, total number: {tdSql.queryRows}")
         time.sleep(1)
         count += 1
     else:
         tdLog.exit(f"{request.session.create_dnode_num} dnodes not all ready within {timeout}s!")
+    
 
     if request.session.mnodes_num:
         for i in range(2, request.session.mnodes_num + 1):

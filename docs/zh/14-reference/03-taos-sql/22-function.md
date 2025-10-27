@@ -2595,7 +2595,7 @@ taos> SELECT NULLIF(1,1);
 NVL2(expr1, expr2, expr3)
 ```
 
-**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr1。
+**功能说明**：如果 expr1 非空值，返回 expr2，否则返回 expr3。
 
 **返回结果类型**：依赖于使用的上下文。
 

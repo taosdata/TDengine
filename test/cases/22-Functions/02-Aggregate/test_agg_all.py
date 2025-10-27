@@ -473,3 +473,10 @@ class TestAggFunction:
         self.run_sum()
         self.run_leastsquares()
         self.run_statecount()
+        
+        # select function
+        self.run_max()
+        self.run_min()
+
+        # error function
+        self.run_error()
