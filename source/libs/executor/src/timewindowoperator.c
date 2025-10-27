@@ -71,12 +71,15 @@ void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, int32_t rowIndex, uint64_t
   pRowSup->groupId = groupId;
   if (hasContinuousNullRows(pRowSup)) {
     // rows having null state col are wrapped by rows of same state
+    // these rows can be counted into current window
     pRowSup->numOfRows += pRowSup->numNullRows;
     resetNumNullRows(pRowSup);
   }
 }
 
 // start a new state window and record the start info
+// if hasPrevWin is false, it means current row is the first non-null state row
+// then it should contain the previous null state rows
 void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
   int32_t rowIndex, uint64_t groupId, bool hasPrevWin) {
   pRowSup->groupId = groupId;
