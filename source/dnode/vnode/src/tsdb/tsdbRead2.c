@@ -3805,6 +3805,10 @@ static int32_t resetTableListIndex(SReaderStatus* pStatus, const char* id) {
   pList = &pStatus->uidList;
 
   pList->currentIndex = 0;
+  if (tSimpleHashGetSize(pStatus->pTableMap) == 0) {
+    pStatus->pTableIter = NULL;
+    goto _end;
+  }
   uint64_t uid = pList->tableUidList[0];
   pStatus->pTableIter = tSimpleHashGet(pStatus->pTableMap, &uid, sizeof(uid));
   if (pStatus->pTableIter == NULL) {
