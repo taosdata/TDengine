@@ -2621,7 +2621,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   STSchema* piSchema = NULL;
   if (piRow->type == TSDBROW_ROW_FMT) {
     piSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
-    TSDB_CHECK_NULL(pSchema, code, lino, _end, terrno);
+    TSDB_CHECK_NULL(piSchema, code, lino, _end, terrno);
   }
 
   // merge is not initialized yet, due to the fact that the pReader->info.pSchema is not initialized
