@@ -4031,6 +4031,34 @@ void tDestroySSTriggerCalcParam(void* ptr) {
   }
 }
 
+void tDestroySSTriggerGroupCalcInfo(void* ptr) {
+  SSTriggerGroupCalcInfo* pCalcInfo = ptr;
+  if (pCalcInfo && pCalcInfo->pParams != NULL) {
+    taosArrayDestroyEx(pCalcInfo->pParams, tDestroySSTriggerCalcParam);
+    pCalcInfo->pParams = NULL;
+  }
+  if (pCalcInfo && pCalcInfo->pGroupColVals != NULL) {
+    taosArrayDestroyEx(pCalcInfo->pGroupColVals, tDestroySStreamGroupValue);
+    pCalcInfo->pGroupColVals = NULL;
+  }
+}
+
+void tDestroySSTriggerGroupReadInfo(void* ptr) {
+  SSTriggerGroupReadInfo* pReadInfo = ptr;
+  if (pReadInfo && pReadInfo->pTables) {
+    taosArrayDestroy(pReadInfo->pTables);
+    pReadInfo->pTables = NULL;
+  }
+}
+
+void tDestroySSTriggerGroupReadInfoArray(void* ptr) {
+  if (ptr != NULL && *(SArray**)ptr != NULL) {
+    SArray* pArray = *(SArray**)ptr;
+    taosArrayDestroyEx(pArray, tDestroySSTriggerGroupReadInfo);
+    *(SArray**)ptr = NULL;
+  }
+}
+
 void tDestroySStreamGroupValue(void* ptr) {
   SStreamGroupValue* pValue = ptr;
   if ((pValue != NULL) && (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL)) {
@@ -4184,6 +4212,44 @@ _exit:
   return code;
 }
 
+static int32_t tSerializeSSTriggerGroupCalcInfo(SEncoder* pEncoder, SSTriggerGroupCalcInfo* pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pParams, false, true));
+  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pGroupColVals, -1));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pInfo->createTable));
+
+_exit:
+  return code;
+}
+
+static int32_t tSerializeSSTriggerGroupReadInfo(SEncoder* pEncoder, SSTriggerGroupReadInfo* pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->gid));
+  int64_t plainFieldSize = offsetof(SSTriggerCalcParam, notifyType);
+  if (pEncoder->data) {
+    TAOS_MEMCPY(pEncoder->data + pEncoder->pos, &pInfo->firstParam, plainFieldSize);
+  }
+  pEncoder->pos += plainFieldSize;
+  if (pEncoder->data) {
+    TAOS_MEMCPY(pEncoder->data + pEncoder->pos, &pInfo->lastParam, plainFieldSize);
+  }
+  pEncoder->pos += plainFieldSize;
+
+  int32_t nTables = taosArrayGetSize(pInfo->pTables);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nTables));
+  if (pEncoder->data && nTables > 0) {
+    TAOS_MEMCPY(pEncoder->data + pEncoder->size, pInfo->pTables->pData, nTables * sizeof(int64_t));
+  }
+  pEncoder->pos += nTables * sizeof(int64_t);
+
+_exit:
+  return code;
+}
+
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -4197,11 +4263,42 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->runnerTaskId));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->triggerType));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isMultiGroupCalc));
 
-  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false, true));
-  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
+  if (!pReq->isMultiGroupCalc) {
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
+    TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(&encoder, pReq->params, false, true));
+    TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, pReq->groupColVals, -1));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createTable));
+  } else {
+    int32_t nGroups = tSimpleHashGetSize(pReq->pGroupCalcInfos);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, nGroups));
+    int32_t                 iter1 = 0;
+    SSTriggerGroupCalcInfo* pCalcInfo = tSimpleHashIterate(pReq->pGroupCalcInfos, NULL, &iter1);
+    while (pCalcInfo != NULL) {
+      int64_t* gid = tSimpleHashGetKey(pCalcInfo, NULL);
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, *gid));
+      TAOS_CHECK_EXIT(tSerializeSSTriggerGroupCalcInfo(&encoder, pCalcInfo));
+      pCalcInfo = tSimpleHashIterate(pReq->pGroupCalcInfos, pCalcInfo, &iter1);
+    }
+
+    int32_t nVnodes = tSimpleHashGetSize(pReq->pGroupReadInfos);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, nVnodes));
+    int32_t iter2 = 0;
+    void*   px = tSimpleHashIterate(pReq->pGroupReadInfos, NULL, &iter2);
+    while (px != NULL) {
+      int32_t* vgId = tSimpleHashGetKey(px, NULL);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, *vgId));
+      SArray* pInfos = *(SArray**)px;
+      int32_t nGroups = taosArrayGetSize(pInfos);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, nGroups));
+      for (int32_t i = 0; i < nGroups; ++i) {
+        SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfos, i);
+        TAOS_CHECK_EXIT(tSerializeSSTriggerGroupReadInfo(&encoder, pReadInfo));
+      }
+      px = tSimpleHashIterate(pReq->pGroupReadInfos, px, &iter2);
+    }
+  }
 
   tEndEncode(&encoder);
 
@@ -4213,6 +4310,42 @@ _exit:
   }
   tEncoderClear(&encoder);
   return tlen;
+}
+
+static int32_t tDeserializeSSTriggerGroupCalcInfo(SDecoder* pDecoder, SSTriggerGroupCalcInfo* pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(pDecoder, &pInfo->pParams, false));
+  TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(pDecoder, &pInfo->pGroupColVals));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pInfo->createTable));
+
+_exit:
+  return code;
+}
+
+static int32_t tDeserializeSSTriggerGroupReadInfo(SDecoder* pDecoder, SSTriggerGroupReadInfo* pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->gid));
+  int64_t plainFieldSize = offsetof(SSTriggerCalcParam, notifyType);
+  TAOS_MEMCPY(&pInfo->firstParam, pDecoder->data + pDecoder->pos, plainFieldSize);
+  pDecoder->pos += plainFieldSize;
+  TAOS_MEMCPY(&pInfo->lastParam, pDecoder->data + pDecoder->pos, plainFieldSize);
+  pDecoder->pos += plainFieldSize;
+
+  int32_t nTables = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nTables));
+  pInfo->pTables = taosArrayInit_s(sizeof(int64_t), nTables);
+  QUERY_CHECK_NULL(pInfo->pTables, code, lino, _exit, terrno);
+  if (nTables > 0) {
+    TAOS_MEMCPY(pInfo->pTables->pData, pDecoder->data + pDecoder->pos, nTables * sizeof(int64_t));
+  }
+  pDecoder->pos += nTables * sizeof(int64_t);
+
+_exit:
+  return code;
 }
 
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq) {
@@ -4227,11 +4360,52 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->runnerTaskId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->sessionId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->triggerType));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->gid));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isMultiGroupCalc));
 
-  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(&decoder, &pReq->params, false));
-  TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(&decoder, &pReq->groupColVals));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createTable));
+  if (!pReq->isMultiGroupCalc) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->gid));
+    TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(&decoder, &pReq->params, false));
+    TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(&decoder, &pReq->groupColVals));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createTable));
+  } else {
+    pReq->pGroupCalcInfos = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    QUERY_CHECK_NULL(pReq->pGroupCalcInfos, code, lino, _exit, terrno);
+    tSimpleHashSetFreeFp(pReq->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+    int32_t nGroups = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nGroups));
+    for (int32_t i = 0; i < nGroups; i++) {
+      int64_t gid = 0;
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &gid));
+      SSTriggerGroupCalcInfo info = {0};
+      TAOS_CHECK_EXIT(tSimpleHashPut(pReq->pGroupCalcInfos, &gid, sizeof(int64_t), &info, sizeof(info)));
+      SSTriggerGroupCalcInfo* pCalcInfo = tSimpleHashGet(pReq->pGroupCalcInfos, &gid, sizeof(int64_t));
+      QUERY_CHECK_NULL(pCalcInfo, code, lino, _exit, TSDB_CODE_INTERNAL_ERROR);
+      TAOS_CHECK_EXIT(tDeserializeSSTriggerGroupCalcInfo(&decoder, pCalcInfo));
+    }
+
+    int32_t nVnodes = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nVnodes));
+    pReq->pGroupReadInfos = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    QUERY_CHECK_NULL(pReq->pGroupReadInfos, code, lino, _exit, terrno);
+    tSimpleHashSetFreeFp(pReq->pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
+    for (int32_t i = 0; i < nVnodes; i++) {
+      int32_t vgId = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vgId));
+      int32_t nGroups = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nGroups));
+      SArray* pInfos = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), nGroups);
+      QUERY_CHECK_NULL(pInfos, code, lino, _exit, terrno);
+      code = tSimpleHashPut(pReq->pGroupReadInfos, &vgId, sizeof(int32_t), &pInfos, POINTER_BYTES);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pInfos);
+        TAOS_CHECK_EXIT(code);
+      }
+      for (int32_t j = 0; j < nGroups; ++j) {
+        SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfos, j);
+        TAOS_CHECK_EXIT(tDeserializeSSTriggerGroupReadInfo(&decoder, pReadInfo));
+      }
+    }
+  }
 
   tEndDecode(&decoder);
 
@@ -4249,6 +4423,14 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
     if (pReq->groupColVals != NULL) {
       taosArrayDestroyEx(pReq->groupColVals, tDestroySStreamGroupValue);
       pReq->groupColVals = NULL;
+    }
+    if (pReq->pGroupCalcInfos != NULL) {
+      tSimpleHashCleanup(pReq->pGroupCalcInfos);
+      pReq->pGroupCalcInfos = NULL;
+    }
+    if (pReq->pGroupReadInfos != NULL) {
+      tSimpleHashCleanup(pReq->pGroupReadInfos);
+      pReq->pGroupReadInfos = NULL;
     }
     blockDataDestroy(pReq->pOutBlock);
   }

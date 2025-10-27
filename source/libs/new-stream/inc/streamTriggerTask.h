@@ -329,6 +329,7 @@ typedef struct SStreamTriggerTask {
   bool    isStbPartitionByTag;
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
+  bool    multiGroupBatch;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // trigger options: old version, to be removed
@@ -401,6 +402,8 @@ typedef struct SStreamTriggerTask {
 int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid,
                                     SSTriggerCalcRequest **ppRequest);
 int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest);
+int32_t stTriggerTaskCheckCreate(SStreamTriggerTask *pTask, SSTriggerCalcRequest *pRequest, int64_t sessionId,
+                                 int64_t gid);
 
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                       STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory);

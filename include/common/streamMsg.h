@@ -950,19 +950,38 @@ typedef struct SSTriggerCalcParam {
   char*   resultNotifyContent;  // does not serialize
 } SSTriggerCalcParam;
 
+typedef struct SSTriggerGroupCalcInfo {
+  SArray* pParams;  // SArray<SSTriggerCalcParam>
+  SArray* pGroupColVals;
+  int8_t  createTable;
+} SSTriggerGroupCalcInfo;
+
+typedef struct SSTriggerGroupReadInfo {
+  int64_t            gid;
+  SSTriggerCalcParam firstParam;
+  SSTriggerCalcParam lastParam;
+  SArray*            pTables;  // SArray<uid uint64_t>, tables to read; tables are decided by reader if it is null
+} SSTriggerGroupReadInfo;
+
 typedef struct SSTriggerCalcRequest {
   int64_t streamId;
   int64_t runnerTaskId;
   int64_t sessionId;
   int32_t triggerType;    // See also: EStreamTriggerType
   int64_t triggerTaskId;  // does not serialize
-  
+  int8_t  isMultiGroupCalc;
+
+  // The following fields are used for single group calculation
   int64_t gid;
   SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
+  int8_t  createTable;
+
+  // The following fields are used for multi-group calculation
+  SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>
+  SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
 
   // The following fields are not serialized and only used by the runner task
-  int8_t  createTable;
   bool    brandNew;   // no serialize
   int32_t execId;     // no serialize
   int32_t curWinIdx;  // no serialize
@@ -972,6 +991,9 @@ typedef struct SSTriggerCalcRequest {
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
 void    tDestroySSTriggerCalcParam(void* ptr);
+void    tDestroySSTriggerGroupCalcInfo(void* ptr);
+void    tDestroySSTriggerGroupReadInfo(void* ptr);
+void    tDestroySSTriggerGroupReadInfoArray(void* ptr);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
 typedef struct SSTriggerDropRequest {
