@@ -27,7 +27,7 @@ class TestUdfPy:
         """
 
         tdLog.info(f"======== step1 udf")
-        os.system("cases/23-UDFs/sh/compile_udf.sh")
+        os.system("cases/12-UDFs/sh/compile_udf.sh")
 
         tdSql.execute(f"create database udf vgroups 3;")
         tdSql.execute(f"use udf;")

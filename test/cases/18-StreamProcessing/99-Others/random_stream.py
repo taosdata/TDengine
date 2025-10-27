@@ -1739,7 +1739,7 @@ class TestStreamTriggerType1:
         可以通过环境变量STREAM_COUNT设置要生成的stream数量
         """
         # 从环境变量获取stream数量,如果没有设置则使用默认值
-        # eg:STREAM_COUNT=10 pytest --clean cases/41-StreamProcessing/99-Others/random_stream.py  --skip_stop 
+        # eg:STREAM_COUNT=10 pytest --clean cases/18-StreamProcessing/99-Others/random_stream.py  --skip_stop 
         import os
         stream_count = int(os.getenv('STREAM_COUNT', self.stream_count))
         tdLog.debug(f"使用的stream数量: {stream_count}")

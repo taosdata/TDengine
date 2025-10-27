@@ -29,12 +29,12 @@ class TestUdf:
         # system sh/cfg.sh -n dnode1 -c udf -v 1
 
         tdLog.info(f"======== step1 udf")
-        os.system("cases/23-UDFs/sh/compile_udf.sh")
-        os.system("cases/23-UDFs/sh/prepare_pyudf.sh")
+        os.system("cases/12-UDFs/sh/compile_udf.sh")
+        os.system("cases/12-UDFs/sh/prepare_pyudf.sh")
         os.system("mkdir -p /tmp/pyudf")
-        os.system("cp cases/23-UDFs/sh/pybitand.py /tmp/pyudf/")
-        os.system("cp cases/23-UDFs/sh/pyl2norm.py /tmp/pyudf/")
-        os.system("cp cases/23-UDFs/sh/pycumsum.py /tmp/pyudf/")
+        os.system("cp cases/12-UDFs/sh/pybitand.py /tmp/pyudf/")
+        os.system("cp cases/12-UDFs/sh/pyl2norm.py /tmp/pyudf/")
+        os.system("cp cases/12-UDFs/sh/pycumsum.py /tmp/pyudf/")
         os.system("ls /tmp/pyudf")
 
         tdSql.execute(f"create database udf vgroups 3;")

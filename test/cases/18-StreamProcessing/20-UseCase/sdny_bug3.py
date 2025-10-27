@@ -260,8 +260,8 @@ class TestSdnyStream:
         tdSql.execute(stbsql)
         tdSql.execute(tb1sql)
         tdSql.execute(tb2sql)
-        tdSql.execute(f"insert into {self.dbname}.e010720169990001 file 'cases/41-StreamProcessing/20-UseCase/e010720169990001.csv';")
-        tdSql.execute(f"insert into {self.dbname}.e010720169990002 file 'cases/41-StreamProcessing/20-UseCase/e010720169990001.csv';")
+        tdSql.execute(f"insert into {self.dbname}.e010720169990001 file 'cases/18-StreamProcessing/20-UseCase/e010720169990001.csv';")
+        tdSql.execute(f"insert into {self.dbname}.e010720169990002 file 'cases/18-StreamProcessing/20-UseCase/e010720169990001.csv';")
         tdLog.info("load csv file success.")
         
     
