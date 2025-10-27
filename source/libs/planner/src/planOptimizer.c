@@ -2415,6 +2415,52 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
   return pdcTrivialPushDown(pCxt, (SLogicNode*)pVScan);
 }
 
+static int32_t pdcDealInterp(SOptimizeContext* pCxt, SInterpFuncLogicNode* pInterp) {
+  int32_t code = 0, lino = 0;
+  if (OPTIMIZE_FLAG_TEST_MASK(pInterp->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  // TODO: remove it after full implementation of pushing down to child
+  if (1 != LIST_LENGTH(pInterp->node.pChildren)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pInterp->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    if (1 != LIST_LENGTH(pChild->pChildren)) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    pChild = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);  
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  if (NULL == pInterp->pTimeRange) {
+    pScan->pExtScanRange = taosMemoryMalloc(sizeof(*pScan->pExtScanRange));
+    TSDB_CHECK_NULL(pScan->pExtScanRange, code, lino, _exit, terrno);
+
+    pScan->pExtScanRange->skey = pInterp->timeRange.skey;
+    pScan->pExtScanRange->ekey = pInterp->timeRange.ekey;
+  } else {
+    TAOS_CHECK_EXIT(nodesCloneNode(pInterp->pTimeRange, &pScan->pExtTimeRange));
+  }
+  
+_exit:
+
+  if (TSDB_CODE_SUCCESS == code) {
+    OPTIMIZE_FLAG_SET_MASK(pInterp->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    pCxt->optimized = true;
+  } else {
+    planError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
 static int32_t pdcOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pLogicNode)) {
@@ -2436,6 +2482,9 @@ static int32_t pdcOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
       break;
     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
       code = pdcDealVirtualTable(pCxt, (SVirtualScanLogicNode*)pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      code = pdcDealInterp(pCxt, (SInterpFuncLogicNode*)pLogicNode);
       break;
     default:
       break;
@@ -4576,21 +4625,25 @@ static bool lastRowScanOptCheckColNum(int32_t lastColNum, col_id_t lastColId, in
 
 static bool isNeedSplitCacheLastFunc(SFunctionNode* pFunc, SScanLogicNode* pScan, SNodeList* pSplitAggFuncList) {
   int32_t funcType = pFunc->funcType;
-  // return true if all these conditions are matched
-  // 1. func is not last_row, or func is last_row bug cache model is last_value
-  // 2. func is not last, or func is last and cache model is last_row or param is not a normal column
-  // 3. func is not select_value or group_key
-  // TODO(tianyi): simplify the condition
-  if ((FUNCTION_TYPE_LAST_ROW != funcType || 
-        (FUNCTION_TYPE_LAST_ROW == funcType && TSDB_CACHE_MODEL_LAST_VALUE == pScan->cacheLastMode)) &&
-      (FUNCTION_TYPE_LAST != funcType || (FUNCTION_TYPE_LAST == funcType &&
-        (TSDB_CACHE_MODEL_LAST_ROW == pScan->cacheLastMode ||
-         QUERY_NODE_OPERATOR == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
-         QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0)) ||
-         COLUMN_TYPE_COLUMN != ((SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0))->colType))) &&
-      FUNCTION_TYPE_SELECT_VALUE != funcType && FUNCTION_TYPE_GROUP_KEY != funcType) {
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (funcType == FUNCTION_TYPE_LAST_ROW) {
+    if (pScan->cacheLastMode == TSDB_CACHE_MODEL_LAST_VALUE) {
+      return true;
+    }
+  } else if (funcType == FUNCTION_TYPE_LAST) {
+    if (pScan->cacheLastMode == TSDB_CACHE_MODEL_LAST_ROW) {
+      return true;
+    }
+    if (pParam != NULL) {
+      if (nodeType(pParam) != QUERY_NODE_COLUMN || ((SColumnNode*)pParam)->colType != COLUMN_TYPE_COLUMN) {
+        return true;
+      }
+    }
+  } else if (funcType != FUNCTION_TYPE_SELECT_VALUE && funcType != FUNCTION_TYPE_GROUP_KEY &&
+             funcType != FUNCTION_TYPE_GROUP_CONST_VALUE) {
     return true;
   }
+
   // return true if this func is related to a split func
   if (pFunc->node.relatedTo > 0 && pSplitAggFuncList != NULL) {
     SNode* pNode = NULL;
@@ -4601,6 +4654,7 @@ static bool isNeedSplitCacheLastFunc(SFunctionNode* pFunc, SScanLogicNode* pScan
       }
     }
   }
+
   return false;
 }
 
@@ -4649,7 +4703,10 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
     } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType) {
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode* pCol = (SColumnNode*)pParam;
-        if (COLUMN_TYPE_COLUMN == pCol->colType && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+        if (COLUMN_TYPE_COLUMN == pCol->colType &&
+            PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId &&
+            !pCol->isPk) {
+          // found a non-pk select column
           if (selectNonPKColId != pCol->colId) {
             selectNonPKColId = pCol->colId;
             selectNonPKColNum++;
@@ -4663,8 +4720,9 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
         canOptimize = false;
         break;
       }
-    } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
-      if (!lastRowScanOptLastParaIsTag(nodesListGetNode(pAggFunc->pParameterList, 0))) {
+    } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType || 
+                FUNCTION_TYPE_GROUP_CONST_VALUE == pAggFunc->funcType) {
+      if (!lastRowScanOptLastParaIsTag(pParam)) {
         canOptimize = false;
         break;
       }

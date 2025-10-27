@@ -278,6 +278,7 @@ typedef struct SStmStatus {
   int64_t           fatalRetryTs;
   int64_t           fatalRetryTimes;
 
+  SRWLatch          resetLock;
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
   SArray*           trigOReaders;       // SArray<SStmTaskStatus>, virtable table only
   SList*            calcReaders;        // SList<SStmTaskStatus>

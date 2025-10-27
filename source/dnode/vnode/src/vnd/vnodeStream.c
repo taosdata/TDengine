@@ -35,6 +35,7 @@
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "executor.h"
 
 #define BUILD_OPTION(options, sStreamReaderInfo, _ver, _order, startTime, endTime, _schemas, _isSchema, _scanMode, \
                      _gid, _initReader, _mapInfo)                                                                        \
@@ -1192,7 +1193,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
           } else {
             colId = -1;
           }
-          ST_TASK_DLOG("%s vtable colId:%d, i:%d, uid:%" PRId64, __func__, colId, i, submitTbData.uid);
+          ST_TASK_TLOG("%s vtable colId:%d, i:%d, uid:%" PRId64, __func__, colId, i, submitTbData.uid);
         } else {
           colId = pColData->info.colId;
         }
@@ -1927,24 +1928,14 @@ end:
 */
 
 static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo, SResFetchReq* req,
-                                    STimeRangeNode* node, SReadHandle* handle) {
+                                    STimeRangeNode* node, SReadHandle* handle, bool isExtWin) {
   int32_t code = 0;
   int32_t lino = 0;
-  SArray* funcVals = NULL;
+  void* pTask = sStreamReaderCalcInfo->pTask;
+  STimeWindow* pWin = isExtWin ? &handle->extWinRange : &handle->winRange;
+  bool* pValid = isExtWin ? &handle->extWinRangeValid : &handle->winRangeValid;
+  
   if (req->pStRtFuncInfo->withExternalWindow) {
-/*
-    nodesDestroyNode(sStreamReaderCalcInfo->tsConditions);
-    filterFreeInfo(sStreamReaderCalcInfo->pFilterInfo);
-    sStreamReaderCalcInfo->pFilterInfo = NULL;
-
-    STREAM_CHECK_RET_GOTO(createExternalConditions(req->pStRtFuncInfo,
-                                                   (SLogicConditionNode**)&sStreamReaderCalcInfo->tsConditions,
-                                                   sStreamReaderCalcInfo->pTargetNodeTs, node));
-
-    STREAM_CHECK_RET_GOTO(filterInitFromNode((SNode*)sStreamReaderCalcInfo->tsConditions,
-                                             (SFilterInfo**)&sStreamReaderCalcInfo->pFilterInfo,
-                                             FLT_OPTION_NO_REWRITE | FLT_OPTION_SCALAR_MODE, NULL));
-*/                                             
     sStreamReaderCalcInfo->tmpRtFuncInfo.curIdx = 0;
     sStreamReaderCalcInfo->tmpRtFuncInfo.triggerType = req->pStRtFuncInfo->triggerType;
     
@@ -1954,49 +1945,53 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
     STREAM_CHECK_NULL_GOTO(pLast, terrno);
 
     if (!node->needCalc) {
-      handle->winRange.skey = pFirst->wstart;
-      handle->winRange.ekey = pLast->wend;
-      handle->winRangeValid = true;
+      pWin->skey = pFirst->wstart;
+      pWin->ekey = pLast->wend;
+      *pValid = true;
       if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
-        handle->winRange.ekey--;
+        pWin->ekey--;
       }
     } else {
       SSTriggerCalcParam* pTmp = taosArrayGet(sStreamReaderCalcInfo->tmpRtFuncInfo.pStreamPesudoFuncVals, 0);
       memcpy(pTmp, pFirst, sizeof(*pTmp));
 
-      STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid, 1));
-      if (handle->winRangeValid) {
-        int64_t skey = handle->winRange.skey;
+      STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, pWin, pValid, 1));
+      if (*pValid) {
+        int64_t skey = pWin->skey;
 
         memcpy(pTmp, pLast, sizeof(*pTmp));
-        STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, &handle->winRange, &handle->winRangeValid, 2));
+        STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, &sStreamReaderCalcInfo->tmpRtFuncInfo, pWin, pValid, 2));
 
-        if (handle->winRangeValid) {
-          handle->winRange.skey = skey;
+        if (*pValid) {
+          pWin->skey = skey;
         }
       }
-      handle->winRange.ekey--;
+      pWin->ekey--;
     }
   } else {
     if (!node->needCalc) {
       SSTriggerCalcParam* pCurr = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, req->pStRtFuncInfo->curIdx);
-      handle->winRange.skey = pCurr->wstart;
-      handle->winRange.ekey = pCurr->wend;
-      handle->winRangeValid = true;
+      pWin->skey = pCurr->wstart;
+      pWin->ekey = pCurr->wend;
+      *pValid = true;
       if (req->pStRtFuncInfo->triggerType == STREAM_TRIGGER_SLIDING) {
-        handle->winRange.ekey--;
+        pWin->ekey--;
       }
     } else {
-      STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, req->pStRtFuncInfo, &handle->winRange, &handle->winRangeValid, 3));
-      handle->winRange.ekey--;
+      STREAM_CHECK_RET_GOTO(streamCalcCurrWinTimeRange(node, req->pStRtFuncInfo, pWin, pValid, 3));
+      pWin->ekey--;
     }
   }
 
-  stDebug("%s withExternalWindow is %d, skey:%" PRId64 ", ekey:%" PRId64 ", validRange:%d", 
-      __func__, req->pStRtFuncInfo->withExternalWindow, handle->winRange.skey, handle->winRange.ekey, handle->winRangeValid);
+  ST_TASK_DLOG("%s type:%s, withExternalWindow:%d, skey:%" PRId64 ", ekey:%" PRId64 ", validRange:%d", 
+      __func__, isExtWin ? "interp range" : "scan time range", req->pStRtFuncInfo->withExternalWindow, pWin->skey, pWin->ekey, *pValid);
 
 end:
-  taosArrayDestroy(funcVals);
+
+  if (code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  
   return code;
 }
 
@@ -2414,8 +2409,8 @@ static int32_t vnodeProcessStreamTsdbCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, 
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start, skey:%"PRId64",ekey:%"PRId64",gid:%"PRId64, TD_VID(pVnode), __func__, 
-    req->tsdbCalcDataReq.skey, req->tsdbCalcDataReq.ekey, req->tsdbCalcDataReq.gid);
+  ST_TASK_DLOG("vgId:%d %s start, skey:%"PRId64",ekey:%"PRId64",gid:%"PRId64",ver:%"PRId64, TD_VID(pVnode), __func__, 
+    req->tsdbCalcDataReq.skey, req->tsdbCalcDataReq.ekey, req->tsdbCalcDataReq.gid, req->tsdbCalcDataReq.ver);
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerCols, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
 
@@ -2460,6 +2455,7 @@ static int32_t vnodeProcessStreamTsdbCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, 
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlockRes, pTaskInner->pResBlockDst->info.capacity));
   blockDataTransform(pBlockRes, pTaskInner->pResBlockDst);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlockRes, &buf, &size));
+  printDataBlock(pBlockRes, __func__, "tsdb_calc_data", ((SStreamTask*)pTask)->streamId);
   ST_TASK_DLOG("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlockRes->info.rows);
   if (!hasNext) {
     STREAM_CHECK_RET_GOTO(taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES));
@@ -2485,8 +2481,9 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
   
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
-
+  ST_TASK_DLOG("vgId:%d %s start, skey:%"PRId64",ekey:%"PRId64",uid:%"PRId64",ver:%"PRId64, TD_VID(pVnode), __func__, 
+    req->tsdbDataReq.skey, req->tsdbDataReq.ekey, req->tsdbDataReq.uid, req->tsdbDataReq.ver);
+    
   SStreamReaderTaskInner* pTaskInner = NULL;
   int64_t key = req->tsdbDataReq.uid;
 
@@ -3074,6 +3071,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   size_t             size = 0;
   void*              taskAddr = NULL;
   SArray*            pResList = NULL;
+  bool               hasNext = false;
 
   SResFetchReq req = {0};
   STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
@@ -3088,9 +3086,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   ST_TASK_DLOG("vgId:%d %s start, execId:%d, reset:%d, pTaskInfo:%p, scan type:%d", TD_VID(pVnode), __func__, req.execId, req.reset,
                sStreamReaderCalcInfo->pTaskInfo, nodeType(sStreamReaderCalcInfo->calcAst->pNode));
 
-  if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
-  // if (req.reset) {
-    qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
+  if (req.reset) {
     int64_t uid = 0;
     if (req.dynTbname) {
       SArray* vals = req.pStRtFuncInfo->pStreamPartColVals;
@@ -3112,22 +3108,31 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode)){
       STimeRangeNode* node = (STimeRangeNode*)((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->pTimeRange;
       if (node != NULL) {
-        STREAM_CHECK_RET_GOTO(processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle));
+        STREAM_CHECK_RET_GOTO(processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle, false));
       } else {
-        ST_TASK_DLOG("vgId:%d %s no time range node", TD_VID(pVnode), __func__);
+        ST_TASK_DLOG("vgId:%d %s no scan time range node", TD_VID(pVnode), __func__);
       }
+
+      node = (STimeRangeNode*)((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->pExtTimeRange;
+      if (node != NULL) {
+        STREAM_CHECK_RET_GOTO(processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle, true));
+      } else {
+        ST_TASK_DLOG("vgId:%d %s no interp time range node", TD_VID(pVnode), __func__);
+      }      
     }
 
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
     handle.streamRtInfo = &sStreamReaderCalcInfo->rtInfo;
 
-    // if (sStreamReaderCalcInfo->pTaskInfo == NULL) {
-    STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
+    if (sStreamReaderCalcInfo->pTaskInfo == NULL || !qNeedReset(sStreamReaderCalcInfo->pTaskInfo)) {
+      qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
+      STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
                                                     sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, TD_VID(pVnode),
                                                     req.taskId));
-    // } else {
-    // STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, handle.winRange));
-    // }
+    } else {
+      handle.version = pVnode->state.applied;
+      STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, &handle));
+    }
 
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
   }
@@ -3139,7 +3144,6 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   pResList = taosArrayInit(4, POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(pResList, terrno);
   uint64_t ts = 0;
-  bool     hasNext = false;
   STREAM_CHECK_RET_GOTO(qExecTaskOpt(sStreamReaderCalcInfo->pTaskInfo, pResList, &ts, &hasNext, NULL, req.pOpParam != NULL));
 
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
@@ -3154,14 +3158,17 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
 */    
   }
 
+end:
   ST_TASK_DLOG("vgId:%d %s start to build rsp", TD_VID(pVnode), __func__);
   STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision));
   ST_TASK_DLOG("vgId:%d %s end:", TD_VID(pVnode), __func__);
 
-end:
   taosArrayDestroy(pResList);
   streamReleaseTask(taskAddr);
 
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST){
+    code = TDB_CODE_SUCCESS;
+  }
   STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);

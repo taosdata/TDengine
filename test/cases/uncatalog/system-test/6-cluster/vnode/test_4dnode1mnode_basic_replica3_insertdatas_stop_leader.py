@@ -1,5 +1,5 @@
 # author : wenzhouwww
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdCom
 from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
@@ -30,20 +30,6 @@ class Test4dnode1mnodeBasicReplica3InsertdatasStopLeader:
         cls.current_thread = None
         cls.max_restart_time = 5
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def _parse_datetime(self,timestr):
         try:
@@ -280,7 +266,7 @@ class Test4dnode1mnodeBasicReplica3InsertdatasStopLeader:
         return check_status
 
     def start_benchmark_inserts(self):
-        benchmark_build_path = self.getBuildPath() + '/build/bin/taosBenchmark'
+        benchmark_build_path = tdCom.getBuildPath() + '/build/bin/taosBenchmark'
         tdLog.notice("==== start taosBenchmark insert datas of database test ==== ")
         os.system(" {} -y -n 10000 -t 100  ".format(benchmark_build_path))
 

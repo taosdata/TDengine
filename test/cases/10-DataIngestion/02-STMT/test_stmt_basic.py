@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdCom
 import sys
 import os
 import threading as thd
@@ -41,24 +41,6 @@ class TestStmtBasic:
     #
     # --------------- case1 ----------------
     #
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        buildPath = ""
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        return buildPath
-
 
     def newcon(self,host,cfg):
         user = "root"
@@ -174,7 +156,7 @@ class TestStmtBasic:
 
     def do_stmt_muti_insert_query(self):
 
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         host="localhost"
         connectstmt=self.newcon(host,config)
@@ -353,7 +335,7 @@ class TestStmtBasic:
             raise err
 
     def do_stmt_set_tbname_tag(self):
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         host="localhost"
         connectstmt=self.newcon(host,config)

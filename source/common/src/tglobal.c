@@ -400,6 +400,7 @@ void   *pTimezoneNameMap = NULL;
 
 int32_t tsStreamNotifyMessageSize = 8 * 1024;  // KB, default 8MB
 int32_t tsStreamNotifyFrameSize = 256;         // KB, default 256KB
+int32_t tsStreamBatchRequestWaitMs = 5000;     // ms, default 5s
 
 bool    tsShowFullCreateTableColumn = 0;  // 0: show full create table, 1: show only table name and db name
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
@@ -967,6 +968,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyMessageSize", tsStreamNotifyMessageSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyFrameSize", tsStreamNotifyFrameSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamBatchRequestWaitMs", tsStreamBatchRequestWaitMs, 0, 30 * 60 * 1000, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
   // clang-format on
 
@@ -1953,6 +1955,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyFrameSize");
   tsStreamNotifyFrameSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamBatchRequestWaitMs");
+  tsStreamBatchRequestWaitMs = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsCliKeyPath");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
