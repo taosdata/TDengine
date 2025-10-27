@@ -52,9 +52,15 @@ void saslConnSetState(SSaslConn* pConn, int32_t state) {
 
 static int saslCallBackFn(SSaslConn* conn, int id, const char** result, unsigned* len, void* context) {
   if (id == SASL_CB_USER) {
-    *result = taosStrdup("tdengine");
+    *result = taosStrdup("tdengineUser");
     if (len) *len = (unsigned)strlen(*result);
     return SASL_OK;
+  } else if (id == SASL_CB_PASS) {
+    *result = taosStrdup("tdenginePass");
+    if (len) *len = (unsigned)strlen(*result);
+    return SASL_OK;
+  } else {
+    return SASL_FAIL;
   }
   return SASL_FAIL;
 }
@@ -65,6 +71,7 @@ int32_t saslConnInit(SSaslConn** pConn, int8_t isServer) {
 
   sasl_callback_t callbacks[] = {
       {SASL_CB_USER, (int (*)())saslCallBackFn, NULL},
+      {SASL_CB_PASS, (int (*)())saslCallBackFn, NULL},
       {SASL_CB_LIST_END, NULL, NULL},
   };
 
