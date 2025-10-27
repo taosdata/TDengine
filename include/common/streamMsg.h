@@ -186,6 +186,7 @@ typedef struct SSessionTrigger {
 typedef struct SStateWinTrigger {
   int16_t slotId;
   int16_t extend;
+  void*   zeroth;
   int64_t trueForDuration;
   void*   expr;
 } SStateWinTrigger;
@@ -601,6 +602,7 @@ typedef struct SStreamRunnerDeployMsg {
   char*  outDBFName;
   char*  outTblName;
   int8_t outTblType;
+  int8_t lowLatencyCalc;
   int8_t calcNotifyOnly;
   int8_t topPlan;
 

@@ -6,15 +6,16 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from flask import Flask, request
 
-from taosanalytics.algo.imputation import do_imputation, do_set_params
+from taosanalytics.algo.imputation import do_imputation, do_set_imputation_params
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
+from taosanalytics.algo.correlation import do_dtw, do_tlcc
 
 from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
-from taosanalytics.util import app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise, \
-    parse_options, get_past_dynamic_data, get_dynamic_data
+from taosanalytics.util import (app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise,
+                                parse_options, get_past_dynamic_data, get_dynamic_data, get_second_data_list)
 
 app = Flask(__name__)
 
@@ -71,7 +72,7 @@ def handle_ad_request():
 
     # 1. validate the input data in json format
     try:
-        validate_pay_load(req_json)
+        validate_pay_load(req_json, True)
         d = req_json["data"]
         if len(d) > 2:
             raise ValueError(f"invalid data format, too many columns for anomaly-detection, allowed:2, input:{len(d)}")
@@ -115,7 +116,7 @@ def handle_ad_request():
         return result
 
 
-def do_check_before_exec(request):
+def do_check_before_exec(request, check_rows=True):
     if not request.is_json:
         app_logger.log_inst.error('recv invalid request, %s', request.data)
         raise ValueError("invalid request format")
@@ -129,7 +130,7 @@ def do_check_before_exec(request):
 
     # 1. validate the input data in json format
     try:
-        validate_pay_load(req_json)
+        validate_pay_load(req_json, check_rows)
     except ValueError as e:
         app_logger.log_inst.error('validate req json failed, %s', e)
         raise ValueError(e)
@@ -199,7 +200,7 @@ def handle_imputation_req():
     params = parse_options(options)
 
     try:
-        do_set_params(params, req_json)
+        do_set_imputation_params(params, req_json)
     except ValueError as e:
         app_logger.log_inst.error("invalid imputation params: %s", e)
         return {"msg": f"{e}", "rows": -1}
@@ -217,6 +218,44 @@ def handle_imputation_req():
         return res
     except Exception as e:
         app_logger.log_inst.error('impu failed, %s', str(e))
+        return {"msg": str(e), "rows": -1}
+
+
+@app.route("/correlation", methods=['POST'])
+def handle_correlation_req():
+    """handle the correlation request """
+    app_logger.log_inst.info('recv correlation from %s', request.remote_addr)
+    try:
+        # check for rows limitation to reduce the dtw process time
+        req_json, payload, options, data_index, ts_index = do_check_before_exec(request, False)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    params = parse_options(options)
+
+    algo = req_json['algo'].lower()
+
+    try:
+        second_list = get_second_data_list(payload, req_json["schema"])
+
+        if algo == 'dtw':
+            dist, path = do_dtw(payload[data_index], second_list, params)
+
+            res = {"option": options, "rows": len(path), "distance": dist, "path": path}
+            app_logger.log_inst.debug("dtw result: %s", res)
+
+            return res
+        elif algo == 'tlcc':
+            lags, ccf_vals = do_tlcc(payload[data_index], second_list, params)
+
+            res = {"option": options, "rows": len(lags), "lags": lags, "ccf_vals": ccf_vals}
+            app_logger.log_inst.debug("tlcc result: %s", res)
+
+            return res
+        else:
+            raise ValueError(f"unsupported algo: {algo}")
+    except Exception as e:
+        app_logger.log_inst.error('correlation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 if __name__ == '__main__':

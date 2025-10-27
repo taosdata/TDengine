@@ -60,7 +60,9 @@ typedef struct {
   void*       pOtherBackend;
   int8_t      fillHistory;
   STimeWindow winRange;
+  STimeWindow extWinRange;
   bool        winRangeValid;
+  bool        extWinRangeValid;
 
   struct SStorageAPI api;
   void*              pWorkerCb;
@@ -115,7 +117,8 @@ typedef enum {
  * @return
  */
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, SStreamInserterParam* pInsertParams, int32_t vgId, int32_t taskId);
-int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range);
+int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle);
+bool    qNeedReset(qTaskInfo_t pInfo);
 
 void moveExecTaskInfoWalVersions(qTaskInfo_t* pTaskInfo, SSHashObj** pWalVersions);
 /**

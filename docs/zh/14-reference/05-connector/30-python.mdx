@@ -13,7 +13,7 @@ import RequestId from "./_request_id.mdx";
 
 安装连接器命令如下：
 ``` bash
-# 原生连接和 REST 连接
+# 原生连接
 pip3 install taospy
 
 # WebSocket 连接，可选装
@@ -24,17 +24,16 @@ pip3 install taos-ws-py
 
 ## 连接方式
 
-`taospy`提供三种连接方式，我们推荐使用 **WebSocket 连接**。
+`taospy`提供两种连接方式，我们推荐使用 **WebSocket 连接**。
 
 - **原生连接**，Python 连接器加载 TDengine TSDB 客户端驱动程序 (libtaos.so/taos.dll)，直接连接 TDengine TSDB 实例，特点性能高，速度快。功能上支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。对应 `taospy` 包的 `taos` 模块。
-- **REST 连接**，Python 连接器通过 `taosAdapter` 提供的 HTTP 接口连接 TDengine TSDB 实例，特点依赖小，不需要安装 TDengine TSDB 客户端驱动。功能上不支持 schemaless 和数据订阅等特性。对应 `taospy` 包的 `taosrest` 模块。
 - **WebSocket 连接**，Python 连接器通过 `taosAdapter` 提供的 WebSocket 接口连接 TDengine TSDB 实例，特点是兼具前两种连接的优势，即性能高又依赖小。功能上 WebSocket 连接实现功能集合和原生连接有少量不同。对应 `taos-ws-py` 包，可以选装。
 
 连接方式的详细介绍请参考：[连接方式](../../../develop/connect/#连接方式)
 
-除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范 (PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
+除了对原生接口的封装，`taospy` 还提供了符合 [Python 数据访问规范 (PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
 
-使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 `taosAdapter` 提供的 REST 接口或 WebSocket 接口与服务端建立的连接的方式下文中称为“REST 连接”或“WebSocket 连接”。
+使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 `taosAdapter` 提供的 WebSocket 接口与服务端建立的连接的方式下文中称为“WebSocket 连接”。
 
 :::note 
 - 如果需要在 taos-ws-py 中使用 SQLAlchemy 需要安装 taospy 2.8.5 以上版本。
@@ -50,7 +49,7 @@ pip3 install taos-ws-py
 ## 支持的平台
 
 - 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
-- WebSocket/REST 连接支持所有能运行 Python 的平台。
+- WebSocket 连接支持所有能运行 Python 的平台。
 
 ## 历史版本
 
@@ -82,7 +81,7 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
-|          0.6.1           | 1. 支持 BLOB 数据类型 <br/> 2. 支持 timezone                                           | - |
+|          0.6.1           | 1. 支持 BLOB 数据类型 <br/> 2. 支持时区 <br/> 3. 支持负载均衡                       | - |
 |          0.5.3           | 支持 ipv6 地址格式                                                                       | - |
 |          0.5.2           | 升级 rust 连接器版本，修复了云服务连接的 token 问题                                       | - |
 |          0.5.1           | 支持 stmt2 参数绑定写入和查询                                                          | - |
@@ -598,51 +597,3 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 - `def close(self)`
     - **接口说明**：关闭 tmq 连接。
     - **异常**：操作失败抛出 TmqError 异常。
-
-### REST 连接
-
-- `def connect(**kwargs) -> TaosRestConnection`
-    - **接口说明**：建立 taosAdapter 连接。
-    - **参数说明**：
-        - `kwargs`：以 Python 字典的形式提供，可用于设置
-            - `user`：数据库的用户名
-            - `password`：数据库的密码。
-            - `host`：主机地址
-            - `port`：端口号
-            - `database`：数据库名称   
-    - **返回值**：连接对象。
-    - **异常**：操作失败抛出 `ConnectError` 异常。
-- `def execute(self, sql: str, req_id: Optional[int] = None) -> Optional[int]`
-    - **接口说明**：执行 sql 语句。 
-    - **参数说明**：
-        - `sql`：待执行的 sql 语句。
-        - `reqId`：用于问题追踪。
-    - **返回值**：影响的条数。
-    - **异常**：操作失败抛出 `ConnectError` 或 `HTTPError` 异常。
-- `def query(self, sql: str, req_id: Optional[int] = None) -> Result`
-   - **接口说明**：查询数据。
-    - **参数说明**：
-        - `sql`：待执行的 sql 语句。
-        - `reqId`：用于问题追踪。
-    - **返回值**：`Result` 数据集对象。
-    - **异常**：操作失败抛出 `ConnectError` 或 `HTTPError` 异常。
-- `RestClient(self, url: str, token: str = None, database: str = None, user: str = "root", password: str = "taosdata", timeout: int = None, convert_timestamp: bool = True, timezone: Union[str, datetime.tzinfo] = None)`
-    - **接口说明**：建立 taosAdapter 连接 client。
-    - **参数说明**：
-        - `url`：taosAdapter REST 服务的 URL。
-        - `user`：数据库的用户名。
-        - `password`：数据库的密码。
-        - `database`：数据库名称。
-        - `timezone`：时区。
-        - `timeout`：HTTP 请求超时时间。单位为秒。
-        - `convert_timestamp`：是否将时间戳从 STR 类型转换为 datetime 类型。
-        - `timezone`：时区。
-    - **返回值**：连接对象。
-    - **异常**：操作失败抛出 `ConnectError` 异常。
-- `def sql(self, q: str, req_id: Optional[int] = None) -> dict`
-    - **接口说明**：执行 sql 语句。 
-    - **参数说明**：
-        - `sql`：待执行的 sql 语句。
-        - `reqId`: 用于问题追踪。
-    - **返回值**：返回字典列表。
-    - **异常**：操作失败抛出 `ConnectError` 或 `HTTPError` 异常。

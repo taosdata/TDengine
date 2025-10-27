@@ -286,7 +286,10 @@ SColumnInfoData createColumnInfoData(int16_t type, int32_t bytes, int16_t colId)
 int32_t         bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index, SColumnInfoData** pColInfoData);
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
+int32_t blockGetInternalEncodeSize(const SSDataBlock* pBlock);
+int32_t blockEncodeInternal(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols);
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols);
+int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 
 // for debug
@@ -304,7 +307,6 @@ int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_
                                char** dstTableName);
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
-
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 int32_t calcStrBytesByType(int8_t type, char* data);

@@ -46,6 +46,8 @@ class TDFindPath:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
+            if ".git" in root:
+                continue
             if ("taosd" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
@@ -71,6 +73,8 @@ class TDFindPath:
             projPath = selfPath[:selfPath.find("test")]
         print(projPath)
         for root, dirs, files in os.walk(projPath):
+            if ".git" in root:
+                continue
             if ("sim" in dirs):
                 print(root)
                 rootRealPath = os.path.realpath(root)

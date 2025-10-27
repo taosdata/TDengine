@@ -153,7 +153,7 @@ static int32_t nodesCallocImpl(int32_t size, void** pOut) {
   if (g_pNodeAllocator->pCurrChunk->usedSize + alignedSize > g_pNodeAllocator->pCurrChunk->availableSize) {
     int32_t code = callocNodeChunk(g_pNodeAllocator, NULL);
     if (TSDB_CODE_SUCCESS != code) {
-      *pOut = NULL;
+      taosMemFreeClear(*pOut);
       return code;
     }
   }
@@ -1267,6 +1267,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pState->pExpr);
       nodesDestroyNode(pState->pTrueForLimit);
       nodesDestroyNode(pState->pExtend);
+      nodesDestroyNode(pState->pZeroth);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -1958,7 +1959,9 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
       taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pLogicNode->pTsmaTargetTbInfo);
+      taosMemoryFreeClear(pLogicNode->pExtScanRange);
       nodesDestroyNode(pLogicNode->pTimeRange);
+      nodesDestroyNode(pLogicNode->pExtTimeRange);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -2072,6 +2075,7 @@ void nodesDestroyNode(SNode* pNode) {
       SInterpFuncLogicNode* pLogicNode = (SInterpFuncLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
+      nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pFillValues);
       nodesDestroyNode(pLogicNode->pTimeSeries);
       break;
@@ -2155,7 +2159,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTags);
       nodesDestroyNode(pPhyNode->pSubtable);
+      taosMemoryFreeClear(pPhyNode->pExtScanRange);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      nodesDestroyNode(pPhyNode->pExtTimeRange);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -2289,6 +2295,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
       nodesDestroyList(pPhyNode->pFuncs);
+      nodesDestroyNode(pPhyNode->pTimeRange);
       nodesDestroyNode(pPhyNode->pFillValues);
       nodesDestroyNode(pPhyNode->pTimeSeries);
       break;

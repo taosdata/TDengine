@@ -7,7 +7,8 @@ from new_test_framework.utils import (
     clusterComCheck,
     tdStream,
     StreamItem,
-    tdCb
+    tdCb,
+    tdCom
 )
 
 
@@ -114,7 +115,7 @@ class TestCompatibilityRollingUpgradeAll:
         lastBigVersion = nowServerVersion.split(".")[0]+"."+nowServerVersion.split(".")[1]+"."+nowServerVersion.split(".")[2]+"."+"0"
         tdLog.info(f"Last big version is {lastBigVersion}")
 
-        bPath = self.getBuildPath()
+        bPath = tdCom.getBuildPath()
         cPaths = self.getDnodePaths()
         
         # Stop all dnodes
@@ -151,25 +152,6 @@ class TestCompatibilityRollingUpgradeAll:
 
     def getDnodePaths(self):
         """Get dnode paths - copied from original"""
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         dnodePaths = [buildPath + "/../sim/dnode1/", buildPath + "/../sim/dnode2/", buildPath + "/../sim/dnode3/"]
         return dnodePaths 
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        print(f"projPath:{projPath}")
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                print(f"rootRealPath:{rootRealPath}")
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        print(f"buildPath:{buildPath}")
-        return buildPath

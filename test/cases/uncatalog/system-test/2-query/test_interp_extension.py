@@ -225,8 +225,9 @@ class TestInterpExtension:
     ## interp_results: _irowts_origin, _irowts, ..., _isfilled
     ## select_all_results must be sorted by ts in ascending order
     def check_result_for_near(self, interp_results, select_all_results, sql, sql_select_all):
-        #tdLog.debug(f"check_result_for_near for sql: {sql}, sql_select_all{sql_select_all}")
+        #tdLog.info(f"check_result_for_near for sql: {sql}, sql_select_all: {sql_select_all}, interp_results: {interp_results}")
         for row in interp_results:
+            #tdLog.info(f"row: {row}")
             if row[0].tzinfo is None or row[0].tzinfo.utcoffset(row[0]) is None:
                 irowts_origin = row[0].replace(tzinfo=get_localzone())
                 irowts = row[1].replace(tzinfo=get_localzone())
@@ -270,6 +271,7 @@ class TestInterpExtension:
                     self.check_result_for_near(interp_results, select_all_results, sql, None)
         except Exception as e:
             self.check_failed = True
+            tdLog.error(f"error sql: {sql} sql_select_all: {sql_select_all}")
             tdLog.exit(f"interp_check_near_routine error: {e}")
 
     def create_qt_threads(self, sql_queue: queue.Queue, output_queue: queue.Queue, num: int):
@@ -353,6 +355,11 @@ class TestInterpExtension:
             range_where_start = random.randint(start, end)
             range_where_end = random.randint(range_where_start, end)
             range_point = random.randint(start, end)
+            # 检查range_point与range_where_start或range_where_end的间隔是否小于等于1小时(3600000毫秒)
+            one_hour_ms = 3600000
+            if ((range_point < range_where_start and abs(range_point - range_where_start) > one_hour_ms) or 
+                (range_point > range_where_end and abs(range_point - range_where_end) > one_hour_ms)):
+                continue            
             sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 where ts between {range_where_start} and {range_where_end} range({range_point}, 1h) fill(near, 1, 2)"
             tdSql.query(f'select to_char(cast({range_where_start} as timestamp), \'YYYY-MM-DD HH24:MI:SS.MS\'), to_char(cast({range_where_end} as timestamp), \'YYYY-MM-DD HH24:MI:SS.MS\')', queryTimes=1)
             where_start_str = tdSql.queryResult[0][0]

@@ -226,7 +226,6 @@ static void destroyBlock(void* data) {
 static void releaseStreamReaderInfo(void* p) {
   if (p == NULL) return;
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
-  if (pInfo == NULL) return;
   taosHashCleanup(pInfo->streamTaskMap);
   taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
@@ -618,7 +617,7 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
-    int32_t blockSize = blockGetEncodeSize(pBlock);
+    int32_t blockSize = blockGetInternalEncodeSize(pBlock);
     dataEncodeBufSize += (INT_BYTES * 2 + blockSize);
     blockNum++;
   }
@@ -637,12 +636,12 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
-    int32_t blockSize = blockGetEncodeSize(pBlock);
+    int32_t blockSize = blockGetInternalEncodeSize(pBlock);
     *((int32_t*)(dataBuf)) = blockSize;
     *((int32_t*)(dataBuf + INT_BYTES)) = blockSize;
     pRetrieve->numOfRows += pBlock->info.rows;
     int32_t actualLen =
-        blockEncode(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+        blockEncodeInternal(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
     STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
     dataBuf += (INT_BYTES * 2 + actualLen);
   }

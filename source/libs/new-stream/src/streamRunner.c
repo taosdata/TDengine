@@ -171,6 +171,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   pTask->parallelExecutionNun = pMsg->execReplica;
   pTask->output.outStbVersion = pMsg->outStbSversion;
   pTask->topTask = pMsg->topPlan;
+  pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
   pTask->notification.calcNotifyOnly = pMsg->calcNotifyOnly;
   pTask->addOptions = pMsg->addOptions;
   pTask->streamName = taosStrdup(pMsg->streamName);
@@ -446,8 +447,11 @@ static int32_t stRunnerMergeOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerT
   }
   
   if (pTask->notification.calcNotifyOnly) return code;
+
+  bool lowLatencyCalc = pTask->lowLatencyCalc || (tsStreamBatchRequestWaitMs < 1000);
+  
   if (pBlock && pBlock->info.rows > 0) {
-    if (pBlock->info.rows >= 4096) {
+    if (pBlock->info.rows >= 4096 || lowLatencyCalc) {
       pOutput = pBlock;
     } else if (NULL == pExec->pOutBlock) {
       TAOS_CHECK_EXIT(createOneDataBlock(pBlock, true, &pExec->pOutBlock));
@@ -455,12 +459,11 @@ static int32_t stRunnerMergeOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerT
     } else {
       TAOS_CHECK_EXIT(blockDataMerge(pExec->pOutBlock, pBlock));
     }
-    
   }
 
   if (pOutput && pOutput->info.rows > 0) {
     int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
-    if ((pExec->runtimeInfo.funcInfo.curOutIdx) >= winNum || pOutput->info.rows >= 4096) {
+    if (lowLatencyCalc || (pExec->runtimeInfo.funcInfo.curOutIdx) >= winNum || pOutput->info.rows >= 4096) {
       TAOS_CHECK_EXIT(stRunnerOutputBlock(pTask, pExec, pOutput, createTb));
       blockDataCleanup(pOutput);
     }

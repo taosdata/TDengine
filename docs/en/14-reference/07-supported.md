@@ -3,6 +3,8 @@ title: Supported Platforms
 slug: /tdengine-reference/supported-platforms
 ---
 
+import PlatformSupported from "../assets/resources/_platform_supported.mdx";
+
 ## List of Platforms Supported by TDengine Server
 
 |                       | **Version**        | **X64 64bit** | **ARM64** |
@@ -30,20 +32,4 @@ Note: 1) ● indicates officially tested and verified, ○ indicates unofficiall
 
 ## List of Platforms Supported by TDengine Client and Connectors
 
-Currently, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/LoongArch64, and development environments such as Linux/Win64/Win32/macOS.
-
-The compatibility matrix is as follows:
-
-| **CPU**     | **X64 64bit** | **X64 64bit** | **X64 64bit** | **ARM64** | **ARM64** |
-| ----------- | ------------- | ------------- | ------------- | --------- | --------- |
-| **OS**      | **Linux**     | **Win64**     | **macOS**     | **Linux** | **macOS** |
-| **C/C++**   | ●             | ●             | ●             | ●         | ●         |
-| **JDBC**    | ●             | ●             | ●             | ●         | ●         |
-| **Python**  | ●             | ●             | ●             | ●         | ●         |
-| **Go**      | ●             | ●             | ●             | ●         | ●         |
-| **NodeJs**  | ●             | ●             | ●             | ●         | ●         |
-| **C#**      | ●             | ●             | ○             | ●         | ○         |
-| **Rust**    | ●             | ●             | ●             | ○         | ●         |
-| **RESTful** | ●             | ●             | ●             | ●         | ●         |
-
-Note: ● indicates official testing and verification passed, ○ indicates non-official testing and verification passed, -- indicates not verified.
+<PlatformSupported /> 
