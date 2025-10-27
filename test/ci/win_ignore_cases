@@ -121,7 +121,7 @@ cases/41-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
 cases/41-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
 cases/41-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
 cases/41-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
-cases/41-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
+cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
 cases/41-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
 cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
 cases/41-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
