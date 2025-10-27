@@ -13,15 +13,15 @@ class TestCase:
         tdLog.debug(f"start to excute {__file__}")
 
     def test_tmq_td38404(self):
-        """summary: TD-38404:  tmq_get_json_meta return " if tag is ""
+        """summary: tmq_get_json_meta
 
-        description: the interface of tmq_get_json_meta return " if tag is "" 
+        description: tmq_get_json_meta behaves unexpectedly when the tags of subscribed meta messages contain empty strings.
 
         Since: v3.3.8.4
 
         Labels: taosx,tmq
 
-        Jira: https://jira.taosdata.com:18080/browse/TD-38404
+        Jira: TD-38404
 
         Catalog:
         - taosc:tmq
