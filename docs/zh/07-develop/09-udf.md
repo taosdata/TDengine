@@ -889,7 +889,7 @@ pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据�
 <details>
 <summary>pyl2norm.py</summary>
 
-```c
+```python
 {{#include test/cases/12-UDFs/sh/pyl2norm.py}}
 ```
 
@@ -901,7 +901,7 @@ pycumsum 使用 numpy 计算输入列所有数据的累积和。
 <details>
 <summary>pycumsum.py</summary>
 
-```c
+```python
 {{#include test/cases/12-UDFs/sh/pycumsum.py}}
 ```
 

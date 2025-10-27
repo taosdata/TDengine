@@ -882,7 +882,7 @@ Through this example, we learned how to define aggregate functions and print cus
 <details>
 <summary>pyl2norm.py</summary>
 
-```c
+```python
 {{#include test/cases/12-UDFs/sh/pyl2norm.py}}
 ```
 
@@ -894,7 +894,7 @@ Through this example, we learned how to define aggregate functions and print cus
 <details>
 <summary>pycumsum.py</summary>
 
-```c
+```python
 {{#include test/cases/12-UDFs/sh/pycumsum.py}}
 ```
 
