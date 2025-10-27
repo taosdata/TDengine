@@ -167,8 +167,10 @@ taosgen -h 127.0.0.1 -c config.yaml
   - 整型：timestamp、bool、tinyint、tinyint unsigned、smallint、smallint unsigned、int、int unsigned、bigint、bigint unsigned。
   - 浮点型：float、double、decimal。
   - 字符型：nchar、varchar（binary）。
+
+  目前，还不支持以下数据类型：json、geometry、varbinary、decimal、blob。
 - count（整数）：表示指定该类型的列连续出现的数量，例如 count：4096 即可生成 4096 个指定类型的列。
-- properties（字符串）：表示 TDengine 数据库的列支持的属性信息，可以包含以下属性：
+- props（字符串）：表示 TDengine 数据库的列支持的属性信息，可以包含以下属性：
   - encode：指定此列两级压缩中的第一级编码算法。
   - compress：指定此列两级压缩中的第二级加密算法。
   - level：指定此列两级压缩中的第二级加密算法的压缩率高低。

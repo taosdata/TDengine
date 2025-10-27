@@ -161,8 +161,10 @@ Each column includes:
   - Integer: timestamp, bool, tinyint, tinyint unsigned, smallint, smallint unsigned, int, int unsigned, bigint, bigint unsigned.
   - Float: float, double, decimal.
   - String: nchar, varchar (binary).
+
+  Currently, the following data types are not supported: json, geometry, varbinary, decimal, blob.
 - count (int): Number of consecutive columns of this type (e.g., count: 4096 creates 4096 columns).
-- properties (string): Column property info for TDengine, may include:
+- props (string): Column property info for TDengine, may include:
   - encode: First-level encoding algorithm for two-level compression.
   - compress: Second-level encryption algorithm for two-level compression.
   - level: Compression rate for second-level encryption.
