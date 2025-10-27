@@ -104,8 +104,8 @@ class Test_Last:
         tdSql.execute("insert into tb2 values ('2024-10-10 10:00:05', null);")
 
         tdCom.compare_testcase_result(
-            "cases/22-Functions/resource/in/last_tag.in",
-            "cases/22-Functions/resource/ans/last_tag.csv",
+            "cases/11-Functions/resource/in/last_tag.in",
+            "cases/11-Functions/resource/ans/last_tag.csv",
             "test_last_tag")
 
     def test_last_pk(self):
@@ -138,7 +138,7 @@ class Test_Last:
         tdSql.execute("insert into bbbt2 values('2024-06-05 14:00:00',4,2,3)")
 
         tdCom.compare_testcase_result(
-            "cases/22-Functions/resource/in/last_pk.in",
-            "cases/22-Functions/resource/ans/last_pk.csv",
+            "cases/11-Functions/resource/in/last_pk.in",
+            "cases/11-Functions/resource/ans/last_pk.csv",
             "test_last_pk"
         )
