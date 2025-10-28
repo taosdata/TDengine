@@ -28,22 +28,22 @@
     <div class="dnode-title">
       <span class="dnode-ep">{{ $t('dashboard.hosts') }}</span>
     </div>
-    <el-table :data="dnodeList" style="width: 100%" stripe border height="100%">
-      <el-table-column prop="ep" :label="$t('dashboard.endpoint')" width="240"></el-table-column>
-      <el-table-column prop="res" :label="$t('dashboard.cpumem')" width="100"></el-table-column>
-      <el-table-column prop="cpu_usage" :label="$t('dashboard.cpu_usage')" width="120">
+    <el-table :data="dnodeList" :default-sort="{ prop: 'ep', order: 'ascending' }" style="width: 100%" stripe border height="100%">
+      <el-table-column prop="ep" sortable :label="$t('dashboard.endpoint')" width="240"></el-table-column>
+      <el-table-column prop="res" sortable :label="$t('dashboard.cpumem')" width="105"></el-table-column>
+      <el-table-column prop="cpu_usage" sortable :label="$t('dashboard.cpu_usage')" width="125">
         <template #default="scope">
           <span :class="`taos-status-${scope.row.cpu_usage_status}`">{{ scope.row.cpu_usage }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="mem_usage" :label="$t('dashboard.memory_usage')" width="120">
+      <el-table-column prop="mem_usage" sortable :label="$t('dashboard.memory_usage')" width="120">
         <template #default="scope">
           <span :class="`taos-status-${scope.row.mem_usage_status}`">{{ scope.row.mem_usage }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="netio" :label="$t('dashboard.network')" width="180"></el-table-column>
-      <el-table-column prop="diskio" :label="$t('dashboard.disk')" width="180"></el-table-column>
-      <el-table-column prop="taosX" :label="$t('dashboard.service_status')">
+      <el-table-column prop="netio" sortable :label="$t('dashboard.network')" width="180"></el-table-column>
+      <el-table-column prop="diskio" sortable :label="$t('dashboard.disk')" width="180"></el-table-column>
+      <el-table-column prop="taosX" sortable :label="$t('dashboard.service_status')">
         <template #default="scope">
           <span v-if="scope.row.taosd"
             >taosd: <i class="taos-icon-status" :class="`taos-status-server-${scope.row.taosd}`"></i
