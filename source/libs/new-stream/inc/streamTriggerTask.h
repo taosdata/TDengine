@@ -326,7 +326,8 @@ typedef struct SStreamTriggerTask {
   bool    lowLatencyCalc;
   bool    hasPartitionBy;
   bool    isVirtualTable;
-  bool    isStbPartitionByTag;
+  bool    isSuperTable;
+  bool    stbPartByTbname;
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
   bool    multiGroupBatch;

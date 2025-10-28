@@ -4264,6 +4264,7 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->triggerType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isMultiGroupCalc));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->stbPartByTbname));
 
   if (!pReq->isMultiGroupCalc) {
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->gid));
@@ -4361,6 +4362,7 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->sessionId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->triggerType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isMultiGroupCalc));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->stbPartByTbname));
 
   if (!pReq->isMultiGroupCalc) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->gid));

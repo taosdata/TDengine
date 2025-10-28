@@ -916,6 +916,7 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
   pReq->triggerTaskId = pTask->task.taskId;
   pReq->gid = gid;
   pReq->isMultiGroupCalc = pTask->multiGroupBatch;
+  pReq->stbPartByTbname = pTask->stbPartByTbname;
   if (pReq->params == NULL) {
     pReq->params = taosArrayInit(0, sizeof(SSTriggerCalcParam));
     QUERY_CHECK_NULL(pReq->params, code, lino, _end, terrno);
@@ -1936,7 +1937,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
   pTask->hasPartitionBy = (pMsg->partitionCols != NULL);
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
-  pTask->isStbPartitionByTag = pMsg->isTriggerTblStb;
+  pTask->isSuperTable = pMsg->isTriggerTblStb;
+  pTask->stbPartByTbname = false;
   if (pMsg->isTriggerTblStb && pMsg->partitionCols != NULL) {
     code = nodesStringToList(pMsg->partitionCols, &pPartitionCols);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1944,7 +1946,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     FOREACH(pNode, pPartitionCols) {
       if ((pNode->type == QUERY_NODE_FUNCTION) &&
           (strcmp(((struct SFunctionNode *)pNode)->functionName, "tbname") == 0)) {
-        pTask->isStbPartitionByTag = false;
+        pTask->stbPartByTbname = true;
         break;
       }
     }
@@ -3520,9 +3522,38 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
 #endif
 
   if (pTask->multiGroupBatch) {
-    SSTriggerGroupCalcInfo info = {
+    SSTriggerGroupReadInfo readInfo = {.gid = pCalcReq->gid};
+    SSTriggerCalcParam    *pFirstParam = TARRAY_GET_ELEM(pCalcReq->params, 0);
+    SSTriggerCalcParam    *pLastParam = TARRAY_GET_ELEM(pCalcReq->params, TARRAY_SIZE(pCalcReq->params) - 1);
+    int64_t                plainFieldSize = offsetof(SSTriggerCalcParam, notifyType);
+    TAOS_MEMCPY(&readInfo.firstParam, pFirstParam, plainFieldSize);
+    TAOS_MEMCPY(&readInfo.lastParam, pLastParam, plainFieldSize);
+    // todo(kjq): fill in ptables in readInfo
+    SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
+    if (!pTask->stbPartByTbname || !pTask->isSuperTable) {
+      SArray *pInfos = NULL;
+      void *px = tSimpleHashGet(pCalcReq->pGroupReadInfos, &pGroup->vgId, sizeof(int32_t));
+      if (px == NULL) {
+        pInfos = taosArrayInit(0, sizeof(SSTriggerGroupReadInfo));
+        QUERY_CHECK_NULL(pInfos, code, lino, _end, terrno);
+        code = tSimpleHashPut(pCalcReq->pGroupReadInfos, &pGroup->vgId, sizeof(int32_t), &pInfos, POINTER_BYTES);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pInfos);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      } else {
+        pInfos = *(SArray **)px;
+      }
+      px = taosArrayPush(pInfos, &readInfo);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    } else {
+      // todo(kjq): fill in vnodes with readInfo
+    }
+
+    SSTriggerGroupCalcInfo calcInfo = {
         .pParams = pCalcReq->params, .pGroupColVals = pCalcReq->groupColVals, .createTable = pCalcReq->createTable};
-    code = tSimpleHashPut(pContext->pCalcReq->pGroupCalcInfos, &pCalcReq->gid, sizeof(int64_t), &info, sizeof(info));
+    code = tSimpleHashPut(pContext->pCalcReq->pGroupCalcInfos, &pCalcReq->gid, sizeof(int64_t), &calcInfo,
+                          sizeof(calcInfo));
     QUERY_CHECK_CODE(code, lino, _end);
     pContext->pCalcReq->params = NULL;
     pContext->pCalcReq->groupColVals = NULL;
@@ -3534,7 +3565,6 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
   }
 
 _send:
-
   // serialize and send request
   QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pCalcReq, &msg.info.ahandle), lino, _end);
   ST_TASK_DLOG("trigger calc req ahandle %p allocated", msg.info.ahandle);

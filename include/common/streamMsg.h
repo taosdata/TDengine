@@ -970,6 +970,7 @@ typedef struct SSTriggerCalcRequest {
   int32_t triggerType;    // See also: EStreamTriggerType
   int64_t triggerTaskId;  // does not serialize
   int8_t  isMultiGroupCalc;
+  int8_t  stbPartByTbname;  // trigger table is s-table and partitioned by tbname
 
   // The following fields are used for single group calculation
   int64_t gid;
