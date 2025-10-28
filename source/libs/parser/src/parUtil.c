@@ -247,6 +247,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
   if (pBuf == NULL || pBuf->buf == NULL) {
+    uError("pBuf is null in generateSyntaxErrMsg, errCode:%d, line:%d", errCode, __LINE__);
     return errCode;
   }
   va_list vArgList;
@@ -258,6 +259,7 @@ int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
 
 int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFormat, ...) {
   if (pBuf == NULL || pBuf->buf == NULL) {
+    uError("pBuf is null in generateSyntaxErrMsgExt, errCode:%d, line:%d", errCode, __LINE__);
     return errCode;
   }
   va_list vArgList;
@@ -277,6 +279,7 @@ int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
 
 int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...) {
   if (pBuf == NULL || pBuf->buf == NULL) {
+    uError("pBuf is null in buildInvalidOperationMsgExt, line:%d", __LINE__);
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   va_list vArgList;
@@ -287,7 +290,10 @@ int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...) {
 }
 
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr) {
-  if (pBuf == NULL || pBuf->buf == NULL) return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  if (pBuf == NULL || pBuf->buf == NULL) {
+    uError("pBuf is null in buildSyntaxErrMsg, line:%d", __LINE__);
+    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  }
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";
   const char* msgFormat3 = "%s";
