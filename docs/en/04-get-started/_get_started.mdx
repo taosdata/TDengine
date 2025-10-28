@@ -59,31 +59,31 @@ After inserting data with taosBenchmark, you can run the following queries in th
 
 Count total records in the supertable `meters`:
 
-```ll
+```sql
 SELECT COUNT(*) FROM test.meters;
 ```
 
 Calculate the average, maximum, and minimum of all records:
 
-```shell
+```sql
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
 ```
 
 Count records where location = `California.SanFrancisco`:
 
-```shell
+```sql
 SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
 ```
 
 Query the average, maximum, and minimum for all records where `groupId` = `10`:
 
-```shell
+```sql
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
 ```
 
 Aggregate table d1001 in 10-second intervals and compute averages, maxima, and minima:
 
-```shell
+```sql
 SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
 ```
 
@@ -149,7 +149,7 @@ In Grafana, go to **Connections** > **Add new connection**, search for `TDengine
 
 Configure the data source as follows:
 
-- TDengine Host: Enter the address and port of your taosAdapter. For local setups, use http://localhost:6041.
+- TDengine Host: Enter the address and port of your taosAdapter. For local setups, use `http://localhost:6041`.
 - TDengine Authentication: Use the database’s username and password authentication (default: root/taosdata).
 
 Click **Save & test**. If you see the message ``TDengine Data source is working``, the connection is successful.
@@ -191,15 +191,16 @@ The following example shows how to create an MQTT data ingestion task to subscri
 1. Configure MQTT protocol settings:
    - MQTT Protocol Version: 3.1
    - Client ID: Enter a unique ID for the data ingestion task.
-   - Topics QoS Config: Must be separated by ::, e.g. tdengine-topic1::0
+   - Topics QoS Config: Must be separated by two colons, e.g. `tdengine-topic1::0`
    - Retain the default value for all other settings.
 1. Click **Check Connectivity**. If the message ``Your data source is reachable`` appears, the connection is successful.
 1. Configure payload transformation:
    1. Enter the following JSON sample representing smart meter readings (voltage, current, and phase) for meter ID 1 in Beijing:
-     ```json
-     { "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
-     ```
-     TDengine supports parsing, extracting, and mapping MQTT messages to supertables.
+
+   ```json
+   { "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
+   ```
+
    1. Click the Preview icon on the right to preview parsing results.
    1. Under Mapping, create a supertable with the following schema:
       
@@ -232,7 +233,7 @@ Use the same broker and topic configuration as your MQTT task:
 - Topic: tdengine-topic1
 - Sample Data:
    ```json
-{ "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
+   { "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
    ```
 #### Verify Data
 

@@ -9,7 +9,7 @@ import TabItem from "@theme/TabItem";
 import PkgListV37 from "/components/PkgListV37";
 import Getstarted from './_get_started.mdx';
 
-You can install TDengine TSDB Enterprise on Linux, macOS, and Windows. To install TDengine TSDB in a Docker container instead of on your machine, see [Get Started with TDengine in Docker](../deploy-in-docker/).
+You can install TDengine TSDB Enterprise on Linux and Windows. To install TDengine TSDB in a Docker container instead of on your machine, see [Get Started with TDengine in Docker](../deploy-in-docker/).
 
 ## Before You Begin
 
