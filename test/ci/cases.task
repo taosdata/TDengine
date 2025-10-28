@@ -361,7 +361,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_cols.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_first.py
-,,y,.,./ci/pytest.sh pytest cases/22-Functions/03-Selection/test_fun_select_first_last.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_first_last.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_last.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_last_row.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_max.py
@@ -703,6 +703,9 @@
 ## 02-Taos
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
+## 03-Benchmark
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_commandline.py
+
 
 ## 05-Valgrind
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_basic1.py
@@ -744,12 +747,7 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/stream/test_stream_vtable.py
 
 # army/tools
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_partial_col_numpy.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_single_table.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_sml_rest.py -R
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_supplement_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_vgroups.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_conn_mode.py -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_custom_col_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_default_json.py
@@ -807,8 +805,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_case.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_website_case.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_bugs.py -B
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_retry.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline_sml.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_alltypes_interlace.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_insert_alltypes_json.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_interlace.py
