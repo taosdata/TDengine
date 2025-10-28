@@ -4,22 +4,7 @@ FROM debian:bookworm-slim
 
 # metadata
 LABEL description="TDengine TSDB Base Image with essential dependencies"
-
-# build args to customize the apt sources
-ARG USE_CUSTOM_SOURCES=false
-ARG APT_SOURCE="http://mirrors.aliyun.com/debian/"
-ARG APT_SECURITY_SOURCE="http://mirrors.aliyun.com/debian-security/"
-ARG RESTORE_ORIGINAL_SOURCES=true
-
-
-# use custom apt sources if specified
-RUN if [ "$USE_CUSTOM_SOURCES" = "true" ]; then \
-        echo "deb ${APT_SOURCE} bookworm main non-free contrib" > /etc/apt/sources.list && \
-        echo "deb ${APT_SOURCE} bookworm-updates main non-free contrib" >> /etc/apt/sources.list && \
-        echo "deb ${APT_SOURCE} bookworm-backports main non-free contrib" >> /etc/apt/sources.list && \
-        echo "deb ${APT_SECURITY_SOURCE} bookworm-security main non-free contrib" >> /etc/apt/sources.list; \
-    fi
-    
+   
 # install system dependencies
 RUN apt-get update && \
     # install basic packages (adjust according to actual needs)
@@ -32,11 +17,9 @@ RUN apt-get update && \
         net-tools \
         netcat-openbsd \
         gdb \
+        procps \
         valgrind \
         && \
-    if [ "$USE_CUSTOM_SOURCES" = "true" ] && [ "$RESTORE_ORIGINAL_SOURCES" = "true" ]; then \
-        rm -f /etc/apt/sources.list; \
-    fi && \
     # clean cache
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \

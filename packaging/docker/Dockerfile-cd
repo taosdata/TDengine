@@ -42,7 +42,7 @@ RUN mkdir /docker-entrypoint-initdb.d
 VOLUME [ "/var/lib/taos", "/var/log/taos"]
 
 # set container startup command
-ENTRYPOINT ["tini", "--", "/usr/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/bin/entrypoint.sh"]
 
 # set stop signal
 STOPSIGNAL SIGINT
