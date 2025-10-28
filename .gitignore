@@ -61,3 +61,5 @@ test/allure-results/
 .idea/
 cmake-build-debug/
 cmake-build-release/
+plugins/incremental_bitmap/build/
+plugins/incremental_bitmap/build_real/
