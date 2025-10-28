@@ -3132,7 +3132,7 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   insDestroyBoundColInfo(&pCxt->tags);
-  taosArrayDestroy(pCxt->pParsedValues);
+  clearInsertParseContext(pCxt);
   taosMemoryFreeClear(pStmt->pTableMeta);
   nodesDestroyNode(pStmt->pTagCond);
   taosArrayDestroy(pStmt->pTableTag);
