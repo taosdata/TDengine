@@ -5,9 +5,6 @@ import os.path
 import unittest
 import sys
 
-import numpy as np
-from matplotlib import pyplot as plt
-
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.servicemgmt import loader
