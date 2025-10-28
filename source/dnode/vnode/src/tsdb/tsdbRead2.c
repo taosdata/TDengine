@@ -91,7 +91,6 @@ static void          updateComposedBlockInfo(STsdbReader* pReader, double el, ST
 static int32_t       buildFromPreFilesetBuffer(STsdbReader* pReader);
 
 static void resetPreFilesetMemTableListIndex(SReaderStatus* pStatus);
-int32_t     tsdbReaderSuspend2(STsdbReader* pReader);
 
 FORCE_INLINE int32_t pkCompEx(SRowKey* p1, SRowKey* p2) {
   if (p2 == NULL) {
@@ -5970,7 +5969,8 @@ _end:
   return code;
 }
 
-int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
+int32_t tsdbReaderSuspend2(void* ptr) {
+  STsdbReader* pReader = (STsdbReader*)ptr;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -5994,7 +5994,7 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
   // make sure only release once
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
-    tsdbUntakeReadSnap2(pReader, p, false);
+    tsdbUntakeReadSnap2(pReader, p, true);
     pReader->pReadSnap = NULL;
   }
 

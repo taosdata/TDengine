@@ -1809,6 +1809,11 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
       return code;
     }
 
+    code = pInfo->base.readerAPI.tsdReaderSuspend(pInfo->base.dataReader);
+    if (code) {
+      qError("%s failed to tsdReaderSuspend, code:%s", __func__, tstrerror(code));
+      return code;
+    }
     taosRLockLatch(&pTaskInfo->lock);
     do {
       int32_t        num = 0;
