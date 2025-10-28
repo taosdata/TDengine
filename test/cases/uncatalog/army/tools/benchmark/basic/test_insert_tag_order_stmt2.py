@@ -10,6 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+import time
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import subprocess
