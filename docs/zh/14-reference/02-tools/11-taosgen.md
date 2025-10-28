@@ -167,8 +167,10 @@ taosgen -h 127.0.0.1 -c config.yaml
   - 整型：timestamp、bool、tinyint、tinyint unsigned、smallint、smallint unsigned、int、int unsigned、bigint、bigint unsigned。
   - 浮点型：float、double、decimal。
   - 字符型：nchar、varchar（binary）。
+
+  目前，还不支持以下数据类型：json、geometry、varbinary、decimal、blob。
 - count（整数）：表示指定该类型的列连续出现的数量，例如 count：4096 即可生成 4096 个指定类型的列。
-- properties（字符串）：表示 TDengine 数据库的列支持的属性信息，可以包含以下属性：
+- props（字符串）：表示 TDengine 数据库的列支持的属性信息，可以包含以下属性：
   - encode：指定此列两级压缩中的第一级编码算法。
   - compress：指定此列两级压缩中的第二级加密算法。
   - level：指定此列两级压缩中的第二级加密算法的压缩率高低。
@@ -365,14 +367,13 @@ groupid,location,tbname
 - `ctb-data.csv` 文件内容格式为：
 
 ```csv
-tbname,current,voltage,phase
 tbname,ts,current,voltage,phase
 d1,1700000010000,5.23,221.5,146.2
-d3,1700000030000,8.76,219.8,148.7
-d2,1700000020000,12.45,223.1,147.3
-d3,1700000030001,9.12,220.3,149.1
-d2,1700000020001,11.87,222.7,145.8
-d1,1700000010001,4.98,220.9,147.9
+d3,1700000010000,8.76,219.8,148.7
+d2,1700000010000,12.45,223.1,147.3
+d3,1700000310000,9.12,220.3,149.1
+d2,1700000310000,11.87,222.7,145.8
+d1,1700000310000,4.98,220.9,147.9
 ```
 
 ### 生成器方式生成数据并发布数据到 MQTT Broker 示例

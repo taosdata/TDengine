@@ -161,8 +161,10 @@ Each column includes:
   - Integer: timestamp, bool, tinyint, tinyint unsigned, smallint, smallint unsigned, int, int unsigned, bigint, bigint unsigned.
   - Float: float, double, decimal.
   - String: nchar, varchar (binary).
+
+  Currently, the following data types are not supported: json, geometry, varbinary, decimal, blob.
 - count (int): Number of consecutive columns of this type (e.g., count: 4096 creates 4096 columns).
-- properties (string): Column property info for TDengine, may include:
+- props (string): Column property info for TDengine, may include:
   - encode: First-level encoding algorithm for two-level compression.
   - compress: Second-level encryption algorithm for two-level compression.
   - level: Compression rate for second-level encryption.
@@ -357,14 +359,13 @@ groupid,location,tbname
 - `ctb-data.csv` file format:
 
 ```csv
-tbname,current,voltage,phase
 tbname,ts,current,voltage,phase
 d1,1700000010000,5.23,221.5,146.2
-d3,1700000030000,8.76,219.8,148.7
-d2,1700000020000,12.45,223.1,147.3
-d3,1700000030001,9.12,220.3,149.1
-d2,1700000020001,11.87,222.7,145.8
-d1,1700000010001,4.98,220.9,147.9
+d3,1700000010000,8.76,219.8,148.7
+d2,1700000010000,12.45,223.1,147.3
+d3,1700000310000,9.12,220.3,149.1
+d2,1700000310000,11.87,222.7,145.8
+d1,1700000310000,4.98,220.9,147.9
 ```
 
 ### Generator-Based Data Generation and Publishing to MQTT Broker Example
