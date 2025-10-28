@@ -606,7 +606,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
           goto end;
         }
         if (colLen != 0) {
-          if (!taosMbsToUcs4(bindData.buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
+          if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
             if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
               taosMemoryFree(p);
               code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
@@ -615,7 +615,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
             char buf[512] = {0};
             snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
             taosMemoryFree(p);
-            code = buildSyntaxErrMsg(&pBuf, buf, bindData.buffer);
+            code = buildSyntaxErrMsg(&pBuf, buf, bind[c].buffer);
             goto end;
           }
         }
