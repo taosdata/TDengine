@@ -64,7 +64,7 @@ class TestInsertTagOrderStmt2:
         
         benchmark = etool.benchMarkFile()
         filePath = self.fileDirPath + dbname + ".json"
-        cmd = [benchmark, "-f", filePath, "-g"]
+        cmd = [benchmark, "-f", filePath]
         print(f"Executing command: {cmd}")
          # 打印文件路径和内容
         print(f"Generated config file path: {filePath}")
