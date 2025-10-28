@@ -56,31 +56,40 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   int32_t lino = 0;
   void   *buf = NULL;
   int64_t streamId = pStream->pCreate->streamId;
+  int32_t tlen = 0;
+  SSdbRaw *pRaw = NULL;
 
-  SEncoder encoder;
-  tEncoderInit(&encoder, NULL, 0);
-  if ((code = tEncodeSStreamObj(&encoder, pStream)) < 0) {
+  if (8 == MND_STREAM_VER_NUMBER) {
+    // todo: remove this block after implementing json encode/decode
+    SEncoder encoder;
+    tEncoderInit(&encoder, NULL, 0);
+    if ((code = tEncodeSStreamObj(&encoder, pStream)) < 0) {
+      tEncoderClear(&encoder);
+      TSDB_CHECK_CODE(code, lino, _over);
+    }
+
+    tlen = encoder.pos;
     tEncoderClear(&encoder);
-    TSDB_CHECK_CODE(code, lino, _over);
-  }
 
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
+    int32_t  size = sizeof(int32_t) + tlen + MND_STREAM_RESERVE_SIZE;
+    pRaw = sdbAllocRaw(SDB_STREAM, MND_STREAM_VER_NUMBER, size);
+    TSDB_CHECK_NULL(pRaw, code, lino, _over, terrno);
 
-  int32_t  size = sizeof(int32_t) + tlen + MND_STREAM_RESERVE_SIZE;
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_STREAM, MND_STREAM_VER_NUMBER, size);
-  TSDB_CHECK_NULL(pRaw, code, lino, _over, terrno);
+    buf = taosMemoryMalloc(tlen);
+    TSDB_CHECK_NULL(buf, code, lino, _over, terrno);
 
-  buf = taosMemoryMalloc(tlen);
-  TSDB_CHECK_NULL(buf, code, lino, _over, terrno);
+    tEncoderInit(&encoder, buf, tlen);
+    if ((code = tEncodeSStreamObj(&encoder, pStream)) < 0) {
+      tEncoderClear(&encoder);
+      TSDB_CHECK_CODE(code, lino, _over);
+    }
 
-  tEncoderInit(&encoder, buf, tlen);
-  if ((code = tEncodeSStreamObj(&encoder, pStream)) < 0) {
     tEncoderClear(&encoder);
-    TSDB_CHECK_CODE(code, lino, _over);
+  } else {
+    // encode into json
+    tlen = 0;
+    buf = NULL;
   }
-
-  tEncoderClear(&encoder);
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, tlen, _over);
