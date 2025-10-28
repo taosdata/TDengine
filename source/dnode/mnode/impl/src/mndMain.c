@@ -874,9 +874,11 @@ int32_t mndStart(SMnode *pMnode) {
     }
     mndSetRestored(pMnode, true);
   }
-  if (sdbUpgrade(pMnode->pSdb, pMnode->version) != 0) {
-    mError("failed to upgrade sdb while start mnode");
-    return -1;
+  if (mndIsLeader(pMnode)) {
+    if (sdbUpgrade(pMnode->pSdb, pMnode->version) != 0) {
+      mError("failed to upgrade sdb while start mnode");
+      return -1;
+    }
   }
   pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
