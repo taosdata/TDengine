@@ -255,7 +255,7 @@ static int32_t doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* 
   int32_t numOfOutput = pSup->numOfExprs;
   int32_t numOfRows = endIndex - startIndex + 1;
 
-  doKeepTuple(pRowSup, tsList[endIndex], pBlock->info.id.groupId);
+  doKeepTuple(pRowSup, tsList[endIndex], endIndex, pBlock->info.id.groupId);
 
   code = setSingleOutputTupleBufv1(&pInfo->binfo.resultRowInfo, &pRowSup->win, &pInfo->pRow, pSup, &pInfo->aggSup);
   if (code != TSDB_CODE_SUCCESS) {  // null data, too many state code

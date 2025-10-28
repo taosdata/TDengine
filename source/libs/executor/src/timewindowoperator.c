@@ -64,11 +64,34 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
   return setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
 }
 
-void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, uint64_t groupId) {
+void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, int32_t rowIndex, uint64_t groupId) {
   pRowSup->win.ekey = ts;
   pRowSup->prevTs = ts;
   pRowSup->numOfRows += 1;
   pRowSup->groupId = groupId;
+  if (hasContinuousNullRows(pRowSup)) {
+    // rows having null state col are wrapped by rows of same state
+    // these rows can be counted into current window
+    pRowSup->numOfRows += pRowSup->numNullRows;
+    resetNumNullRows(pRowSup);
+  }
+}
+
+// start a new state window and record the start info
+// if hasPrevWin is false, it means current row is the first non-null state row
+// then it should contain the previous null state rows
+void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
+  int32_t rowIndex, uint64_t groupId, bool hasPrevWin) {
+  pRowSup->groupId = groupId;
+  pRowSup->win.skey = hasPrevWin ? tsList[rowIndex] : tsList[0];
+  pRowSup->startRowIndex = hasPrevWin ? rowIndex : 0;
+  pRowSup->numOfRows = !hasPrevWin && hasContinuousNullRows(pRowSup) ? 
+                          pRowSup->numNullRows : 0;
+  resetNumNullRows(pRowSup);
+}
+
+void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, int32_t nullRowIndex) {
+  pRowSup->numNullRows += 1;
 }
 
 void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, int32_t rowIndex,
@@ -982,11 +1005,13 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   SWindowRowsSup* pRowSup = &pInfo->winSup;
   pRowSup->numOfRows = 0;
   pRowSup->startRowIndex = 0;
+  resetNumNullRows(pRowSup);
 
   struct SColumnDataAgg* pAgg = NULL;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
+      doKeepStateWindowNullInfo(pRowSup, j);
       continue;
     }
     hasResult = true;
@@ -1008,17 +1033,16 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
       pInfo->hasKey = true;
 
-      doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
-      doKeepTuple(pRowSup, tsList[j], gid);
+      doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, false);
+      doKeepTuple(pRowSup, tsList[j], j, gid);
     } else if (compareVal(val, &pInfo->stateKey)) {
-      doKeepTuple(pRowSup, tsList[j], gid);
+      doKeepTuple(pRowSup, tsList[j], j, gid);
     } else {  // a new state window started
       SResultRow* pResult = NULL;
 
       // keep the time window for the closed time window.
       STimeWindow window = pRowSup->win;
 
-      pRowSup->win.ekey = pRowSup->win.skey;
       int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
                                            numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -1032,9 +1056,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
         T_LONG_JMP(pTaskInfo->env, ret);
       }
 
-      // here we start a new session window
-      doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
-      doKeepTuple(pRowSup, tsList[j], gid);
+      doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, true);
+      doKeepTuple(pRowSup, tsList[j], j, gid);
 
       // todo extract method
       if (IS_VAR_DATA_TYPE(pInfo->stateKey.type)) {
@@ -1049,7 +1072,14 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     return;
   }
   SResultRow* pResult = NULL;
+  // if window hasn't been closed, set end key to ts of last element
   pRowSup->win.ekey = tsList[pBlock->info.rows - 1];
+  if (hasContinuousNullRows(pRowSup)) {
+    // and all left rows should be included in the last window
+    pRowSup->numOfRows += pRowSup->numNullRows;
+    resetNumNullRows(pRowSup);
+  }
+
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -1500,11 +1530,11 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     if (gid != pRowSup->groupId || pInfo->winSup.prevTs == INT64_MIN) {
       doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
-      doKeepTuple(pRowSup, tsList[j], gid);
+      doKeepTuple(pRowSup, tsList[j], j, gid);
     } else if (((tsList[j] - pRowSup->prevTs >= 0) && (tsList[j] - pRowSup->prevTs <= gap)) ||
                ((pRowSup->prevTs - tsList[j] >= 0) && (pRowSup->prevTs - tsList[j] <= gap))) {
       // The gap is less than the threshold, so it belongs to current session window that has been opened already.
-      doKeepTuple(pRowSup, tsList[j], gid);
+      doKeepTuple(pRowSup, tsList[j], j, gid);
     } else {  // start a new session window
       // start a new session window
       if (pRowSup->numOfRows > 0) {  // handled data that belongs to the previous session window
@@ -1531,7 +1561,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
 
       // here we start a new session window
       doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
-      doKeepTuple(pRowSup, tsList[j], gid);
+      doKeepTuple(pRowSup, tsList[j], j, gid);
     }
   }
 
