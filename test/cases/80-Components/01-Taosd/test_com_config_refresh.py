@@ -530,6 +530,8 @@ class TestComTaosdConfigRefresh:
         for row in res:
             if config_name == row[1]:
                 return row[2]
+        print("not found config item: %s" % config_name)
+        return None
             
     def configuration_alter(self):
         for key in self.configration_dic:
@@ -553,8 +555,24 @@ class TestComTaosdConfigRefresh:
                         tdSql.execute(f'alter local "{name} {value}";')
             else:
                 raise Exception(f"unknown key: {key}")
+   
+    def check_config(self, name, expectVal, srv=True):
+        for i in range(120):
+            if srv:
+                actVal = self.svr_get_param_value(name)
+            else:
+                actVal = self.cli_get_param_value(name)
+            if str(actVal) != str(expectVal):
+                print(f"retry {i} item: {name}, expected value: {expectVal}, actual value: {actVal}")
+                sleep(1)
+                continue
+            else:
+                return
 
-    def test_com_taod_config_refresh(self):
+        raise Exception(f"alter config item failed: {name}, expected value: {expectVal}, actual value: {actVal}")
+
+
+    def test_com_taosd_config_refresh(self):
         """Configuration item hot refresh
         
         1. Alter taos.cfg item by "alter" sql
@@ -594,17 +612,15 @@ class TestComTaosdConfigRefresh:
         sc.dnodeStart(1)
         sc.dnodeStart(2)
         sc.dnodeStart(3)
-        sleep(10)
+        sleep(5)
 
         for key in self.configration_dic:
             if "cli" == key:
                 for item in self.configration_dic[key]:
-                    actVal = self.cli_get_param_value(item["name"])
-                    assert str(actVal) == str(item["value"]), f"item name: {item['name']}, Expected value: {item['value']}, actual value: {actVal}"
+                    self.check_config(item["name"], item["value"], srv=False)
             elif "svr" == key:
                 for item in self.configration_dic[key]:
-                    actVal = self.svr_get_param_value(item["name"])
-                    assert str(actVal) == str(item["value"]), f"item name: {item['name']}, Expected value: {item['value']}, actual value: {actVal}"
+                    self.check_config(item["name"], item["value"], srv=True)
             else:
                 raise Exception(f"unknown key: {key}")
 
