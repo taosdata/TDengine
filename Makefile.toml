@@ -536,11 +536,13 @@ echo Build taosX release binaries with taosx/dev image.
 
 # Get platform
 export PLATFORM=$(echo "$@" | rg '\\--platform (\\S+)' -o -r '$1')
-export EXTRAS=$(echo "$@" | rg '\\--platform (\\S+)' -r '')
+export EXTRAS="$(echo $@ | rg '\\--platform \\S+ (.*)' --replace '$1')"
 
 case "${PLATFORM}" in
   "linux/amd64" | "linux/arm64")
     echo Build taosX release for target $PLATFORM
+    echo "EXTRAS: ${EXTRAS}"
+    echo "BUILD_PROFILE: ${BUILD_PROFILE}"
     export TARGET_DIR=$PWD/target/${PLATFORM}
     mkdir -p $TARGET_DIR
     docker run --platform $PLATFORM --rm \
@@ -550,16 +552,18 @@ case "${PLATFORM}" in
       -v $TARGET_DIR:/app/target \
       -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
       taosx/dev:${RUST_VERSION} \
-      cargo build --profile ${BUILD_PROFILE} $EXTRAS
+      cargo build --profile ${BUILD_PROFILE} ${EXTRAS}
     ;;
   "")
     export TARGET_DIR=$PWD/target/centos7
     mkdir -p $TARGET_DIR
+    echo "ARGS: $@"
     docker run --rm \
       -v .:/app \
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
       -v $TARGET_DIR:/app/target \
+      -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
       taosx/dev:${RUST_VERSION} \
       cargo build --profile ${BUILD_PROFILE} $@
     ;;
