@@ -63,7 +63,7 @@ class TestInsertTagOrderStmt2:
         self.configJsonFile(dbname, mode, interlace, auto_create_table)
         benchmark = etool.benchMarkFile()
         filePath = self.fileDirPath + dbname + ".json"
-        cmd = [benchmark, "-f", filePath]
+        cmd = [benchmark, "-f", filePath, "-g"]
         tdLog.info(f"Executing command: {cmd}")
         try:
             result = subprocess.run(
