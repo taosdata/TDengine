@@ -263,6 +263,7 @@ int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, i
 
     if (result == SASL_OK) {
       pConn->completed = 1;
+      pConn->isAuthed = 1;
 
       result = sasl_getprop(pConn->conn, SASL_USERNAME, (const void**)&pConn->authUser);
       if (result != SASL_OK) {
@@ -270,6 +271,13 @@ int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, i
         code = TSDB_CODE_THIRDPARTY_ERROR;
       }
 
+    } else if (result == SASL_CONTINUE) {
+      tInfo("sasl server continue to auth, sasl conn %p, conn %p", pConn, pConn->conn);
+      code = saslBufferAppend(&pConn->authInfo, (uint8_t*)clientOut, (int32_t)clientOutLen);
+      if (code != 0) {
+        tError("saslConnHandleAuth failed to append auth info, code:%d", code);
+        return code;
+      }
     } else {
       tError("sasl_server_step failed: %s", sasl_errstring(result, NULL, NULL));
       code = TSDB_CODE_THIRDPARTY_ERROR;
