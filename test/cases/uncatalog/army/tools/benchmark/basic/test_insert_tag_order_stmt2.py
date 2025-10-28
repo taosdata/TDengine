@@ -105,9 +105,13 @@ class TestInsertTagOrderStmt2:
             - xxx
             - xxx
         """
+        pid = os.getpid()
+        timestamp = int(time.time() * 1000000)  # 微秒级时间戳
         for i in range(1, 10):
-            self.executeAndCheck('stmt2_tag_order_1', 'stmt2', 1)
-            self.executeAndCheck('stmt2_tag_order_2', 'stmt2', 0)
+            dbname1 = f'stmt2_tag_order_1_{pid}_{timestamp}_{i}'
+            dbname2 = f'stmt2_tag_order_2_{pid}_{timestamp}_{i}'
+            self.executeAndCheck(dbname1, 'stmt2', 1)
+            self.executeAndCheck(dbname2, 'stmt2', 0)
 
         tdLog.success("Successfully executed")
 
