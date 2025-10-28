@@ -32,6 +32,7 @@
 
 #define STREAM_TRIGGER_CHECK_INTERVAL_MS  1000                    // 1s
 #define STREAM_TRIGGER_IDLE_TIME_NS       1 * NANOSECOND_PER_SEC  // 1s, todo(kjq): increase the wait time to 10s
+#define STREAM_TRIGGER_MAX_METAS          1 * 1024 * 1024         // 1M
 #define STREAM_TRIGGER_MAX_PENDING_PARAMS 1 * 1024 * 1024         // 1M
 #define STREAM_TRIGGER_REALTIME_SESSIONID 1
 #define STREAM_TRIGGER_HISTORY_SESSIONID  2
@@ -4568,6 +4569,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         atomic_store_64(&pTask->latestVersionTime, latestVersionTime);
       }
 
+      if (pContext->metaPool.size >= STREAM_TRIGGER_MAX_METAS) {
+        ST_TASK_DLOG("stop fetch wal metas since meta pool is full, size: %" PRId64, pContext->metaPool.size);
+        pContext->continueToFetch = false;
+      }
+
       if (pContext->continueToFetch) {
         ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIzu,
                      TARRAY_SIZE(pTask->readerList));
@@ -8240,9 +8246,16 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
     }
     taosObjListPopHeadTo(&pGroup->pPendingCalcParams, pParam, nele);
     int64_t freedNele = origNele - pGroup->pPendingCalcParams.neles;
-    ST_TASK_DLOG("group %" PRId64 " retrieved %" PRId64 " pending params, calc param pool size from %" PRId64
-                 " to %" PRId64,
-                 pGroup->gid, freedNele, origTotal, pContext->calcParamPool.size);
+#define LOG_EVERY_NUM_PARAM 10000
+    if (stDebugFlag & DEBUG_DEBUG) {
+      ST_TASK_DLOG("group %" PRId64 " retrieved %" PRId64 " pending params, calc param pool size from %" PRId64
+                   " to %" PRId64,
+                   pGroup->gid, freedNele, origTotal, pContext->calcParamPool.size);
+    } else if ((origTotal / LOG_EVERY_NUM_PARAM) != (pContext->calcParamPool.size / LOG_EVERY_NUM_PARAM)) {
+      ST_TASK_ILOG("group %" PRId64 " retrieved %" PRId64 " pending params, calc param pool size from %" PRId64
+                   " to %" PRId64,
+                   pGroup->gid, freedNele, origTotal, pContext->calcParamPool.size);
+    }
   }
 
   SSTriggerCalcParam *pLastParam = taosArrayGetLast(pContext->pCalcReq->params);
