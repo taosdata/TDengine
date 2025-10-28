@@ -2102,7 +2102,7 @@ class TDSql:
         return True
 
     # loop execute sql then sleep(waitTime) , if checkData ok break loop
-    def checkDataLoop(self, row, col, data, sql, loopCount, waitTime):
+    def checkDataLoop(self, row, col, data, sql, loopCount=10, waitTime=1):
         """
         Executes a SQL query in a loop and checks if the data at the specified row and column matches the expected data.
 
