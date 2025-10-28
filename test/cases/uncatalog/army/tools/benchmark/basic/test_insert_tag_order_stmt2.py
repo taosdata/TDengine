@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import threading
+import subprocess
 from time import sleep
 import json
 
@@ -63,11 +63,29 @@ class TestInsertTagOrderStmt2:
         self.configJsonFile(dbname, mode, interlace, auto_create_table)
         benchmark = etool.benchMarkFile()
         filePath = self.fileDirPath + dbname + ".json"
-        cmd = f"{benchmark} -f {filePath}"
+        cmd = [benchmark, "-f", filePath]
         tdLog.info(f"Executing command: {cmd}")
-        os.system("%s" % cmd)
-        self.checkDataCorrect(dbname, 1000, 100)
-        tdSql.execute(f"drop database {dbname};")
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,    # 捕获输出
+                text=True,              # 文本模式
+                timeout=300,            # 设置超时
+                check=True              # 非零返回码时抛异常
+            )
+            tdLog.info(f"Benchmark执行成功: {result.stdout}")
+            self.checkDataCorrect(dbname, 1000, 100)
+            tdSql.execute(f"drop database {dbname};")
+        except subprocess.CalledProcessError as e:
+            tdLog.error(f"Benchmark执行失败，返回码: {e.returncode}")
+            tdLog.error(f"错误输出: {e.stderr}")
+            raise
+        except subprocess.TimeoutExpired:
+            tdLog.error("Benchmark执行超时")
+            raise
+        except Exception as e:
+            tdLog.error(f"执行过程中发生异常: {str(e)}")
+            raise
     
     def test_insert_tag_order_stmt2(self):
         """summary: xxx
