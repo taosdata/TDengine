@@ -65,7 +65,17 @@ class TestInsertTagOrderStmt2:
         benchmark = etool.benchMarkFile()
         filePath = self.fileDirPath + dbname + ".json"
         cmd = [benchmark, "-f", filePath, "-g"]
-        tdLog.info(f"Executing command: {cmd}")
+        print(f"Executing command: {cmd}")
+         # 打印文件路径和内容
+        print(f"Generated config file path: {filePath}")
+        if os.path.exists(filePath):
+            print(f"File exists: {filePath}")
+            with open(filePath, 'r') as f:
+                file_content = f.read()
+                print(f"File content:\n{file_content}")
+        else:
+            print(f"File does not exist: {filePath}")
+
         try:
             result = subprocess.run(
                 cmd,
@@ -77,10 +87,10 @@ class TestInsertTagOrderStmt2:
             # 手动检查返回码，忽略由 AddressSanitizer 引起的错误
             if result.returncode != 0:
                 if "AddressSanitizer" in result.stderr:
-                    tdLog.warning(f"检测到内存泄漏但继续执行: {result.stderr}")
+                    print(f"检测到内存泄漏但继续执行: {result.stderr}")
                 else:
-                    tdLog.error(f"Benchmark执行失败，返回码: {result.returncode}")
-                    tdLog.error(f"错误输出: {result.stderr}")
+                    print(f"Benchmark执行失败，返回码: {result.returncode}")
+                    print(f"错误输出: {result.stderr}")
                     raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
             
             tdLog.info(f"Benchmark执行成功: {result.stdout}")
