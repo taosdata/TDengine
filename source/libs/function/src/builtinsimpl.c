@@ -7267,34 +7267,54 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SGroupKeyInfo*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  bool isWindow = pCtx->hasWindowOrGroup && pCtx->hasWindow;
+
+  if (pInfo->hasResult && (!isWindow || !pInfo->isNull)) {
+    // if has result already for 'group by' 
+    // or has non-null result for 'window',
+    // skip rest of data blocks
+    goto _group_value_over;
+  }
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
+  int32_t               valueRowIndex = -1;
 
-  int32_t startIndex = pInput->startRowIndex;
-
-  // escape rest of data blocks to avoid first entry to be overwritten.
-  if (pInfo->hasResult) {
-    goto _group_value_over;
-  }
-
-  if (pInputCol->pData == NULL || colDataIsNull_s(pInputCol, startIndex)) {
-    pInfo->isNull = true;
-    pInfo->hasResult = true;
-    goto _group_value_over;
-  }
-
-  char* data = colDataGetData(pInputCol, startIndex);
-  if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
-    int32_t bytes = calcStrBytesByType(pInputCol->info.type, data);
-    (void)memcpy(pInfo->data, data, bytes);
+  if (isWindow) {
+    // if it is 'window', need to scan all rows to find the first non-null value
+    // since window may contain null values at the beginning
+    for (int32_t rowIndex = pInput->startRowIndex; 
+      rowIndex < pInput->startRowIndex + pInput->numOfRows; ++rowIndex) {
+      if (pInputCol->pData != NULL && !colDataIsNull_s(pInputCol, rowIndex)) {
+        valueRowIndex = rowIndex;
+        break;
+      }
+    }
   } else {
-    (void)memcpy(pInfo->data, data, pInputCol->info.bytes);
+    // if it is 'group by', just take the first row
+    if (NULL != pInputCol->pData &&
+      !colDataIsNull_s(pInputCol, pInput->startRowIndex)) {
+      valueRowIndex = pInput->startRowIndex;
+    }
   }
+
   pInfo->hasResult = true;
+  if (valueRowIndex != -1) {
+    // found a non-null value
+    char* data = colDataGetData(pInputCol, valueRowIndex);
+    if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
+      int32_t bytes = calcStrBytesByType(pInputCol->info.type, data);
+      (void)memcpy(pInfo->data, data, bytes);
+    } else {
+      (void)memcpy(pInfo->data, data, pInputCol->info.bytes);
+    }
+    pInfo->isNull = false;
+  } else {
+    // all values are null or first value is null for group by
+    pInfo->isNull = true;
+  }
 
 _group_value_over:
-
   SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
 }
