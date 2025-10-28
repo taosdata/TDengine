@@ -1576,8 +1576,10 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   }
 
   if (pInst->enableSasl) {
-    TAOS_CHECK_GOTO(saslConnInit(&pConn->saslConn, 1), &lino, _end);
+    TAOS_CHECK_GOTO(saslConnCreate(&pConn->saslConn, 1), &lino, _end);
   }
+
+  pConn->saslConn->pUvConn = pConn;
 
   transRefSrvHandle(pConn);
   return pConn;

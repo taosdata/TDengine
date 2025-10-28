@@ -35,26 +35,48 @@ typedef struct {
 #include "tversion.h"
 
 typedef struct {
+  int32_t  cap;
+  int32_t  len;
+  int8_t   invalid;  // whether the buffer is invalid
+  int8_t   ref;
+  uint8_t* buf;  // buffer for encrypted data
+} SSaslBuffer;
+
+typedef struct {
   int32_t      state;
   int8_t       completed;
   sasl_conn_t* conn;
 
   char* authUser;
+
+  void* pUvConn;
+
+  SSaslBuffer in;
+  SSaslBuffer out;
+  SSaslBuffer authInfo;
+  int8_t      isAuthed;
 } SSaslConn;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t saslConnInit(SSaslConn** pConn, int8_t isServer);
+int32_t saslConnCreate(SSaslConn** ppConn, int8_t server);
+int32_t saslConnInit(SSaslConn* pConn, int8_t isServer);
 void    saslConnCleanup(SSaslConn* pConn);
 
 void saslConnSetState(SSaslConn* pConn, int32_t state);
 int32_t saslConnEncode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen);
 int32_t saslConnDecode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen);
 
-int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len);
+int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, int32_t len);
 
+int8_t  saslConnShoudDoAuth(SSaslConn* pConn);
+int32_t saslConnStartAuth(SSaslConn* pConn, int8_t server);
+int32_t saslBufferInit(SSaslBuffer* buf, int32_t cap);
+int32_t saslBufferAppend(SSaslBuffer* buf, uint8_t* data, int32_t len);
+void    saslBufferCleanup(SSaslBuffer* buf);
+void    saslBufferClear(SSaslBuffer* buf);
 #ifdef __cplusplus
 }
 #endif

@@ -269,6 +269,20 @@ static int32_t   addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn);
 static int32_t   delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn);
 static int8_t    balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, SCliConn** pNewConn);
 
+static void cliSendSaslCb(uv_write_t* req, int status) {
+  int32_t   code = 0;
+  SCliConn* pConn = (SCliConn*)req->data;
+  if (status != 0) {
+    transUnrefCliHandle(pConn);
+    tError("conn %p failed to send sasl data, status:%d, err:%s", pConn, status, uv_strerror(status));
+    return;
+  } else {
+    saslBufferClear(&pConn->saslConn->authInfo);
+    tInfo("conn %p succ to send sasl data", pConn);
+  }
+
+  return;
+}
 // thread obj
 static int32_t createThrdObj(void* trans, SCliThrd** pThrd);
 static void    destroyThrdObj(SCliThrd* pThrd);
@@ -946,6 +960,76 @@ static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_
   }
 }
 
+static void cliRecvHandleError(SCliConn* conn, int32_t nread) {
+  if (nread == 0) {
+    // ref http://docs.libuv.org/en/v1.x/stream.html?highlight=uv_read_start#c.uv_read_cb
+    // nread might be 0, which does not indicate an error or EOF. This is equivalent to EAGAIN or EWOULDBLOCK under
+    // read(2).
+    tTrace("%s conn:%p, read empty", CONN_GET_INST_LABEL(conn), conn);
+  } else {
+    tDebug("%s conn:%p, read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
+           transGetRefCount(conn));
+    conn->broken = true;
+    TAOS_UNUSED(transUnrefCliHandle(conn));
+  }
+  return;
+}
+static void cliRecvCbImpl(SCliConn* conn, int32_t nread) {
+  SConnBuffer* pBuf = &conn->readBuf;
+  if (nread > 0) {
+    pBuf->len += nread;
+    while (transReadComplete(pBuf)) {
+      tTrace("%s conn:%p, read complete", CONN_GET_INST_LABEL(conn), conn);
+      if (pBuf->invalid) {
+        conn->broken = true;
+        TAOS_UNUSED(transUnrefCliHandle(conn));
+        break;
+      } else {
+        cliHandleResp(conn);
+      }
+    }
+  } else {
+    return cliRecvHandleError(conn, nread);
+  }
+}
+
+static void cliRecvCbSaslImpl(SCliConn* conn, int32_t nread) {
+  int32_t      code = 0;
+  SConnBuffer* pBuf = &conn->readBuf;
+
+  if (nread > 0) {
+    pBuf->len += nread;
+    if (saslConnShoudDoAuth(conn->saslConn)) {
+      code = saslConnHandleAuth(conn->saslConn, 0, (const char*)pBuf->buf, pBuf->len);
+      if (code != 0) {
+        tDebug("%s conn:%p, failed to handle sasl auth since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+        conn->broken = true;
+        TAOS_UNUSED(transUnrefCliHandle(conn));
+      } else {
+        // reset buffer
+        pBuf->len = 0;
+        // check if auth completed
+        if (!saslConnShoudDoAuth(conn->saslConn)) {
+          tInfo("%s conn:%p, sasl auth completed", CONN_GET_INST_LABEL(conn), conn);
+        }
+      }
+    } else {
+      while (transReadComplete(pBuf)) {
+        tTrace("%s conn:%p, read complete", CONN_GET_INST_LABEL(conn), conn);
+        if (pBuf->invalid) {
+          conn->broken = true;
+          TAOS_UNUSED(transUnrefCliHandle(conn));
+          break;
+        } else {
+          cliHandleResp(conn);
+        }
+      }
+    }
+  } else {
+    return cliRecvHandleError(conn, nread);
+  }
+  return;
+}
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   int32_t code = 0;
   STUB_RAND_NETWORK_ERR(nread);
@@ -960,35 +1044,10 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
     tWarn("%s conn:%p, failed to set recv opt since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
   }
 
-  SConnBuffer* pBuf = &conn->readBuf;
-  if (nread > 0) {
-    pBuf->len += nread;
-    while (transReadComplete(pBuf)) {
-      tTrace("%s conn:%p, read complete", CONN_GET_INST_LABEL(conn), conn);
-      if (pBuf->invalid) {
-        conn->broken = true;
-        TAOS_UNUSED(transUnrefCliHandle(conn));
-        return;
-        break;
-      } else {
-        cliHandleResp(conn);
-      }
-    }
-    return;
-  }
-
-  if (nread == 0) {
-    // ref http://docs.libuv.org/en/v1.x/stream.html?highlight=uv_read_start#c.uv_read_cb
-    // nread might be 0, which does not indicate an error or EOF. This is equivalent to EAGAIN or EWOULDBLOCK under
-    // read(2).
-    tTrace("%s conn:%p, read empty", CONN_GET_INST_LABEL(conn), conn);
-    return;
-  }
-  if (nread < 0) {
-    tDebug("%s conn:%p, read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
-           transGetRefCount(conn));
-    conn->broken = true;
-    TAOS_UNUSED(transUnrefCliHandle(conn));
+  if (conn->saslConn != NULL) {
+    return cliRecvCbSaslImpl(conn, nread);
+  } else {
+    return cliRecvCbImpl(conn, nread);
   }
 }
 static void cliAllocRecvBufferCbSSL(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
@@ -1145,8 +1204,10 @@ static int32_t cliCreateConnImpl(SCliThrd* pThrd, SCliConn** pCliConn, char* ip,
   TAOS_CHECK_GOTO(initWQ(&conn->wq), NULL, _failed);
 
   if (pInst->enableSasl) {
-    TAOS_CHECK_GOTO(saslConnInit(&conn->saslConn, 0), NULL, _failed);
+    TAOS_CHECK_GOTO(saslConnCreate(&conn->saslConn, 0), NULL, _failed);
   }
+
+  conn->saslConn->pUvConn = conn;
 
   QUEUE_INIT(&conn->batchSendq);
 
@@ -1166,6 +1227,7 @@ _failed:
     transQueueDestroy(&conn->reqsToSend);
     transQueueDestroy(&conn->reqsSentOut);
     saslConnCleanup(conn->saslConn);
+    conn->saslConn = NULL;
 
     taosMemoryFree(conn->dstAddr);
     taosMemoryFree(conn->ipStr);
@@ -1881,8 +1943,38 @@ void cliConnCb(uv_connect_t* req, int status) {
       tDebug("%s conn:%p, failed to do ssl_connect since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
       TAOS_CHECK_GOTO(code, &lino, _error);
     }
-
     return;
+  }
+
+  if (pConn->saslConn) {
+    code = saslConnInit(pConn->saslConn, 0);
+    if (code != 0) {
+      tDebug("%s conn:%p, failed to init saslConn since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+    if (saslConnShoudDoAuth(pConn->saslConn)) {
+      code = saslConnStartAuth(pConn->saslConn, 0);
+      TAOS_CHECK_GOTO(code, &lino, _error);
+
+      uv_write_t* writeReq = (uv_write_t*)taosMemCalloc(1, sizeof(uv_write_t));
+      if (writeReq == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TAOS_CHECK_GOTO(code, &lino, _error);
+      }
+
+      writeReq->data = pConn;
+      uv_buf_t buf = {.base = (char*)pConn->saslConn->authInfo.buf, .len = pConn->saslConn->authInfo.len};
+
+      int32_t ret = uv_write(writeReq, pConn->stream, &buf, 1, cliSendSaslCb);
+      if (ret != 0) {
+        tDebug("%s conn:%p, failed to send sasl auth msg since %s", CONN_GET_INST_LABEL(pConn), pConn,
+               uv_err_name(ret));
+        taosMemFree(writeReq);
+        code = TSDB_CODE_THIRDPARTY_ERROR;
+        TAOS_CHECK_GOTO(code, &lino, _error);
+      }
+      return;
+    }
   }
 
   code = cliBatchSend(pConn, 1);
