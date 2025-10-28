@@ -1360,7 +1360,6 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
       code = taosHashRemove(pInfo->readerCache, &pUid, sizeof(uint64_t));
       QUERY_CHECK_CODE(code, lino, _return);
-<<<<<<< Updated upstream
 
       taosRLockLatch(&pTaskInfo->lock);
       code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
@@ -1375,22 +1374,6 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       code = blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
       QUERY_CHECK_CODE(code, lino, _return);
 
-=======
-
-      taosRLockLatch(&pTaskInfo->lock);
-      code = doInitReader(pInfo, pTaskInfo, pAPI, &num, &pList);
-      taosRUnLockLatch(&pTaskInfo->lock);
-      QUERY_CHECK_CODE(code, lino, _return);
-
-      code = taosHashPut(pInfo->readerCache, &pUid, sizeof(uint64_t), &pInfo->base.dataReader, POINTER_BYTES);
-      QUERY_CHECK_CODE(code, lino, _return);
-      pInfo->newReader = true;
-    } else {
-      pInfo->base.dataReader = *reader;
-      code = blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
-      QUERY_CHECK_CODE(code, lino, _return);
-
->>>>>>> Stashed changes
       pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
       pInfo->newReader = false;
       pInfo->scanTimes = 0;
@@ -1579,7 +1562,6 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         code = doGroupedTableScan(pOperator, &result);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-<<<<<<< Updated upstream
 
       if (result) {
         SSDataBlock* res = NULL;
@@ -1596,24 +1578,6 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         blockDataDestroy(pInfo->pResBlock);
         pInfo->pResBlock = NULL;
 
-=======
-
-      if (result) {
-        SSDataBlock* res = NULL;
-        pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
-        code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, &res);
-        QUERY_CHECK_CODE(code, lino, _end);
-        pInfo->pResBlock = res;
-        blockDataDestroy(result);
-        (*ppRes) = res;
-      } else {
-        STableKeyInfo *keyInfo = taosArrayGet(pInfo->base.pTableListInfo->pTableList, 0);
-        QUERY_CHECK_NULL(keyInfo, code, lino, _end, terrno)
-
-        blockDataDestroy(pInfo->pResBlock);
-        pInfo->pResBlock = NULL;
-
->>>>>>> Stashed changes
         void** reader = taosHashGet(pInfo->readerCache, &keyInfo->uid, sizeof(uint64_t));
         if (reader) {
           if (*reader == pInfo->base.dataReader) {
@@ -1792,6 +1756,22 @@ static void resetClolumnReserve(SSDataBlock* pBlock, int32_t dataRequireFlag) {
   }
 }
 
+static cleanReaderForVTable(STableScanInfo* pInfo){
+  if (pInfo->base.readerAPI.tsdReaderClose) {
+    void *pIter = taosHashIterate(pInfo->readerCache, NULL);
+    while (pIter != NULL) {
+      void **reader = pIter;
+      if (*reader) {
+        if (*reader == pInfo->base.dataReader) {
+          pInfo->base.dataReader = NULL;
+        }
+        pInfo->base.readerAPI.tsdReaderClose(*reader);
+      }
+      pIter = taosHashIterate(pInfo->readerCache, pIter);
+    }
+  }
+}
+
 static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   int32_t         code = TSDB_CODE_SUCCESS;
   STableScanInfo*   pInfo = pOper->info;
@@ -1845,15 +1825,12 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
       return code;
     }
 
-<<<<<<< Updated upstream
-=======
     code = pInfo->base.readerAPI.tsdReaderSuspend(pInfo->base.dataReader);
     if (code) {
       qError("%s failed to tsdReaderSuspend, code:%s", __func__, tstrerror(code));
       return code;
     }
   
->>>>>>> Stashed changes
     taosRLockLatch(&pTaskInfo->lock);
     do {
       int32_t        num = 0;
