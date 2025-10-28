@@ -537,7 +537,7 @@ int32_t doVirtualTableMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   VTS_ERR_RET(copyDataBlock(pDataBlock, p));
-  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%" PRId64 , GET_TASKID(pTaskInfo), pDataBlock->info.id.groupId,
+  qDebug("%s %s get sorted block, groupId:0x%" PRIx64 " rows:%" PRId64 , GET_TASKID(pTaskInfo), __func__, pDataBlock->info.id.groupId,
          pDataBlock->info.rows);
 
   *pResBlock = (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
