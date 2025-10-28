@@ -61,7 +61,7 @@ class TestInsertTagOrderStmt2:
 
 
     def executeAndCheck(self, dbname, mode, interlace=1, auto_create_table="no"):
-        self.configJsonFile(dbname, mode, interlace, auto_create_table)
+        
         benchmark = etool.benchMarkFile()
         filePath = self.fileDirPath + dbname + ".json"
         cmd = [benchmark, "-f", filePath, "-g"]
@@ -127,14 +127,17 @@ class TestInsertTagOrderStmt2:
         """
         pid = os.getpid()
         timestamp = int(time.time() * 1000000)  # 微秒级时间戳
+        dbname1 = f'stmt2_tag_order_1_{pid}_{timestamp}'
+        dbname2 = f'stmt2_tag_order_2_{pid}_{timestamp}'
+        self.configJsonFile(dbname1, 'stmt2', 1)
+        self.configJsonFile(dbname2, 'stmt2', 0)
         for i in range(1, 10):
-            dbname1 = f'stmt2_tag_order_1_{pid}_{timestamp}_{i}'
-            dbname2 = f'stmt2_tag_order_2_{pid}_{timestamp}_{i}'
             self.executeAndCheck(dbname1, 'stmt2', 1)
             self.executeAndCheck(dbname2, 'stmt2', 0)
 
+        os.remove(self.fileDirPath + dbname1 + ".json")
+        os.remove(self.fileDirPath + dbname2 + ".json")
         tdLog.success("Successfully executed")
-
         tdLog.success("%s successfully executed" % __file__)
 
 
