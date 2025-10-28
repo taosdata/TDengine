@@ -93,18 +93,18 @@ class TestInsertTagOrderStmt2:
                     print(f"错误输出: {result.stderr}")
                     raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
             
-            tdLog.info(f"Benchmark执行成功: {result.stdout}")
+            print(f"Benchmark执行成功: {result.stdout}")
             self.checkDataCorrect(dbname, 1000, 100)
             tdSql.execute(f"drop database {dbname};")
         except subprocess.CalledProcessError as e:
-            tdLog.error(f"Benchmark执行失败，返回码: {e.returncode}, {e.output}")
-            tdLog.error(f"错误输出: {e.stderr}")
+            print(f"Benchmark执行失败，返回码: {e.returncode}, {e.output}")
+            print(f"错误输出: {e.stderr}")
             raise
         except subprocess.TimeoutExpired:
-            tdLog.error("Benchmark执行超时")
+            print("Benchmark执行超时")
             raise
         except Exception as e:
-            tdLog.error(f"执行过程中发生异常: {str(e)}")
+            print(f"执行过程中发生异常: {str(e)}")
             raise
     
     def test_insert_tag_order_stmt2(self):
