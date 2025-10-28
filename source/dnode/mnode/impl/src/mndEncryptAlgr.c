@@ -447,19 +447,8 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  /*
-    char detail[1000] = {0};
-    (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
-                    createReq.superUser, createReq.sysInfo);
-    char operation[15] = {0};
-    if (createReq.isImport == 1) {
-      tstrncpy(operation, "importUser", sizeof(operation));
-    } else {
-      tstrncpy(operation, "createUser", sizeof(operation));
-    }
-
-    auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail));
-  */
+  auditRecord(pReq, pMnode->clusterId, "dropEncryptAlgr", "", createReq.algorithmId, createReq.sql,
+              strlen(createReq.sql));
 
   return code;
 _OVER:
