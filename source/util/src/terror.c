@@ -379,6 +379,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_TOO_MANY_ALGO_TYPE, "Anode too many algori
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST,       "Encrypt algorithm not exists in list")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_INVALID_ENCRYPT_ALGR_TYPE,    "Invalid encryption algorithm type, support Symmetric_Ciphers_CBC_mode now")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ALGR_EXIST,                   "Encryption algorithm already exists, please keep algorithm_id unique")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH,       "Encryption algorithm type not match")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_RSP_IS_NULL,         "Analysis service response is NULL")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_CANT_ACCESS,         "Analysis service can't access")

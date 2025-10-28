@@ -867,6 +867,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   if (strlen(pCreate->encryptAlgrName) > 0) {
     SEncryptAlgrObj *pEncryptAlgr = mndAcquireEncryptAlgrByAId(pMnode, pCreate->encryptAlgrName);
     if (pEncryptAlgr != NULL) {
+      if (pEncryptAlgr->type != ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS) {
+        code = TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH;
+        mError("db:%s, faile to create, encrypt algorithm not match, %s, expect type %d", pCreate->db,
+               pCreate->encryptAlgrName, ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS);
+        TAOS_RETURN(code);
+      }
       dbObj.cfg.encryptAlgorithm = pEncryptAlgr->id;
     } else {
       code = TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST;
