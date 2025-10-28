@@ -81,7 +81,7 @@ impl MongoDBQuery {
                     "ScramSha1" => Some(AuthMechanism::ScramSha1),
                     "ScramSha256" => Some(AuthMechanism::ScramSha256),
                     "MongoDbX509" => Some(AuthMechanism::MongoDbX509),
-                    "Gssapi" => Some(AuthMechanism::Gssapi),
+                    // "Gssapi" => Some(AuthMechanism::Gssapi),  // temporarily disabled by: https://jira.taosdata.com:18080/browse/TD-38363
                     "Plain" => Some(AuthMechanism::Plain),
                     "MongodDbAws" => Some(AuthMechanism::MongoDbAws),
                     "MongoDbOidc" => Some(AuthMechanism::MongoDbOidc),
