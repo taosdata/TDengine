@@ -10533,6 +10533,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateEncryptAlgrReq, pReq);
       break;
     }
+    case TDMT_MND_DROP_ENCRYPT_ALGR: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropEncryptAlgrReq, pReq);
+      break;
+    }
     case TDMT_MND_ALTER_USER: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAlterUserReq, pReq);
       break;
@@ -12449,6 +12453,15 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
   tFreeSDropUserReq(&dropReq);
+  return code;
+}
+
+static int32_t translateDropEncryptAlgr(STranslateContext* pCxt, SDropEncryptAlgrStmt* pStmt) {
+  SDropEncryptAlgrReq dropReq = {0};
+  tstrncpy(dropReq.algorithmId, pStmt->algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_ENCRYPT_ALGR, (FSerializeFunc)tSerializeSDropEncryptAlgrReq, &dropReq);
+  tFreeSDropEncryptAlgrReq(&dropReq);
   return code;
 }
 
@@ -17180,6 +17193,9 @@ _return:
       break;
     case QUERY_NODE_DROP_USER_STMT:
       code = translateDropUser(pCxt, (SDropUserStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      code = translateDropEncryptAlgr(pCxt, (SDropEncryptAlgrStmt*)pNode);
       break;
     case QUERY_NODE_USE_DATABASE_STMT:
       code = translateUseDatabase(pCxt, (SUseDatabaseStmt*)pNode);

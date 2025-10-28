@@ -16,6 +16,7 @@
 #define MND_ENCRYPT_ALGR_VER_NUMBER 1
 
 #include "mndEncryptAlgr.h"
+#include "audit.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 
@@ -471,9 +472,96 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndDropEncryptAlgr(SMnode *pMnode, SRpcMsg *pReq, SEncryptAlgrObj *pAlgr) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-encrypt-algr");
+  if (pTrans == NULL) {
+    mError("algr:%s, failed to drop since %s", pAlgr->algorithm_id, terrstr());
+    TAOS_RETURN(terrno);
+  }
+  mInfo("trans:%d, used to drop algr:%s", pTrans->id, pAlgr->algorithm_id);
+
+  SSdbRaw *pCommitRaw = mndEncryptAlgrActionEncode(pAlgr);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) < 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+
+  mndTransDrop(pTrans);
+  TAOS_RETURN(0);
+}
+
+static int32_t mndProcessDropEncryptAlgrReq(SRpcMsg *pReq) {
+  SMnode             *pMnode = pReq->info.node;
+  int32_t             code = 0;
+  int32_t             lino = 0;
+  SEncryptAlgrObj    *pObj = NULL;
+  SDropEncryptAlgrReq dropReq = {0};
+
+  TAOS_CHECK_GOTO(tDeserializeSDropEncryptAlgrReq(pReq->pCont, pReq->contLen, &dropReq), &lino, _OVER);
+
+  mInfo("algr:%s, start to drop", dropReq.algorithmId);
+  // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER), &lino, _OVER);
+
+  if (dropReq.algorithmId[0] == 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_ENCRYPT_ALGR_FORMAT, &lino, _OVER);
+  }
+
+  pObj = mndAcquireEncryptAlgrByAId(pMnode, dropReq.algorithmId);
+  if (pObj == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST, &lino, _OVER);
+  }
+
+  bool    exist = false;
+  void   *pIter = NULL;
+  SDbObj *pDb = NULL;
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_DB, pIter, (void **)&pDb);
+    if (pIter == NULL) break;
+
+    if (pDb->cfg.encryptAlgorithm == pObj->id) {
+      exist = true;
+      sdbRelease(pMnode->pSdb, pDb);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      break;
+    }
+
+    sdbRelease(pMnode->pSdb, pDb);
+  }
+
+  if (exist) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MNODE_ENCRYPT_ALGR_IN_USE, &lino, _OVER);
+  }
+
+  TAOS_CHECK_GOTO(mndDropEncryptAlgr(pMnode, pReq, pObj), &lino, _OVER);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  auditRecord(pReq, pMnode->clusterId, "dropEncryptAlgr", "", dropReq.algorithmId, dropReq.sql, dropReq.sqlLen);
+
+_OVER:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("algr:%s, failed to drop at line %d since %s", dropReq.algorithmId, lino, tstrerror(code));
+  }
+
+  mndReleaseEncryptAlgr(pMnode, pObj);
+  tFreeSDropEncryptAlgrReq(&dropReq);
+  TAOS_RETURN(code);
+}
+
 int32_t mndInitEncryptAlgr(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_ALGR, mndProcessCreateEncryptAlgrReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS, mndRetrieveEncryptAlgr);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_ENCRYPT_ALGR, mndProcessDropEncryptAlgrReq);
 
   SSdbTable table = {
       .sdbType = SDB_ENCRYPT_ALGORITHMS,

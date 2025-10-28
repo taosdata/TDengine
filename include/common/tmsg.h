@@ -456,6 +456,7 @@ typedef enum ENodeType {
   QUERY_NODE_ROLLUP_VGROUPS_STMT,
   QUERY_NODE_KILL_RETENTION_STMT,
   QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT,
+  QUERY_NODE_DROP_ENCRYPT_ALGR_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -1323,6 +1324,16 @@ typedef struct {
 int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 void    tFreeSDropUserReq(SDropUserReq* pReq);
+
+typedef struct {
+  char    algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SDropEncryptAlgrReq;
+
+int32_t tSerializeSDropEncryptAlgrReq(void* buf, int32_t bufLen, SDropEncryptAlgrReq* pReq);
+int32_t tDeserializeSDropEncryptAlgrReq(void* buf, int32_t bufLen, SDropEncryptAlgrReq* pReq);
+void    tFreeSDropEncryptAlgrReq(SDropEncryptAlgrReq* pReq);
 
 typedef struct SIpV4Range {
   uint32_t ip;

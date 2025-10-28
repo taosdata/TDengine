@@ -441,6 +441,11 @@ typedef struct SDropUserStmt {
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
 
+typedef struct SDropEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SDropEncryptAlgrStmt;
+
 typedef struct SCreateDnodeStmt {
   ENodeType type;
   char      fqdn[TSDB_FQDN_LEN];

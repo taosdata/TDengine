@@ -604,6 +604,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
       code = makeNode(type, sizeof(SCreateEncryptAlgrStmt), &pNode);
       break;
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      code = makeNode(type, sizeof(SDropEncryptAlgrStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_USER_STMT:
       code = makeNode(type, sizeof(SAlterUserStmt), &pNode);
       break;
@@ -1661,6 +1664,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
     case QUERY_NODE_DROP_BNODE_STMT:    // no pointer field
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:     // no pointer field
       break;
     case QUERY_NODE_CREATE_BNODE_STMT: {
       SBnodeOptions* pOptions = ((SCreateBnodeStmt*)pNode)->pOptions;

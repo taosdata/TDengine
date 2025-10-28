@@ -167,6 +167,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateUserStmt";
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
       return "CreateEncryptAlgrStmt";
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      return "DropEncryptAlgrStmt";
     case QUERY_NODE_ALTER_USER_STMT:
       return "AlterUserStmt";
     case QUERY_NODE_DROP_USER_STMT:
@@ -8187,6 +8189,18 @@ static int32_t jsonToDropUserStmt(const SJson* pJson, void* pObj) {
   return tjsonGetStringValue(pJson, jkDropUserStmtUserName, pNode->userName);
 }
 
+static const char* jkDropEncryptAlgrStmtUserName = "algorithm_id";
+
+static int32_t dropEncryptAlgrStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropEncryptAlgrStmt* pNode = (const SDropEncryptAlgrStmt*)pObj;
+  return tjsonAddStringToObject(pJson, jkDropEncryptAlgrStmtUserName, pNode->algorithmId);
+}
+
+static int32_t jsonToDropEncryptAlgrStmt(const SJson* pJson, void* pObj) {
+  SDropEncryptAlgrStmt* pNode = (SDropEncryptAlgrStmt*)pObj;
+  return tjsonGetStringValue(pJson, jkDropEncryptAlgrStmtUserName, pNode->algorithmId);
+}
+
 static const char* jkUseDatabaseStmtDbName = "DbName";
 
 static int32_t useDatabaseStmtToJson(const void* pObj, SJson* pJson) {
@@ -9708,6 +9722,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createUserStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
       return createEncryptAlgrStmtToJson(pObj, pJson);
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      return dropEncryptAlgrStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_USER_STMT:
       return alterUserStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_USER_STMT:
@@ -10139,6 +10155,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToCreateUserStmt(pJson, pObj);
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
       return jsonToCreateEncryptAlgrStmt(pJson, pObj);
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      return jsonToDropEncryptAlgrStmt(pJson, pObj);
     case QUERY_NODE_ALTER_USER_STMT:
       return jsonToAlterUserStmt(pJson, pObj);
     case QUERY_NODE_DROP_USER_STMT:

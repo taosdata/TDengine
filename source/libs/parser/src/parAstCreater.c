@@ -4030,6 +4030,21 @@ _err:
   return NULL;
 }
 
+SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (algorithmId->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ALGR_ID_TOO_LONG);
+    goto _err;
+  }
+  SDropEncryptAlgrStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ENCRYPT_ALGR_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(algorithmId->z, algorithmId->n, pStmt->algorithmId, sizeof(pStmt->algorithmId));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateDnodeStmt* pStmt = NULL;
