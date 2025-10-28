@@ -250,15 +250,15 @@ int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, i
 
   const char* mechanism = SASL_MECHANISM_SCRAM_SHA256;
 
-  const char* clientOut = NULL;
-  unsigned    clientOutLen = 0;
+  const char* cliOut = NULL;
+  unsigned    cliOutLen = 0;
 
   if (server) {
-    int result = sasl_server_start(pConn->conn, mechanism, input, len, &clientOut, &clientOutLen);
+    int result = 0;
+    result = sasl_server_step(pConn->conn, input, len, &cliOut, &cliOutLen);
     while (result == SASL_CONTINUE) {
       const char* serverOut = NULL;
       unsigned    serverOutLen = 0;
-      result = sasl_server_step(pConn->conn, input, len, &clientOut, &serverOutLen);
     }
 
     if (result == SASL_OK) {
@@ -273,7 +273,7 @@ int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, i
 
     } else if (result == SASL_CONTINUE) {
       tInfo("sasl server continue to auth, sasl conn %p, conn %p", pConn, pConn->conn);
-      code = saslBufferAppend(&pConn->authInfo, (uint8_t*)clientOut, (int32_t)clientOutLen);
+      code = saslBufferAppend(&pConn->authInfo, (uint8_t*)cliOut, (int32_t)cliOutLen);
       if (code != 0) {
         tError("saslConnHandleAuth failed to append auth info, code:%d", code);
         return code;
@@ -283,7 +283,7 @@ int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, i
       code = TSDB_CODE_THIRDPARTY_ERROR;
     }
   } else {
-    int result = sasl_client_step(pConn->conn, input, len, NULL, &clientOut, &clientOutLen);
+    int result = sasl_client_step(pConn->conn, input, len, NULL, &cliOut, &cliOutLen);
 
     if (result == SASL_OK) {
       pConn->completed = 1;
