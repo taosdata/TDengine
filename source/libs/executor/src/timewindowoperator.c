@@ -71,6 +71,7 @@ void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, int32_t rowIndex, uint64_t
   pRowSup->numOfRows += 1;
   if (hasContinuousNullRows(pRowSup)) {
     // rows having null state col are wrapped by rows of same state
+    // these rows can be counted into current window
     pRowSup->numOfRows += pRowSup->numNullRows;
     resetNumNullRows(pRowSup);
   }

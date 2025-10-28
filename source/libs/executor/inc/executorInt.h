@@ -685,6 +685,7 @@ typedef struct SWindowRowsSup {
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col
+// state window operator needs to handle these rows specially
 static inline bool hasContinuousNullRows(SWindowRowsSup* pRowSup) {
   return pRowSup->numNullRows > 0;
 }
