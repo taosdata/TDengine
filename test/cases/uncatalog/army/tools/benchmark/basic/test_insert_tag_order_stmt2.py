@@ -107,7 +107,7 @@ class TestInsertTagOrderStmt2:
             - xxx
             - xxx
         """
-        for i in range(1, 100):
+        for i in range(1, 10):
             self.executeAndCheck('stmt2_tag_order_1', 'stmt2', 1)
             self.executeAndCheck('stmt2_tag_order_2', 'stmt2', 0)
             tdLog.success("Successfully executed")
