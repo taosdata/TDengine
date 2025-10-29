@@ -7579,21 +7579,98 @@ static int32_t checkTrueForLimit(STranslateContext *pCxt, SNode *pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
-  PAR_ERR_RET(checkStateExpr(pCxt, pState->pExpr));
-  PAR_ERR_RET(checkStateExtend(pCxt, pState->pExtend));
-  PAR_ERR_RET(checkTrueForLimit(pCxt, pState->pTrueForLimit));
+static int32_t checkAndConvertZerothValue(STranslateContext* pCxt, SStateWindowNode* pStateWin) {
+    if (NULL == pStateWin->pZeroth) {
+      return TSDB_CODE_SUCCESS;
+    }
+    if (QUERY_NODE_VALUE != nodeType(pStateWin->pZeroth)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Zeroth value can only accept constant");
+    }
+
+    SDataType targetDt = ((SExprNode*)pStateWin->pExpr)->resType;
+    SDataType zerothDt = ((SExprNode*)pStateWin->pZeroth)->resType;
+    if (targetDt.type == zerothDt.type) {
+      // if have same type, no need to cast
+      return TSDB_CODE_SUCCESS;
+    }
+
+    // need cast zeroth value to target type
+    SNode*  pCastFunc = NULL;
+    int32_t code = createCastFunc(pCxt, pStateWin->pZeroth, targetDt, &pCastFunc);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = scalarCalculateConstants(pCastFunc, &pStateWin->pZeroth);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Zeroth value type mismatch");
+    }
+
+    return code;
+}
+
+static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pStateWin) {
+  PAR_ERR_RET(checkStateExpr(pCxt, pStateWin->pExpr));
+  PAR_ERR_RET(checkStateExtend(pCxt, pStateWin->pExtend));
+  PAR_ERR_RET(checkTrueForLimit(pCxt, pStateWin->pTrueForLimit));
+  PAR_ERR_RET(checkAndConvertZerothValue(pCxt, pStateWin));
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateZerothState(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SStateWindowNode* pStateWin = (SStateWindowNode*)pSelect->pWindow;
+
+  if (NULL != pStateWin->pZeroth) {
+    // create a new 'NOT EQUAL' operator
+    SOperatorNode* notEqualOp = NULL;
+    code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&notEqualOp);
+    if (TSDB_CODE_SUCCESS != code) {
+      parserError("failed to create 'NOT EQUAL' operator at %s since %s", __func__, tstrerror(code));
+      return code;
+    }
+    notEqualOp->opType = OP_TYPE_NOT_EQUAL;
+    code = nodesCloneNode(pStateWin->pExpr, &notEqualOp->pLeft);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesCloneNode(pStateWin->pZeroth, &notEqualOp->pRight);
+    }
+
+    if (TSDB_CODE_SUCCESS != code) {
+      parserError("failed to clone nodes for zeroth state at %s since %s", __func__, tstrerror(code));
+      nodesDestroyNode((SNode*)notEqualOp);
+      return code;
+    }
+
+    // merge the 'NOT EQUAL' operator to having clause
+    SNode* pNewCond = (SNode*)notEqualOp;
+    code = nodesMergeNode(&pSelect->pHaving, &pNewCond);
+    if (code != TSDB_CODE_SUCCESS) {
+      parserError("failed to merge NOT EQUAL operator to having clause at %s since %s", __func__, tstrerror(code));
+      nodesDestroyNode((SNode*)notEqualOp);
+      return code;
+    }
+  }
+
+  return code;
+}
+
 static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = 0;
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "STATE_WINDOW requires valid time series input");
   }
+  SStateWindowNode* pStateWin = (SStateWindowNode*)pSelect->pWindow;
+  code = checkStateWindow(pCxt, pStateWin);
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("failed to check state window at %s since %s", __func__, tstrerror(code));
+    return code;
+  }
 
-  return checkStateWindow(pCxt, (SStateWindowNode*)pSelect->pWindow);
+  code = translateZerothState(pCxt, pSelect);
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("failed to translate state zeroth at %s since %s", __func__, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pSession) {
@@ -10616,6 +10693,7 @@ static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeF
   pCxt->pCmdMsg->msgType = msgType;
   pCxt->pCmdMsg->msgLen = func(NULL, 0, pReq);
   if (pCxt->pCmdMsg->msgLen < 0) {
+    taosMemoryFreeClear(pCxt->pCmdMsg);
     return terrno;
   }
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
@@ -10624,6 +10702,8 @@ static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeF
     return terrno;
   }
   if (-1 == func(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, pReq)) {
+    taosMemoryFreeClear(pCxt->pCmdMsg->pMsg);
+    taosMemoryFreeClear(pCxt->pCmdMsg);
     code = TSDB_CODE_INVALID_MSG;
   }
   return code;
@@ -14232,6 +14312,9 @@ static int32_t createStreamReqBuildTriggerStateWindow(STranslateContext* pCxt, S
   pReq->trigger.stateWin.slotId = ((SColumnNode*)pTriggerWindow->pExpr)->slotId;
   pReq->trigger.stateWin.extend = createStreamReqWindowGetBigInt(pTriggerWindow->pExtend);
   pReq->trigger.stateWin.trueForDuration = createStreamReqWindowGetBigInt(pTriggerWindow->pTrueForLimit);
+  if (NULL != pTriggerWindow->pZeroth) {
+    PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pZeroth, false, (char**)&pReq->trigger.stateWin.zeroth, NULL));
+  }
   PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pExpr, false, (char**)&pReq->trigger.stateWin.expr, NULL));
   return TSDB_CODE_SUCCESS;
 }
@@ -17024,7 +17107,6 @@ static int32_t buildAlterRsmaReq(STranslateContext* pCxt, SAlterRsmaStmt* pStmt,
 _exit:
   taosMemoryFreeClear(pTableMeta);
   TAOS_RETURN(code);
-  return 0;
 }
 
 #endif
@@ -17060,7 +17142,6 @@ static int32_t translateDropRsma(STranslateContext* pCxt, SDropRsmaStmt* pStmt) 
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_RSMA, (FSerializeFunc)tSerializeSMDropRsmaReq, &dropReq));
-  return code;
 _return:
   return code;
 #else

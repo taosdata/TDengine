@@ -236,8 +236,26 @@ def before_test_class(request):
     # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
     for i in range(1, request.session.create_dnode_num):
         tdSql.execute(f"create dnode localhost port {6030+i*100}")
+    time.sleep(request.session.create_dnode_num)
+    # check dnodes ready
+    count = 0
+    timeout = 10
+    while count < timeout:
+        tdSql.query("select * from information_schema.ins_dnodes")
+        status = 0
+        for i in range(len(tdSql.queryResult)):
+            if tdSql.queryResult[i][4] == "ready":
+                status += 1
+        if status == request.session.create_dnode_num:
+            tdLog.info("All dnodes are ready")
+            break
+        else:
+            tdLog.info(f"{request.session.create_dnode_num} dnodes not all ready, ready number: {status}, total number: {tdSql.queryRows}")
         time.sleep(1)
-    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
+        count += 1
+    else:
+        tdLog.exit(f"{request.session.create_dnode_num} dnodes not all ready within {timeout}s!")
+    
 
     if request.session.mnodes_num:
         for i in range(2, request.session.mnodes_num + 1):

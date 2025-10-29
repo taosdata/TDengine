@@ -55,7 +55,7 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend]) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -96,7 +96,7 @@ order_expr:
   - FILL: Types can be selected as NONE (unfilled), VALUE (filled with specified value), PREV (previous non NULL value), NEXT (next non NULL value), NEAR (nearest non NULL value before and after).
 - window_cause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../time-series-extensions/).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
-  - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. TRUE_FOR specifies the minimum duration of the window, with a positive time range and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as TRUE_FOR (1a).
+  - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the minimum duration of the window, with a positive time range and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as TRUE_FOR (1a).
   - INTERVAL: Time window, interval_val specifies the window size, sliding_val specifies the window sliding time, sliding_val time is limited to the interval_val range, interval_val and sliding_val time ranges are positive values, and precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as interval_val (2d) and SLIDING (1d).
   - FILL: types can be selected as NONE, VALUE, PREV, NEXT, NEAR.
   - EVENT_WINDOW: The event window uses start_trigger_dedition and end_trigger_dedition to specify start and end conditions, supports any expression, and can specify different columns. Such as ```start with voltage>220 end with voltage<=220```.
