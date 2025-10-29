@@ -14,6 +14,7 @@ keras==3.10.0
 taospy==2.8.5
 transformers==4.40.0
 accelerate==0.34.2
+cmdstanpy==1.2.0
 fastdtw==0.3.4
 prophet==1.1.7
 xlsxwriter==3.2.1
