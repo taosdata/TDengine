@@ -80,8 +80,8 @@ static void trimEscape(SAstCreateContext* pCxt, SToken* pName, bool trimStar) {
     if (!pCxt->pQueryCxt->hasDupQuoteChar) {
       pName->z += 1;
       pName->n -= 2;
-      // `*` is forbidden as identifier name
-      if (trimStar && pName->n == 1 && pName->z[0] == '*') {
+      // * is forbidden as an identifier name
+      if (pName->z[0] == '*' && trimStar && pName->n == 1) {
         pName->z[0] = '\0';
         pName->n = 0;
       }
