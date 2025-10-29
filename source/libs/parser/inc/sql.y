@@ -160,6 +160,7 @@ priv_type(A) ::= ALTER.                                                         
 
 %type priv_level                                                                  { STokenPair }
 %destructor priv_level                                                            { }
+priv_level(A) ::= NK_STAR(B).                                                     { A.first = B; A.second = nil_token; }
 priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
 priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
 priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; }
