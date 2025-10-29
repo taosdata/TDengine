@@ -246,7 +246,6 @@ static void mndSetSM2EncryptAlgr(SEncryptAlgrObj *Obj) {
   strncpy(Obj->desc, "SM2 Asymmetric Cipher", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__ASYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_algr_name, "SM2", TSDB_ENCRYPT_ALGR_NAME_LEN);
 }
 
 static void mndSetRSAEncryptAlgr(SEncryptAlgrObj *Obj) {
@@ -256,7 +255,6 @@ static void mndSetRSAEncryptAlgr(SEncryptAlgrObj *Obj) {
   strncpy(Obj->desc, "RSA Asymmetric Cipher", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__ASYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_algr_name, "RSA", TSDB_ENCRYPT_ALGR_NAME_LEN);
 }
 
 static SSdbRaw * mndCreateEncryptAlgrRaw(STrans *pTrans, SEncryptAlgrObj *Obj) {
