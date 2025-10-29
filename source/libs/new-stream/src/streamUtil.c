@@ -592,14 +592,12 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
     }
   }
 
-  if (1) {  // hasData) {
-    pContent = cJSON_CreateObject();
-    QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-    JSON_CHECK_ADD_ITEM(pContent, "result", pResult);
-    pResult = NULL;
-    *ppContent = cJSON_PrintUnformatted(pContent);
-    QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  }
+  pContent = cJSON_CreateObject();
+  QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM(pContent, "result", pResult);
+  pResult = NULL;
+  *ppContent = cJSON_PrintUnformatted(pContent);
+  QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
 _end:
   if (pRow) cJSON_Delete(pRow);
