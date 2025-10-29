@@ -1398,6 +1398,26 @@ class TDSql:
                                 ).astimezone(datetime.timezone.utc):
                                     if show:
                                         tdLog.info("check successfully")
+                                else:
+                                    if exit:
+                                        caller = inspect.getframeinfo(
+                                            inspect.stack()[1][0]
+                                        )
+                                        args = (
+                                            caller.filename,
+                                            caller.lineno,
+                                            self.sql,
+                                            row,
+                                            col,
+                                            self.queryResult[row][col],
+                                            data,
+                                        )
+                                        tdLog.exit(
+                                            "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
+                                            % args
+                                        )
+                                    else:
+                                        return False
                         else:
                             if exit:
                                 filename, lineno = _fast_caller(1)
