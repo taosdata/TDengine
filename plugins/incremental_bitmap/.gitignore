@@ -8,6 +8,7 @@ CMakeFiles/
 *.a
 *.dylib
 *.dll
+build_real/
 
 # CMake 临时文件
 CMakeCache.txt
@@ -28,4 +29,4 @@ Makefile
 
 # 系统文件
 .DS_Store
-Thumbs.db 
+Thumbs.db
