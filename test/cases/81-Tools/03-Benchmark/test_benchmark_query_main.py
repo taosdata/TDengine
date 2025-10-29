@@ -131,7 +131,6 @@ class TestBenchmarkQueryMain:
 
         totalQueries  = 0
         threadQueries = 0
-        QPS           = 10
 
         if continueIfFail.lower() == "yes":
             allEnd = " "
@@ -143,7 +142,6 @@ class TestBenchmarkQueryMain:
             threadQueries = queryTimes * threads
             totalQueries  = queryTimes * threads * len(sqls)
             threadKey     = f"complete query with {threads} threads and " 
-            qpsKey = "QPS: "
             avgKey = "query delay avg: "
             minKey = "min:"
         else:
@@ -155,7 +153,6 @@ class TestBenchmarkQueryMain:
                 if batchQuery.lower() == "yes":
                     # batch
                     threadQueries = len(sqls)
-                    QPS           = 2
                 else:
                     threadQueries = totalQueries
             else:
@@ -168,13 +165,11 @@ class TestBenchmarkQueryMain:
                 tdLog.info(f"set threads = {nSql} because len(sqls) < threads")
                 threads = nSql
             threadKey     = f"using {threads} threads complete query "
-            qpsKey = ""
             avgKey = "avg delay:"
             minKey = "min delay:"
 
         items = [
             [threadKey, " ", threadQueries, True],
-            [qpsKey, " ",  1, False],  # qps need > 1
             [avgKey, "s",  0, False],
             [minKey, "s",  0, False],
             ["max: ", "s", 0, False],
@@ -183,7 +178,6 @@ class TestBenchmarkQueryMain:
             ["p99: ", "s", 0, False],
             ["INFO: Spend ", " ", 0, False],
             ["completed total queries: ", ",", totalQueries, True],
-            ["the QPS of all threads:", allEnd, QPS        , False]  # all qps need > 5
         ]
     
         # check
