@@ -133,7 +133,6 @@ func (gm *GeneralMetric) Init(c gin.IRouter) error {
 }
 
 func NewGeneralMetric(conf *config.Config) *GeneralMetric {
-
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,

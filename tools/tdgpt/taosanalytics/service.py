@@ -152,3 +152,21 @@ class AbstractImputationService(AbstractAnalyticsService, ABC):
         return {
             "dummy": "dummy"
         }
+
+class AbstractCorrelationService(AbstractAnalyticsService, ABC):
+    """ abstract correlation analysis service"""
+    def __init__(self):
+        super().__init__()
+        self.list1 = None
+        self.type = "correlation"
+
+    def set_second_input_data(self, input_list1):
+        self.list1 = input_list1
+
+    def set_params(self, params: dict) -> None:
+        pass
+
+    def get_params(self):
+        return {
+            "dummy": "dummy"
+        }
