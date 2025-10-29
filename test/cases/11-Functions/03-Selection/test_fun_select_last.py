@@ -1703,11 +1703,11 @@ class TestFunLast:
         )
 
         resultfile = tdCom.generate_query_result(
-            "cases/22-Functions/03-Selection/t/multires_func.sql", "test_func_multires"
+            "cases/11-Functions/03-Selection/t/multires_func.sql", "test_func_multires"
         )
         tdLog.info(f"resultfile: {resultfile}")
         tdCom.compare_result_files(
-            resultfile, "cases/22-Functions/03-Selection/r/multires_func.result"
+            resultfile, "cases/11-Functions/03-Selection/r/multires_func.result"
         )
 
     def ComputeLast(self):
