@@ -197,11 +197,13 @@ int32_t mndEncryptAlgrActionUpdate(SSdb *pSdb, SEncryptAlgrObj *pOldEncryptAlgr,
   return 0;
 }
 
+typedef void (*mndSetEncryptAlgrFp)(SEncryptAlgrObj *Obj);
+
 static void mndSetSM4EncryptAlgr(SEncryptAlgrObj *Obj){
   Obj->id = 1;
   strncpy(Obj->algorithm_id, "SM4-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
   strncpy(Obj->name, "SM4", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->desc, "商密分组密码标准", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  strncpy(Obj->desc, "SM4 symmetric encryption", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
   strncpy(Obj->ossl_algr_name, "SM4-CBC:SM4", TSDB_ENCRYPT_ALGR_NAME_LEN);
@@ -216,17 +218,47 @@ static void mndSetAESEncryptAlgr(SEncryptAlgrObj *Obj){
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
   strncpy(Obj->ossl_algr_name, "AES-128-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
 }
-/*
-static void mndSetTestEncryptAlgr(SEncryptAlgrObj *Obj){
+
+static void mndSetSM3EncryptAlgr(SEncryptAlgrObj *Obj) {
   Obj->id = 3;
-  strncpy(Obj->algorithm_id, "vigenere", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->name, "AES", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->desc, "AES symmetric encryption", TSDB_ENCRYPT_ALGR_DESC_LEN);
-  Obj->type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
+  strncpy(Obj->algorithm_id, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->name, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->desc, "SM3 digests", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  Obj->type = ENCRYPT_ALGR_TYPE__DIGEST;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_algr_name, "vigenere", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->ossl_algr_name, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
 }
-*/
+
+static void mndSetSHAEncryptAlgr(SEncryptAlgrObj *Obj) {
+  Obj->id = 4;
+  strncpy(Obj->algorithm_id, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->name, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->desc, "SHA2 digests", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  Obj->type = ENCRYPT_ALGR_TYPE__DIGEST;
+  Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
+  strncpy(Obj->ossl_algr_name, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
+}
+
+static void mndSetSM2EncryptAlgr(SEncryptAlgrObj *Obj) {
+  Obj->id = 5;
+  strncpy(Obj->algorithm_id, "SM2", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->name, "SM2", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->desc, "SM2 Asymmetric Cipher", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  Obj->type = ENCRYPT_ALGR_TYPE__ASYMMETRIC_CIPHERS;
+  Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
+  strncpy(Obj->ossl_algr_name, "SM2", TSDB_ENCRYPT_ALGR_NAME_LEN);
+}
+
+static void mndSetRSAEncryptAlgr(SEncryptAlgrObj *Obj) {
+  Obj->id = 6;
+  strncpy(Obj->algorithm_id, "RSA", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->name, "RSA", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  strncpy(Obj->desc, "RSA Asymmetric Cipher", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  Obj->type = ENCRYPT_ALGR_TYPE__ASYMMETRIC_CIPHERS;
+  Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
+  strncpy(Obj->ossl_algr_name, "RSA", TSDB_ENCRYPT_ALGR_NAME_LEN);
+}
+
 static SSdbRaw * mndCreateEncryptAlgrRaw(STrans *pTrans, SEncryptAlgrObj *Obj) {
   int32_t code = 0;
 
@@ -247,34 +279,16 @@ static SSdbRaw * mndCreateEncryptAlgrRaw(STrans *pTrans, SEncryptAlgrObj *Obj) {
   return pRaw;
 }
 
-#define ALGR_NUM 2
 static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
   int32_t code = 0;
-  SArray* objArray = NULL;
-  STrans* pTrans = NULL;
-  SArray* rawArray = NULL;
+  STrans *pTrans = NULL;
 
   if (version >= TSDB_MNODE_BUILTIN_DATA_VERSION) return 0;
 
-  objArray = taosArrayInit(ALGR_NUM, sizeof(SEncryptAlgrObj));
-  if (objArray == NULL) {
-    return terrno;
-  }
-  for(int32_t i = 0; i < ALGR_NUM; i++){
-    SEncryptAlgrObj *Obj = taosMemoryMalloc(sizeof(SEncryptAlgrObj));
-    if(Obj == NULL){
-      goto _OVER;
-    }
-    memset(Obj, 0, sizeof(SEncryptAlgrObj));
-    taosArrayPush(objArray, Obj);
-  }
-  
-  SEncryptAlgrObj *Obj1 = taosArrayGet(objArray, 0);
-  mndSetSM4EncryptAlgr(Obj1);
-  SEncryptAlgrObj *Obj2 = taosArrayGet(objArray, 1);
-  mndSetAESEncryptAlgr(Obj2);
-  // SEncryptAlgrObj *Obj3 = taosArrayGet(objArray, 2);
-  // mndSetTestEncryptAlgr(Obj3);
+  mndSetEncryptAlgrFp setFpArr[] = {mndSetSM4EncryptAlgr, mndSetAESEncryptAlgr, mndSetSM3EncryptAlgr,
+                                    mndSetSHAEncryptAlgr, mndSetSM2EncryptAlgr, mndSetRSAEncryptAlgr};
+
+  int32_t algrNum = sizeof(setFpArr) / sizeof(mndSetEncryptAlgrFp);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-enc-algr");
   if (pTrans == NULL) {
@@ -284,19 +298,19 @@ static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
   }
   mInfo("trans:%d, used to create default encrypt_algr", pTrans->id);
 
-  rawArray = taosArrayInit(ALGR_NUM, sizeof(SSdbRaw));
-  if (rawArray == NULL) {
-    goto _OVER;
-  }
-
-  for(int32_t i = 0; i < ALGR_NUM; i++){
-    SEncryptAlgrObj *Obj = taosArrayGet(objArray, i);
+  for (int32_t i = 0; i < algrNum; i++) {
+    SEncryptAlgrObj *Obj = taosMemoryMalloc(sizeof(SEncryptAlgrObj));
+    if (Obj == NULL) {
+      goto _OVER;
+    }
+    memset(Obj, 0, sizeof(SEncryptAlgrObj));
+    setFpArr[i](Obj);
     SSdbRaw *pRaw = mndCreateEncryptAlgrRaw(pTrans, Obj);
-    if(pRaw == NULL){
+    taosMemoryFree(Obj);
+    if (pRaw == NULL) {
       mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
       goto _OVER;
     }
-    taosArrayPush(rawArray, pRaw);
   }
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
@@ -304,22 +318,16 @@ static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
     goto _OVER;
   }
 
-  return code;
+  code = 0;
 
-_OVER:  
-  for(int32_t i = 0; i < ALGR_NUM; i++){
-    SEncryptAlgrObj *Obj = taosArrayGet(objArray, i);
-    if (Obj != NULL) taosMemoryFree(Obj);
-    SSdbRaw *raw = taosArrayGet(rawArray, i);
-    if (raw != NULL) sdbFreeRaw(raw);
-  }
-  taosArrayClear(rawArray);
-  taosArrayClear(objArray);
+_OVER:
   mndTransDrop(pTrans);
   return code;
 }
 
 #define SYMCBC "Symmetric Ciphers CBC mode"
+#define ASYM       "Asymmetric Ciphers"
+#define DIGEST     "Digests"
 #define BUILTIN "build-in"
 #define CUSTOMIZED "customized"
 static int32_t mndRetrieveEncryptAlgr(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows){
@@ -359,6 +367,10 @@ static int32_t mndRetrieveEncryptAlgr(SRpcMsg *pMsg, SShowObj *pShow, SSDataBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if(pObj->type == ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS){
       tstrncpy(varDataVal(tmpBuf), SYMCBC, strlen(SYMCBC) + 1);
+    } else if (pObj->type == ENCRYPT_ALGR_TYPE__DIGEST) {
+      tstrncpy(varDataVal(tmpBuf), DIGEST, strlen(DIGEST) + 1);
+    } else if (pObj->type == ENCRYPT_ALGR_TYPE__ASYMMETRIC_CIPHERS) {
+      tstrncpy(varDataVal(tmpBuf), ASYM, strlen(ASYM) + 1);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), pObj, &lino, _OVER);
@@ -422,6 +434,10 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   strncpy(Obj.desc, createReq.desc, TSDB_ENCRYPT_ALGR_DESC_LEN);
   if (strncmp(createReq.type, "Symmetric_Ciphers_CBC_mode", TSDB_ENCRYPT_ALGR_TYPE_LEN) == 0) {
     Obj.type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
+  } else if (strncmp(createReq.type, "Digests", TSDB_ENCRYPT_ALGR_TYPE_LEN) == 0) {
+    Obj.type = ENCRYPT_ALGR_TYPE__DIGEST;
+  } else if (strncmp(createReq.type, "Asymmetric_Ciphers", TSDB_ENCRYPT_ALGR_TYPE_LEN) == 0) {
+    Obj.type = ENCRYPT_ALGR_TYPE__ASYMMETRIC_CIPHERS;
   } else {
     TAOS_CHECK_GOTO(TSDB_CODE_MNODE_INVALID_ENCRYPT_ALGR_TYPE, &lino, _OVER);
   }
