@@ -431,7 +431,10 @@ int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigObj *item) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw) != 0)) TAOS_RETURN(code);
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    taosMemoryFree(pCommitRaw);
+    TAOS_RETURN(code);
+  }
   if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) TAOS_RETURN(code);
   return TSDB_CODE_SUCCESS;
 }
@@ -443,7 +446,10 @@ int32_t mndSetDeleteConfigCommitLogs(STrans *pTrans, SConfigObj *item) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw) != 0)) TAOS_RETURN(code);
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    taosMemoryFree(pCommitRaw);
+    TAOS_RETURN(code);
+  }
   if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) TAOS_RETURN(code);
   return TSDB_CODE_SUCCESS;
 }
@@ -455,7 +461,10 @@ int32_t mndSetCreateConfigPrepareLogs(STrans *pTrans, SConfigObj *item) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if ((code = mndTransAppendPrepareLog(pTrans, pPrepareRaw) != 0)) TAOS_RETURN(code);
+  if ((code = mndTransAppendPrepareLog(pTrans, pPrepareRaw)) != 0) {
+    taosMemoryFree(pPrepareRaw);
+    TAOS_RETURN(code);
+  }
   if ((code = sdbSetRawStatus(pPrepareRaw, SDB_STATUS_READY)) != 0) TAOS_RETURN(code);
   return TSDB_CODE_SUCCESS;
 }
