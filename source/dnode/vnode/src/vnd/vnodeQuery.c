@@ -282,7 +282,8 @@ _exit4:
   }
 
   if (code) {
-    qError("get table %s meta with %" PRIu8 " failed cause of %s", infoReq.tbName, infoReq.option, tstrerror(code));
+    qError("vgId:%d, get table %s meta with %" PRIu8 " failed cause of %s", pVnode->config.vgId, infoReq.tbName,
+           infoReq.option, tstrerror(code));
   }
 
   if (direct) {
