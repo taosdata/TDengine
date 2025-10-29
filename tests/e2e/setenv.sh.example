@@ -24,7 +24,7 @@ export EXPLORER_PASSWORD=taosdata
 export TAOSD_SOURCE_HOST=192.168.1.45
 export TAOSBENCHMARK_HOST=$HOST
 
-export TAOS_GRANT_BINARY=192.168.2.13:/data/common/activation-code/taosGrant
+export TAOS_GRANT_BINARY=192.168.1.55:/data/common/activation-code/taosGrant
 
 export RETRY_CHECK_METRICS=10
 
