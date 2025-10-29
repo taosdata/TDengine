@@ -1372,11 +1372,12 @@ static int32_t mndProcessArbSetAssignedLeaderRsp(SRpcMsg *pRsp) {
     }
   }
 
+  mndReleaseArbGroup(pMnode, pGroup);
+
   code = 0;
 
 _OVER:
   tFreeSVArbSetAssignedLeaderRsp(&setAssignedRsp);
-  mndReleaseArbGroup(pMnode, pGroup);
   return code;
 }
 
