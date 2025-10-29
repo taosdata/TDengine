@@ -264,27 +264,6 @@ function install_anode_venv() {
     echo -e "install the required packages by pip3, this may take a while depending on the network condition"
     ${csudo}${venvDir}/bin/pip3 install -r ${script_dir}/requirements_ess.txt
 
-    #${csudo}${venvDir}/bin/pip3 install numpy==1.26.4
-    #${csudo}${venvDir}/bin/pip3 install pandas==1.5.0
-    #
-    #${csudo}${venvDir}/bin/pip3 install scikit-learn
-    #${csudo}${venvDir}/bin/pip3 install outlier_utils
-    #${csudo}${venvDir}/bin/pip3 install statsmodels
-    #${csudo}${venvDir}/bin/pip3 install pyculiarity
-    #${csudo}${venvDir}/bin/pip3 install pmdarima
-    #${csudo}${venvDir}/bin/pip3 install flask
-    #${csudo}${venvDir}/bin/pip3 install matplotlib
-    #${csudo}${venvDir}/bin/pip3 install uwsgi
-    #${csudo}${venvDir}/bin/pip3 install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
-    #${csudo}${venvDir}/bin/pip3 install keras==3.10.0
-    #${csudo}${venvDir}/bin/pip3 install requests
-    #${csudo}${venvDir}/bin/pip3 install taospy
-    #${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
-    #${csudo}${venvDir}/bin/pip3 install accelerate
-    #${csudo}${venvDir}/bin/pip3 install tensorflow-cpu==2.15.0
-    #${csudo}${venvDir}/bin/pip3 install prophet==1.1.7
-    #${csudo}${venvDir}/bin/pip3 install fastdtw==0.3.4
-
     echo -e "Install python library for venv completed!"
   else
     echo -e "Install python library for venv skipped!"
