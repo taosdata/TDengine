@@ -4290,13 +4290,13 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
 
             case STMT_IFACE:
                 // close stmt
-                if(pThreadInfo->conn->stmt) {
+                if(pThreadInfo->conn && pThreadInfo->conn->stmt) {
                     taos_stmt_close(pThreadInfo->conn->stmt);
                     pThreadInfo->conn->stmt = NULL;
                 }
             case STMT2_IFACE:
                 // close stmt2
-                if (pThreadInfo->conn->stmt2) {
+                if (pThreadInfo->conn && pThreadInfo->conn->stmt2) {
                     taos_stmt2_close(pThreadInfo->conn->stmt2);
                     pThreadInfo->conn->stmt2 = NULL;
                 }

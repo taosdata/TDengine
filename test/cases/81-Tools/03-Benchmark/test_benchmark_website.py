@@ -204,7 +204,7 @@ class TestBenchmarkWebsite:
     # ------------------- main ----------------
     #
     def test_benchmark_website(self):
-        """taosBenchmark official website case
+        """taosBenchmark official website
 
         1. Check official website example case run successfully
         2. example files: insert.json/query.json/queryStb.json/tmq.json

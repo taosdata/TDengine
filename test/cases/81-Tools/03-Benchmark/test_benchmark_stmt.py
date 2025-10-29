@@ -245,13 +245,15 @@ class TestBenchmarkStmt:
         # taosBenchmark run
         binPath = etool.benchMarkFile()
         cmd = "%s -f %s/json/stmt2_insert_retry-stb.json" % (binPath, os.path.dirname(__file__))
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
+        output, error, code = etool.run(cmd, ret_code=True)
+        if code != 0:
+            print(f"taosBenchmark run failed, cmd:{cmd} output:{output} error:{error} code:{code}")
+            tdLog.exit("dbInsertThread run taosBenchmark failed")
 
     def restartTaosdThread(self):
-        time.sleep(3)
-        sc.dnodeStopAll()
         time.sleep(5)
+        sc.dnodeStopAll()
+        time.sleep(3)
         sc.dnodeStart(1)    
 
     def do_stmt2_insert_retry_json_stb(self):
