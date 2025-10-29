@@ -15,6 +15,7 @@
 // clang-format off
 #include "taoserror.h"
 #include "transComm.h"
+#include "tutil.h"
 #include "tversion.h"
 #include "tmisce.h"
 #include "transLog.h"
@@ -2789,7 +2790,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   if (pCtx && pCtx->syncMsgRef != 0) {
     STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
     if (pSyncMsg) {
-      taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+      TAOS_UNUSED(taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef));
     } else {
       tDebug("sync msg already release, not retry");
       return false;
