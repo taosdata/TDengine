@@ -979,10 +979,9 @@ void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsLis
   pRowSup->groupId = groupId;
   if (*extendOption == STATE_WIN_EXTEND_OPTION_DEFAULT ||
       *extendOption == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-    pRowSup->win.skey = hasPrevWin ? tsList[rowIndex] : tsList[0];
-    pRowSup->startRowIndex = hasPrevWin ? rowIndex : 0;
-    pRowSup->numOfRows = !hasPrevWin && hasContinuousNullRows(pRowSup) ?
-      pRowSup->numNullRows : 0;
+    pRowSup->win.skey = tsList[rowIndex];
+    pRowSup->startRowIndex = rowIndex;
+    pRowSup->numOfRows = 0;
   } else {
     pRowSup->win.skey = hasPrevWin ? pRowSup->win.ekey + 1 : tsList[0];
     pRowSup->startRowIndex = hasContinuousNullRows(pRowSup) ?
@@ -996,9 +995,9 @@ void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsLis
 // this functions is called when a new state row appears
 // @param rowIndex the index of the first row of next window
 void doKeepCurStateWindowEndInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, 
-  int32_t rowIndex, const EStateWinExtendOption* extendOption) {
+  int32_t rowIndex, const EStateWinExtendOption* extendOption, bool hasNextWin) {
   if (*extendOption == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-      pRowSup->win.ekey = tsList[rowIndex] - 1;
+      pRowSup->win.ekey = hasNextWin? tsList[rowIndex] - 1 : tsList[rowIndex - 1];
       // continuous rows having null state col should be included in this window
       pRowSup->numOfRows += hasContinuousNullRows(pRowSup) ?
         pRowSup->numNullRows : 0;
@@ -1073,20 +1072,18 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       doKeepTuple(pRowSup, tsList[j], j, gid);
     } else if (compareVal(val, &pInfo->stateKey)) {
       doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else {  // a new state window started
-      SResultRow* pResult = NULL;
-      doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption);
-
+    } else {
+      // a new state window started
       // keep the time window for the closed time window.
-      STimeWindow window = pRowSup->win;
-
-      int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
+      doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption, true);
+      SResultRow* pResult = NULL;
+      int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid, pSup->pCtx,
                                            numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         T_LONG_JMP(pTaskInfo->env, ret);
       }
 
-      updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
+      updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
       ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData,
                                             pRowSup->startRowIndex, pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
       if (ret != TSDB_CODE_SUCCESS) {
@@ -1112,15 +1109,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   if (!hasResult) {
     return;
   }
-  SResultRow* pResult = NULL;
   // if window hasn't been closed, set end key to ts of last element
-  pRowSup->win.ekey = tsList[pBlock->info.rows - 1];
-  if (hasContinuousNullRows(pRowSup)) {
-    // and all left rows should be included in the last window
-    pRowSup->numOfRows += pRowSup->numNullRows;
-    resetNumNullRows(pRowSup);
-  }
-
+  doKeepCurStateWindowEndInfo(pRowSup, tsList, pBlock->info.rows, &extendOption, false);
+  SResultRow* pResult = NULL;
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
