@@ -648,7 +648,7 @@ class TestBenchmarkBasic:
     def do_taos_config_json(self):    
         cmd = f"-f {os.path.dirname(__file__)}/json/taos_config.json"
         rlist = self.benchmark(cmd, checkRun=True)
-        self.checkListString(rlist, f"Set engine cfgdir successfully, dir:./cases/uncatalog/army/tools/benchmark/basic/config")    
+        self.checkListString(rlist, f"Set engine cfgdir successfully, dir:./cases/81-Tools/03-Benchmark/config")    
 
         print("do taos config set .................... [passed]")
 
