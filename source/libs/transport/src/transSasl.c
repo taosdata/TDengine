@@ -28,6 +28,22 @@ extern void saslServerStepImpl();
 
 enum { STATE_HANDSHAKE = 0, STATE_SALA_AUTH, STATE_READY, STATE_CLOSING } SASL_STATE;
 
+void saslLibInit() {
+  int rc = sasl_client_init(NULL);
+  if (rc != SASL_OK) {
+    tError("sasl_client_init failed: %s", sasl_errstring(rc, NULL, NULL));
+    return;
+  }
+
+  rc = sasl_server_init(NULL, "tdengine");
+  if (rc != SASL_OK) {
+    tError("sasl_server_init failed: %s", sasl_errstring(rc, NULL, NULL));
+    return;
+  }
+}
+
+void saslLibCleanup() { sasl_done(); }
+
 int32_t saslConnCreate(SSaslConn** ppConn, int8_t server) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -41,12 +57,19 @@ int32_t saslConnCreate(SSaslConn** ppConn, int8_t server) {
   pConn->state = STATE_HANDSHAKE;
   pConn->isAuthed = 0;
 
-  *ppConn = pConn;
-
   code = saslConnInit(pConn, server);
   TAOS_CHECK_GOTO(code, &lino, _error);
-_error:
 
+  *ppConn = pConn;
+
+_error:
+  if (code != 0) {
+    tError("saslConnCreate failed, code:%d", code);
+    if (pConn != NULL) {
+      saslConnCleanup(pConn);
+    }
+    *ppConn = NULL;
+  }
   return code;
 }
 
@@ -84,8 +107,10 @@ int32_t saslConnStartAuthImpl(SSaslConn* pConn, int8_t server) {
   uint32_t    initLen = 0;
 
   int result = 0;
+  const char* mechlist = "PLAIN SCRAM-SHA-1 SCRAM-SHA-256";
+
   if (!server) {
-    result = sasl_client_start(pConn->conn, "PLAIN", NULL, &initResp, &initLen, NULL);
+    result = sasl_client_start(pConn->conn, mechlist, NULL, &initResp, &initLen, NULL);
     if (result != SASL_OK && result != SASL_CONTINUE) {
       tError("sasl_client_start failed: %s", sasl_errstring(result, NULL, NULL));
       code = TSDB_CODE_THIRDPARTY_ERROR;
@@ -152,7 +177,7 @@ _error:
 }
 
 void saslConnCleanup(SSaslConn* pConn) {
-  if (pConn == NULL || pConn->conn == NULL) {
+  if (pConn == NULL) {
     return;
   }
 

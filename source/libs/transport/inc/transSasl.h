@@ -61,6 +61,9 @@ typedef struct {
 extern "C" {
 #endif
 
+void saslLibInit();
+void saslLibCleanup();
+
 int32_t saslConnCreate(SSaslConn** ppConn, int8_t server);
 int32_t saslConnInit(SSaslConn* pConn, int8_t isServer);
 void    saslConnCleanup(SSaslConn* pConn);
@@ -77,6 +80,7 @@ int32_t saslBufferInit(SSaslBuffer* buf, int32_t cap);
 int32_t saslBufferAppend(SSaslBuffer* buf, uint8_t* data, int32_t len);
 void    saslBufferCleanup(SSaslBuffer* buf);
 void    saslBufferClear(SSaslBuffer* buf);
+
 #ifdef __cplusplus
 }
 #endif

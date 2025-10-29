@@ -206,7 +206,7 @@ static void cliAsyncCb(uv_async_t* handle);
 
 static void destroyCliConnQTable(SCliConn* conn);
 
-static void cliHandleException(SCliConn* conn);
+static void cliDestroyConnImpl(SCliConn* conn);
 
 static int cliNotifyCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp);
 void       cliResetConnTimer(SCliConn* conn);
@@ -1182,18 +1182,6 @@ static int32_t cliCreateConnImpl(SCliThrd* pThrd, SCliConn** pCliConn, char* ip,
   TAOS_CHECK_GOTO(cliGetConnTimer(pThrd, conn), &lino, _failed);
 
   // read/write stream handle
-  conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
-  if (conn->stream == NULL) {
-    code = terrno;
-    TAOS_CHECK_GOTO(code, NULL, _failed);
-  }
-
-  code = uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
-  if (code != 0) {
-    tError("failed to init tcp handle, code:%d, %s", code, uv_strerror(code));
-    code = TSDB_CODE_THIRDPARTY_ERROR;
-    TAOS_CHECK_GOTO(code, NULL, _failed);
-  }
 
   conn->bufSize = pInst->shareConnLimit;
   conn->buf = (uv_buf_t*)taosMemoryCalloc(1, pInst->shareConnLimit * sizeof(uv_buf_t));
@@ -1211,9 +1199,20 @@ static int32_t cliCreateConnImpl(SCliThrd* pThrd, SCliConn** pCliConn, char* ip,
 
   QUEUE_INIT(&conn->batchSendq);
 
+  conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
+  if (conn->stream == NULL) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, NULL, _failed);
+  }
+
+  code = uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
+  if (code != 0) {
+    tError("failed to init tcp handle, code:%d, %s", code, uv_strerror(code));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, NULL, _failed);
+  }
   conn->stream->data = conn;
   conn->connReq.data = conn;
-
   *pCliConn = conn;
 
   return code;
@@ -1264,7 +1263,7 @@ static void cliDestroyAllQidFromThrd(SCliConn* conn) {
   taosHashCleanup(conn->pQTable);
   conn->pQTable = NULL;
 }
-static void cliDestroyConn(SCliConn* conn, bool clear) { cliHandleException(conn); }
+static void cliDestroyConn(SCliConn* conn, bool clear) { cliDestroyConnImpl(conn); }
 static void cliDestroy(uv_handle_t* handle) {
   int32_t code = 0;
   if (uv_handle_get_type(handle) != UV_TCP || handle->data == NULL) {
@@ -1379,7 +1378,7 @@ static FORCE_INLINE int32_t destroyAllReqs(SCliConn* conn) {
   destroyReqInQueue(conn, &set, 0);
   return 0;
 }
-static void cliHandleException(SCliConn* conn) {
+static void cliDestroyConnImpl(SCliConn* conn) {
   int32_t   code = 0;
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
@@ -3017,6 +3016,16 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
 
   if (cliRetryIsTimeout(pInst, pReq)) {
     return false;
+  }
+
+  if (pCtx && pCtx->syncMsgRef != 0) {
+    STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+    if (pSyncMsg) {
+      taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+    } else {
+      tDebug("sync msg already release, not retry");
+      return false;
+    }
   }
 
   // code, msgType
