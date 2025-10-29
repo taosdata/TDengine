@@ -22,7 +22,7 @@ $env:EXPLORER_PASSWORD = "taosdata"
 $env:TAOSD_SOURCE_HOST = "192.168.1.45"
 $env:TAOSBENCHMARK_HOST = $env:HOST
 
-$env:TAOS_GRANT_BINARY = "192.168.2.13:/data/common/activation-code/taosGrant"
+$env:TAOS_GRANT_BINARY = "192.168.1.55:/data/common/activation-code/taosGrant"
 
 $env:RETRY_CHECK_METRICS = 10
 
