@@ -1831,7 +1831,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     T_MD5_CTX context = {0};
 
     if (tsTagFilterCache) {
-      if (pStreamInfo != NULL) {
+      if (pStreamInfo != NULL && ((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
         SNode* tmp = NULL;
         code = nodesCloneNode((SNode*)pTagCond, &tmp);
         QUERY_CHECK_CODE(code, lino, _error);
