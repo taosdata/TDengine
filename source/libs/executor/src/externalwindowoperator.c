@@ -1766,25 +1766,29 @@ _exit:
   return code;
 }
 
-
 static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExternalWindowOperator* pExtW = pOperator->info;
-  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
-  SSDataBlock*    pBlock = pExtW->binfo.pRes;
-  int32_t         code = TSDB_CODE_SUCCESS;
-  int32_t         lino = 0;
-  SExprInfo*      pExprInfo = pOperator->exprSupp.pExprInfo;
-  int32_t         numOfExprs = pOperator->exprSupp.numOfExprs;
-  int32_t*        rowEntryOffset = pOperator->exprSupp.rowEntryInfoOffset;
-  SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
-  int32_t         numOfWin = pExtW->outWinIdx;
+  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock*             pBlock = pExtW->binfo.pRes;
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SExprInfo*               pExprInfo = pOperator->exprSupp.pExprInfo;
+  int32_t                  numOfExprs = pOperator->exprSupp.numOfExprs;
+  int32_t*                 rowEntryOffset = pOperator->exprSupp.rowEntryInfoOffset;
+  SqlFunctionCtx*          pCtx = pOperator->exprSupp.pCtx;
+  int32_t                  numOfWin = pExtW->outWinIdx;
 
   pBlock->info.version = pTaskInfo->version;
   blockDataCleanup(pBlock);
   taosArrayClear(pExtW->pWinRowIdx);
 
-  for (; pExtW->outputWinId < numOfWin; pExtW->outputWinId += 1) {
-    SResultRow* pRow = (SResultRow*)((char*)pExtW->pResultRow + pExtW->outputWinId * pExtW->aggSup.resultRowSize);
+  for (int32_t i = 0; i < pExtW->pWins->size; ++i, pExtW->outputWinId += 1) {
+    SExtWinTimeWindow* pWin = taosArrayGet(pExtW->pWins, i);
+    int32_t            winIdx = pWin->winOutIdx;
+    if (winIdx < 0) {
+      continue;
+    }
+    SResultRow* pRow = (SResultRow*)((char*)pExtW->pResultRow + winIdx * pExtW->aggSup.resultRowSize);
 
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
 
@@ -1794,7 +1798,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-      uint32_t newSize = pBlock->info.rows + pRow->numOfRows + numOfWin - pExtW->outputWinId;
+      uint32_t newSize = pBlock->info.rows + pRow->numOfRows + numOfWin - winIdx;
       TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, newSize));
       qDebug("datablock capacity not sufficient, expand to required:%d, current capacity:%d, %s", newSize,
              pBlock->info.capacity, GET_TASKID(pTaskInfo));
