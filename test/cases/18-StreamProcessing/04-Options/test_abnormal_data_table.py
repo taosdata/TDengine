@@ -1270,7 +1270,8 @@ class TestStreamDisorderTable:
                 [
                 f"create stream if not exists s1 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res1 output_subtable(concat('res_1_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _twend as window_end, %%1 as site, %%2 as zone, case when last(_c0) is not null then 1 else 0 end as zone_online from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;",
                 f"create stream if not exists s2 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res2 output_subtable(concat('res_2_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _twend as window_end, %%1 as site, %%2 as zone, last(_c0) from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;",
-                f"create stream if not exists s3 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res3 output_subtable(concat('res_3_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _twend as window_end, %%1 as site, %%2 as zone, count(*) from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;"
+                f"create stream if not exists s3 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res3 output_subtable(concat('res_3_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _twend as window_end, %%1 as site, %%2 as zone, count(*) from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;",
+                f"create stream if not exists s4 interval(1h) sliding(1h) from {self.db}.{self.stbName} partition by site, zone stream_options(watermark(10m) | ignore_disorder | fill_history('2024-10-04T10:00:00.000Z')) into res4 output_subtable(concat('res_4_', cast(site as varchar),  cast(zone as varchar))) tags(tag_site nchar(32) as site, tag_zone nchar(32) as zone) as select _c0, _twend as window_end, %%1 as site, %%2 as zone from {self.db}.{self.stbName} where _c0 >= _twstart and _c0 < _twend and site=%%1 and zone=%%2;"
                 ]
             )
             
@@ -1298,7 +1299,7 @@ class TestStreamDisorderTable:
             sqls = [
                 f"insert into {self.table1} values('2024-10-04 10:05:00.000',23.5), ('2024-10-04 10:10:00.000',25.0), ('2024-10-04 10:15:00.000',22.0), ('2024-10-04 11:15:00.000',22.0) \
                 {self.table2} values('2024-10-04 09:05:00.000',23.5), ('2024-10-04 09:05:00.000',23.5) ,('2024-10-04 09:10:00.000',25.0), ('2024-10-04 09:15:02.000',22.0), ('2024-10-04 10:05:00.000',23.5), ('2024-10-04 10:10:00.000',25.0), ('2024-10-04 10:15:00.000',22.0), ('2024-10-04 11:15:01.000',22.0) \
-                {self.table3} values('2024-10-04 09:05:00.000',23.5), ('2024-10-04 09:05:00.000',23.5) ,('2024-10-04 09:10:00.000',25.0), ('2024-10-04 09:15:01.000',22.0), ('2024-10-04 10:05:00.000',23.5), ('2024-10-04 10:10:00.000',25.0), ('2024-10-04 10:15:00.000',22.0), ('2024-10-04 11:15:02.000',22.0); \
+                {self.table3} values('2024-10-04 09:05:00.000',23.5), ('2024-10-04 09:05:00.000',23.5) ,('2024-10-04 09:10:00.000',25.0), ('2024-10-04 09:15:01.000',22.0), ('2024-10-04 10:05:00.000',23.5), ('2024-10-04 10:10:00.000',25.0), ('2024-10-04 10:15:02.000',22.0), ('2024-10-04 11:15:02.000',22.0); \
                 ",
             ]
             tdSql.executes(sqls)
@@ -1326,7 +1327,7 @@ class TestStreamDisorderTable:
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_2_%"',
                 func=lambda: tdSql.getRows() == 1,
             )
-            3
+            
             tdSql.checkResultsByFunc(
                 sql=f"select * from {self.db}.res_2_site11",
                 func=lambda: tdSql.getRows() == 2
@@ -1337,14 +1338,15 @@ class TestStreamDisorderTable:
                 and tdSql.compareData(1, 0, "2024-10-04 11:00:00")
                 and tdSql.compareData(1, 1, "site1")
                 and tdSql.compareData(1, 2, 1)
-                and tdSql.compareData(1, 3, "2024-10-04 10:15:02")
+                and tdSql.compareData(1, 3, "2024-10-04 10:15:02", show=True),
+                retry=60,
             )
 
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_3_%"',
                 func=lambda: tdSql.getRows() == 1,
             )
-            3
+            
             tdSql.checkResultsByFunc(
                 sql=f"select * from {self.db}.res_3_site11",
                 func=lambda: tdSql.getRows() == 2
@@ -1356,4 +1358,38 @@ class TestStreamDisorderTable:
                 and tdSql.compareData(1, 1, "site1")
                 and tdSql.compareData(1, 2, 1)
                 and tdSql.compareData(1, 3, 9)
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_4_%"',
+                func=lambda: tdSql.getRows() == 1,
+            )
+            3
+            tdSql.checkResultsByFunc(
+                sql=f"select * from {self.db}.res_4_site11 order by _c0",
+                func=lambda: tdSql.getRows() == 8
+                and tdSql.compareData(0, 0, "2024-10-04 09:05:00")
+                and tdSql.compareData(0, 2, "site1")
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(1, 0, "2024-10-04 09:10:00")
+                and tdSql.compareData(1, 2, "site1")
+                and tdSql.compareData(1, 3, 1)
+                and tdSql.compareData(2, 0, "2024-10-04 09:15:01")
+                and tdSql.compareData(2, 2, "site1")
+                and tdSql.compareData(2, 3, 1)
+                and tdSql.compareData(3, 0, "2024-10-04 09:15:02")
+                and tdSql.compareData(3, 2, "site1")
+                and tdSql.compareData(3, 3, 1)
+                and tdSql.compareData(4, 0, "2024-10-04 10:05:00")
+                and tdSql.compareData(4, 2, "site1")
+                and tdSql.compareData(4, 3, 1)
+                and tdSql.compareData(5, 0, "2024-10-04 10:10:00")
+                and tdSql.compareData(5, 2, "site1")
+                and tdSql.compareData(5, 3, 1)
+                and tdSql.compareData(6, 0, "2024-10-04 10:15:00")
+                and tdSql.compareData(6, 2, "site1")
+                and tdSql.compareData(6, 3, 1)
+                and tdSql.compareData(7, 0, "2024-10-04 10:15:02")
+                and tdSql.compareData(7, 2, "site1")
+                and tdSql.compareData(7, 3, 1)
             )
