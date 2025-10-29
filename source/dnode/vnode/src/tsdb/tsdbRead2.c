@@ -5969,7 +5969,7 @@ _end:
   return code;
 }
 
-int32_t tsdbReaderSuspend2(void* ptr) {
+int32_t tsdbReaderSuspend2(void* ptr, bool proactive) {
   STsdbReader* pReader = (STsdbReader*)ptr;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -5994,7 +5994,7 @@ int32_t tsdbReaderSuspend2(void* ptr) {
   // make sure only release once
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
-    tsdbUntakeReadSnap2(pReader, p, true);
+    tsdbUntakeReadSnap2(pReader, p, proactive);
     pReader->pReadSnap = NULL;
   }
 
@@ -6033,7 +6033,7 @@ static int32_t tsdbSetQueryReseek(void* pQHandle) {
       return code;
     }
 
-    code = tsdbReaderSuspend2(pReader);
+    code = tsdbReaderSuspend2(pReader, false);
     (void)tsdbReleaseReader(pReader);
     return code;
   } else if (code == EBUSY) {
