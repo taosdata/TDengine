@@ -273,6 +273,7 @@ typedef struct SMergeAlignedExternalWindowOperator {
 void destroyMergeAlignedExternalWindowOperator(void* pOperator) {
   SMergeAlignedExternalWindowOperator* pMlExtInfo = (SMergeAlignedExternalWindowOperator*)pOperator;
   destroyExternalWindowOperatorInfo(pMlExtInfo->pExtW);
+  taosMemoryFreeClear(pMlExtInfo);
 }
 
 int64_t* extWinExtractTsCol(SSDataBlock* pBlock, int32_t primaryTsIndex, SExecTaskInfo* pTaskInfo) {
