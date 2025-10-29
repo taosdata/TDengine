@@ -49,8 +49,6 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
   pReader->tsdReaderResetStatus = tsdbReaderReset2;
-  pReader->tsdReaderResetVer = tsdReaderResetVer;
-  pReader->tsdReaderResetExTimeWindow = tsdReaderResetExTimeWindow;
 
   pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo2;
   pReader->tsdReaderGetDatablock = tsdbGetDataBlock;
@@ -59,7 +57,6 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdSetQueryTableList = tsdbSetTableList2;
   pReader->tsdSetReaderTaskId = tsdbReaderSetId;
-  pReader->tsdReaderSuspend = tsdbReaderSuspend2;
 
   pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
   pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;

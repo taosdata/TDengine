@@ -172,7 +172,6 @@ typedef struct STsdbReader STsdbReader;
 int32_t  tsdbReaderOpen2(void *pVnode, SQueryTableDataCond *pCond, void *pTableList, int32_t numOfTables,
                          SSDataBlock *pResBlock, void **ppReader, const char *idstr, SHashObj **pIgnoreTables);
 int32_t  tsdbSetTableList2(void *pReader, const void *pTableList, int32_t num);
-int32_t  tsdbReaderSuspend2(void* pReader, bool proactive);
 int32_t  tsdbReaderSetId(void *pReader, const char *idstr);
 void     tsdbReaderClose2(void *pReader);
 int32_t  tsdbNextDataBlock2(void *pReader, bool *hasNext);
@@ -180,8 +179,6 @@ int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock
 void     tsdbReleaseDataBlock2(void *pReader);
 int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock, SArray *pIdList);
 int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);
-void     tsdReaderResetVer(void* p, SQueryTableDataCond* pCond);
-int32_t  tsdReaderResetExTimeWindow(void* p, SQueryTableDataCond* pCond);
 int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 void     tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock);
 void     tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock);

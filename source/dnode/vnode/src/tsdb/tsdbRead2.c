@@ -91,6 +91,7 @@ static void          updateComposedBlockInfo(STsdbReader* pReader, double el, ST
 static int32_t       buildFromPreFilesetBuffer(STsdbReader* pReader);
 
 static void resetPreFilesetMemTableListIndex(SReaderStatus* pStatus);
+int32_t     tsdbReaderSuspend2(STsdbReader* pReader);
 
 FORCE_INLINE int32_t pkCompEx(SRowKey* p1, SRowKey* p2) {
   if (p2 == NULL) {
@@ -3812,10 +3813,6 @@ static int32_t resetTableListIndex(SReaderStatus* pStatus, const char* id) {
   pList = &pStatus->uidList;
 
   pList->currentIndex = 0;
-  if (tSimpleHashGetSize(pStatus->pTableMap) == 0) {
-    pStatus->pTableIter = NULL;
-    goto _end;
-  }
   uint64_t uid = pList->tableUidList[0];
   pStatus->pTableIter = tSimpleHashGet(pStatus->pTableMap, &uid, sizeof(uid));
   if (pStatus->pTableIter == NULL) {
@@ -5969,15 +5966,12 @@ _end:
   return code;
 }
 
-int32_t tsdbReaderSuspend2(void* ptr, bool proactive) {
-  STsdbReader* pReader = (STsdbReader*)ptr;
+int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  code = tsdbAcquireReader(pReader);
-  TSDB_CHECK_CODE(code, lino, _end);
   // save reader's base state & reset top state to be reconstructed from base state
   pReader->status.suspendInvoked = true;  // record the suspend status
 
@@ -5996,7 +5990,7 @@ int32_t tsdbReaderSuspend2(void* ptr, bool proactive) {
   // make sure only release once
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
-    tsdbUntakeReadSnap2(pReader, p, proactive);
+    tsdbUntakeReadSnap2(pReader, p, false);
   }
 
   if (pReader->bFilesetDelimited) {
@@ -6016,7 +6010,6 @@ int32_t tsdbReaderSuspend2(void* ptr, bool proactive) {
 
   tsdbDebug("reader: %p suspended in this query %s, step:%d", pReader, pReader->idStr, pReader->step);
 
-  code = tsdbReleaseReader(pReader);
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -6035,7 +6028,7 @@ static int32_t tsdbSetQueryReseek(void* pQHandle) {
       return code;
     }
 
-    code = tsdbReaderSuspend2(pReader, false);
+    code = tsdbReaderSuspend2(pReader);
     (void)tsdbReleaseReader(pReader);
     return code;
   } else if (code == EBUSY) {
@@ -6661,54 +6654,6 @@ int32_t tsdbRetrieveDataBlock2(void* p, SSDataBlock** pBlock, SArray* pIdList) {
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-void tsdReaderResetVer(void* p, SQueryTableDataCond* pCond){
-  STsdbReader* pReader = (STsdbReader*)p;
-  pReader->info.verRange.minVer = pCond->startVersion;
-  pReader->info.verRange.maxVer = pCond->endVersion;
-  tsdbDebug("tsdb/reader-reset-ver: %p, ver range [%" PRId64 ", %" PRId64 "]", pReader,
-            pReader->info.verRange.minVer, pReader->info.verRange.maxVer);
-}
-
-int32_t tsdReaderResetExTimeWindow(void* p, SQueryTableDataCond* pCond){
-  int32_t code = TSDB_CODE_SUCCESS;
-  STsdbReader* pReader = (STsdbReader*)p;
-
-  if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
-    // update the SQueryTableDataCond to create inner reader
-    STimeWindow window = pCond->twindows;
-    int32_t order = pCond->order;
-    if (order == TSDB_ORDER_ASC) {
-      pCond->twindows = pCond->extTwindows[0];
-      pCond->order = TSDB_ORDER_DESC;
-    } else {
-      pCond->twindows = pCond->extTwindows[1];
-      pCond->order = TSDB_ORDER_ASC;
-    }
-    STsdbReader* tmp = ((STsdbReader*)pReader)->innerReader[0];
-    code = tsdbReaderReset2(tmp, pCond);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-    tsdReaderResetVer(tmp, pCond);
-
-    if (order == TSDB_ORDER_ASC) {
-      pCond->twindows = pCond->extTwindows[1];
-    } else {
-      pCond->twindows = pCond->extTwindows[0];
-    }
-    pCond->order = order;
-    tmp = ((STsdbReader*)pReader)->innerReader[1];
-    code = tsdbReaderReset2(tmp, pCond);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-    tsdReaderResetVer(tmp, pCond);
-
-    pCond->twindows = window;
   }
   return code;
 }
