@@ -4350,10 +4350,12 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         totalDelay1 += pThreadInfo->totalDelay1;
         totalDelay2 += pThreadInfo->totalDelay2;
         totalDelay3 += pThreadInfo->totalDelay3;
-        benchArrayAddBatch(total_delay_list, pThreadInfo->delayList->pData,
-                pThreadInfo->delayList->size, true);
-        tmfree(pThreadInfo->delayList);
-        pThreadInfo->delayList = NULL;
+        if (pThreadInfo->delayList != NULL) {
+            benchArrayAddBatch(total_delay_list, pThreadInfo->delayList->pData,
+                    pThreadInfo->delayList->size, true);
+            tmfree(pThreadInfo->delayList);
+            pThreadInfo->delayList = NULL;
+        }
         //  free conn
         if (pThreadInfo->conn) {
             closeBenchConn(pThreadInfo->conn);
