@@ -591,7 +591,7 @@
 
 # 19-TSMAs
 
-,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
 
 # 20-RSMAs
 
