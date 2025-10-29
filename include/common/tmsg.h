@@ -4135,6 +4135,7 @@ typedef struct {
   char              userApp[TSDB_APP_NAME_LEN];
   uint32_t          userIp;
   SIpRange          userDualIp;
+  char              sVer[TSDB_VERSION_LEN];
 } SClientHbReq;
 
 typedef struct {
