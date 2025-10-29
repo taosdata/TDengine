@@ -5,7 +5,7 @@
     "port": 6030,
     "user": "root",
     "password": "taosdata",
-    "databases": "test",
+    "databases": "dbcancel",
     "confirm_parameter_prompt": "no",
     "result_file": "./tmq_result_sequ.txt",
     "tmq_info": {

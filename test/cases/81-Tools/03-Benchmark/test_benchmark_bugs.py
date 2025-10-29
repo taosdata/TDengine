@@ -24,6 +24,9 @@ class TestBugs:
         [TD-11510] taosBenchmark test cases
         """
 
+    #
+    # ------------------- test_bugs.py ----------------
+    #
     def benchmarkQuery(self, benchmark, jsonFile,  keys, options=""):
         # exe insert 
         result = "query.log"
@@ -139,6 +142,66 @@ class TestBugs:
         self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-32913-2.json", options="-T 6")
         self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-32913-3.json")
 
+
+    #
+    # ------------------- test_reuse_exist_stb.py ----------------
+    #
+
+
+
+
+    """
+    [TD-22190] taosBenchmark reuse exist stb test cases
+    """
+    def do_reuse_exist_stb(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+        tdSql.query("select client_version()")
+        client_ver = "".join(tdSql.queryResult[0])
+        major_ver = client_ver.split(".")[0]
+
+        binPath = etool.benchMarkFile()
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database if not exists db")
+        tdSql.execute("use db")
+        tdSql.execute("create table stb (ts timestamp, c0 int)  tags (t0 int)")
+        tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
+        #        sys.exit(0)
+        cmd = "%s -f %s/json/reuse-exist-stb.json" % (binPath, os.path.dirname(__file__))
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.query("select count(*) from db.new_0")
+        tdSql.checkData(0, 0, 5)
+        tdSql.query("select count(*) from db.stb_0")
+        tdSql.checkData(0, 0, 1)
+
+        if major_ver == "3":
+            tdSql.query("select count(*) from (select distinct(tbname) from db.stb)")
+        else:
+            tdSql.query("select count(tbname) from db.stb")
+        tdSql.checkData(0, 0, 2)
+
+        print("do jira TD-22190 ...................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
     def test_benchmark_bugs(self):
         """taosBenchmark bugs
 
@@ -147,6 +210,7 @@ class TestBugs:
         3. Verify bug TD-31490
         4. Verify bug TS-5846
         5. Verify bug TS-5234
+        6. Verify bug TD-22190
 
         Since: v3.0.0.0
 
@@ -156,6 +220,7 @@ class TestBugs:
 
         History:
             - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_bugs.py
+            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_reuse_exist_stb.py
 
         """
 
@@ -165,6 +230,5 @@ class TestBugs:
 
         # td
         self.bugsTD(benchmark)
-        
-        tdLog.success("%s successfully executed" % __file__)
+        self.do_reuse_exist_stb()
 

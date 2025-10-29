@@ -707,10 +707,24 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_commandline.py
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_conn_mode.py -R
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_sml_rest.py -R
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_conn_mode.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_datatypes.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_except.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_mix.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_query_main.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_query_rest.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_query_sqlfile.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_rest.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_sml.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_stmt.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sml.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sql.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt2.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_taosc.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_website.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py
-
 
 ## 05-Valgrind
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_basic1.py
@@ -752,71 +766,6 @@
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/stream/test_stream_vtable.py
 
 # army/tools
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_default_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_demo.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_decimal.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_from_to.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_from_to_continue.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_json_tag.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sml.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sql.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt2.py
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_bind_vgroup.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_mix.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_precision.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_invalid_commandline.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json.py -B
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json_with_error_sqlfile.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_json_with_sqlfile.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_query_main.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_rest_insert_alltypes_json.py -R
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_reuse_exist_stb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_auto_create_table_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_alltypes.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_insert_alltypes_same_min_max.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_taosjson_alltypes.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_telnet_alltypes.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_telnet_insert_alltypes_same_min_max.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_auto_create_table_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_insert_alltypes_same_min_max.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_offset_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt2_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream_function_test.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stt.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_auto_create_table_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_same_min_max.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_alltypes_json_partial_col.py
-#failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_table_creating_interval.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_insert_with_json_stmt_other_para.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_query_with_json.py -R
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_telnet_tcp.py -R
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_basic.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_case.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_website_case.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_json_alltypes_interlace.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_insert_alltypes_json.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_interlace.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_sml_taosjson_insert_alltypes_same_min_max.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosadapter_json.py -B
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_mix.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_retry_json_global.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_insert_retry_json_stb.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taosdemo_test_query_with_json_mixed_query.py -R
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_cancle.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_error_exit.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_tmq_cancle.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taos_config_json.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_data.py
-,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_auto_create_table_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/cloud/test_cloud.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/ws/test_websocket.py -R
-
 
 # taosdump cases
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_schema_change.py

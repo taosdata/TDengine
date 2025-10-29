@@ -2124,9 +2124,9 @@ class TDSql:
         # loop check util checkData return true
         for i in range(loopCount):
             self.query(sql)
-            if self.checkDataNoExist(row, col, data):
-                self.checkData(row, col, data)
+            if self.checkData(row, col, data, exit=False):
                 return
+            #print(f"checkData failed, retrying {i} [{row},{col}] {data} ...")
             time.sleep(waitTime)
 
         # last check
