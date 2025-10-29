@@ -77,19 +77,6 @@ void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, int32_t rowIndex, uint64_t
   }
 }
 
-// start a new state window and record the start info
-// if hasPrevWin is false, it means current row is the first non-null state row
-// then it should contain the previous null state rows
-void doKeepNewStateWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList,
-  int32_t rowIndex, uint64_t groupId, bool hasPrevWin) {
-  pRowSup->groupId = groupId;
-  pRowSup->win.skey = hasPrevWin ? tsList[rowIndex] : tsList[0];
-  pRowSup->startRowIndex = hasPrevWin ? rowIndex : 0;
-  pRowSup->numOfRows = !hasPrevWin && hasContinuousNullRows(pRowSup) ? 
-                          pRowSup->numNullRows : 0;
-  resetNumNullRows(pRowSup);
-}
-
 void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, int32_t nullRowIndex) {
   pRowSup->numNullRows += 1;
 }
@@ -100,6 +87,7 @@ void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, in
   pRowSup->numOfRows = 0;
   pRowSup->win.skey = tsList[rowIndex];
   pRowSup->groupId = groupId;
+  resetNumNullRows(pRowSup);
 }
 
 FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos,
@@ -1033,30 +1021,26 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
       pInfo->hasKey = true;
 
-      doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, false);
+      doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
       doKeepTuple(pRowSup, tsList[j], j, gid);
     } else if (compareVal(val, &pInfo->stateKey)) {
       doKeepTuple(pRowSup, tsList[j], j, gid);
     } else {  // a new state window started
       SResultRow* pResult = NULL;
-
-      // keep the time window for the closed time window.
-      STimeWindow window = pRowSup->win;
-
-      int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
+      int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid, pSup->pCtx,
                                            numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         T_LONG_JMP(pTaskInfo->env, ret);
       }
 
-      updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
+      updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
       ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData,
                                             pRowSup->startRowIndex, pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
       if (ret != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, ret);
       }
 
-      doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, true);
+      doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
       doKeepTuple(pRowSup, tsList[j], j, gid);
 
       // todo extract method
@@ -1071,15 +1055,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   if (!hasResult) {
     return;
   }
+  // if window hasn't been closed, process it now.
   SResultRow* pResult = NULL;
-  // if window hasn't been closed, set end key to ts of last element
-  pRowSup->win.ekey = tsList[pBlock->info.rows - 1];
-  if (hasContinuousNullRows(pRowSup)) {
-    // and all left rows should be included in the last window
-    pRowSup->numOfRows += pRowSup->numNullRows;
-    resetNumNullRows(pRowSup);
-  }
-
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -1092,6 +1069,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   if (ret != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, ret);
   }
+  resetNumNullRows(pRowSup);
 }
 
 static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
