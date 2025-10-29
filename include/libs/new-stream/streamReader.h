@@ -54,7 +54,7 @@ typedef struct SStreamTriggerReaderInfo {
   SHashObj*    pTableMetaCacheTrigger;
   SHashObj*    pTableMetaCacheCalc;
   SSHashObj*   indexHash;  // index hash for wal data
-  STSchema*    triggerTableSchema;  // index hash for wal data
+  STSchema*    triggerTableSchema;
   bool         groupByTbname;
   void*        pVnode;
   TdThreadMutex mutex;

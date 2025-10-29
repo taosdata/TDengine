@@ -251,7 +251,7 @@ static void releaseStreamReaderInfo(void* p) {
   pInfo->metaBlock = NULL;
   tSimpleHashCleanup(pInfo->indexHash);
   pInfo->indexHash = NULL;
-  taosMemoryFree(pInfo->triggerTableSchema);
+  taosMemoryFreeClear(pInfo->triggerTableSchema);
   taosHashCleanup(pInfo->pTableMetaCacheTrigger);
   taosHashCleanup(pInfo->pTableMetaCacheCalc);
 
