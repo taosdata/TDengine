@@ -47,6 +47,7 @@ typedef struct {
   uint32_t userIp;
   SIpAddr  userDualIp;
   SIpAddr  addr;
+  char     sVer[TSDB_VERSION_LEN];
 } SConnObj;
 
 typedef struct {
@@ -70,7 +71,7 @@ typedef struct {
 #define CACHE_OBJ_KEEP_TIME 3  // s
 
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *ip, int32_t pid,
-                               const char *app, int64_t startTime);
+                               const char *app, int64_t startTime, const char *sVer);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn, bool extendLifespan);
@@ -172,7 +173,7 @@ static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
   }
 }
 static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, SIpAddr *pAddr, int32_t pid,
-                               const char *app, int64_t startTime) {
+                               const char *app, int64_t startTime, const char *sVer) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   char     connStr[255] = {0};
@@ -200,6 +201,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   connObj.lastAccessTimeMs = connObj.loginTimeMs;
   tstrncpy(connObj.user, user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
+  tstrncpy(connObj.sVer, sVer, TSDB_VERSION_LEN);
 
   SConnObj *pConn =
       taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), CACHE_OBJ_KEEP_TIME * 1000);
@@ -320,7 +322,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, &pReq->info.conn.cliAddr, connReq.pid,
-                        connReq.app, connReq.startTime);
+                        connReq.app, connReq.startTime, connReq.sVer);
   if (pConn == NULL) {
     code = terrno;
     mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip,
@@ -545,7 +547,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     SConnObj *pConn = mndAcquireConn(pMnode, pBasic->connId);
     if (pConn == NULL) {
       pConn = mndCreateConn(pMnode, connInfo.user, CONN_TYPE__QUERY, &connInfo.cliAddr, pHbReq->app.pid,
-                            pHbReq->app.name, 0);
+                            pHbReq->app.name, 0, pHbReq->sVer);
       if (pConn == NULL) {
         mError("user:%s, conn:%u is freed and failed to create new since %s", connInfo.user, pBasic->connId, terrstr());
         code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -993,6 +995,14 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       return code;
     }
 
+    char ver[TSDB_VERSION_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(ver, pConn->sVer);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)ver, false);
+    if (code != 0) {
+      mError("failed to set ver since %s", tstrerror(code));
+      return code;
+    }
     numOfRows++;
   }
 

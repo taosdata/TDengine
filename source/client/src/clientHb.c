@@ -1203,6 +1203,8 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
     pOneReq->userIp = pTscObj->optionInfo.userIp;
     pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
+    tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
+
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);
