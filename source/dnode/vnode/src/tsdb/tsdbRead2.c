@@ -5976,6 +5976,8 @@ int32_t tsdbReaderSuspend2(void* ptr, bool proactive) {
 
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  code = tsdbAcquireReader(pReader);
+  TSDB_CHECK_CODE(code, lino, _end);
   // save reader's base state & reset top state to be reconstructed from base state
   pReader->status.suspendInvoked = true;  // record the suspend status
 
@@ -5995,7 +5997,6 @@ int32_t tsdbReaderSuspend2(void* ptr, bool proactive) {
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, proactive);
-    pReader->pReadSnap = NULL;
   }
 
   if (pReader->bFilesetDelimited) {
@@ -6015,6 +6016,7 @@ int32_t tsdbReaderSuspend2(void* ptr, bool proactive) {
 
   tsdbDebug("reader: %p suspended in this query %s, step:%d", pReader, pReader->idStr, pReader->step);
 
+  code = tsdbReleaseReader(pReader);
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
