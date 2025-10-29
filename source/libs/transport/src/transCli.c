@@ -2920,7 +2920,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   if (pCtx && pCtx->syncMsgRef != 0) {
     STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
     if (pSyncMsg) {
-      taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+      TAOS_UNUSED(taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef));
     } else {
       tDebug("sync msg already release, not retry");
       return false;
