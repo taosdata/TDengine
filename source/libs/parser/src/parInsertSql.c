@@ -554,7 +554,10 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
         return terrno;
       }
 
-      tbase64_decode(*pData, input, inputBytes, outputBytes);
+      if (TSDB_CODE_SUCCESS != tbase64_decode(*pData, (const uint8_t*)input, inputBytes, outputBytes)) {
+        taosMemoryFree(*pData);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_INVALID_DATA_FMT);
+      }
       *nData = outputBytes;
     } else if (0 == strncasecmp(pToken->z, "to_base64(", 10)) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);

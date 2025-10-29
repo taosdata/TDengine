@@ -140,12 +140,11 @@ static void tbase64_build_decoding_table() {
   }
 }
 
-void tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT out_len) {
+int32_t tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT out_len) {
   (void)taosThreadOnce(&tbase64_decoding_table_building, tbase64_build_decoding_table);
 
   if (in_len % 4 != 0) {
-    out[0] = 0;
-    return;
+    return TSDB_CODE_INVALID_DATA_FMT;
   }
 
   if (input[in_len - 1] == '=') out_len--;
@@ -163,6 +162,8 @@ void tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLe
     if (j < out_len) out[j++] = (triple >> 1 * 8) & 0xFF;
     if (j < out_len) out[j++] = (triple >> 0 * 8) & 0xFF;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 uint32_t tbase64_encode_len(size_t in_len) { return 4 * ((in_len + 2) / 3); }

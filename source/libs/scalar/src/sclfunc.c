@@ -2295,7 +2295,7 @@ int32_t base64Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     char       *out = outputBuf + VARSTR_HEADER_SIZE;
     VarDataLenT outputLength = tbase64_encode_len(inputLen);
 
-    tbase64_encode(out, varDataVal(input), inputLen, outputLength);
+    tbase64_encode(out, (const uint8_t *)varDataVal(input), inputLen, outputLength);
     varDataSetLen(outputBuf, outputLength);
 
     SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -2327,7 +2327,10 @@ int32_t base64FunctionFrom(SScalarParam *pInput, int32_t inputNum, SScalarParam 
     char       *out = outputBuf + VARSTR_HEADER_SIZE;
     VarDataLenT outputLength = tbase64_decode_len(inputLen);
 
-    tbase64_decode(out, varDataVal(input), inputLen, outputLength);
+    if (TSDB_CODE_SUCCESS != tbase64_decode(out, varDataVal(input), inputLen, outputLength)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
     varDataSetLen(outputBuf, outputLength);
 
     SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
