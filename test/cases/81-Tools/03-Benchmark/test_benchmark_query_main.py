@@ -219,22 +219,24 @@ class TestBenchmarkQueryMain:
         self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorBatchRest.json")
 
     def test_query_main(self):
-        """summary: xxx
+        """taosBenchmark query basic
 
-        description: xxx
+        1. Insert test data into benchmark tables.
+        2. Run taosBenchmark in three query modes:
+            1) specified table query
+            2) specified table mixed query
+            3) super table query
+        3. Validate the output of each query mode to ensure correct execution.
+        4. Perform exception tests to verify error handling.
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_query_main.py
 
         """
         tbCnt = 10

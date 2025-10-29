@@ -25,7 +25,7 @@
                     "name": "meters",
                     "child_table_exists": "no",
                     "childtable_count": 2,
-                    "insert_rows": 2000,
+                    "insert_rows": 1000,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
                     "insert_interval": 0,

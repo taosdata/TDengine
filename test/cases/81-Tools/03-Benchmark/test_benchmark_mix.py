@@ -23,22 +23,20 @@ class TestTaoscInsertMix:
         """
     @classmethod
     def test_taosc_insert_mix(self):
-        """summary: xxx
+        """taosBenchmark insert mix mode
 
-        description: xxx
+        1. Insert data with mix mode json file
+        2. Generate data rate: disorder_ratio 10%, update_ratio 5%, delete_ratio 1%
+        3. Verify generate rows is less than 95% (except delete rows) 
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_taosc_insert_mix.py
 
         """
         binPath = etool.benchMarkFile()
@@ -46,17 +44,12 @@ class TestTaoscInsertMix:
         for i in range(4):
             cmd = "%s -f %s/json/case-insert-mix%d.json" % (binPath, os.path.dirname(__file__), i + 1)
             tdLog.info("%s" % cmd)
-            os.system("%s" % cmd)
+            etool.run(cmd)
 
-        psCmd = "ps -ef|grep -w taosBenchmark| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True)
+            rows = tdSql.getFirstValue(f"select count(*) from mix{i+1}.d0")
+            if rows < 950:
+                tdLog.exit(f"insert mix{i+1} data failed, expect rows > 950, but got {rows} rows")
 
-        while processID:
-            time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True)
 
-        tdSql.query("select count(*) from mix1.meters")
-
-        tdLog.success("%s successfully executed" % __file__)
 
 
