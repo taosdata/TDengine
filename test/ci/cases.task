@@ -207,7 +207,7 @@
 ## 01-SQL
 ,,n,.,pytest cases/06-DataIngestion/01-SQL/test_write.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_basic.py
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_bug.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_column_value.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_datatypes.py
@@ -730,10 +730,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_commandline.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_primarykey.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_privilege.py
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_retry.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_except.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_schema_change.py -B
 
 ## 05-Valgrind
