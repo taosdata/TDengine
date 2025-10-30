@@ -271,6 +271,11 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     goto end;  // no need to update the offset value
   }
 
+  if (pOffset->val.type == TMQ_OFFSET__LOG && vgOffset.markWal) {
+    walSetKeepVersion(pTq->pVnode->pWal, pOffset->val.version);
+    tqDebug("set wal reader keep version to %" PRId64 " for vgId:%d sub:%s", pOffset->val.version, vgId,
+            pOffset->subKey);
+  }
   // save the new offset value
   code = taosHashPut(pTq->pOffset, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset));
   if (code != 0) {

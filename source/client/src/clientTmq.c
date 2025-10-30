@@ -88,6 +88,7 @@ struct tmq_conf_t {
   char           clientId[TSDB_CLIENT_ID_LEN];
   char           groupId[TSDB_CGROUP_LEN];
   int8_t         autoCommit;
+  int8_t         enableWalMarker;
   int8_t         resetOffset;
   int8_t         withTbName;
   int8_t         snapEnable;
@@ -118,6 +119,7 @@ struct tmq_t {
   int8_t         withTbName;
   int8_t         useSnapshot;
   int8_t         autoCommit;
+  int8_t         enableWalMarker;
   int32_t        autoCommitInterval;
   int32_t        sessionTimeoutMs;
   int32_t        heartBeatIntervalMs;
@@ -304,6 +306,7 @@ tmq_conf_t* tmq_conf_new() {
 
   conf->withTbName = false;
   conf->autoCommit = true;
+  conf->enableWalMarker = false;
   conf->autoCommitInterval = DEFAULT_AUTO_COMMIT_INTERVAL;
   conf->resetOffset = TMQ_OFFSET__RESET_LATEST;
   conf->enableBatchMeta = false;
@@ -357,6 +360,19 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       return TMQ_CONF_OK;
     } else if (strcasecmp(value, "false") == 0) {
       conf->autoCommit = false;
+      return TMQ_CONF_OK;
+    } else {
+      tqErrorC("invalid value for enable.auto.commit:%s", value);
+      return TMQ_CONF_INVALID;
+    }
+  }
+
+  if (strcasecmp(key, "enable.wal.marker") == 0) {
+    if (strcasecmp(value, "true") == 0) {
+      conf->enableWalMarker = true;
+      return TMQ_CONF_OK;
+    } else if (strcasecmp(value, "false") == 0) {
+      conf->enableWalMarker = false;
       return TMQ_CONF_OK;
     } else {
       tqErrorC("invalid value for enable.auto.commit:%s", value);
@@ -659,6 +675,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   SMqVgOffset pOffset = {0};
 
   pOffset.consumerId = tmq->consumerId;
+  pOffset.markWal = tmq->enableWalMarker;
   pOffset.offset.val = *offset;
   (void)snprintf(pOffset.offset.subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", tmq->groupId, TMQ_SEPARATOR, pTopicName);
   int32_t len = 0;
@@ -1739,6 +1756,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   tstrncpy(pTmq->groupId, conf->groupId, TSDB_CGROUP_LEN);
   pTmq->withTbName = conf->withTbName;
   pTmq->useSnapshot = conf->snapEnable;
+  pTmq->enableWalMarker = conf->enableWalMarker;
   pTmq->autoCommit = conf->autoCommit;
   pTmq->autoCommitInterval = conf->autoCommitInterval;
   pTmq->sessionTimeoutMs = conf->sessionTimeoutMs;
