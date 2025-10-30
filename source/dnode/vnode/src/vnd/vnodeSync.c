@@ -538,10 +538,10 @@ static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 
 static int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   int32_t code = tmsgSendSyncReq(pEpSet, pMsg);
-  if (code != 0) {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
+  // if (code != 0) {
+  //   rpcFreeCont(pMsg->pCont);
+  //   pMsg->pCont = NULL;
+  // }
   return code;
 }
 
