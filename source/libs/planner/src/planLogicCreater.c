@@ -1599,6 +1599,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pFill) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     pInterpFunc->timeRange = pFill->timeRange;
+    TSWAP(pInterpFunc->pTimeRange, pFill->pTimeRange);    
     pInterpFunc->fillMode = pFill->mode;
     pInterpFunc->pTimeSeries = NULL;
     code = nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries);

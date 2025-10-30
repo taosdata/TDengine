@@ -1569,7 +1569,7 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExtend, SNode* pTrueForLimit) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* pOptions, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
@@ -1578,13 +1578,23 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExte
   CHECK_MAKE_NODE(state->pCol);
   state->pExpr = pExpr;
   state->pTrueForLimit = pTrueForLimit;
-  state->pExtend = pExtend;
+  if (pOptions != NULL) {
+    if (pOptions->length >= 1) {
+      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 0), &state->pExtend);
+      CHECK_MAKE_NODE(state->pExtend);
+    }
+    if (pOptions->length == 2) {
+      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 1), &state->pZeroth);
+      CHECK_MAKE_NODE(state->pZeroth);
+    }
+    nodesDestroyList(pOptions);
+  }
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
   nodesDestroyNode(pExpr);
   nodesDestroyNode(pTrueForLimit);
-  nodesDestroyNode(pExtend);
+  nodesDestroyList(pOptions);
   return NULL;
 }
 

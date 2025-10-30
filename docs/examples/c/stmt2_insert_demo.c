@@ -53,7 +53,7 @@ void executeSQL(TAOS *taos, const char *sql) {
 void checkErrorCode(TAOS_STMT2 *stmt2, int code, const char *msg) {
   if (code != 0) {
     fprintf(stderr, "%s. Code: %d, Error: %s\n", msg, code, taos_stmt2_error(stmt2));
-    taos_stmt2_close(stmt2);
+    (void)taos_stmt2_close(stmt2);
     exit(EXIT_FAILURE);
   }
 }
@@ -108,7 +108,7 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
 
     for (int j = 0; j < NUM_OF_ROWS; j++) {
       struct timeval tv;
-      gettimeofday(&tv, NULL);
+      (void)gettimeofday(&tv, NULL);
       ts[j] = tv.tv_sec * 1000LL + tv.tv_usec / 1000 + j;
       current[j] = (float)rand() / RAND_MAX * 30;
       voltage[j] = rand() % 300;
@@ -177,7 +177,7 @@ void insertData(TAOS *taos) {
   printf("Successfully inserted %d rows.\n", affected);
   // free and close
   freeBindData(&table_name, &tags, &params);
-  taos_stmt2_close(stmt2);
+  (void)taos_stmt2_close(stmt2);
 }
 
 int main() {

@@ -233,10 +233,10 @@ class TestExplain:
         )
 
         resultfile = tdCom.generate_query_result(
-            "cases/20-DataQuerying/15-Explain/t/test_explain.sql", "test_explain"
+            "cases/09-DataQuerying/15-Explain/t/test_explain.sql", "test_explain"
         )
         tdLog.info(f"resultfile: {resultfile}")
         tdCom.compare_result_files(
-            resultfile, "cases/20-DataQuerying/15-Explain/r/test_explain.result"
+            resultfile, "cases/09-DataQuerying/15-Explain/r/test_explain.result"
         )
 

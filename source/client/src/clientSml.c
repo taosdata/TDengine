@@ -1118,6 +1118,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
     pName.tname[nameLen] = '\0';
     taosMemoryFree(measure);
 
+    pTableMeta = NULL;
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_STB_NOT_EXIST) {

@@ -365,6 +365,9 @@ static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
   pScanBaseInfo->readHandle.uid = pHandle->uid;
   pScanBaseInfo->readHandle.winRangeValid = pHandle->winRangeValid;
   pScanBaseInfo->readHandle.winRange = pHandle->winRange;
+  pScanBaseInfo->readHandle.extWinRangeValid = pHandle->extWinRangeValid;
+  pScanBaseInfo->readHandle.extWinRange = pHandle->extWinRange;
+  pScanBaseInfo->readHandle.version = pHandle->version;
 }
 
 int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {

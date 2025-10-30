@@ -420,7 +420,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
                                      .groupId = pExec->runtimeInfo.funcInfo.groupId,
                                      .isAutoCreateTable = *createTb,
                                      .pTagVals = pTagVals};
-        SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
+        SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d, .pTask = pTask};
         bool                    cont = false;
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
         ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
