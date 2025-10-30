@@ -38,6 +38,8 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
+int32_t walSetKeepVersion(SWal *pReader, int64_t ver)  {return 0;}
+
 static FORCE_INLINE int walBuildMetaName(SWal* pWal, int64_t metaVer, char* buf) {
   return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver%" PRIi64, pWal->path, TD_DIRSEP, metaVer);
 }

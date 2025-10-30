@@ -219,7 +219,7 @@ int64_t walGetLastVer(SWal *);
 int64_t walGetVerRetention(SWal *pWal, int64_t bytes);
 int64_t walGetCommittedVer(SWal *);
 int64_t walGetAppliedVer(SWal *);
-void    walSetKeepVersion(SWal *pReader, int64_t ver);  //todo
+int32_t walSetKeepVersion(SWal *pReader, int64_t ver);  //todo
 
 #ifdef __cplusplus
 }
