@@ -1009,6 +1009,27 @@ void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, int32_t nullRowIndex) {
   pRowSup->numNullRows += 1;
 }
 
+static int32_t processClosedStateWindow(SStateWindowOperatorInfo* pInfo, SWindowRowsSup* pRowSup, SExecTaskInfo* pTaskInfo,
+                                     SExprSupp* pSup, int32_t numOfOutput) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SResultRow* pResult = NULL;
+  code = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, true, &pResult, pRowSup->groupId,
+                                           pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
+  code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData,
+                                        pRowSup->startRowIndex, pRowSup->numOfRows, 0, numOfOutput);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
@@ -1019,9 +1040,6 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
   int64_t gid = pBlock->info.id.groupId;
-
-  bool    hasResult = false;
-  bool    masterScan = true;
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
   int32_t bytes = pStateColInfoData->info.bytes;
 
@@ -1032,6 +1050,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   }
   TSKEY* tsList = (TSKEY*)pColInfoData->pData;
 
+  // pRowSup contains info of current state window
   SWindowRowsSup* pRowSup = &pInfo->winSup;
   pRowSup->numOfRows = 0;
   pRowSup->startRowIndex = 0;
@@ -1045,7 +1064,6 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       doKeepStateWindowNullInfo(pRowSup, j);
       continue;
     }
-    hasResult = true;
     if (pStateColInfoData->pData == NULL) {
       qError("%s:%d state column data is null", __FILE__, __LINE__);
       pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -1073,23 +1091,14 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     } else if (compareVal(val, &pInfo->stateKey)) {
       doKeepTuple(pRowSup, tsList[j], j, gid);
     } else {
-      // a new state window started
-      // keep the time window for the closed time window.
+      // close and process current state window
       doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption, true);
-      SResultRow* pResult = NULL;
-      int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid, pSup->pCtx,
-                                           numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
-      if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-        T_LONG_JMP(pTaskInfo->env, ret);
-      }
-
-      updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
-      ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData,
-                                            pRowSup->startRowIndex, pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+      int32_t ret = processClosedStateWindow(pInfo, pRowSup, pTaskInfo, pSup, numOfOutput);
       if (ret != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, ret);
       }
 
+      // start a new state window
       doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, &extendOption, true);
       doKeepTuple(pRowSup, tsList[j], j, gid);
 
@@ -1106,21 +1115,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     }
   }
 
-  if (!hasResult) {
-    return;
-  }
-  // if window hasn't been closed, set end key to ts of last element
+  // if window hasn't been closed, process it now
   doKeepCurStateWindowEndInfo(pRowSup, tsList, pBlock->info.rows, &extendOption, false);
-  SResultRow* pResult = NULL;
-  int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
-                                       pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
-  if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-    T_LONG_JMP(pTaskInfo->env, ret);
-  }
-
-  updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
-  ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
-                                        pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+  int32_t ret = processClosedStateWindow(pInfo, pRowSup, pTaskInfo, pSup, numOfOutput);
   if (ret != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, ret);
   }
