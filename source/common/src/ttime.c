@@ -2162,3 +2162,12 @@ int64_t taosGetTimestampToday(int32_t precision, timezone_t tz) {
   }
   return (int64_t)tmp * factor;
 }
+
+int32_t taosParseShortWeekday(const char* str) {
+  for (int32_t i = 0; i < 7; i++) {
+    if (strcasecmp(shortWeekDays[i], str) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
