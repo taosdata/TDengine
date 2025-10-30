@@ -60,8 +60,8 @@ class TestTDgptBasic:
 
         tdSql.query("show anodes full")
 
-        # there are 13 analysis model for forecasting or anomaly-detection.
-        tdSql.checkRows(13)
+        # there are 17 analysis models for forecasting or anomaly-detection.
+        tdSql.checkRows(17)
 
         tdSql.execute("create database d0 vgroups 1")
         tdSql.query("select * from information_schema.ins_databases")
