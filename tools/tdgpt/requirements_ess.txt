@@ -21,4 +21,4 @@ numpy==1.26.4
 xlsxwriter==3.2.1
 --find-links https://download.pytorch.org/whl/torch/
 torch==2.3.1+cpu
-tensorflow-cpu==2.18.0
+tensorflow-cpu==2.20.0
