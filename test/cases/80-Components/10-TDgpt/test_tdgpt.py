@@ -266,6 +266,8 @@ class TestTDgptBasic:
 
         """
 
+        tdSql.execute("create database if not exists d1 vgroups 3")
+        tdSql.execute("use d1") 
         tdSql.execute("create stable st_corr(ts timestamp, a int, b float, c double, d varchar(10), e tinyint, f int unsigned, g bool) tags(t1 int)")
         tdSql.execute("create table t_corr_1 using st_corr tags(1)")
         tdSql.execute("create table t_corr_2 using st_corr tags(2)")
@@ -309,6 +311,8 @@ class TestTDgptBasic:
         tdSql.error("select corr(a, b, b) from t_corr_1")
         tdSql.error("select corr(a, g) from t_corr_1")
 
+        tdSql.execute("drop database d1")
+
     def test_corr_stable(self):
         """测试超级表中的皮尔逊相关系数查询
 
@@ -328,7 +332,7 @@ class TestTDgptBasic:
 
         """
 
-        tdSql.execute("create database d1 vgroups 3")
+        tdSql.execute("create database if not exists d1 vgroups 3")
         tdSql.execute("use d1")
 
         tdSql.execute("create stable st_corr(ts timestamp, a int, b float, c double, d varchar(10), e tinyint, f int unsigned, g bool) tags(t1 int)")
