@@ -225,7 +225,7 @@ class TDSql:
         self.cursor.execute(s)
         time.sleep(2)
 
-    def queryAndCheckResult(self, sql_list, expect_result_list):
+    def queryAndCheckResult(self, sql_list, expect_result_list, dbPrecision=""):
         """
         Executes a list of SQL queries and checks the results against the expected results.
 
@@ -249,7 +249,7 @@ class TDSql:
                     for row in range(len(expect_result_list[index])):
                         for col in range(len(expect_result_list[index][row])):
                             self.checkData(
-                                row, col, expect_result_list[index][row][col]
+                                row, col, expect_result_list[index][row][col], dbPrecision=dbPrecision
                             )
         except Exception as ex:
             raise (ex)
@@ -1298,7 +1298,7 @@ class TDSql:
     def compareData(self, row, col, data, show=False):
         return self.checkData(row, col, data, show, False)
 
-    def checkData(self, row, col, data, show=False, exit=True):
+    def checkData(self, row, col, data, show=False, exit=True, dbPrecision=""):
         """
         Checks if the data at the specified row and column matches the expected data.
 
@@ -1438,30 +1438,33 @@ class TDSql:
                                 return False
                     return True
                 elif isinstance(data, int):
-                    if len(str(data)) == 16:
-                        precision = "us"
-                    elif len(str(data)) == 13:
-                        precision = "ms"
-                    elif len(str(data)) == 19:
-                        precision = "ns"
-                    else:
-                        if exit:
-                            filename, lineno = _fast_caller(1)
-                            args = (
-                                filename,
-                                lineno,
-                                self.sql,
-                                row,
-                                col,
-                                self.queryResult[row][col],
-                                data,
-                            )
-                            tdLog.exit(
-                                "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
-                                % args
-                            )
+                    if(dbPrecision == ""):
+                        if len(str(data)) == 16:
+                            precision = "us"
+                        elif len(str(data)) == 13:
+                            precision = "ms"
+                        elif len(str(data)) == 19:
+                            precision = "ns"
                         else:
-                            return False
+                            if exit:
+                                filename, lineno = _fast_caller(1)
+                                args = (
+                                    filename,
+                                    lineno,
+                                    self.sql,
+                                    row,
+                                    col,
+                                    self.queryResult[row][col],
+                                    data,
+                                )
+                                tdLog.exit(
+                                    f"%s(%d) failed: sql:%s row:%d col:%d len(str(data)):{len(str(data))} data:%s != expect:%s"
+                                    % args
+                                )
+                            else:
+                                return False
+                    else:
+                        precision = dbPrecision
                     success = False
                     if precision == "ms":
                         dt_obj = self.queryResult[row][col]
