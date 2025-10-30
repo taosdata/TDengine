@@ -1,5 +1,6 @@
 import numpy as np
 
+from taosanalytics.conf import app_logger
 from taosanalytics.service import AbstractCorrelationService
 from fastdtw import fastdtw
 
