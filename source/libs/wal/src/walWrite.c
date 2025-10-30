@@ -373,8 +373,8 @@ int32_t walEndSnapshot(SWal *pWal) {
   int64_t ver = pWal->vers.verInSnapshotting;
 
   wDebug("vgId:%d, wal end snapshot for index:%" PRId64 ", log retention:%" PRId64 " first index:%" PRId64
-         ", last index:%" PRId64,
-         pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer);
+         ", last index:%" PRId64 ", keep version:%" PRId64,
+         pWal->cfg.vgId, ver, pWal->vers.logRetention, pWal->vers.firstVer, pWal->vers.lastVer, pWal->keepVersion);
 
   if (ver == -1) {
     TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &lino, _exit);
@@ -399,6 +399,13 @@ int32_t walEndSnapshot(SWal *pWal) {
   if (pWal->cfg.retentionPeriod == 0 && hasTopic) {
     wInfo("vgId:%d, wal found ref index:%" PRId64 " in compatible mode, index:%" PRId64, pWal->cfg.vgId, refVer, ver);
     ver = TMIN(ver, refVer);
+  }
+
+  // check keepVersion constraint
+  if (pWal->keepVersion >= 0) {
+    wInfo("vgId:%d, wal keep version constraint, keep version:%" PRId64 ", calculated ver:%" PRId64, pWal->cfg.vgId,
+          pWal->keepVersion, ver);
+    ver = TMIN(ver, pWal->keepVersion - 1);
   }
 
   // find files safe to delete

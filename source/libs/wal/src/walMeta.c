@@ -38,7 +38,28 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
-int32_t walSetKeepVersion(SWal *pReader, int64_t ver)  {return 0;}
+int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
+  if (pWal == NULL) {
+    wError("failed to set keep version, pWal is NULL");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (ver < 0) {
+    wError("vgId:%d, failed to set keep version, invalid ver:%" PRId64, pWal->cfg.vgId, ver);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  TAOS_UNUSED(taosThreadRwlockWrlock(&pWal->mutex));
+  
+  int64_t oldKeepVersion = pWal->keepVersion;
+  pWal->keepVersion = ver;
+  
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
+
+  wInfo("vgId:%d, wal keep version set from %" PRId64 " to %" PRId64, pWal->cfg.vgId, oldKeepVersion, ver);
+  
+  return TSDB_CODE_SUCCESS;
+}
 
 static FORCE_INLINE int walBuildMetaName(SWal* pWal, int64_t metaVer, char* buf) {
   return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver%" PRIi64, pWal->path, TD_DIRSEP, metaVer);
