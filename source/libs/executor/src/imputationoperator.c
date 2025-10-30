@@ -963,7 +963,7 @@ static int32_t doParseInputForTlcc(SAnalysisOperatorInfo* pInfo, SCorrelationSup
           }
 
           int32_t ret = snprintf(pInfo->options, bufLen, "%s,%s", pOptNode->literal, "algo=tlcc");
-          if (ret < 0) {
+          if (ret < 0 || ret >= bufLen) {
             code = TSDB_CODE_OUT_OF_MEMORY;
             qError("%s failed to clone options string, code:%s", id, tstrerror(code));
             return code;

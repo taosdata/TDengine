@@ -62,12 +62,10 @@ FROM foo;
 
 ```
 
-
 #### DTW_PATH
 
 基于动态规划方法对两个时序列通过非线性地进行时域对准（Timing alignment）调整以便于计算两个时间序列之间相似度（similarity）。
 与 `dtw` 不同, `dtw_path` 返回计算相似度结果时候，使用的两个时间序列数值匹配列表。
-
 
 #### 语法
 
@@ -116,7 +114,6 @@ taos> select dtw_path(col1, col2,'radius=1') res from foo;
 
 返回两个时间序列在不同时间滞后（lag）下的相关性数值，用以评估两个时间序列之间的动态关系。多用于识别一个序列的变化是否会对另一个序列产生延迟影响，以及这种影响的方向和程度‌。
 
-
 #### 语法
 
 ```SQL
@@ -157,4 +154,3 @@ SELECT tlcc(col1, col2, 'lag_start=-10, lag_end=10')
 FROM foo;
 
 ```
-
