@@ -230,7 +230,7 @@ static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
 static FORCE_INLINE int32_t taosCreateSHA1Hash(char *pBuf, int32_t len) {
   uint8_t result[21] = {0};
 
-  tSHA1(result, pBuf, len);
+  tSHA1((char *)result, pBuf, len);
 
   return sprintf(pBuf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", result[0],
                  result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
