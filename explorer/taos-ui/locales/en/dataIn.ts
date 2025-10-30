@@ -392,8 +392,6 @@ export default {
     calculate: 'Preview',
     emptyColumnName: 'Column name cannot be empty: ',
     duplicateColumnName: 'Duplicate column name: ',
-    invalidColumnName:
-      'Column name can only contain alpha letters, numbers and underscores, but cannot start with number. Invalid column name: ',
     emptySampleValues: 'Please provide at least one example',
     stableSelectOrCreateTip: 'Please select or create a super table',
     databaseSelectTip: 'Please select the target database in the base information panel',

@@ -388,7 +388,6 @@ export default {
     calculate: '预览',
     emptyColumnName: '列名不能为空：',
     duplicateColumnName: '列名不能重复：',
-    invalidColumnName: '列名只能包含英文字母、数字和下划线，不能以数字开头。此列不合法：',
     emptySampleValues: '请至少提供一条示例数据',
     stableSelectOrCreateTip: '请选择或创建超级表',
     databaseSelectTip: '请先在上面的基本信息面板中选择目标数据库',

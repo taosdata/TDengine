@@ -434,14 +434,9 @@ async function getCsvColumnsData() {
 
     const columns = result.file_header.column_names;
     const columnInObj: Recordable = {};
-    const columnRegexPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
     for (let i = 0; i < columns.length; i++) {
       if (columns[i] === '') {
         ElMessage.error(t('dataIn.transformer.emptyColumnName') + columns.join(', '));
-        return;
-      }
-      if (!columnRegexPattern.test(columns[i])) {
-        ElMessage.error(t('dataIn.transformer.invalidColumnName') + columns[i]);
         return;
       }
       if (columnInObj[columns[i]]) {
