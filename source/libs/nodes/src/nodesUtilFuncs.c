@@ -637,6 +637,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_BNODE_OPTIONS:
       code = makeNode(type, sizeof(SBnodeOptions), &pNode);
       break;
+    case QUERY_NODE_DATE_TIME_RANGE:
+      code = makeNode(type, sizeof(SDateTimeRange), &pNode);
+      break;
+    case QUERY_NODE_USER_OPTIONS:
+      code = makeNode(type, sizeof(SUserOptions), &pNode);
+      break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = makeNode(type, sizeof(SCreateIndexStmt), &pNode);
       break;
@@ -1670,6 +1676,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_BNODE_OPTIONS: {
       SBnodeOptions* pOptions = (SBnodeOptions*)pNode;
       // nodesDestroyList(pOptions->pProtocol);
+      break;
+    }
+    case QUERY_NODE_DATE_TIME_RANGE: // no pointer field
+      break;
+    case QUERY_NODE_USER_OPTIONS: {
+      SUserOptions* pOptions = (SUserOptions*)pNode;
+      void destroyUserOptions(SUserOptions* pOptions);
+      destroyUserOptions(pOptions);
       break;
     }
     case QUERY_NODE_CREATE_INDEX_STMT: {

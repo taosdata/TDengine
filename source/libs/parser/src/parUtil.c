@@ -278,6 +278,18 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid placeholder in create stream clause";
     case TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR:
       return "Invalid expr in order by clause: %s";
+    case TSDB_CODE_PAR_OPTION_DUPLICATED:
+      return "Option:%s duplicated";
+    case TSDB_CODE_PAR_OPTION_CONFLICT:
+      return "Option:%s and %s conflict";
+    case TSDB_CODE_PAR_INVALID_OPTION_VALUE:
+      return "Option:%s invalid value";
+    case TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG:
+      return "Option:%s value too long, should be less than %d";
+    case TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG:
+      return "Option:%s value too big, should be less than %d";
+    case TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL:
+      return "Option:%s value too small, should be greater than %d";
     default:
       return "Unknown error";
   }
