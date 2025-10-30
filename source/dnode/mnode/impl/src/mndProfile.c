@@ -49,10 +49,7 @@ typedef struct {
   SIpAddr  userDualIp;
   SIpAddr  addr;
   char     sVer[TSDB_VERSION_LEN];
-<<<<<<< HEAD
   char     cInfo[CONNECTOR_INFO_LEN];
-=======
->>>>>>> 3.0
 } SConnObj;
 
 typedef struct {
@@ -1021,7 +1018,6 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       mError("failed to set ver since %s", tstrerror(code));
       return code;
     }
-<<<<<<< HEAD
 
     char cInfo[CONNECTOR_INFO_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(cInfo, pConn->cInfo);
@@ -1031,8 +1027,6 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       mError("failed to set connector info since %s", tstrerror(code));
       return code;
     }
-=======
->>>>>>> 3.0
     numOfRows++;
   }
 
