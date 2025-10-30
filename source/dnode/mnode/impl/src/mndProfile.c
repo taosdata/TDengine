@@ -49,6 +49,7 @@ typedef struct {
   SIpAddr  userDualIp;
   SIpAddr  addr;
   char     sVer[TSDB_VERSION_LEN];
+  char     cInfo[CONNECTOR_INFO_LEN];
 } SConnObj;
 
 typedef struct {
@@ -154,11 +155,12 @@ static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
   }
   return;
 }
-static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) {
+static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp, char *cInfo) {
   if (connObj == NULL) {
     return;
   }
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
+  tstrncpy(connObj->cInfo, cInfo, sizeof(connObj->cInfo));
   connObj->userIp = userIp;
 }
 static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
@@ -571,7 +573,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       }
     }
 
-    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp);
+    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp, pHbReq->cInfo);
     setUserInfoIpToConn(pConn, &pHbReq->userDualIp);
 
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
@@ -1014,6 +1016,15 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     code = colDataSetVal(pColInfo, numOfRows, (const char *)ver, false);
     if (code != 0) {
       mError("failed to set ver since %s", tstrerror(code));
+      return code;
+    }
+
+    char cInfo[CONNECTOR_INFO_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(cInfo, pConn->cInfo);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)cInfo, false);
+    if (code != 0) {
+      mError("failed to set connector info since %s", tstrerror(code));
       return code;
     }
     numOfRows++;
