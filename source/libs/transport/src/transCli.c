@@ -2916,6 +2916,16 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   if (cliRetryIsTimeout(pInst, pReq)) {
     return false;
   }
+  // opt timeout msg retry
+  if (pCtx && pCtx->syncMsgRef != 0) {
+    STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+    if (pSyncMsg) {
+      TAOS_UNUSED(taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef));
+    } else {
+      tDebug("sync msg already release, not retry");
+      return false;
+    }
+  }
 
   // code, msgType
   // A:  epset,leader, not self
