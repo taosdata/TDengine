@@ -10,7 +10,7 @@ matplotlib==3.9.2
 Werkzeug==3.0.6
 uWSGI==2.0.27
 ml_dtypes==0.5.0
-keras==3.3.0
+keras==3.5.0
 taospy==2.8.6
 transformers==4.40.0
 accelerate==0.34.2
