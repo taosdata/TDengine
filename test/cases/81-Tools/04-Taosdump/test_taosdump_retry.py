@@ -14,16 +14,33 @@
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import json
+import time
+from threading import Thread
+from threading import Event
+import copy
 
-class TestTaosdumpPrimaryKey:
-    def caseDescription(self):
-        """
-        case1<sdsang>: [TS-3072] taosdump dump escaped db name test
-        """
+#
+#  kill taosadapter task 
+#
+def killTask(stopEvent, taosadapter, presleep, sleep, count):
+    tdLog.info(f"kill task pre sleep {presleep}s\n")
+    time.sleep(presleep)
+    stopcmd  = "kill -9 $(pidof taosadapter)"
+    startcmd = f"nohup {taosadapter} --logLevel=error --opentsdb_telnet.enable=true > ~/taosa.log 2>&1 &"
+    for i in range(count):
+        tdLog.info(f" i={i} cmd:{stopcmd} sleep {sleep}s\n")
+        os.system(stopcmd)
+        time.sleep(sleep)
+        tdLog.info(f" start cmd:{startcmd}\n")
+        os.system(startcmd)
+        if stopEvent.is_set():
+            tdLog.info(" recv stop event and exit killTask ...\n")
+            break
+
+    tdLog.info("kill task exited.\n")
 
 
-
-
+class TestTaosdumpRetry:
     def exec(self, command):
         tdLog.info(command)
         return os.system(command)
@@ -43,15 +60,22 @@ class TestTaosdumpPrimaryKey:
         else:
             tdLog.info("benchmark found in %s" % benchmark)
 
+        # taosadapter
+        taosadapter = etool.taosAdapterFile()
+        if taosadapter == "":
+            tdLog.exit("taosadapter not found!")
+        else:
+            tdLog.info("taosadapter found in %s" % taosadapter)
+
         # tmp dir
         tmpdir = "./tmp"
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
         else:
-            print("directory exists")
+            print(f"{tmpdir} directory exists, clear data.")
             os.system("rm -rf %s/*" % tmpdir)
 
-        return taosdump, benchmark,tmpdir
+        return taosdump, benchmark, taosadapter, tmpdir
 
     def checkCorrectWithJson(self, jsonFile, newdb = None, checkInterval=False):
         #
@@ -88,33 +112,21 @@ class TestTaosdumpPrimaryKey:
         # exe insert 
         cmd = f"{benchmark} {options} -f {jsonFile}"
         self.exec(cmd)
-        self.checkCorrectWithJson(jsonFile)
 
     def insertData(self, benchmark, json, db):
         # insert super table
         self.testBenchmarkJson(benchmark, json)
         
-        # normal table
-        sqls = [
-            f"create table {db}.ntb(st timestamp, c1 int, c2 binary(32))",
-            f"insert into {db}.ntb values(now, 1, 'abc1')",
-            f"insert into {db}.ntb values(now, 2, 'abc2')",
-            f"insert into {db}.ntb values(now, 3, 'abc3')",
-            f"insert into {db}.ntb values(now, 4, 'abc4')",
-            f"insert into {db}.ntb values(now, 5, 'abc5')",
-        ]
-        for sql in sqls:
-            tdSql.execute(sql)
 
     def dumpOut(self, taosdump, db , outdir):
         # dump out
-        self.exec(f"{taosdump} -D {db} -o {outdir}")
+        self.exec(f"{taosdump} -T 2 -k 2 -z 800 -D {db} -o {outdir}")
 
     def dumpIn(self, taosdump, db, newdb, indir):
         # dump in
-        self.exec(f'{taosdump} -W "{db}={newdb}" -i {indir}')
+        self.exec(f'{taosdump} -T 10 -W "{db}={newdb}" -i {indir}')
 
-    def check_same(self, db, newdb, stb, aggfun):
+    def checkAggSame(self, db, newdb, stb, aggfun):
         # sum pk db
         sql = f"select {aggfun} from {db}.{stb}"
         tdSql.query(sql)
@@ -129,6 +141,21 @@ class TestTaosdumpPrimaryKey:
         else:
             tdLog.exit(f"{aggfun} source db:{sum1} import db:{sum2} not equal.")
 
+    def checkProjSame(self, db, newdb, stb , row, col, where = "where tbname='d0'"):
+        # sum pk db
+        sql = f"select * from {db}.{stb} {where} limit {row+1}"
+        tdSql.query(sql)
+        val1 = copy.deepcopy(tdSql.getData(row, col))
+        # sum pk newdb
+        sql = f"select * from {newdb}.{stb} {where} limit {row+1}"
+        tdSql.query(sql)
+        val2 = copy.deepcopy(tdSql.getData(row, col))
+
+        if val1 == val2:
+            tdLog.info(f"{db}.{stb} {row},{col} source db:{val1} import db:{val2} both equal.")
+        else:
+            tdLog.exit(f"{db}.{stb} {row},{col} source db:{val1} len={len(val1)} import db:{val2} len={len(val2)} not equal.")
+
 
     def verifyResult(self, db, newdb, json):
         # compare with insert json
@@ -136,45 +163,71 @@ class TestTaosdumpPrimaryKey:
         
         #  compare sum(pk)
         stb = "meters"
-        self.check_same(db, newdb, stb, "sum(pk)")
-        self.check_same(db, newdb, stb, "sum(usi)")
-        self.check_same(db, newdb, stb, "sum(ic)")
+        self.checkAggSame(db, newdb, stb, "sum(ic)")
+        self.checkAggSame(db, newdb, stb, "sum(usi)")
+        self.checkProjSame(db, newdb, stb, 0, 3)
+        self.checkProjSame(db, newdb, stb, 0, 4)
+        self.checkProjSame(db, newdb, stb, 0, 6) # tag
 
-        # check normal table
-        self.check_same(db, newdb, "ntb", "sum(c1)")
+        self.checkProjSame(db, newdb, stb, 8, 3)
+        self.checkProjSame(db, newdb, stb, 8, 4)
+        self.checkProjSame(db, newdb, stb, 8, 6) # tag
 
-    def test_taosdump_primary_key(self):
-        """summary: xxx
+    # start kill
+    def startKillThread(self, taosadapter, presleep, sleep, count):
+        tdLog.info("call startKillThread ...\n")
+        self.stopEvent = Event()
+        self.thread = Thread(target=killTask, args=(self.stopEvent, taosadapter, presleep, sleep, count))
+        self.thread.start()
 
-        description: xxx
+    # stop kill
+    def stopKillThread(self):
+        tdLog.info("call stopKillThread begin...\n")
+        self.stopEvent.set()
+        self.thread.join()
+        tdLog.info("call stopKillThread end\n")
 
-        Since: xxx
+    def test_taosdump_retry(self):
+        """taosdump bugs
 
-        Labels: xxx
+        1. taosBenchmark prepare data with super table and normal table
+        2. taosdump start dump out database
+        3. Kill -9 taosadapter during dump out
+        4. Start taosadapter again
+        5. taosdump dump in database
+        6. Verify data correctness with sum aggregation
+        7. Verify data correctness with row by row comparison on some data
 
-        Jira: xxx
+        
+        Since: v3.0.0.0
 
-        Catalog:
-            - xxx:xxx
+        Labels: common,ci
+
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-            - xxx
+            - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/ws/test_taosdump_retry.py
+
         """
         # database
-        db = "pridb"
-        newdb = "npridb"
+        db = "redb"
+        newdb = "nredb"
         
         # find
-        taosdump, benchmark, tmpdir = self.findPrograme()
-        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/primaryKey.json"
+        taosdump, benchmark, taosadapter, tmpdir = self.findPrograme()
+        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/retry.json"
 
         # insert data with taosBenchmark
         self.insertData(benchmark, json, db)
 
+        # start kill thread
+        self.startKillThread(taosadapter, 2, 5, 3)
+
         # dump out 
         self.dumpOut(taosdump, db, tmpdir)
+
+        # stop kill
+        self.stopKillThread()
 
         # dump in
         self.dumpIn(taosdump, db, newdb, tmpdir)

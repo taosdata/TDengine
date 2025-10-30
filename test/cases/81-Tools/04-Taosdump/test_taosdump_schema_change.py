@@ -15,11 +15,6 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 
 class TestTaosdumpSchemaChange:
-    def caseDescription(self):
-        """
-        case for test schema changed 
-        """
-
     def createDir(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
@@ -272,22 +267,30 @@ class TestTaosdumpSchemaChange:
         self.exceptNoSameCol(db, newdb, tmpdir)
 
     def test_taosdump_schema_change(self):
-        """summary: xxx
+        """taosdump precision
 
-        description: xxx
+        1.  Prepare data with taosBenchmark -f schemaChange.json/schemaChangeNew.json
+        2.  Use taosdump to export the entire database
+        3.  Use taosdump to import the exported data back into a new database
+        4.  Verify that the imported data matches the original data
+        5.  Use taosdump to export specific tables from the original database
+        6.  Use taosdump to import the exported data back into another new database
+        7.  Verify that the imported data matches the original data for the specified tables
+        8.  Drop old super tables and recreate new ones with schema changes (e.g., missing columns or tags)
+        9. Use taosdump to import the previously exported data into the modified tables
+        10. Verify that the data import handles the schema changes correctly
+        11.  Test exception handling when the target tables have schema changes (e.g., missing columns or tags)
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_schema_change.py
+    
         """
         # init
         db    = "dd"

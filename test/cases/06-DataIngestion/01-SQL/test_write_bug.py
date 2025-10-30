@@ -410,12 +410,14 @@ class TestWriteBug:
             tdSql.execute("create table %s using st tags(%s);" % (child_table_name, str(i+1)))
             tdLog.info("create table %s successfully" % child_table_name)
         # insert data
+        sql_src = "insert into table_name values"
+        for j in range(10000):
+            sql_src += " (now+%ss, '0x7661726331')" % str(j+1)
+        
         for i in range(100):
-            sql = "insert into table_name values"
-            for j in range(10000):
-                sql += "(now+%ss, '0x7661726331')," % str(j+1)
             for child_table in child_table_list:
-                tdSql.execute(sql.replace("table_name", child_table))
+                sql = sql_src.replace("table_name", child_table)
+                tdSql.execute(sql)
                 tdLog.info("Insert data into %s successfully" % child_table)
             tdLog.info("Insert data round %s successfully" % str(i+1))
         tdSql.execute("flush database %s" % self.db_name)        

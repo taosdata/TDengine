@@ -87,22 +87,24 @@ class TestTaosdumpCompa:
         self.check_same(db, stb, "last(tnch)", "kEoWzCBj")
 
     def test_taosdump_compa(self):
-        """summary: xxx
+        """taosdump compatible 
 
-        description: xxx
+        1. Backup data come from v3.1.0.0
+        2. Restore data with taosdump
+        3. Verify data correctness
+            - compare sum value for numeric type 
+            - compare last value for string/boolean type
+            
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_compa.py
+
         """
         # database
         db = "test"
@@ -116,7 +118,5 @@ class TestTaosdumpCompa:
 
         # verify db
         self.verifyResult(db)
-
-        tdLog.success("%s successfully executed" % __file__)
 
 

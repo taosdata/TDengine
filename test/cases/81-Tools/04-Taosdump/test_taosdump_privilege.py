@@ -14,32 +14,26 @@
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 
-class TestTaosdumpDbStb:
-    def caseDescription(self):
-        """
-        case1<sdsang>: [TD-18291] taosdump basic test
-        """
+class TestTaosdumpNonRoot:
+    def test_taosdump_non_root(self):
+        """taosdump privilege
 
+        1. Create database and tables with various data types
+        2. Insert data with non-null and null values
+        3. Use taosdump to export the database with a non-root user
+        4. Drop the original database
+        5. Use taosdump to import the database back with a non-root user
+        6. Verify the imported database, tables, and data
 
+        Since: v3.0.0.0
 
+        Labels: common,ci
 
-    def test_taosdump_db_stb(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_db_with_non_root.py
+
         """
         tdSql.prepare()
 
@@ -87,7 +81,10 @@ class TestTaosdumpDbStb:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db st -o %s -T 1" % (binPath, self.tmpdir))
+        pwd = "Taos@123456"        
+        tdSql.execute(f"create user test pass '{pwd}'")
+
+        os.system(f"%s -D db -o %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.execute("drop database db")
         #        sys.exit(1)
@@ -112,7 +109,7 @@ class TestTaosdumpDbStb:
         tdSql.checkData(0, 0, "st")
 
         tdSql.query("show tables")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
 
         tdLog.success("%s successfully executed" % __file__)
 

@@ -725,6 +725,16 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_website.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py
+## 04-Taosdump
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_commandline.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_primarykey.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_privilege.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_retry.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_schema_change.py -B
 
 ## 05-Valgrind
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_basic1.py
@@ -764,58 +774,6 @@
 
 #newstm,,n,.,pytest cases/uncatalog/army/storage/ss/test_ss_basic.py -N 3
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/stream/test_stream_vtable.py
-
-# army/tools
-
-# taosdump cases
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_schema_change.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_compa.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_stb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_double.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_big_int.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_many_cols.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_start_end_time.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_type_varbinary.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_type_geometry.py
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_with_non_root.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_escaped_db.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_basic.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_small_int.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_db_ntb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_tiny_int.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_unsigned_int.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_small_int.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_int.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_nano_support.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_big_int.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_binary.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_float.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_start_end_time_long.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_loose_mode.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_bool.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_inspect.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_in_diff_type.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_test_type_tiny_int.py
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_double.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_big_int.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_escaped_db.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_primary_key.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_json.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_small_int.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_tiny_int.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_int.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_small_int.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_int.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_big_int.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_binary.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_float.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_bool.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_retry.py -B
-,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_tiny_int.py -B
 
 
 ## system_test

@@ -313,22 +313,30 @@ class TestTaosdumpCommandline:
 
     # run
     def test_taosdump_commandline(self):
-        """summary: xxx
+        """taosdump commandline
 
-        description: xxx
+        1. Insert data with taosBenchmark
+        2. Test taosdump commandline arguments:
+            - dump in/out with Native/Rest/WebSocket modes
+            - basic commandline arguments
+            - except commandline arguments
+            - check connMode priority cmd > env
+        3. Verify dump and import data is correctly.
+        4. Check long password support.
+        5. Inspect avro files generated with -I argument
+        6. Dump/restore database with escaped argument -e
+        
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py
+
         """
         
         # find

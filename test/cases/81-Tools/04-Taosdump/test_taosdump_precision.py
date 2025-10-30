@@ -14,7 +14,7 @@
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 
-class TestTaosdumpTestNanoSupport:
+class TestTaosdumpPrecision:
     def checkCommunity(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if "community" in selfPath:
@@ -76,24 +76,7 @@ class TestTaosdumpTestNanoSupport:
         else:
             print("other time precision not valid , please check! ")
 
-    def test_taosdump_test_nano_support(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-        """
+    def do_precision_ns(self):
         self.ts = 1625068800000000000  # this is timestamp  "2021-07-01 00:00:00"
         self.numberOfTables = 10
         self.numberOfRecords = 100
@@ -296,6 +279,32 @@ class TestTaosdumpTestNanoSupport:
         os.system("rm -rf ./dump_result.txt")
         os.system("rm -rf *.py.sql")
 
-        tdLog.success("%s successfully executed" % __file__)
+        print("do precision ns ....................... [passed]")
 
 
+    #
+    # ------------------- main ----------------
+    #
+    def test_taosdump_precision(self):
+        """taosdump precision
+
+        1.  Create a database with nanosecond precision and multiple tables
+        2.  Insert data into the tables with nanosecond timestamps
+        3.  Use taosdump to export the entire database
+        4.  Use taosdump to export data within specific time ranges using -S and -E
+        5.  Drop the original database
+        6.  Use taosdump to import the exported data back into the database
+        7.  Verify that the imported data matches the original data for all exports
+        
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_test_nano_support.py
+    
+        """
+        self.do_precision_ns()
