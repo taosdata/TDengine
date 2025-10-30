@@ -9,7 +9,9 @@
     :file-list="fileList"
     :show-file-list="false"
   >
+    <template v-if="$slots.btn"><slot name="btn"></slot></template>
     <el-button
+      v-else
       v-loading.fullscreen.lock="requestIng"
       link
       type="primary"

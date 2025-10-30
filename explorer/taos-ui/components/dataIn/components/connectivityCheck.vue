@@ -11,14 +11,14 @@
         :loading="checkLoading"
         :disabled="dataInProps.isCommunity"
         class="btn-check-connectivity"
-        type="primary"
+        :type="dataInProps.isIdmp ? 'default' : 'primary'"
         size="default"
         plain
         @click.capture.stop="clickCheckBtn"
         >{{ t('dataIn.check') }}
       </el-button>
     </el-tooltip>
-    <div v-show="JSON.stringify(checkResult) !== '{}'" class="text">
+    <div v-show="JSON.stringify(checkResult) !== '{}'" class="text tda-text">
       <el-icon :size="18" :color="content.icon === 'SuccessFilled' ? '#33b169' : '#ff2e4d'" class="mr10">
         <component :is="content.icon" />
       </el-icon>

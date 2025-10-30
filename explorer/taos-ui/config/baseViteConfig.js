@@ -18,7 +18,7 @@ import { createSvgIconsPlugin } from 'vite-plugin-svg-icons';
 import UnoCss from 'unocss/vite';
 import { loadEnv } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
-
+import VueJsx from '@vitejs/plugin-vue-jsx';
 export function resolve(path) {
   return join(process.cwd(), path);
 }
@@ -29,9 +29,10 @@ export function getBaseConfig(configEnv, additionalScss, deployUrl, commonIcons,
     base: '/',
     resolve: {
       alias: {
-        '@': resolve('src')
+        '@': resolve('src'),
+        '@codemirror/state': resolve('node_modules/@codemirror/state')
       },
-      extensions: ['.js', '.json', '.ts', '.vue']
+      extensions: ['.js', '.json', '.ts', '.vue', '.tsx', '.jsx']
     },
     css: {
       preprocessorOptions: {
@@ -44,6 +45,7 @@ export function getBaseConfig(configEnv, additionalScss, deployUrl, commonIcons,
     plugins: [
       nodePolyfills(),
       vue(),
+      VueJsx(),
       UnoCss(),
       createSvgIconsPlugin({
         symbolId: 'icon-[name]',

@@ -19,10 +19,7 @@
         >{{ t('connector.odbc.step11desc3') }}
       </li>
       <li class="odbc-span">
-        {{ t('connector.odbc.step12desc1')
-        }}<a
-          :href="installUrlWindows"
-          >{{ t('connector.odbc.step12desc2') }}</a
+        {{ t('connector.odbc.step12desc1') }}<a :href="installUrlWindows">{{ t('connector.odbc.step12desc2') }}</a
         >{{ t('connector.odbc.step12desc3') }}
       </li>
     </ol>

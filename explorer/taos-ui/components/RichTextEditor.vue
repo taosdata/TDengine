@@ -15,7 +15,14 @@
 <script lang="ts" setup>
 import '@wangeditor/editor/dist/css/style.css'; // 引入 css
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue';
-import { IDomEditor, i18nChangeLanguage, IEditorConfig } from '@wangeditor/editor';
+import { IDomEditor, i18nChangeLanguage, i18nGetResources, i18nAddResources, IEditorConfig } from '@wangeditor/editor';
+
+// 修改字体、字号、行高的默认文章，重新注册i18n资源
+const enI18N = i18nGetResources('en');
+enI18N.fontSize.default = 'Font Size';
+enI18N.fontFamily.default = 'Font Family';
+enI18N.lineHeight.default = 'Line Height';
+i18nAddResources('en', enI18N);
 
 const props = withDefaults(
   defineProps<{

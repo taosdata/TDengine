@@ -24,7 +24,7 @@ import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { TDengineSqlKeywrods } from 'constants1/tdengine';
 import { basicSetup } from 'codemirror';
 import { t } from 'locales';
-
+import { isEqual } from 'lodash-es';
 const props = withDefaults(
   defineProps<{
     modelValue: string;
@@ -59,7 +59,6 @@ const code = computed({
 const placeholder = computed(() => {
   return props.placeholder || t('explorer.sqlGoesHere');
 });
-
 const keywords = TDengineSqlKeywrods.concat(TDengineSqlKeywrods.map(item => item.toLowerCase()));
 const extensions = shallowRef<any[]>([]);
 const emits = defineEmits(['update:modelValue', 'execute', 'ready', 'format']);
@@ -79,7 +78,17 @@ const formatKey = {
     return true;
   }
 };
-setExtension();
+// 监听 placeholders 变化
+watch(
+  () => props.placeholders,
+  (newVal, oldVal) => {
+    if (newVal && !isEqual(newVal, oldVal)) {
+      console.log('placeholders changed:', newVal); // 调试用
+      setExtension();
+    }
+  }
+);
+
 function setExtension() {
   const shiftEnter = defaultKeymap.find(item => item.key == 'Enter');
   if (shiftEnter) {
@@ -94,14 +103,12 @@ function setExtension() {
     sql({}),
     autocompletion({
       override: [myCompletions]
-    }),
-    lintGutter(),
-    search(),
-    EditorView.lineWrapping // 添加自动换行配置
+    })
   ];
   if (props.placeholders) {
     extensionsValue.push(props.placeholders);
   }
+  extensionsValue.push(lintGutter(), search(), EditorView.lineWrapping); // 添加自动换行配置);
   extensions.value = extensionsValue;
 }
 function myCompletions(context: CompletionContext) {
@@ -134,6 +141,9 @@ function myCompletions(context: CompletionContext) {
     options: optionsValue
   };
 }
+onMounted(() => {
+  setExtension();
+});
 </script>
 <style scoped>
 :deep(.cm-editor) {

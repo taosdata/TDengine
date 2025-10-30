@@ -22,7 +22,8 @@ export default {
         },
         {
           label: 'Failover Server Endpoints',
-          description: "The failover server endpoint for the OPC server; multiple endpoints can be specified, separated by commas.",
+          description:
+            'The failover server endpoint for the OPC server; multiple endpoints can be specified, separated by commas.',
           field: 'failover_endpoints',
           required: false,
           type: 'input'
