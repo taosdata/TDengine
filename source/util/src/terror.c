@@ -837,8 +837,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_TYPE,             "Invalid table t
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_DUPLICATED,          "Option duplicated")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_CONFLICT,            "Option conflict")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OPTION_VALUE,       "Invalid option value")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG,      "Option value too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too big")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
