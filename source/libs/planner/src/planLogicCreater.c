@@ -1690,7 +1690,7 @@ static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStm
   }
 
   SImputationFuncLogicNode * pImputatFunc = NULL;
-  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC, (SNode**)&pImputatFunc);
+  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC, (SNode**)&pImputatFunc);
   if (NULL == pImputatFunc) {
     return code;
   }

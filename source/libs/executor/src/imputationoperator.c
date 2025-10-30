@@ -84,66 +84,64 @@ typedef struct {
   int32_t          analysisType;
   SImputationSupp  imputatSup;
   SCorrelationSupp corrSupp;
-} SImputationOperatorInfo;
+} SAnalysisOperatorInfo;
 
-static void    imputatDestroyOperatorInfo(void* param);
+static void    analysisDestoryOperatorInfo(void* param);
 static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
-static int32_t doAnalysis(SImputationOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo);
-static int32_t doCacheBlock(SImputationOperatorInfo* pInfo, SSDataBlock* pBlock, const char* id);
-static int32_t doParseInputForImputation(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SNodeList* pFuncs, const char* id);
-static int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id);
-static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id);
-static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SExprSupp* pExprSup);
-static int32_t doParseOption(SImputationOperatorInfo* pInfo, const char* id);
-static int32_t doCreateBuf(SImputationOperatorInfo* pInfo, const char* pId);
+static int32_t doAnalysis(SAnalysisOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo);
+static int32_t doCacheBlock(SAnalysisOperatorInfo* pInfo, SSDataBlock* pBlock, const char* id);
+static int32_t doParseInputForImputation(SAnalysisOperatorInfo* pInfo, SImputationSupp* pSupp, SNodeList* pFuncs, const char* id);
+static int32_t doParseInputForDtw(SAnalysisOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id);
+static int32_t doParseInputForTlcc(SAnalysisOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id);
+static int32_t doSetResSlot(SAnalysisOperatorInfo* pInfo, SExprSupp* pExprSup);
+static int32_t doParseOption(SAnalysisOperatorInfo* pInfo, const char* id);
+static int32_t doCreateBuf(SAnalysisOperatorInfo* pInfo, const char* pId);
 static int32_t estResultRowsAfterImputation(int32_t rows, int64_t skey, int64_t ekey, int32_t prec, const char* pFreq, const char* id);
 static void    doInitImputOptions(SImputationSupp* pSupp);
 static void    doInitDtwOptions(SCorrelationSupp* pSupp);
 static int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id);
 static void    parseRadius(SCorrelationSupp* pSupp, SHashObj* pHashMap, const char* id);
 
-int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
-                                     SOperatorInfo** pOptrInfo) {
+int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
+                                          SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  size_t                    keyBufSize = 0;
-  int32_t                   num = 0;
-  SExprInfo*                pExprInfo = NULL;
-  int32_t                   numOfExprs = 0;
-  const char*               id = GET_TASKID(pTaskInfo);
-  SImputationFuncPhysiNode* pImputatNode = (SImputationFuncPhysiNode*)physiNode;
-  SExprSupp*                pExprSup = NULL;
-  SImputationSupp*          pSupp = NULL;
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    lino = 0;
+  size_t                     keyBufSize = 0;
+  int32_t                    num = 0;
+  SExprInfo*                 pExprInfo = NULL;
+  int32_t                    numOfExprs = 0;
+  const char*                id = GET_TASKID(pTaskInfo);
+  SGenericAnalysisPhysiNode* pAnalysisNode = (SGenericAnalysisPhysiNode*)physiNode;
+  SExprSupp*                 pExprSup = NULL;
 
-  SImputationOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SImputationOperatorInfo));
+  SAnalysisOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAnalysisOperatorInfo));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
     code = terrno;
     goto _error;
   }
 
-  pSupp = &pInfo->imputatSup;
-  pImputatNode = (SImputationFuncPhysiNode*)physiNode;
+  pAnalysisNode = (SGenericAnalysisPhysiNode*)physiNode;
   pExprSup = &pOperator->exprSupp;
 
-  code = createExprInfo(pImputatNode->pFuncs, NULL, &pExprInfo, &numOfExprs);
+  code = createExprInfo(pAnalysisNode->pFuncs, NULL, &pExprInfo, &numOfExprs);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = initExprSupp(pExprSup, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  if (pImputatNode->pExprs != NULL) {
+  if (pAnalysisNode->pExprs != NULL) {
     SExprInfo* pScalarExprInfo = NULL;
-    code = createExprInfo(pImputatNode->pExprs, NULL, &pScalarExprInfo, &num);
+    code = createExprInfo(pAnalysisNode->pExprs, NULL, &pScalarExprInfo, &num);
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  code = filterInitFromNode((SNode*)pImputatNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0, pTaskInfo->pStreamRuntimeInfo);
+  code = filterInitFromNode((SNode*)pAnalysisNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0, pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -156,16 +154,16 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
   }
 
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
-    doInitImputOptions(pSupp);
-    code = doParseInputForImputation(pInfo, pSupp, pImputatNode->pFuncs, id);
+    doInitImputOptions(&pInfo->imputatSup);
+    code = doParseInputForImputation(pInfo, &pInfo->imputatSup, pAnalysisNode->pFuncs, id);
     QUERY_CHECK_CODE(code, lino, _error);
   } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
     doInitDtwOptions(&pInfo->corrSupp);
-    code = doParseInputForDtw(pInfo, &pInfo->corrSupp, pImputatNode->pFuncs, id);
+    code = doParseInputForDtw(pInfo, &pInfo->corrSupp, pAnalysisNode->pFuncs, id);
     QUERY_CHECK_CODE(code, lino, _error);
   } else if (pInfo->analysisType == FUNCTION_TYPE_TLCC) {
     doInitDtwOptions(&pInfo->corrSupp);
-    code = doParseInputForTlcc(pInfo, &pInfo->corrSupp, pImputatNode->pFuncs, id);
+    code = doParseInputForTlcc(pInfo, &pInfo->corrSupp, pAnalysisNode->pFuncs, id);
     QUERY_CHECK_CODE(code, lino, _error);
   } else {
     code = TSDB_CODE_INVALID_PARA;
@@ -186,9 +184,9 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
   pInfo->binfo.pRes = createDataBlockFromDescNode(physiNode->pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
 
-  setOperatorInfo(pOperator, "ImputationOperator", QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC, false, OP_NOT_OPENED,
+  setOperatorInfo(pOperator, "GenericAnalyOptr", QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, imputationNext, NULL, imputatDestroyOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, imputationNext, NULL, analysisDestoryOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
@@ -207,7 +205,7 @@ _error:
     qError("%s %s failed at line %d since %s", id, __func__, lino, tstrerror(code));
   }
 
-  if (pInfo != NULL) imputatDestroyOperatorInfo(pInfo);
+  if (pInfo != NULL) analysisDestoryOperatorInfo(pInfo);
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
@@ -216,7 +214,7 @@ _error:
 static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
-  SImputationOperatorInfo* pInfo = pOperator->info;
+  SAnalysisOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   SOptrBasicInfo*          pBInfo = &pInfo->binfo;
   SSDataBlock*             pRes = pInfo->binfo.pRes;
@@ -281,8 +279,8 @@ _end:
   return code;
 }
 
-static void imputatDestroyOperatorInfo(void* param) {
-  SImputationOperatorInfo* pInfo = (SImputationOperatorInfo*)param;
+static void analysisDestoryOperatorInfo(void* param) {
+  SAnalysisOperatorInfo* pInfo = (SAnalysisOperatorInfo*)param;
   if (pInfo == NULL) return;
 
   cleanupBasicInfo(&pInfo->binfo);
@@ -399,7 +397,7 @@ int32_t doCacheBlockForDtw(SCorrelationSupp* pSupp, const char* id, SSDataBlock*
 
 }
 
-static int32_t doCacheBlock(SImputationOperatorInfo* pInfo, SSDataBlock* pBlock, const char* id) {
+static int32_t doCacheBlock(SAnalysisOperatorInfo* pInfo, SSDataBlock* pBlock, const char* id) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
 
@@ -412,7 +410,7 @@ static int32_t doCacheBlock(SImputationOperatorInfo* pInfo, SSDataBlock* pBlock,
   return code;
 }
 
-static int32_t finishBuildRequest(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, const char* id) {
+static int32_t finishBuildRequest(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, const char* id) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       code = 0;
 
@@ -501,7 +499,7 @@ static int32_t buildDtwPathResult(SJson* pathJson, SColumnInfoData* pResTargetCo
   }
 }
 
-static int32_t doAnalysisImpl(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
+static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       resCurRow = pBlock->info.rows;
   int64_t       tmpI64 = 0;
@@ -689,7 +687,7 @@ _OVER:
   return code;
 }
 
-static int32_t doAnalysis(SImputationOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo) {
+static int32_t doAnalysis(SAnalysisOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   char*                    id = GET_TASKID(pTaskInfo);
@@ -732,7 +730,7 @@ _end:
   return code;
 }
 
-static int32_t doParseInputForImputation(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SNodeList* pFuncs, const char* id) {
+static int32_t doParseInputForImputation(SAnalysisOperatorInfo* pInfo, SImputationSupp* pSupp, SNodeList* pFuncs, const char* id) {
   int32_t code = 0;
   SNode*  pNode = NULL;
 
@@ -811,7 +809,7 @@ static int32_t doParseInputForImputation(SImputationOperatorInfo* pInfo, SImputa
   return code;
 }
 
-int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id) {
+int32_t doParseInputForDtw(SAnalysisOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id) {
   int32_t code = 0;
   SNode*  pNode = NULL;
 
@@ -890,7 +888,7 @@ int32_t doParseInputForDtw(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSu
   return code;
 }
 
-static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id) {
+static int32_t doParseInputForTlcc(SAnalysisOperatorInfo* pInfo, SCorrelationSupp* pSupp, SNodeList* pFuncs, const char* id) {
   int32_t code = 0;
   SNode*  pNode = NULL;
 
@@ -969,7 +967,7 @@ static int32_t doParseInputForTlcc(SImputationOperatorInfo* pInfo, SCorrelationS
   return code;
 }
 
-static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SExprSupp* pExprSup) {
+static int32_t doSetResSlot(SAnalysisOperatorInfo* pInfo, SExprSupp* pExprSup) {
   pInfo->imputatSup.resTsSlot = -1;
   pInfo->resTargetSlot = -1;
   pInfo->imputatSup.resMarkSlot = -1;
@@ -1167,7 +1165,7 @@ int32_t estResultRowsAfterImputation(int32_t rows, int64_t skey, int64_t ekey, i
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doParseOption(SImputationOperatorInfo* pInfo, const char* id) {
+int32_t doParseOption(SAnalysisOperatorInfo* pInfo, const char* id) {
   int32_t   code = 0;
   int32_t   lino = 0;
   SHashObj* pHashMap = NULL;
@@ -1207,7 +1205,7 @@ _end:
   return code;
 }
 
-static int32_t doCreateBuf(SImputationOperatorInfo* pInfo, const char* pId) {
+static int32_t doCreateBuf(SAnalysisOperatorInfo* pInfo, const char* pId) {
   SBaseSupp* pSupp =
       (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) ? &pInfo->imputatSup.base : &pInfo->corrSupp.base;
 
@@ -1253,10 +1251,10 @@ _OVER:
 
 #else
 
-int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
+int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
-void imputatDestroyOperatorInfo(void* param) {}
+void analysisDestoryOperatorInfo(void* param) {}
 
 #endif

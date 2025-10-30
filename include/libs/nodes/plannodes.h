@@ -596,7 +596,7 @@ typedef struct SForecastFuncPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;
   SNodeList* pFuncs;
-} SForecastFuncPhysiNode, SImputationFuncPhysiNode;
+} SForecastFuncPhysiNode, SGenericAnalysisPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;

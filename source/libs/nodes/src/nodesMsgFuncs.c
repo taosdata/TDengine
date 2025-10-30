@@ -5087,7 +5087,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       code = physiInterpFuncNodeToMsg(pObj, pEncoder);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       code = physiForecastFuncNodeToMsg(pObj, pEncoder);
       break;
@@ -5254,7 +5254,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToPhysiInterpFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
-    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
       code = msgToPhysiForecastFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:

@@ -2409,8 +2409,8 @@ static int32_t createForecastFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
 
 static int32_t createImputationFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                              SImputationFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
-  SImputationFuncPhysiNode* pImputationFunc =
-      (SImputationFuncPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC);
+  SGenericAnalysisPhysiNode* pImputationFunc =
+      (SGenericAnalysisPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC);
   if (NULL == pImputationFunc) {
     return terrno;
   }
@@ -3212,7 +3212,7 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createIndefRowsFuncPhysiNode(pCxt, pChildren, (SIndefRowsFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       return createInterpFuncPhysiNode(pCxt, pChildren, (SInterpFuncLogicNode*)pLogicNode, pPhyNode);
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       return createImputationFuncPhysiNode(pCxt, pChildren, (SImputationFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       return createForecastFuncPhysiNode(pCxt, pChildren, (SForecastFuncLogicNode*)pLogicNode, pPhyNode);
