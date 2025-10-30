@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import datetime, time
 from enum import Enum
 import binascii
@@ -249,7 +250,7 @@ class TDTestCase:
     def __insert_query_common(self, dbname="db", stbname="", ctbname="", ntbname="", oklist=[], kolist=[], okv=None, dtype = TDDataType.NULL):
         tdLog.info(f'[Begin]{dbname}.{stbname} {ctbname}, oklist:%d, kolist:%d, TDDataType:%s'%(len(oklist), len(kolist), dtype))
         # tdSql.checkEqual(34, len(oklist) + len(kolist))
-
+        tdSql = tdCom.newtdSql()
         for _l in kolist:
             for _e in _l:
                 # tdLog.info(f'[ko:verify value "{_e}"]')
@@ -511,8 +512,10 @@ class TDTestCase:
                       ]
 
         # check with common function
-        for _pl in PARAM_LIST:
-            self.__insert_query_common(_pl[0], _pl[1], _pl[2], _pl[3], _pl[4], _pl[5], _pl[6], _pl[7])
+        # for _pl in PARAM_LIST:
+        #     self.__insert_query_common(_pl[0], _pl[1], _pl[2], _pl[3], _pl[4], _pl[5], _pl[6], _pl[7])
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            executor.map(lambda params: self.__insert_query_common(*params), PARAM_LIST)
         # check json
         self.__insert_query_json("db", "stb_js", "ctb_js", OK_JS, KO_JS, "\'{\"k1\":\"v1\",\"k2\":\"v2\"}\'")
 
