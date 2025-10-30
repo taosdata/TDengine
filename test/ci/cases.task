@@ -1,4 +1,4 @@
-#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#priority,rerunTimes,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 
 
@@ -10,9 +10,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal1.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal2.py
-,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal3.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal1.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal2.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal3.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py
@@ -434,9 +434,9 @@
 
 # 15-TagIndices
 
-,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_create_drop.py 
-,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_overflow.py 
-,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_perf.py 
+,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_create_drop.py
+,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_overflow.py
+,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_perf.py
 
 # 16-Views
 
@@ -489,6 +489,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/01-Snode/test_snode_privileges_twodb.py
 ## 02-Stream
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_schema.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_td37724.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_check_name.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_long_name.py
@@ -519,7 +520,7 @@
 ## 05-Notify
 ,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_notify.py
 ## 06-ResultSaved
-,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py 
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_1.py
@@ -547,10 +548,10 @@
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_tobacco.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_vehicle.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_yuxi.py
-,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_nevados.py 
+,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_nevados.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_case4.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_case5.py
-,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
+,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_phase1.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case1.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case2.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py
@@ -580,22 +581,22 @@
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
 ## 31-OldCases
-,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
-,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
+,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py
+,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
-,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py 
-,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
+,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
+,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
 # 19-TSMAs
 
-,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
 
 # 20-RSMAs
 
-,,y,.,./ci/pytest.sh pytest cases/20-RSMAs/test_rsma.py
+90,,y,.,./ci/pytest.sh pytest cases/20-RSMAs/test_rsma.py
 
 # 21-MetaData
 
@@ -609,21 +610,21 @@
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_db.py
-,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_diskinfo.py 
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_diskinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_table_distributed.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_tables.py
 
 # 24-Users
 
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_basic.py
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_crypted_pass.py 
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_password.py 
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_create_db.py 
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_db.py 
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_sysinfo.py 
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py 
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py 
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py 
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_crypted_pass.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_password.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_create_db.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_db.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_sysinfo.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
 ,,n,.,pytest cases/24-Users/test_user_passwd.py
 
 # 25-Privileges
@@ -633,7 +634,7 @@
 # 26-NodeManager
 
 ## 01-Dnode
-,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_alter_dnode.py 
+,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_alter_dnode.py
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_create_dnode.py -N 2 -C 1
 #failed,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_drop_dnode_force.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_drop_dnode_has_mnode.py -N 2
@@ -724,7 +725,7 @@
 
 # 82-UnitTest
 
-,,n,cases,bash 82-UnitTest/test.sh
+100,,n,cases,bash 82-UnitTest/test.sh
 
 # 83-DocTest
 
@@ -997,7 +998,7 @@
 
 
 # ​​​Special gap before priority support
-,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
+90,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_system_insert_select.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_odbc.py
@@ -1018,7 +1019,7 @@
 ,,n,.,pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
 
 ### 6-cluster
-,,n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
+90,,n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_create_db_replica1.py -N 4 -M 1
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1

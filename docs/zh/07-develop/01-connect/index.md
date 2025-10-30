@@ -99,7 +99,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
     - 指定某个特定版本安装
 
             ```
-            pip3 install taospy==2.8.5
+            pip3 install taospy==2.8.6
             ```
 
     - 从 GitHub 安装

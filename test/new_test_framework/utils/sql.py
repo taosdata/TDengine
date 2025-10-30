@@ -298,8 +298,6 @@ class TDSql:
                     return self.queryResult
                 return self.queryRows
             except Exception as e:
-                if exit:
-                    tdLog.notice("Try to query again, query times: %d " % i)
                 if i == queryTimes:
                     if exit:
                         caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -308,6 +306,8 @@ class TDSql:
                         raise Exception(repr(e))
                     else:
                         return False
+                if exit:
+                    tdLog.notice("Try to query again, query times: %d " % i)
                 i += 1
                 time.sleep(1)
                 pass
@@ -882,6 +882,19 @@ class TDSql:
             SystemExit: If the specified row or column is out of range.
         """
         self.checkRowCol(row, col)
+        return self.queryResult[row][col]
+    
+    def getDataWithOutCheck(self, row, col):
+        """
+        Retrieves the data at the specified row and column from the last query result.
+        Args:
+            row (int): The row index of the data to be retrieved.
+            col (int): The column index of the data to be retrieved.
+        Returns:
+            The data at the specified row and column.
+        Raises:
+            IndexError: If the specified row or column is out of range.
+        """
         return self.queryResult[row][col]
 
     def getColData(self, col):
