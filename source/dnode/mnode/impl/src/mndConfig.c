@@ -59,6 +59,7 @@ static int32_t mndExecuteConfigSyncTrans(SMnode *pMnode, SArray *addArray, SArra
 
 int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigObj *obj);
 int32_t mndSetDeleteConfigCommitLogs(STrans *pTrans, SConfigObj *item);
+int32_t mndSetCreateConfigPrepareLogs(STrans *pTrans, SConfigObj *obj);
 
 int32_t mndInitConfig(SMnode *pMnode) {
   int32_t   code = 0;
@@ -430,7 +431,10 @@ int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigObj *item) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw) != 0)) TAOS_RETURN(code);
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    taosMemoryFree(pCommitRaw);
+    TAOS_RETURN(code);
+  }
   if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) TAOS_RETURN(code);
   return TSDB_CODE_SUCCESS;
 }
@@ -442,8 +446,26 @@ int32_t mndSetDeleteConfigCommitLogs(STrans *pTrans, SConfigObj *item) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw) != 0)) TAOS_RETURN(code);
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+    taosMemoryFree(pCommitRaw);
+    TAOS_RETURN(code);
+  }
   if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) TAOS_RETURN(code);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mndSetCreateConfigPrepareLogs(STrans *pTrans, SConfigObj *item) {
+  int32_t  code = 0;
+  SSdbRaw *pPrepareRaw = mnCfgActionEncode(item);
+  if (pPrepareRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  if ((code = mndTransAppendPrepareLog(pTrans, pPrepareRaw)) != 0) {
+    taosMemoryFree(pPrepareRaw);
+    TAOS_RETURN(code);
+  }
+  if ((code = sdbSetRawStatus(pPrepareRaw, SDB_STATUS_READY)) != 0) TAOS_RETURN(code);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1028,7 +1050,11 @@ static int32_t mndConfigUpdateTransWithDnode(SMnode *pMnode, const char *name, c
   }
   mInfo("trans:%d, used to update config:%s to value:%s and send to dnode", pTrans->id, name, pValue);
 
-  // Add commit logs for SDB config updates
+  // Add prepare logs for SDB config updates (execute in PREPARE stage, before redo actions)
+  TAOS_CHECK_GOTO(mndSetCreateConfigPrepareLogs(pTrans, pVersion), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateConfigPrepareLogs(pTrans, pObj), &lino, _OVER);
+
+  // Add commit logs for transaction persistence
   TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pVersion), &lino, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateConfigCommitLogs(pTrans, pObj), &lino, _OVER);
 
