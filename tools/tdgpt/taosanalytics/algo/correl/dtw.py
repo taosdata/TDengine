@@ -30,3 +30,4 @@ class _DtwService(AbstractCorrelationService):
                 raise ValueError("radius value out of range, valid range [1, 10]")
 
             self.radius = k
+            app_logger.log_inst.debug("dtw radius is set to: %d", self.radius)

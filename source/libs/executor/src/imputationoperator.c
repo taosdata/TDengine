@@ -86,7 +86,7 @@ typedef struct {
   SCorrelationSupp corrSupp;
 } SAnalysisOperatorInfo;
 
-static void    analysisDestoryOperatorInfo(void* param);
+static void    analysisDestroyOperatorInfo(void* param);
 static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 static int32_t doAnalysis(SAnalysisOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo);
 static int32_t doCacheBlock(SAnalysisOperatorInfo* pInfo, SSDataBlock* pBlock, const char* id);
@@ -186,7 +186,7 @@ int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   setOperatorInfo(pOperator, "GenericAnalyOptr", QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC, false, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, imputationNext, NULL, analysisDestoryOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, imputationNext, NULL, analysisDestroyOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
@@ -205,23 +205,47 @@ _error:
     qError("%s %s failed at line %d since %s", id, __func__, lino, tstrerror(code));
   }
 
-  if (pInfo != NULL) analysisDestoryOperatorInfo(pInfo);
+  if (pInfo != NULL) analysisDestroyOperatorInfo(pInfo);
   destroyOperatorAndDownstreams(pOperator, &downstream, 1);
   pTaskInfo->code = code;
   return code;
 }
 
+static int32_t getBaseSupp(SAnalysisOperatorInfo* pInfo, SBaseSupp** ppSupp, const char* pId) {
+  int32_t code = 0;
+  *ppSupp = NULL;
+
+  switch (pInfo->analysisType) {
+    case FUNCTION_TYPE_IMPUTATION:
+      *ppSupp = &pInfo->imputatSup.base;
+      break;
+    case FUNCTION_TYPE_DTW:
+    case FUNCTION_TYPE_DTW_PATH:
+    case FUNCTION_TYPE_TLCC:
+      *ppSupp = &pInfo->corrSupp.base;
+      break;
+    default:
+      // Handle error: unknown analysis type
+      code = TSDB_CODE_INVALID_PARA;
+      qError("%s unknown analysis type: %d", pId, pInfo->analysisType);
+  }
+
+  return code;
+}
+
 static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t                  code = TSDB_CODE_SUCCESS;
-  int32_t                  lino = 0;
+  int32_t                code = TSDB_CODE_SUCCESS;
+  int32_t                lino = 0;
   SAnalysisOperatorInfo* pInfo = pOperator->info;
-  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
-  SOptrBasicInfo*          pBInfo = &pInfo->binfo;
-  SSDataBlock*             pRes = pInfo->binfo.pRes;
-  int64_t                  st = taosGetTimestampUs();
-  const char*              idstr = GET_TASKID(pTaskInfo);
-  SBaseSupp*               pSupp =
-      (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) ? &pInfo->imputatSup.base : &pInfo->corrSupp.base;
+  SExecTaskInfo*         pTaskInfo = pOperator->pTaskInfo;
+  SOptrBasicInfo*        pBInfo = &pInfo->binfo;
+  SSDataBlock*           pRes = pInfo->binfo.pRes;
+  int64_t                st = taosGetTimestampUs();
+  const char*            idstr = GET_TASKID(pTaskInfo);
+  SBaseSupp*             pSupp = NULL;
+
+  code = getBaseSupp(pInfo, &pSupp, idstr);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   int32_t numOfBlocks = taosArrayGetSize(pSupp->pBlocks);
   blockDataCleanup(pRes);
@@ -279,7 +303,7 @@ _end:
   return code;
 }
 
-static void analysisDestoryOperatorInfo(void* param) {
+static void analysisDestroyOperatorInfo(void* param) {
   SAnalysisOperatorInfo* pInfo = (SAnalysisOperatorInfo*)param;
   if (pInfo == NULL) return;
 
@@ -355,12 +379,6 @@ int32_t doCacheBlockForDtw(SCorrelationSupp* pSupp, const char* id, SSDataBlock*
   SAnalyticBuf* pBuf = &pSupp->base.analyBuf;
   int32_t code = 0;
 
-  // if (pSupp->base.numOfRows > ANALY_IMPUTATION_INPUT_MAX_ROWS) {
-  //   qError("%s too many rows for imputation, maximum allowed:%d, input:%d", id, ANALY_IMPUTATION_INPUT_MAX_ROWS,
-  //          pSupp->base.numOfRows);
-  //   return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
-  // }
-
   pSupp->base.numOfBlocks++;
   qDebug("%s block:%d, %p rows:%" PRId64, id, pSupp->base.numOfBlocks, pBlock, pBlock->info.rows);
 
@@ -417,7 +435,7 @@ static int32_t finishBuildRequest(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp
   // let's check existed rows for imputation
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     if (pSupp->numOfRows < ANALY_IMPUTATION_INPUT_MIN_ROWS) {
-      qError("%s history rows for forecasting not enough, min required:%d, current:%d", id, ANALY_FORECAST_MIN_ROWS,
+      qError("%s input rows for imputation aren't enough, min required:%d, current:%d", id, ANALY_IMPUTATION_INPUT_MIN_ROWS,
              pSupp->numOfRows);
       return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
     }
@@ -866,7 +884,7 @@ int32_t doParseInputForDtw(SAnalysisOperatorInfo* pInfo, SCorrelationSupp* pSupp
           }
 
           int32_t ret = snprintf(pInfo->options, bufLen, "%s,%s", pOptNode->literal, "algo=dtw");
-          if (ret < 0) {
+          if (ret < 0 || ret >= bufLen) {
             code = TSDB_CODE_OUT_OF_MEMORY;
             qError("%s failed to clone options string, code:%s", id, tstrerror(code));
             return code;
@@ -1183,13 +1201,15 @@ int32_t doParseOption(SAnalysisOperatorInfo* pInfo, const char* id) {
     type = ANALY_ALGO_TYPE_CORREL;
   }
 
-  code = taosAnalysisParseAlgo(pInfo->options, pInfo->algoName, pInfo->algoUrl, type,
-                               tListLen(pInfo->algoUrl), pHashMap, id);
+  code = taosAnalysisParseAlgo(pInfo->options, pInfo->algoName, pInfo->algoUrl, type, tListLen(pInfo->algoUrl),
+                               pHashMap, id);
   TSDB_CHECK_CODE(code, lino, _end);
 
   // extract the timeout parameter
-  pInfo->imputatSup.base.timeout = taosAnalysisParseTimout(pHashMap, id);
-  pInfo->imputatSup.base.wncheck = taosAnalysisParseWncheck(pHashMap, id);
+  SBaseSupp* pSupp =
+      (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) ? &pInfo->imputatSup.base : &pInfo->corrSupp.base;
+  pSupp->timeout = taosAnalysisParseTimout(pHashMap, id);
+  pSupp->wncheck = taosAnalysisParseWncheck(pHashMap, id);
 
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     // extract data freq
@@ -1255,6 +1275,6 @@ int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
                                      SOperatorInfo** pOptrInfo) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
-void analysisDestoryOperatorInfo(void* param) {}
+void analysisDestroyOperatorInfo(void* param) {}
 
 #endif

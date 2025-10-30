@@ -6714,7 +6714,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateDtwPseudoColumn,
     .getEnvFunc   = getMarkPseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = anomalyCheckMarkFunction,
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
       {
@@ -6736,7 +6736,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateDtwPathPseudoColumn,
     .getEnvFunc   = getMarkPseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = anomalyCheckMarkFunction,
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
     {
@@ -6747,7 +6747,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateDtwPathPseudoColumn,
     .getEnvFunc   = getMarkPseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = anomalyCheckMarkFunction,
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
 };
