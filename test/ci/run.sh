@@ -117,10 +117,10 @@ done
 function prepare_cases() {
     {
         # 1. 有数字的行按数字逆序排序
-        grep "^[0-9]" $t_file | sort -nr
+        grep "^[0-9]" "$t_file" | sort -nr
         # 2. 无数字且非注释且非空的行保持原顺序
-        grep -v "^[0-9]" $t_file | grep -v "^#" | grep -v "^$"
-    } > $task_file
+        grep -v "^[0-9]" "$t_file" | grep -v "^#" | grep -v "^$"
+    } > "$task_file"
     echo "" >>"$task_file"
     local i=0
     while [ $i -lt "$1" ]; do
@@ -164,6 +164,7 @@ function transfer_debug_dirs() {
     if [ ${#hosts[@]} -le 1 ]; then
         return 0
     fi
+
     local i=0
     while [ $i -lt ${#hosts[*]} ]; do
         if is_local_host "${hosts[i]}"; then
@@ -172,6 +173,7 @@ function transfer_debug_dirs() {
         fi
         i=$((i + 1))
     done
+
     cd "$local_work_dir"
     rm -rf debug.tar.gz
     tar -czf debug.tar.gz \
@@ -195,6 +197,7 @@ function transfer_debug_dirs() {
         debugNoSan/build/lib/*.so \
         debugNoSan/build/share \
         debugNoSan/build/include
+
     local index=0
     while [ $index -lt ${#hosts[*]} ]; do
         if ! is_local_host "${hosts[index]}"; then
@@ -213,6 +216,7 @@ function transfer_debug_dirs() {
         fi
         index=$((index + 1))
     done
+
     rm -rf debug.tar.gz
 }
 
@@ -259,7 +263,7 @@ function run_thread() {
         local case_redo_time
         case_redo_time=$(echo "$line" | cut -d, -f2)
         if [ -z "$case_redo_time" ]; then
-            case_redo_time=2 #${DEFAULT_RETRY_TIME:-1}
+            case_redo_time=2 # ${DEFAULT_RETRY_TIME:-1}
         fi
         local case_build_san
         case_build_san=$(echo "$line" | cut -d, -f3)
@@ -442,7 +446,7 @@ function run_thread() {
             cat "$case_log_file"
             echo "====================================================="
             echo -e "\e[34m log file: $case_log_file \e[0m"
-            
+
             if [ -n "${web_server}" ]; then
                 echo "${web_server}/$test_log_dir/${case_file}.txt"
             fi
@@ -550,6 +554,7 @@ while [ $i -lt ${#hosts[*]} ]; do
     j=$((j + threads[i]))
     i=$((i + 1))
 done
+
 # prepare cases
 prepare_cases $j
 
