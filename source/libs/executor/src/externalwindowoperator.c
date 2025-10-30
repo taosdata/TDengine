@@ -1783,7 +1783,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   blockDataCleanup(pBlock);
   taosArrayClear(pExtW->pWinRowIdx);
 
-  for (int32_t i = 0; i < pExtW->pWins->size; ++i) {
+  for (int32_t i = pExtW->outputWinId; i < pExtW->pWins->size; ++i, pExtW->outputWinId += 1) {
     SExtWinTimeWindow* pWin = taosArrayGet(pExtW->pWins, i);
     int32_t            winIdx = pWin->winOutIdx;
     if (winIdx < 0) {
