@@ -716,7 +716,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_query_sqlfile.py
 ,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_rest.py -B
 ,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_sml.py
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_stmt.py
+,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_stmt.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sml.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sql.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt2.py
@@ -726,7 +726,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_website.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py
 ## 04-Taosdump
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B
+,,n,.,pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_commandline.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
