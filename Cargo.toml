@@ -140,7 +140,7 @@ deadpool = "=0.10"
 tokio-process-terminate = { version = "0.3" }
 ringbuf = { version = "0.4" }
 toml = "0.9"
-mongodb = { version = "3.0.0", features = [
+mongodb = { version = "3.3.0", features = [
   "aws-auth",
   "zstd-compression",
   "zlib-compression",
@@ -215,7 +215,7 @@ archive = { path = "./crates/archive" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "2c76f72"
+rev = "138d9889"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
