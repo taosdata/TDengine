@@ -1761,6 +1761,44 @@ int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t shaFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int32_t          bufLen = TMAX(SHA1_OUTPUT_LEN + VARSTR_HEADER_SIZE + 1, pInputData->info.bytes);
+  char            *pOutputBuf = taosMemoryMalloc(bufLen);
+  if (!pOutputBuf) {
+    qError("md5 function alloc memory failed");
+    return terrno;
+  }
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    char *input = colDataGetData(pInput[0].columnData, i);
+    if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
+      bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
+      pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
+      if (!pOutputBuf) {
+        qError("md5 function alloc memory failed");
+        return terrno;
+      }
+    }
+    char *output = pOutputBuf;
+    (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
+    int32_t len = taosCreateSHA1Hash(varDataVal(output), varDataLen(input));
+    varDataSetLen(output, len);
+    int32_t code = colDataSetVal(pOutputData, i, output, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFree(pOutputBuf);
+      SCL_ERR_RET(code);
+    }
+  }
+  pOutput->numOfRows = pInput->numOfRows;
+  taosMemoryFree(pOutputBuf);
+  return TSDB_CODE_SUCCESS;
+}
+
 /* pre-calculated table for 32-bit CRC */
 static uint32_t crc32_table[] = {
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3, 0x0EDB8832,

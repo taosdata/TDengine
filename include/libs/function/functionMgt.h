@@ -122,7 +122,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_FIND_IN_SET,
   FUNCTION_TYPE_LIKE_IN_SET,
   FUNCTION_TYPE_REGEXP_IN_SET,
-
+  FUNCTION_TYPE_SHA1,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -174,19 +174,19 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IROWTS_ORIGIN,
   FUNCTION_TYPE_GROUP_ID,
   FUNCTION_TYPE_IS_WINDOW_FILLED,
-  FUNCTION_TYPE_TPREV_TS,           // _tprev_ts
-  FUNCTION_TYPE_TCURRENT_TS,        // _tcurrent_ts
-  FUNCTION_TYPE_TNEXT_TS,           // _tnext_ts
-  FUNCTION_TYPE_TWSTART,            // _twstart
-  FUNCTION_TYPE_TWEND,              // _twend
-  FUNCTION_TYPE_TWDURATION,         // _twduration
-  FUNCTION_TYPE_TWROWNUM,           // _twrownum
-  FUNCTION_TYPE_TPREV_LOCALTIME,    // _tprev_localtime
-  FUNCTION_TYPE_TNEXT_LOCALTIME,    // _tnext_localtime
-  FUNCTION_TYPE_TLOCALTIME,         // _tlocaltime
-  FUNCTION_TYPE_TGRPID,             // _tgrpid
-  FUNCTION_TYPE_PLACEHOLDER_COLUMN, // %%n
-  FUNCTION_TYPE_PLACEHOLDER_TBNAME, // %%tbname
+  FUNCTION_TYPE_TPREV_TS,            // _tprev_ts
+  FUNCTION_TYPE_TCURRENT_TS,         // _tcurrent_ts
+  FUNCTION_TYPE_TNEXT_TS,            // _tnext_ts
+  FUNCTION_TYPE_TWSTART,             // _twstart
+  FUNCTION_TYPE_TWEND,               // _twend
+  FUNCTION_TYPE_TWDURATION,          // _twduration
+  FUNCTION_TYPE_TWROWNUM,            // _twrownum
+  FUNCTION_TYPE_TPREV_LOCALTIME,     // _tprev_localtime
+  FUNCTION_TYPE_TNEXT_LOCALTIME,     // _tnext_localtime
+  FUNCTION_TYPE_TLOCALTIME,          // _tlocaltime
+  FUNCTION_TYPE_TGRPID,              // _tgrpid
+  FUNCTION_TYPE_PLACEHOLDER_COLUMN,  // %%n
+  FUNCTION_TYPE_PLACEHOLDER_TBNAME,  // %%tbname
   FUNCTION_TYPE_IMPUTATION_ROWTS,
   FUNCTION_TYPE_IMPUTATION_MARK,
   FUNCTION_TYPE_ANOMALY_MARK,
@@ -395,9 +395,10 @@ int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncEx
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo);
 
-void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data, int32_t* dataLen);
-int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
-
+void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, void** data,
+                                    int32_t* dataLen);
+int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes,
+                                      const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
 
 #ifdef __cplusplus
 }

@@ -125,9 +125,8 @@ enum {
   TMQ_MSG_TYPE__POLL_RAW_DATA_RSP,
 };
 
-static const char* const tmqMsgTypeStr[] = {
-    "data", "meta", "ask ep", "meta data", "wal info", "batch meta", "raw data"
-};
+static const char* const tmqMsgTypeStr[] = {"data",     "meta",       "ask ep",  "meta data",
+                                            "wal info", "batch meta", "raw data"};
 
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
@@ -441,9 +440,9 @@ typedef struct STUidTagInfo {
 #define TABLE_NAME_COLUMN_INDEX         6
 #define PRIMARY_KEY_COLUMN_INDEX        7
 
-//steam get result block column
-#define DATA_TS_COLUMN_INDEX            0
-#define DATA_VERSION_COLUMN_INDEX       1
+// steam get result block column
+#define DATA_TS_COLUMN_INDEX      0
+#define DATA_VERSION_COLUMN_INDEX 1
 
 // stream create table block column
 #define UD_TABLE_NAME_COLUMN_INDEX 0
@@ -458,6 +457,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePat
 
 #define TSMA_RES_STB_POSTFIX          "_tsma_res_stb_"
 #define MD5_OUTPUT_LEN                32
+#define SHA1_OUTPUT_LEN               40
 #define TSMA_RES_STB_EXTRA_COLUMN_NUM 4  // 3 columns: _wstart, _wend, _wduration, 1 tag: tbname
 
 static inline bool isTsmaResSTb(const char* stbName) {

@@ -20,6 +20,7 @@
 #include "tdef.h"
 #include "thash.h"
 #include "tmd5.h"
+#include "tsha.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -215,15 +216,26 @@ static FORCE_INLINE int32_t taosHashBinary(char *pBuf, int32_t len) {
 
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
   T_MD5_CTX ctx;
+
   tMD5Init(&ctx);
   tMD5Update(&ctx, (uint8_t *)pBuf, len);
   tMD5Final(&ctx);
-  char   *p = pBuf;
-  int32_t resLen = 0;
+
   return sprintf(pBuf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", ctx.digest[0], ctx.digest[1],
                  ctx.digest[2], ctx.digest[3], ctx.digest[4], ctx.digest[5], ctx.digest[6], ctx.digest[7],
                  ctx.digest[8], ctx.digest[9], ctx.digest[10], ctx.digest[11], ctx.digest[12], ctx.digest[13],
                  ctx.digest[14], ctx.digest[15]);
+}
+
+static FORCE_INLINE int32_t taosCreateSHA1Hash(char *pBuf, int32_t len) {
+  uint8_t result[21] = {0};
+
+  tSHA1(result, pBuf, len);
+
+  return sprintf(pBuf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", result[0],
+                 result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
+                 result[10], result[11], result[12], result[13], result[14], result[15], result[16], result[17],
+                 result[18], result[19]);
 }
 
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
@@ -301,7 +313,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)
 
-#define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
+#define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
 
 #define TAOS_GET_TERRNO(code) (terrno == 0 ? code : terrno)
 
