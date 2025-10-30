@@ -59,7 +59,9 @@ typedef enum EExtWinMode {
 #define IS_INVALID_SESSION_WIN_KEY(winKey)   ((winKey).win.skey <= 0)
 #define SET_SESSION_WIN_KEY_INVALID(pWinKey) ((pWinKey)->win.skey = INT64_MIN)
 
+#define IS_NON_STREAM_MODE(_task) ((_task)->execModel != OPTR_EXEC_MODEL_STREAM)
 #define IS_STREAM_MODE(_task) ((_task)->execModel == OPTR_EXEC_MODEL_STREAM)
+#define IS_STREAM_SINGLE_GRP(_task) (!(_task)->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc)
 
 /**
  * If the number of generated results is greater than this value,

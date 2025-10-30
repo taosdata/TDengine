@@ -4070,6 +4070,10 @@ void tDestroySStreamGroupValue(void* ptr) {
 static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParams, bool ignoreNotificationInfo) {
   int32_t size = 0, code = 0, lino = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &size));
+  if (size <= 0) {
+    return code;
+  }
+  
   *ppParams = taosArrayInit(size, sizeof(SSTriggerCalcParam));
   if (*ppParams == NULL) {
     TAOS_CHECK_EXIT(terrno);
@@ -4545,13 +4549,61 @@ _exit:
   return code;
 }
 
-int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full) {
+int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo) {
   int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true, full));
-  TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals, -1));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pInfo->isMultiGroupCalc));
+  TAOS_CHECK_EXIT(tEncodeBool(pEncoder, needStreamRtInfo));
+  TAOS_CHECK_EXIT(tEncodeBool(pEncoder, needStreamGrpInfo));
+  if (pInfo->isMultiGroupCalc) {
+    if (!needStreamRtInfo) {
+      uError("stream mutil group while runtime info not need");
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+    
+    if (needStreamGrpInfo) {
+      int32_t nGroups = taosArrayGetSize(pInfo->curGrpRead);
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nGroups));
+      for (int32_t i = 0; i < nGroups; ++i) {
+        SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfo->curGrpRead, i);
+        TAOS_CHECK_EXIT(tSerializeSSTriggerGroupReadInfo(pEncoder, pReadInfo));
+      }
+    } else {
+      int32_t nGroups = tSimpleHashGetSize(pInfo->pGroupCalcInfos);
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nGroups));
+      int32_t                 iter1 = 0;
+      SSTriggerGroupCalcInfo* pCalcInfo = tSimpleHashIterate(pInfo->pGroupCalcInfos, NULL, &iter1);
+      while (pCalcInfo != NULL) {
+        int64_t* gid = tSimpleHashGetKey(pCalcInfo, NULL);
+        TAOS_CHECK_EXIT(tEncodeI64(pEncoder, *gid));
+        TAOS_CHECK_EXIT(tSerializeSSTriggerGroupCalcInfo(pEncoder, pCalcInfo));
+        pCalcInfo = tSimpleHashIterate(pInfo->pGroupCalcInfos, pCalcInfo, &iter1);
+      }
+
+      int32_t nVnodes = tSimpleHashGetSize(pInfo->pGroupReadInfos);
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nVnodes));
+      int32_t iter2 = 0;
+      void*   px = tSimpleHashIterate(pInfo->pGroupReadInfos, NULL, &iter2);
+      while (px != NULL) {
+        int32_t* vgId = tSimpleHashGetKey(px, NULL);
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *vgId));
+        SArray* pInfos = *(SArray**)px;
+        int32_t nGroups = taosArrayGetSize(pInfos);
+        TAOS_CHECK_EXIT(tEncodeI32(pEncoder, nGroups));
+        for (int32_t i = 0; i < nGroups; ++i) {
+          SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfos, i);
+          TAOS_CHECK_EXIT(tSerializeSSTriggerGroupReadInfo(pEncoder, pReadInfo));
+        }
+        px = tSimpleHashIterate(pInfo->pGroupReadInfos, px, &iter2);
+      }
+    }
+  } else {
+    TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true, needStreamRtInfo));
+    TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(pEncoder, pInfo->pStreamPartColVals, -1));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
+  }
+  
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->curWindow.skey));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->curWindow.ekey));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->groupId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->curIdx));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pInfo->sessionId));
   TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pInfo->withExternalWindow));
@@ -4563,11 +4615,72 @@ _exit:
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo) {
   int32_t code = 0, lino = 0;
   int32_t size = 0;
-  TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(pDecoder, &pInfo->pStreamPesudoFuncVals, true));
-  TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(pDecoder, &pInfo->pStreamPartColVals));
+  bool needStreamRtInfo = false;
+  bool needStreamGrpInfo = false;
+  
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pInfo->isMultiGroupCalc));
+  TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &needStreamRtInfo));
+  TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &needStreamGrpInfo));
+  
+  if (pInfo->isMultiGroupCalc) {
+    if (needStreamGrpInfo) {
+      int32_t nGroups = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nGroups));
+      SArray* pInfos = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), nGroups);
+      QUERY_CHECK_NULL(pInfos, code, lino, _exit, terrno);
+      for (int32_t j = 0; j < nGroups; ++j) {
+        SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfos, j);
+        TAOS_CHECK_EXIT(tDeserializeSSTriggerGroupReadInfo(pDecoder, pReadInfo));
+      }
+    } else {
+      int32_t nGroups = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nGroups));
+      pInfo->pGroupCalcInfos = tSimpleHashInit(nGroups, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+      QUERY_CHECK_NULL(pInfo->pGroupCalcInfos, code, lino, _exit, terrno);
+      tSimpleHashSetFreeFp(pInfo->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+
+      for (int32_t i = 0; i < nGroups; i++) {
+        int64_t gid = 0;
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &gid));
+        SSTriggerGroupCalcInfo info = {0};
+        TAOS_CHECK_EXIT(tSimpleHashPut(pInfo->pGroupCalcInfos, &gid, sizeof(int64_t), &info, sizeof(info)));
+        SSTriggerGroupCalcInfo* pCalcInfo = tSimpleHashGet(pInfo->pGroupCalcInfos, &gid, sizeof(int64_t));
+        QUERY_CHECK_NULL(pCalcInfo, code, lino, _exit, TSDB_CODE_INTERNAL_ERROR);
+        TAOS_CHECK_EXIT(tDeserializeSSTriggerGroupCalcInfo(pDecoder, pCalcInfo));
+      }
+
+      int32_t nVnodes = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nVnodes));
+      pInfo->pGroupReadInfos = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+      QUERY_CHECK_NULL(pInfo->pGroupReadInfos, code, lino, _exit, terrno);
+      tSimpleHashSetFreeFp(pInfo->pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
+      for (int32_t i = 0; i < nVnodes; i++) {
+        int32_t vgId = 0;
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgId));
+        int32_t nGroups = 0;
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nGroups));
+        SArray* pInfos = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), nGroups);
+        QUERY_CHECK_NULL(pInfos, code, lino, _exit, terrno);
+        code = tSimpleHashPut(pInfo->pGroupReadInfos, &vgId, sizeof(int32_t), &pInfos, POINTER_BYTES);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pInfos);
+          TAOS_CHECK_EXIT(code);
+        }
+        for (int32_t j = 0; j < nGroups; ++j) {
+          SSTriggerGroupReadInfo* pReadInfo = TARRAY_GET_ELEM(pInfos, j);
+          TAOS_CHECK_EXIT(tDeserializeSSTriggerGroupReadInfo(pDecoder, pReadInfo));
+        }
+      }
+    }
+
+  } else {
+    TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(pDecoder, &pInfo->pStreamPesudoFuncVals, true));
+    TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(pDecoder, &pInfo->pStreamPartColVals));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->groupId));
+  }
+  
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->curWindow.skey));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->curWindow.ekey));
-  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->groupId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pInfo->curIdx));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pInfo->sessionId));
   TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->withExternalWindow));
@@ -4586,6 +4699,14 @@ void tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
     taosArrayDestroyEx(pInfo->pStreamPartColVals, tDestroySStreamGroupValue);
     pInfo->pStreamPartColVals = NULL;
   }
+  if (pInfo->pGroupCalcInfos != NULL) {
+    tSimpleHashCleanup(pInfo->pGroupCalcInfos);
+    pInfo->pGroupCalcInfos = NULL;
+  }
+  if (pInfo->pGroupReadInfos != NULL) {
+    tSimpleHashCleanup(pInfo->pGroupReadInfos);
+    pInfo->pGroupReadInfos = NULL;
+  }  
 }
 
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp){

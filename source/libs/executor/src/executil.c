@@ -3264,7 +3264,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
   return code;
 }
 
-int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
+int32_t createNonStreamScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                 SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap) {
   int64_t     st = taosGetTimestampUs();
@@ -3309,6 +3309,72 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
+                                SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap) {
+  int32_t code = 0, lino = 0;
+  const char* idStr = GET_TASKID(pTaskInfo);
+  SStreamRuntimeFuncInfo* pStream = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+
+  STableKeyInfo tableKey;
+  int32_t grpNum = taosArrayGetSize(pStream->curGrpRead);
+  int32_t tblNum = 0, idx = 0;
+  for (int32_t i = 0; i < grpNum; ++i) {
+    SSTriggerGroupReadInfo* pGrp = taosArrayGet(pStream->curGrpRead, i);
+    tableKey.groupId = pGrp->gid;
+    tblNum = taosArrayGetSize(pGrp->pTables);
+    for (int32_t n = 0; n < tblNum; ++n, ++idx) {
+      uint64_t* pUid = taosArrayGet(pGrp->pTables, n);
+      tableKey.uid = *pUid;
+      TSDB_CHECK_NULL(taosArrayPush(pTableListInfo->pTableList, &tableKey), code, lino, _exit, terrno);
+      int32_t tempRes = taosHashPut(pTableListInfo->map, &tableKey.uid, sizeof(uint64_t), &idx, sizeof(int32_t));
+      if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
+        return tempRes;
+      }      
+    }
+  }
+
+  pTableListInfo->idInfo.suid = pScanNode->suid;
+  pTableListInfo->idInfo.tableType = pScanNode->tableType;
+  if (pScanNode->tableType != TSDB_SUPER_TABLE && !pScanNode->virtualStableScan) {
+    pTableListInfo->idInfo.uid = pScanNode->uid;
+  }
+
+_exit:
+
+  if (code) {
+    qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+
+int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
+                                SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap) {
+  int32_t code = 0;
+  if (pTaskInfo->pStreamRuntimeInfo && pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc /*&&got table list*/) {
+    code = createStreamMultiGrpTableListInfo(pScanNode, pGroupTags, groupSort,
+                                    pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, groupIdMap);
+    if (code) {
+      qError("%s failed to createStreamMultiGrpTableListInfo, code:%s", __func__, tstrerror(code));
+      return code;
+    }
+  } else if (!pScanNode->node.dynamicOp) {
+    code = createNonStreamScanTableListInfo(pScanNode, pGroupTags, groupSort,
+                                    pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, groupIdMap);
+    if (code) {
+      qError("%s failed to createScanTableListInfo, code:%s", __func__, tstrerror(code));
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 char* getStreamOpName(uint16_t opType) {
   switch (opType) {
