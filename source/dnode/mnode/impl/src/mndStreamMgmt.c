@@ -847,6 +847,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags);
   pMsg->triggerHasPF = pStream->pCreate->triggerHasPF;
   pMsg->isTriggerTblStb = (pStream->pCreate->triggerTblType == TSDB_SUPER_TABLE);
+  pMsg->precision = pStream->pCreate->triggerPrec;
   pMsg->partitionCols = pStream->pCreate->partitionCols;
 
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
