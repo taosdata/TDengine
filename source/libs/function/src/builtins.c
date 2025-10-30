@@ -1200,25 +1200,49 @@ static int32_t translateMarkPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkCorrParamHelper(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (numOfParams >= 2) {
+    uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, numOfParams - 1))->type;
+    if (TSDB_DATA_TYPE_VARCHAR != optionType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "correlation function option should be varchar");
+    }
+
+    SNode* pOption = nodesListGetNode(pFunc->pParameterList, numOfParams - 1);
+    if (QUERY_NODE_VALUE != nodeType(pOption)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "correlation function option should be value");
+    }
+
+    SValueNode* pValue = (SValueNode*)pOption;
+    if (taosAnalyGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, "correlation function option should not include algo field");
+    }
+
+    pValue->notReserved = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateDtwPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes,
                                     .type = TSDB_DATA_TYPE_DOUBLE,
                                     .precision = pFunc->node.resType.precision};
-  return TSDB_CODE_SUCCESS;
+
+  return checkCorrParamHelper(pFunc, pErrBuf, len);
 }
 
 static int32_t translateDtwPathPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-  pFunc->node.resType = (SDataType){.bytes = 64,
-                                    .type = TSDB_DATA_TYPE_VARCHAR,
-                                    .precision = pFunc->node.resType.precision};
-  return TSDB_CODE_SUCCESS;
+  pFunc->node.resType =
+      (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_VARCHAR, .precision = pFunc->node.resType.precision};
+  return checkCorrParamHelper(pFunc, pErrBuf, len);
 }
 
 static int32_t translateIsFilledPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
   return TSDB_CODE_SUCCESS;
 }
@@ -6683,7 +6707,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .startParam = 1,
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
-                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
@@ -6705,7 +6729,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .startParam = 1,
                                            .endParam = -1,
                                            .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
-                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
@@ -6720,7 +6744,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_TLCC,
     .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | 
                       FUNC_MGT_PRIMARY_KEY_FUNC,
-    .translateFunc = translateMarkPseudoColumn,
+    .translateFunc = translateDtwPathPseudoColumn,
     .getEnvFunc   = getMarkPseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = anomalyCheckMarkFunction,

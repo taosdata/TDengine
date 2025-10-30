@@ -32,8 +32,10 @@
 
 #ifdef USE_ANALYTICS
 
-#define FREQ_STR "freq"
-#define RADIUS_STR "radius"
+#define FREQ_STR     "freq"
+#define RADIUS_STR   "radius"
+#define LAGSTART_STR "lag_start"
+#define LAGEND_STR   "lag_end"
 
 typedef struct {
   int64_t      timeout;
@@ -403,7 +405,7 @@ static int32_t doCacheBlock(SImputationOperatorInfo* pInfo, SSDataBlock* pBlock,
 
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     code = doCacheBlockForImputation(&pInfo->imputatSup, id, pBlock);
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
+  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH || pInfo->analysisType == FUNCTION_TYPE_TLCC) {
     code = doCacheBlockForDtw(&pInfo->corrSupp, id, pBlock);
   }
 
@@ -602,6 +604,9 @@ static int32_t doAnalysisImpl(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, 
       }
     }
   } else if (pInfo->analysisType == FUNCTION_TYPE_DTW) {
+    // dtw result example:
+    // {'option': 'algo=dtw,radius=1', 'rows': 4, 'distance': 1.6, 'path': [(0, 0), (1, 0), (2, 0), (3, 1), (3, 2), (3, 3)]}
+
     SJson* pTarget = tjsonGetObjectItem(pJson, "distance");
     if (pTarget == NULL) goto _OVER;
 
@@ -609,6 +614,7 @@ static int32_t doAnalysisImpl(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, 
     colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
     rows = 1;
   } else if (pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
+    // dtw path results are the same as above
     SJson* pPath = tjsonGetObjectItem(pJson, "path");
     if (pPath == NULL) goto _OVER;
 
@@ -635,6 +641,37 @@ static int32_t doAnalysisImpl(SImputationOperatorInfo* pInfo, SBaseSupp* pSupp, 
 
       resCurRow++;
     }
+  } else if (pInfo->analysisType == FUNCTION_TYPE_TLCC) {
+    // tlcc result example:
+    // {'option': 'algo=tlcc,lag_start=-1,lag_end=1', 'rows': 3, 'lags': [-1, 0, 1], 'ccf_vals': [-0.24, 0.9, -0.2]}
+    SJson* pLags = tjsonGetObjectItem(pJson, "lags");
+    if (pLags == NULL) goto _OVER;
+
+    SJson* pCcfVals = tjsonGetObjectItem(pJson, "ccf_vals");
+    if (pCcfVals == NULL) goto _OVER;
+
+    for (int32_t i = 0; i < rows; ++i) {
+      SJson* ccfValJson = tjsonGetArrayItem(pCcfVals, i);
+      tjsonGetObjectValueDouble(ccfValJson, &tmpDouble);
+
+      int64_t index = 0;
+      SJson*  pLastIndexJson = tjsonGetArrayItem(pLags, i);
+      tjsonGetObjectValueBigInt(pLastIndexJson, &index);
+
+      char    buf[128 + VARSTR_HEADER_SIZE] = {0};
+      int32_t n = snprintf(varDataVal(buf), tListLen(buf) - VARSTR_HEADER_SIZE, "(%" PRId64 ", %.4f)", index, tmpDouble);
+      if (n > 0) {
+        varDataSetLen(buf, n);
+      } else {
+        return TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+      }
+
+      code = colDataSetVal(pResTargetCol, resCurRow, buf, false);
+      resCurRow++;
+    }
+
+    tjsonGetObjectValueDouble(pLags, &tmpDouble);
+    colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
   }
 
   pBlock->info.rows += rows;
@@ -661,9 +698,9 @@ static int32_t doAnalysis(SImputationOperatorInfo* pInfo, SExecTaskInfo* pTaskIn
   SBaseSupp* pSupp = (pInfo->analysisType==FUNCTION_TYPE_IMPUTATION)? &pInfo->imputatSup.base:&pInfo->corrSupp.base;
 
   if (pSupp->numOfRows <= 0) {
-  taosArrayClear(pSupp->pBlocks);
-  pSupp->numOfRows = 0;
-  return code;
+    taosArrayClear(pSupp->pBlocks);
+    pSupp->numOfRows = 0;
+    return code;
   }
 
   qDebug("%s group:%" PRId64 ", do analysis, rows:%d", id, pSupp->groupId, pSupp->numOfRows);
@@ -1044,6 +1081,24 @@ void parseRadius(SCorrelationSupp* pSupp, SHashObj* pHashMap, const char* id) {
   }
 }
 
+void parseLag(SCorrelationSupp* pSupp, SHashObj* pHashMap, const char* id) {
+  char* pLagStart = taosHashGet(pHashMap, LAGSTART_STR, strlen(LAGSTART_STR));
+  if (pLagStart != NULL) {
+    pSupp->lagStart = *(int32_t*)pLagStart;
+    qDebug("%s tlcc lag start:%d", id, pSupp->lagStart);
+  } else {
+    qDebug("%s not specify tlcc lag start, default: %d", id, pSupp->lagStart);
+  }
+
+  char* pLagEnd = taosHashGet(pHashMap, LAGEND_STR, strlen(LAGEND_STR));
+  if (pLagEnd != NULL) {
+    pSupp->lagEnd = *(int32_t*)pLagEnd;
+    qDebug("%s tlcc lag end:%d", id, pSupp->lagEnd);
+  } else {
+    qDebug("%s not specify tlcc lag end, default: %d", id, pSupp->lagEnd);
+  }
+}
+
 int32_t estResultRowsAfterImputation(int32_t rows, int64_t skey, int64_t ekey, int32_t prec, const char* pFreq, const char* id) {
   int64_t range = ekey - skey;
   double  factor = 0;
@@ -1125,7 +1180,8 @@ int32_t doParseOption(SImputationOperatorInfo* pInfo, const char* id) {
   int32_t type = 0;
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     type = ANALY_ALGO_TYPE_IMPUTATION;
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
+  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH ||
+             pInfo->analysisType == FUNCTION_TYPE_TLCC) {
     type = ANALY_ALGO_TYPE_CORREL;
   }
 
@@ -1142,6 +1198,8 @@ int32_t doParseOption(SImputationOperatorInfo* pInfo, const char* id) {
     code = parseFreq(&pInfo->imputatSup, pHashMap, id);
   } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
     parseRadius(&pInfo->corrSupp, pHashMap, id);
+  } else if (pInfo->analysisType == FUNCTION_TYPE_TLCC) {
+    parseLag(&pInfo->corrSupp, pHashMap, id);
   }
 
 _end:
@@ -1169,7 +1227,7 @@ static int32_t doCreateBuf(SImputationOperatorInfo* pInfo, const char* pId) {
 
     code = taosAnalyBufWriteColMeta(pBuf, index++, pInfo->imputatSup.targetType, "val");
     if (code != 0) goto _OVER;
-  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH) {
+  } else if (pInfo->analysisType == FUNCTION_TYPE_DTW || pInfo->analysisType == FUNCTION_TYPE_DTW_PATH || pInfo->analysisType == FUNCTION_TYPE_TLCC) {
     code = taosAnalyBufWriteColMeta(pBuf, index++, pInfo->corrSupp.targetSlot1Type, "val");
     if (code != 0) goto _OVER;
 
