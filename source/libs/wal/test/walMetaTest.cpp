@@ -2,6 +2,9 @@
 #include <cstring>
 #include <iostream>
 #include <queue>
+#include <thread>
+#include <vector>
+#include <atomic>
 
 #include "walInt.h"
 
@@ -909,14 +912,35 @@ TEST_F(WalKeepEnv, walSetKeepVersionConcurrent) {
     ASSERT_EQ(code, 0);
   }
 
-  // Test concurrent calls to walSetKeepVersion
-  // This simulates multiple threads calling the function
-  for (int i = 0; i < 10; i++) {
-    code = walSetKeepVersion(pWal, i * 10);
-    ASSERT_EQ(code, 0);
-    ASSERT_EQ(pWal->keepVersion, i * 10);
+  // Test concurrent calls to walSetKeepVersion with multiple threads
+  const int numThreads = 10;
+  const int callsPerThread = 100;
+  std::vector<std::thread> threads;
+  std::atomic<int> successCount(0);
+  
+  for (int i = 0; i < numThreads; i++) {
+    threads.push_back(std::thread([this, i, &successCount]() {
+      for (int j = 0; j < callsPerThread; j++) {
+        int64_t ver = i * callsPerThread + j;
+        int code = walSetKeepVersion(pWal, ver);
+        if (code == 0) {
+          successCount.fetch_add(1);
+        }
+      }
+    }));
   }
 
-  // Verify the final keep version
-  ASSERT_EQ(pWal->keepVersion, 90);
+  // Wait for all threads to complete
+  for (auto& thread : threads) {
+    thread.join();
+  }
+
+  // All calls should succeed
+  ASSERT_EQ(successCount.load(), numThreads * callsPerThread);
+  
+  // The final keepVersion should be one of the values set by the threads
+  // We can't predict which one exactly due to race conditions, but it should be valid
+  int64_t finalVersion = pWal->keepVersion;
+  ASSERT_GE(finalVersion, 0);
+  ASSERT_LT(finalVersion, numThreads * callsPerThread);
 }
