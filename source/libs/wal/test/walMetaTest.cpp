@@ -823,3 +823,100 @@ TEST_F(WalEncrypted, write) {
   code = walSaveMeta(pWal);
   ASSERT_EQ(code, 0);
 }
+
+TEST_F(WalKeepEnv, walSetKeepVersionBasic) {
+  walResetEnv();
+  int code;
+
+  // Test setting keep version
+  code = walSetKeepVersion(pWal, 50);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->keepVersion, 50);
+
+  // Test setting different keep version
+  code = walSetKeepVersion(pWal, 100);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->keepVersion, 100);
+
+  // Test invalid parameter (negative version)
+  code = walSetKeepVersion(pWal, -5);
+  ASSERT_NE(code, 0);
+
+  // Test NULL pointer
+  code = walSetKeepVersion(NULL, 50);
+  ASSERT_NE(code, 0);
+}
+
+TEST_F(WalCleanDeleteEnv, walSetKeepVersionWithDeletion) {
+  int code;
+  int i;
+  
+  // Write 200 logs
+  for (i = 0; i < 200; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(pWal->vers.lastVer, i);
+    code = walCommit(pWal, i);
+    ASSERT_EQ(pWal->vers.commitVer, i);
+  }
+
+  // Set keep version to 50, so versions >= 50 should not be deleted
+  code = walSetKeepVersion(pWal, 50);
+  ASSERT_EQ(code, 0);
+
+  // Trigger snapshot, this should not delete logs with version >= 50
+  walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
+  walEndSnapshot(pWal);
+  ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
+  ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
+
+  // The firstVer should be no greater than 50
+  ASSERT_LE(pWal->vers.firstVer, 50);
+
+  // Continue writing more logs
+  for (; i < 300; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+    ASSERT_EQ(pWal->vers.commitVer, i);
+  }
+
+  // Update keep version to 150
+  code = walSetKeepVersion(pWal, 150);
+  ASSERT_EQ(code, 0);
+
+  // Trigger another snapshot
+  code = walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(code, 0);
+  code = walEndSnapshot(pWal);
+  ASSERT_EQ(code, 0);
+
+  // The firstVer should be no greater than 150
+  ASSERT_LE(pWal->vers.firstVer, 150);
+}
+
+TEST_F(WalKeepEnv, walSetKeepVersionConcurrent) {
+  walResetEnv();
+  int code;
+
+  // Write some logs first
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Test concurrent calls to walSetKeepVersion
+  // This simulates multiple threads calling the function
+  for (int i = 0; i < 10; i++) {
+    code = walSetKeepVersion(pWal, i * 10);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(pWal->keepVersion, i * 10);
+  }
+
+  // Verify the final keep version
+  ASSERT_EQ(pWal->keepVersion, 90);
+}
