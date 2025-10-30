@@ -926,7 +926,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode);
       break;
     case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
-      code = makeNode(type, sizeof(SImputationFuncLogicNode), &pNode);
+      code = makeNode(type, sizeof(SGenericAnalysisLogicNode), &pNode);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = makeNode(type, sizeof(SGroupCacheLogicNode), &pNode);
@@ -2087,7 +2087,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC: {
-      SImputationFuncLogicNode* pLogicNode = (SImputationFuncLogicNode*)pNode;
+      SGenericAnalysisLogicNode* pLogicNode = (SGenericAnalysisLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
       break;

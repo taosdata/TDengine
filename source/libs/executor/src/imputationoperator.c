@@ -859,10 +859,6 @@ int32_t doParseInputForDtw(SAnalysisOperatorInfo* pInfo, SCorrelationSupp* pSupp
           pInfo->options = taosStrdup("algo=dtw,radius=1");
         } else if (numOfParam == 3) {
           // column, options, ts
-          // SColumnNode* pTargetNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
-          // if (nodeType(pTargetNode) != QUERY_NODE_COLUMN) {
-          // return error
-          // }
 
           SColumnNode* pTargetNode1 = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
           SColumnNode* pTargetNode2 = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 1);

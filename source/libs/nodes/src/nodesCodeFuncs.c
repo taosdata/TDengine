@@ -1535,7 +1535,7 @@ static int32_t jsonToLogicForecastFuncNode(const SJson* pJson, void* pObj) {
 }
 
 static int32_t logicImputationFuncNodeToJson(const void* pObj, SJson* pJson) {
-  const SImputationFuncLogicNode* pNode = (const SImputationFuncLogicNode*)pObj;
+  const SGenericAnalysisLogicNode* pNode = (const SGenericAnalysisLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1546,7 +1546,7 @@ static int32_t logicImputationFuncNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToLogicImputationFuncNode(const SJson* pJson, void* pObj) {
-  SImputationFuncLogicNode* pNode = (SImputationFuncLogicNode*)pObj;
+  SGenericAnalysisLogicNode* pNode = (SGenericAnalysisLogicNode*)pObj;
 
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {

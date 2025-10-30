@@ -1679,41 +1679,41 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   return code;
 }
 
-static bool isImputationFunc(int32_t funcId) {
-  return fmIsImputatCcfFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId) ||
+static bool isGenericAnalysisFunc(int32_t funcId) {
+  return fmIsImputationCorrelationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId) ||
          fmIsAnalysisPseudoColumnFunc(funcId);
 }
 
-static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasGenericAnalysisFunc) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SImputationFuncLogicNode * pImputatFunc = NULL;
-  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC, (SNode**)&pImputatFunc);
-  if (NULL == pImputatFunc) {
+  SGenericAnalysisLogicNode * pFunc = NULL;
+  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC, (SNode**)&pFunc);
+  if (NULL == pFunc) {
     return code;
   }
 
-  pImputatFunc->node.groupAction = getGroupAction(pCxt, pSelect);
-  pImputatFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
-  pImputatFunc->node.resultDataOrder = pImputatFunc->node.requireDataOrder;
+  pFunc->node.groupAction = getGroupAction(pCxt, pSelect);
+  pFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pFunc->node.resultDataOrder = pFunc->node.requireDataOrder;
 
   // interp functions and _group_key functions
-  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isImputationFunc, &pImputatFunc->pFuncs);
+  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isGenericAnalysisFunc, &pFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pImputatFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
+    code = rewriteExprsForSelect(pFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExprs(pImputatFunc->pFuncs, &pImputatFunc->node.pTargets);
+    code = createColumnByRewriteExprs(pFunc->pFuncs, &pFunc->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    *pLogicNode = (SLogicNode*)pImputatFunc;
+    *pLogicNode = (SLogicNode*)pFunc;
   } else {
-    nodesDestroyNode((SNode*)pImputatFunc);
+    nodesDestroyNode((SNode*)pFunc);
   }
 
   return code;
@@ -2732,7 +2732,7 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     code = createSelectRootLogicNode(pCxt, pSelect, createForecastFuncLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createSelectRootLogicNode(pCxt, pSelect, createImputationFuncLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createGenericAnalysisLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createDistinctLogicNode, &pRoot);
