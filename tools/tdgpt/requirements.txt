@@ -55,6 +55,7 @@ xlsxwriter==3.2.1
 taospy==2.8.5
 accelerate==0.34.2
 prophet==1.1.7
+cmdstanpy==1.2.0
 fastdtw==0.3.4
 # chronos-forecasting==1.5.0
 # jax==0.5.3
