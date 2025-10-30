@@ -3834,6 +3834,7 @@ typedef struct {
   uint32_t          userIp;
   SIpRange          userDualIp;
   char              sVer[TSDB_VERSION_LEN];
+  char              cInfo[CONNECTOR_INFO_LEN];
 } SClientHbReq;
 
 typedef struct {

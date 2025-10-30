@@ -1201,6 +1201,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     }
 
     tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
+    tstrncpy(pOneReq->cInfo, pTscObj->optionInfo.cInfo, sizeof(pOneReq->cInfo));
     pOneReq->userIp = pTscObj->optionInfo.userIp;
     pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
     tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);

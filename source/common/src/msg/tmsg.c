@@ -312,6 +312,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   TAOS_CHECK_RETURN(tEncodeU32(pEncoder, pReq->userIp));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->userApp));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->sVer));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->cInfo));
 
   return 0;
 }
@@ -444,6 +445,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
   }
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->sVer), &line, _error);
+    TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->cInfo), &line, _error);
   }
 
 _error:
