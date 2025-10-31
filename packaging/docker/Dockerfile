@@ -20,7 +20,7 @@ RUN TAOS_INSTALL_DIR=/tmp/tdengine-installer && \
     rm -rf "${TAOS_DRIVER_DIR}"/libjemalloc* \
            "${TAOS_DRIVER_DIR}"/libtcmalloc*
 
-FROM tdengine/tdengine-tsdb-base 
+FROM tdengine/tdengine-tsdb-base:1.0
 
 COPY --from=base /etc/taos/ /etc/taos/
 COPY --from=base /usr/local/taos/bin/taos* /usr/local/bin/
