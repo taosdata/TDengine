@@ -13154,6 +13154,7 @@ static int32_t translateTimeRange(STranslateContext* pCxt, const char* dbName, S
 static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
   SCompactDbReq compactReq = {
       .metaOnly = pStmt->metaOnly,
+      .force = pStmt->force,
   };
   SName   name;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -13289,6 +13290,7 @@ static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsS
   SName         name;
   SCompactDbReq req = {
       .metaOnly = pStmt->metaOnly,
+      .force = pStmt->force,
   };
 
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,

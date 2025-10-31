@@ -6132,6 +6132,8 @@ int32_t tSerializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq) 
 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->metaOnly));
 
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->force));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -6180,6 +6182,11 @@ int32_t tDeserializeSCompactDbReq(void *buf, int32_t bufLen, SCompactDbReq *pReq
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->metaOnly));
   } else {
     pReq->metaOnly = false;
+  }
+
+  pReq->force = false;
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->force));
   }
   tEndDecode(&decoder);
 
@@ -9038,6 +9045,7 @@ int32_t tSerializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq *
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->metaOnly));
 
   TAOS_CHECK_EXIT(tEncodeU16v(&encoder, pReq->flags));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->force));
 
   tEndEncode(&encoder);
 
@@ -9086,6 +9094,11 @@ int32_t tDeserializeSCompactVnodeReq(void *buf, int32_t bufLen, SCompactVnodeReq
   } else {
     pReq->optrType = TSDB_OPTR_NORMAL;
     pReq->triggerType = TSDB_TRIGGER_MANUAL;
+  }
+
+  pReq->force = 0;
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->force));
   }
 
   tEndDecode(&decoder);
