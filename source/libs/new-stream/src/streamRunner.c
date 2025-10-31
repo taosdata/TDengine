@@ -720,9 +720,11 @@ static int32_t stRunnerTopTaskHandleExternalWinOutputBlock(SStreamRunnerTask* pT
         // won't overflow, total rows should smaller than 4096
         (*pNextOutIdx)++;
       }
-      TAOS_CHECK_GOTO(stRunnerMergeOutputBlock(pTask, pExec, *ppForceOutBlock, false, createTable), &lino, _exit);
-      endWinIdx = *pNextOutIdx;
-      TAOS_CHECK_GOTO(streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname), &lino, _exit);
+      if (startWinIdx < *pNextOutIdx) {
+        TAOS_CHECK_GOTO(stRunnerMergeOutputBlock(pTask, pExec, *ppForceOutBlock, false, createTable), &lino, _exit);
+        endWinIdx = *pNextOutIdx;
+        TAOS_CHECK_GOTO(streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname), &lino, _exit);
+      }
       return TSDB_CODE_SUCCESS;
     }
 
