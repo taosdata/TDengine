@@ -11,7 +11,7 @@ For fundamental concepts such as topic management, refer to the [documentation](
 The following SQL statement creates a subscription named `topic_meters`. Each record retrieved from this subscription will contain the columns selected by the query `SELECT ts, current, voltage, phase, groupid, location FROM meters`.
 
 ```sql
-`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
+CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters; 
 ```
 
 ## Create a Consumer

@@ -30,7 +30,7 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery;
 
 This SQL query subscribes to data using a SELECT statement (for example, SELECT * or SELECT ts, c1), and may include filter conditions and scalar function calculations. However, aggregate functions and time-window aggregations are not supported.
 
-1. Once this type of TOPIC is created, the structure of the subscribed data is fixed.
+1. Once this type of topic is created, the structure of the subscribed data is fixed.
 1. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`).
 1. If the table schema changes, any newly added columns will not appear in the subscription result.
 1. For SELECT \*, the subscription expands to include all columns present at creation time. For subtables and normal tables, these are data columns; for supertables, they include both data and tag columns.
