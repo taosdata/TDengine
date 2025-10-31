@@ -1,0 +1,69 @@
+
+taos> select last(ts), a from test_last_pk.stb
+        last(ts)         |      a      |
+========================================
+ 2024-06-05 14:00:00.000 |           4 |
+
+taos> explain select last(ts), a from test_last_pk.stb\G
+*************************** 1.row ***************************
+QUERY_PLAN: -> Aggregate (functions=2 width=12 input_order=desc )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+
+taos> select last(ts, a) from test_last_pk.stb
+        last(ts)         |   last(a)   |
+========================================
+ 2024-06-05 14:00:00.000 |           4 |
+
+taos> explain select last(ts, a) from test_last_pk.stb\G
+*************************** 1.row ***************************
+QUERY_PLAN: -> Aggregate (functions=2 width=12 input_order=desc )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Data Exchange 2:1 (width=12)
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+
+taos> select last(ts), a from test_last_pk.stb group by tbname order by tbname
+        last(ts)         |      a      |
+========================================
+ 2024-06-05 12:00:00.000 |           2 |
+ 2024-06-05 14:00:00.000 |           4 |
+
+taos> explain select last(ts), a from test_last_pk.stb group by tbname\G
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+
+taos> select last_row(ts), a from test_last_pk.stb group by tbname order by tbname
+      last_row(ts)       |      a      |
+========================================
+ 2024-06-05 12:00:00.000 |           2 |
+ 2024-06-05 14:00:00.000 |           4 |
+
+taos> explain select last_row(ts), a from test_last_pk.stb group by tbname\G
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+
+taos> select last_row(ts, a) from test_last_pk.stb group by tbname order by tbname
+      last_row(ts)       | last_row(a) |
+========================================
+ 2024-06-05 12:00:00.000 |           2 |
+ 2024-06-05 14:00:00.000 |           4 |
+
+taos> explain select last_row(ts, a) from test_last_pk.stb group by tbname\G
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=12)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Aggregate (functions=2 width=12 input_order=desc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Last Row Scan on stb (columns=2 width=12 )
+

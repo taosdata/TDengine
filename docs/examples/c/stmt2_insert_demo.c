@@ -22,8 +22,8 @@
 #include <sys/time.h>
 #include "taos.h"
 
-#define NUM_OF_SUB_TABLES 1
-#define NUM_OF_ROWS       1
+#define NUM_OF_SUB_TABLES 10
+#define NUM_OF_ROWS       10
 
 /**
  * @brief Executes an SQL query and checks for errors.
@@ -53,7 +53,7 @@ void executeSQL(TAOS *taos, const char *sql) {
 void checkErrorCode(TAOS_STMT2 *stmt2, int code, const char *msg) {
   if (code != 0) {
     fprintf(stderr, "%s. Code: %d, Error: %s\n", msg, code, taos_stmt2_error(stmt2));
-    taos_stmt2_close(stmt2);
+    (void)taos_stmt2_close(stmt2);
     exit(EXIT_FAILURE);
   }
 }
@@ -70,7 +70,6 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
   *tags = (TAOS_STMT2_BIND **)malloc(NUM_OF_SUB_TABLES * sizeof(TAOS_STMT2_BIND *));
   *params = (TAOS_STMT2_BIND **)malloc(NUM_OF_SUB_TABLES * sizeof(TAOS_STMT2_BIND *));
 
-  int32_t len = 10 * 1024;
   for (int i = 0; i < NUM_OF_SUB_TABLES; i++) {
     // Allocate and assign table name
     (*table_name)[i] = (char *)malloc(20 * sizeof(char));
@@ -91,42 +90,34 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
     (*tags)[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, location, location_len, NULL, 1};
 
     // Allocate memory for columns data
-    (*params)[i] = (TAOS_STMT2_BIND *)malloc(5 * sizeof(TAOS_STMT2_BIND));
+    (*params)[i] = (TAOS_STMT2_BIND *)malloc(4 * sizeof(TAOS_STMT2_BIND));
 
     int64_t *ts = (int64_t *)malloc(NUM_OF_ROWS * sizeof(int64_t));
     float   *current = (float *)malloc(NUM_OF_ROWS * sizeof(float));
     int     *voltage = (int *)malloc(NUM_OF_ROWS * sizeof(int));
-    char   **phase = (char **)malloc(NUM_OF_ROWS * sizeof(char *));
+    float   *phase = (float *)malloc(NUM_OF_ROWS * sizeof(float));
     int32_t *ts_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
     int32_t *current_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
-    for (int j = 0; j < NUM_OF_ROWS; j++) {
-      phase[j] = (char *)malloc(sizeof(char) * 20);  // Allocate memory for phase
-      sprintf(phase[j], "phase_%d", j);              // Assign a value to phase
-    }
-
     int32_t *voltage_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
     int32_t *phase_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
-    for (int j = 0; j < NUM_OF_ROWS; j++) {
-      phase_len[j] = strlen(phase[j]);  // Set length for phase
-    }
 
     (*params)[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, ts, ts_len, NULL, NUM_OF_ROWS};
     (*params)[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, current, current_len, NULL, NUM_OF_ROWS};
     (*params)[i][2] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, voltage, voltage_len, NULL, NUM_OF_ROWS};
-    (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, phase, phase_len, NULL, NUM_OF_ROWS};
+    (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, phase, phase_len, NULL, NUM_OF_ROWS};
 
     for (int j = 0; j < NUM_OF_ROWS; j++) {
       struct timeval tv;
-      gettimeofday(&tv, NULL);
+      (void)gettimeofday(&tv, NULL);
       ts[j] = tv.tv_sec * 1000LL + tv.tv_usec / 1000 + j;
       current[j] = (float)rand() / RAND_MAX * 30;
       voltage[j] = rand() % 300;
-      // phase[j] = (char *)malloc(20 * sizeof(char));
+      phase[j] = (float)rand() / RAND_MAX;
 
       ts_len[j] = sizeof(int64_t);
       current_len[j] = sizeof(float);
       voltage_len[j] = sizeof(int);
-      // phase_len[j] = sizeof(float);
+      phase_len[j] = sizeof(float);
     }
   }
 }
@@ -186,7 +177,7 @@ void insertData(TAOS *taos) {
   printf("Successfully inserted %d rows.\n", affected);
   // free and close
   freeBindData(&table_name, &tags, &params);
-  taos_stmt2_close(stmt2);
+  (void)taos_stmt2_close(stmt2);
 }
 
 int main() {
@@ -206,7 +197,7 @@ int main() {
   executeSQL(taos, "USE power");
   executeSQL(
       taos,
-      "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase binary(12)) TAGS "
+      "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
       "(groupId INT, location BINARY(24))");
   insertData(taos);
   taos_close(taos);

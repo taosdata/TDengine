@@ -344,18 +344,55 @@ _error:
   return code;
 }
 
-int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range) {
+bool qNeedReset(qTaskInfo_t pInfo) {
+  if (pInfo == NULL) {
+    return false;
+  }
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
   SOperatorInfo*  pOperator = pTaskInfo->pRoot;
-  STableScanInfo* pScanInfo = pOperator->info;
-  STableScanBase* pScanBaseInfo = &pScanInfo->base;
-
-  if (range.skey != 0 && range.ekey != 0) {
-    pScanBaseInfo->cond.twindows = range;
+  if (pOperator == NULL || pOperator->pPhyNode == NULL) {
+    return false;
   }
-  setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
-  qStreamSetOpen(pTaskInfo);
-  return pTaskInfo->storageAPI.tsdReader.tsdReaderResetStatus(pScanBaseInfo->dataReader, &pScanBaseInfo->cond);
+  int32_t node = nodeType(pOperator->pPhyNode);
+  return (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == node || 
+          QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == node ||
+          QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == node);
+}
+
+static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
+  if (pHandle == NULL || pScanBaseInfo == NULL) {
+    return;
+  }
+
+  pScanBaseInfo->readHandle.uid = pHandle->uid;
+  pScanBaseInfo->readHandle.winRangeValid = pHandle->winRangeValid;
+  pScanBaseInfo->readHandle.winRange = pHandle->winRange;
+  pScanBaseInfo->readHandle.extWinRangeValid = pHandle->extWinRangeValid;
+  pScanBaseInfo->readHandle.extWinRange = pHandle->extWinRange;
+  pScanBaseInfo->readHandle.version = pHandle->version;
+}
+
+int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
+  if (pInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
+  SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+
+  void*           info = pOperator->info;
+  STableScanBase* pScanBaseInfo = NULL;
+
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pOperator->pPhyNode)) {
+    pScanBaseInfo = &((STableScanInfo*)info)->base;
+    setReadHandle(handle, pScanBaseInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pOperator->pPhyNode)) {
+    pScanBaseInfo = &((STableMergeScanInfo*)info)->base;
+    setReadHandle(handle, pScanBaseInfo);
+  }
+
+  qDebug("reset table scan, name:%s, id:%s, time range: [%" PRId64 ", %" PRId64 "]", pOperator->name, GET_TASKID(pTaskInfo), handle->winRange.skey,
+  handle->winRange.ekey);
+  return pOperator->fpSet.resetStateFn(pOperator);
 }
 
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,

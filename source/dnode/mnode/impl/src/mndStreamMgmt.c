@@ -922,6 +922,7 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->outDBFName = pInfo->pCreate->outDB;
   pMsg->outTblName = pInfo->pCreate->outTblName;
   pMsg->outTblType = pStream->pCreate->outTblType;
+  pMsg->lowLatencyCalc = pStream->pCreate->lowLatencyCalc;
   pMsg->calcNotifyOnly = pStream->pCreate->calcNotifyOnly;
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
