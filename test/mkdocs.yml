@@ -135,7 +135,7 @@ nav:
     - 81-Tools: 
         - 01-Check: case_list_docs/Tools/Check.md
         - 02-Taos: case_list_docs/Tools/Taos.md
-        - 03-TaosBenchmark: case_list_docs/Tools/TaosBenchmark.md
+        - 03-Benchmark: case_list_docs/Tools/Benchmark.md
         - 04-Taosdump: case_list_docs/Tools/Taosdump.md
         - 05-Valgrind: case_list_docs/Tools/Valgrind.md
     - 82-UnitTest: case_list_docs/UnitTest.md
