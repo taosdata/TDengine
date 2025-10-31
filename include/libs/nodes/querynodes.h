@@ -613,7 +613,7 @@ typedef struct SSelectStmt {
   bool            hasInterpPseudoColFunc;
   bool            hasForecastFunc;
   bool            hasForecastPseudoColFunc;
-  bool            hasImputationFunc;
+  bool            hasGenericAnalysisFunc;
   bool            hasLastRowFunc;
   bool            hasLastFunc;
   bool            hasTimeLineFunc;
