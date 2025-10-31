@@ -1041,6 +1041,12 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   struct SColumnDataAgg* pAgg = NULL;
   EStateWinExtendOption extendOption = pInfo->extendOption;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+    if (j > 0 && tsList[j] == tsList[j - 1]) {
+      // forbid duplicated ts rows
+      qError("%s:%d duplicated ts found in state window aggregation", __FILE__, __LINE__);
+      pTaskInfo->code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP);
+    }
     pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       doKeepStateWindowNullInfo(pRowSup, j);

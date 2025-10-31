@@ -348,6 +348,14 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   code = filterExecute(pInfo->pEndCondInfo, pBlock, &pe, NULL, param2.numOfCols, &status2);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  for (int32_t i = 1; i < pBlock->info.rows; ++i) {
+    if (tsList[i] == tsList[i - 1]) {
+      qError("duplicate timestamp found in event window operator, groupId: %" PRId64 ", timestamp: %" PRId64,
+               gid, tsList[i]);
+      code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  }
   int32_t startIndex = pInfo->inWindow ? 0 : -1;
   while (rowIndex < pBlock->info.rows) {
     if (pInfo->inWindow) {  // let's find the first end value
