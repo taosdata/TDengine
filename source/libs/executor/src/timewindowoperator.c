@@ -71,6 +71,7 @@ void doKeepTuple(SWindowRowsSup* pRowSup, int64_t ts, int32_t rowIndex, uint64_t
   pRowSup->numOfRows += 1;
   if (hasContinuousNullRows(pRowSup)) {
     // rows having null state col are wrapped by rows of same state
+    // these rows can be counted into current window
     pRowSup->numOfRows += pRowSup->numNullRows;
     resetNumNullRows(pRowSup);
   }
@@ -81,6 +82,7 @@ void doKeepNewWindowStartInfo(SWindowRowsSup* pRowSup, const int64_t* tsList, in
   pRowSup->numOfRows = 0;
   pRowSup->win.skey = tsList[rowIndex];
   pRowSup->groupId = groupId;
+  resetNumNullRows(pRowSup);
 }
 
 FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos,
@@ -1109,7 +1111,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   if (!hasResult) {
     return;
   }
-  // if window hasn't been closed, set end key to ts of last element
+  // if window hasn't been closed, process it now.
   doKeepCurStateWindowEndInfo(pRowSup, tsList, pBlock->info.rows, &extendOption, false);
   SResultRow* pResult = NULL;
   int32_t ret = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win, masterScan, &pResult, gid,
@@ -1124,6 +1126,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   if (ret != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, ret);
   }
+  resetNumNullRows(pRowSup);
 }
 
 static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
