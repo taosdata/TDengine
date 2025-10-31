@@ -1070,6 +1070,7 @@ int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrl
 
 typedef struct SStreamRuntimeFuncInfo {
   int8_t  isMultiGroupCalc;
+  int8_t  stbPartByTbname;
 
   // The following fields are used for single group calculation
   SArray* pStreamPesudoFuncVals;
@@ -1095,6 +1096,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int32_t triggerType;
   int32_t addOptions;
   bool    hasPlaceHolder;
+  int8_t* createTable;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
