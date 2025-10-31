@@ -118,7 +118,6 @@ typedef struct SDBVgInfoReq {
 
 typedef struct SDBVgInfoMgr {
   SHashObj* dbVgInfoMap;
-  SRWLatch  lock;
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
