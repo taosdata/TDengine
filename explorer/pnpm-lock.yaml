@@ -261,7 +261,7 @@ importers:
         specifier: ^2.3.1
         version: 2.7.3(@types/node@20.17.24)(typescript@5.8.2)
       playwright:
-        specifier: ^1.55.1
+        specifier: ^1.56.1
         version: 1.56.1
       pngquant-bin:
         specifier: ^9.0.0
