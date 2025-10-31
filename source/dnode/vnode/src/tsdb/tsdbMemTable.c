@@ -679,13 +679,14 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if (key.key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.key.ts;
   }
-
-  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config) && !tsUpdateCacheBatch) {
+#ifndef UPDATE_CACHE_BATCH
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
     if (tsdbCacheColFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, pBlockData) != 0) {
       tsdbError("vgId:%d, failed to update cache data from table suid:%" PRId64 " uid:%" PRId64 " at version %" PRId64,
                 TD_VID(pMemTable->pTsdb->pVnode), pTbData->suid, pTbData->uid, version);
     }
   }
+#endif
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
@@ -742,9 +743,11 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if (key.key.ts >= pTbData->maxKey) {
     pTbData->maxKey = key.key.ts;
   }
-  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config) && !tsUpdateCacheBatch) {
+#ifndef UPDATE_CACHE_BATCH
+  if (!TSDB_CACHE_NO(pMemTable->pTsdb->pVnode->config)) {
     TAOS_UNUSED(tsdbCacheRowFormatUpdate(pMemTable->pTsdb, pTbData->suid, pTbData->uid, version, nRow, aRow));
   }
+#endif
 
   // SMemTable
   pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
