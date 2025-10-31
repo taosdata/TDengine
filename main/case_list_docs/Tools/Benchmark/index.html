@@ -9,10 +9,10 @@
       
       
       
-        <link rel="prev" href="../Scalar/">
+        <link rel="prev" href="../Taos/">
       
       
-        <link rel="next" href="../Selection/">
+        <link rel="next" href="../Taosdump/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -20,7 +20,7 @@
     
     
       
-        <title>02-Aggregate - TDengine Case List</title>
+        <title>03-Benchmark - TDengine Case List</title>
       
     
     
@@ -66,7 +66,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#02-aggregate" class="md-skip">
+        <a href="#03-benchmark" class="md-skip">
           Skip to content
         </a>
       
@@ -104,7 +104,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              02-Aggregate
+              03-Benchmark
             
           </span>
         </div>
@@ -1594,8 +1594,6 @@
             
   
   
-    
-  
   
   
     
@@ -1606,11 +1604,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
         
           
           <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
@@ -1626,7 +1624,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             11-Functions
@@ -1640,7 +1638,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../Scalar/" class="md-nav__link">
+      <a href="../../Functions/Scalar/" class="md-nav__link">
         
   
   
@@ -1660,32 +1658,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    02-Aggregate
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../Functions/Aggregate/" class="md-nav__link">
         
   
   
@@ -1696,324 +1672,6 @@
   
 
       </a>
-      
-        
-
-
-<style>
-  .md-nav--secondary {
-    max-width: none !important;
-    width: auto !important;
-    margin-right: 0 !important;
-    padding-right: 0 !important;
-  }
-  
-  .md-nav--secondary .md-nav__list {
-    max-width: none !important;
-    width: auto !important;
-  }
-  
-  .md-nav--secondary .md-nav__item {
-    white-space: nowrap;
-    overflow: visible;
-  }
-</style>
-
-
-
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_func_gconcat" class="md-nav__link">
-        Agg-basic: group_concat 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last" class="md-nav__link">
-        Agg-basic: last 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_pk" class="md-nav__link">
-        Agg-basic: last with pk 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="md-nav__link">
-        Agg-basic: Leastsquares 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_func_agg_smoking" class="md-nav__link">
-        Agg-basic: smoking cases 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_all.TestAggFunction.test_agg_function" class="md-nav__link">
-        Agg: all 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_apercentile.TestFunApercentile.test_func_agg_apercentile" class="md-nav__link">
-        Fun: apercentile() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_avg.TestFunAvg.test_func_agg_avg" class="md-nav__link">
-        Fun: avg() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_count.TestFunCount.test_func_agg_count" class="md-nav__link">
-        Fun: count() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_elapsed.TestFunElapsed.test_func_agg_elapsed" class="md-nav__link">
-        Fun: elapsed() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_group_concat" class="md-nav__link">
-        Fun: group_concat() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_histogram.TestFunHistogram.test_fun_agg_histogram" class="md-nav__link">
-        Fun: histogram() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_hyperloglog.TestFunHyperloglog.test_fun_agg_hyperloglog" class="md-nav__link">
-        Fun: hyperloglog() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_fun_agg_leastsquares" class="md-nav__link">
-        Fun: leastsquares() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_percentile.TestFunPercentile.test_func_agg_percentile" class="md-nav__link">
-        Fun: percentile() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_spread.TestFunSpread.test_func_agg_spread" class="md-nav__link">
-        Fun: spread() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_std" class="md-nav__link">
-        Fun: std() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_stddev" class="md-nav__link">
-        Fun: stddev() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_stddev_pop" class="md-nav__link">
-        Fun: stddev_pop() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_stddev_samp" class="md-nav__link">
-        Fun: stddev_samp() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_sum.TestFunSum.test_func_agg_sum" class="md-nav__link">
-        Fun: sum() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_func_agg_var_pop" class="md-nav__link">
-        Fun: var_pop() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_var_samp" class="md-nav__link">
-        Fun: var_samp() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_variance" class="md-nav__link">
-        Fun: variance() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_tag" class="md-nav__link">
-        summary: test last/last_row with tag column 
-      </a>
-      
-    </li>
-  
-
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2026,7 +1684,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../Selection/" class="md-nav__link">
+      <a href="../../Functions/Selection/" class="md-nav__link">
         
   
   
@@ -2049,7 +1707,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../Timeseries/" class="md-nav__link">
+      <a href="../../Functions/Timeseries/" class="md-nav__link">
         
   
   
@@ -2072,7 +1730,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../Compare/" class="md-nav__link">
+      <a href="../../Functions/Compare/" class="md-nav__link">
         
   
   
@@ -2095,7 +1753,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../System/" class="md-nav__link">
+      <a href="../../Functions/System/" class="md-nav__link">
         
   
   
@@ -2118,7 +1776,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../Geometry/" class="md-nav__link">
+      <a href="../../Functions/Geometry/" class="md-nav__link">
         
   
   
@@ -2866,6 +2524,8 @@
             
   
   
+    
+  
   
   
     
@@ -2876,11 +2536,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_33" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_33" checked>
         
           
           <label class="md-nav__link" for="__nav_33" id="__nav_33_label" tabindex="0">
@@ -2896,7 +2556,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_33_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_33_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_33">
             <span class="md-nav__icon md-icon"></span>
             81-Tools
@@ -2910,7 +2570,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../Tools/Check/" class="md-nav__link">
+      <a href="../Check/" class="md-nav__link">
         
   
   
@@ -2933,7 +2593,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../Tools/Taos/" class="md-nav__link">
+      <a href="../Taos/" class="md-nav__link">
         
   
   
@@ -2953,10 +2613,32 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../Tools/Benchmark/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    03-Benchmark
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2967,6 +2649,291 @@
   
 
       </a>
+      
+        
+
+
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
+
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_basic.TestBenchmarkBasic.test_benchmark_basic" class="md-nav__link">
+        taosBenchmark basic 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_bugs.TestBugs.test_benchmark_bugs" class="md-nav__link">
+        taosBenchmark bugs 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_commandline.TestBenchmarkCommandline.test_benchmark_commandline" class="md-nav__link">
+        taosBenchmark command line 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_conn_mode.TestConnMode.test_benchmark_conn_mode" class="md-nav__link">
+        taosBenchmark connect with Native and WebSocket 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_datatypes.TestBenchmarkDatatypes.test_benchmark_datatypes" class="md-nav__link">
+        taosBenchmark datatypes 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_except.TestBenchmarkExcept.test_benchmark_except" class="md-nav__link">
+        taosBenchmark exception 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_mix.TestTaoscInsertMix.test_taosc_insert_mix" class="md-nav__link">
+        taosBenchmark insert mix mode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_with_csv.TestBenchmarkWithCsv.test_benchmark_with_csv" class="md-nav__link">
+        taosBenchmark json with csv 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_website.TestBenchmarkWebsite.test_benchmark_website" class="md-nav__link">
+        taosBenchmark official website 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_query_main.TestBenchmarkQueryMain.test_query_main" class="md-nav__link">
+        taosBenchmark query basic 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_query_rest.TestBenchmarkQueryRest.test_benchmark_basic" class="md-nav__link">
+        taosBenchmark query with json 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_query_sqlfile.TestQueryJsonWithSqlfile.test_benchmark_query_json" class="md-nav__link">
+        taosBenchmark query with json 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_rest.TestCommandlineSmlRest.test_commandline_sml_rest" class="md-nav__link">
+        taosBenchmark run with rest connect 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_sml.TestBenchmarkSml.test_benchmark_sml" class="md-nav__link">
+        taosBenchmark schemaless insert 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_stmt.TestBenchmarkStmt.test_benchmark_stmt" class="md-nav__link">
+        taosBenchmark stmt & stmt2 insert 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_sml.TestInsertTagOrderSml.test_benchmark_tag_order_sml" class="md-nav__link">
+        taosBenchmark tag order sml 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_sql.TestInsertTagOrderSql.test_benchmark_tag_order_sql" class="md-nav__link">
+        taosBenchmark tag order sql 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_stmt.TestInsertTagOrderStmt.test_benchmark_tag_order_stmt" class="md-nav__link">
+        taosBenchmark tag order stmt 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_stmt2.TestInsertTagOrderStmt2.test_insert_tag_order_stmt2" class="md-nav__link">
+        taosBenchmark tag order stmt2 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_taosc.TestTaoscAutoCreateTableJson.test_benchmark_taosc" class="md-nav__link">
+        taosBenchmark taosc insert 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tmq.TestBenchmarkTmq.test_benchmark_tmq" class="md-nav__link">
+        taosBenchmark tmq 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.03-Benchmark.test_benchmark_websocket.TestWebsocket.test_benchmark_websocket" class="md-nav__link">
+        taosBenchmark websocket 
+      </a>
+      
+    </li>
+  
+
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2979,7 +2946,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../Tools/Taosdump/" class="md-nav__link">
+      <a href="../Taosdump/" class="md-nav__link">
         
   
   
@@ -3002,7 +2969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../Tools/Valgrind/" class="md-nav__link">
+      <a href="../Valgrind/" class="md-nav__link">
         
   
   
@@ -3206,8 +3173,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_func_gconcat" class="md-nav__link">
-        Agg-basic: group_concat 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_basic.TestBenchmarkBasic.test_benchmark_basic" class="md-nav__link">
+        taosBenchmark basic 
       </a>
       
     </li>
@@ -3217,8 +3184,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last" class="md-nav__link">
-        Agg-basic: last 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_bugs.TestBugs.test_benchmark_bugs" class="md-nav__link">
+        taosBenchmark bugs 
       </a>
       
     </li>
@@ -3228,8 +3195,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_pk" class="md-nav__link">
-        Agg-basic: last with pk 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_commandline.TestBenchmarkCommandline.test_benchmark_commandline" class="md-nav__link">
+        taosBenchmark command line 
       </a>
       
     </li>
@@ -3239,8 +3206,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="md-nav__link">
-        Agg-basic: Leastsquares 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_conn_mode.TestConnMode.test_benchmark_conn_mode" class="md-nav__link">
+        taosBenchmark connect with Native and WebSocket 
       </a>
       
     </li>
@@ -3250,8 +3217,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_func_agg_smoking" class="md-nav__link">
-        Agg-basic: smoking cases 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_datatypes.TestBenchmarkDatatypes.test_benchmark_datatypes" class="md-nav__link">
+        taosBenchmark datatypes 
       </a>
       
     </li>
@@ -3261,8 +3228,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_all.TestAggFunction.test_agg_function" class="md-nav__link">
-        Agg: all 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_except.TestBenchmarkExcept.test_benchmark_except" class="md-nav__link">
+        taosBenchmark exception 
       </a>
       
     </li>
@@ -3272,8 +3239,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_apercentile.TestFunApercentile.test_func_agg_apercentile" class="md-nav__link">
-        Fun: apercentile() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_mix.TestTaoscInsertMix.test_taosc_insert_mix" class="md-nav__link">
+        taosBenchmark insert mix mode 
       </a>
       
     </li>
@@ -3283,8 +3250,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_avg.TestFunAvg.test_func_agg_avg" class="md-nav__link">
-        Fun: avg() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_with_csv.TestBenchmarkWithCsv.test_benchmark_with_csv" class="md-nav__link">
+        taosBenchmark json with csv 
       </a>
       
     </li>
@@ -3294,8 +3261,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_count.TestFunCount.test_func_agg_count" class="md-nav__link">
-        Fun: count() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_website.TestBenchmarkWebsite.test_benchmark_website" class="md-nav__link">
+        taosBenchmark official website 
       </a>
       
     </li>
@@ -3305,8 +3272,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_elapsed.TestFunElapsed.test_func_agg_elapsed" class="md-nav__link">
-        Fun: elapsed() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_query_main.TestBenchmarkQueryMain.test_query_main" class="md-nav__link">
+        taosBenchmark query basic 
       </a>
       
     </li>
@@ -3316,8 +3283,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_group_concat" class="md-nav__link">
-        Fun: group_concat() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_query_rest.TestBenchmarkQueryRest.test_benchmark_basic" class="md-nav__link">
+        taosBenchmark query with json 
       </a>
       
     </li>
@@ -3327,8 +3294,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_histogram.TestFunHistogram.test_fun_agg_histogram" class="md-nav__link">
-        Fun: histogram() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_query_sqlfile.TestQueryJsonWithSqlfile.test_benchmark_query_json" class="md-nav__link">
+        taosBenchmark query with json 
       </a>
       
     </li>
@@ -3338,8 +3305,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_hyperloglog.TestFunHyperloglog.test_fun_agg_hyperloglog" class="md-nav__link">
-        Fun: hyperloglog() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_rest.TestCommandlineSmlRest.test_commandline_sml_rest" class="md-nav__link">
+        taosBenchmark run with rest connect 
       </a>
       
     </li>
@@ -3349,8 +3316,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_fun_agg_leastsquares" class="md-nav__link">
-        Fun: leastsquares() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_sml.TestBenchmarkSml.test_benchmark_sml" class="md-nav__link">
+        taosBenchmark schemaless insert 
       </a>
       
     </li>
@@ -3360,8 +3327,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_percentile.TestFunPercentile.test_func_agg_percentile" class="md-nav__link">
-        Fun: percentile() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_stmt.TestBenchmarkStmt.test_benchmark_stmt" class="md-nav__link">
+        taosBenchmark stmt & stmt2 insert 
       </a>
       
     </li>
@@ -3371,8 +3338,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_spread.TestFunSpread.test_func_agg_spread" class="md-nav__link">
-        Fun: spread() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_sml.TestInsertTagOrderSml.test_benchmark_tag_order_sml" class="md-nav__link">
+        taosBenchmark tag order sml 
       </a>
       
     </li>
@@ -3382,8 +3349,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_std" class="md-nav__link">
-        Fun: std() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_sql.TestInsertTagOrderSql.test_benchmark_tag_order_sql" class="md-nav__link">
+        taosBenchmark tag order sql 
       </a>
       
     </li>
@@ -3393,8 +3360,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_stddev" class="md-nav__link">
-        Fun: stddev() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_stmt.TestInsertTagOrderStmt.test_benchmark_tag_order_stmt" class="md-nav__link">
+        taosBenchmark tag order stmt 
       </a>
       
     </li>
@@ -3404,8 +3371,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_stddev_pop" class="md-nav__link">
-        Fun: stddev_pop() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_stmt2.TestInsertTagOrderStmt2.test_insert_tag_order_stmt2" class="md-nav__link">
+        taosBenchmark tag order stmt2 
       </a>
       
     </li>
@@ -3415,8 +3382,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_stddev_samp" class="md-nav__link">
-        Fun: stddev_samp() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_taosc.TestTaoscAutoCreateTableJson.test_benchmark_taosc" class="md-nav__link">
+        taosBenchmark taosc insert 
       </a>
       
     </li>
@@ -3426,8 +3393,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_fun_agg_sum.TestFunSum.test_func_agg_sum" class="md-nav__link">
-        Fun: sum() 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_tmq.TestBenchmarkTmq.test_benchmark_tmq" class="md-nav__link">
+        taosBenchmark tmq 
       </a>
       
     </li>
@@ -3437,41 +3404,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_func_agg_var_pop" class="md-nav__link">
-        Fun: var_pop() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_var_samp" class="md-nav__link">
-        Fun: var_samp() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_variance" class="md-nav__link">
-        Fun: variance() 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_tag" class="md-nav__link">
-        summary: test last/last_row with tag column 
+      <a href="#81-Tools.03-Benchmark.test_benchmark_websocket.TestWebsocket.test_benchmark_websocket" class="md-nav__link">
+        taosBenchmark websocket 
       </a>
       
     </li>
@@ -3494,7 +3428,7 @@
 
 
 
-<h1 id="02-aggregate">02-Aggregate<a class="headerlink" href="#02-aggregate" title="Permanent link">&para;</a></h1>
+<h1 id="03-benchmark">03-Benchmark<a class="headerlink" href="#03-benchmark" title="Permanent link">&para;</a></h1>
 
   
 <div class="doc doc-object doc-function">
@@ -3502,24 +3436,39 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_all.TestAggFunction.test_agg_function" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_basic.TestBenchmarkBasic.test_benchmark_basic" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_all.TestAggFunction.test_agg_function" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_basic.TestBenchmarkBasic.test_benchmark_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Agg: all</strong> 
+                    <strong>taosBenchmark basic</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">test aggregate function stddev_pop, varpop, avg, sum, leastsquares, statecount</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Insert data with different json files</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Check data correct depends on json file</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check taosBenchmark options</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check custom column and tags</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check default json file</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check demo mode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check from to continue insert</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Check from to insert</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Check insert auto create table json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10.Check insert bind vgroup</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11.Check json tag</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12.Check limit offset json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13.Check insert precision</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. Check insert with mix mode()</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Check insert correctly with different stt options</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Check taos config is correctedly set</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_all.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_all.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_basic.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_basic.py
                     </a>
                   </div>
         </div>
@@ -3531,24 +3480,29 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_func_gconcat" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_bugs.TestBugs.test_benchmark_bugs" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_func_gconcat" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_bugs.TestBugs.test_benchmark_bugs" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Agg-basic: group_concat</strong> 
+                    <strong>taosBenchmark bugs</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the GROUP_CONCAT function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify bug TD-32913</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify bug TD-31575</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify bug TD-31490</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify bug TS-5846</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify bug TS-5234</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify bug TD-22190</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_gconcat.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_gconcat.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_bugs.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_bugs.py
                     </a>
                   </div>
         </div>
@@ -3560,24 +3514,35 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_commandline.TestBenchmarkCommandline.test_benchmark_commandline" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_commandline.TestBenchmarkCommandline.test_benchmark_commandline" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Agg-basic: last</strong> 
+                    <strong>taosBenchmark command line</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the LAST function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify -c with different config path</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify -I with taosc, rest, stmt, stmt2, sml, sml-line, sml-telnet, sml-json, sml-taosjson</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify -b with all data types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify -v with support vgroups</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify -A with all data types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify -S to set start time</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Verify -U to do supplement insert</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Verify -V to check version info</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Verify other command line options -ntyNxGrTiFM</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Verify JIRA TD-11510/TD-19387/TD-19985/TD-21063/TD-22334/TD-21932/TD-19352/TD-21806</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Verify invalid command line options</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_last.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_last.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_commandline.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_commandline.py
                     </a>
                   </div>
         </div>
@@ -3589,26 +3554,29 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_tag" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_conn_mode.TestConnMode.test_benchmark_conn_mode" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_conn_mode.TestConnMode.test_benchmark_conn_mode" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>summary: test last/last_row with tag column</strong> 
+                    <strong>taosBenchmark connect with Native and WebSocket</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: verify the behavior of selecting last/last_row with tag column outside.</div>
-                          <div style="margin-left: 9.600000000000001em; white-space: pre-wrap;">            For example: select last(ts), tag1, tag2 from stable group by tbname.</div>
-                          <div style="margin-left: 9.600000000000001em; white-space: pre-wrap;">            In this case, we should read cache data to get the tag column value.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify &#34;-Z native -X http://127.0.0.1:6041&#34;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify &#34;-Z websocket -X http://127.0.0.1:6042&#34;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify command line connection mode priority over json and env</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify env connection mode priority over json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify except command line connection mode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify host and port in command line and json</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_last.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_last.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_conn_mode.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_conn_mode.py
                     </a>
                   </div>
         </div>
@@ -3620,25 +3588,24 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_pk" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_datatypes.TestBenchmarkDatatypes.test_benchmark_datatypes" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_last.Test_Last.test_last_pk" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_datatypes.TestBenchmarkDatatypes.test_benchmark_datatypes" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Agg-basic: last with pk</strong> 
+                    <strong>taosBenchmark datatypes</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the LAST function with composite key outside.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">For example: select last(ts), pk from stb group by tbname.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check decimal data type</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_last.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_last.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_datatypes.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_datatypes.py
                     </a>
                   </div>
         </div>
@@ -3650,24 +3617,27 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_except.TestBenchmarkExcept.test_benchmark_except" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_leastsquares.TestFuncLeastsquares.test_func_leastsquares" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_except.TestBenchmarkExcept.test_benchmark_except" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Agg-basic: Leastsquares</strong> 
+                    <strong>taosBenchmark exception</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test the LeastSquares function, including time windows, filtering on ordinary data columns, filtering on tag columns.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Insert operator be canceled check expect</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert operator be forced exit check expect</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert operator meet dnode exit check expect</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_leastsquares.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_leastsquares.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_except.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_except.py
                     </a>
                   </div>
         </div>
@@ -3679,24 +3649,26 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_func_agg_smoking" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_mix.TestTaoscInsertMix.test_taosc_insert_mix" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_func_agg_smoking" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_mix.TestTaoscInsertMix.test_taosc_insert_mix" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Agg-basic: smoking cases</strong> 
+                    <strong>taosBenchmark insert mix mode</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Smoking the aggregate functions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Insert data with mix mode json file</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Generate data rate: disorder_ratio 10%, update_ratio 5%, delete_ratio 1%</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify generate rows is less than 95% (except delete rows) </div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_smoking.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_smoking.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_mix.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_mix.py
                     </a>
                   </div>
         </div>
@@ -3708,26 +3680,30 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_stddev_samp" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_query_main.TestBenchmarkQueryMain.test_query_main" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_stddev_samp" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_query_main.TestBenchmarkQueryMain.test_query_main" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: stddev_samp()</strong> 
+                    <strong>taosBenchmark query basic</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create normal table with timestamp,int columns</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert 5 rows with int values 1,2,3,4,5</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. query stddev_samp(int column) and check the result</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Insert test data into benchmark tables.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Run taosBenchmark in three query modes:</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1) specified table query</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2) specified table mixed query</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3) super table query</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Validate the output of each query mode to ensure correct execution.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Perform exception tests to verify error handling.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_smoking.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_smoking.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_query_main.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_query_main.py
                     </a>
                   </div>
         </div>
@@ -3739,26 +3715,35 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_variance" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_query_rest.TestBenchmarkQueryRest.test_benchmark_basic" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_variance" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_query_rest.TestBenchmarkQueryRest.test_benchmark_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: variance()</strong> 
+                    <strong>taosBenchmark query with json</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create normal table with timestamp,int columns</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert 5 rows with int values 1,2,3,4,5</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. query variance(int column) and check the result</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create database and super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create sub-tables and insert data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. taosBenchmark run with taosc_query.json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. taosBenchmark run with rest_query.json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. taosBenchmark run with taosc_query_mixed_query.json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. taosBenchmark run with rest_query_mixed_query.json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Verify query result correct</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Verify query times correct</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Verify query with times less than or equal to 100</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Verify query result print QPS</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Use illegal or out of range parameters query json file</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_smoking.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_smoking.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_query_rest.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_query_rest.py
                     </a>
                   </div>
         </div>
@@ -3770,24 +3755,27 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_func_agg_var_pop" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_query_sqlfile.TestQueryJsonWithSqlfile.test_benchmark_query_json" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_func_agg_var_pop" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_query_sqlfile.TestQueryJsonWithSqlfile.test_benchmark_query_json" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: var_pop()</strong> 
+                    <strong>taosBenchmark query with json</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">same with variance()</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. taosBenchmark run with query sqlfile</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify data correct after query sqlfile</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. taosBenchmark run with query error sqlfile</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify handling of error sqlfile</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_smoking.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_smoking.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_query_sqlfile.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_query_sqlfile.py
                     </a>
                   </div>
         </div>
@@ -3799,26 +3787,32 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_var_samp" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_rest.TestCommandlineSmlRest.test_commandline_sml_rest" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_var_samp" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_rest.TestCommandlineSmlRest.test_commandline_sml_rest" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: var_samp()</strong> 
+                    <strong>taosBenchmark run with rest connect</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create normal table with timestamp,int columns</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert 5 rows with int values 1,2,3,4,5</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. query var_samp(int column) and check the result</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify &#34;-I sml-rest -t 1 -n 1 -y&#34;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify &#34;-I sml-rest-line -t 1 -n 1 -y&#34;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify &#34;-I sml-rest-telnet -t 1 -n 1 -y&#34;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify &#34;-I sml-rest-json -t 1 -n 1 -y&#34;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify &#34;-I sml-rest-taosjson -t 1 -n 1 -y&#34;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify &#34;-N -I sml-rest -y&#34; negative case</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Run with rest insert all data-types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Connect with telnet_tcp protocol</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Verify taosadapter with sml rest json/line/telnet</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_smoking.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_smoking.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_rest.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_rest.py
                     </a>
                   </div>
         </div>
@@ -3830,26 +3824,33 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_group_concat" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_sml.TestBenchmarkSml.test_benchmark_sml" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_agg_smoking.TestFuncAggSmoking.test_fun_agg_group_concat" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_sml.TestBenchmarkSml.test_benchmark_sml" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: group_concat()</strong> 
+                    <strong>taosBenchmark schemaless insert</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create normal table with timestamp,int columns</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. insert 10 rows with int values 1,2,3,4,5,6,7,8,9,10</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. query group_concat(int column) and check the result</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. sml auto create table with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. sml insert alltypes with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. sml interlace</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. sml json alltypes interlace</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. sml json alltypes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. sml json insert alltypes same min max</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. sml taosjson alltypes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. sml taosjson insert alltypes same min max</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. sml telnet alltypes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10.sml telnet insert alltypes same min max</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_smoking.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_agg_smoking.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_sml.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_sml.py
                     </a>
                   </div>
         </div>
@@ -3861,28 +3862,30 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_apercentile.TestFunApercentile.test_func_agg_apercentile" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_stmt.TestBenchmarkStmt.test_benchmark_stmt" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_apercentile.TestFunApercentile.test_func_agg_apercentile" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_stmt.TestBenchmarkStmt.test_benchmark_stmt" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: apercentile()</strong> 
+                    <strong>taosBenchmark stmt & stmt2 insert</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sim case including time windows, t-digest input, null value</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Support types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query on distribute</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Stmt auto create table with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Stmt insert alltypes with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Stmt insert alltypes same min max</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Stmt offset with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Stmt2 restart dnode during insert with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Stmt2 insert with auto-create-table(yes or no), interlace or batch, csv or not</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Old case (taosdemo) for insert with stmt other parameters</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_apercentile.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_apercentile.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_stmt.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_stmt.py
                     </a>
                   </div>
         </div>
@@ -3894,31 +3897,26 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_avg.TestFunAvg.test_func_agg_avg" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_tag_order_sml.TestInsertTagOrderSml.test_benchmark_tag_order_sml" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_avg.TestFunAvg.test_func_agg_avg" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_sml.TestInsertTagOrderSml.test_benchmark_tag_order_sml" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: avg()</strong> 
+                    <strong>taosBenchmark tag order sml</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Support types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Boundary values</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Basic query</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. AVG with filter conditions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. AVG with unsigned types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sml insert with tag order and interlace 1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Sml insert with tag order and interlace 0</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check tag value is ordered after insert</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_avg.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_avg.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sml.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sml.py
                     </a>
                   </div>
         </div>
@@ -3930,32 +3928,26 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_count.TestFunCount.test_func_agg_count" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_tag_order_sql.TestInsertTagOrderSql.test_benchmark_tag_order_sql" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_count.TestFunCount.test_func_agg_count" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_sql.TestInsertTagOrderSql.test_benchmark_tag_order_sql" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: count()</strong> 
+                    <strong>taosBenchmark tag order sql</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Basic query</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Error check</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query on stable/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with interval clause</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query after restart taosd</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Query on null data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Query on partition by clause</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Query on distributed </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sql insert with tag order and interlace 1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Sql insert with tag order and interlace 0 </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check tag value is ordered after insert</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_count.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_count.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sql.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sql.py
                     </a>
                   </div>
         </div>
@@ -3967,31 +3959,27 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_elapsed.TestFunElapsed.test_func_agg_elapsed" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_tag_order_stmt.TestInsertTagOrderStmt.test_benchmark_tag_order_stmt" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_elapsed.TestFunElapsed.test_func_agg_elapsed" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_stmt.TestInsertTagOrderStmt.test_benchmark_tag_order_stmt" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: elapsed()</strong> 
+                    <strong>taosBenchmark tag order stmt</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query with nested</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query with join</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query with union</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with other function</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query with filter</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Query with tags</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Error cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Stmt insert with tag order and interlace 1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Stmt insert with tag order and interlace 0</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check tag value is ordered after insert</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_elapsed.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_elapsed.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt.py
                     </a>
                   </div>
         </div>
@@ -4003,30 +3991,26 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_histogram.TestFunHistogram.test_fun_agg_histogram" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_tag_order_stmt2.TestInsertTagOrderStmt2.test_insert_tag_order_stmt2" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_histogram.TestFunHistogram.test_fun_agg_histogram" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_tag_order_stmt2.TestInsertTagOrderStmt2.test_insert_tag_order_stmt2" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: histogram()</strong> 
+                    <strong>taosBenchmark tag order stmt2</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query with bin_type parameter as user_input/linear_bin/log_bin</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query with bin_description parameter </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query with different data type</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with filter</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check again after flush database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Stmt2 insert with tag order and interlace 1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Stmt2 insert with tag order and interlace 0</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check tag value is ordered after insert</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_histogram.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_histogram.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt2.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt2.py
                     </a>
                   </div>
         </div>
@@ -4038,31 +4022,31 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_hyperloglog.TestFunHyperloglog.test_fun_agg_hyperloglog" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_taosc.TestTaoscAutoCreateTableJson.test_benchmark_taosc" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_hyperloglog.TestFunHyperloglog.test_fun_agg_hyperloglog" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_taosc.TestTaoscAutoCreateTableJson.test_benchmark_taosc" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: hyperloglog()</strong> 
+                    <strong>taosBenchmark taosc insert</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query with group by </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query with having</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query with different data type</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with filter</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query with join</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Check again after flush database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Taosc insert auto create table with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Taosc insert alltypes with json partial col</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Taosc insert alltypes with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Taosc insert alltypes same min max</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Taosc insert mix</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Taosc insert retry global with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Taosc insert retry stb with json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Taosc insert with table creating interval</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_hyperloglog.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_hyperloglog.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_taosc.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_taosc.py
                     </a>
                   </div>
         </div>
@@ -4074,29 +4058,26 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_fun_agg_leastsquares" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_tmq.TestBenchmarkTmq.test_benchmark_tmq" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_fun_agg_leastsquares" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_tmq.TestBenchmarkTmq.test_benchmark_tmq" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: leastsquares()</strong> 
+                    <strong>taosBenchmark tmq</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Query on different data types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query with partition by</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with group by and having</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query with union</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check tmq basic insert data, tmq sequ, tmq parallel</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Check tmq case for different options</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check coredump do restart taosd during consume data</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_leastsquares.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_leastsquares.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_tmq.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
                     </a>
                   </div>
         </div>
@@ -4108,28 +4089,25 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_percentile.TestFunPercentile.test_func_agg_percentile" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_website.TestBenchmarkWebsite.test_benchmark_website" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_percentile.TestFunPercentile.test_func_agg_percentile" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_website.TestBenchmarkWebsite.test_benchmark_website" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: percentile()</strong> 
+                    <strong>taosBenchmark official website</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Support types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check tags</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check official website example case run successfully</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. example files: insert.json/query.json/queryStb.json/tmq.json</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_percentile.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_percentile.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_website.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_website.py
                     </a>
                   </div>
         </div>
@@ -4141,32 +4119,26 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_spread.TestFunSpread.test_func_agg_spread" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_websocket.TestWebsocket.test_benchmark_websocket" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_spread.TestFunSpread.test_func_agg_spread" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_websocket.TestWebsocket.test_benchmark_websocket" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: spread()</strong> 
+                    <strong>taosBenchmark websocket</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Support types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with filter conditions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query with group by</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Query with distribute aggregate</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Check function work status</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check option -W http://localhost:6041</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Check option --driver=&#39;WebSocket&#39;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check option --cloud_dsn=&#39;http://localhost:6041&#39;</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_spread.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_spread.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_websocket.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_websocket.py
                     </a>
                   </div>
         </div>
@@ -4178,125 +4150,32 @@
   
   
   
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_stddev" class="doc doc-heading">
+<h2 id="81-Tools.03-Benchmark.test_benchmark_with_csv.TestBenchmarkWithCsv.test_benchmark_with_csv" class="doc doc-heading">
 
-<a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_stddev" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#81-Tools.03-Benchmark.test_benchmark_with_csv.TestBenchmarkWithCsv.test_benchmark_with_csv" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: stddev()</strong> 
+                    <strong>taosBenchmark json with csv</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Support types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with filter conditions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query with group by</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Query with distribute aggregate</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table tags from csv file</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create table with keywords</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Export data to csv files</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Insert data from json and csv files</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Stmt sample with csv and json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Stmt sample with csv and json doesnt use ts</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Stmt sample with csv and json subtable</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Taosc sample with csv and json</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Taosc sample with csv and json subtable</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_stddev.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_stddev.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_std" class="doc doc-heading">
-
-<a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_std" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: std()</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">same with stddev() </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_stddev.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_stddev.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_stddev_pop" class="doc doc-heading">
-
-<a href="#11-Functions.02-Aggregate.test_fun_agg_stddev.TestFunStddev.test_func_agg_stddev_pop" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: stddev_pop()</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">same with stddev() </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_stddev.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_stddev.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="11-Functions.02-Aggregate.test_fun_agg_sum.TestFunSum.test_func_agg_sum" class="doc doc-heading">
-
-<a href="#11-Functions.02-Aggregate.test_fun_agg_sum.TestFunSum.test_func_agg_sum" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: sum()</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Sim case including time windows, filtering on ordinary data columns, filtering on tag columns, GROUP BY, and PARTITION BY.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query on super/child/normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Support types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with filter conditions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query with group by</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Query with distribute aggregate</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_sum.py" target="_blank">
-                      cases/11-Functions/02-Aggregate/test_fun_agg_sum.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py" target="_blank">
+                      cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py
                     </a>
                   </div>
         </div>
