@@ -17,6 +17,8 @@ import com.taosdata.threads.*;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.FileUtils;
 import com.taosdata.utils.HttpUtils;
+import com.taosdata.utils.arrow.ArrowUtils;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -185,12 +187,24 @@ public class PreLoading implements CommandLineRunner {
             this.taskConfig.setBeginTime(tomlParseResult.getString("task.beginTime", String::new));
             this.taskConfig.setEndTime(tomlParseResult.getString("task.endTime", String::new));
             // 判断时间配置，错误则退出
-            if (StringUtils.isEmpty(this.taskConfig.getBeginTime()) || !this.taskConfig.getBeginTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
+            if (StringUtils.isEmpty(this.taskConfig.getBeginTime())
+                    || !this.taskConfig.getBeginTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
                 throw new Exception("parameter beginTime configuration error.");
             }
-            if (StringUtils.isNotEmpty(this.taskConfig.getEndTime()) && !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
+            if (StringUtils.isNotEmpty(this.taskConfig.getEndTime())
+                    && !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
                 throw new Exception("parameter endTime configuration error.");
             }
+            String timestampFieldName = tomlParseResult.getString("task.timestampFieldName", String::new);
+            if (StringUtils.isNotEmpty(timestampFieldName)) {
+                this.taskConfig.setTimestampFieldName(timestampFieldName);
+            }
+            String valueFieldName = tomlParseResult.getString("task.valueFieldName", String::new);
+            if (StringUtils.isNotEmpty(valueFieldName)) {
+                this.taskConfig.setValueFieldName(valueFieldName);
+            }
+            ArrowUtils.setTimestampFieldName(this.taskConfig.getTimestampFieldName());
+            ArrowUtils.setValueFieldName(this.taskConfig.getValueFieldName());
             String breakpoints = tomlParseResult.getString("task.breakpoints", String::new);
             // 存在断点信息则解析
             if (StringUtils.isNotEmpty(breakpoints)) {
