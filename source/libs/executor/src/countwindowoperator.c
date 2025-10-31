@@ -134,6 +134,11 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   }
 
   for (int32_t i = 0; i < pBlock->info.rows;) {
+    if (i > 0 && tsCols[i] == tsCols[i - 1]) {
+      qError("duplicate timestamp found in count window operator" PRId64 ", timestamp: %" PRId64, tsCols[i]);
+      code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     SCountWindowResult* pBuffInfo = NULL;
     code = setCountWindowOutputBuff(pExprSup, &pInfo->countSup, &pInfo->pRow, &pBuffInfo);
     if (code != TSDB_CODE_SUCCESS) {
