@@ -19,6 +19,7 @@
 #include "os.h"
 #include "query.h"
 #include "querynodes.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
@@ -30,6 +31,7 @@
 #include "querytask.h"
 #include "storageapi.h"
 #include "tcompression.h"
+#include "tutil.h"
 
 typedef struct tagFilterAssist {
   SHashObj* colHash;
@@ -707,6 +709,12 @@ static int32_t genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
   tMD5Init(pContext);
   tMD5Update(pContext, (uint8_t*)payload, (uint32_t)len);
   tMD5Final(pContext);
+
+  // void* tmp = NULL;
+  // uint32_t size = 0;
+  // (void)taosAscii2Hex((const char*)pContext->digest, 16, &tmp, &size);
+  // qInfo("tag filter digest payload: %s", tmp);
+  // taosMemoryFree(tmp);
 
   taosMemoryFree(payload);
   return TSDB_CODE_SUCCESS;
@@ -1766,6 +1774,37 @@ end:
   return code;
 }
 
+typedef struct {
+  int32_t code;
+  SStreamRuntimeFuncInfo* pStreamRuntimeInfo;
+} PlaceHolderContext;
+
+static EDealRes replacePlaceHolderColumn(SNode** pNode, void* pContext) {
+  PlaceHolderContext* pData = (PlaceHolderContext*)pContext;
+  if (QUERY_NODE_FUNCTION != nodeType((*pNode))) {
+    return DEAL_RES_CONTINUE;
+  }
+  SFunctionNode* pFuncNode = *(SFunctionNode**)(pNode);
+  if (!fmIsStreamPesudoColVal(pFuncNode->funcId)) {
+    return DEAL_RES_CONTINUE;
+  }
+  pData->code = fmSetStreamPseudoFuncParamVal(pFuncNode->funcId, pFuncNode->pParameterList, pData->pStreamRuntimeInfo);
+  if (pData->code != TSDB_CODE_SUCCESS) {
+    return DEAL_RES_ERROR;
+  }
+  SNode* pFirstParam = nodesListGetNode(pFuncNode->pParameterList, 0);
+  ((SValueNode*)pFirstParam)->translate = true;
+  SValueNode* res = NULL;
+  pData->code = nodesCloneNode(pFirstParam, (SNode**)&res);
+  if (NULL == res) {
+    return DEAL_RES_ERROR;
+  }
+  nodesDestroyNode(*pNode);
+  *pNode = (SNode*)res;
+
+  return DEAL_RES_CONTINUE;
+}
+
 int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI, void* pStreamInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1792,10 +1831,25 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     T_MD5_CTX context = {0};
 
     if (tsTagFilterCache) {
-      // try to retrieve the result from meta cache
-      code = genTagFilterDigest(pTagCond, &context);
-      QUERY_CHECK_CODE(code, lino, _error);
+      if (pStreamInfo != NULL && ((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
+        SNode* tmp = NULL;
+        code = nodesCloneNode((SNode*)pTagCond, &tmp);
+        QUERY_CHECK_CODE(code, lino, _error);
 
+        PlaceHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
+        nodesRewriteExpr(&tmp, replacePlaceHolderColumn, (void*)&ctx);
+        if (TSDB_CODE_SUCCESS != ctx.code) {
+          nodesDestroyNode(tmp);
+          code = ctx.code;
+          goto _error;
+        }
+        code = genTagFilterDigest(tmp, &context);
+        nodesDestroyNode(tmp);
+      } else {
+        code = genTagFilterDigest(pTagCond, &context);
+      }
+      // try to retrieve the result from meta cache
+      QUERY_CHECK_CODE(code, lino, _error);      
       bool acquired = false;
       code = pStorageAPI->metaFn.getCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),
                                                     pUidList, &acquired);

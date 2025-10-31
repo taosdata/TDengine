@@ -886,10 +886,9 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
           char* tbname = taosArrayGetP(tagCache, j);
           STR_TO_VARSTR(buf, tbname)
         }
-        for (uint32_t i = 0; i < numOfRows; i++){
-          colDataClearNull_f(pColInfoData->nullbitmap, currentRow + i);
-        }
         code = colDataSetNItems(pColInfoData, currentRow, buf, numOfRows, numOfBlocks, false);
+        // stInfo("set pseudo column tbname:%s currentRow:%d, numOfRows:%d, dstSlotId:%d, totalRows:%"PRId64" for uid:%" PRIu64 ", %p,%p", buf + VARSTR_HEADER_SIZE, 
+        //   currentRow, numOfRows, dstSlotId, pBlock->info.rows, uid, pColInfoData, pColInfoData->pData);
         pColInfoData->info.colId = -1;
       }
     } else {  // these are tags
@@ -926,7 +925,7 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
       if (isNullVal) {
         colDataSetNNULL(pColInfoData, currentRow, numOfRows);
       } else {
-        for (uint32_t i = 0; i < numOfRows; i++){
+        for (uint32_t i = 0; i < numOfRows && !IS_VAR_DATA_TYPE(pColInfoData->info.type); i++){
           colDataClearNull_f(pColInfoData->nullbitmap, currentRow + i);
         }
         code = colDataSetNItems(pColInfoData, currentRow, data, numOfRows, numOfBlocks, false);
@@ -1212,6 +1211,8 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
         if (colVal.cid == colId && COL_VAL_IS_VALUE(&colVal)) {
           if (IS_VAR_DATA_TYPE(colVal.value.type) || colVal.value.type == TSDB_DATA_TYPE_DECIMAL){
             STREAM_CHECK_RET_GOTO(varColSetVarData(pColData, blockStart+ numOfRows, (const char*)colVal.value.pData, colVal.value.nData, !COL_VAL_IS_VALUE(&colVal)));
+            // ST_TASK_ILOG("%s vtable colId:%d, i:%d, colData:%p, data:%s, len:%d, rowIndex:%d, offset:%d, uid:%" PRId64, __func__, colId, i, pColData, 
+            //   (const char*)colVal.value.pData, colVal.value.nData, blockStart+ numOfRows, pColData->varmeta.offset[blockStart+ numOfRows], submitTbData.uid);
           } else {
             STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, blockStart + numOfRows, (const char*)(&(colVal.value.val)), !COL_VAL_IS_VALUE(&colVal)));
           }
@@ -1611,8 +1612,10 @@ static int32_t filterData(SSTriggerWalNewRsp* resultRsp, SStreamTriggerReaderInf
   int32_t      code = 0;
   int32_t       lino = 0;
   SColumnInfoData* pRet = NULL;
+
   int64_t totalRows = ((SSDataBlock*)resultRsp->dataBlock)->info.rows;
   STREAM_CHECK_RET_GOTO(qStreamFilter(((SSDataBlock*)resultRsp->dataBlock), sStreamReaderInfo->pFilterInfo, &pRet));
+
   if (((SSDataBlock*)resultRsp->dataBlock)->info.rows < totalRows) {
     filterIndexHash(sStreamReaderInfo->indexHash, pRet);
   }
@@ -3118,6 +3121,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     }
 
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
+    sStreamReaderCalcInfo->rtInfo.funcInfo.hasPlaceHolder = sStreamReaderCalcInfo->hasPlaceHolder;
     handle.streamRtInfo = &sStreamReaderCalcInfo->rtInfo;
 
     if (sStreamReaderCalcInfo->pTaskInfo == NULL || !qNeedReset(sStreamReaderCalcInfo->pTaskInfo)) {

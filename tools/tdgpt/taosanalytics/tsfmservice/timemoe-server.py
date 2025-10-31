@@ -111,7 +111,7 @@ def main():
 
         if model_index < 0 or model_index >= len(model_list):
             print(f"invalid model index parameter, valid index:\n 0. {model_list[0]}\n 1. {model_list[1]}")
-            exit(-1)
+            sys.exit(-1)
 
         pretrained_model = AutoModelForCausalLM.from_pretrained(
             model_list[model_index],
@@ -125,12 +125,19 @@ def main():
 
         if model_name not in model_list:
             print(f"invalid model_name, valid model name as follows: {model_list}")
-            exit(-1)
+            sys.exit(-1)
 
         if not os.path.exists(model_folder):
             print(f"the specified folder: {model_folder} not exists, start to create it")
 
-        download_model(model_name, model_folder, enable_ep=enable_ep)
+        # check if the model file exists or not
+        model_file = model_folder + '/model.safetensors'
+        model_conf_file = model_folder + '/config.json'
+
+        if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
+            download_model(model_name, model_folder, enable_ep=enable_ep)
+        else:
+            print("model file exists, start directly")
 
         """load the model from local folder"""
         pretrained_model = AutoModelForCausalLM.from_pretrained(
@@ -141,7 +148,7 @@ def main():
     else:
         print("invalid parameters")
         print(usage())
-        exit(-1)
+        sys.exit(-1)
 
     app.run(
             host='0.0.0.0',
