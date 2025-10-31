@@ -305,6 +305,21 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_APP(pConn, userApp, "aaaaaaaaaaaaaaaaaaaaaab");
 
+  // test connector info
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, "");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, cInfo, "");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, NULL);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, cInfo, "");
+
+  const char* str255 = "TDengine_ConnectOptionsTest_255_Character_String_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz_This_is_a_test_string_for_connection_options_testing_in_TDengine_database_system_with_exactly_255_characters_including_alphanumeric_and_special";
+  const char* str258 = "TDengine_ConnectOptionsTest_255_Character_String_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz_This_is_a_test_string_for_connection_options_testing_in_TDengine_database_system_with_exactly_255_characters_including_alphanumeric_and_specialaaa";
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, 
+    str258);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, cInfo, str255);
 
   // test user IP
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "");
@@ -362,9 +377,14 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_APP(pConn, userApp, "user");
 
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, "java-connector:3.23.3");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, cInfo, "java-connector:3.23.3");
+
   taosMsleep(2 * HEARTBEAT_INTERVAL);
 
   check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where user_app = 'user'", 1);
+  check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where connector_info = 'java-connector:3.23.3'", 1);
   check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where user_ip = '192.168.1.2'", 1);
 
   // test clear

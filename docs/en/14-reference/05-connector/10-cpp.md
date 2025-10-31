@@ -164,7 +164,7 @@ The basic API is used to establish database connections and provide a runtime en
 
 - `int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...)`
 
-  - **description**:Set each connection option on the client side. Currently, it supports character set setting(`TSDB_OPTION_CONNECTION_CHARSET`), time zone setting(`TSDB_OPTION_CONNECTION_TIMEZONE`), user IP setting(`TSDB_OPTION_CONNECTION_USER_IP`), and user APP setting(`TSDB_OPTION_CONNECTION_USER_APP`).
+  - **description**:Set each connection option on the client side. Currently, it supports character set setting(`TSDB_OPTION_CONNECTION_CHARSET`), time zone setting(`TSDB_OPTION_CONNECTION_TIMEZONE`), user IP setting(`TSDB_OPTION_CONNECTION_USER_IP`), and user APP setting(`TSDB_OPTION_CONNECTION_USER_APP`), and connector info setting(`TSDB_OPTION_CONNECTION_CONNECTOR_INFO`).
   - **input**:
     - `taos`: returned by taos_connect.
     - `option`: option name.
@@ -179,7 +179,7 @@ The basic API is used to establish database connections and provide a runtime en
     - If the same parameter is called multiple times, the latter shall prevail and can be used as a modification method.
     - The option of TSDB_OPTION_CONNECTION_CLEAR is used to reset all connection options.
     - After resetting the time zone and character set, using the operating system settings, the user IP and user app will be reset to empty.
-    - The values of the connection options are all string type, and the maximum value of the user app parameter is 23, which will be truncated if exceeded; Error reported when other parameters are illegal.
+    - The values of the connection options are all string type, and the maximum value of the user app parameter is 23, the maximum value of the connector info parameter is 255, which will be truncated if exceeded; Error reported when other parameters are illegal.
     - If time zone value can not be used to find a time zone file or can not be interpreted as a direct specification, UTC is used, which is the same as the operating system time zone rules. Please refer to the tzset function description for details. You can view the current time zone of the connection by sql:select timezone().
     - Time zones and character sets only work on the client side and do not affect related behaviors on the server side.
     - The time zone file uses the operating system time zone file and can be updated by oneself. If there is an error when setting the time zone, please check if the time zone file or path (mac:/var/db/timezone/zoneinfo, Linux:/var/share/zoneinfo) is correct.

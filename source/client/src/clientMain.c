@@ -201,6 +201,14 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     }
   }
 
+  if (option == TSDB_OPTION_CONNECTION_CONNECTOR_INFO || option == TSDB_OPTION_CONNECTION_CLEAR) {
+    if (val != NULL) {
+      tstrncpy(pObj->optionInfo.cInfo, val, sizeof(pObj->optionInfo.cInfo));
+    } else {
+      pObj->optionInfo.cInfo[0] = 0;
+    }
+  }
+
   if (option == TSDB_OPTION_CONNECTION_USER_IP || option == TSDB_OPTION_CONNECTION_CLEAR) {
     SIpRange dualIp = {0};
     if (val != NULL) {
