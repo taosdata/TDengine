@@ -2319,6 +2319,7 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
 }
 
 static char *mndUserAuditTypeStr(int32_t type) {
+  #if 0
   if (type == TSDB_ALTER_USER_PASSWD) {
     return "changePassword";
   }
@@ -2334,6 +2335,7 @@ static char *mndUserAuditTypeStr(int32_t type) {
   if (type == TSDB_ALTER_USER_CREATEDB) {
     return "userCreateDB";
   }
+    #endif
   return "error";
 }
 
@@ -2531,7 +2533,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SUserObj     *pOperUser = NULL;
   SUserObj      newUser = {0};
   SAlterUserReq alterReq = {0};
-
+#if 0
   TAOS_CHECK_GOTO(tDeserializeSAlterUserReq(pReq->pCont, pReq->contLen, &alterReq), &lino, _OVER);
 
   mInfo("user:%s, start to alter", alterReq.user);
@@ -2599,7 +2601,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WHITE_LIST) {
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_ALLOWED_HOST) {
     taosMemoryFreeClear(newUser.pIpWhiteListDual);
 
     int32_t           num = pUser->pIpWhiteListDual->num + alterReq.numIpRanges;
@@ -2642,7 +2644,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_USER_HOST, &lino, _OVER);
     }
   }
-  if (alterReq.alterType == TSDB_ALTER_USER_DROP_WHITE_LIST) {
+  if (alterReq.alterType == TSDB_ALTER_USER_DROP_ALLOWED_HOST) {
     taosMemoryFreeClear(newUser.pIpWhiteListDual);
 
     int32_t           num = pUser->pIpWhiteListDual->num;
@@ -2758,7 +2760,7 @@ _OVER:
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
   mndUserFreeObj(&newUser);
-
+#endif
   TAOS_RETURN(code);
 }
 

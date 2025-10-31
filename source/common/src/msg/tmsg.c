@@ -3993,6 +3993,42 @@ void tIpRangeSetDefaultMask(SIpRange *range) {
 }
 void tFreeSGetUserWhiteListDualRsp(SGetUserWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteListsDual); }
 
+bool isValidDateTimeRange(SDateTimeRange* pRange) {
+  if (pRange->hour < 0 || pRange->hour > 23) {
+    return false;
+  }
+  if (pRange->minute < 0 || pRange->minute > 59) {
+    return false;
+  }
+  if (pRange->duration < 1) {
+    return false;
+  }
+
+  if (pRange->month == -1) {
+    if (pRange->day < 0 || pRange->day > 6) {
+      return false;
+    }
+  } else {
+    if (pRange->year < 1970 || pRange->year > 9999) {
+      return false;
+    }
+    if (pRange->month < 1 || pRange->month > 12) {
+      return false;
+    }
+    if (pRange->day < 1) {
+      return false;
+    }
+    int32_t days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if ((pRange->year % 4 == 0 && pRange->year % 100 != 0) || (pRange->year % 400 == 0)) {
+      days[1] = 29;
+    }
+    if (pRange->day > days[pRange->month - 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 int32_t tSerializeSMCfgClusterReq(void *buf, int32_t bufLen, SMCfgClusterReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

@@ -400,10 +400,98 @@ typedef struct SAlterTableMultiStmt {
   SNodeList* pNodeListTagValue;
 } SAlterTableMultiStmt;
 
+
+// ip range for user options
+typedef struct SIpRangeNode{
+  ENodeType type;
+  SIpRange range;
+} SIpRangeNode;
+
+
+// date time range for user options
+typedef struct SDateTimeRangeNode {
+  ENodeType type;
+  SDateTimeRange range;
+} SDateTimeRangeNode;
+
+
+#define USER_OPTION_SESSION_PER_USER_DEFAULT      32
+#define USER_OPTION_CONNECT_TIME_DEFAULT          480
+#define USER_OPTION_CONNECT_IDLE_TIME_DEFAULT     30
+#define USER_OPTION_CALL_PER_SESSION_DEFAULT      10
+#define USER_OPTION_VNODE_PER_CALL_DEFAULT        10
+#define USER_OPTION_FAILED_LOGIN_ATTEMPTS_DEFAULT 3
+#define USER_OPTION_PASSWORD_LOCK_TIME_DEFAULT    1440
+#define USER_OPTION_PASSWORD_LIFE_TIME_DEFAULT    90
+#define USER_OPTION_PASSWORD_GRACE_TIME_DEFAULT   7
+#define USER_OPTION_PASSWORD_REUSE_TIME_DEFAULT   30
+#define USER_OPTION_PASSWORD_REUSE_TIME_MAX       365
+#define USER_OPTION_PASSWORD_REUSE_MAX_DEFAULT    5
+#define USER_OPTION_PASSWORD_REUSE_MAX_MAX        100
+#define USER_OPTION_INACTIVE_ACCOUNT_TIME_DEFAULT 90
+#define USER_OPTION_ALLOW_TOKEN_NUM_DEFAULT       3
+
+typedef struct SUserOptions {
+  ENodeType type;
+
+  bool hasPassword;
+  bool hasTotpseed;
+  bool hasEnable;
+  bool hasSysinfo;
+  bool hasIsImport;
+  bool hasCreatedb;
+  bool hasChangepass;
+  bool hasSessionPerUser;
+  bool hasConnectTime;
+  bool hasConnectIdleTime;
+  bool hasCallPerSession;
+  bool hasVnodePerCall;
+  bool hasFailedLoginAttempts;
+  bool hasPasswordLifeTime;
+  bool hasPasswordReuseTime;
+  bool hasPasswordReuseMax;
+  bool hasPasswordLockTime;
+  bool hasPasswordGraceTime;
+  bool hasInactiveAccountTime;
+  bool hasAllowTokenNum;
+
+  bool negIpRanges;        // negative ip ranges
+  bool negDropIpRanges;    // negative drop ip ranges, only for alter user
+  bool negTimeRanges;      // negative time ranges
+  bool negDropTimeRanges;  // negative drop time ranges, only for alter user
+
+  char   password[TSDB_USER_PASSWORD_LONGLEN];
+  char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
+  int8_t enable;
+  int8_t sysinfo;
+  int8_t isImport;
+  int8_t createdb;
+  int8_t changepass;
+  int32_t sessionPerUser;
+  int32_t connectTime;
+  int32_t connectIdleTime;
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;
+  int32_t passwordReuseTime;
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;
+  int32_t passwordGraceTime;
+  int32_t inactiveAccountTime;
+  int32_t allowTokenNum;
+
+  SNodeList* pIpRanges;
+  SNodeList* pDropIpRanges;  // only for alter user
+  SNodeList* pTimeRanges;
+  SNodeList* pDropTimeRanges;  // only for alter user
+
+} SUserOptions;
+
 typedef struct SCreateUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];
-  char        password[TSDB_USET_PASSWORD_LONGLEN];
+  char        password[TSDB_USER_PASSWORD_LONGLEN];
   int8_t      sysinfo;
   int8_t      createDb;
   int8_t      isImport;
@@ -417,7 +505,7 @@ typedef struct SAlterUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];
   int8_t      alterType;
-  char        password[TSDB_USET_PASSWORD_LONGLEN];
+  char        password[TSDB_USER_PASSWORD_LONGLEN];
   int8_t      enable;
   int8_t      sysinfo;
   int8_t      createdb;

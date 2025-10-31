@@ -245,15 +245,39 @@ typedef enum {
 #define TSDB_FILL_NEXT        7
 #define TSDB_FILL_NEAR        8
 
-#define TSDB_ALTER_USER_PASSWD          0x1
-#define TSDB_ALTER_USER_SUPERUSER       0x2
-#define TSDB_ALTER_USER_ENABLE          0x3
-#define TSDB_ALTER_USER_SYSINFO         0x4
-#define TSDB_ALTER_USER_ADD_PRIVILEGES  0x5
-#define TSDB_ALTER_USER_DEL_PRIVILEGES  0x6
-#define TSDB_ALTER_USER_ADD_WHITE_LIST  0x7
-#define TSDB_ALTER_USER_DROP_WHITE_LIST 0x8
-#define TSDB_ALTER_USER_CREATEDB        0x9
+#if 1
+// these definitions start from 5 is to keep compatible with old versions
+#define TSDB_ALTER_USER_ADD_PRIVILEGES         5
+#define TSDB_ALTER_USER_DEL_PRIVILEGES         6
+
+#else
+#define TSDB_ALTER_USER_PASSWD                 1
+#define TSDB_ALTER_USER_SUPERUSER              2
+#define TSDB_ALTER_USER_ENABLE                 3
+#define TSDB_ALTER_USER_SYSINFO                4
+#define TSDB_ALTER_USER_ADD_PRIVILEGES         5
+#define TSDB_ALTER_USER_DEL_PRIVILEGES         6
+#define TSDB_ALTER_USER_ADD_ALLOWED_HOST       7
+#define TSDB_ALTER_USER_DROP_ALLOWED_HOST      8
+#define TSDB_ALTER_USER_CREATEDB               9
+#define TSDB_ALTER_USER_CHANGEPASS            10
+#define TSDB_ALTER_USER_TOTPSEED              11
+#define TSDB_ALTER_USER_SESSION_PER_USER      12
+#define TSDB_ALTER_USER_CONNECT_IDLE_TIME     13
+#define TSDB_ALTER_USER_CONNECT_TIME          14
+#define TSDB_ALTER_USER_CALL_PER_SESSION      15
+#define TSDB_ALTER_USER_FAILED_LOGIN_ATTEMPTS 16
+#define TSDB_ALTER_USER_PASSWORD_LIFE_TIME    17
+#define TSDB_ALTER_USER_PASSWORD_REUSE_TIME   18
+#define TSDB_ALTER_USER_PASSWORD_REUSE_MAX    19
+#define TSDB_ALTER_USER_PASSWORD_LOCK_TIME    20
+#define TSDB_ALTER_USER_PASSWORD_GRACE_TIME   21
+#define TSDB_ALTER_USER_INACTIVE_ACCOUNT_TIME 22
+#define TSDB_ALTER_USER_ALLOW_TOKEN_NUM       23
+#define TSDB_ALTER_USER_ADD_ALLOWED_TIME      24
+#define TSDB_ALTER_USER_DROP_ALLOWED_TIME     25
+// #define TSDB_ALTER_USER_VNODE_PER_CALL        26
+#endif
 
 #define TSDB_ALTER_RSMA_FUNCTION        0x1
 
@@ -339,6 +363,9 @@ typedef enum ENodeType {
   QUERY_NODE_STREAM_CALC_RANGE,
   QUERY_NODE_COUNT_WINDOW_ARGS,
   QUERY_NODE_BNODE_OPTIONS,
+  QUERY_NODE_DATE_TIME_RANGE,
+  QUERY_NODE_IP_RANGE,
+  QUERY_NODE_USER_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -1355,13 +1382,24 @@ int32_t           cvtIpWhiteListDualToV4(SIpWhiteListDual* pWhiteListDual, SIpWh
 int32_t           createDefaultIp6Range(SIpRange* pRange);
 int32_t           createDefaultIp4Range(SIpRange* pRange);
 
+typedef struct SDateTimeRange {
+  int32_t year;
+  int8_t month; // 1-12, when month is -1, it means day is week day and year is not used.
+  int8_t day;   // 1-31 or 0-6 (0 means Sunday), depends on the month value.
+  int8_t hour;
+  int8_t minute;
+  int32_t duration;
+} SDateTimeRange;
+
+bool isValidDateTimeRange(SDateTimeRange* pRange);
+
 typedef struct {
   int8_t  createType;
   int8_t  superUser;  // denote if it is a super user or not
   int8_t  sysInfo;
   int8_t  enable;
   char    user[TSDB_USER_LEN];
-  char    pass[TSDB_USET_PASSWORD_LEN];
+  char    pass[TSDB_USER_PASSWORD_LEN];
   int32_t numIpRanges;
 
   SIpV4Range* pIpRanges;
@@ -1407,7 +1445,7 @@ typedef struct {
     };
   };
   char        user[TSDB_USER_LEN];
-  char        pass[TSDB_USET_PASSWORD_LEN];
+  char        pass[TSDB_USER_PASSWORD_LEN];
   char        objname[TSDB_DB_FNAME_LEN];  // db or topic
   char        tabName[TSDB_TABLE_NAME_LEN];
   char*       tagCond;

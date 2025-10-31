@@ -12405,8 +12405,11 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.isImport = pStmt->isImport;
   createReq.createDb = pStmt->createDb;
 
+
+
+
   if (pStmt->isImport == 1) {
-    tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
+    tstrncpy(createReq.pass, pStmt->password, TSDB_USER_PASSWORD_LEN);
   } else {
     taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
   }
@@ -12434,6 +12437,7 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
 static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   int32_t code = 0;
+  /*
   switch (pStmt->alterType) {
     case TSDB_ALTER_USER_ENABLE:
       code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1, false);
@@ -12445,6 +12449,7 @@ static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
       code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1, false);
       break;
   }
+  */
   return code;
 }
 
