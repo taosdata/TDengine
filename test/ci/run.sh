@@ -115,7 +115,13 @@ while true; do
 done
 
 function prepare_cases() {
-    cat "$t_file" >>"$task_file"
+    {
+        # 1. 有数字的行按数字逆序排序
+        grep "^[0-9]" "$t_file" | sort -nr
+        # 2. 无数字且非注释且非空的行保持原顺序
+        grep -v "^[0-9]" "$t_file" | grep -v "^#" | grep -v "^$"
+    } > "$task_file"
+    echo "" >>"$task_file"
     local i=0
     while [ $i -lt "$1" ]; do
         echo "%%FINISHED%%" >>"$task_file"
@@ -153,91 +159,65 @@ function get_remote_scp_command() {
     fi
 }
 
-function collect_coverage_data() {
-    local index=$1
-    local thread_no=$2
-    local case_file=$3
-    local log_dir=$4
-    local status=$5
-    
-    # echo "收集覆盖率信息: ${case_file} (${status})"
-    
-    # 创建覆盖率数据目录
-    local base_coverage_dir="${log_dir}/${case_file}.coverage"
-    local coverage_dir="$base_coverage_dir"
-    local counter=0
-    
-    # 避免目录冲突
-    while [ -d "$coverage_dir" ]; do
-        coverage_dir="${log_dir}/${case_file}.${counter}.coverage"
-        ((counter++))
+function transfer_debug_dirs() {
+    # Skip when only local host
+    if [ ${#hosts[@]} -le 1 ]; then
+        return 0
+    fi
+
+    local i=0
+    while [ $i -lt ${#hosts[*]} ]; do
+        if is_local_host "${hosts[i]}"; then
+            local_work_dir="${workdirs[i]}"
+            break
+        fi
+        i=$((i + 1))
     done
-    
-    mkdir -p "$coverage_dir"
-    
-    # 从容器中复制已生成的覆盖率信息文件
-    local remote_coverage_dir="${workdirs[index]}/tmp/thread_volume/${thread_no}/coverage_info"
-    local scpcmd=""
-    local ssh_script=""
-    
-    if ! is_local_host "${hosts[index]}"; then
-        scpcmd=$(get_remote_scp_command "$index")
-        ssh_script=$(get_remote_ssh_command "$index")
-        
-        # 检查远程覆盖率目录是否存在
-        local check_cmd="${ssh_script} \"[ -d ${remote_coverage_dir} ] && echo 'exists' || echo 'not_exists'\""
-        local dir_status=$(bash -c "$check_cmd" 2>/dev/null | tail -1)
-        
-        if [ "$dir_status" = "exists" ]; then
-            echo "从远程复制覆盖率信息文件..."
-            
-            # 复制所有 .info 文件
-            local copy_cmd="$scpcmd:${remote_coverage_dir}/*.info ${coverage_dir}/ 2>/dev/null || true"
-            bash -c "$copy_cmd"
-            
-            # 复制索引文件
-            local copy_index_cmd="$scpcmd:${remote_coverage_dir}/coverage_files.list ${coverage_dir}/ 2>/dev/null || true"
-            bash -c "$copy_index_cmd"
-            
-            # 清理远程文件
-            local cleanup_cmd="${ssh_script} \"rm -rf ${remote_coverage_dir}\""
-            bash -c "$cleanup_cmd" 2>/dev/null
-        else
-            echo "远程覆盖率目录不存在: $remote_coverage_dir"
+
+    cd "$local_work_dir"
+    rm -rf debug.tar.gz
+    tar -czf debug.tar.gz \
+        debugSan/build/bin/taos* \
+        debugSan/build/bin/tmq_* \
+        debugSan/build/bin/sml_test \
+        debugSan/build/bin/get_db_name_test \
+        debugSan/build/bin/replay_test \
+        debugSan/build/bin/varbinary_test \
+        debugSan/build/bin/write_raw_block_test \
+        debugSan/build/lib/*.so \
+        debugSan/build/share \
+        debugSan/build/include \
+        debugNoSan/build/bin/taos* \
+        debugNoSan/build/bin/tmq_* \
+        debugNoSan/build/bin/sml_test \
+        debugNoSan/build/bin/get_db_name_test \
+        debugNoSan/build/bin/replay_test \
+        debugNoSan/build/bin/varbinary_test \
+        debugNoSan/build/bin/write_raw_block_test \
+        debugNoSan/build/lib/*.so \
+        debugNoSan/build/share \
+        debugNoSan/build/include
+
+    local index=0
+    while [ $index -lt ${#hosts[*]} ]; do
+        if ! is_local_host "${hosts[index]}"; then
+            # remove remote debug dir if exists
+            remote_cmd=$(get_remote_ssh_command "$index")
+            bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugSan'"
+            bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugNoSan'"
+            # transfer debug.tar.gz to remote
+            if [ -n "${passwords[index]}" ]; then
+                sshpass -p "${passwords[index]}" scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
+            else
+                scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
+            fi
+            # untar debug.tar.gz to remote
+            bash -c "${remote_cmd} \"tar -xzf '${workdirs[index]}/debug.tar.gz' -C '${workdirs[index]}' && rm -rf '${workdirs[index]}/debug.tar.gz'\""
         fi
-    else
-        # 本地处理
-        if [ -d "$remote_coverage_dir" ]; then
-            # echo "复制本地覆盖率信息文件..."
-            cp -f "$remote_coverage_dir"/*.info "$coverage_dir"/ 2>/dev/null || true
-            cp -f "$remote_coverage_dir"/coverage_files.list "$coverage_dir"/ 2>/dev/null || true
-            
-            # 清理本地临时文件
-            rm -rf "$remote_coverage_dir"
-        else
-            echo "本地覆盖率目录不存在: $remote_coverage_dir"
-        fi
-    fi
-    
-    # 检查收集到的文件
-    local collected_info_files=$(find "$coverage_dir" -name "*.info" -type f 2>/dev/null | wc -l)
-    
-    if [ "$collected_info_files" -gt 0 ]; then
-        # echo "成功收集 $collected_info_files 个覆盖率信息文件:"
-        find "$coverage_dir" -name "*.info" -type f | while read -r info_file; do
-            local file_size=$(stat -c%s "$info_file" 2>/dev/null || echo "0")
-            local file_lines=$(wc -l < "$info_file" 2>/dev/null || echo "0")
-            echo "  $(basename "$info_file"): $file_size 字节, $file_lines 行"
-        done
-        
-        # 记录到日志
-        echo "Coverage info files collected: $collected_info_files" >> "${log_dir}/${case_file}.txt"
-        echo "覆盖率信息已保存到: $coverage_dir"
-    else
-        echo "警告: 未收集到任何覆盖率信息文件"
-        # 记录警告到日志
-        echo "Warning: No coverage info files collected" >> "${log_dir}/${case_file}.txt"
-    fi
+        index=$((index + 1))
+    done
+
+    rm -rf debug.tar.gz
 }
 
 function clean_tmp() {
@@ -265,17 +245,6 @@ function run_thread() {
     if [ $ent -ne 0 ]; then
         local script="${workdirs[index]}/TDinternal/community/test/ci/run_container.sh -e"
     fi
-
-    # 为每个线程创建独立的 GCOV 输出目录
-    local gcov_output_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/gcov_data"
-    local cmd=""
-    if ! is_local_host "${hosts[index]}"; then
-        cmd="${runcase_script} \"mkdir -p ${gcov_output_dir}\""
-    else
-        cmd="mkdir -p ${gcov_output_dir}"
-    fi
-    bash -c "$cmd"
-
     local cmd="${runcase_script} ${script}"
 
     # script="echo"
@@ -294,7 +263,7 @@ function run_thread() {
         local case_redo_time
         case_redo_time=$(echo "$line" | cut -d, -f2)
         if [ -z "$case_redo_time" ]; then
-            case_redo_time=${DEFAULT_RETRY_TIME:-2}
+            case_redo_time=2 # ${DEFAULT_RETRY_TIME:-1}
         fi
         local case_build_san
         case_build_san=$(echo "$line" | cut -d, -f3)
@@ -363,10 +332,7 @@ function run_thread() {
         if [ -n "$case_path" ]; then
             mkdir -p "$log_dir"/"$case_path"
         fi
-        
-        # 修改执行命令，添加 GCOV 环境变量
-        local gcov_env_vars="GCOV_PREFIX=${gcov_output_dir} GCOV_PREFIX_STRIP=0"
-        cmd="${runcase_script}  env ${gcov_env_vars} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
+        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
@@ -458,35 +424,34 @@ function run_thread() {
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
             flock -x "$lock_file" -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
-
-            collect_coverage_data "$index" "$thread_no" "$case_file" "$log_dir" "success"
         else
             if [ -n "${web_server}" ]; then
                 flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  ${web_server}/$test_log_dir/${case_file}.txt\" >>${failed_case_file}"
             else
                 flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: ${case_log_file}\" >>${failed_case_file}"
             fi
-            mkdir -p "${log_dir}"/"${case_file}".coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            if ! is_local_host "${hosts[index]}"; then
-                cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
-            else
-                cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+            if [ "$(ls -A ${remote_coredump_dir} 2>/dev/null)" ]; then
+                mkdir -p "${log_dir}"/"${case_file}".coredump
+                if ! is_local_host "${hosts[index]}"; then
+                    cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                else
+                    cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                fi
+                bash -c "$cmd" >/dev/null
             fi
-            bash -c "$cmd" >/dev/null
 
-            collect_coverage_data "$index" "$thread_no" "$case_file" "$log_dir" "failed"
-
-            local corefile
-            corefile=$(ls "$log_dir/${case_file}.coredump/")
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
             echo "=========================log============================"
             cat "$case_log_file"
             echo "====================================================="
             echo -e "\e[34m log file: $case_log_file \e[0m"
+
             if [ -n "${web_server}" ]; then
                 echo "${web_server}/$test_log_dir/${case_file}.txt"
             fi
+            local corefile
+            corefile=$(ls "$log_dir/${case_file}.coredump/")
             if [ -n "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
             fi
@@ -499,37 +464,48 @@ function run_thread() {
                     cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
-                    cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                        cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                    fi
                 else
                     cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
-                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                        cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                    fi
                 fi
             fi
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
-                cmd="$runcase_script sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+                cmd="$runcase_script \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
             else
                 cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
+            echo "tar sim.tar.gz cmd: $cmd"
             bash -c "$cmd"
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                echo "scp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd"
-                cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                    cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd"
+                fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                echo "cp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd"
-                cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                    cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd"
+                fi
             fi
             # # backup source code (disabled)
             # source_tar_dir=$log_dir/TDengine_${hosts[index]}
@@ -578,7 +554,14 @@ while [ $i -lt ${#hosts[*]} ]; do
     j=$((j + threads[i]))
     i=$((i + 1))
 done
+
+# prepare cases
 prepare_cases $j
+
+# transfer debug dirs
+echo "Transfer debug dirs...($(date))"
+transfer_debug_dirs
+echo "Transfer debug dirs done...($(date))"
 
 i=0
 while [ $i -lt ${#hosts[*]} ]; do
