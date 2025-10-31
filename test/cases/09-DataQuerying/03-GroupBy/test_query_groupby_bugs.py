@@ -13,7 +13,9 @@ class TestTS_3821:
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-
+    #
+    # ------------------- test_ts_3821.py ----------------
+    #
     def create_tables(self):
         tdSql.execute(f'''CREATE STABLE `s_e8d66f7af53e4c88866efbc44252a8cd_device_technical_indicators`
                           (`ts` TIMESTAMP, `event_time` TIMESTAMP, `wbli` DOUBLE, `vrc` DOUBLE, `csd` DOUBLE,
@@ -34,26 +36,7 @@ class TestTS_3821:
 
         tdLog.debug("insert data ............ [OK]")
 
-    def test_ts_3821(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
-
-        History:
-        - xxx
-        - xxx
-
-        """
-
+    def do_ts_3821(self):
         tdSql.prepare()
         self.create_tables()
         self.insert_data()
@@ -73,9 +56,24 @@ class TestTS_3821:
         tdSql.checkData(0, 0, 5)
         tdSql.checkData(0, 1, "1000000000001001")
 
+        print("do TS-3821 ............................ [passed]")
 
-        # Cleanup from original stop method
-        tdLog.success(f"{__file__} successfully executed")
+    #
+    # ------------------- main ----------------
+    #
+    def test_db_precision_bugs(self):
+        """Precision bugs
 
+        1. Verify bug TS-3821 (tag value not show with group by query)
+        
+        Since: v3.0.0.0
 
-    
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_ts_3821.py
+
+        """
+        self.do_ts_3821()

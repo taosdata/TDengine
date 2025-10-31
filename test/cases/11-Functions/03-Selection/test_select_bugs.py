@@ -8,12 +8,15 @@ import threading
 from new_test_framework.utils.log import tdLog
 from new_test_framework.utils.sql import tdSql
 
-class TestTD_19201:
+class TestSelectBugs:
     hostname = socket.gethostname()
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
+    #
+    # ------------------- test_TD_19201.py ----------------
+    #
     def create_tables(self):
         tdSql.execute(f"drop database if exists table_numeric_max_min")
         tdSql.execute(f"create database if not exists table_numeric_max_min keep 36500  replica 1")
@@ -750,26 +753,7 @@ class TestTD_19201:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def test_td_19201(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
-
-        History:
-        - xxx
-        - xxx
-
-        """
-
+    def do_td_19201(self):
         tdSql.prepare()
         self.create_tables()
         self.insert_data()
@@ -785,11 +769,67 @@ class TestTD_19201:
         #print(first_val)
 
         tdSql.checkEqual(max_val, first_val)
+        print("do TD-19201 ........................... [passed]")
 
+    #
+    # ------------------- test_TS_3581.py ----------------
+    #
+    def create_tables(self):
+        tdSql.execute(f'''CREATE STABLE `dwd_log_master` (`ts` TIMESTAMP, `dim_ip` NCHAR(64)) TAGS (`group_id` BIGINT, `st_hour` NCHAR(2), `org_id` NCHAR(32),
+                          `dev_manufacturer_name` NCHAR(64), `dev_manufacturer_id` INT, `dev_category_name` NCHAR(64), `dev_category_id` INT, `dev_feature_name` NCHAR(64),
+                          `dev_feature_id` INT, `dev_ip` NCHAR(64), `black_list` TINYINT, `white_list` TINYINT)''')
+        tdSql.execute(f'''CREATE TABLE `dwd_log_master_475021043` USING `dwd_log_master` (`group_id`, `st_hour`, `org_id`, `dev_manufacturer_name`, `dev_manufacturer_id`,
+                          `dev_category_name`, `dev_category_id`, `dev_feature_name`, `dev_feature_id`, `dev_ip`, `black_list`, `white_list`) TAGS
+                          (475021043, "14", NULL, NULL, NULL, NULL, NULL, NULL, NULL, "172.18.22.230", NULL, NULL)''')
 
+    def insert_data(self):
+        tdLog.debug("start to insert data ............")
 
-        # Cleanup from original stop method
-        tdLog.success(f"{__file__} successfully executed")
+        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:30.000','192.168.192.102')")
+        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:31.000','172.18.23.249')")
+        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:32.000','192.168.200.231')")
+        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:33.000','172.18.22.231')")
+        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:34.000','192.168.210.231')")
+        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:35.000','192.168.192.100')")
+        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:36.000','192.168.192.231')")
+        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:37.000','172.18.23.231')")
 
+        tdLog.debug("insert data ............ [OK]")
 
-    
+    def do_ts_3581(self):
+        tdSql.prepare()
+        self.create_tables()
+        self.insert_data()
+        tdLog.printNoPrefix("======== test TS-3581")
+
+        for i in range(100):
+          tdSql.query(f"select first(ts), last(ts), count(*) from dwd_log_master;")
+          tdSql.checkRows(1)
+          print(tdSql.queryResult)
+          tdSql.checkData(0, 0, '2023-06-26 14:38:30.000')
+        
+        print("do TS-3581 ............................ [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_select_bugs(self):
+        """Select function bugs
+
+        1. Verify bug TD-19210 (max function obtain float max value error)
+        2. Verify bug TS-3581 (first function return 0 randomly)
+        
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TD_19201.py
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TS_3581.py
+
+        """
+        self.do_td_19201()
+        self.do_ts_3581()

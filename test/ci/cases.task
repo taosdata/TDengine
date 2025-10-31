@@ -96,6 +96,7 @@
 #,,n,.,pytest cases/02-Databases/05-Sync/test_vnode_replica3_many.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_vnode_replica3_vgroup.py -N 4
 ## 06-Precision
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Precision/test_db_precision_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Precision/test_db_precision_ns.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/06-Precision/test_db_precision_us.py
 ## 07-Flush
@@ -254,7 +255,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_timestamp.py
 ## 03-GroupBy
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_groupby_basic.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_basic.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_bugs.py
 ## 04-OrderBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_double.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
@@ -275,7 +277,8 @@
 ## 11-Psedocolumn
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/11-Psedocolumn/test_tbname.py
 ## 12-Interp
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_interp_fill.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_bugs.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
 ## 13-CaseWhen
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/13-CaseWhen/test_query_case_when.py
 ## 14-Tags
@@ -345,6 +348,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_upper.py
 ## 02-Aggregate
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_all.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_bugs.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_gconcat.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_last.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_smoking.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_fun_agg_spread.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_fun_agg_apercentile.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_fun_agg_avg.py
@@ -354,11 +361,12 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_fun_agg_percentile.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_fun_agg_stddev.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_fun_agg_sum.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_gconcat.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_smoking.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_last.py
 ## 03-Selection
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_all.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_bugs.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_as_param.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_520_cols.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_json.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_cols.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_first.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_first_last.py
@@ -369,11 +377,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_mode.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_tail.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_unique.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_as_param.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_top.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_bottom.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_520_cols.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_json.py
 ## 04-Timeseries
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_csum.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_diff.py
@@ -684,7 +689,12 @@
 
 ,,n,.,pytest cases/70-Cluster/test_cluster_arbitrator.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_drop_table_by_uid.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_kill_restore_dnode.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_inc_snapshot.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_restore_dnode.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_restore_vnode.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_restore_mnode.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_restore_qnode.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_snapshot.py -N 3 -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_split_vgroup_by_learner.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_tsdb_snapshot.py -N 3 -M 3
@@ -910,14 +920,6 @@
 
 
 ### 1-insert (empty)
-
-### 3-enterprise
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_dnode.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_vnode.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_mnode.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_restore_qnode.py -N 5 -M 3 -I False
-#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
-,,n,.,pytest cases/uncatalog/system-test/3-enterprise/restore/test_kill_restore_dnode.py -N 5
 
 ### 6-cluster
 90,,n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
@@ -1157,14 +1159,3 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 --replica 3
-
-### 99-TDcase
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_19201.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3404.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3581.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3311.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3821.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5130.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5580.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_20582.py

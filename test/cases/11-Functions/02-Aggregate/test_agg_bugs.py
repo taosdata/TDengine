@@ -31,7 +31,9 @@ class TestTD_21561:
         os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
 
         cls.db = "hyp"
-
+    #
+    # ------------------- test_td_21561.py ----------------
+    #
     def dropandcreateDB_random(self,database,n):
         ts = 1630000000000
         num_random = 10
@@ -77,8 +79,6 @@ class TestTD_21561:
         tdSql.query("select count(*) from %s.table_0;"%database)
         tdSql.checkData(0,0,n)
 
-
-
     def sqls(self,database,function):
         sql0 = f"select {function}(q_tinyint) from {database}.stable_1 where tbname in ('stable_1_1') group by tbname ;"
 
@@ -96,14 +96,13 @@ class TestTD_21561:
         functions = ['COUNT', 'HYPERLOGLOG']
         for f in functions:
             for i in range(20):
-                self.sqls(database, f);
+                self.sqls(database, f)
 
             tdSql.execute(" flush database %s;" %database)
             tdLog.info("flush database success")
 
             for i in range(20):
-                self.sqls(database, f);
-
+                self.sqls(database, f)
 
     def constant_check(self,sql1,sql2):
         tdLog.info("\n=============sql1:(%s)___sql2:(%s) ====================\n" %(sql1,sql2))
@@ -120,26 +119,7 @@ class TestTD_21561:
         else :
             tdLog.exit(f"checkEqual error, base_value=={base_value},check_value={check_value}")
 
-    def test_td_21561(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
-
-        History:
-        - xxx
-        - xxx
-
-        """
-
+    def od_td_21561(self):
         startTime = time.time()
 
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
@@ -150,12 +130,24 @@ class TestTD_21561:
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-
-
-
-        # Cleanup from original stop method
-        tdLog.success("%s successfully executed" % __file__)
-
-
-
+        print("do TD-21561 ........................... [passed]")
     
+    #
+    # ------------------- main ----------------
+    #
+    def test_select_bugs(self):
+        """Select function bugs
+
+        1. Verify bug TD-21561 (count fun with group by error)
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TD_21561.py
+
+        """
+        self.do_td_21561()

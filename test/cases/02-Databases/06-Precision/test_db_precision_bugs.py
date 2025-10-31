@@ -14,6 +14,9 @@ class TestTS_3311:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
+    #
+    # ------------------- test_TS_3311.py ----------------
+    #
     def create_tables(self):
         tdSql.execute("create database if not exists dbus precision 'us'")
         tdSql.execute("create database if not exists dbns precision 'ns'")
@@ -41,26 +44,7 @@ class TestTS_3311:
 
         tdLog.debug("insert data ............ [OK]")
 
-    def test_ts_3311(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
-
-        History:
-        - xxx
-        - xxx
-
-        """
-
+    def do_ts_3311(self):
         tdSql.prepare()
         self.create_tables()
         self.insert_data()
@@ -112,7 +96,25 @@ class TestTS_3311:
         tdSql.checkData(0,  1, '2024-01-01 00:00:00.000000')
 
         # Cleanup from original stop method
-        tdLog.success(f"{__file__} successfully executed")
+        print("do TS-3311 ............................ [passed]")
 
+    #
+    # ------------------- main ----------------
+    #
+    def test_db_precision_bugs(self):
+        """Precision bugs
 
+        1. Verify bug TS-3311 (timestamp precision cause wrong window function result)
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TS_3311.py
+
+        """
+        self.do_ts_3311()
     

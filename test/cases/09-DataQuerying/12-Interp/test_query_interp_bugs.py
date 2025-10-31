@@ -14,6 +14,9 @@ class TestTS_3404:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
+    #
+    # ------------------- test_TS_3404.py ----------------
+    #
     def create_tables(self):
         tdSql.execute(f"CREATE STABLE `stb5` (`ts` TIMESTAMP, `ip_value` FLOAT, `ip_quality` INT) TAGS (`t1` INT)")
         tdSql.execute(f"CREATE TABLE `t_11` USING `stb5` (`t1`) TAGS (1)")
@@ -21,39 +24,19 @@ class TestTS_3404:
     def insert_data(self):
         tdLog.debug("start to insert data ............")
 
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-10 09:30:47.722', 10.30000, 100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-10 09:30:56.383', 12.30000, 100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-10 09:48:55.778', 13.30000, 100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-10 09:51:50.821', 9.30000,  100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-10 09:58:07.162', 9.30000,  100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-10 13:41:16.075', 9.30000,  100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-13 14:12:58.318', 21.00000, 100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-13 14:13:21.328', 1.10000,  100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-13 14:35:24.258', 1.30000,  100)")
-        tdSql.execute(f"INSERT INTO `t_11` VALUES ('2023-05-13 16:56:49.033', 1.80000,  100)")
+        sql = "INSERT INTO `t_11` VALUES ('2023-05-10 09:30:47.722', 10.30000, 100)"
+        sql += ", ('2023-05-10 09:30:56.383', 12.30000, 100)"
+        sql += ", ('2023-05-10 09:48:55.778', 13.30000, 100)"
+        sql += ", ('2023-05-10 09:51:50.821', 9.30000,  100)"
+        sql += ", ('2023-05-10 09:58:07.162', 9.30000,  100)"
+        sql += ", ('2023-05-10 13:41:16.075', 9.30000,  100)"
+        sql += ", ('2023-05-13 14:12:58.318', 21.00000, 100)"
+        sql += ", ('2023-05-13 14:13:21.328', 1.10000,  100)"
+        sql += ", ('2023-05-13 14:35:24.258', 1.30000,  100)"
+        sql += ", ('2023-05-13 16:56:49.033', 1.80000,  100)"
+        tdSql.execute(sql)
 
-        tdLog.debug("insert data ............ [OK]")
-
-    def test_ts_3404(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
-
-        History:
-        - xxx
-        - xxx
-
-        """
-
+    def do_ts_3404(self):
         tdSql.prepare()
         self.create_tables()
         self.insert_data()
@@ -90,9 +73,25 @@ class TestTS_3404:
         tdSql.checkData(11, 1, 1.369285)
         tdSql.checkData(12, 1, 1.386964)
 
+        print("do TS-3404 ............................ [passed]")
 
-        # Cleanup from original stop method
-        tdLog.success(f"{__file__} successfully executed")
+    #
+    # ------------------- main ----------------
+    #
+    def test_db_precision_bugs(self):
+        """Precision bugs
 
+        1. Verify bug TS-3404 (timestamp precision cause wrong window function result)
+        
+        Since: v3.0.0.0
 
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TS_3404.py
+
+        """
+        self.do_ts_3404()
     

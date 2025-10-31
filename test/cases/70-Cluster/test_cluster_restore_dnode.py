@@ -18,7 +18,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from restore_basic import *
 
 
-class TestRestoreMnode:
+class TestClusterRestoreDnode:
     # init
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
@@ -26,27 +26,31 @@ class TestRestoreMnode:
         cls.basic.init(cls.replicaVar)
     
     # run
-    def test_restore_mnode(self):
-        """summary: xxx
+    def test_cluster_restore_dnode(self):
+        """Cluster restore dnode
+        
+        1. Create 5 dnode 3 mnode cluster
+        2. Create 1 db, 1 stable, 100 childs table
+        3. Insert 10w records for each child table
+        4. Stop dnode 2 
+        5. Delete the data folder of dnode 2
+        6. Start dnode 2
+        7. Restore dnode 2 data with "restore dnode 2"
+        8. Check data correctness
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
-        """
-        self.basic.restore_mnode(3)
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/3-enterprise/restore/test_restore_dnode.py
 
-    # stop
+        """
+        self.basic.restore_dnode(2)
+
+        # stop
         self.basic.stop()
         tdLog.success("%s successfully executed" % __file__)
 
