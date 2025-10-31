@@ -570,6 +570,7 @@ while [ $i -lt ${#hosts[*]} ]; do
         run_thread $i $j &
         j=$((j + 1))
     done
+    sleep 1
     i=$((i + 1))
 done
 

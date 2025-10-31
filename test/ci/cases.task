@@ -755,7 +755,7 @@
 
 # 82-UnitTest
 
-100,,n,cases,bash 82-UnitTest/test.sh
+101,,n,cases,bash 82-UnitTest/test.sh
 
 # 83-DocTest
 
