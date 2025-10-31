@@ -75,6 +75,7 @@ void    taosObjListPopTail(SObjList *pList);
 void    taosObjListPopTailEx(SObjList *pList, FDelete fp);
 void    taosObjListPopObj(SObjList *pList, void *pObj);
 void    taosObjListPopObjEx(SObjList *pList, void *pObj, FDelete fp);
+void    taosObjListMoveBefore(SObjList *pList, void *pObj, void *pRefer);
 
 void *taosObjListGetHead(SObjList *pList);
 void *taosObjListGetTail(SObjList *pList);
