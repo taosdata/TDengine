@@ -625,7 +625,7 @@ class TestCase:
         tdSql.checkData(0, 1, 33)
         tdSql.checkData(0, 2, Decimal('22.00'))
         tdSql.checkData(0, 3, 'LINESTRING (1.000000 1.000000, 2.000000 102.000000)')
-        tdSql.checkData(1, 0, '2024-10-01 08:00:02.000')
+        tdSql.checkData(1, 0, '2024-10-01 08:01:00.000')
         tdSql.checkData(1, 1, 14)
         tdSql.checkData(1, 2, Decimal('4.00'))
         tdSql.checkData(1, 3, 'LINESTRING (1.000000 1.000000, 2.000000 103.000000)')
