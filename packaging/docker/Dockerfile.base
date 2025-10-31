@@ -9,6 +9,7 @@ RUN apt-get update && \
             locales \
             net-tools \
             netcat-openbsd \
+            openjdk-17-jre-headless \
             tini \
             tzdata \
             valgrind \
