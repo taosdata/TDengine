@@ -9,7 +9,7 @@ RUN TAOS_INSTALL_DIR=/tmp/tdengine-installer && \
     TAOS_DRIVER_DIR=/usr/local/taos/driver && \
     mkdir -p "${TAOS_INSTALL_DIR}" && \
     tar -zxf /tmp/"${pkgFile}" --strip-components=1 --directory="${TAOS_INSTALL_DIR}" && \
-    # install TDengine TSDB Enterprise or Oss with no interactive mode（-e）
+    # install TDengine TSDB OSS/Enterprise without interaction
     cd "${TAOS_INSTALL_DIR}" && ./install.sh -e no && \
     ln -sf "${TAOS_DRIVER_DIR}"/libtaos.so.*       "${TAOS_DRIVER_DIR}"/libtaos.so && \
     ln -sf "${TAOS_DRIVER_DIR}"/libtaosws.so.*     "${TAOS_DRIVER_DIR}"/libtaosws.so && \
