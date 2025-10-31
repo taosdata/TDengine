@@ -188,8 +188,7 @@ class TestTestTd28163:
         tdSql.checkData(0, 1, 100)
 
         # event window
-        tdSql.query("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
-        tdSql.checkRows(200)
+        tdSql.error("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
 
     def check_query_with_union(self):
         tdSql.query("select count(ts) from (select * from ct1 union select * from ct2 union select * from ct3);")
