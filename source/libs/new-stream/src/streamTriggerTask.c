@@ -3530,25 +3530,21 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
     TAOS_MEMCPY(&readInfo.lastParam, pLastParam, plainFieldSize);
     // todo(kjq): fill in ptables in readInfo
     SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
-    if (!pTask->stbPartByTbname || !pTask->isSuperTable) {
-      SArray *pInfos = NULL;
-      void *px = tSimpleHashGet(pCalcReq->pGroupReadInfos, &pGroup->vgId, sizeof(int32_t));
-      if (px == NULL) {
-        pInfos = taosArrayInit(0, sizeof(SSTriggerGroupReadInfo));
-        QUERY_CHECK_NULL(pInfos, code, lino, _end, terrno);
-        code = tSimpleHashPut(pCalcReq->pGroupReadInfos, &pGroup->vgId, sizeof(int32_t), &pInfos, POINTER_BYTES);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pInfos);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-      } else {
-        pInfos = *(SArray **)px;
+    SArray *pInfos = NULL;
+    void *px = tSimpleHashGet(pCalcReq->pGroupReadInfos, &pGroup->vgId, sizeof(int32_t));
+    if (px == NULL) {
+      pInfos = taosArrayInit(0, sizeof(SSTriggerGroupReadInfo));
+      QUERY_CHECK_NULL(pInfos, code, lino, _end, terrno);
+      code = tSimpleHashPut(pCalcReq->pGroupReadInfos, &pGroup->vgId, sizeof(int32_t), &pInfos, POINTER_BYTES);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pInfos);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
-      px = taosArrayPush(pInfos, &readInfo);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     } else {
-      // todo(kjq): fill in vnodes with readInfo
+      pInfos = *(SArray **)px;
     }
+    px = taosArrayPush(pInfos, &readInfo);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
 
     SSTriggerGroupCalcInfo calcInfo = {
         .pParams = pCalcReq->params, .pGroupColVals = pCalcReq->groupColVals, .createTable = pCalcReq->createTable};

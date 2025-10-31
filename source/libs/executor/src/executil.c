@@ -3320,10 +3320,29 @@ int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode* pScanNode, SNodeList* 
   STableKeyInfo tableKey;
   int32_t grpNum = taosArrayGetSize(pStream->curGrpRead);
   int32_t tblNum = 0, idx = 0;
+  
+  pTableListInfo->numOfOuputGroups = grpNum;
+  
   for (int32_t i = 0; i < grpNum; ++i) {
     SSTriggerGroupReadInfo* pGrp = taosArrayGet(pStream->curGrpRead, i);
     tableKey.groupId = pGrp->gid;
     tblNum = taosArrayGetSize(pGrp->pTables);
+
+    if (pStream->stbPartByTbname) {
+      tableKey.uid = pGrp->gid;
+      pTableListInfo->oneTableForEachGroup = true;
+      TSDB_CHECK_NULL(taosArrayPush(pTableListInfo->pTableList, &tableKey), code, lino, _exit, terrno);
+      int32_t tempRes = taosHashPut(pTableListInfo->map, &tableKey.uid, sizeof(uint64_t), &idx, sizeof(int32_t));
+      if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
+        return tempRes;
+      }      
+      
+      qDebug("%s gid:%" PRIu64 " table:%" PRIu64 " added to stream table list, partByTbname", GET_TASKID(pTaskInfo), tableKey.groupId, tableKey.uid);
+      idx++;
+      continue;
+    }
+    
     for (int32_t n = 0; n < tblNum; ++n, ++idx) {
       uint64_t* pUid = taosArrayGet(pGrp->pTables, n);
       tableKey.uid = *pUid;
@@ -3333,14 +3352,14 @@ int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode* pScanNode, SNodeList* 
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
         return tempRes;
       }      
+
+      qDebug("%s gid:%" PRIu64 " table:%" PRIu64 " added to stream table list", GET_TASKID(pTaskInfo), tableKey.groupId, tableKey.uid);
     }
   }
 
   pTableListInfo->idInfo.suid = pScanNode->suid;
   pTableListInfo->idInfo.tableType = pScanNode->tableType;
-  if (pScanNode->tableType != TSDB_SUPER_TABLE && !pScanNode->virtualStableScan) {
-    pTableListInfo->idInfo.uid = pScanNode->uid;
-  }
+
 
 _exit:
 

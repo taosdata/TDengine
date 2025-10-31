@@ -565,7 +565,7 @@ typedef struct STimeRangeNode {
 
 typedef struct SExtWinTimeWindow {
   STimeWindow tw;
-  int32_t     winOutIdx;
+  int32_t     resWinIdx;
 } SExtWinTimeWindow;
 
 typedef struct SSelectStmt {

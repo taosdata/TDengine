@@ -1283,12 +1283,12 @@ static int32_t sclCalcStreamExtWinsTimeRange(SScalarCtx *ctx,          SOperator
     if (node->opType == OP_TYPE_GREATER_THAN) {
       for (int32_t i = 0; i < res->numOfRows; ++i) {
         ctx->stream.pWins[i].tw.skey = ((int64_t*)res->columnData->pData)[i] + 1;
-        ctx->stream.pWins[i].winOutIdx = -1;
+        ctx->stream.pWins[i].resWinIdx = -1;
       }
     } else if (node->opType == OP_TYPE_GREATER_EQUAL) {
       for (int32_t i = 0; i < res->numOfRows; ++i) {
         ctx->stream.pWins[i].tw.skey = ((int64_t*)res->columnData->pData)[i];
-        ctx->stream.pWins[i].winOutIdx = -1;
+        ctx->stream.pWins[i].resWinIdx = -1;
       }
     } else {
       qError("invalid op type:%d in ext win range start expr", node->opType);
