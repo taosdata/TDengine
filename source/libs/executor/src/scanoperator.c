@@ -885,9 +885,6 @@ static int32_t initNextGroupScan(STableScanInfo* pInfo, STableKeyInfo** pKeyInfo
   code = tableListGetGroupList(pInfo->base.pTableListInfo, pInfo->currentGroupId, pKeyInfo, size);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (*size <= 0) {
-    goto _end;
-  }
   pInfo->tableStartIndex = TARRAY_ELEM_IDX(pInfo->base.pTableListInfo->pTableList, *pKeyInfo);
   pInfo->tableEndIndex = (pInfo->tableStartIndex + (*size) - 1);
   pInfo->pResBlock->info.blankFill = false;
@@ -1770,6 +1767,17 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->countState = 0;
   pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
 
+  if (!pInfo->virtualStableScan) {
+  // if (pInfo->virtualStableScan && pInfo->readerCache) {
+  //   cleanReaderForVTable(pInfo);
+  //   taosHashClear(pInfo->readerCache);
+  //   pInfo->readerCache = false;
+  // } else {
+    if (pInfo->base.readerAPI.tsdReaderClose) {
+      pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
+    }
+    pInfo->base.dataReader = NULL;
+  }
   tableListDestroy(pInfo->base.pTableListInfo);
   pInfo->base.pTableListInfo = tableListCreate();
   if (!pInfo->base.pTableListInfo) {
@@ -1796,57 +1804,11 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
     return code;
   }
-  pInfo->base.cond.startVersion = 0;
-  pInfo->base.cond.endVersion = pInfo->base.readHandle.version;
   if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
-  } else {
-    // reuse tsdb reader
-    if ((++pInfo->currentGroupId) >= tableListGetOutputGroups(pInfo->base.pTableListInfo)) {
-      setOperatorCompleted(pOper);
-      return code;
-    }
-
-    taosRLockLatch(&pTaskInfo->lock);
-    do {
-      int32_t        num = 0;
-      STableKeyInfo* pList = NULL;
-      code = initNextGroupScan(pInfo, &pList, &num);
-      if (code) {
-        qError("%s failed to initNextGroupScan, code:%s", __func__, tstrerror(code));
-        break;
-      }
-      code = pInfo->base.readerAPI.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
-      if (code) {
-        qError("%s failed to tsdSetQueryTableList, code:%s", __func__, tstrerror(code));
-        break;
-      }
-      code = pInfo->base.readerAPI.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
-      if (code) {
-        qError("%s failed to tsdReaderResetStatus, code:%s", __func__, tstrerror(code));
-        break;
-      }
-      pInfo->base.readerAPI.tsdReaderResetVer(pInfo->base.dataReader, &pInfo->base.cond);
-      code = pInfo->base.readerAPI.tsdReaderResetExTimeWindow(pInfo->base.dataReader, &pInfo->base.cond);
-      if (code) {
-        qError("%s failed to tsdReaderResetStatus, code:%s", __func__, tstrerror(code));
-        break;
-      }
-        
-    } while (0);
-    taosRUnLockLatch(&pTaskInfo->lock);
-    if (code) return code;
-
-    if (pInfo->filesetDelimited) {
-      pInfo->base.readerAPI.tsdSetFilesetDelimited(pInfo->base.dataReader);
-    }
-
-    if (pInfo->pResBlock->info.capacity > pOper->resultInfo.capacity) {
-      pOper->resultInfo.capacity = pInfo->pResBlock->info.capacity;
-    }
-  }
+  } 
 
   pOper->resultInfo.totalRows = 0;
   blockDataEmpty(pInfo->pResBlock);
