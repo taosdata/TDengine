@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 # for TZ awareness
 if [ "$TZ" != "" ]; then
@@ -76,7 +76,7 @@ sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 set -e
 
 if [ $# -gt 0 ]; then
-    exec $@
+    exec "$@"
     exit 0
 fi
 
@@ -98,19 +98,19 @@ if [ "$DISABLE_SERVER" = "0" ]; then
         done
 
         while true; do
-            es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+            es=$(taos -h "$FIRST_EP_HOST" -P "$FIRST_EP_PORT" --check)
             echo "Try to connect to first ep with return: ${es} (taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)"
             if [ "${es%%:*}" -eq 2 ]; then
                 if [ "$FQDN" = "$FIRST_EP_HOST" ]; then
-                    if [ ! -f "${data_dir}/.docker-entrypoint-root-password-changed" ]; then
+                    if [ ! -f "${DATA_DIR}/.docker-entrypoint-root-password-changed" ]; then
                         if [ "$TAOS_ROOT_PASSWORD" != "taosdata" ]; then
                             # change default root password
                             taos -s "ALTER USER root PASS '$TAOS_ROOT_PASSWORD'"
-                            touch "${data_dir}/.docker-entrypoint-root-password-changed"
+                            touch "${DATA_DIR}/.docker-entrypoint-root-password-changed"
                         fi
                     fi
                     # Initialization scripts should only work in first node.
-                    if [ ! -f "${data_dir}/.inited" ]; then
+                    if [ ! -f "${DATA_DIR}/.inited" ]; then
                         NEEDS_INITDB=1
                     fi
                 fi
@@ -119,14 +119,14 @@ if [ "$DISABLE_SERVER" = "0" ]; then
         done
     else
         while true; do
-            es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+            es=$(taos -h "$FIRST_EP_HOST" -P "$FIRST_EP_PORT" --check)
             echo "Try to connect to first ep with return: ${es} (taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)"
             if [ "${es%%:*}" -eq 2 ]; then
                 echo "execute to create dnode after connected to first ep"
                 taosd &
                 # wait for serverPort ready
                 for _ in $(seq 1 20); do
-                    nc -z localhost $SERVER_PORT && break
+                    nc -z localhost "$SERVER_PORT" && break
                     sleep 0.5
                 done
                 ENDPOINT=$FQDN:$SERVER_PORT
@@ -161,7 +161,7 @@ if [ "$DISABLE_SERVER" = "0" ]; then
         taosadapter &
         # wait for 6041 port ready
         for _ in $(seq 1 20); do
-            curl -sf http://localhost:6041/metrics && break
+            nc -z localhost 6041 && break
             sleep 0.5
         done
     fi
@@ -173,7 +173,7 @@ if [ "$DISABLE_KEEPER" = "0" ]; then
     which taoskeeper >/dev/null && taoskeeper &
     # wait for 6043 port ready
     for _ in $(seq 1 20); do
-        curl -sf http://localhost:6043/metrics && break
+        nc -z localhost 6043 && break
         sleep 0.5
     done
 fi
@@ -182,10 +182,9 @@ if [ "$DISABLE_TAOSX" = "0" ]; then
     echo "enable taosx"
     # startup taosx
     taosx serve &
-    # wait for 6050 6055 port ready
+    # wait for 6050 port ready
     for _ in $(seq 1 20); do
         nc -z localhost 6050 && break
-        nc -z localhost 6055 && break
         sleep 0.5
     done
 else
@@ -198,7 +197,7 @@ if [ "$DISABLE_EXPLORER" = "0" ]; then
     taos-explorer &
     # wait for 6060 port ready
     for _ in $(seq 1 20); do
-        curl -sf http://localhost:6060/metrics && break
+        nc -z localhost 6060 && break
         sleep 0.5
     done
 else
@@ -222,6 +221,7 @@ if [ "$NEEDS_INITDB" = "1" ]; then
                 if [[ "$OUTPUT" =~ "DB error" ]]; then
                     echo "Retrying in 2 seconds..."
                     sleep 2
+                    RETRY_COUNT=$((RETRY_COUNT + 1))
                 else
                     SUCCESS=1
                 fi
@@ -234,7 +234,5 @@ fi
 
 sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create snode on dnode 1;'"
 
-# never exit
-while true; do
-  sleep 1000s
-done
+trap 'echo "Received stop signal, killing children"; pkill -P $$ || true; exit 0' SIGINT SIGTERM
+wait
