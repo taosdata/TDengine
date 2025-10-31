@@ -1,5 +1,5 @@
-#!/bin/bash
-set -ex
+#!/usr/bin/env bash
+set -e
 # for TZ awareness
 if [ "$TZ" != "" ]; then
     ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
@@ -31,10 +31,10 @@ FQDN=$(taosd -C|grep -E 'fqdn\s+(\S+)' -o |head -n1|sed 's/fqdn *//')
 grep "$FQDN" /etc/hosts >/dev/null || echo "127.0.0.1 $FQDN" >>/etc/hosts
 
 # Get first ep from taosd -C
-FIRSET_EP=$(taosd -C|grep -E 'firstEp\s+(\S+)' -o |head -n1|sed 's/firstEp *//')
+FIRST_EP=$(taosd -C|grep -E 'firstEp\s+(\S+)' -o |head -n1|sed 's/firstEp *//')
 # parse first ep host and port
-FIRST_EP_HOST=${FIRSET_EP%:*}
-FIRST_EP_PORT=${FIRSET_EP#*:}
+FIRST_EP_HOST=${FIRST_EP%:*}
+FIRST_EP_PORT=${FIRST_EP#*:}
 
 # in case of custom server port
 SERVER_PORT=$(taosd -C|grep -E 'serverPort\s+(\S+)' -o |head -n1|sed 's/serverPort *//')
@@ -99,11 +99,6 @@ else
         fi
         sleep 1s
     done
-    if ps aux | grep -v grep | grep taosd > dev/null; then
-        echo "TDengine is running"
-      else
-        taosd &
-    fi
 fi
 
 if [ "$DISABLE_ADAPTER" = "0" ]; then
@@ -151,17 +146,17 @@ if [ "$NEEDS_INITDB" = "1" ]; then
                 if [[ "$OUTPUT" =~ "DB error" ]]; then
                     echo "Retrying in 2 seconds..."
                     sleep 2
+                    RETRY_COUNT=$((RETRY_COUNT + 1))
                 else
                     SUCCESS=1
                 fi
             done
         done
     fi
-
     touch "${DATA_DIR}/.docker-entrypoint-inited"
 fi
 
 sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create snode on dnode 1;'"
 
-tail -f /dev/null
-# while true; do sleep 1000; done
+trap 'echo "Received stop signal, killing children"; pkill -P $$ || true; exit 0' SIGINT SIGTERM
+wait

@@ -1,35 +1,23 @@
-# base image for tdengine
 FROM debian:bookworm-slim
 
-
-# metadata
-LABEL description="TDengine TSDB Base Image with essential dependencies"
+LABEL description="TDengine TSDB Base Image with Essential Dependencies"
    
-# install system dependencies
 RUN apt-get update && \
-    # install basic packages (adjust according to actual needs)
     apt-get install -y --no-install-recommends \
-        curl \
-        locales \
-        tzdata \
-        tini \
-        # monitoring and debugging tools
-        net-tools \
-        netcat-openbsd \
-        gdb \
-        procps \
-        valgrind \
-        && \
-    # clean cache
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    # set locale
+            curl \
+            gdb \
+            locales \
+            net-tools \
+            netcat-openbsd \
+            tini \
+            tzdata \
+            valgrind \
+            && \
+    rm -rf /var/lib/apt/lists/* && \
     echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
-    echo "zh_CN.UTF-8 UTF-8" >> /etc/locale.gen && \
     locale-gen
 
-# set environment variables and timezone
 ENV DEBIAN_FRONTEND=noninteractive \
-    LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
+    LC_CTYPE=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
