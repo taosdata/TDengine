@@ -29,7 +29,7 @@ class _LofService(AbstractAnomalyDetectionService):
         res = checker.fit_predict(arr_2d)
 
         print(f"The negative outlier factor is:{checker.negative_outlier_factor_}")
-        return res
+        return res.tolist()
 
     def set_params(self, params):
         super().set_params(params)
