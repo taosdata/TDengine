@@ -57,7 +57,7 @@ typedef struct SStreamTriggerReaderInfo {
   STSchema*    triggerTableSchema;
   bool         groupByTbname;
   void*        pVnode;
-  TdThreadMutex mutex;
+  TdThreadRwlock lock;
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {
