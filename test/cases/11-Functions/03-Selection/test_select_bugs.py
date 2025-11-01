@@ -785,14 +785,15 @@ class TestSelectBugs:
     def insert_data(self):
         tdLog.debug("start to insert data ............")
 
-        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:30.000','192.168.192.102')")
-        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:31.000','172.18.23.249')")
-        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:32.000','192.168.200.231')")
-        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:33.000','172.18.22.231')")
-        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:34.000','192.168.210.231')")
-        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:35.000','192.168.192.100')")
-        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:36.000','192.168.192.231')")
-        tdSql.execute(f"INSERT INTO `dwd_log_master_475021043` VALUES ('2023-06-26 14:38:37.000','172.18.23.231')")
+        tdSql.execute(f"""INSERT INTO `dwd_log_master_475021043` VALUES 
+            ('2023-06-26 14:38:30.000','192.168.192.102'),
+            ('2023-06-26 14:38:31.000','172.18.23.249'),
+            ('2023-06-26 14:38:32.000','192.168.200.231'),
+            ('2023-06-26 14:38:33.000','172.18.22.231'),
+            ('2023-06-26 14:38:34.000','192.168.210.231'),
+            ('2023-06-26 14:38:35.000','192.168.192.100'),
+            ('2023-06-26 14:38:36.000','192.168.192.231'),
+            ('2023-06-26 14:38:37.000','172.18.23.231')""")
 
         tdLog.debug("insert data ............ [OK]")
 
@@ -816,7 +817,7 @@ class TestSelectBugs:
     def test_select_bugs(self):
         """Select function bugs
 
-        1. Verify bug TD-19210 (max function obtain float max value error)
+        1. Verify bug TD-19201 (max function obtain float max value error)
         2. Verify bug TS-3581 (first function return 0 randomly)
         
         

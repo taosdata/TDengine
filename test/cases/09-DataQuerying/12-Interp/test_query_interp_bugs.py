@@ -78,8 +78,8 @@ class TestTS_3404:
     #
     # ------------------- main ----------------
     #
-    def test_db_precision_bugs(self):
-        """Precision bugs
+    def test_query_inerp_bugs(self):
+        """Interp bugs
 
         1. Verify bug TS-3404 (timestamp precision cause wrong window function result)
         

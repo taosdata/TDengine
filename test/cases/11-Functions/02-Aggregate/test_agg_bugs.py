@@ -119,7 +119,7 @@ class TestTD_21561:
         else :
             tdLog.exit(f"checkEqual error, base_value=={base_value},check_value={check_value}")
 
-    def od_td_21561(self):
+    def do_td_21561(self):
         startTime = time.time()
 
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))

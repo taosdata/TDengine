@@ -334,7 +334,7 @@ class TestUserPrivilegeSysinfo:
     #
     # ------------------- main ----------------
     #
-    def test_select_bugs(self):
+    def test_user_privilege_sysinfo(self):
         """Privilege: sysinfo
 
         1. Verify user privileges related to sysinfo operation, including grant, revoke, and query privileges.

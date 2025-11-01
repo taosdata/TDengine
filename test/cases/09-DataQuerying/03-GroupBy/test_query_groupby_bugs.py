@@ -61,8 +61,8 @@ class TestTS_3821:
     #
     # ------------------- main ----------------
     #
-    def test_db_precision_bugs(self):
-        """Precision bugs
+    def test_query_groupby_bugs(self):
+        """Group by bugs
 
         1. Verify bug TS-3821 (tag value not show with group by query)
         

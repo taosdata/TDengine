@@ -80,7 +80,7 @@ class TestMetaBugs:
             't19':'bool',
         }
         cls.tag_values = [
-            f'1','1','1','1','true','true','true','true','true','true','true','true','true','true','true','true','true',
+            '1','1','1','1','true','true','true','true','true','true','true','true','true','true','true','true','true',
             'true','true','true'
         ]
     def prepare_data(self):
@@ -88,12 +88,7 @@ class TestMetaBugs:
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         sql = "create table "
-        tags = f"{self.tag_values[0]}, {self.tag_values[1]}, " \
-                        f"{self.tag_values[2]}, {self.tag_values[3]}, {self.tag_values[4]}, {self.tag_values[5]}, " \
-                        f"{self.tag_values[6]}, {self.tag_values[7]}, {self.tag_values[8]}, {self.tag_values[9]}, " \
-                        f"{self.tag_values[10]}, {self.tag_values[11]}, {self.tag_values[12]}, {self.tag_values[13]}, " \
-                        f"{self.tag_values[14]}, {self.tag_values[15]}, {self.tag_values[16]}, {self.tag_values[17]}, " \
-                        f"{self.tag_values[18]}, {self.tag_values[19]}"
+        tags =  ", ".join(self.tag_values)
         for i in range(self.tbnum):
             sql += f" {self.stbname}_{i} using {self.stbname} tags({tags})"
         tdSql.execute(sql)
