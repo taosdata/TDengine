@@ -1,18 +1,14 @@
 from new_test_framework.utils import tdLog, tdSql, cluster, tdCom
-
 import sys
-import time
 import os
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from cluster_common_create import *
 from cluster_common_check import *
-
 import threading
 import inspect
 import ctypes
 
-class Test5dnode3mnodeSep1VnodeStopMnodeCreateDb:
+class Test5dnode3mnodeSep1VnodeStopVnodeCreateDb:
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
@@ -39,7 +35,7 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateDb:
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db',
-                    'dbNumbers':   6,
+                    'dbNumbers':   4,
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    2,
@@ -55,12 +51,11 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateDb:
                     }
 
         dnodeNumbers=int(dnodeNumbers)
+        dbNumbers=paraDict['dbNumbers']
+        repeatNumber=3
         mnodeNums=int(mnodeNums)
-        repeatNumber = 2
-        dbNumbers=int(paraDict['dbNumbers'])
-
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allDbNumbers=dbNumbers
+        allDbNumbers = int(dbNumbers)
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
         paraDict['replica'] = self.replicaVar
 
@@ -81,7 +76,9 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateDb:
         print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodeNumbers)
 
-        tdLog.info("create database and stable")
+        # create database and stable
+
+
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
@@ -93,7 +90,9 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateDb:
         for tr in threads:
             tr.start()
 
+
         tdLog.info("Take turns stopping Mnodes ")
+
         while stopcount < restartNumbers:
             tdLog.info(" restart loop: %d"%stopcount )
             if stopRole == "mnode":
@@ -127,7 +126,6 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateDb:
 
         for tr in threads:
             tr.join()
-        tdLog.info("check dnode number:")
         clusterComCheck.checkDnodes(dnodeNumbers)
         tdSql.query("select * from information_schema.ins_databases")
         tdLog.debug("we find %d databases but exepect to create %d  databases "%(tdSql.queryRows-2,allDbNumbers))
@@ -139,26 +137,31 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateDb:
         #     clusterComCheck.checkDb(paraDict['dbNumbers'],restartNumbers,dbNameIndex = '%s%d'%(paraDict["dbName"],i))
 
 
-    def test_5dnode3mnode_sep1_vnode_stop_mnode_create_db(self):
-        """summary: xxx
 
-        description: xxx
+    def test_5dnode3mnode_sep1_vnode_stop_vnode_create_db(self):
+        """Cluster 5 dnodes 3 mnode create db vnode
 
-        Since: xxx
+        1. Create 5 node and 3 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Except check some error operations
+        5. Create database for four times
+        6. Stop vnode 1
+        7. Start vnode 1
+        8. Ensure cluster work well
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py
+
         """
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='mnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=4,stopRole='vnode')
 
         tdLog.success(f"{__file__} successfully executed")
 

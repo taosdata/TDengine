@@ -136,22 +136,22 @@ class Test5dnode1mnode:
         
 
     def test_5dnode1mnode(self):
-        """summary: xxx
+        """Cluster 5 dnodes 1 mnode
+        
+        1. Create 5 node and 1 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Check the cluster is alive
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_5dnode1mnode.py
+
         """
 
         self.TDDnodes = None

@@ -7,7 +7,7 @@ from cluster_common_create import *
 from cluster_common_check import *
 
 
-class Test5dnode3mnodeStopLoop:
+class Test5dnode3mnodeStop2Follower:
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
@@ -36,7 +36,7 @@ class Test5dnode3mnodeStopLoop:
                     'showRow':    1}
         dnodenumbers=int(dnodenumbers)
         mnodeNums=int(mnodeNums)
-        dbNumbers = int(dnodenumbers * restartNumber)
+        dbNumbers = 1
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -44,7 +44,6 @@ class Test5dnode3mnodeStopLoop:
         tdSql.checkData(4,1,'%s:6430'%self.host)
         clusterComCheck.checkDnodes(dnodenumbers)
 
-        #check mnode status
         tdLog.info("check mnode status")
         clusterComCheck.checkMnodeStatus(mnodeNums)
 
@@ -57,39 +56,44 @@ class Test5dnode3mnodeStopLoop:
         # restart all taosd
         tdDnodes=cluster.dnodes
 
-        tdLog.info("Take turns stopping all dnodes ")
-        # seperate vnode and mnode in different dnodes.
-        # create database and stable
-        stopcount =0
-        while stopcount <= 1:
-            tdLog.info(" restart loop: %d"%stopcount )
-            for i in range(dnodenumbers):
-                tdDnodes[i].stoptaosd()
-                tdDnodes[i].starttaosd()
-            stopcount+=1
-        clusterComCheck.checkDnodes(dnodenumbers)
-        clusterComCheck.checkMnodeStatus(3)
+        # tdDnodes[1].stoptaosd()
+        tdDnodes[2].stoptaosd()
 
-    def test_5dnode3mnode_stop_loop(self):
-        """summary: xxx
+        tdLog.info("check  whether 1 mnode status is  offline")
+        clusterComCheck.check3mnodeoff(3)
+        # tdSql.error("create user user1 pass '123';")
 
-        description: xxx
+        tdLog.info("start  follower")
+        # tdDnodes[1].starttaosd()
+        tdDnodes[2].starttaosd()
 
-        Since: xxx
+        clusterComCheck.checkMnodeStatus(mnodeNums)
 
-        Labels: xxx
 
-        Jira: xxx
+    def test_5dnode3mnode_stop2_follower(self):
+        """Cluster 5 dnodes 3 mnode stop 2 follower
 
-        Catalog:
-            - xxx:xxx
+        1. Create 5 node and 3 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Except check some error operations
+        5. Stop dnode 3
+        6. Check mnode 3 status is offline
+        7. Start dnode 3
+        8. Check mnode status is normal
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_2follower.py
+
         """
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(5,3,1)
+        self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)
 
         tdLog.success(f"{__file__} successfully executed")
 

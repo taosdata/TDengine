@@ -107,22 +107,26 @@ class Test5dnode2mnode:
             print("both mnodes are ready")
 
     def test_5dnode2mnode(self):
-        """summary: xxx
+        """Cluster 5 dnodes 2 mnode
 
-        description: xxx
+        1. Create 5 node and 2 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Stop dnode 2 
+        5. Start dnode 2
+        6. Stop dnode 1
+        7. Start dnode 1
+        8. Check the cluster is alive
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_5dnode2mnode.py
+
         """
         self.five_dnode_two_mnode()
 

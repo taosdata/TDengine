@@ -15,8 +15,6 @@ class Test4dnode1mnodeBasicCreateDbReplica1:
         cls.mnode_list = {}
         cls.dnode_list = {}
 
-    
-
     def check_setup_cluster_status(self):
         time.sleep(1)
         tdSql.query("select * from information_schema.ins_mnodes")
@@ -106,22 +104,26 @@ class Test4dnode1mnodeBasicCreateDbReplica1:
 
 
     def test_4dnode1mnode_basic_create_db_replica1(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        """Cluster 4 dnode 1 mnode replica 1
         
+        1. Create 4 node and 1 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Create database with replica 1
+        5. Create 1 super table and 1 normal table
+        6. Create 5 subtables using super table
+        7. Ensure above tables created success
+        8. Check vgroups info , ensure each vgroup only has 1 leader role
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_4dnode1mnode_basic_create_db_replica1.py
+
         """
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()

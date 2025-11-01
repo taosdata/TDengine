@@ -698,6 +698,43 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_snapshot.py -N 3 -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_split_vgroup_by_learner.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_tsdb_snapshot.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/vnode/test_4dnode1mnode_basic_create_db_replica1.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/vnode/test_4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/vnode/test_4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/vnode/test_4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode1mnode.py
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode2mnode.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3 -I False
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_loop.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_db.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_db.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_modify_meta.py  -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_modify_meta.py  -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_stb.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_stb.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_restart_dnode_insert_data.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_restart_dnode_insert_data.py -N 6 -M 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_restart_dnode_insert_data_async.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_add_1dnode.py -N 7 -M 3 -C 6
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_recreate_mnode.py -N 6 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_compact_db_conflict.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_mnode_encrypt.py -N 3
 
 # 80-Components
 
@@ -920,48 +957,6 @@
 
 
 ### 1-insert (empty)
-
-### 6-cluster
-90,,n,.,pytest cases/uncatalog/system-test/6-cluster/manually-test/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_create_db_replica1.py -N 4 -M 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/vnode/test_4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode1mnode.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode2mnode.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop.py -N 5 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_loop.py -N 5 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py -N 6 -M 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_db.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_db.py -N 6 -M 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_db.py -N 6 -M 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_modify_meta.py  -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_modify_meta.py  -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb.py -N 6 -M 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb.py -N 6 -M 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_stb.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_vnode_create_stb.py -N 6 -M 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data.py -N 6 -M 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data_async.py -N 6 -M 3
-#origin commented out,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_restart_dnode_insert_data_async.py -N 6 -M 3 --replica 3
-#origin commented out,,n,.,pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_roll.py -N 3 -C 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_add_1dnode.py -N 7 -M 3 -C 6
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
-#origin commented out,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_drop.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_recreate_mnode.py -N 6 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_compact_db_conflict.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/6-cluster/test_mnode_encrypt.py -N 3
 
 ### 0-others
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_mounts.py

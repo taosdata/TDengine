@@ -171,22 +171,27 @@ class Test4dnode1mnodeBasicReplica3Vgroups:
         conn.close()
 
     def test_4dnode1mnode_basic_replica3_vgroups(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        """Cluster 4 dnodes 1 mnode replica 3 vgroups
         
+        1. Create 4 node and 1 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Create database with replica 3
+        5. Create 1 super table and 1 normal table
+        6. Create 5 subtables using super table
+        7. Ensure above tables created success
+        8. Create database with vgroups 1,10,30 respectively
+        9. ensure each vgroup only has 1 leader role
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_4dnode1mnode_basic_replica3_vgroups.py
+
         """
         self.check_setup_cluster_status()
         self.run_init_vgroups_time_costs()

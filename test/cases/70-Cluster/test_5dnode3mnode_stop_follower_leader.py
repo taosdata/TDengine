@@ -74,22 +74,27 @@ class Test5dnode3mnodeStopFollowerLeader:
 
 
     def test_5dnode3mnode_stop_follower_leader(self):
-        """summary: xxx
+        """Cluster 5 dnodes 3 mnode stop follower
 
-        description: xxx
+        1. Create 5 node and 3 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Except check some error operations
+        5. Stop dnode 0/1
+        6. Start dnode 0
+        7. Check mnode 2 status is offline
+        8. Create some database 
+        9. Check database created successfully
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_5dnode3mnode_stop_follower_leader.py
+
         """
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)

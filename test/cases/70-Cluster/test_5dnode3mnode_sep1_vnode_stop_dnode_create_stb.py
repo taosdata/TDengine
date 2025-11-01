@@ -8,7 +8,7 @@ import threading
 import inspect
 import ctypes
 
-class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
+class Test5dnode3mnodeSep1VnodeStopDnodeCreateStb:
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
@@ -38,27 +38,23 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
-                    'replica':    3,
+                    'replica':    1,
                     'stbName':    'stb',
-                    'stbNumbers': 2,
+                    'stbNumbers': 80,
                     'colPrefix':  'c',
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     200,
-                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    "rowsPerTbl": 1000,
-                    "batchNum": 5000
+                    'ctbNum':     1,
                     }
 
         dnodeNumbers=int(dnodeNumbers)
         mnodeNums=int(mnodeNums)
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allctbNumbers=(paraDict['stbNumbers']*paraDict["ctbNum"])
-        rowsPerStb=paraDict["ctbNum"]*paraDict["rowsPerTbl"]
-        rowsall=rowsPerStb*paraDict['stbNumbers']
+        allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
         dbNumbers = 1
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -84,26 +80,13 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
+        for i in range(restartNumbers):
+            stableName= '%s%d'%(paraDict['stbName'],i)
+            newTdSql=tdCom.newTdSql()
+            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
 
-        # create stable:stb_0
-        stableName= paraDict['stbName']
-        newTdSql=tdCom.newTdSql()
-        clusterComCreate.create_stables(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])
-        #create child table:ctb_0
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s_%d'%(paraDict['stbName'],i)
-            newTdSql=tdCom.newTdSql()
-            clusterComCreate.create_ctable(newTdSql, paraDict["dbName"],stableName,stableName, paraDict['ctbNum'])
-        #insert date
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s_%d'%(paraDict['stbName'],i)
-            newTdSql=tdCom.newTdSql()
-            threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
         for tr in threads:
             tr.start()
-        for tr in threads:
-            tr.join()
-
         while stopcount < restartNumbers:
             tdLog.info(" restart loop: %d"%stopcount )
             if stopRole == "mnode":
@@ -121,14 +104,9 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
             elif stopRole == "dnode":
                 for i in range(dnodeNumbers):
                     tdDnodes[i].stoptaosd()
-                    clusterComCheck.checkDbRows(dbNumbers)
-                    if i == 0 :
-                        stableName= '%s_%d'%(paraDict['stbName'],0)
-                        newTdSql=tdCom.newTdSql()
-                        clusterComCreate.alterStbMetaData(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
                     # sleep(10)
                     tdDnodes[i].starttaosd()
- 
+                    # sleep(10)
 
             # dnodeNumbers don't include database of schema
             if clusterComCheck.checkDnodes(dnodeNumbers):
@@ -141,41 +119,44 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
                 # self.check3mnode()
             stopcount+=1
 
-
+        for tr in threads:
+            tr.join()
         clusterComCheck.checkDnodes(dnodeNumbers)
         clusterComCheck.checkDbRows(dbNumbers)
-        # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
+        clusterComCheck.checkDb(dbNumbers,1,'db0')
 
-        # tdSql.execute("use %s" %(paraDict["dbName"]))
-        tdSql.query("show %s.stables"%(paraDict["dbName"]))
-        tdSql.checkRows(paraDict["stbNumbers"])
-        for i in range(paraDict['stbNumbers']):
-            stableName= '%s.%s_%d'%(paraDict["dbName"],paraDict['stbName'],i)
-            tdSql.query("select count(*) from %s"%stableName)
-            if i == 0 :
-                tdSql.checkData(0,0,rowsPerStb*2)
-            else:
-                tdSql.checkData(0,0,rowsPerStb)   
-    def test_5dnode3mnode_sep1_vnode_stop_dnode_modify_meta(self):
-        """summary: xxx
+        tdSql.execute("use %s" %(paraDict["dbName"]))
+        tdSql.query("show stables")
+        tdLog.debug("we find %d stables but exepect to create %d  stables "%(tdSql.queryRows,allStbNumbers))
+        # # tdLog.info("check Stable Rows:")
+        # tdSql.checkRows(allStbNumbers)
 
-        description: xxx
 
-        Since: xxx
 
-        Labels: xxx
+    def test_5dnode3mnode_sep1_vnode_stop_dnode_create_stb(self):
+        """Cluster 5 dnodes 3 mnode create db
 
-        Jira: xxx
+        1. Create 5 node and 3 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Except check some error operations
+        5. Create super table
+        6. Stop dnode 1
+        7. Start dnode 1
+        8. Ensure cluster work well
 
-        Catalog:
-            - xxx:xxx
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_create_db.py
+
         """
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
         tdLog.success(f"{__file__} successfully executed")
 

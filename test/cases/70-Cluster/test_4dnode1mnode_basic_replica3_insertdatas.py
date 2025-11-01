@@ -1,23 +1,20 @@
 # author : wenzhouwww
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql
 import sys
-import time
 import os
-import threading
 sys.path.append(os.path.dirname(__file__))
 
-class Test4dnode1mnodeBasicReplica3InsertdatasQuerys:
+class Test4dnode1mnodeBasicReplica3Insertdatas:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
         cls.mnode_list = {}
         cls.dnode_list = {}
         cls.ts = 1483200000000
         cls.db_name ='testdb'
-        cls.replica = 3 
-        cls.vgroups = 1
-        cls.tb_nums = 10 
+        cls.replica = 3
+        cls.vgroups = 2
+        cls.tb_nums = 10
         cls.row_nums = 100
-        cls.query_times = 10
 
 
     def check_setup_cluster_status(self):
@@ -75,7 +72,7 @@ class Test4dnode1mnodeBasicReplica3InsertdatasQuerys:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(5):
             tdSql.execute("create table sub_tb_{} using stb1 tags({})".format(i,i))
         tdSql.query("show stables")
@@ -100,91 +97,72 @@ class Test4dnode1mnodeBasicReplica3InsertdatasQuerys:
                 tdLog.notice(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
     def create_db_replica_3_insertdatas(self, dbname, replica_num ,vgroup_nums ,tb_nums , row_nums ):
-        newTdSql=tdCom.newTdSql()
         drop_db_sql = "drop database if exists {}".format(dbname)
         create_db_sql = "create database {} replica {} vgroups {}".format(dbname,replica_num,vgroup_nums)
 
         tdLog.notice(" ==== create database {} and insert rows begin =====".format(dbname))
-        newTdSql.execute(drop_db_sql)
-        newTdSql.execute(create_db_sql)
-        newTdSql.execute("use {}".format(dbname))
-        newTdSql.execute(
+        tdSql.execute(drop_db_sql)
+        tdSql.execute(create_db_sql)
+        tdSql.execute("use {}".format(dbname))
+        tdSql.execute(
         '''create table stb1
         (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp)
         tags (t1 int)
         '''
         )
-        newTdSql.execute(
+        tdSql.execute(
             '''
             create table t1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+
         for i in range(tb_nums):
             sub_tbname = "sub_tb_{}".format(i)
-            newTdSql.execute("create table {} using stb1 tags({})".format(sub_tbname,i))
+            tdSql.execute("create table {} using stb1 tags({})".format(sub_tbname,i))
             # insert datas about new database
 
             for row_num in range(row_nums):
-                if row_num %100 ==0:
-                    tdLog.info(" === writing is going now === ")
                 ts = self.ts + 1000*row_num
-                newTdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
+                tdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
 
         tdLog.notice(" ==== create database {} and insert rows execute end =====".format(dbname))
 
-    
+    def check_insert_status(self, dbname, tb_nums , row_nums):
+        tdSql.execute("use {}".format(dbname))
+        tdSql.query("select count(*) from {}.{}".format(dbname,'stb1'))
+        tdSql.checkData(0 , 0 , tb_nums*row_nums)
+        tdSql.query("select distinct tbname from {}.{}".format(dbname,'stb1'))
+        tdSql.checkRows(tb_nums)
 
-    def check_insert_status(self, newTdSql ,dbname, tb_nums , row_nums):
+    def test_4dnode1mnode_basic_replica3_insertdatas(self):
+        """Cluster 4 dnodes 1 mnode replica 3 insert
         
-        newTdSql.execute("use {}".format(dbname))
-        newTdSql.query("select count(*) from {}.{}".format(dbname,'stb1'))
-        # tdSql.checkData(0 , 0 , tb_nums*row_nums)
-        newTdSql.query("select distinct tbname from {}.{}".format(dbname,'stb1'))
-        # tdSql.checkRows(tb_nums)
+        1. Create 4 node and 1 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Create database with replica 3
+        5. Create 1 super table and 1 normal table
+        6. Create 5 subtables using super table
+        7. Ensure above tables created success
+        8. Insert each subtable 100 rows data
+        9. Check vgroups info , ensure each vgroup only has 1 leader role
 
-    def loop_query_constantly(self, times ,  db_name, tb_nums ,row_nums):
-        newTdSql=tdCom.newTdSql()
-        for loop_time in range(times):
-            tdLog.debug(" === query is going ,this is {}_th query === ".format(loop_time))
-            self.check_insert_status( newTdSql ,db_name, tb_nums , row_nums)
+        Since: v3.0.0.0
 
-    def test_4dnode1mnode_basic_replica3_insertdatas_querys(self):
-        """summary: xxx
+        Labels: common,ci
 
-        description: xxx
+        Jira: None
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-        
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_4dnode1mnode_basic_replica3_insertdatas.py
+
         """
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
-        
-        # start writing constantly 
-        writing = threading.Thread(target = self.create_db_replica_3_insertdatas, args=(self.db_name , self.replica , self.vgroups , self.tb_nums , self.row_nums))
-        writing.start()
-        tdSql.query(" show {}.stables ".format(self.db_name))
-        while not tdSql.queryResult:
-            print(tdSql.queryResult)
-            time.sleep(0.1)
-            tdSql.query(" show {}.stables ".format(self.db_name))
+        self.create_db_replica_3_insertdatas(self.db_name , self.replica , self.vgroups , self.tb_nums , self.row_nums)
+        self.check_insert_status(self.db_name , self.tb_nums , self.row_nums)
 
-        reading = threading.Thread(target = self.loop_query_constantly, args=(self.query_times,self.db_name , self.tb_nums , self.row_nums))
-        reading.start()
-        
-        writing.join()
-        reading.join()
 
         tdLog.success(f"{__file__} successfully executed")
 

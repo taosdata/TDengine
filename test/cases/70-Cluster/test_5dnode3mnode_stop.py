@@ -85,22 +85,26 @@ class Test5dnode3mnodeStop:
 
 
     def test_5dnode3mnode_stop(self):
-        """summary: xxx
+        """Cluster 5 dnodes 3 mnode stop
 
-        description: xxx
+        1. Create 5 node and 3 mnode cluster
+        2. Ensure above cluster setup success
+        3. Stop dnode 2 check mnode have 3
+        4. Start dnode 2
+        5. Stop dnode 3 check mnode have 3
+        6. Start dnode 3
+        7. Stop dnode 1 check mnode have 3
+        8. Start dnode 1
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_5dnode2mnode_stop.py
+
         """
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(dnodenumbers=5,mnodeNums=3,restartNumber=1)

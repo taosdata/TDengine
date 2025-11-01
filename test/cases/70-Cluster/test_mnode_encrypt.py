@@ -13,24 +13,27 @@ class TestMnodeEncrypt:
 
 
     def test_mnode_encrypt(self):
-        """summary: xxx
+        """Cluster mnode encrypt
 
-        description: xxx
+        1. Create database db
+        2. Create stable st with tags
+        3. Create 4 child tables t0,t1,t2,t3 using st
+        4. Check create child tables number is 4
+        5. Insert data into t0,t1,t2,t3
+        6. Query and check data from t0,t1,t2,t3
 
-        Since: xxx
 
-        Labels: xxx
+        Since: v3.0.0.0
 
-        Jira: xxx
+        Labels: common,ci
 
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_compact_db_conflict.py
+
         """
-        tdSql.execute('create database if not exists db');
+        tdSql.execute('create database if not exists db')
         tdSql.execute('use db')
         tdSql.execute('create table st (ts timestamp, i int, j float, k double) tags(a int)')
         
@@ -58,4 +61,3 @@ class TestMnodeEncrypt:
             tdSql.checkRows(1)
 
         tdLog.success(f"{__file__} successfully executed")
-

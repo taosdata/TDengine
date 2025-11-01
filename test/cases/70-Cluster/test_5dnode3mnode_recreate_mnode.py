@@ -4,11 +4,10 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from cluster_common_create import *
 from cluster_common_check import *
-import threading
 import inspect
 import ctypes
 
-class Test5dnode3mnodeSep1VnodeStopMnodeCreateStb:
+class Test5dnode3mnodeRecreateMnode:
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
@@ -65,21 +64,27 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateStb:
                     'vgroups':    4,
                     'replica':    1,
                     'stbName':    'stb',
-                    'stbNumbers': 80,
+                    'stbNumbers': 2,
                     'colPrefix':  'c',
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     1,
+                    'ctbNum':     200,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    "rowsPerTbl": 100,
+                    "batchNum": 5000
                     }
+        username="user1"
+        passwd="test123@#$"
 
         dnodeNumbers=int(dnodeNumbers)
         mnodeNums=int(mnodeNums)
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
+        allctbNumbers=(paraDict['stbNumbers']*paraDict["ctbNum"])
+        rowsPerStb=paraDict["ctbNum"]*paraDict["rowsPerTbl"]
+        rowsall=rowsPerStb*paraDict['stbNumbers']
         dbNumbers = 1
-        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -90,95 +95,87 @@ class Test5dnode3mnodeSep1VnodeStopMnodeCreateStb:
         #check mnode status
         tdLog.info("check mnode status")
         clusterComCheck.checkMnodeStatus(mnodeNums)
+        
 
         # add some error operations and
         tdLog.info("Confirm the status of the dnode again")
         tdSql.error("create mnode on dnode 2")
         tdSql.query("select * from information_schema.ins_dnodes;")
-        print(tdSql.queryResult)
-        clusterComCheck.checkDnodes(dnodeNumbers, 60)
-
-        # create database and stable
-        clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])
-
-        tdDnodes=cluster.dnodes
-        stopcount =0
-        threads=[]
-        for i in range(restartNumbers):
-            stableName= '%s%d'%(paraDict['stbName'],i)
-            newTdSql=tdCom.newTdSql()
-            threads.append(threading.Thread(target=clusterComCreate.create_stables, args=(newTdSql, paraDict["dbName"],stableName,paraDict['stbNumbers'])))
-
-        for tr in threads:
-            tr.start()
-
-        tdLog.info("Take turns stopping Mnodes ")
-
-        while stopcount < restartNumbers:
-            tdLog.info(" restart loop: %d"%stopcount )
-            if stopRole == "mnode":
-                for i in range(mnodeNums):
-                    tdDnodes[i].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i].starttaosd()
-                    # sleep(10)
-            elif stopRole == "vnode":
-                for i in range(vnodeNumbers):
-                    tdDnodes[i+mnodeNums].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i+mnodeNums].starttaosd()
-                    # sleep(10)
-            elif stopRole == "dnode":
-                for i in range(dnodeNumbers):
-                    tdDnodes[i].stoptaosd()
-                    # sleep(10)
-                    tdDnodes[i].starttaosd()
-                    # sleep(10)
-
-            # dnodeNumbers don't include database of schema
-            if clusterComCheck.checkDnodes(dnodeNumbers):
-                tdLog.info("123")
-            else:
-                print("456")
-
-                self.stopThread(threads)
-                tdLog.exit("one or more of dnodes failed to start ")
-                # self.check3mnode()
-            stopcount+=1
-
-        for tr in threads:
-            tr.join()
+        # print(tdSql.queryResult)
         clusterComCheck.checkDnodes(dnodeNumbers)
-        clusterComCheck.checkDbRows(dbNumbers)
-        clusterComCheck.checkDb(dbNumbers,1,'db0')
 
-        tdSql.execute("use %s" %(paraDict["dbName"]))
-        tdSql.query("show stables")
-        tdLog.debug("we find %d stables but exepect to create %d  stables "%(tdSql.queryRows,allStbNumbers))
-        # # tdLog.info("check Stable Rows:")
-        # tdSql.checkRows(allStbNumbers)
+        # recreate mnode
+        tdSql.execute("drop dnode 2;")
+        tdSql.execute('create dnode "%s:6130";'%self.host)
+        tdDnodes=cluster.dnodes
+        tdDnodes[1].stoptaosd()
+        tdDnodes[1].deploy()
 
+        tdDnodes[1].starttaosd()
+        clusterComCheck.checkDnodes(dnodeNumbers)
 
-    def test_5dnode3mnode_sep1_vnode_stop_mnode_create_stb(self):
-        """summary: xxx
+        tdSql.execute("create mnode on dnode 6")
+        tdSql.error("drop dnode 1;")
 
-        description: xxx
+        # check status of clusters
+        clusterComCheck.checkMnodeStatus(3)
+        tdSql.execute("create user %s pass '%s' ;"%(username,passwd))
+        tdSql.query("select * from information_schema.ins_users")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == "%s"%username :
+                tdLog.info("create user:%s successfully"%username)
 
-        Since: xxx
+        """ case for TS-3524 and test 'taos -h' """
+        bPath = tdCom.getBuildPath()
+        for i in range(6):
+            nodePort = 6030 + i*100
+            newTdSql=tdCom.newTdSql(port=nodePort)
 
-        Labels: xxx
+        tdDnodes[1].stoptaosd()
 
-        Jira: xxx
+        dataPath = tdDnodes[1].dataDir
+        os.system(f"rm -rf {dataPath}/*")
+        os.system(f"rm -rf {dataPath}/.runing")
 
-        Catalog:
-            - xxx:xxx
+        tdDnodes[1].starttaosd()
+        time.sleep(5)
+        for i in range(6):
+            nodePort = 6030 + i*100 
+            newTdSql=tdCom.newTdSql(port=nodePort)
+
+        tdDnodes[0].stoptaosd()
+        dataPath = tdDnodes[0].dataDir
+        os.system(f"rm -rf {dataPath}/*")
+        os.system(f"rm -rf {dataPath}/.runing")
+        tdDnodes[0].starttaosd()
+        time.sleep(5)
+        for i in range(6):
+            nodePort = 6030 + i*100 
+            newTdSql=tdCom.newTdSql(port=nodePort)
+
+    def test_5dnode3mnode_recreate_mnode(self):
+        """Cluster 5 dnodes 3 mnode recreate mnode
+
+        1. Create 5 node and 3 mnode cluster
+        2. Ensure above cluster setup success
+        3. Check mnode is leader and only 1 mnode
+        4. Except check some error operations
+        5. Stop dnode 1
+        6. delete dnode 1 dataDir
+        7. Start dnode 1
+        8. Ensure cluster work well
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_5dnode3mnode_recreate_mnode.py
+
         """
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='mnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=1,stopRole='dnode')
 
         tdLog.success(f"{__file__} successfully executed")
-

@@ -19,22 +19,22 @@ class TestCompactDbConflict:
         tdLog.debug(f"start to init {__file__}")
 
     def test_compact_db_conflict(self):
-        """summary: xxx
+        """Cluster compact db conflict
 
-        description: xxx
+        1. Create database db vgroups 4 replica 1
+        2. Start multiple threads to do compact db
+        3. During compact db do alter database/split vgroup/redistribute vgroup/balance vgroup
+        4. Ensure all above operations report conflict error
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_compact_db_conflict.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 
