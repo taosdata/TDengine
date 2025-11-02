@@ -29,12 +29,25 @@ func StartMonitor(identity string, conf *config.Config, reporter *api.Reporter) 
 	}
 
 	systemStatus := make(chan SysStatus)
-	_ = pool.GoroutinePool.Submit(func() {
+    _ = pool.GoroutinePool.Submit(func() {
 		var (
 			cpuPercent  float64
 			memPercent  float64
 			totalReport int
 		)
+
+        // reuse one connection without relying on implicit USE
+        conn, err := db.NewConnector(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host,
+            conf.TDengine.Port, conf.TDengine.Usessl)
+        if err != nil {
+            logger.Errorf("connect to database error, msg:%s", err)
+            return
+        }
+        defer func() {
+            if err := conn.Close(); err != nil {
+                logger.Errorf("close connection error, msg:%s", err)
+            }
+        }()
 
 		for status := range systemStatus {
 			if status.CpuError == nil {
@@ -61,22 +74,11 @@ func StartMonitor(identity string, conf *config.Config, reporter *api.Reporter) 
 				kn = util.GetMd5HexStr(identity)
 			}
 
-			sql := fmt.Sprintf("insert into `km_%s` using keeper_monitor tags ('%s') values ( now, "+
-				" %f, %f, %d)", kn, identity, cpuPercent, memPercent, totalReport)
-			conn, err := db.NewConnectorWithDb(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host,
-				conf.TDengine.Port, conf.Metrics.Database.Name, conf.TDengine.Usessl)
-			if err != nil {
-				logger.Errorf("connect to database error, msg:%s", err)
-				return
-			}
-
+            sql := fmt.Sprintf("insert into %s.`km_%s` using %s.keeper_monitor tags ('%s') values ( now, %f, %f, %d)",
+                backtick(conf.Metrics.Database.Name), kn, backtick(conf.Metrics.Database.Name), identity, cpuPercent, memPercent, totalReport)
 			ctx := context.Background()
 			if _, err = conn.Exec(ctx, sql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 				logger.Errorf("execute sql:%s, error:%s", sql, err)
-			}
-
-			if err := conn.Close(); err != nil {
-				logger.Errorf("close connection error, msg:%s", err)
 			}
 		}
 	})
@@ -86,4 +88,8 @@ func StartMonitor(identity string, conf *config.Config, reporter *api.Reporter) 
 		panic(err)
 	}
 	Start(interval, conf.Env.InCGroup)
+}
+
+func backtick(name string) string {
+    return "`" + name + "`"
 }

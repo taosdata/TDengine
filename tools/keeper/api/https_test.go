@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -25,6 +26,9 @@ import (
 )
 
 func TestHttps(t *testing.T) {
+	if _, err := net.DialTimeout("tcp", "127.0.0.1:6041", 2*time.Second); err != nil {
+		t.Skip("taosAdapter REST not available; skipping integration test")
+	}
 	server := startProxy()
 	defer server.Shutdown(context.Background())
 
