@@ -17,7 +17,7 @@ class TestSelectBugs:
     #
     # ------------------- test_TD_19201.py ----------------
     #
-    def create_tables(self):
+    def create_tables1(self):
         tdSql.execute(f"drop database if exists table_numeric_max_min")
         tdSql.execute(f"create database if not exists table_numeric_max_min keep 36500  replica 1")
         tdSql.execute(f"use table_numeric_max_min")
@@ -46,7 +46,7 @@ class TestSelectBugs:
 
         return
 
-    def insert_data(self):
+    def insert_data1(self):
         tdLog.debug("start to insert data ............")
 
         tdSql.execute(f"insert into stable_1_1  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts) values(1630000000000, -143708439, -6740796029571244151, 15012, -31, -934058894431.915039, -3695933.334631, 0, 'binary.wEvcyPTYhxxKhVFrShTZ', 'nchar.河南省成都市高明邱街y座 294108', 1630000000000)")
@@ -755,8 +755,8 @@ class TestSelectBugs:
 
     def do_td_19201(self):
         tdSql.prepare()
-        self.create_tables()
-        self.insert_data()
+        self.create_tables1()
+        self.insert_data1()
         tdLog.printNoPrefix("======== test TD-19201 ")
         tdSql.execute(f"flush database table_numeric_max_min")
 
@@ -774,7 +774,7 @@ class TestSelectBugs:
     #
     # ------------------- test_TS_3581.py ----------------
     #
-    def create_tables(self):
+    def create_tables2(self):
         tdSql.execute(f'''CREATE STABLE `dwd_log_master` (`ts` TIMESTAMP, `dim_ip` NCHAR(64)) TAGS (`group_id` BIGINT, `st_hour` NCHAR(2), `org_id` NCHAR(32),
                           `dev_manufacturer_name` NCHAR(64), `dev_manufacturer_id` INT, `dev_category_name` NCHAR(64), `dev_category_id` INT, `dev_feature_name` NCHAR(64),
                           `dev_feature_id` INT, `dev_ip` NCHAR(64), `black_list` TINYINT, `white_list` TINYINT)''')
@@ -782,7 +782,7 @@ class TestSelectBugs:
                           `dev_category_name`, `dev_category_id`, `dev_feature_name`, `dev_feature_id`, `dev_ip`, `black_list`, `white_list`) TAGS
                           (475021043, "14", NULL, NULL, NULL, NULL, NULL, NULL, NULL, "172.18.22.230", NULL, NULL)''')
 
-    def insert_data(self):
+    def insert_data2(self):
         tdLog.debug("start to insert data ............")
 
         tdSql.execute(f"""INSERT INTO `dwd_log_master_475021043` VALUES 
@@ -799,8 +799,8 @@ class TestSelectBugs:
 
     def do_ts_3581(self):
         tdSql.prepare()
-        self.create_tables()
-        self.insert_data()
+        self.create_tables2()
+        self.insert_data2()
         tdLog.printNoPrefix("======== test TS-3581")
 
         for i in range(100):
