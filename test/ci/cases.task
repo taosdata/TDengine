@@ -402,6 +402,12 @@
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_c.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_with_const.py
+,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_restart_taosd.py
+,,n,.,pytest cases/12-UDFs/test_udf_test.py
+,,n,.,pytest cases/12-UDFs/test_udf_create.py
+,,n,.,pytest cases/12-UDFs/test_udf_cfg1.py
+,,n,.,pytest cases/12-UDFs/test_udf_cfg2.py
+,,n,.,pytest cases/12-UDFs/test_udf_main.py
 
 # 13-TimeSeriesExt
 
@@ -606,6 +612,7 @@
 # 21-MetaData
 
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_change.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_sysdb.py
 
 # 22-Performance
@@ -971,13 +978,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_audit.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py
 #newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosd_shell.py -N 5 -M 3 -Q 3
-#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_test.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_test.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_create.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_restart_taosd.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg1.py
-#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_udf_cfg2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_cachemodel.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_control.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_manage.py
@@ -1000,7 +1000,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_dismatch_config.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_tag_index_basic.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_udfpy_main.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_wal_retention.py -N 3
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_wal_level_skip.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_split_vgroup.py -N 3 --replica 1
@@ -1030,8 +1029,6 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/view/non_marterial_view/test_view.py
 
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/eco-system/manager/test_schema_change.py -N 3 -M 3
 
 #develop test
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py
