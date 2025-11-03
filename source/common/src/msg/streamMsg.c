@@ -4438,7 +4438,7 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
       tSimpleHashCleanup(pReq->pGroupReadInfos);
       pReq->pGroupReadInfos = NULL;
     }
-    blockDataDestroy(pReq->pOutBlock);
+    //blockDataDestroy(pReq->pOutBlock);
   }
 }
 

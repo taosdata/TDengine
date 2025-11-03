@@ -1048,7 +1048,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t groupId;
   int64_t sessionId;
   int32_t curIdx; // for pesudo func calculation
-  int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
+  int32_t curOutIdx; // REMOVE IT!!! to indicate the window index for current block, valid value start from 1
   int32_t triggerType;
   int32_t addOptions;
   bool    withExternalWindow;

@@ -1651,7 +1651,7 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   return code;
 }
 
-int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* useconds, bool* finished) {
+int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, bool* finished) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   int64_t        threadId = taosGetSelfPthreadId();
   int64_t        curOwner = 0;
@@ -1714,9 +1714,6 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* usec
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
-  if (NULL == *ppRes) {
-    *useconds = pTaskInfo->cost.elapsedTime;
-  }
 
   (void)cleanUpUdfs();
 
