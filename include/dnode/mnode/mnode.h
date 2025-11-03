@@ -123,6 +123,8 @@ int32_t mndDumpSdb();
 
 int32_t mndDeleteTrans();
 
+int32_t modifySdb(char *path);
+
 #ifdef __cplusplus
 }
 #endif
