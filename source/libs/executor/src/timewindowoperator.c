@@ -1048,6 +1048,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
 
+  printDataBlock(pBlock, "tooony", "toony", 0);
   SColumnInfoData* pStateColInfoData = 
     taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
   if (!pStateColInfoData) {
@@ -1152,17 +1153,6 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       if (pUnfinishedBlock != NULL) {
-        code = setInputDataBlock(pSup, pUnfinishedBlock, order, pUnfinishedBlock->info.scanFlag, true);
-        QUERY_CHECK_CODE(code, lino, _end);
-
-        // handle the last unclosed window
-        doKeepCurStateWindowEndInfo(&pInfo->winSup,
-          (TSKEY*)((SColumnInfoData*)(taosArrayGet(pUnfinishedBlock->pDataBlock, pInfo->tsSlotId)))->pData,
-          pUnfinishedBlock->info.rows, &pInfo->extendOption, false);
-        code = processClosedStateWindow(pInfo, &pInfo->winSup, pTaskInfo, pSup,
-          pOperator->exprSupp.numOfExprs);
-        QUERY_CHECK_CODE(code, lino, _end);
-
         blockDataDestroy(pUnfinishedBlock);
         pUnfinishedBlock = NULL;
         resetWindowRowsSup(&pInfo->winSup);
@@ -1170,6 +1160,8 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
       break;
     }
     
+    // mark whether pUnfinishedBlock is a reference to pBlock
+    bool isRef = false;
     startIndex = 0;
     if (pUnfinishedBlock != NULL) {
       startIndex = pUnfinishedBlock->info.rows;
@@ -1177,19 +1169,22 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
       code = blockDataMerge(pUnfinishedBlock, pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      code = createOneDataBlock(pBlock, true, &pUnfinishedBlock);
+      pUnfinishedBlock = pBlock;
+      isRef = true;
       QUERY_CHECK_CODE(code, lino, _end);
     }
     endIndex = pUnfinishedBlock->info.rows;
 
     pInfo->binfo.pRes->info.scanFlag = pUnfinishedBlock->info.scanFlag;
-    code = setInputDataBlock(pSup, pUnfinishedBlock, order, pUnfinishedBlock->info.scanFlag, true);
+    code = setInputDataBlock(
+      pSup, pUnfinishedBlock, order, pUnfinishedBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataUpdateTsWindow(pUnfinishedBlock, pInfo->tsSlotId);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    // there is an scalar expression that needs to be calculated right before apply the group aggregation.
+    // there is an scalar expression that 
+    // needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       pTaskInfo->code = projectApplyFunctions(pInfo->scalarSup.pExprInfo,
         pUnfinishedBlock, pUnfinishedBlock, pInfo->scalarSup.pCtx,
@@ -1200,21 +1195,28 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
       }
     }
 
-    doStateWindowAggImpl(pOperator, pInfo, pUnfinishedBlock, &startIndex, &endIndex,
-                         &numPartialCalcRows);
+    doStateWindowAggImpl(pOperator, pInfo, pUnfinishedBlock, 
+      &startIndex, &endIndex, &numPartialCalcRows);
     if (numPartialCalcRows < pUnfinishedBlock->info.rows) {
       // save unfinished block for next round processing
+      if (isRef) {
+        code = createOneDataBlock(pBlock, true, &pUnfinishedBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       code = blockDataTrimFirstRows(pUnfinishedBlock, numPartialCalcRows);
       QUERY_CHECK_NULL(pUnfinishedBlock, code, lino, _end, terrno);
     } else {
-      blockDataDestroy(pUnfinishedBlock);
+      if (!isRef) {
+        blockDataDestroy(pUnfinishedBlock);
+      }
       pUnfinishedBlock = NULL;
     }
     numPartialCalcRows = 0;
   }
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  code = initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
+  code = initGroupedResultInfo(
+    &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
   QUERY_CHECK_CODE(code, lino, _end);
   pInfo->cleanGroupResInfo = true;
   pOperator->status = OP_RES_TO_RETURN;
