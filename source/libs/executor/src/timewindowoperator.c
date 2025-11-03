@@ -1038,14 +1038,18 @@ _return:
   return code;
 }
 
+// process a data block for state window aggregation
+// scan from startIndex to endIndex
+// numPartialCalcRows returns the number of rows that have been
+// partially calculated within the block
 static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock, int32_t* startIndex,
-  int32_t* endIndex, int32_t* partialCalcIndex) {
+  int32_t* endIndex, int32_t* numPartialCalcRows) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
 
-  SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, 
-    pInfo->stateCol.slotId);
+  SColumnInfoData* pStateColInfoData = 
+    taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
   if (!pStateColInfoData) {
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
@@ -1054,20 +1058,20 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   int32_t numOfOutput = pOperator->exprSupp.numOfExprs;
   int32_t bytes = pStateColInfoData->info.bytes;
 
-  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
-  if (!pColInfoData) {
+  SColumnInfoData* pColInfoData =
+    taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
+  if (NULL == pColInfoData) {
     pTaskInfo->code = terrno;
     T_LONG_JMP(pTaskInfo->env, terrno);
   }
   TSKEY* tsList = (TSKEY*)pColInfoData->pData;
 
-  // pRowSup contains info of current unclosed state window
-  SWindowRowsSup* pRowSup = &pInfo->winSup;
-
   struct SColumnDataAgg* pAgg = NULL;
-  EStateWinExtendOption extendOption = pInfo->extendOption;
+  EStateWinExtendOption  extendOption = pInfo->extendOption;
+  SWindowRowsSup*        pRowSup = &pInfo->winSup;
   for (int32_t j = *startIndex; j < *endIndex; ++j) {
-    pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
+    pAgg = (pBlock->pBlockAgg != NULL) ?
+      &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       doKeepStateWindowNullInfo(pRowSup, j);
       continue;
@@ -1084,44 +1088,43 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
       assignVal(pInfo->stateKey.pData, val, bytes, pInfo->stateKey.type);
       pInfo->hasKey = true;
 
-      doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, &extendOption, false);
+      doKeepNewStateWindowStartInfo(
+        pRowSup, tsList, j, gid, &extendOption, false);
       doKeepTuple(pRowSup, tsList[j], j, gid);
     } else if (compareVal(val, &pInfo->stateKey)) {
       doKeepTuple(pRowSup, tsList[j], j, gid);
     } else {
       // close and process current state window
       doKeepCurStateWindowEndInfo(pRowSup, tsList, j, &extendOption, true);
-      int32_t code = processClosedStateWindow(pInfo, pRowSup, pTaskInfo, pSup, numOfOutput);
+      int32_t code = processClosedStateWindow(
+        pInfo, pRowSup, pTaskInfo, pSup, numOfOutput);
       if (TSDB_CODE_SUCCESS != code) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
+      *numPartialCalcRows = pRowSup->startRowIndex + pRowSup->numOfRows;
       
       // start a new state window
-      doKeepNewStateWindowStartInfo(pRowSup, tsList, j, gid, &extendOption, true);
+      doKeepNewStateWindowStartInfo(
+        pRowSup, tsList, j, gid, &extendOption, true);
       doKeepTuple(pRowSup, tsList[j], j, gid);
-      *partialCalcIndex = pRowSup->startRowIndex;
 
       assignVal(pInfo->stateKey.pData, val, bytes, pInfo->stateKey.type);
     }
   }
 
-  bool blockEndsWithNullStateCol = colDataIsNull(pStateColInfoData,
-    pBlock->info.rows, *endIndex - 1, pAgg);
-  if (blockEndsWithNullStateCol) {
-    // if the block ends with null state col,
-    // we do not process the current window here
-    // since we don't know the belonging of these null rows 
-  } else {
-    doKeepCurStateWindowEndInfo(pRowSup, tsList, pBlock->info.rows, &extendOption, false);
-    int32_t code = processClosedStateWindow(pInfo, pRowSup, pTaskInfo, pSup, numOfOutput);
-    if (TSDB_CODE_SUCCESS != code) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
-    *partialCalcIndex = *endIndex;
-    // reset pRowSup after doing agg calculation
-    pRowSup->startRowIndex = 0;
-    pRowSup->numOfRows = 0;
+  // if the block ends with null state columns,
+  // we do not process them here,
+  // since we don't know the belonging of these null rows 
+  doKeepCurStateWindowEndInfo(pRowSup, tsList, *endIndex, &extendOption, false);
+  int32_t code = processClosedStateWindow(
+    pInfo, pRowSup, pTaskInfo, pSup, numOfOutput);
+  if (TSDB_CODE_SUCCESS != code) {
+    T_LONG_JMP(pTaskInfo->env, code);
   }
+  *numPartialCalcRows = pRowSup->startRowIndex + pRowSup->numOfRows;
+  // reset pRowSup after doing agg calculation
+  pRowSup->startRowIndex = 0;
+  pRowSup->numOfRows = 0;
 }
 
 static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
@@ -1201,10 +1204,8 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
                          &numPartialCalcRows);
     if (numPartialCalcRows < pUnfinishedBlock->info.rows) {
       // save unfinished block for next round processing
-      QUERY_CHECK_CODE(code, lino, _end);
       code = blockDataTrimFirstRows(pUnfinishedBlock, numPartialCalcRows);
       QUERY_CHECK_NULL(pUnfinishedBlock, code, lino, _end, terrno);
-      pInfo->winSup.startRowIndex -= numPartialCalcRows;
     } else {
       blockDataDestroy(pUnfinishedBlock);
       pUnfinishedBlock = NULL;
