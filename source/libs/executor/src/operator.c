@@ -410,7 +410,26 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
-      code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo, &pOperator);
+      if (pSysScanPhyNode->scan.virtualStableScan) {
+        STableListInfo*           pTableListInfo = tableListCreate();
+        if (!pTableListInfo) {
+          pTaskInfo->code = terrno;
+          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+          return terrno;
+        }
+
+        code = createScanTableListInfo((SScanPhysiNode*)pSysScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
+                                       pTagIndexCond, pTaskInfo, NULL);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+
+        code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pTableListInfo, pUser, pTaskInfo, &pOperator);
+      } else {
+        code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, NULL, pUser, pTaskInfo, &pOperator);
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == type) {
       STableCountScanPhysiNode* pTblCountScanNode = (STableCountScanPhysiNode*)pPhyNode;
       code = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo, &pOperator);
@@ -620,8 +639,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC == type) {
     code = createForecastOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC == type) {
-    code = createImputationOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC == type) {
+    code = createGenericAnalysisOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
     code = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {

@@ -102,6 +102,7 @@ static void doScan(SMeta *pMeta) {
     tDecoderInit(&dc, (uint8_t *)pVal, vLen);
 
     if (metaDecodeEntry(&dc, &me) < 0) {
+      metaError("Failed to decode entry, uid:%" PRId64 ", reason:%s", me.uid, tstrerror(terrno));
       tDecoderClear(&dc);
       break;
     }

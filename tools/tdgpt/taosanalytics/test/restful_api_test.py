@@ -1,8 +1,10 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """flask restful api test module"""
-
+import math
 import sys, os.path
+
+import numpy as np
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
@@ -45,7 +47,7 @@ class RestfulTest(TestCase):
         self.assertEqual(res['protocol'], 1.0)
 
         d = res['details']
-        self.assertEqual(len(d), 3)
+        self.assertEqual(len(d), 4)
 
     def test_forecast(self):
         """test forecast api"""
@@ -309,3 +311,58 @@ class RestfulTest(TestCase):
             "rows": 21,
             "protocol": 1.0
         })
+
+
+    def test_dtw_service(self):
+        response = self.client.post('/correlation', json={
+            "schema": [
+                ["val", "INT", 4],
+                ["val1", "INT", 4]
+            ],
+            "data": [
+                [1, 1.1, 1.0, 1.2, 1.1],
+                [1, 1.5, 1.3, 1.8, 1.6]
+            ],
+            "option": "algo=dtw,radius=2",
+            "algo": "dtw",
+            "prec": "ms",
+            "wncheck": 0,
+            "protocol": 1.0
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 7)
+        self.assertTrue(math.isclose(response.json["distance"], 1.6))
+
+    def test_tlcc_service(self):
+        req = {
+            "schema": [
+                ["val", "INT", 4],
+                ["val1", "INT", 4]
+            ],
+            "data": [],
+            "option": "algo=tlcc,lag_start=-20,lag_end=20",
+            "algo": "tlcc",
+            "prec": "ms",
+            "wncheck": 0,
+            "protocol": 1.0
+        }
+
+        np.random.seed(42)
+        n = 100
+
+        # x_t:
+        x = np.sin(np.linspace(0, 10, n)) + np.random.normal(0, 0.2, n)
+
+        # y_t: delay 3 steps
+        y = np.roll(x, 3) + np.random.normal(0, 0.2, n)
+
+
+        req["data"].append(x.tolist())
+        req["data"].append(y.tolist())
+
+        response = self.client.post('/correlation', json=req)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 41)
+        self.assertEqual(np.argmax(response.json["ccf_vals"]), 23)

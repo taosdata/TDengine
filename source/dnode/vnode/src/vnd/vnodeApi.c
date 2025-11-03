@@ -49,10 +49,10 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
   pReader->tsdReaderResetStatus = tsdbReaderReset2;
-  pReader->tsdReaderResetVer = tsdReaderResetVer;
-  pReader->tsdReaderResetExTimeWindow = tsdReaderResetExTimeWindow;
 
   pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo2;
+  pReader->tsdReaderGetDatablock = tsdbGetDataBlock;
+  pReader->tsdReaderSetDatablock = tsdbSetDataBlock;
   pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable2;  // todo this function should be moved away
 
   pReader->tsdSetQueryTableList = tsdbSetTableList2;

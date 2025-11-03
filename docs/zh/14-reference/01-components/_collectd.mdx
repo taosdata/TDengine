@@ -9,7 +9,8 @@ collectd write_tsdb 插件是 collectd 官方提供的插件，支持将数据�
 - 在 taosAdapter 配置文件（默认位置为 /etc/taos/taosadapter.toml）中使能配置项
 
 ```toml
-...
+# 写入 Schemaless 数据时自动创建数据库
+smlAutoCreateDB = true
 [opentsdb_telnet]
 enable = true
 maxTCPConnections = 250
@@ -18,10 +19,11 @@ dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
 ports = [6046, 6047, 6048, 6049]
 user = "root"
 password = "taosdata"
-...
 ```
 
 其中 taosAdapter 默认写入的数据库名称为 `collectd`，也可以修改 taosAdapter 配置文件 dbs 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。修改过配置文件 taosAdapter 需重新启动。
+
+`smlAutoCreateDB` 配置项用于使能自动创建数据库功能，设置为 true 时，taosAdapter 会在接收到数据时自动创建对应的数据库（如果不存在）。
 
 - 使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 collectd 数据功能，具体细节请参考 taosAdapter 的参考手册。
 ##### 配置 collectd
