@@ -942,9 +942,6 @@ class TestPrivBasic:
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_privilege.py
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_privilege_show.py
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_privilege_all.py
-            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/
-            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/
-
         """
         self.do_common_user_privileges()
         self.do_grant_multi_tables()

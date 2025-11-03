@@ -22,23 +22,26 @@ class TestShowTransactionDetail:
         cls.dnodes = cluster.dnodes
 
 
-    def test_show_transaction_detail(self):
-        """summary: xxx
+    def test_show_transaction(self):
+        """Show transaction
 
-        description: xxx
+        1. CREATE DATABASE db1 vgroups 16 replica 1
+        2. ALTER DATABASE db1 replica 3
+        3. CREATE DATABASE db2 vgroups 40 replica 3
+        4. During the above operations, stop a dnode to generate incomplete transactions
+        5. Use SHOW TRANSACTIONS to display ongoing transactions
+        6. Use SHOW TRANSACTION <id> to display transaction details
+        7. Query ins_transaction_details table to verify transaction details
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_show_transaction_detail.py
+
         """
         tdLog.debug(f"start to excute {__file__}")
 

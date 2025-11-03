@@ -625,6 +625,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_diskinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_table_distributed.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_tables.py
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_transaction.py -N 3
 
 # 24-Users
 
@@ -990,9 +991,6 @@
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_ttl_change_on_write.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz1.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_table_distributed.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_disk_usage.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_disk_usage_multilevel.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_dismatch_config.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_tag_index_basic.py
@@ -1008,7 +1006,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_empty_identifier.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_transaction_detail.py -N 3
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py
 #failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
@@ -1018,7 +1015,6 @@
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_dumpsdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_show_tag_index.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_grant.py
