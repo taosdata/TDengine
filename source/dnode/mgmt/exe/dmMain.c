@@ -560,7 +560,7 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
 
-    TAOS_CHECK_RETURN(modifySdb(global.sdbJsonFile));
+    TAOS_CHECK_RETURN(mndModifySdb(global.sdbJsonFile));
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

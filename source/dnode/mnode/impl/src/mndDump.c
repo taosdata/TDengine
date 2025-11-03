@@ -829,16 +829,11 @@ int32_t mndDeleteTrans() {
   return 0;
 }
 
-int32_t modifySdb(char *path) {
+static SJson *mndLoadSdbJson(char *path) {
   int32_t   code = 0;
   TdFilePtr pFile = NULL;
   char     *pData = NULL;
   SJson    *pJson = NULL;
-
-  mInfo("start to modify sdb info from sdb.json");
-
-  SMnode *pMnode = mndPrepareMnode();
-  if (pMnode == NULL) return terrno;
 
   mInfo("start to load sdb info from sdb.json");
   pFile = taosOpenFile(path, TD_FILE_READ);
@@ -874,6 +869,22 @@ int32_t modifySdb(char *path) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
+
+  terrno = code;
+  return pJson;
+
+_OVER:
+  if (pFile != NULL) taosCloseFile(&pFile);
+  if (pData != NULL) taosMemoryFree(pData);
+  mError("failed to load sdb json, since %s", tstrerror(code));
+  terrno = code;
+  return NULL;
+}
+
+static int32_t mndGenerateVgroup(SMnode *pMnode, SJson *pJson) {
+  int32_t code = 0;
+
+  mInfo("start to generate vgroup from sdb.json");
 
   SJson *pVgroups = tjsonGetObjectItem(pJson, "vgroups");
 
@@ -932,14 +943,29 @@ int32_t modifySdb(char *path) {
     }
   }
 
+  return 0;
+}
+
+int32_t mndModifySdb(char *path) {
+  int32_t code = 0;
+  SJson  *pJson = NULL;
+
+  mInfo("start to modify sdb info from sdb.json");
+
+  SMnode *pMnode = mndPrepareMnode();
+  if (pMnode == NULL) return terrno;
+
+  pJson = mndLoadSdbJson(path);
+  if (pJson == NULL) return terrno;
+
+  TAOS_CHECK_RETURN(mndGenerateVgroup(pMnode, pJson));
+
   mInfo("write back to sdb file");
   TAOS_CHECK_RETURN(sdbWriteFileForDump(pMnode->pSdb, -1));
 
   return 0;
 _OVER:
-  if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     mError("failed to modify sdb, file:%s since %s", path, tstrerror(code));
