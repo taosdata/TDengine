@@ -71,7 +71,7 @@
 
 #endif
 
-#ifdef _WIN32            
+#ifdef _WIN32
 #ifdef _MSC_VER                    // {
 #include <windows.h>
 /* Use windows API millisecond sleep */
@@ -133,8 +133,8 @@ static volatile int _argp_hang;
 
 static const struct argp_option argp_default_options[] =
 {
-  {"help",	  '?',    	0, 0,  N_("Give this help list"), -1},
-  {"usage",	  OPT_USAGE,	0, 0,  N_("Give a short usage message")},
+  {"help",	  '?',    	0, 0,  N_("Give this help list."), -1},
+  {"usage",	  OPT_USAGE,	0, 0,  N_("Give a short usage message.")},
   {"program-name",OPT_PROGNAME,"NAME", OPTION_HIDDEN, N_("Set the program name")},
   {"HANG",	  OPT_HANG,    "SECS", OPTION_ARG_OPTIONAL | OPTION_HIDDEN,
      N_("Hang for SECS seconds (default 3600)")},
@@ -328,7 +328,7 @@ struct parser
   /* LONG_OPTS is the array of getop long option structures for the union of
      all the groups of options.  */
   struct option *long_opts;
-  
+
   /* OPT_DATA is the getopt data used for the re-entrant getopt.  */
   struct _getopt_data opt_data;
 
