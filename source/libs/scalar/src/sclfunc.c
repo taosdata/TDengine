@@ -3906,7 +3906,7 @@ bool getTimePseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv
   return true;
 }
 
-bool getMaskPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv) {
+bool getMarkPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv) {
   pEnv->calcMemSize = sizeof(int32_t);
   return true;
 }

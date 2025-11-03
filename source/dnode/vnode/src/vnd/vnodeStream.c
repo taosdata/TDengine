@@ -1047,11 +1047,21 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     TSDB_CHECK_CODE(code, lino, end);
   }
 
-  if (*schemas == NULL) {
-    *schemas = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
-    STREAM_CHECK_NULL_GOTO(*schemas, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
+  STSchema*    schema = NULL;
+  if (sStreamReaderInfo->isVtableStream) {
+    if (*schemas == NULL) {
+      *schemas = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
+      STREAM_CHECK_NULL_GOTO(*schemas, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
+    }
+    schema = *schemas;
+  } else {
+    if (sStreamReaderInfo->triggerTableSchema == NULL || sStreamReaderInfo->triggerTableSchema->version != submitTbData.sver) {
+      taosMemoryFree(sStreamReaderInfo->triggerTableSchema);
+      sStreamReaderInfo->triggerTableSchema = metaGetTbTSchema(pVnode->pMeta, submitTbData.suid != 0 ? submitTbData.suid : submitTbData.uid, submitTbData.sver, 1);
+      STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerTableSchema, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
+    }
+    schema = sStreamReaderInfo->triggerTableSchema;
   }
-
   SStreamWalDataSlice* pSlice = (SStreamWalDataSlice*)tSimpleHashGet(sStreamReaderInfo->indexHash, &submitTbData.uid, LONG_BYTES);
   STREAM_CHECK_NULL_GOTO(pSlice, TSDB_CODE_INVALID_PARA);
   int32_t blockStart = pSlice->currentRowIdx;
@@ -1200,10 +1210,10 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
         SColVal colVal = {0};
         int32_t sourceIdx = 0;
         while (1) {
-          if (sourceIdx >= (*schemas)->numOfCols) {
+          if (sourceIdx >= schema->numOfCols) {
             break;
           }
-          STREAM_CHECK_RET_GOTO(tRowGet(pRow, *schemas, sourceIdx, &colVal));
+          STREAM_CHECK_RET_GOTO(tRowGet(pRow, schema, sourceIdx, &colVal));
           if (colVal.cid == colId) {
             break;
           }
@@ -3133,7 +3143,6 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
                                                     sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, TD_VID(pVnode),
                                                     req.taskId));
     } else {
-      handle.version = pVnode->state.applied;
       STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, &handle));
     }
 
