@@ -243,7 +243,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
 
   switch (digestSize / 8) {
     case SHA224_DIGEST_SIZE:
-      sha224(pBuf, len, result);
+      sha224((const uint8_t *)pBuf, len, result);
       return sprintf(pBuf,
                      "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
                      "02x%02x%02x%02x",
@@ -252,7 +252,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
                      result[17], result[18], result[19], result[20], result[21], result[22], result[23], result[24],
                      result[25], result[26], result[27]);
     case SHA256_DIGEST_SIZE:
-      sha256(pBuf, len, result);
+      sha256((const uint8_t *)pBuf, len, result);
       return sprintf(pBuf,
                      "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
                      "02x%02x%02x%02x%02x%02x%02x%02x",
@@ -261,7 +261,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
                      result[17], result[18], result[19], result[20], result[21], result[22], result[23], result[24],
                      result[25], result[26], result[27], result[28], result[29], result[30], result[31]);
     case SHA384_DIGEST_SIZE:
-      sha384(pBuf, len, result);
+      sha384((const uint8_t *)pBuf, len, result);
       return sprintf(pBuf,
                      "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
                      "02x%02x%02x%02%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
@@ -272,7 +272,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
                      result[33], result[34], result[35], result[36], result[37], result[38], result[39], result[40],
                      result[41], result[42], result[43], result[44], result[45], result[46], result[47]);
     case SHA512_DIGEST_SIZE:
-      sha512(pBuf, len, result);
+      sha512((const uint8_t *)pBuf, len, result);
       return sprintf(pBuf,
                      "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
                      "02x%02x%02x%02%x02x%02x%02x%02x%x02x%02x%02x%02x%x02x%02x%02x%02x%x02x%02x%02x%02x%x02x%02x%02x%"
