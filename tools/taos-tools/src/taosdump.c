@@ -162,6 +162,7 @@ static struct argp_option options[] = {
     {"retry-sleep-ms", 'z', "VALUE", 0, "retry interval sleep time, unit ms", 11},
     {"dsn",  'X', "DSN",  0, DSN_DESC, 11},
     {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
+    {"version", 'V', 0, 0, BENCH_VERSION},
     {0}
 };
 

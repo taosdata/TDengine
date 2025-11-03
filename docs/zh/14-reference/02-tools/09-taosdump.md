@@ -37,7 +37,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   or:  taosdump [OPTION...] -i inpath
   or:  taosdump [OPTION...] -o outpath
 
-  -h, --host=HOST            Server host dumping data from. Default is
+  -h, --host=HOST            Server host from which to dump data. Default is
                              localhost.
   -p, --password             User password to connect to server. Default is
                              taosdata.
@@ -48,13 +48,13 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -i, --inpath=INPATH        Input file path.
   -o, --outpath=OUTPATH      Output file path.
   -r, --resultFile=RESULTFILE   DumpOut/In Result file path and name.
-  -a, --allow-sys            Allow to dump system database
+  -a, --allow-sys            Allow to dump system database (2.0 only)
   -A, --all-databases        Dump all databases.
-  -D, --databases=DATABASES  Dump inputted databases. Use comma to separate
-                             databases' name.
+  -D, --databases=DATABASES  Dump listed databases. Use comma to separate
+                             databases names.
   -e, --escape-character     Use escaped character for database name
   -N, --without-property     Dump database without its properties.
-  -s, --schemaonly           Only dump tables' schema.
+  -s, --schemaonly           Only dump table schemas.
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
                              and lzma(Windows is not currently supported).
   -S, --start-time=START_TIME   Start time to dump. Either epoch or
@@ -74,31 +74,31 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              restore, please adjust the value to a smaller one
                              and try. The workable value is related to the
                              length of the row and type of table schema.
-  -I, --inspect              inspect avro file content and print on screen.
-  -L, --loose-mode           Using loose mode if the table name and column name
+  -I, --inspect              inspect avro file content and print on screen
+  -L, --loose-mode           Use loose mode if the table name and column name
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
-  -Q, --dot-replace          Replace dot character with underline character in
-                             the table name.(Version 2.5.3).
-  -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is 8
+  -Q, --dot-replace          Repalce dot character with underline character in
+                             the table name.
+  -T, --thread-num=THREAD_NUM   Number of threads for dump in/out data. Default
+                             is 8.
   -W, --rename=RENAME-LIST   Rename database name with new name during
-                             importing data. RENAME-LIST: 
+                             importing data.         RENAME-LIST:
                              "db1=newDB1|db2=newDB2" means rename db1 to newDB1
-                             and rename db2 to newDB2 (Version 2.5.4).
+                             and rename db2 to newDB2
+  -C, --cloud=CLOUD_DSN      same with -X options
   -k, --retry-count=VALUE    Set the number of retry attempts for connection or
-                             query failures.
-  -z, --retry-sleep-ms=VALUE retry interval sleep time, unit ms.
-  -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine TSDB cloud service.
-  -R, --restful              Use RESTful interface to connect TDengine TSDB.
+                             query failures
+  -R, --restful              Use RESTful interface to connect server
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
+  -X, --dsn=DSN              The dsn to connect the cloud service.
+  -z, --retry-sleep-ms=VALUE retry interval sleep time, unit ms
+  -Z, --driver=DRIVER        Connect driver , value can be "Native" or
+                             "WebSocket"
   -g, --debug                Print debug info.
-  -?, --help                 Give this help list.
-      --usage                Give a short usage message.
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
   -V, --version              Print program version.
-  -Z, --connect-mode         The connection method, with 0 indicating the use of 
-                             native connection method, 1 indicating the use of 
-                             WebSocket connection method, and default to native 
-                             connection method.
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
@@ -129,7 +129,7 @@ Report bugs to <support@taosdata.com>.
 
 ### 恢复数据
 
-- 恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。  
+- 恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。
 - taosdump 支持数据恢复至新数据库名下，参数是 -W, 详细见命令行参数说明。
 - 支持超级表及普通表 TAG/COLUMN 列有变动时仍可导入未变动列的数据（3.3.6.0 及以上版本及使用新版本导出数据才能支持）。
 
