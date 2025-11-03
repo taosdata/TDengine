@@ -1767,7 +1767,7 @@ int32_t shaFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   int32_t          bufLen = TMAX(SHA1_OUTPUT_LEN + VARSTR_HEADER_SIZE + 1, pInputData->info.bytes);
   char            *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
-    qError("md5 function alloc memory failed");
+    qError("sha function alloc memory failed");
     return terrno;
   }
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -1780,7 +1780,7 @@ int32_t shaFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
       pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
       if (!pOutputBuf) {
-        qError("md5 function alloc memory failed");
+        qError("sha function alloc memory failed");
         return terrno;
       }
     }
@@ -1805,7 +1805,7 @@ int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int32_t          bufLen = TMAX(SHA2_OUTPUT_LEN + VARSTR_HEADER_SIZE + 1, pInputData->info.bytes);
   char            *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
-    qError("md5 function alloc memory failed");
+    qError("sha2 function alloc memory failed");
     return terrno;
   }
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -1818,7 +1818,7 @@ int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
       pOutputBuf = taosMemoryRealloc(pOutputBuf, bufLen);
       if (!pOutputBuf) {
-        qError("md5 function alloc memory failed");
+        qError("sha2 function alloc memory failed");
         return terrno;
       }
     }
