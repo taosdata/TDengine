@@ -21,6 +21,29 @@ class TestStateWindowNullBlock:
         tdLog.info(f"start to excute {__file__}")
     
     def test_state_window_null_block(self):
+        """summary: test state window with null-state data block
+
+        description:
+            1. test state_window with all non-null data block
+            2. test state_window with nulls in the middle of data block
+            3. test state_window with nulls at the border of middle data block
+            4. test state_window with nulls at the border of all data block
+            5. test state_window with mixed null and non-null data block
+            6. test state_window with all null data block, and nulls at border
+
+        Since: v3.3.8.5
+
+        Labels: state window, null block
+
+        Jira: TS-7129
+
+        Catalog:
+            - TimeSeriesExt:StateWindow
+
+        History:
+            - 2025-11-03 Tony Zhang: Created this test
+
+        """
         self.prepare_data()
         self.check_all_non_null()
         self.check_inner_null()
