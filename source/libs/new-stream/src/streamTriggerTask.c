@@ -2683,6 +2683,12 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_NULL(pContext->pDeleteBlock, code, lino, _end, terrno);
   pContext->pDropBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   QUERY_CHECK_NULL(pContext->pDropBlock, code, lino, _end, terrno);
+  if (pTask->isVirtualTable) {
+    pContext->pAddBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    QUERY_CHECK_NULL(pContext->pAddBlock, code, lino, _end, terrno);
+    pContext->pRetireBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    QUERY_CHECK_NULL(pContext->pRetireBlock, code, lino, _end, terrno);
+  }
   pContext->pTempSlices = taosArrayInit(0, sizeof(int64_t) * 3);
   QUERY_CHECK_NULL(pContext->pTempSlices, code, lino, _end, terrno);
   pContext->pRanges = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -2795,6 +2801,14 @@ static void stRealtimeContextDestroy(void *ptr) {
   if (pContext->pDropBlock != NULL) {
     blockDataDestroy(pContext->pDropBlock);
     pContext->pDropBlock = NULL;
+  }
+  if (pContext->pAddBlock != NULL) {
+    blockDataDestroy(pContext->pAddBlock);
+    pContext->pAddBlock = NULL;
+  }
+  if (pContext->pRetireBlock != NULL) {
+    blockDataDestroy(pContext->pRetireBlock);
+    pContext->pRetireBlock = NULL;
   }
   if (pContext->pTempSlices != NULL) {
     taosArrayDestroy(pContext->pTempSlices);
@@ -3744,8 +3758,10 @@ static int32_t stRealtimeContextRetryDropRequest(SSTriggerRealtimeContext *pCont
   code = tmsgSendReq(&pRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_DLOG("%s send drop table request to node:%d task:%" PRIx64, __func__, pRunner->addr.nodeId, pRunner->addr.taskId);
-  ST_TASK_DLOG("%s trigger drop table req 0x%" PRIx64 ":0x%" PRIx64 " sent", __func__, msg.info.traceId.rootId, msg.info.traceId.msgId);
+  ST_TASK_DLOG("%s send drop table request to node:%d task:%" PRIx64, __func__, pRunner->addr.nodeId,
+               pRunner->addr.taskId);
+  ST_TASK_DLOG("%s trigger drop table req 0x%" PRIx64 ":0x%" PRIx64 " sent", __func__, msg.info.traceId.rootId,
+               msg.info.traceId.msgId);
 
   pNode = tdListPopNode(&pContext->dropTableReqs, pNode);
   taosMemoryFreeClear(pNode);
@@ -4488,12 +4504,16 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         blockDataEmpty(pContext->pMetaBlock);
         blockDataEmpty(pContext->pDeleteBlock);
         blockDataEmpty(pContext->pDropBlock);
+        blockDataEmpty(pContext->pAddBlock);
+        blockDataEmpty(pContext->pRetireBlock);
         pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
         SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock,
                                   .deleteBlock = pContext->pDeleteBlock,
-                                  .dropBlock = pContext->pDropBlock};
+                                  .dropBlock = pContext->pDropBlock,
+                                  .addBlock = pContext->pAddBlock,
+                                  .retireBlock = pContext->pRetireBlock};
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
         pContext->pMetaBlock->info.version = rsp.ver;
@@ -4626,6 +4646,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           blockDataEmpty(pContext->pMetaBlock);
           blockDataEmpty(pContext->pDeleteBlock);
           blockDataEmpty(pContext->pDropBlock);
+          blockDataEmpty(pContext->pAddBlock);
+          blockDataEmpty(pContext->pRetireBlock);
           pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
         }
         taosArrayClear(pContext->pTempSlices);
@@ -4636,6 +4658,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           rsp.metaBlock = pContext->pMetaBlock;
           rsp.deleteBlock = pContext->pDeleteBlock;
           rsp.dropBlock = pContext->pDropBlock;
+          rsp.addBlock = pContext->pAddBlock;
+          rsp.retireBlock = pContext->pRetireBlock;
         }
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pContext->pTempSlices);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -6303,9 +6327,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         do {
           if (pTask->triggerType == STREAM_TRIGGER_STATE) {
             // for state trigger, check if state equals to the zeroth state
-            bool stEqualZeroth = false;
-            void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ?
-                  (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
+            bool  stEqualZeroth = false;
+            void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ? (void *)pGroup->stateVal.pData
+                                                                       : (void *)&pGroup->stateVal.val;
             code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
             QUERY_CHECK_CODE(code, lino, _end);
             if (stEqualZeroth) {
@@ -7674,7 +7698,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_CODE(code, lino, _end);
             if (stEqualZeroth) {
               pWin = taosArrayPop(pContext->pWindows);
-              stRealtimeContextDestroyWindow((void*)pWin);
+              stRealtimeContextDestroyWindow((void *)pWin);
             } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
               code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
                                                    &pWin->pWinCloseNotify);
@@ -9571,7 +9595,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
         QUERY_CHECK_CODE(code, lino, _end);
         if (stEqualZeroth) {
           TRINGBUF_DEQUEUE(&pGroup->winBuf);
-        } else {   
+        } else {
           code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
           QUERY_CHECK_CODE(code, lino, _end);
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
@@ -9725,14 +9749,14 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
   }
 }
 
-int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual) {
+int32_t stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pStateData == NULL || pZeroth == NULL) {
     return code;
   }
 
-  SValueNode* pZerothState = (SValueNode*)pZeroth;
-  int8_t type = pZerothState->node.resType.type;
+  SValueNode *pZerothState = (SValueNode *)pZeroth;
+  int8_t      type = pZerothState->node.resType.type;
   if (IS_VAR_DATA_TYPE(type)) {
     *pIsEqual = compareLenPrefixedStr(pStateData, pZerothState->datum.p) == 0;
   } else if (IS_INTEGER_TYPE(type)) {
