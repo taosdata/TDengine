@@ -347,6 +347,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   (void)taosThreadMutexInit(&sStreamReaderInfo->mutex, 0);
   sStreamReaderInfo->pTask = pTask;
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
+  sStreamReaderInfo->isTriggerTblVirt = pMsg->msg.trigger.isTriggerTblVirt;
+
   if (pMsg->msg.trigger.triggerTblType == TD_SUPER_TABLE) {
     sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblUid;
     sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
