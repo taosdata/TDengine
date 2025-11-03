@@ -11,14 +11,16 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from datetime import datetime, timedelta
+import glob
 import os
 import time
 import subprocess
 import platform
-from datetime import datetime, timedelta
 
 
-class TestRetentionTest:
+
+class TestDbRetention:
 
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
@@ -155,24 +157,7 @@ class TestRetentionTest:
                 tdLog.error(f'{tsdb_path} is empty')
                 assert False
 
-    def test_retention_test(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-        """
+    def do_retention_test(self):
         self._prepare_env1()
         self._write_bulk_data()
         tdSql.execute(f'flush database {self.db_name}')
@@ -186,4 +171,95 @@ class TestRetentionTest:
         self._check_retention()
         tdLog.success("%s successfully executed" % __file__)
 
+        print("do retention .......................... [passed]")
 
+    #
+    # ------------------- retention2 ----------------
+    #
+    def init_class(self):
+        self.dnode_path = tdCom.getTaosdPath()
+        self.cfg_path = f'{self.dnode_path}/cfg'
+        self.log_path = f'{self.dnode_path}/log'
+        self.db_name = 'test'
+        self.vgroups = 10
+
+    def _prepare_env3(self):
+        tdLog.info("============== prepare environment 3 ===============")
+
+        level0_paths = [
+            os.path.join(self.dnode_path, "data00"),
+            os.path.join(self.dnode_path, "data01"),
+            # f'{self.dnode_path}/data02',
+        ]
+
+        cfg = {
+            f"{level0_paths[0]} 0 1": 'dataDir',
+            f"{level0_paths[1]} 0 0": 'dataDir',
+            # f"{level0_paths[2]} 0 0": 'dataDir',
+        }
+
+        for path in level0_paths:
+            tdSql.createDir(path)
+        tdDnodes.stop(1)
+        tdDnodes.deploy(1, cfg)
+        tdDnodes.start(1)
+
+    def _create_db_write_and_flush(self, dbname):
+        tdSql.execute(f'create database {dbname} vgroups 1 stt_trigger 1')
+        tdSql.execute(f'use {dbname}')
+        tdSql.execute(f'create table t1 (ts timestamp, a int) ')
+        tdSql.execute(f'create table t2 (ts timestamp, a int) ')
+
+        now = int(datetime.now().timestamp() * 1000)
+
+        for i in range(1000):
+            tdSql.execute(f'insert into t1 values ({now + i}, {i})')
+
+        tdSql.execute(f'flush database {dbname}')
+
+        for i in range(1):
+            tdSql.execute(f'insert into t2 values ({now + i}, {i})')
+
+        tdSql.execute(f'flush database {dbname}')
+
+    def do_retention_test2(self):
+        self.init_class()
+        self._prepare_env3()
+
+        for dbname in [f'db{i}' for i in range(0, 20)]:
+            self._create_db_write_and_flush(dbname)
+
+        data_dir0 = os.path.join(self.dnode_path, 'data00')
+        num_files1 = len(glob.glob(os.path.join(data_dir0, '**', 'v*.data'), recursive=True))
+
+        data_dir1 = os.path.join(self.dnode_path, 'data01')
+        num_files2 = len(glob.glob(os.path.join(data_dir1, '**', 'v*.data'), recursive=True))
+        tdSql.checkEqual(num_files1, num_files2)
+
+        print("do retention2 ......................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_db_retention(self):
+        """Databases retention
+
+        1. Prepare environment with single level data directories
+        2. Write bulk data into database with retention policy
+        3. Switch to multi-level data directories
+        4. Trim database to trigger retention
+        5. Check data directories to verify retention is executed correctly
+        
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_retention.py
+
+        """
+        self.do_retention_test()
+        self.do_retention_test2()
