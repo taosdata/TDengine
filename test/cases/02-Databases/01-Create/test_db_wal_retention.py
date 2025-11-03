@@ -447,22 +447,24 @@ class TestWalRetention:
 
     # run
     def test_wal_retention(self):
-        """summary: xxx
+        """WAL retention 
 
-        description: xxx
+        1. Create database with different wal_retention_period and wal_retention_size
+        2. Create super table and child tables
+        3. Insert data to child tables
+        4. Verify wal files retention based on period and size settings
+        5. Check that wal files are deleted according to retention policies
+        6. Use TMQ to consume data and verify data integrity after retention checks
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_wal_retention.py
+
         """
         # period
         #self.test_db("db1", 10, 60, 0)

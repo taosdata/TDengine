@@ -39,22 +39,25 @@ class TestWalLevelSkip:
         tdSql.execute("alter database db0 wal_level %d;"%level)
 
     def test_wal_level_skip(self):
-        """summary: xxx
+        """WAL level 
 
-        description: xxx
+        1. create database wal_level = 0 and insert data
+        2. stop/kill taosd before alter wal level
+        3. restart taosd
+        4. alter wal level from 0 to 1/2
+        5. insert data
+        6. stop/kill taosd after alter wal level
+        7. restart taosd
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_wal_level_skip.py
+
         """
         tdSql.prepare()
 
