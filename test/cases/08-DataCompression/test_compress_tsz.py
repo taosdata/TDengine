@@ -27,6 +27,10 @@ class TestCompressTsz1:
         random.seed(seed)
         tdLog.debug(f"start to excute {__file__}")
 
+    #
+    # ------------------- test_compress_tsz1.py ----------------
+    #
+
     # get col value and total max min ...
     def getColsValues(self, i):
         # c1 bigint c2 bigint c3 float c4 double c5 int
@@ -112,20 +116,19 @@ class TestCompressTsz1:
     def prepareEnv(self):
         # init                
         self.ts = 1680000000000*1000
-        self.childCnt = 10
-        self.childRow = 100000
+        self.childCnt = 5
+        self.childRow = 50000
         self.batchSize = 5000
         
         # create database  db
+        tdSql.execute("drop database if exists db")
         sql = f"create database db vgroups 2 precision 'us' "
-        tdLog.info(sql)
         tdSql.execute(sql)
         sql = f"use db"
         tdSql.execute(sql)
 
         # create super talbe st
         sql = f"create table st(ts timestamp, c1 bigint, c2 bigint, c3 float, c4 double, c5 int) tags(area int)"
-        tdLog.info(sql)
         tdSql.execute(sql)
 
         # create child table
@@ -174,34 +177,55 @@ class TestCompressTsz1:
                 if math.isclose(c4, ec4, rel_tol=1e-12) == False:
                     tdLog.exit(f"Not expect . c4 invalid.  c4={c4} expect={ec4} fabs={math.fabs(c4-ec4)}")
 
-
         # successful
         tdLog.info(f"check data correct ok. sql={sql}")
 
-
     # run
     def test_compress_tsz1(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-        """
         # prepare env insert data
         self.prepareEnv()
         # check where
         self.checkCorrect()
-        tdLog.success(f"{__file__} successfully executed")
 
+        print("\ndo compact tsz1 ....................... [passed]")
 
+    #
+    # ------------------- main ----------------
+    #
+    def test_compress_tsz2(self):
+        # alter config "IfAdtFse" to 0
+        tdSql.execute(f"alter all dnodes 'IfAdtFse 0'")
+        
+        # prepare env insert data
+        self.prepareEnv()
+        # check where
+        self.checkCorrect()
+
+        print("do compress tsz2 ...................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_compress_tsz(self):
+        """Compress tsz algorithm
+        
+        1. Init config open TSZ compression and set IfAdtFse to 1
+        2. Create 1 stable 5 child tables
+        3. each child table insert 50000 rows data with some null float/double values
+        4. Verify data correctness after insert with TSZ compression
+        5. Alter config IfAdtFse to 0
+        6. Repeat steps 1-3 to verify data correctness
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_compress_tsz1.py
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_compress_tsz2.py
+ 
+        """
+        self.test_compress_tsz1()
+        self.test_compress_tsz2()

@@ -245,6 +245,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_alter_table.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_one_stage.py -N 3 -L 3 -D 1
+,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_tsz.py
 
 # 09-DataQuerying
 
@@ -988,8 +989,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_fsync.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel_createdb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compress_tsz2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_dismatch_config.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_tag_index_basic.py
