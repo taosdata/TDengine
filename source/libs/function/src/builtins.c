@@ -1862,6 +1862,9 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     case FUNCTION_TYPE_SHA1:
       bytes = SHA1_OUTPUT_LEN + VARSTR_HEADER_SIZE;
       break;
+    case FUNCTION_TYPE_SHA2:
+      bytes = SHA2_OUTPUT_LEN + VARSTR_HEADER_SIZE;
+      break;
     case FUNCTION_TYPE_USER:
     case FUNCTION_TYPE_CURRENT_USER:
       bytes = TSDB_USER_LEN;
@@ -6733,6 +6736,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc = NULL,
     .initFunc = NULL,
     .sprocessFunc = shaFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sha2",
+    .type = FUNCTION_TYPE_SHA2,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = sha2Function,
     .finalizeFunc = NULL
   },
 };

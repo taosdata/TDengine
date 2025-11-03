@@ -123,6 +123,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_LIKE_IN_SET,
   FUNCTION_TYPE_REGEXP_IN_SET,
   FUNCTION_TYPE_SHA1,
+  FUNCTION_TYPE_SHA2,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
