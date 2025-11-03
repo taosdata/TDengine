@@ -47,7 +47,7 @@ extern "C" {
 #define DRIVER_DESC    "Connect driver , value can be \"Native\" or \"WebSocket\", default is Native."
 
 #define DSN_DESC       "The dsn to connect the cloud service."
-#define OLD_DSN_DESC   "same with -X options."
+#define OLD_DSN_DESC   "Alias for the -X/--dsn option."
 
 #define DSN_NATIVE_CONFLICT "DSN option not support in native connection mode.\n"
 

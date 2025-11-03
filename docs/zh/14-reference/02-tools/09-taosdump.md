@@ -86,7 +86,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              importing data.         RENAME-LIST:
                              "db1=newDB1|db2=newDB2" means rename db1 to newDB1
                              and rename db2 to newDB2.
-  -C, --cloud=CLOUD_DSN      same with -X options.
+  -C, --cloud=CLOUD_DSN      Alias for the -X/--dsn option.
   -k, --retry-count=VALUE    Set the number of retry attempts for connection or
                              query failures.
   -R, --restful              Use RESTful interface to connect server.
@@ -96,8 +96,8 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -Z, --driver=DRIVER        Connect driver , value can be "Native" or
                              "WebSocket", default is Native.
   -g, --debug                Print debug info.
-  -?, --help                 Give this help list.
-      --usage                Give a short usage message.
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
   -V, --version              Print program version.
 
 Mandatory or optional arguments to long options are also mandatory or optional
