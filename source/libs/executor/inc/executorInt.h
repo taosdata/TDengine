@@ -695,6 +695,17 @@ static inline void resetNumNullRows(SWindowRowsSup* pRowSup) {
   pRowSup->numNullRows = 0;
 }
 
+static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
+  if (NULL == pRowSup) {
+    return;
+  }
+
+  pRowSup->win.skey = pRowSup->win.ekey = 0;
+  pRowSup->prevTs = pRowSup->startRowIndex = 0;
+  pRowSup->numOfRows = pRowSup->groupId = 0;
+  resetNumNullRows(pRowSup);
+}
+
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 
 typedef struct SSessionAggOperatorInfo {
@@ -717,7 +728,7 @@ typedef struct SStateWindowOperatorInfo {
   SExprSupp             scalarSup;
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
-  SColumn               stateCol;  // start row index
+  SColumn               stateCol;
   bool                  hasKey;
   SStateKeys            stateKey;
   int32_t               tsSlotId;  // primary timestamp column slot id
