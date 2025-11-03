@@ -221,8 +221,9 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-mSdb") == 0) {
       global.modifySdb = true;
       if (i < argc - 1) {
-        if (strlen(argv[++i]) >= PATH_MAX) {
-          printf("config file path overflow");
+        i++;
+        if (strlen(argv[i]) >= PATH_MAX) {
+          printf("sdb.json file path is too long\n");
           return TSDB_CODE_INVALID_CFG;
         }
         tstrncpy(global.sdbJsonFile, argv[i], PATH_MAX);
@@ -555,8 +556,7 @@ int mainWindows(int argc, char **argv) {
     int32_t   code = 0;
     TdFilePtr pFile;
     if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
-      printf("failed to generate encrypt code since taosd is running, please stop it first, reason:%s",
-             tstrerror(code));
+      printf("failed to modify sdb since taosd is running, please stop it first, reason:%s", tstrerror(code));
       return code;
     }
 

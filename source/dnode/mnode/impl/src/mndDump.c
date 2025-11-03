@@ -904,16 +904,14 @@ int32_t modifySdb(char *path) {
     if (code) return code;
     tjsonGetNumberValue(pNodeVgroup, "replica", group.replica, code);
     if (code) return code;
-    tjsonGetNumberValue(pNodeVgroup, "replica", group.replica, code);
-    if (code) return code;
     tjsonGetNumberValue(pNodeVgroup, "syncConfChangeVer", group.syncConfChangeVer, code);
     if (code) return code;
 
     SJson *pReplicas = tjsonGetObjectItem(pNodeVgroup, "replicas");
-    for (int8_t i = 0; i < group.replica; ++i) {
-      SVnodeGid *pVgid = &group.vnodeGid[i];
+    for (int8_t j = 0; j < group.replica; ++j) {
+      SVnodeGid *pVgid = &group.vnodeGid[j];
 
-      SJson *pVnodeGid = tjsonGetArrayItem(pReplicas, i);
+      SJson *pVnodeGid = tjsonGetArrayItem(pReplicas, j);
       tjsonGetNumberValue(pVnodeGid, "dnodeId", pVgid->dnodeId, code);
       if (code) return code;
       mInfo("SVnodeGid %d", pVgid->dnodeId);
@@ -923,12 +921,12 @@ int32_t modifySdb(char *path) {
     SSdbRaw *pRaw = mndVgroupActionEncode(&group);
     if (pRaw == NULL) {
       mError("failed to encode while finish trans since %s", terrstr());
-      return false;
+      return terrno;
     }
     TAOS_CHECK_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
 
     mInfo("sdbWrite vgroup raw obj");
-    int32_t code = sdbWrite(pMnode->pSdb, pRaw);
+    code = sdbWrite(pMnode->pSdb, pRaw);
     if (code != 0) {
       mError("failed to write sdb since %s", terrstr());
     }
@@ -944,7 +942,7 @@ _OVER:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    mError("failed to read file:%s since %s", path, tstrerror(code));
+    mError("failed to modify sdb, file:%s since %s", path, tstrerror(code));
   }
 
   TAOS_RETURN(code);
