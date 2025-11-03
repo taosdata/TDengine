@@ -588,22 +588,31 @@ class TestUserControl:
                 tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
 
     def test_user_control(self):
-        """summary: xxx
+        """User control 
+        
+        1. Create 1 stable 20 child table 1 normal table
+        2. Insert each table 10 rows data
+        3. Restart taosd
+        4. Check root user exist
+        5. Create 5 test users
+        6. Check test users exist
+        7. Login with test users
+        8. Check test users can access their own data
+        9. Change test users privileges
+        10. Alter test users password
+        11. Login with altered password
+        12. Check test users can access their own data after privilege changed
+        13. Disable some users and check they can not access data
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_control.py
+
         """
         tdSql.prepare()
         self.__create_tb()

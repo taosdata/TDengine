@@ -629,6 +629,7 @@
 # 24-Users
 
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_basic.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_control.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_crypted_pass.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_password.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_create_db.py
@@ -979,11 +980,6 @@
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py
 #newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosd_shell.py -N 5 -M 3 -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_cachemodel.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_control.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_manage.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege_show.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_user_privilege_all.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_fsync.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_retention.py
