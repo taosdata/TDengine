@@ -181,7 +181,7 @@ class TestCompressTsz1:
         tdLog.info(f"check data correct ok. sql={sql}")
 
     # run
-    def test_compress_tsz1(self):
+    def do_compress_tsz1(self):
         # prepare env insert data
         self.prepareEnv()
         # check where
@@ -189,10 +189,7 @@ class TestCompressTsz1:
 
         print("\ndo compact tsz1 ....................... [passed]")
 
-    #
-    # ------------------- main ----------------
-    #
-    def test_compress_tsz2(self):
+    def do_compress_tsz2(self):
         # alter config "IfAdtFse" to 0
         tdSql.execute(f"alter all dnodes 'IfAdtFse 0'")
         
@@ -227,5 +224,5 @@ class TestCompressTsz1:
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_compress_tsz2.py
  
         """
-        self.test_compress_tsz1()
-        self.test_compress_tsz2()
+        self.do_compress_tsz1()
+        self.do_compress_tsz2()

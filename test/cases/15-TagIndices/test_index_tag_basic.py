@@ -74,12 +74,14 @@ class TestTagIndexBasic:
         create_table_sql = self.set_stb_sql(stbname, self.column_dict, self.tag_dict)
         tdSql.execute(create_table_sql)
 
+        tables = []
         # create child table
         for i in range(count):
             ti = i % 128
             tags = f'{ti},{ti},{i},{i},{ti},{ti},{i},{i},{i}.000{i},{i}.000{i},true,"var{i}","nch{i}",now'
-            sql  = f'create table {tbname}{i} using {stbname} tags({tags})'
-            tdSql.execute(sql)
+            tables.append(f'{tbname}{i} using {stbname} tags({tags})')        
+        sql = 'create table ' + ' '.join(tables)
+        tdSql.execute(sql)
 
         tdLog.info(f" create {count} child tables ok.")    
     
@@ -226,23 +228,28 @@ class TestTagIndexBasic:
         tdSql.execute(sql)
 
     # run
-    def test_tag_index_basic(self):
-        """summary: xxx
+    def test_index_tag_basic(self):
+        """Index tag basic
+        
+        1. Create 1 stable and 1000 child tables
+        2. Create tag index for each tag column except the first one
+        3. Check error cases when creating tag index with invalid column names
+        4. Insert data into some child tables
+        5. Check create tag is successful
+        6. Query data using tag index and verify results
+        7. Drop a range of child tables
+        8. Drop all tag indexes
+        9. Attempt to create tag index with excessively long name and verify error
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_tag_index_basic.py
+ 
         """
         # var
         stable = "meters"
