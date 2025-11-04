@@ -423,7 +423,7 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicInterpFunc";
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       return "LogicForecastFunc";
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       return "LogicImputationFunc";
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return "LogicGroupCache";
@@ -493,7 +493,7 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiInterpFunc";
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return "PhysiForecastFunc";
-    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
       return "PhysiImputationFunc";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return "PhysiDispatch";
@@ -1535,7 +1535,7 @@ static int32_t jsonToLogicForecastFuncNode(const SJson* pJson, void* pObj) {
 }
 
 static int32_t logicImputationFuncNodeToJson(const void* pObj, SJson* pJson) {
-  const SImputationFuncLogicNode* pNode = (const SImputationFuncLogicNode*)pObj;
+  const SGenericAnalysisLogicNode* pNode = (const SGenericAnalysisLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1546,7 +1546,7 @@ static int32_t logicImputationFuncNodeToJson(const void* pObj, SJson* pJson) {
 }
 
 static int32_t jsonToLogicImputationFuncNode(const SJson* pJson, void* pObj) {
-  SImputationFuncLogicNode* pNode = (SImputationFuncLogicNode*)pObj;
+  SGenericAnalysisLogicNode* pNode = (SGenericAnalysisLogicNode*)pObj;
 
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
@@ -9867,7 +9867,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicInterpFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       return logicForecastFuncNodeToJson(pObj, pJson);
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       return logicImputationFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return logicGroupCacheNodeToJson(pObj, pJson);
@@ -9934,7 +9934,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiInterpFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return physiForecastFuncNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
       return physiForecastFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return physiDispatchNodeToJson(pObj, pJson);
@@ -10288,7 +10288,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicInterpFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       return jsonToLogicImputationFuncNode(pJson, pObj);
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       return jsonToLogicForecastFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return jsonToLogicGroupCacheNode(pJson, pObj);
@@ -10353,7 +10353,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiIndefRowsFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       return jsonToPhysiInterpFuncNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       return jsonToPhysiForecastFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:

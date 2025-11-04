@@ -473,7 +473,7 @@ _exit:
 }
 
 void tFreeRunnerOReaderDeployReq(void* param) {
-  if (NULL == param || NULL == *(void**)param) {
+  if (NULL == param) {
     return;
   }
 
