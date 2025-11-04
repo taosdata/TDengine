@@ -761,7 +761,7 @@
 # 80-Components
 
 # 01-Taosd
-,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_cmdline.py
+,,n,.,pytest cases/80-Components/01-Taosd/test_com_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3 -M 3

@@ -7,26 +7,7 @@ import time
 class TestShowTableDistributed:
 
     def setup_class(cls):
-        # ----- test_show_table_distributed.py setup_class ------
-        cls.dbname = "distributed_db"
-        cls.stname = "st"
-        cls.ctnum = 1
-        cls.row_num = 99
-
-        # create database
-        tdSql.execute(f'create database if not exists {cls.dbname};')
-        tdSql.execute(f'use {cls.dbname};')
-        # create super table
-        tdSql.execute(f'create table {cls.dbname}.{cls.stname} (ts timestamp, id int, temperature float) tags (name binary(20));')
-        # create child table
-        for i in range(cls.ctnum):
-            tdSql.execute(f'create table ct_{str(i+1)} using {cls.stname} tags ("name{str(i+1)}");')
-            # insert data
-            sql = f"insert into ct_{str(i+1)} values "
-            for j in range(cls.row_num):
-                sql += f"(now+{j+1}s, {j+1}, {random.uniform(15, 30)}) "
-            sql += ";"
-            tdSql.execute(sql)
+        pass
 
     def do_sim_show_table_distributed(self):
         self.ShowDistributedNull()
@@ -134,8 +115,30 @@ class TestShowTableDistributed:
         tdSql.checkRows(2)
 
     #
-    # ------------------- main ----------------
+    # ------------------- test_show_table_distributed.py ----------------
     #
+    def initData(self):
+        # ----- test_show_table_distributed.py setup_class ------
+        self.dbname = "distributed_db"
+        self.stname = "st"
+        self.ctnum = 1
+        self.row_num = 99
+
+        # create database
+        tdSql.execute(f'create database if not exists {self.dbname};')
+        tdSql.execute(f'use {self.dbname};')
+        # create super table
+        tdSql.execute(f'create table {self.dbname}.{self.stname} (ts timestamp, id int, temperature float) tags (name binary(20));')
+        # create child table
+        for i in range(self.ctnum):
+            tdSql.execute(f'create table ct_{str(i+1)} using {self.stname} tags ("name{str(i+1)}");')
+            # insert data
+            sql = f"insert into ct_{str(i+1)} values "
+            for j in range(self.row_num):
+                sql += f"(now+{j+1}s, {j+1}, {random.uniform(15, 30)}) "
+            sql += ";"
+            tdSql.execute(sql)        
+    
     def checkRes(self, queryRes):
         mem_rows_num = 0
         stt_rows_num = 0
@@ -149,6 +152,7 @@ class TestShowTableDistributed:
         return mem_rows_num, stt_rows_num
 
     def do_show_table_distributed(self):
+        self.initData()
         tdSql.query(f"show table distributed {self.stname};")
         tdLog.debug(tdSql.queryResult)
         mem_rows_num, stt_rows_num = self.checkRes(tdSql.queryResult)
