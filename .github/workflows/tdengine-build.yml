@@ -224,8 +224,8 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
-          sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
-          nohup taosd  &
+          export TAOS_FQDN=localhost
+          nohup taosd &
           nohup taosadapter &
           pgrep -l taos
           sleep 6     # NOTE: wait for taosd initialization to complete
