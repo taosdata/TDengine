@@ -55,6 +55,8 @@ typedef struct {
   SSaslBuffer out;
   SSaslBuffer authInfo;
   int8_t      isAuthed;
+
+  int8_t server;
 } SSaslConn;
 
 #ifdef __cplusplus
@@ -65,17 +67,19 @@ void saslLibInit();
 void saslLibCleanup();
 
 int32_t saslConnCreate(SSaslConn** ppConn, int8_t server);
-int32_t saslConnInit(SSaslConn* pConn, int8_t isServer);
+int32_t saslConnInit(SSaslConn* pConn);
 void    saslConnCleanup(SSaslConn* pConn);
 
 void saslConnSetState(SSaslConn* pConn, int32_t state);
 int32_t saslConnEncode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen);
 int32_t saslConnDecode(SSaslConn* pConn, const char* input, int32_t len, const char** output, unsigned* outputLen);
 
-int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, int32_t len);
+int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len);
 
 int8_t  saslConnShoudDoAuth(SSaslConn* pConn);
-int32_t saslConnStartAuth(SSaslConn* pConn, int8_t server);
+// int32_t saslConnStartAuth(SSaslConn* pConn);
+
+// sasl buffer func
 int32_t saslBufferInit(SSaslBuffer* buf, int32_t cap);
 int32_t saslBufferAppend(SSaslBuffer* buf, uint8_t* data, int32_t len);
 void    saslBufferCleanup(SSaslBuffer* buf);

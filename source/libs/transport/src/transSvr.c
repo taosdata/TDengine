@@ -668,10 +668,7 @@ static void uvOnRecvSaslCb(SSvrConn* conn, ssize_t nread, const uv_buf_t* buf) {
   if (nread > 0) {
     pBuf->len += nread;
     if (saslConnShoudDoAuth(conn->saslConn)) {
-      code = saslConnStartAuth(conn->saslConn, 1);
-      TAOS_CHECK_GOTO(code, &lino, _error);
-
-      code = saslConnHandleAuth(conn->saslConn, 1, (const char*)buf->base, buf->len);
+      code = saslConnHandleAuth(conn->saslConn, (const char*)buf->base, buf->len);
       TAOS_CHECK_GOTO(code, &lino, _error);
 
       if (saslConnShoudDoAuth(conn->saslConn)) {
@@ -1407,6 +1404,18 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       transUnrefSrvHandle(pConn);
       return;
     }
+
+    if (saslConnShoudDoAuth(pConn->saslConn)) {
+      code = saslConnHandleAuth(pConn->saslConn, NULL, 0);
+
+      if (saslConnShoudDoAuth(pConn->saslConn)) {
+        tDebug("conn:%p, need to do sasl auth", pConn);
+
+      } else {
+        tDebug("conn:%p, sasl auth done", pConn);
+      }
+    }
+
   } else {
     tDebug("failed to create new connection reason %s", uv_err_name(code));
     transUnrefSrvHandle(pConn);

@@ -25,8 +25,29 @@ extern void saslClientStepImpl();
 extern void saslServerStepImpl();
 
 #define SASL_MECHANISM_SCRAM_SHA256 "SCRAM-SHA-256"
+int32_t saslConnListMech(SSaslConn* pConn, const char* tgt);
 
 enum { STATE_HANDSHAKE = 0, STATE_SALA_AUTH, STATE_READY, STATE_CLOSING } SASL_STATE;
+
+enum {
+  SASL_STATUS_INIT = 0,
+  SASL_STATUS_CONNECT,
+  SASL_STATUS_AUTHING,
+  SASL_STATUS_AUTHED,
+  SASL_STATUS_ERROR
+} SASL_STATUS_T;
+
+typedef int32_t (*authDoFunc)(SSaslConn* p, const char* input, int32_t len);
+
+int32_t authInitFp(SSaslConn* p, const char* input, int32_t len);
+
+int32_t authConnFp(SSaslConn* p, const char* input, int32_t len);
+
+int32_t authDoingFp(SSaslConn* p, const char* input, int32_t len);
+
+int32_t authDoneFp(SSaslConn* p, const char* input, int32_t len);
+
+authDoFunc auFunc[] = {authInitFp, authConnFp, authDoingFp, authDoneFp};
 
 void saslLibInit() {
   int rc = sasl_client_init(NULL);
@@ -54,10 +75,12 @@ int32_t saslConnCreate(SSaslConn** ppConn, int8_t server) {
     return terrno;
   }
   memset(pConn, 0, sizeof(SSaslConn));
-  pConn->state = STATE_HANDSHAKE;
+  pConn->state = SASL_STATUS_INIT;
   pConn->isAuthed = 0;
 
-  code = saslConnInit(pConn, server);
+  pConn->server = server;
+
+  code = saslConnInit(pConn);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
   *ppConn = pConn;
@@ -95,7 +118,7 @@ static int saslCallBackFn(SSaslConn* conn, int id, const char** result, unsigned
   return SASL_FAIL;
 }
 
-int32_t saslConnStartAuthImpl(SSaslConn* pConn, int8_t server) {
+int32_t saslConnStartAuthImpl(SSaslConn* pConn) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -107,9 +130,12 @@ int32_t saslConnStartAuthImpl(SSaslConn* pConn, int8_t server) {
   uint32_t    initLen = 0;
 
   int result = 0;
-  const char* mechlist = "PLAIN SCRAM-SHA-1 SCRAM-SHA-256";
+  const char* mechlist = "EXTERNAL";
 
-  if (!server) {
+  // sasl_conn_setprop(pConn->conn, SASL_PROR_CONN, "maxbufsize=65536");
+  if (!pConn->server) {
+    code = saslConnListMech(pConn, "EXTERNAL");
+
     result = sasl_client_start(pConn->conn, mechlist, NULL, &initResp, &initLen, NULL);
     if (result != SASL_OK && result != SASL_CONTINUE) {
       tError("sasl_client_start failed: %s", sasl_errstring(result, NULL, NULL));
@@ -131,7 +157,7 @@ _error:
   }
   return code;
 }
-int32_t saslConnInit(SSaslConn* pConn, int8_t isServer) {
+int32_t saslConnInit(SSaslConn* pConn) {
   int32_t code = 0;
   int32_t lino = 0;
   int     result;
@@ -151,7 +177,7 @@ int32_t saslConnInit(SSaslConn* pConn, int8_t isServer) {
   code = saslBufferInit(&pConn->authInfo, 1024);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
-  if (isServer) {
+  if (pConn->server) {
     result = sasl_server_new("tdengine", NULL, NULL, NULL, NULL, callbacks, 0, &pConn->conn);
     if (result != SASL_OK) {
       tError("sasl_server_new failed: %s", sasl_errstring(result, NULL, NULL));
@@ -248,7 +274,7 @@ int8_t saslConnShoudDoAuth(SSaslConn* pConn) {
   return pConn->isAuthed ? 0 : 1;
 }
 
-int32_t saslConnStartAuth(SSaslConn* pConn, int8_t server) {
+int32_t saslConnStartAuth(SSaslConn* pConn) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -256,7 +282,7 @@ int32_t saslConnStartAuth(SSaslConn* pConn, int8_t server) {
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
-  code = saslConnStartAuthImpl(pConn, server);
+  code = saslConnStartAuthImpl(pConn);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:
@@ -266,39 +292,167 @@ _error:
 
   return code;
 }
-int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, int32_t len) {
-  int32_t     code = 0;
+
+int32_t saslConnListMech(SSaslConn* pConn, const char* tgt) {
+  int32_t code = 0;
+  int     result = 0;
+  int8_t  found = 0;
+
+  if (pConn == NULL || pConn->conn == NULL) {
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  uint32_t    len = 0;
+  int32_t     count = 0;
+  const char* mechList = NULL;
+  result = sasl_listmech(pConn->conn, NULL, NULL, NULL, NULL, &mechList, &len, &count);
+  if (result != SASL_OK) {
+    tError("sasl_listmech failed: %s", sasl_errstring(result, NULL, NULL));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
+  if (mechList != NULL) {
+    tInfo("Supported SASL mechanisms: %s", mechList);
+    if (strstr(mechList, tgt) != NULL) {
+      tInfo("Found target SASL mechanism: %s", tgt);
+      found = 1;
+    }
+  }
+
+  if (!found) {
+    tError("Target SASL mechanism %s not supported", tgt);
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
+  return code;
+}
+int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len) {
+  int32_t code = 0;
 
   if (pConn == NULL || pConn->conn == NULL) {
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
 
-  const char* mechanism = SASL_MECHANISM_SCRAM_SHA256;
+  code = auFunc[pConn->state](pConn, input, len);
+  return code;
+}
 
+int32_t sslConnSetExternalAuth(SSaslConn* pConn, const char* authId) {
+  int32_t code = 0;
+
+  if (pConn == NULL || pConn->conn == NULL) {
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
+  int result = sasl_setprop(pConn->conn, SASL_AUTH_EXTERNAL, authId);
+  if (result != SASL_OK) {
+    tError("sasl_setprop SASL_AUTH_EXTERNAL failed: %s", sasl_errstring(result, NULL, NULL));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+  }
+  return code;
+}
+
+static int32_t authConnCheck(SSaslConn* p) {
+  int32_t code = 0;
+
+  if (p == NULL || p->conn == NULL) {
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+}
+int32_t authInitFp(SSaslConn* p, const char* input, int32_t len) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (p->state != SASL_STATUS_INIT) {
+    p->state = SASL_STATUS_ERROR;
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    return code;
+  }
+  int result = 0;
+
+  const char* mechlist = "EXTERNAL";
+  const char* in = NULL;
+  uint32_t    inlen = 0;
+  const char* out = NULL;
+  uint32_t    outlen = 0;
+
+  if (!p->server) {
+    result = sasl_client_start(p->conn, mechlist, NULL, &out, &outlen, NULL);
+    if (result != SASL_OK && result != SASL_CONTINUE) {
+      tError("sasl_client_start failed: %s", sasl_errstring(result, NULL, NULL));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+  } else {
+    code = saslConnListMech(p, mechlist);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    result = sasl_server_start(p->conn, mechlist, in, inlen, &out, &outlen);
+    if (result != SASL_OK && result != SASL_CONTINUE) {
+      tError("sasl_server_start failed: %s", sasl_errstring(result, NULL, NULL));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+  }
+
+  if (out != NULL && outlen > 0) {
+    code = saslBufferAppend(&p->out, (uint8_t*)out, outlen);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  p->state = p->state + 1;
+
+_error:
+  if (code != 0) {
+    tError("authInitFp failed, code:%d", code);
+    p->state = SASL_STATUS_ERROR;
+  }
+
+  return code;
+}
+
+int32_t authConnFp(SSaslConn* p, const char* input, int32_t len) {
+  int32_t code = 0;
+  if (p->state != SASL_STATUS_CONNECT) {
+    p->state = SASL_STATUS_ERROR;
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    return code;
+  }
+
+  p->state = p->state + 1;
+  return code;
+}
+
+int32_t authDoingFp(SSaslConn* p, const char* input, int32_t len) {
+  int32_t code = 0;
+  if (p->state != SASL_STATUS_AUTHING) {
+    p->state = SASL_STATUS_ERROR;
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    return code;
+  }
   const char* cliOut = NULL;
   unsigned    cliOutLen = 0;
 
-  if (server) {
-    int result = 0;
-    result = sasl_server_step(pConn->conn, input, len, &cliOut, &cliOutLen);
-    while (result == SASL_CONTINUE) {
-      const char* serverOut = NULL;
-      unsigned    serverOutLen = 0;
+  int result = 0;
+  if (p->server) {
+    code = saslConnListMech(p, "EXTERNAL");
+    if (code != 0) {
+      return code;
     }
 
+    result = sasl_server_step(p->conn, input, len, &cliOut, &cliOutLen);
     if (result == SASL_OK) {
-      pConn->completed = 1;
-      pConn->isAuthed = 1;
+      p->completed = 1;
+      p->isAuthed = 1;
 
-      result = sasl_getprop(pConn->conn, SASL_USERNAME, (const void**)&pConn->authUser);
+      result = sasl_getprop(p->conn, SASL_USERNAME, (const void**)&p->authUser);
       if (result != SASL_OK) {
         tError("sasl_getprop SASL_USERNAME failed: %s", sasl_errstring(result, NULL, NULL));
         code = TSDB_CODE_THIRDPARTY_ERROR;
       }
 
     } else if (result == SASL_CONTINUE) {
-      tInfo("sasl server continue to auth, sasl conn %p, conn %p", pConn, pConn->conn);
-      code = saslBufferAppend(&pConn->authInfo, (uint8_t*)cliOut, (int32_t)cliOutLen);
+      tInfo("sasl server continue to auth, sasl conn %p, conn %p", p, p->conn);
+      code = saslBufferAppend(&p->authInfo, (uint8_t*)cliOut, (int32_t)cliOutLen);
       if (code != 0) {
         tError("saslConnHandleAuth failed to append auth info, code:%d", code);
         return code;
@@ -308,19 +462,31 @@ int32_t saslConnHandleAuth(SSaslConn* pConn, int8_t server, const char* input, i
       code = TSDB_CODE_THIRDPARTY_ERROR;
     }
   } else {
-    int result = sasl_client_step(pConn->conn, input, len, NULL, &cliOut, &cliOutLen);
-
+    int result = sasl_client_step(p->conn, input, len, NULL, &cliOut, &cliOutLen);
     if (result == SASL_OK) {
-      pConn->completed = 1;
-      pConn->isAuthed = 1;
-      tInfo("sasl client auth success, sasl conn %p, conn %p", pConn, pConn->conn);
+      p->completed = 1;
+      p->isAuthed = 1;
+      tInfo("sasl client auth success, sasl conn %p, conn %p", p, p->conn);
     } else if (result == SASL_CONTINUE) {
-      tInfo("sasl client continue to auth, sasl conn %p, conn %p", pConn, pConn->conn);
+      tInfo("sasl client continue to auth, sasl conn %p, conn %p", p, p->conn);
     } else {
       tError("sasl_client_step failed: %s", sasl_errstring(result, NULL, NULL));
       code = TSDB_CODE_THIRDPARTY_ERROR;
     }
   }
+
+  p->state = p->state + 1;
+
+  return code;
+}
+
+int32_t authDoneFp(SSaslConn* p, const char* input, int32_t len) {
+  int32_t code = 0;
+
+  if (p->state != SASL_STATUS_AUTHED) {
+    p->state = SASL_STATUS_ERROR;
+  }
+  p->isAuthed = 1;
 
   return code;
 }
@@ -382,73 +548,3 @@ void saslBufferClear(SSaslBuffer* buf) {
   buf->len = 0;
   buf->invalid = 0;
 }
-
-// int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx) { return transTlsCtxCreateImpl(pInit, ppCtx); }
-
-// void transTlsCtxDestroy(SSslCtx* pCtx) { transTlsCtxDestroyImpl(pCtx); }
-
-// int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs) { return sslInitImpl(pCtx, ppTLs); }
-// void    sslDestroy(STransTLS* pTLs) { sslDestroyImpl(pTLs); }
-
-// void sslSetMode(STransTLS* pTls, int8_t cliMode) { sslSetModeImpl(pTls, cliMode); }
-
-// int32_t sslConnect(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req) { return sslConnectImpl(pTls, stream, req);
-// }
-
-// int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
-//                  void (*cb)(uv_write_t*, int)) {
-//   return sslWriteImpl(pTls, stream, req, pBuf, nBuf, cb);
-// }
-
-// int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) {
-//   return sslReadImpl(pTls, pBuf, nread, cliMode);
-// }
-
-// int8_t sslIsInited(STransTLS* pTls) { return sslIsInitedImpl(pTls); }
-
-// int32_t sslBufferInit(SSslBuffer* buf, int32_t cap) { return sslBufferInitImpl(buf, cap); }
-// void    sslBufferDestroy(SSslBuffer* buf) { return sslBufferDestroyImpl(buf); }
-// void    sslBufferClear(SSslBuffer* buf) { return sslBufferClearImpl(buf); }
-
-// int32_t sslBufferAppend(SSslBuffer* buf, uint8_t* data, int32_t len) { return sslBufferAppendImpl(buf, data, len); }
-// int32_t sslBufferRealloc(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf) {
-//   return sslBufferReallocImpl(buf, newCap, uvbuf);
-// }
-// int32_t sslBufferGetAvailable(SSslBuffer* buf, int32_t* available) { return sslBufferGetAvailableImpl(buf,
-// available); }
-
-// void sslBufferRef(SSslBuffer* buf) { sslBufferRefImpl(buf); }
-// void sslBufferUnref(SSslBuffer* buf) { sslBufferUnrefImpl(buf); }
-
-// #if !defined(TD_ENTERPRISE)
-
-// int32_t transTlsCtxCreateImpl(const SRpcInit* pInit, SSslCtx** ppCtx) { return TSDB_CODE_INVALID_CFG; }
-// void    transTlsCtxDestroyImpl(SSslCtx* pCtx) { return; }
-
-// int32_t sslInitImpl(SSslCtx* pCtx, STransTLS** ppTLs) { return TSDB_CODE_INVALID_CFG; }
-
-// void sslDestroyImpl(STransTLS* pTLs) { return; }
-
-// void sslSetModeImpl(STransTLS* pTls, int8_t cliMode) { return; }
-
-// int32_t sslConnectImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req) { return TSDB_CODE_INVALID_CFG; }
-
-// int32_t sslWriteImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t* pBuf, int32_t nBuf,
-//                      void (*cb)(uv_write_t*, int)) {
-//   return TSDB_CODE_INVALID_CFG;
-// }
-
-// int32_t sslReadImpl(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) { return
-// TSDB_CODE_INVALID_CFG; } int8_t  sslIsInitedImpl(STransTLS* pTls) { return 0; }
-
-// int32_t sslBufferInitImpl(SSslBuffer* buf, int32_t cap) { return TSDB_CODE_INVALID_CFG; }
-// void    sslBufferDestroyImpl(SSslBuffer* buf) { return; }
-// void    sslBufferClearImpl(SSslBuffer* buf) { return; }
-// int32_t sslBufferAppendImpl(SSslBuffer* buf, uint8_t* data, int32_t len) { return TSDB_CODE_INVALID_CFG; }
-// int32_t sslBufferReallocImpl(SSslBuffer* buf, int32_t newCap, uv_buf_t* uvbuf) { return TSDB_CODE_INVALID_CFG; }
-// int32_t sslBufferGetAvailableImpl(SSslBuffer* buf, int32_t* available) { return TSDB_CODE_INVALID_CFG; }
-
-// void sslBufferRefImpl(SSslBuffer* buf) { return; }
-// void sslBufferUnrefImpl(SSslBuffer* buf) { return; }
-
-// #endif
