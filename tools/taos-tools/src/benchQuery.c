@@ -432,7 +432,7 @@ void totalChildQuery(qThreadInfo* infos, int threadCnt, int64_t spend, BArray *p
 
     size_t totalQueried = delay_list->size;
     double time_cost = spend / 1E6;
-    double qps = totalQueried / time_cost;
+    double qps = (time_cost > 0) ? (totalQueried / time_cost) : 0.0;
     double avgDelay = (double)total_delays/delay_list->size/1E6;
     double minDelay = *(int64_t *)(benchArrayGet(delay_list, 0))/1E6;
     double maxDelay = *(int64_t *)(benchArrayGet(delay_list, (int32_t)(delay_list->size - 1)))/1E6;
