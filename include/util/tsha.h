@@ -3,6 +3,9 @@
 
 #include "os.h"
 
+#define SHA1_OUTPUT_LEN 40
+#define SHA2_OUTPUT_LEN 128
+
 #ifdef __cplusplus
 extern "C" {
 #endif
