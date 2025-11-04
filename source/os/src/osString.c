@@ -399,7 +399,7 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
     break;
   }
 
-  int32_t startId = (uint32_t)(taosGetSelfPthreadId()) % info->gConvMaxNum[type];
+  int32_t startId = ((uint32_t)(taosGetSelfPthreadId())) % info->gConvMaxNum[type];
   while (true) {
     if (info->gConv[type][startId].inUse) {
       startId = (startId + 1) % info->gConvMaxNum[type];
