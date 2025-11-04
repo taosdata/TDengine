@@ -928,6 +928,7 @@ cmd ::= ASSIGN LEADER FORCE.                                                    
 
 cmd ::= BALANCE VGROUP LEADER on_vgroup_id(A).                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt, &A); }
 cmd ::= BALANCE VGROUP LEADER DATABASE db_name(A).                                { pCxt->pRootNode = createBalanceVgroupLeaderDBNameStmt(pCxt, &A); }
+cmd ::= ALTER VNODE NK_INTEGER(A) SET KEEP VERSION NK_INTEGER(B).                { pCxt->pRootNode = createSetVnodeKeepVersionStmt(pCxt, &A, &B); }
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
 cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
 cmd ::= SPLIT VGROUP NK_INTEGER(A).                                               { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A); }

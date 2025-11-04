@@ -64,6 +64,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_REPLICA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_CONFIG_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_CONFIRM_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_SET_KEEP_VERSION_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_HASHRANGE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndTransProcessRsp);
@@ -3905,7 +3906,7 @@ static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
 
   // Send to all replicas of the vgroup
   for (int32_t i = 0; i < pVgroup->replica; ++i) {
-    SMsgHead *pHead = rpcMallocCont(contLen);
+    SMsgHead *pHead = taosMemoryMalloc(contLen);
     if (pHead == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       mndReleaseVgroup(pMnode, pVgroup);
@@ -3916,7 +3917,7 @@ static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
     pHead->vgId = htonl(pVgroup->vgId);
 
     if (tSerializeSVndSetKeepVersionReq((char *)pHead + sizeof(SMsgHead), reqLen, &vndReq) < 0) {
-      rpcFreeCont(pHead);
+      taosMemoryFree(pHead);
       code = TSDB_CODE_OUT_OF_MEMORY;
       mndReleaseVgroup(pMnode, pVgroup);
       goto _OVER;
@@ -3925,7 +3926,7 @@ static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
     // Get dnode and add action to transaction
     SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
     if (pDnode == NULL) {
-      rpcFreeCont(pHead);
+      taosMemoryFree(pHead);
       code = TSDB_CODE_MND_DNODE_NOT_EXIST;
       mndReleaseVgroup(pMnode, pVgroup);
       goto _OVER;
@@ -3940,7 +3941,7 @@ static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
     action.acceptableCode = TSDB_CODE_VND_STOPPED;
 
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      rpcFreeCont(pHead);
+      taosMemoryFree(pHead);
       code = terrno;
       mndReleaseVgroup(pMnode, pVgroup);
       goto _OVER;

@@ -4423,6 +4423,22 @@ _err:
   return NULL;
 }
 
+SNode* createSetVnodeKeepVersionStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pKeepVersion) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetVnodeKeepVersionStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_VNODE_KEEP_VERSION_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pVgId && NULL != pVgId->z) {
+    pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  }
+  if (NULL != pKeepVersion && NULL != pKeepVersion->z) {
+    pStmt->keepVersion = taosStr2Int64(pKeepVersion->z, NULL, 10);
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2) {
   CHECK_PARSER_STATUS(pCxt);
   SMergeVgroupStmt* pStmt = NULL;
