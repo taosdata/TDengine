@@ -225,6 +225,7 @@ jobs:
           taosBenchmark -V
           taos -V
           sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
+          rm -rf /var/lib/taos/*
           nohup taosd -c /etc/taos/ &
           nohup taosadapter &
           pgrep -l taos
