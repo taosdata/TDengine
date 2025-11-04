@@ -1048,7 +1048,6 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*     pSup = &pOperator->exprSupp;
 
-  printDataBlock(pBlock, "tooony", "toony", 0);
   SColumnInfoData* pStateColInfoData = 
     taosArrayGet(pBlock->pDataBlock, pInfo->stateCol.slotId);
   if (!pStateColInfoData) {
@@ -1116,6 +1115,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   // if the block ends with null state columns,
   // we do not process them here,
   // since we don't know the belonging of these null rows 
+  if (pRowSup->numOfRows == 0) {
+    return;
+  }
   doKeepCurStateWindowEndInfo(pRowSup, tsList, *endIndex, &extendOption, false);
   int32_t code = processClosedStateWindow(
     pInfo, pRowSup, pTaskInfo, pSup, numOfOutput);
@@ -1171,7 +1173,6 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
     } else {
       pUnfinishedBlock = pBlock;
       isRef = true;
-      QUERY_CHECK_CODE(code, lino, _end);
     }
     endIndex = pUnfinishedBlock->info.rows;
 
