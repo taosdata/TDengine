@@ -588,6 +588,7 @@ static int32_t tsdbCompact(void *arg) {
   SCompactArg *compactArg = (SCompactArg *)arg;
   STsdb       *tsdb = compactArg->tsdb;
   STFileSet   *fset = NULL;
+  bool         force = compactArg->force;
   SCompactor2  compactor = {
        .tsdb = tsdb,
        .szPage = tsdb->pVnode->config.tsdbPageSize,
@@ -625,7 +626,7 @@ static int32_t tsdbCompact(void *arg) {
   // do compact
   if (compactor.fset) {
     compactor.ctx->expLevel = tsdbFidLevel(compactor.fset->fid, &compactor.tsdb->keepCfg, taosGetTimestampSec());
-    if (tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactor.ctx->expLevel, compactArg->type)) {
+    if (force || tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode), compactor.ctx->expLevel, compactArg->type)) {
       code = tsdbDoCompact(&compactor);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -655,7 +656,7 @@ _exit:
 
 static void tsdbCompactCancel(void *arg) { taosMemoryFree(arg); }
 
-static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type) {
+static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type, bool force) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -680,6 +681,7 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw, ETsdbOpT
 
     arg->tsdb = tsdb;
     arg->fid = fset->fid;
+    arg->force = force;
     arg->type = type;
 
     // if the compact task is already running, skip it
@@ -722,10 +724,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type) {
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type, bool force) {
   int32_t code = 0;
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  code = tsdbAsyncCompactImpl(tsdb, tw, type);
+  code = tsdbAsyncCompactImpl(tsdb, tw, type, force);
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return code;
 }
