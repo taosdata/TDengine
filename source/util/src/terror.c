@@ -584,7 +584,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_LIMITED,         "Number of mounts has 
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_INVALID_AUTH_SERVER,    "Auth server is invalid")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DISABLED,               "Cluster is disabled in auth server")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_RESTFUL_ERROR,          "RESTful response error")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_RESTFUL_TIMEOUT,        "RESTful request timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_NO_UPDATE_NEEDED,       "Cluster is not within expiration time, no update needed")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QUOTA_OUT_OF_RANGE,     "Quota out of range")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")

@@ -987,11 +987,12 @@ _OVER:
       pMsg->msgType == TDMT_MND_COMPACT_TIMER || pMsg->msgType == TDMT_MND_NODECHECK_TIMER ||
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
       pMsg->msgType == TDMT_MND_S3MIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
-      pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER) {
-    mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
-           pMnode->stopped, state.restored, syncStr(state.state));
-    TAOS_RETURN(code);
-  }
+      pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER || ||
+      pMsg->msgType == TDMT_MND_AUTH_HB_TIMER)) {
+      mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
+             pMnode->stopped, state.restored, syncStr(state.state));
+      TAOS_RETURN(code);
+    }
 
   const STraceId *trace = &pMsg->info.traceId;
   SEpSet          epSet = {0};
