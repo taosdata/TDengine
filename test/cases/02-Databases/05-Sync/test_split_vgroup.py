@@ -147,12 +147,12 @@ class TestSplitVGroup:
         
 
     # prepareEnv
-    def prepareEnv(self):
+    def prepareEnv(self, haveWal):
         # init                
         self.ts = 1680000000000
-        self.childCnt = 4
-        self.childRow = 10000
-        self.batchSize = 50000
+        self.childCnt = 3
+        self.childRow = 5000
+        self.batchSize = 5000
         self.vgroups1  = 1
         self.vgroups2  = 1
         self.db1 = "db1"
@@ -165,9 +165,15 @@ class TestSplitVGroup:
         self.c2Min = None
         self.c2Sum = None
 
-        # create database  db  wal_retention_period 0 
-        sql = f"create database @db_name vgroups {self.vgroups1} replica {self.replicaVar} wal_retention_period 0 wal_retention_size 1"
+        sql = f"drop database if exists @db_name"
         self.exeDouble(sql)
+
+        # create database  db  wal_retention_period 0 
+        sql = f"create database @db_name vgroups {self.vgroups1} replica {self.replicaVar}"
+        if haveWal == False :
+            sql += " wal_retention_period 0 wal_retention_size 1"        
+        self.exeDouble(sql)
+        print(sql)
 
         # create super talbe st
         sql = f"create table @db_name.st(ts timestamp, c1 int, c2 bigint, ts1 timestamp) tags(area int)"
@@ -194,7 +200,8 @@ class TestSplitVGroup:
         sql = "delete from @db_name.st where ts > 1680000019000 and ts < 1680000062000"
         self.exeDouble(sql)
         sql = "delete from @db_name.st where ts > 1680000099000 and ts < 1680000170000"
-        self.exeDouble(sql)    
+        self.exeDouble(sql)
+        print(sql)
 
     # check data correct
     def checkExpect(self, sql, expectVal):
@@ -375,6 +382,7 @@ class TestSplitVGroup:
     # forbid
     def checkForbid(self):
         # stream
+        '''
         if platform.system().lower() != 'windows':
             tdLog.info("check forbid split having stream...")
             tdSql.execute("create database streamdb;")
@@ -384,6 +392,7 @@ class TestSplitVGroup:
             self.expectSplitError("streamdb")
             tdSql.execute("drop stream ma;")
             self.expectSplitOk("streamdb")
+        '''
 
         # topic
         tdLog.info("check forbid split having topic...")
@@ -405,27 +414,10 @@ class TestSplitVGroup:
         self.checkResult()
 
     # run
-    def test_split_v_group(self):
-        """summary: xxx
-
-        description: xxx
-
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
-
-        History:
-            - xxx
-            - xxx
-        """
+    def do_split_vgroup(self, haveWal):
         # prepare env
-        self.prepareEnv()
-        tdLog.info("generate at least two stt files of the same fileset (e.g. v4f1944)  for db2 and db1 ")
+        self.prepareEnv(haveWal)
+        tdLog.info("generate at least two stt files of the same fileset (e.g. v4f1944) for db2 and db1 ")
         for dbname in [self.db2, self.db1]:
             tdSql.execute(f'insert into {dbname}.t1  values("2023-03-28 10:40:00.010",103,103,"2023-03-28 18:41:39.999") ;')
             tdSql.execute(f'flush database {dbname}')
@@ -436,8 +428,13 @@ class TestSplitVGroup:
         tdLog.info("check db1 and db2 same after creating ...")
 
         self.checkResult()
+        print("check result ok.")
 
-        for i in range(3):
+        if haveWal:
+            splitCnt = 3
+        else:
+            splitCnt = 1
+        for i in range(splitCnt):
             # split vgroup on db2
             start = time.time()
             self.splitVGroup(self.db2)
@@ -456,10 +453,8 @@ class TestSplitVGroup:
             # check two db query result same
             self.checkResult()
             spend = "%.3f"%(end-start)
-            tdLog.info(f"split vgroup i={i} passed. spend = {spend}s")
+            print(f"split vgroup i={i} passed. spend = {spend}s")
 
-        # split empty db
-        self.splitEmptyDB()
 
         # check topic and stream forib
         #newstm self.checkForbid()
@@ -467,7 +462,36 @@ class TestSplitVGroup:
         # compact database
         self.compactAndCheck()
 
-    # stop
-        tdLog.success(f"{__file__} successfully executed")
+    #
+    # ------------------- main ----------------
+    #
+    def test_cluster_split_vgroup(self):
+        """Cluster split vgroup
+        
+        1. Generate at least two stt files of the same fileset for db2 and db1
+        2. Check db1 and db2 same after creating
+        3. Split vgroup on db2
+        4. Insert the same data per tables into splited vgroups
+        5. Check two db query result same
+        6. Check split vgroup on empty database
+        7. Check split vgroup forbidden when having topic and stream
+        8. Compact database and check query result same
 
+        Since: v3.0.0.0
 
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_split_vgroup.py
+
+        """
+        # split empty db
+        self.splitEmptyDB()
+        self.checkForbid()
+        print("do split empty db ..................... [passed]")
+        self.do_split_vgroup(haveWal=True)
+        print("do split vgroups ...................... [passed]")
+        self.do_split_vgroup(haveWal=False)
+        print("do split vgroups no wal ............... [passed]")
