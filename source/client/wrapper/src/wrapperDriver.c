@@ -54,18 +54,14 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
 void readEnvDriver() {
   const char *envDriver = getenv("TDENGINE_DRIVER");
   if (envDriver != NULL) {
-    printf("read env TDENGINE_DRIVER:%s\n", envDriver);
+    printf("wrapper read env TDENGINE_DRIVER:%s\n", envDriver);
     if (strcasecmp(envDriver, STR_NATIVE) == 0) {
-      if(tsDriverType != DRIVER_NATIVE) {
-        printf("env TDENGINE_DRIVER switch driver from 'websocket' to 'native'\n");
-      }
+      printf("env set driver to 'native'\n");
       tsDriverType = DRIVER_NATIVE;      
     } else if (strcasecmp(envDriver, STR_WEBSOCKET) == 0) {
-      if(tsDriverType != DRIVER_WEBSOCKET) {
-        printf("env TDENGINE_DRIVER switch driver from 'native' to 'websocket'\n");
-      }
+      printf("env set driver to 'websocket'\n");
       tsDriverType = DRIVER_WEBSOCKET;
-    }
+    }    
   }
 }
 
