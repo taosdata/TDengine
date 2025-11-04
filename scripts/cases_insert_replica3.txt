@@ -108,5 +108,4 @@ taostest --use=common_cluster_30.yaml --case=bug_regression/bug_ts5519.py --keep
 #taostest --setup=common_cluster_30_redistribute.yaml --case=cluster/vnode_redistribute.py --keep
 
 
-#
 
