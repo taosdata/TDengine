@@ -108,9 +108,6 @@ static void taos_init_wrapper(void) {
 }
 
 int taos_init(void) {
-  // read env driver type
-  readEnvDriver();
-  // initialize driver
   (void)taosThreadOnce(&tsDriverOnce, taos_init_driver);
   (void)taosThreadOnce(&tsInitOnce, taos_init_wrapper);
   return tsInitOnceRet;
