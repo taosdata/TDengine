@@ -24,22 +24,30 @@ class TestCompactMeta:
         tdLog.debug("start to execute %s" % __file__)
 
     def test_compact_meta(self):
-        """summary: xxx
+        """Database compact meta
+        
+        1. Create datbase and super table
+        2. Create many child tables
+        3. Insert data into child tables
+        4. Alter child table tags
+        5. Query data from child tables to verify
+        6. Compact meta only
+        7. Insert more data into child tables
+        8. Query data from child tables to verify again
+        9. Alter super table schema many times
+        10. Query data from child tables to verify again
+        11. Alter super table schema
+        12. Make sure compact meta works
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-04 Alex Duan Migrated from cases/uncatalog/test_new/storage/compact/test_compact_meta.py
+ 
         """
         self.run_case1()
         self.run_case2()

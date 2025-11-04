@@ -42,6 +42,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic4.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic5.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic6.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_compact.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_compact_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_commit.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create_encrypt.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_tables.py
@@ -848,7 +850,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_partition_expr.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_project_group.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tbname_vgroup.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_compact_col.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tms_memleak.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_stbJoin.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_hint.py
@@ -1005,11 +1006,8 @@
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_kill_balance_leader.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py
 #failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_vgroups.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan_vgroups.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact_auto.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_dumpsdb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_compact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py
@@ -1024,7 +1022,6 @@
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_ts_range.py
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_tag_scan.py
 
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/test_new/storage/compact/test_compact_meta.py
 ### 7-tmq
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqShow.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStb.py

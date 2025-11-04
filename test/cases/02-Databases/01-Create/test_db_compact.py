@@ -85,8 +85,6 @@ class TestDbCompact:
 
         if row1 != 0 or row2 != 0:
             tdLog.exit("compact failed")
-        
-        tdLog.success(f"{__file__} successfully executed")
 
         print("\ndo compact ............................ [passed]")
 
@@ -353,8 +351,53 @@ class TestDbCompact:
 
         # success to compact vgroups 
         self.run_compact_vgroups_sql()
-
         print("do compact vgroups .................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def do_compact_col(self):
+        tdSql.execute("drop database if exists tbname_vgroup")
+        tdSql.execute("create database if not exists tbname_vgroup")
+        tdSql.execute('use tbname_vgroup')
+        tdSql.execute('drop database if exists dbvg')
+        tdSql.execute('create database dbvg vgroups 8;')
+
+        tdSql.execute('use dbvg;')
+
+        tdSql.execute('create table st(ts timestamp, f int) tags (t int);')
+        
+        tables = []
+        tables.append("ct1 using st tags(1) values('2021-04-19 00:00:01', 1)")
+        tables.append("ct2 using st tags(2) values('2021-04-19 00:00:02', 2)")
+        tables.append("ct3 using st tags(3) values('2021-04-19 00:00:03', 3)")
+        tables.append("ct4 using st tags(4) values('2021-04-19 00:00:04', 4)")
+        
+        sql = "insert into " + " ".join(tables)
+        tdSql.execute(sql)
+
+        tdSql.execute('create table st2(ts timestamp, f int) tags (t int);')
+
+        tables = []
+        tables.append("ct21 using st2 tags(1) values('2021-04-19 00:00:01', 1)")
+        tables.append("ct22 using st2 tags(2) values('2021-04-19 00:00:02', 2)")
+        tables.append("ct23 using st2 tags(3) values('2021-04-19 00:00:03', 3)")
+        tables.append("ct24 using st2 tags(4) values('2021-04-19 00:00:04', 4)")
+
+        sql = "insert into " + " ".join(tables)
+        tdSql.execute(sql)
+
+        col_names = tdSql.getColNameList("compact database tbname_vgroup")
+        if col_names[0] != "result":
+           raise Exception("first column name of compact result shall be result")
+
+        col_names = tdSql.getColNameList("show variables")
+        if col_names[0] != "name":
+           raise Exception("first column name of compact result shall be name")
+
+        tdSql.execute('drop database tbname_vgroup')
+
+        print("do compact cols ....................... [passed]")
 
     #
     # ------------------- main ----------------
@@ -372,6 +415,7 @@ class TestDbCompact:
         8. Verify error handling for invalid compact options
         9. Create databases with vgroups
         10. Compact specific vgroups and verify the operation is successful
+        11. Verify "compact database" command can return column names correctly
         
         Since: v3.0.0.0
 
@@ -383,8 +427,10 @@ class TestDbCompact:
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_compact.py
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_compact_auto.py
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_compact_vgroups.py
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/2-query/test_compact_col.py
  
         """
         self.do_compact_vgroups()
         self.do_compact()
         self.do_compact_auto()
+        self.do_compact_col()
