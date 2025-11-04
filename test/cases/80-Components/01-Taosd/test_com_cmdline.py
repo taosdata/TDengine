@@ -15,34 +15,26 @@ from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
 import os
 
 
-class TestDumpsdb:
-    def caseDescription(self):
-        """
-        dump sdb taosd -s
-        """
-
+class TestComCmdLine:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         cls.tmpdir = "tmp"
 
 
     def test_dumpsdb(self):
-        """summary: xxx
+        """Taosd command line
+        
+        1. Verify taosd -s options to dump sdb.json
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_dumpsdb.py
+
         """
         tdSql.execute("create database db  keep 3649 ")
 

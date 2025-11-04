@@ -169,6 +169,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_table_param_ttl.py
 ## 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_basic.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_delfile.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_repeat.py
 ## 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_basic.py
@@ -757,6 +758,7 @@
 # 80-Components
 
 # 01-Taosd
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3 -M 3
@@ -992,12 +994,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_fsync.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel_createdb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_dismatch_config.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_tag_index_basic.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_time_range_wise.py -N 3
-#memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_delete_check.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_delete_check.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_empty_identifier.py
@@ -1005,7 +1004,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_persisit_config.py
 #failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_qmem_ctrl.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan_vgroups.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_dumpsdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py

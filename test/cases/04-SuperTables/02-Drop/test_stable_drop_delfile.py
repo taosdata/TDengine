@@ -115,22 +115,24 @@ class TestDeleteCheck:
 
     # run
     def test_delete_check(self):
-        """summary: xxx
+        """Delete files after drop stable
+        
+        1. Create database and stable 
+        2. Insert data into child tables
+        3. Drop stable
+        4. Compact database
+        5. Check tsdb files are deleted
+        6. Repeat above steps for 3 times
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_delete_check.py
+
         """
         # seed
         random.seed(int(time.time()))
