@@ -39,12 +39,14 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
 int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
+  int32_t code = 0;
+
   if (pWal == NULL) {
     wError("failed to set keep version, pWal is NULL");
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (ver < 0) {
+  if (ver < 0 && ver != -1) {  // Allow -1 to clear the keep version
     wError("vgId:%d, failed to set keep version, invalid ver:%" PRId64, pWal->cfg.vgId, ver);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -53,11 +55,21 @@ int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
   
   int64_t oldKeepVersion = pWal->keepVersion;
   pWal->keepVersion = ver;
-  
+
+  // Save metadata to persist keepVersion
+  code = walSaveMeta(pWal);
+
   TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
 
-  wInfo("vgId:%d, wal keep version set from %" PRId64 " to %" PRId64, pWal->cfg.vgId, oldKeepVersion, ver);
-  
+  if (code != TSDB_CODE_SUCCESS) {
+    wError("vgId:%d, failed to save wal meta after setting keep version to %" PRId64 " since %s", pWal->cfg.vgId, ver,
+           tstrerror(code));
+    return code;
+  }
+
+  wInfo("vgId:%d, wal keep version set from %" PRId64 " to %" PRId64 " and persisted", pWal->cfg.vgId, oldKeepVersion,
+        ver);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -832,6 +844,8 @@ int32_t walMetaSerialize(SWal* pWal, char** serialized) {
   if (cJSON_AddStringToObject(pMeta, "commitVer", buf) == NULL) goto _err;
   (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->vers.lastVer);
   if (cJSON_AddStringToObject(pMeta, "lastVer", buf) == NULL) goto _err;
+  (void)snprintf(buf, WAL_JSON_BUF_SIZE, "%" PRId64, pWal->keepVersion);
+  if (cJSON_AddStringToObject(pMeta, "keepVersion", buf) == NULL) goto _err;
 
   if (!cJSON_AddItemToObject(pRoot, "files", pFiles)) goto _err;
   SWalFileInfo* pData = pWal->fileInfoSet->pData;
@@ -887,6 +901,13 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes) {
   pField = cJSON_GetObjectItem(pMeta, "lastVer");
   if (!pField) goto _err;
   pWal->vers.lastVer = atoll(cJSON_GetStringValue(pField));
+  // Load keepVersion, default to -1 if not present (backward compatibility)
+  pField = cJSON_GetObjectItem(pMeta, "keepVersion");
+  if (pField) {
+    pWal->keepVersion = atoll(cJSON_GetStringValue(pField));
+  } else {
+    pWal->keepVersion = -1;
+  }
 
   pFiles = cJSON_GetObjectItem(pRoot, "files");
   int sz = cJSON_GetArraySize(pFiles);

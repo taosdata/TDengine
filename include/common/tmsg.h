@@ -1712,6 +1712,14 @@ int32_t tSerializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* 
 int32_t tDeserializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
 
 typedef struct {
+  int32_t vgId;
+  int64_t keepVersion;
+} SMndSetVnodeKeepVersionReq;
+
+int32_t tSerializeSMndSetVnodeKeepVersionReq(void* buf, int32_t bufLen, SMndSetVnodeKeepVersionReq* pReq);
+int32_t tDeserializeSMndSetVnodeKeepVersionReq(void* buf, int32_t bufLen, SMndSetVnodeKeepVersionReq* pReq);
+
+typedef struct {
   int32_t timestampSec;
   int32_t ttlDropMaxCount;
   int32_t nUids;
@@ -4091,6 +4099,13 @@ typedef struct {
 int32_t tSerializeSMDropStreamReq(void* buf, int32_t bufLen, const SMDropStreamReq* pReq);
 int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* pReq);
 void    tFreeMDropStreamReq(SMDropStreamReq* pReq);
+
+typedef struct SVndSetKeepVersionReq {
+  int64_t keepVersion;
+} SVndSetKeepVersionReq;
+
+int32_t tSerializeSVndSetKeepVersionReq(void* buf, int32_t bufLen, SVndSetKeepVersionReq* pReq);
+int32_t tDeserializeSVndSetKeepVersionReq(void* buf, int32_t bufLen, SVndSetKeepVersionReq* pReq);
 
 typedef struct SVUpdateCheckpointInfoReq {
   SMsgHead head;

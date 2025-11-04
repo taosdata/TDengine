@@ -46,6 +46,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
+static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -77,6 +78,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessVgroupBalanceLeaderMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessBalanceVgroupMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP_LEADER, mndProcessVgroupBalanceLeaderMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_SET_VNODE_KEEP_VERSION, mndProcessSetVnodeKeepVersionReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -3854,4 +3856,108 @@ int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
                                     STimeWindow tw, bool metaOnly) {
   TAOS_CHECK_RETURN(mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly));
   return 0;
+}
+
+static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = TSDB_CODE_SUCCESS;
+  STrans *pTrans = NULL;
+  SVgObj *pVgroup = NULL;
+
+  SMndSetVnodeKeepVersionReq req = {0};
+  if (tDeserializeSMndSetVnodeKeepVersionReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("start to set vnode keep version, vgId:%d, keepVersion:%" PRId64, req.vgId, req.keepVersion);
+
+  // Check permission
+  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB)) != 0) {
+    goto _OVER;
+  }
+
+  // Get vgroup
+  pVgroup = mndAcquireVgroup(pMnode, req.vgId);
+  if (pVgroup == NULL) {
+    code = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    mError("vgId:%d not exist, failed to set keep version", req.vgId);
+    goto _OVER;
+  }
+
+  // Create transaction
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "set-vnode-keep-version");
+  if (pTrans == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL;
+    mndReleaseVgroup(pMnode, pVgroup);
+    goto _OVER;
+  }
+
+  mndTransSetSerial(pTrans);
+  mndTransSetChangeless(pTrans);
+  mInfo("trans:%d, used to set vnode keep version, vgId:%d keepVersion:%" PRId64, pTrans->id, req.vgId,
+        req.keepVersion);
+
+  // Prepare message for vnodes
+  SVndSetKeepVersionReq vndReq = {.keepVersion = req.keepVersion};
+  int32_t               reqLen = tSerializeSVndSetKeepVersionReq(NULL, 0, &vndReq);
+  int32_t               contLen = reqLen + sizeof(SMsgHead);
+
+  // Send to all replicas of the vgroup
+  for (int32_t i = 0; i < pVgroup->replica; ++i) {
+    SMsgHead *pHead = rpcMallocCont(contLen);
+    if (pHead == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      mndReleaseVgroup(pMnode, pVgroup);
+      goto _OVER;
+    }
+
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
+
+    if (tSerializeSVndSetKeepVersionReq((char *)pHead + sizeof(SMsgHead), reqLen, &vndReq) < 0) {
+      rpcFreeCont(pHead);
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      mndReleaseVgroup(pMnode, pVgroup);
+      goto _OVER;
+    }
+
+    // Get dnode and add action to transaction
+    SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
+    if (pDnode == NULL) {
+      rpcFreeCont(pHead);
+      code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+      mndReleaseVgroup(pMnode, pVgroup);
+      goto _OVER;
+    }
+
+    STransAction action = {0};
+    action.epSet = mndGetDnodeEpset(pDnode);
+    mndReleaseDnode(pMnode, pDnode);
+    action.pCont = pHead;
+    action.contLen = contLen;
+    action.msgType = TDMT_VND_SET_KEEP_VERSION;
+    action.acceptableCode = TSDB_CODE_VND_STOPPED;
+
+    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+      rpcFreeCont(pHead);
+      code = terrno;
+      mndReleaseVgroup(pMnode, pVgroup);
+      goto _OVER;
+    }
+  }
+
+  mndReleaseVgroup(pMnode, pVgroup);
+
+  // Prepare and execute transaction
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
+    goto _OVER;
+  }
+
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+_OVER:
+  if (pTrans != NULL) mndTransDrop(pTrans);
+
+  return code;
 }
