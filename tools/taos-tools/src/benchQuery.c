@@ -461,59 +461,61 @@ void totalChildQuery(qThreadInfo* infos, int threadCnt, int64_t spend, BArray *p
                 maxDelay);
     }
 
-    // output json
-    tools_cJSON *root = NULL;
-    tools_cJSON *result_array = NULL;
-    if (g_arguments->output_json_file) {
-        root = tools_cJSON_CreateObject();
-        if (root != NULL) {
-            result_array = tools_cJSON_CreateArray();
-            if (result_array != NULL) {
-                tools_cJSON_AddItemToObject(root, "results", result_array);
-             } else {
-                errorPrint("Failed to create result_array JSON object\n");
-                tools_cJSON_Delete(root);
-                root = NULL;
+    // output json for super table query
+    if (g_queryInfo.superQueryInfo.sqlCount > 0) {
+        tools_cJSON *root = NULL;
+        tools_cJSON *result_array = NULL;
+        if (g_arguments->output_json_file) {
+            root = tools_cJSON_CreateObject();
+            if (root != NULL) {
+                result_array = tools_cJSON_CreateArray();
+                if (result_array != NULL) {
+                    tools_cJSON_AddItemToObject(root, "results", result_array);
+                } else {
+                    errorPrint("Failed to create result_array JSON object\n");
+                    tools_cJSON_Delete(root);
+                    root = NULL;
+                }
             }
         }
-    }
 
-    if (result_array) {
-        tools_cJSON *sqlResult = tools_cJSON_CreateObject();
-        if (sqlResult) {
-            tools_cJSON_AddNumberToObject(sqlResult, "threads", threadCnt);
-            tools_cJSON_AddNumberToObject(sqlResult, "total_queries", totalQueried);
-            tools_cJSON_AddNumberToObject(sqlResult, "time_cost", time_cost);
-            tools_cJSON_AddNumberToObject(sqlResult, "qps", qps);
-            tools_cJSON_AddNumberToObject(sqlResult, "avg", avgDelay);
-            tools_cJSON_AddNumberToObject(sqlResult, "min", minDelay);
-            tools_cJSON_AddNumberToObject(sqlResult, "max", maxDelay);
-            tools_cJSON_AddNumberToObject(sqlResult, "p90", p90);
-            tools_cJSON_AddNumberToObject(sqlResult, "p95", p95);
-            tools_cJSON_AddNumberToObject(sqlResult, "p99", p99);
-            tools_cJSON_AddItemToArray(result_array, sqlResult);
-        } else {
-            errorPrint("Failed to create JSON object for SQL result.\n");
-        }
-    }
-
-    if (root) {
-        char *jsonStr = tools_cJSON_PrintUnformatted(root);
-        if (jsonStr) {
-            FILE *fp = fopen(g_arguments->output_json_file, "w");
-            if (fp) {
-                fprintf(fp, "%s\n", jsonStr);
-                fclose(fp);
+        if (result_array) {
+            tools_cJSON *sqlResult = tools_cJSON_CreateObject();
+            if (sqlResult) {
+                tools_cJSON_AddNumberToObject(sqlResult, "threads", threadCnt);
+                tools_cJSON_AddNumberToObject(sqlResult, "total_queries", totalQueried);
+                tools_cJSON_AddNumberToObject(sqlResult, "time_cost", time_cost);
+                tools_cJSON_AddNumberToObject(sqlResult, "qps", qps);
+                tools_cJSON_AddNumberToObject(sqlResult, "avg", avgDelay);
+                tools_cJSON_AddNumberToObject(sqlResult, "min", minDelay);
+                tools_cJSON_AddNumberToObject(sqlResult, "max", maxDelay);
+                tools_cJSON_AddNumberToObject(sqlResult, "p90", p90);
+                tools_cJSON_AddNumberToObject(sqlResult, "p95", p95);
+                tools_cJSON_AddNumberToObject(sqlResult, "p99", p99);
+                tools_cJSON_AddItemToArray(result_array, sqlResult);
             } else {
-                errorPrint("Failed to open output JSON file, file name %s\n",
-                    g_arguments->output_json_file);
+                errorPrint("Failed to create JSON object for SQL result.\n");
             }
-
-            free(jsonStr);
-            jsonStr = NULL;
         }
-        tools_cJSON_Delete(root);
-        root = NULL;
+
+        if (root) {
+            char *jsonStr = tools_cJSON_PrintUnformatted(root);
+            if (jsonStr) {
+                FILE *fp = fopen(g_arguments->output_json_file, "w");
+                if (fp) {
+                    fprintf(fp, "%s\n", jsonStr);
+                    fclose(fp);
+                } else {
+                    errorPrint("Failed to open output JSON file, file name %s\n",
+                        g_arguments->output_json_file);
+                }
+
+                free(jsonStr);
+                jsonStr = NULL;
+            }
+            tools_cJSON_Delete(root);
+            root = NULL;
+        }
     }
 
     // copy to another
