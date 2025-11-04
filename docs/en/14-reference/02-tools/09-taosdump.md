@@ -94,7 +94,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -R, --restful              Use RESTful interface to connect server.
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
   -X, --dsn=DSN              The dsn to connect the cloud service.
-  -z, --retry-sleep-ms=VALUE retry interval sleep time, unit ms.
+  -z, --retry-sleep-ms=VALUE Sleep interval between retries, in milliseconds.
   -Z, --driver=DRIVER        Connect driver , value can be "Native" or
                              "WebSocket", default is Native.
   -g, --debug                Print debug info.

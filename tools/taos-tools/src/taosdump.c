@@ -159,7 +159,7 @@ static struct argp_option options[] = {
     {"rename", 'W', "RENAME-LIST", 0, "Rename database name with new name during importing data. \
         RENAME-LIST: \"db1=newDB1|db2=newDB2\" means rename db1 to newDB1 and rename db2 to newDB2.", 10},
     {"retry-count", 'k', "VALUE", 0, "Set the number of retry attempts for connection or query failures.", 11},
-    {"retry-sleep-ms", 'z', "VALUE", 0, "retry interval sleep time, unit ms.", 11},
+    {"retry-sleep-ms", 'z', "VALUE", 0, "Sleep interval between retries, in milliseconds.", 11},
     {"dsn",  'X', "DSN",  0, DSN_DESC, 11},
     {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
     {"version", 'V', 0, 0, "Print program version."},
