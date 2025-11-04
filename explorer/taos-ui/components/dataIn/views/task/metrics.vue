@@ -3,7 +3,7 @@
     <div v-loading="loading" style="padding-bottom: 20px">
       <el-tabs v-model="activeName">
         <el-tab-pane
-          v-for="item in datas"
+          v-for="item in metricsArray"
           :key="item.name"
           :value="item.name"
           :name="item.name"
@@ -196,7 +196,7 @@ const config = computed(() => {
     width: '1100px'
   };
 });
-const datas = ref<Recordable[]>([]);
+const metricsArray = ref<Recordable[]>([]);
 const activeName = ref('current');
 const loading = ref<boolean>(true);
 const requesting = ref<boolean>(false);
@@ -295,12 +295,12 @@ function connect() {
   disconnect();
   loading.value = false;
   activeName.value = 'current';
-  socket.value = new WebSocket(dataInProps.metrics.webSoketUrl + props.taskId);
+  socket.value = new WebSocket(dataInProps.metrics.webSocketUrl + props.taskId);
 
   if (socket.value) {
     socket.value.onerror = (err: any) => {
       console.log('Error', err);
-      datas.value = [];
+      metricsArray.value = [];
     };
     socket.value.onmessage = (ev: any) => {
       const data = JSON.parse(ev.data);
@@ -314,7 +314,7 @@ function handleMetricsData(metricsData: Recordable) {
     name: item,
     value: metricsData[item]
   }));
-  datas.value = array.map(v => {
+  metricsArray.value = array.map(v => {
     const metrics = [];
     for (let i = 0; i < METRIC_IN_ORDER.length; i++) {
       const item = v.value[METRIC_IN_ORDER[i]];
@@ -340,7 +340,7 @@ function handleMetricsData(metricsData: Recordable) {
 function disconnect() {
   if (socket.value) {
     console.log('Disconnecting...');
-    datas.value = [];
+    metricsArray.value = [];
     socket.value.close();
     socket.value = undefined;
     loading.value = false;

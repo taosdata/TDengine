@@ -89,6 +89,8 @@ mod tests {
     use super::*;
     use taos::{AsyncTBuilder, TaosBuilder};
 
+    // todo: open after TD-38169 fixed
+    #[ignore]
     #[tokio::test]
     async fn test_user_full_with_taos() -> anyhow::Result<()> {
         use file_guard::Lock;

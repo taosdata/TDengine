@@ -4,9 +4,9 @@ use snafu::{ensure, ResultExt};
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
-    #[snafu(display("Unsupprted compression type: {s}"))]
+    #[snafu(display("Unsupported compression type: {s}"))]
     UnsupportedCompression { s: String },
-    #[snafu(display("Unsupprted encoding type: {s}"))]
+    #[snafu(display("Unsupported encoding type: {s}"))]
     UnsupportedEncoding { s: String },
     #[snafu(display("Compress Write error: {source}"))]
     CompressWrite { source: std::io::Error },

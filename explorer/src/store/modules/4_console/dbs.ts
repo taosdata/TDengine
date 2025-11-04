@@ -62,7 +62,7 @@ const mutations = {
   SET_ADD_DB_COMP: (state, curComp) => {
     state.curComp = curComp
   },
-  SET_DIALOG_DB_VISABLE: (stat, dialogDbVisible) => {
+  SET_DIALOG_DB_VISIBLE: (stat, dialogDbVisible) => {
     state.dialogDbVisible = dialogDbVisible
   }
 };

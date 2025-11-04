@@ -29,7 +29,7 @@ const store = createStore({
     dialogVisible: false, //弹窗
     dialogConfig: {}, //弹窗配置
     dialogParams: {}, //弹窗参数
-    dialogListenters: {}, //弹窗监听
+    dialogListeners: {}, //弹窗监听
     dialogComponent: null, //弹窗组件
   },
   mutations: {
@@ -50,7 +50,7 @@ const store = createStore({
       state.dialogComponent = component;
       state.dialogParams = params;
       state.dialogConfig = config;
-      state.dialogListenters = listeners;
+      state.dialogListeners = listeners;
       state.dialogVisible = true;
     },
   },

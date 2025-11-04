@@ -73,7 +73,6 @@ impl Debug for Scheduler {
 }
 
 #[instrument(skip_all, fields(worker = worker))]
-
 async fn worker(
     worker: u32,
     source: TaosPool,
@@ -723,7 +722,7 @@ pub async fn sync_add_column(
 
 impl Scheduler {
     #[framed]
-
+    #[instrument(name = "scheduler", skip_all)]
     pub async fn new(
         source: TaosPool,
         target: TaosPool,
@@ -759,36 +758,38 @@ impl Scheduler {
                 with_precision,
                 breakpoints.clone(),
                 cancellation.clone(),
-            )
-            .in_current_span();
+            );
             task_set.spawn(future);
         }
 
-        let handle = tokio::task::spawn(async move {
-            let futures = async {
-                while task_set
-                    .join_next()
-                    .await
-                    .transpose()?
-                    .transpose()?
-                    .is_some()
-                {}
-                anyhow::Ok(())
-            };
-            tokio::select! {
-                res = futures => {
-                    if let Err(err) = &res {
-                        tracing::error!("Scheduler runtime error: {err:#}");
+        let handle = tokio::task::spawn(
+            async move {
+                let futures = async {
+                    while task_set
+                        .join_next()
+                        .await
+                        .transpose()?
+                        .transpose()?
+                        .is_some()
+                    {}
+                    anyhow::Ok(())
+                };
+                tokio::select! {
+                    res = futures => {
+                        if let Err(err) = &res {
+                            tracing::error!("Scheduler runtime error: {err:#}");
+                        }
+                        res
+                    },
+                    _ = cancellation.cancelled() => {
+                        tracing::debug!("Scheduler cancelled");
+                        task_set.abort_all();
+                        Ok(())
                     }
-                    res
-                },
-                _ = cancellation.cancelled() => {
-                    tracing::debug!("Scheduler cancelled");
-                    task_set.abort_all();
-                    Ok(())
                 }
             }
-        });
+            .instrument(tracing::info_span!("handler")),
+        );
         let abort = handle.abort_handle();
 
         Self {

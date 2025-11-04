@@ -29,7 +29,7 @@ export default {
     },
     success: {
       "verificationCodeSend": "The verification code has been sent successfully.",
-      "registerSuccess": "Registration successful, please log in using the database account",
+      "registerSuccess": "Registration successful",
     }
   }
 }

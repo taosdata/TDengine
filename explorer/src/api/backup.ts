@@ -77,7 +77,7 @@ export function restoreBackups(restoreData: any) {
 }
 
 //恢复backup
-export function restorBackupData(clusterID: string, data: Recordable) {
+export function restoreBackupData(clusterID: string, data: Recordable) {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,
     headers: {

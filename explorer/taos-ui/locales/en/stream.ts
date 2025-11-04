@@ -10,7 +10,7 @@ export default {
   execution: 'Execution',
   delay: 'Delay',
   delayTip: 'Also known as watermark, this is how long to wait for out of order data before executing the query.',
-  parttionSet: 'Partition By',
+  partitionSet: 'Partition By',
   windowClause: 'Window Clause',
   totalTimeLength: 'Total Time Length',
   intervalPeriod: 'Interval Period',

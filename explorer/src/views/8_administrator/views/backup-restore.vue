@@ -70,7 +70,7 @@ const $IS_COMMUNITY = globalProps?.$IS_COMMUNITY ?? false;
 import { parsinginZone } from '@/utils/index';
 import { useBackupStore } from '@/store/modules/8_administrator/backup';
 import { deleteBackup } from '@/api/backup';
-import { excuteStop } from '@/api/common';
+import { executeStop } from '@/api/common';
 import { ElMessageBox, ElMessage } from 'element-plus';
 
 const backupStore = useBackupStore();
@@ -93,7 +93,7 @@ const onToggle = async (row: any, val: boolean) => {
   // 仅支持从开启 -> 关闭，用于取消任务
   if (isOn(s) && val === false) {
     try {
-      await excuteStop(row.id);
+      await executeStop(row.id);
       ElMessage.success(t('operateSucc'));
       await backupStore.getRestoreList();
     } catch (err: any) {

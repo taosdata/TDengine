@@ -30,6 +30,7 @@ env:
   CONTAINER_DO_NOT_KEEP_FLAG: /etc/taos/taosxci_container_not_keep
   REPORT_BASE_URL: http://192.168.1.45:8787
   ARM_BUILDER_IMAGE: 192.168.1.62:5000/taosx/ci-builder:latest
+  GRANT_SSH: root@192.168.1.55
   CARGO_OPTS: --locked
 
 concurrency:
@@ -62,8 +63,8 @@ jobs:
           cargo fmt --check --all
       - name: Typos check
         run: |
-          typos --version || cargo install typos-cli
-          typos src taosx-* README.md
+          cargo make --version || cargo install cargo-make -f
+          cargo make typos
       - name: Clippy check
         run: |
           cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings
@@ -276,7 +277,7 @@ jobs:
           echo "rpc_port=$rpc_port" >> "$GITHUB_OUTPUT"
           echo "explorer_port=$explorer_port" >> "$GITHUB_OUTPUT"
           # 激活 taosd
-          docker exec $run_container_id bash -c 'taos -s "show cluster machines;"' | awk 'NR==7' > test && cluster_id=$(awk '{print $1}' test) && machines=$(awk '{print $5}' test) && sql=$(ssh root@192.168.2.13 "cd /data/common/activation-code; ./generateActivationCode.sh $cluster_id $machines" | grep Command | awk -F ":" '{print $2}' | sed 's/^[ \t]*//;s/[ \t]*$//') && docker exec $run_container_id bash -c "taos -s $sql"
+          docker exec $run_container_id bash -c 'taos -s "show cluster machines;"' | awk 'NR==7' > test && cluster_id=$(awk '{print $1}' test) && machines=$(awk '{print $5}' test) && sql=$(ssh ${GRANT_SSH} "cd /data/common/activation-code; ./generateActivationCode.sh $cluster_id $machines" | grep Command | awk -F ":" '{print $2}' | sed 's/^[ \t]*//;s/[ \t]*$//') && docker exec $run_container_id bash -c "taos -s $sql"
 
       - name: run taosx & taosx-agent & taos-explorer in container
         run: |

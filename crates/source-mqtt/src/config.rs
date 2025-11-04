@@ -577,6 +577,7 @@ mod tests {
     #[test]
     fn build_tls_config_test() -> anyhow::Result<()> {
         let res = build_tls_config(Some(&Certificates {
+            // spellchecker:off
             ca: b"
 -----BEGIN CERTIFICATE-----
 MIIFDzCCA3egAwIBAgIQSL1JEpBqVfNDYePUWb6m3DANBgkqhkiG9w0BAQsFADCB
@@ -609,6 +610,7 @@ n6LGgw+tpZuDUpQXxG12TbLa8N5i2ScLm4SCeHQs1nXEfc7uUZcqKGKnUStUheeD
 JGMv
 -----END CERTIFICATE-----
         "
+            // spellchecker:on
             .to_vec(),
             cert: None,
             cert_key: None,

@@ -54,7 +54,9 @@ impl ValueBuilder for CastValueBuilder {
                     DataType::List(field) if field.data_type().is_numeric() => {
                         return Ok(record.column(index).clone())
                     }
-                    DataType::Binary => return Ok(record.column(index).clone()),
+                    DataType::Binary | DataType::LargeBinary => {
+                        return Ok(record.column(index).clone())
+                    }
                     _ => {
                         let mut values = Vec::new();
                         // get column values and judge if some of them are null

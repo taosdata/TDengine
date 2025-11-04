@@ -1,6 +1,6 @@
 <template>
   <div v-loading="pageLoading" class="login">
-    <section :class="['content', { 'content-registered': !registered }]">
+    <section class="content">
       <div class="article">
         <h1 style="font-size: 40px">{{ dataJson.welcome.title }}</h1>
         <h3 style="font-size: 18px">{{ dataJson.welcome.subTitle }}</h3>
@@ -17,7 +17,7 @@
         </article>
       </div>
 
-      <div v-if="registered" class="login-content">
+      <div class="login-content">
         <div class="login-title">
           <span v-if="$INDUSTRY" class="dynamic-title">{{ $t('header.power') }}</span>
           <span v-else class="dynamic-title">{{ displaySystemTitle }}</span>
@@ -64,133 +64,11 @@
         </el-form>
         <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       </div>
-      <div v-else class="login-content register-box">
-        <div class="login-title">
-          <span class="dynamic-title">{{ $t('register.title') }}</span>
-          <span class="activate-tip">{{ $t('register.titleTip') }}</span>
-        </div>
-        <el-form
-          ref="registerValidateFormRef"
-          :model="registerValidateForm"
-          :rules="registerFormRules"
-          label-width="0px"
-          class="demo-dynamic"
-          size="large"
-        >
-          <div style="margin-bottom: 20px">
-            <p class="label-form">
-              <span>{{ $t('register.name') }}</span>
-            </p>
-            <el-form-item v-if="!isLocaleLanguageEn" prop="username">
-              <el-input
-                ref="name"
-                v-model="registerValidateForm.name"
-                :placeholder="$t('register.nameTips')"
-              ></el-input>
-            </el-form-item>
-            <div v-else style="display: flex; justify-content: space-between">
-              <el-form-item prop="firstname" style="width: 49%">
-                <el-input
-                  ref="firstname"
-                  v-model="registerValidateForm.firstname"
-                  :placeholder="$t('register.firstnameTips')"
-                ></el-input>
-              </el-form-item>
-              <el-form-item prop="lastname" style="width: 49%">
-                <el-input
-                  ref="lastname"
-                  v-model="registerValidateForm.lastname"
-                  :placeholder="$t('register.lastnameTips')"
-                ></el-input>
-              </el-form-item>
-            </div>
-          </div>
-          <div style="margin-bottom: 20px">
-            <p class="label-form">
-              <span>{{ isLocaleLanguageEn ? $t('register.email') : $t('register.phone') }}</span>
-            </p>
-            <el-form-item prop="phoneEmailRef">
-              <el-input
-                ref="phone_email"
-                v-model="registerValidateForm.phone_email"
-                :placeholder="$t('register.phoneTips')"
-              ></el-input>
-            </el-form-item>
-          </div>
-          <div>
-            <p class="label-form">
-              <span>{{ $t('register.verificationCode') }}</span>
-            </p>
-            <el-form-item prop="verification_code">
-              <el-input
-                v-model="registerValidateForm.verification_code"
-                @keyup.enter="submitRegisterForm(registerValidateFormRef)"
-              >
-                <template #append>
-                  <el-button
-                    type="primary"
-                    :disabled="disableGetVerificationCode"
-                    style="min-width: 180px"
-                    @click="handlerCaptcha"
-                  >
-                    {{ buttonTextOfGetVerificationCode }}
-                  </el-button>
-                </template>
-              </el-input>
-            </el-form-item>
-          </div>
-
-          <el-form-item style="margin-bottom: 30px">
-            <el-button
-              v-loading="loading"
-              type="primary"
-              class="signin"
-              @click="submitRegisterForm(registerValidateFormRef)"
-              >{{ $t('register.signin') }}</el-button
-            >
-          </el-form-item>
-        </el-form>
-
-        <el-alert :title="$t('register.requirement')" type="warning"> </el-alert>
-        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
-      </div>
     </section>
 
     <div v-if="!$IS_OEM" class="copyright">
       <span>{{ $t('login.copyright') }}</span>
     </div>
-    <el-dialog
-      v-model="visible"
-      :title="$t('register.imageVerificationCode')"
-      width="400px"
-      center
-      :close-on-click-modal="false"
-    >
-      <el-form ref="captchaFormRef" :model="captchaForm" :rules="captchaRules" @submit.prevent>
-        <el-form-item label="">
-          <el-input
-            ref="captchaRef"
-            v-model="captchaForm.captchaCode"
-            class="captcha-input"
-            autocomplete="off"
-            @keyup.enter="handlerVerificationCode(captchaFormRef)"
-          >
-            <template #append>
-              <div class="captcha-img-box">
-                <img height="40px" :src="imageUrl" @click="handlerCaptcha" />
-              </div>
-            </template>
-          </el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <div class="dialog-footer" style="text-align: right">
-          <el-button type="primary" size="default" @click="handlerVerificationCode(captchaFormRef)">{{
-            $t('confirm')
-          }}</el-button>
-        </div>
-      </template>
-    </el-dialog>
   </div>
 </template>
 <script setup lang="ts">
@@ -199,15 +77,7 @@ import { deleteCookieItem, getLocalLang } from '@/utils/index';
 import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
 import dataJson from './data.json';
-import {
-  getUrls,
-  fetchIsbinding,
-  fetchVerificationCode,
-  getVerificationResult,
-  fetchCaptcha,
-  reportTaosdInfo,
-  firstLoginWith
-} from '@/api/login';
+import { getUrls, reportTaosdInfo, firstLoginWith } from '@/api/login';
 import { encrypt } from '@/utils/index';
 import useLicense from '@/hooks/useLicense';
 import { useRouter } from 'vue-router';
@@ -218,15 +88,9 @@ const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
 const { getGrantsFull } = useLicense();
-const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error, OEM_NAME } = inject(
-  'globalCustomProperties'
-) as GlobalCustomProperties;
+const { $IS_OEM, $INDUSTRY, $error, OEM_NAME } = inject('globalCustomProperties') as GlobalCustomProperties;
 const usernameRef = ref<HTMLElement | null>();
-const phoneEmailRef = ref<HTMLElement | null>();
-const captchaRef = ref<HTMLElement | null>();
 const dynamicValidateFormRef = ref<FormInstance>();
-const captchaFormRef = ref<FormInstance>();
-const registerValidateFormRef = ref<FormInstance>();
 
 const validatePass = (_rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
   if (value === '') {
@@ -235,33 +99,8 @@ const validatePass = (_rule: any, value: string, callback: (arg0?: Error | undef
     callback();
   }
 };
-const validatePhoneEmail = (_rule: any, value: string, callback: (arg0?: Error | undefined) => void) => {
-  if (value === '') {
-    if (isLocaleLanguageEn.value) {
-      callback(new Error(t('register.emailTips')));
-    } else {
-      callback(new Error(t('register.phoneTips')));
-    }
-  } else if (!isLocaleLanguageEn.value) {
-    // 校验手机号
-    if (!checkPhone(value)) {
-      callback(new Error(t('register.phoneTips')));
-      return;
-    }
-  } else {
-    if (!(checkPhone(value) || checkEmail(value))) {
-      callback(new Error(t('register.emailTips')));
-      return;
-    }
-  }
-
-  callback();
-};
-
 const taosxStatus = ref<boolean>(false);
 const loading = ref<boolean>(false);
-const ts = ref();
-const timer = ref();
 const dynamicValidateForm = reactive({
   cluster: '',
   password: '',
@@ -299,77 +138,8 @@ const formRules = reactive({
 });
 // dataJson,
 const encryptedPwd = ref('');
-const buttonTextOfGetVerificationCode = ref(t('register.getVerificationCode'));
-const registerValidateForm = reactive({
-  ts: '',
-  lang: '',
-  name: '',
-  firstname: '',
-  lastname: '',
-  phone_email: '',
-  verification_code: ''
-});
-const captchaForm = reactive({
-  captchaCode: ''
-});
-const registered = ref<boolean>(true); // for test
 const registerKey = ref<string>('');
-const visible = ref<boolean>(false);
-const imageUrl = ref<string>('');
-const disableGetVerificationCode = ref(false);
-const captchaRules = reactive({
-  captchaCode: [
-    {
-      required: true,
-      message: t('required')
-    }
-  ]
-});
-const registerFormRules = reactive({
-  name: [
-    {
-      required: true,
-      min: 2,
-      max: 80,
-      message: t('register.nameTips'),
-      trigger: 'change'
-    }
-  ],
-  firstname: [
-    {
-      required: true,
-      max: 80,
-      message: t('register.firstnameTips'),
-      trigger: 'change'
-    }
-  ],
-  lastname: [
-    {
-      required: true,
-      max: 80,
-      message: t('register.lastnameTips'),
-      trigger: 'change'
-    }
-  ],
-  verification_code: [
-    {
-      required: true,
-      message: t('register.verificationCodeTips'),
-      trigger: 'change'
-    }
-  ],
-  phone_email: [
-    {
-      required: true,
-      validator: validatePhoneEmail,
-      trigger: 'change'
-    }
-  ]
-});
 
-const isLocaleLanguageEn = computed(() => {
-  return getLocalLang().includes('en');
-});
 const locallanguage = computed(() => {
   if (getLocalLang() == 'zh') {
     return 'EN';
@@ -378,17 +148,12 @@ const locallanguage = computed(() => {
   }
 });
 
-const displaySystemTitle = computed(() => {
-  return OEM_NAME + ' ' + t('login.systemTitle');
-});
+const displaySystemTitle = computed(() => OEM_NAME + ' ' + t('login.systemTitle'));
 
 async function init() {
   await getClusterAndDashboardUrl();
   localStorage.setItem('supportWebsite', dataJson.supportWebsite);
   localStorage.setItem('documentWebsite', dataJson.documentWebsite);
-  if ($IS_COMMUNITY && !$IS_TSDBLITE) {
-    await getIsbinding();
-  }
 }
 init();
 onMounted(() => {
@@ -462,7 +227,6 @@ async function login() {
       if (registered_user) {
         registerKey.value = registered_user;
         sessionStorage.setItem('registerKey', registered_user);
-        registered.value = true;
       }
       await getGrantsFull();
       await getUserAuthority();
@@ -478,7 +242,7 @@ async function login() {
       }
       const phone_email = registered_user;
       const lang = localStorage.getItem('local_language') || '';
-      if (phone_email) {
+      if (phone_email && phone_email != 'skipped') {
         reportTaosdInfo({
           phone_email,
           lang,
@@ -596,148 +360,7 @@ async function getUserAuthority() {
     $error(err?.desc);
   }
 }
-async function getIsbinding() {
-  try {
-    const result = await fetchIsbinding();
-    if (result && result.code == 0) {
-      registered.value = result.data;
-    }
-    if (registered.value) {
-      nextTick(() => {
-        phoneEmailRef.value?.focus();
-      });
-    }
-  } catch (error) {
-    console.log('error', error);
-  }
-}
-function checkPhone(val: string) {
-  return /^1[3456789]\d{9}$/.test(val);
-}
-function checkEmail(val: string) {
-  return /^[.a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val);
-}
 
-async function handlerCaptcha() {
-  if (!isLocaleLanguageEn.value) {
-    // 校验手机号
-    if (!checkPhone(registerValidateForm.phone_email)) {
-      $error(t('register.phoneTips'));
-      return;
-    }
-  } else {
-    // 校验邮箱
-    if (!checkEmail(registerValidateForm.phone_email)) {
-      $error(t('register.emailTips'));
-      return;
-    }
-  }
-
-  // 弹出获取图形验证码的弹框
-  captchaForm.captchaCode = '';
-  visible.value = true;
-  ts.value = new Date().getTime();
-  const result = await fetchCaptcha(registerValidateForm.phone_email, ts.value);
-
-  // 有正确的结果才弹框
-  if (result) {
-    visible.value = true;
-    imageUrl.value = URL.createObjectURL(result);
-  }
-  nextTick(() => {
-    captchaRef.value?.focus();
-  });
-}
-
-async function handlerVerificationCode(formEl: FormInstance | undefined) {
-  // 调用获取手机验证码的接口
-  // 图形验证码必须填才能调用
-  if (!formEl) return;
-  formEl.validate(async valid => {
-    if (!valid) return;
-    const result = await fetchVerificationCode(
-      registerValidateForm.phone_email,
-      captchaForm.captchaCode,
-      ts.value,
-      getLocalLang()
-    );
-    if (result && result.code == 0) {
-      ElMessage.success(t('register.success.verificationCodeSend'));
-      visible.value = false;
-
-      // 开启验证码倒计时
-      let count = 120;
-      disableGetVerificationCode.value = true;
-      timer.value = setInterval(() => {
-        buttonTextOfGetVerificationCode.value = `${count}s`;
-        count--;
-        if (count <= 0) {
-          clearInterval(timer.value);
-          timer.value = null;
-          disableGetVerificationCode.value = false;
-          buttonTextOfGetVerificationCode.value = t('register.regetVerificationCode');
-        }
-      }, 1000);
-    } else if (result) {
-      if (result.code == 400) {
-        $error(t('register.errors.' + result.msg));
-      } else if (result.code == 501) {
-        $error(t('register.errors.network'));
-      } else {
-        $error(result.msg);
-      }
-    }
-  });
-}
-function submitRegisterForm(formEl: FormInstance | undefined) {
-  if (!formEl) return;
-  formEl.validate(async valid => {
-    if (valid) {
-      pageLoading.value = true;
-
-      const formData: any = {
-        ts: ts.value,
-        lang: getLocalLang(),
-        phone_email: registerValidateForm.phone_email,
-        verification_code: registerValidateForm.verification_code
-      };
-      if (!isLocaleLanguageEn.value) {
-        formData['name'] = registerValidateForm.name;
-      } else {
-        formData['firstname'] = registerValidateForm.firstname;
-        formData['lastname'] = registerValidateForm.lastname;
-      }
-
-      // 提交注册接口
-      const result = await getVerificationResult(formData);
-      if (result && result.code == 0) {
-        switch (result.data) {
-          case 'pass':
-            // 如果校验通过，则注册成功 切换到登陆框
-            registered.value = true;
-            sessionStorage.setItem('registerKey', formData.phone_email);
-
-            setTimeout(() => {
-              pageLoading.value = false;
-              ElMessage.success(t('register.success.registerSuccess'));
-            }, 1000);
-
-            break;
-          case 'none':
-            $error(t('register.errors.verificationCodeNone'));
-            pageLoading.value = false;
-            break;
-          case 'error':
-            $error(t('register.errors.verificationCodeError'));
-            pageLoading.value = false;
-            break;
-        }
-      }
-    } else {
-      return;
-    }
-  });
-}
 function switchLanguage() {
   if (getLocalLang() == 'zh') {
     /* @ts-expect-error: 属性“value”在类型“string | WritableComputedRef<string, string>”上不存在。 */
@@ -750,10 +373,7 @@ function switchLanguage() {
     localStorage.setItem('local_language', 'zh');
     setLocale('zh');
   }
-  buttonTextOfGetVerificationCode.value = t('register.getVerificationCode');
-
   dynamicValidateFormRef.value?.resetFields();
-  registerValidateFormRef.value?.resetFields();
   formRules.username[0].message = t('login.usernameTips');
 
   displaySystemTitle.value = import.meta.env.VITE_APP_CUS_NAME + t('login.systemTitle');
@@ -913,10 +533,6 @@ function switchLanguage() {
       width: 680px;
       height: 700px;
     }
-  }
-
-  .content-registered {
-    padding: 60px calc(50vw - 600px);
   }
 
   .el-button.signin {

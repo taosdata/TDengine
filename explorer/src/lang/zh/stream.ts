@@ -17,7 +17,7 @@ export default {
     windowClause: "窗口设置",
     stableUpper: "超级表",
     tableUpper: "表",
-    parttionSet: "分区设置",
+    partitionSet: "分区设置",
     source: "源",
     subtablePrefix: "子表前缀",
     stable: "超级表",

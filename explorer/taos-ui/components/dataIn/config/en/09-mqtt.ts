@@ -32,7 +32,7 @@ export default {
           placeholder: '1883',
           pattern: '^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
           patternMsg: 'The port number ranges from 0 to 65535',
-          defaultValue: '',
+          defaultValue: '1883',
           type: 'input'
         },
         {
@@ -380,7 +380,7 @@ export default {
           max: 100000
         },
         {
-          label: 'Maxmum Batch IN Processing',
+          label: 'Maximum Batch IN Processing',
           field: 'maximum_processing_batch',
           description:
             'The maximum number of batches that have not yet received an ACK response during processing. When this threshold is not reached, a batch will be retrieved from the cache queue for processing; When the maximum number is reached, the messages in the cache queue will begin to pile up. This configuration is used for backpressure mechanism to prevent excessive write pressure downstream.',
@@ -427,7 +427,7 @@ export default {
           max: 60000
         },
         {
-          label: 'writter concurrent',
+          label: 'Written Concurrent',
           field: 'written_concurrent',
           description: 'The max number of concurrent tasks writing to TDengine simultaneously.\n',
           required: false,

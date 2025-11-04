@@ -16,7 +16,7 @@ use crate::runners::opc::{opc_datasets_impl, OpcType};
 use crate::utils::validate_table_column_name;
 
 pub mod collect;
-mod connect;
+pub mod connect;
 pub mod points;
 mod report;
 
@@ -366,6 +366,7 @@ request_timeout = 10
 security_policy = "None"
 security_mode = "None"
 auth_method = "Anonymous"
+auto_reconnect = true
 
 [report]
 remote = "127.0.0.1:0"
@@ -400,6 +401,7 @@ request_timeout = 10
 security_policy = "None"
 security_mode = "None"
 auth_method = "Anonymous"
+auto_reconnect = true
 
 [report]
 remote = "127.0.0.1:0"
@@ -439,6 +441,7 @@ request_timeout = 10
 security_policy = "None"
 security_mode = "None"
 auth_method = "Anonymous"
+auto_reconnect = true
 
 [report]
 remote = "127.0.0.1:0"

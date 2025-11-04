@@ -4,7 +4,7 @@ import { request } from '@/utils/request.ts';
 import { executeDBOperations } from '@/api/explorer';
 
 /**
- * 先使用show databses获取列表
+ * 先使用show databases获取列表
  */
 export async function getDBListReq() {
   try {

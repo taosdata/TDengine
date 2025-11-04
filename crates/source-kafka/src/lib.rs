@@ -151,7 +151,7 @@ pub async fn kafka_to_taos(
                     )
                     .await
                     {
-                        tracing::error!("kafka ipc forword error: {e}");
+                        tracing::error!("kafka ipc forward error: {e}");
                     }
                 }
                 .in_current_span(),

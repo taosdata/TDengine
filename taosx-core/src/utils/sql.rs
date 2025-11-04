@@ -1032,11 +1032,8 @@ pub fn sql_values_from_record_batch(
                             .as_any()
                             .downcast_ref::<arrow::array::LargeBinaryArray>()
                             .unwrap();
-                        write!(
-                            cursor,
-                            "{}",
-                            sql_value_escaped_fmt(&String::from_utf8_lossy(array.value(row),))
-                        )?;
+                        let bytes = array.value(row);
+                        write!(cursor, "'\\x{}'", hex::encode(bytes))?;
                     }
                     arrow_schema::DataType::Utf8 => {
                         let array = array
@@ -1053,7 +1050,7 @@ pub fn sql_values_from_record_batch(
                         write!(cursor, "{}", sql_value_escaped_fmt(array.value(row)))?;
                     }
                     arrow_schema::DataType::List(field)
-                        if cast_to.is_some_and(|s| s == "VARBINARY")
+                        if cast_to.is_some_and(|s| s == "VARBINARY" || s == "BLOB")
                             && field.data_type().is_numeric() =>
                     {
                         let array = array.as_any().downcast_ref::<ListArray>().unwrap();

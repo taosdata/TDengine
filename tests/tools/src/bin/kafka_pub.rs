@@ -126,7 +126,7 @@ async fn main() {
                                         .rand_json_value()
                                         .context("gen fake data error")
                                         .and_then(|value| serde_json::to_vec(&value).context("serialize json error"))
-                                        .and_then(|value| processor.process(value).context("processer process error"))
+                                        .and_then(|value| processor.process(value).context("processor process error"))
                                         .inspect_err(|e| println!("get value error: {e:#}"))
                                         .unwrap();
                                     tx.send(value).ok();

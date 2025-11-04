@@ -1281,6 +1281,7 @@ pub async fn sync_super_table_schema_with_subs(
         tables += 1;
 
         if sql.len() + e.len() > max_sql_length {
+            tracing::debug!(sql, "Create child table {new_table_name}");
             to.exec(&sql).await?;
 
             if let Some(duration) = target_opts.interval {
@@ -3316,16 +3317,17 @@ pub async fn legacy_to_taos(
             .await
             .with_context(|| anyhow::anyhow!("Target (2.x) precision could no be detected"))?
     };
-    if precision_of_from > precision_of_to {
-        anyhow::bail!(
-            "Cannot convert from source to target precision: {} -> {}",
+
+    let with_precision = if precision_of_from > precision_of_to {
+        tracing::warn!(
+            "Casting precision from {} to {} may lose precision",
             precision_of_from,
             precision_of_to
         );
-    }
-    let with_precision = if precision_of_from < precision_of_to {
+        Some(precision_of_to)
+    } else if precision_of_from < precision_of_to {
         tracing::warn!(
-            "Cast precision from {} to {}",
+            "Casting precision from {} to {} ...",
             precision_of_from,
             precision_of_to
         );
@@ -3387,7 +3389,6 @@ pub async fn legacy_to_taos(
         cancel.clone(),
         breakpoints,
     )
-    // .instrument(tracing::info_span!("scheduler"))
     .await;
     let scheduler = Arc::new(scheduler);
 
@@ -4798,6 +4799,77 @@ mod tests {
             "should not use v2 style in v3"
         );
         taos.exec(format!("drop database `{}`", db)).await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_ts7429_downcast_precision_with_taos() -> anyhow::Result<()> {
+        let _ = tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .try_init();
+
+        // prepare
+        let mut dsn: Dsn = std::env::var("TEST_TAOS_DSN")
+            .unwrap_or("taos://localhost:6030".into())
+            .parse()?;
+        let _ = dsn.subject.take();
+        let builder = TaosBuilder::from_dsn(&dsn)?.pool()?;
+        let taos = builder.get().await?;
+        let db = "test_ts7429";
+
+        for (pf, pt) in [
+            ("ns", "ms"),
+            ("ns", "us"),
+            ("us", "ms"),
+            ("ms", "us"),
+            ("ms", "ns"),
+            ("us", "ns"),
+        ] {
+            let _span = tracing::info_span!("cast_precision", from=%pf, to=%pt).entered();
+            taos.exec_many([
+                format!("drop database if exists `{db}_{pf}`"),
+                format!("drop database if exists `{db}_{pt}`"),
+                format!("create database `{db}_{pf}` precision '{pf}'"),
+                format!("use `{db}_{pf}`"),
+                "create stable `st1` (ts timestamp, v1 int) tags(t1 int)".to_string(),
+                "create table `t1` using `st1` tags(1)".to_string(),
+                "insert into `t1` values(now + 1s, 1)".to_string(),
+                "insert into `t1` values(now + 2s, 2)".to_string(),
+                "insert into `t1` values(now + 3s, 3)".to_string(),
+                "insert into `t1` values(now + 4s, 4)".to_string(),
+                format!("create database `{db}_{pt}` precision '{pt}'"),
+                format!("use `{db}_{pt}`"),
+            ])
+            .await?;
+
+            let from_dsn = format!("{dsn}/{db}_{pf}").parse()?;
+            let to_dsn = format!("{dsn}/{db}_{pt}").parse()?;
+
+            let cancel = CancellationToken::new();
+            let _guard = cancel.clone().drop_guard();
+            legacy_to_taos(from_dsn, vec![], to_dsn, cancel, None)
+                .in_current_span()
+                .await?;
+
+            let rows: usize = taos
+                .query_one("select count(*) from `t1`")
+                .await?
+                .unwrap_or_default();
+            assert_eq!(rows, 4);
+            let rows: Vec<_> = taos
+                .query("select * from `t1`")
+                .await?
+                .deserialize::<(String, i32)>()
+                .try_collect::<Vec<_>>()
+                .await?;
+            assert_eq!(rows.len(), 4);
+            tracing::info!(?rows, "data in `{db}_{pt}`.`t1`");
+            taos.exec_many([
+                format!("drop database if exists `{db}_{pt}`"),
+                format!("drop database if exists `{db}_{pf}`"),
+            ])
+            .await?;
+        }
         Ok(())
     }
 }

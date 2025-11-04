@@ -39,6 +39,9 @@ members = [
   "crates/local-to-taos",
   "crates/legacy-to-taos",
   "crates/source-orc",
+  "crates/taos-to-local",
+  "crates/source-kinghistorian",
+  "crates/source-kinghistorian/kinghistorian-sys",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -137,7 +140,7 @@ deadpool = "=0.10"
 tokio-process-terminate = { version = "0.3" }
 ringbuf = { version = "0.4" }
 toml = "0.9"
-mongodb = { version = "3.0.0", features = [
+mongodb = { version = "3.3.0", features = [
   "aws-auth",
   "zstd-compression",
   "zlib-compression",
@@ -212,7 +215,7 @@ archive = { path = "./crates/archive" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "0e47990"
+rev = "414bc5ab"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
@@ -242,7 +245,7 @@ arrow-flight = { workspace = true }
 zerocopy = { workspace = true }
 opendal = { workspace = true, features = ["services-s3"] }
 #multi_index_map = "0.15.0"
-multi_index_map = { git = "https://github.com/acerDebugman/multi_index_map.git", tag="v0.1-taos" }
+multi_index_map = { git = "https://github.com/acerDebugman/multi_index_map.git", tag = "v0.1-taos" }
 scc = { workspace = true, features = ["serde"] }
 semver.workspace = true
 shadow-rs = { workspace = true }

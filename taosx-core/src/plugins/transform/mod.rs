@@ -27,7 +27,7 @@ use arrow::{
         TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
         TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
-    compute::concat_batches,
+    compute::{and, concat_batches},
     datatypes::{DataType, Field, Schema},
     error::ArrowError,
     record_batch::RecordBatch,
@@ -1285,10 +1285,12 @@ impl Parser {
         &self,
         records: &RecordBatch,
         filter_ts: bool,
-        archive_tx: Sender<ArchiveType>,
+        archive_tx: Option<Sender<ArchiveType>>,
     ) -> Result<Message, Error> {
         // (ts, value, point_name, ${point_name}, site_controller_id)
-        let transformed_batch = self.transform_records(records)?;
+        let transformed_batch = self
+            .transform_records(records)
+            .context("parser transform origin recordbatch error")?;
         let schema = transformed_batch.schema();
         // tracing::info!("Parse message {:?}", batch);
 
@@ -1307,7 +1309,8 @@ impl Parser {
             .s_model
             .as_ref()
             .map(|s| s.apply(&transformed_batch, self.global()))
-            .transpose()?;
+            .transpose()
+            .context("apply stable name error")?;
 
         let mut data = vec![];
 
@@ -1412,7 +1415,8 @@ impl Parser {
                                 err_vec,
                                 err_timestamp_vec,
                                 archive_tx.clone(),
-                            )?;
+                            )
+                            .context("archive field name error")?;
                             break 'table;
                         }
                         Ok((HandlingResult::Modify(_), _)) => todo!(), // TODO1
@@ -1540,7 +1544,8 @@ impl Parser {
                         (HandlingResult::Retry, _) => unreachable!(),
                     }
                 })
-                .try_collect::<_, Vec<_>, _>()?
+                .try_collect::<_, Vec<_>, _>()
+                .context("generate table name error")?
                 .into_iter()
                 .into_group_map();
 
@@ -1558,13 +1563,15 @@ impl Parser {
                     .iter()
                     .map(|row| transformed_batch.slice(*row, 1))
                     .collect_vec();
-                let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)?;
+                let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)
+                    .context("concat archive batch error")?;
                 archive_records_blocking(
                     &archive_batch,
                     err_vec,
                     err_timestamp_vec,
                     archive_tx.clone(),
-                )?;
+                )
+                .context("archive abnormal batch error")?;
             }
 
             let ts_field_name = table
@@ -1941,11 +1948,18 @@ pub async fn archive_records(
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
-    if let Some(batch) = build_archive_batch(batch, err_vec, err_timestamp_vec)? {
-        archive_tx.send_async(ArchiveType::Archive(batch)).await?;
-    }
+    let Some(archive_tx) = archive_tx else {
+        return Ok(());
+    };
+    let Some(batch) = build_archive_batch(batch, err_vec, err_timestamp_vec)? else {
+        return Ok(());
+    };
+    archive_tx
+        .send_async(ArchiveType::Archive(batch))
+        .await
+        .context("send archive batch error")?;
     Ok(())
 }
 
@@ -1960,11 +1974,17 @@ pub fn archive_records_blocking(
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
-    if let Some(batch) = build_archive_batch(batch, err_vec, err_timestamp_vec)? {
-        archive_tx.send(ArchiveType::Archive(batch))?;
-    }
+    let Some(archive_tx) = archive_tx else {
+        return Ok(());
+    };
+    let Some(batch) = build_archive_batch(batch, err_vec, err_timestamp_vec)? else {
+        return Ok(());
+    };
+    archive_tx
+        .send(ArchiveType::Archive(batch))
+        .context("send blocking archive batch error")?;
     Ok(())
 }
 
@@ -2134,7 +2154,7 @@ fn pivot(
                             )
                         }
                     }
-                    dt => unimplemented!("pivot unsupport datatype: {dt}"),
+                    dt => unimplemented!("pivot unsupported datatype: {dt}"),
                 };
                 pivot_fields.insert(name, (field, array));
             }
@@ -2320,6 +2340,159 @@ impl MessageArrowRecords {
         } else {
             None
         }
+    }
+
+    pub fn drop_above_blob_limit(mut self, size_limit: usize) -> Option<Self> {
+        let schema = self.records.schema();
+        let blob_arr = schema
+            .fields()
+            .iter()
+            .filter(|f| *f.data_type() == DataType::LargeBinary)
+            .collect::<Vec<_>>();
+        if blob_arr.is_empty() {
+            return Some(self);
+        }
+        let mut keep_filter =
+            BooleanArray::from_iter((0..self.records.num_rows()).map(|_| Some(true)));
+        blob_arr.into_iter().try_for_each(|field| -> Option<()> {
+            let array = self.records.column_by_name(field.name())?;
+            let array = array.as_any().downcast_ref::<LargeBinaryArray>()?;
+            let f = BooleanArray::from_iter((0..array.len()).map(|idx| {
+                if array.is_null(idx) {
+                    // 2025-07-12 10:35:22: current td allow null blob
+                    Some(true)
+                } else {
+                    Some(array.value(idx).len() < size_limit)
+                }
+            }));
+            keep_filter = and(&keep_filter, &f).ok()?;
+            None
+        });
+        let records = arrow::compute::filter_record_batch(&self.records, &keep_filter).ok()?;
+        if records.num_rows() > 0 {
+            self.records = records;
+            return Some(self);
+        }
+        None
+    }
+
+    pub fn has_large_record(&self, size_limit: usize) -> bool {
+        let mut flag = false;
+        macro_rules! check {
+            ($array:expr) => {
+                $array.iter().for_each(|x| {
+                    if let Some(x) = x {
+                        if x.len() >= size_limit {
+                            flag = true;
+                            return;
+                        }
+                    }
+                });
+            };
+        }
+        for arr in self.records.columns().iter() {
+            match arr.data_type() {
+                DataType::LargeBinary => {
+                    let Some(array) = arr.as_any().downcast_ref::<LargeBinaryArray>() else {
+                        continue;
+                    };
+                    check!(array);
+                }
+                DataType::Binary => {
+                    let Some(array) = arr.as_any().downcast_ref::<BinaryArray>() else {
+                        continue;
+                    };
+                    check!(array);
+                }
+                _ => {}
+            }
+            if flag {
+                return flag;
+            }
+        }
+        flag
+    }
+}
+
+pub trait ConcatBatches {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>>;
+}
+
+impl ConcatBatches for [MessageArrowRecords] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let schema = first.records.schema().clone();
+        let batches = self.iter().map(|x| &x.records);
+        Ok(Some(concat_batches(&schema, batches)?))
+    }
+}
+
+impl ConcatBatches for [&MessageArrowRecords] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let schema = first.records.schema().clone();
+        let batches = self.iter().map(|x| &x.records);
+        Ok(Some(concat_batches(&schema, batches)?))
+    }
+}
+
+impl ConcatBatches for Vec<&MessageArrowRecords> {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for Vec<MessageArrowRecords> {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for &[&MessageArrowRecords] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for [RecordBatch] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let schema = first.schema().clone();
+        Ok(Some(concat_batches(&schema, self)?))
+    }
+}
+
+impl ConcatBatches for [&RecordBatch] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let schema = first.schema().clone();
+        Ok(Some(concat_batches(&schema, self.iter().copied())?))
+    }
+}
+
+impl ConcatBatches for Vec<RecordBatch> {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for Vec<&RecordBatch> {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
+    }
+}
+
+impl ConcatBatches for &[&RecordBatch] {
+    fn concat_batches(&self) -> anyhow::Result<Option<RecordBatch>> {
+        self[..].concat_batches()
     }
 }
 
@@ -2535,7 +2708,7 @@ impl ArrowFieldExt for Field {
             arrow::datatypes::DataType::Interval(_) => taos::Ty::BigInt,
             arrow::datatypes::DataType::Binary => taos::Ty::VarChar,
             arrow::datatypes::DataType::FixedSizeBinary(_) => taos::Ty::VarChar,
-            arrow::datatypes::DataType::LargeBinary => taos::Ty::VarChar,
+            arrow::datatypes::DataType::LargeBinary => taos::Ty::Blob,
             arrow::datatypes::DataType::Utf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::LargeUtf8 => taos::Ty::VarChar,
             arrow::datatypes::DataType::Decimal128(p, _) => {
@@ -3290,7 +3463,7 @@ mod parser_tests {
         ]));
         let batch = RecordBatch::try_from_iter(vec![("ts", ts), ("payload", payload)])?;
 
-        let new_batch = parser.parse_message_from_records(&batch, true, tx)?;
+        let new_batch = parser.parse_message_from_records(&batch, true, Some(tx))?;
 
         // assert batch.size == 4
         match new_batch {
@@ -3395,7 +3568,7 @@ mod parser_tests {
         ])?;
         let (tx, _rx) = flume::bounded(10);
 
-        let message = parser.parse_message_from_records(&batch, false, tx)?;
+        let message = parser.parse_message_from_records(&batch, false, Some(tx))?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3570,7 +3743,7 @@ mod parser_tests {
         ])?;
         let (tx, _rx) = flume::bounded(10);
 
-        let message = parser.parse_message_from_records(&batch, false, tx)?;
+        let message = parser.parse_message_from_records(&batch, false, Some(tx))?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3833,7 +4006,7 @@ mod parser_tests {
         ])?;
         let (tx, _rx) = flume::bounded(10);
 
-        let message = parser.parse_message_from_records(&batch, false, tx)?;
+        let message = parser.parse_message_from_records(&batch, false, Some(tx))?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -4099,7 +4272,6 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let (tx, _rx) = flume::bounded(10);
 
         // test1: normal
         let record = RecordBatch::try_from_iter([
@@ -4111,7 +4283,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
 
         // test2: the length of table name exceeds the limit, and the processing method is 'archive'
@@ -4127,7 +4299,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4146,11 +4318,11 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Transform error: the table name 'table_1.2' should not contain illegal characters"
+            "Transform error: generate table name error: the table name 'table_1.2' should not contain illegal characters"
         );
 
         // test4: table name variable mistake, and the processing method is 'skip'
@@ -4163,7 +4335,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4187,7 +4359,6 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(10);
 
         // test1: archive
         let parser = r#"{
@@ -4203,7 +4374,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4226,7 +4397,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4249,11 +4420,11 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Transform error: the length of table name 'table_1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567' should not exceed 192"
+            "Transform error: generate table name error: the length of table name 'table_1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567' should not exceed 192"
         );
 
         // test4: truncate
@@ -4270,7 +4441,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4293,7 +4464,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4314,7 +4485,6 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(10);
 
         // test1: archive
         let parser = r#"{
@@ -4331,7 +4501,7 @@ mod parser_tests {
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
 
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4354,7 +4524,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4377,11 +4547,11 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Transform error: the table name 'table_1.2' should not contain illegal characters"
+            "Transform error: generate table name error: the table name 'table_1.2' should not contain illegal characters"
         );
 
         // test4: replace illegal char
@@ -4398,7 +4568,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4465,7 +4635,6 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(10);
 
         // test1: skip
         let parser = r#"{
@@ -4481,7 +4650,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4504,7 +4673,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4527,7 +4696,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4551,7 +4720,6 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(10);
 
         // test1: use current time
         let parser = r#"{
@@ -4567,7 +4735,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4593,7 +4761,6 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(10);
 
         // test1: columns empty, use the others not in tags & skip
         let parser = r#"{
@@ -4609,7 +4776,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4632,7 +4799,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(&record, true, tx.clone());
+        let result = parser.parse_message_from_records(&record, true, None);
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4711,10 +4878,9 @@ mod parser_tests {
             )
         )
         .unwrap();
-        let (tx, _rx) = flume::bounded(10);
 
         let records = parser
-            .parse_message_from_records(&raw_data, true, tx.clone())
+            .parse_message_from_records(&raw_data, true, None)
             .unwrap();
         // assert_eq!(records.len(), 2);
         if let super::Message::Records(records) = records {
@@ -4748,6 +4914,10 @@ mod parser_tests {
 #[cfg(test)]
 mod test {
     use super::Parser;
+    use crate::plugins::transform::{
+        ConcatBatches, MessageArrowRecords, MessageTableMeta, TableOptions,
+    };
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_sql_insert_part() {
@@ -4801,7 +4971,7 @@ mod test {
         let (tx, _rx) = flume::bounded(10);
 
         let records = parser
-            .parse_message_from_records(&raw_data, false, tx.clone())
+            .parse_message_from_records(&raw_data, false, Some(tx.clone()))
             .unwrap();
 
         if let super::Message::Records(records) = records {
@@ -4816,5 +4986,123 @@ mod test {
                 dbg!(&sql);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_drop_above_blob_limit() -> anyhow::Result<()> {
+        let batch = arrow::array::record_batch!(
+            (
+                "test1",
+                LargeBinary,
+                [b"1234567890", &b"1234567890".repeat(1024)]
+            ),
+            ("test2", Binary, [b"1234567890", &b"12345".repeat(10)]),
+            ("name", Utf8, ["r1", "r2"])
+        )?;
+
+        let stable_meta = MessageTableMeta {
+            name: Arc::new("meters".into()),
+            using: None,
+            tags: None,
+        };
+        let opts = Arc::new(TableOptions::default());
+
+        let message = MessageArrowRecords {
+            table: stable_meta,
+            records: batch,
+            opts,
+        };
+        let filter_m = message.drop_above_blob_limit(9 * 1024).unwrap();
+        dbg!(&filter_m.records);
+        assert_eq!(filter_m.records.num_rows(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_has_large_record() -> anyhow::Result<()> {
+        let batch = arrow::array::record_batch!((
+            "test1",
+            LargeBinary,
+            [b"1234567890", &b"1234567890".repeat(1024)]
+        ))?;
+        let stable_meta = MessageTableMeta {
+            name: Arc::new("meters".into()),
+            using: None,
+            tags: None,
+        };
+        let opts = Arc::new(TableOptions::default());
+
+        let message = MessageArrowRecords {
+            table: stable_meta,
+            records: batch,
+            opts,
+        };
+        let has_large_record = message.has_large_record(400 * 1024);
+        assert!(!has_large_record);
+        let has_large_record = message.has_large_record(9 * 1024);
+        assert!(has_large_record);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_concat_batches() -> anyhow::Result<()> {
+        let batch1 =
+            arrow::array::record_batch!(("test1", Utf8, ["1234567890", &"1234567890".repeat(3)]))?;
+        let batch2 =
+            arrow::array::record_batch!(("test1", Utf8, ["aaa", &"bbb".repeat(3), "ccc"]))?;
+        let batches = vec![batch1.clone(), batch2.clone()];
+
+        let ref_batches = batches.iter().collect::<Vec<_>>();
+        let concat_batch = ref_batches.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+        println!(
+            "{}",
+            arrow::util::pretty::pretty_format_batches(&[concat_batch]).unwrap()
+        );
+
+        let concat_batch = batches[..].concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let ref_batches = &batches;
+        let concat_batch = ref_batches.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let concat_batch = batches.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let stable_meta = MessageTableMeta {
+            name: Arc::new("meters".into()),
+            using: None,
+            tags: None,
+        };
+        let opts = Arc::new(TableOptions::default());
+
+        let message1 = MessageArrowRecords {
+            table: stable_meta.clone(),
+            records: batch1,
+            opts: opts.clone(),
+        };
+
+        let message2 = MessageArrowRecords {
+            table: stable_meta.clone(),
+            records: batch2,
+            opts: opts.clone(),
+        };
+
+        let messages = vec![message1, message2];
+        let concat_batch = messages[..].concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let concat_batch = messages.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let ref_messages = messages.iter().collect::<Vec<_>>();
+        let concat_batch = ref_messages[..].concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        let concat_batch = ref_messages.concat_batches()?.unwrap();
+        assert_eq!(concat_batch.num_rows(), 5);
+
+        Ok(())
     }
 }

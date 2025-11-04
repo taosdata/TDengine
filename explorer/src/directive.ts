@@ -107,7 +107,7 @@ const highlight: Directive = {
   mounted(el, { value, modifiers: { noCopy } }) {
     // 当包含value的时候说明代码中含有变量
     el.hljsBlock = el.querySelectorAll('code')[0];
-    el.hightFn = value => {
+    el.heightFn = value => {
       el.hljsBlock.innerHTML = hljs.highlightAuto(value, [el.customLang]).value;
     };
     // 查看语言类型
@@ -119,9 +119,9 @@ const highlight: Directive = {
     // 如果value存在才会在后面更新，如果不存在就不更新
     if (value) {
       el.isUpdate = true;
-      el.hightFn(value);
+      el.heightFn(value);
     } else {
-      el.hightFn(el.hljsBlock.innerText);
+      el.heightFn(el.hljsBlock.innerText);
     }
     // 给pre标签添加复制按钮 如果没有code标签就不添加
     if (el.hljsBlock && !noCopy) {
@@ -137,7 +137,7 @@ const highlight: Directive = {
     }
   },
   updated(el, { value }) {
-    el.isUpdate && el.hightFn(value);
+    el.isUpdate && el.heightFn(value);
   },
   unmounted(el) {
     el.hljsBlock = null;

@@ -3,7 +3,7 @@
     <el-form ref="splitFormRef" :model="localeRuleForm" :rules="rules" size="default">
       <el-form-item prop="sep">
         <el-input v-model="localeRuleForm.sep" placeholder="," class="split-item" :disabled="isViewable">
-          <template #prepend>seperator</template>
+          <template #prepend>separator</template>
         </el-input>
       </el-form-item>
       <el-form-item prop="n">
@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { cloneDeep } from 'lodash-es';
 import { transformerState } from './util';
-import { SplitExpresListType } from './type';
+import { SplitExpressionListType } from './type';
 import { t } from 'locales';
 
 const props = withDefaults(
@@ -69,9 +69,9 @@ const splitFormRef = ref();
 const emit = defineEmits(['update:ruleForm']);
 
 watch(
-  () => transformerState.splitExpresList,
+  () => transformerState.splitExpressionList,
   val => {
-    const middleObj = cloneDeep(val) as SplitExpresListType;
+    const middleObj = cloneDeep(val) as SplitExpressionListType;
     if (middleObj.names && Array.isArray(middleObj.names)) {
       middleObj.names = middleObj.names.toString();
     }
@@ -86,10 +86,10 @@ watch(localeRuleForm, newData => {
 });
 
 onMounted(() => {
-  if (transformerState.splitExpresList) {
-    const middleobj = cloneDeep(transformerState.splitExpresList) as SplitExpresListType;
-    if (transformerState.splitExpresList.names && Array.isArray(transformerState.splitExpresList.names)) {
-      middleobj.names = transformerState.splitExpresList.names.toString();
+  if (transformerState.splitExpressionList) {
+    const middleobj = cloneDeep(transformerState.splitExpressionList) as SplitExpressionListType;
+    if (transformerState.splitExpressionList.names && Array.isArray(transformerState.splitExpressionList.names)) {
+      middleobj.names = transformerState.splitExpressionList.names.toString();
     }
   }
 });
@@ -98,7 +98,7 @@ function submit() {
   splitFormRef.value.validate((valid: boolean) => {
     if (valid) {
       isValid.value = true;
-      const splitExpre = {} as SplitExpresListType;
+      const splitExpre = {} as SplitExpressionListType;
       Object.keys(localeRuleForm)
         .filter(key => localeRuleForm[key])
         .forEach(item => {
@@ -116,7 +116,7 @@ function submit() {
           .map(val => val.trim());
         splitExpre.names = result;
       }
-      transformerState.splitExpresList = splitExpre;
+      transformerState.splitExpressionList = splitExpre;
       return true;
     } else {
       isValid.value = false;

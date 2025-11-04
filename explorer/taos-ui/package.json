@@ -21,13 +21,13 @@
   "license": "taosdata",
   "description": "",
   "dependencies": {
-    "@codemirror/autocomplete": "^6.18.6",
-    "@codemirror/commands": "^6.8.0",
-    "@codemirror/lang-sql": "^6.8.0",
-    "@codemirror/lint": "^6.8.4",
-    "@codemirror/search": "^6.5.9",
-    "@codemirror/view": "^6.36.2",
-    "@element-plus/icons-vue": "^2.3.1",
+    "@codemirror/autocomplete": "^6.18.7",
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-sql": "^6.10.0",
+    "@codemirror/lint": "^6.8.5",
+    "@codemirror/search": "^6.5.11",
+    "@codemirror/view": "^6.38.2",
+    "@element-plus/icons-vue": "^2.3.2",
     "@tdengine/websocket": "link:../taos-connector-node/tdengine-websocket",
     "@unocss/reset": "^0.62.3",
     "@vueuse/core": "^11.1.0",
@@ -35,6 +35,7 @@
     "@wangeditor/editor-for-vue": "^5.1.12",
     "assets": "workspace:taos-assets@*",
     "axios": "^1.12.0",
+    "base64-js": "^1.5.1",
     "codemirror": "^6.0.1",
     "components": "workspace:taos-components@*",
     "config": "workspace:taos-config@*",
@@ -148,7 +149,8 @@
       "cross-spawn@<6.0.6": ">=6.0.6",
       "esbuild@<=0.24.2": ">=0.25.0",
       "http-cache-semantics@<4.1.1": ">=4.1.1",
-      "vite@>=5.0.0 <=5.4.18": ">=5.4.19"
+      "vite@>=5.0.0 <=5.4.18": ">=5.4.19",
+      "@codemirror/state": "6.5.2"
     }
   }
 }

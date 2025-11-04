@@ -12,13 +12,13 @@
         <span class="el-icon-close" @click="transformerState.showResultTb = false"><Close /></span>
       </span>
     </div>
-    <template v-for="(tableItme, index) in state.pageTableData" :key="index">
+    <template v-for="(tableItem, index) in state.pageTableData" :key="index">
       <el-table
         ref="table"
         border
         style="width: 100%; margin-bottom: 20px"
         :max-height="state.defaultHeight - 99"
-        :data="tableItme"
+        :data="tableItem"
       >
         <el-table-column
           v-for="item in state.columns[index]"
@@ -43,14 +43,14 @@
       size="100%"
       @close="state.drawer = false"
     >
-      <template v-for="(tableItme, index) in state.pageTableData">
+      <template v-for="(tableItem, index) in state.pageTableData">
         <el-table
           v-if="state.drawer"
           :key="index"
           ref="table"
           border
           style="width: 100%; margin-bottom: 20px"
-          :data="tableItme"
+          :data="tableItem"
           size="small"
         >
           <el-table-column

@@ -136,6 +136,30 @@ export default {
               type: 'number',
               min: 1,
               max: 30
+            },
+            {
+              label: 'Rename Timestamp Field',
+              description:
+                'Rename the timestamp field from OpenTSDB when writing to TDengine, default is "timestamp".',
+              field: 'timestampFieldName',
+              placeholder: 'Default: timestamp',
+              pattern: null,
+              grid_two: false,
+              type: 'input',
+              min: 1,
+              max: 30
+            },
+            {
+              label: 'Rename Value Field',
+              description:
+                'Rename the value field from OpenTSDB when writing to TDengine, default is "value".',
+              field: 'valueFieldName',
+              placeholder: 'Default: value',
+              pattern: null,
+              grid_two: false,
+              type: 'input',
+              min: 1,
+              max: 30
             }
           ],
           hide: false

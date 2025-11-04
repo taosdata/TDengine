@@ -12,6 +12,7 @@ taos.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
+serde_json.workspace = true
 
 source-csv.path = "../source-csv"
 source-historian.path = "../source-historian"
@@ -37,6 +38,7 @@ tmq-to-td.path = "../tmq-to-td"
 tmq-to-local.path = "../tmq-to-local"
 local-to-taos.path = "../local-to-taos"
 legacy-to-taos.path = "../legacy-to-taos"
+taos-to-local.path = "../taos-to-local"
 
 taosx-core.workspace = true
 taoslog.path = "../taoslog"

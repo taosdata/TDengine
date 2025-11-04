@@ -1028,6 +1028,31 @@ mod arrow_to_taos {
                     .collect::<Vec<_>>();
                 ColumnView::from_bytes::<Vec<u8>, _, _, _>(v)
             }
+            crate::prelude::IpcDataType::Blob => {
+                let v = data
+                    .into_iter()
+                    .map(|v| {
+                        v.map(|v| {
+                            let v = if v.starts_with("\\x") {
+                                v.get(2..).unwrap()
+                            } else {
+                                v
+                            };
+                            let mut bytes = Vec::new();
+                            let chars: Vec<char> = v.chars().collect();
+                            chars.chunks(2).for_each(|chars| {
+                                let byte_str: String = chars.iter().collect();
+                                match u8::from_str_radix(&byte_str, 16) {
+                                    Ok(byte) => bytes.push(byte),
+                                    Err(_) => tracing::warn!("Invalid byte string: {}", byte_str),
+                                }
+                            });
+                            bytes
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                ColumnView::from_blob_bytes::<Vec<u8>, _, _, _>(v)
+            }
         };
         view
     }
@@ -1507,7 +1532,10 @@ pub fn parse_column_view_with_types(
                     arrow_to_taos::parse_str_into(ty, data)
                 }
                 DataType::FixedSizeBinary(_) => todo!(),
-                DataType::LargeBinary => todo!(),
+                DataType::LargeBinary => {
+                    let array = column.as_any().downcast_ref::<LargeBinaryArray>().unwrap();
+                    ColumnView::from_blob_bytes::<&[u8], _, _, _>(array)
+                }
                 DataType::Utf8 => {
                     let a = column.as_any().downcast_ref::<StringArray>().unwrap();
 
@@ -1796,6 +1824,10 @@ pub fn record_batch_to_column_view(
                         })
                         .collect_vec();
                     ColumnView::from_bytes::<&[u8], _, _, _>(iter)
+                }
+                DataType::LargeBinary => {
+                    let array = column.as_any().downcast_ref::<LargeBinaryArray>().unwrap();
+                    ColumnView::from_blob_bytes::<&[u8], _, _, _>(array)
                 }
                 DataType::FixedSizeBinary(_) if cast_to.is_some_and(|s| s == "VARBINARY") => {
                     let array = column

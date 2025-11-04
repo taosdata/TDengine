@@ -55,18 +55,18 @@
         </el-form-item>
       </template>
       <el-form-item
-        v-if="parttion && level == 1"
-        prop="parttionSet"
-        :label="t('stream.parttionSet')"
+        v-if="partition && level == 1"
+        prop="partitionSet"
+        :label="t('stream.partitionSet')"
         :required="formData.window_type == 'STATE'"
       >
         <el-select
-          v-model="formData.parttionSet"
+          v-model="formData.partitionSet"
           multiple
           class="w-full"
           placeholder=""
           :disabled="!formData.stbName"
-          @change="parttionChange"
+          @change="partitionChange"
         >
           <el-option v-for="item in partitionList" :key="item.field" :value="item.field"></el-option>
         </el-select>
@@ -93,7 +93,7 @@ const props = withDefaults(
     modelValue: SubqueryValue;
     level?: number;
     fieldSet?: boolean;
-    parttion?: boolean;
+    partition?: boolean;
     windowClause?: boolean;
     avgFn?: boolean;
   }>(),
@@ -116,7 +116,7 @@ const props = withDefaults(
       label: t('stb.stable'),
       filed: 'stbName'
     }),
-    parttion: false,
+    partition: false,
     windowClause: false,
     avgFn: false
   }
@@ -168,9 +168,9 @@ watch(
   () => props.level,
   () => {
     if (props.level == 1) {
-      formData.value.parttionSet = ['tbname'];
+      formData.value.partitionSet = ['tbname'];
     } else {
-      formData.value.parttionSet = [];
+      formData.value.partitionSet = [];
     }
   }
 );
@@ -187,10 +187,10 @@ function dbChange(val: string) {
   formData.value.tbName = '';
   emits('db-change', val);
 }
-function parttionChange(val: string[]) {
+function partitionChange(val: string[]) {
   if (formData.value.window_type == 'STATE') {
     if (!val.includes('tbname')) {
-      formData.value.parttionSet = ['tbname', ...val];
+      formData.value.partitionSet = ['tbname', ...val];
       ElMessageBox.alert(t('stream.partitionByTip', t('status.warning')));
     }
   }
@@ -249,12 +249,12 @@ function generateSql() {
       const fnList: TDFnType[] = item.fnList || [];
       const currentFn = fnList.find(ite => ite.label == result.fn);
       const currentFnFilters: Recordable[] = currentFn?.filters || [];
-      let otherParmas = item.field;
+      let otherParams = item.field;
       if (currentFnFilters.length) {
         if (currentFn?.composeFn) {
-          otherParmas = currentFn.composeFn(item.field, result.params);
+          otherParams = currentFn.composeFn(item.field, result.params);
         } else {
-          otherParmas = currentFnFilters
+          otherParams = currentFnFilters
             .reduce(
               (pre, { field }: Recordable) => {
                 const value: string[] = result.params[field];
@@ -272,7 +272,7 @@ function generateSql() {
             .join(',');
         }
       }
-      resultSet.push(`${result.fn}(${otherParmas})`);
+      resultSet.push(`${result.fn}(${otherParams})`);
     } else if (!props.avgFn) {
       resultSet.push(item.field);
     } else if (tags.value.find(tag => tag.field === item.name)) {

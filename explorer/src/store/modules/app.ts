@@ -36,13 +36,13 @@ const state = {
   agentDialog: false,
   transformExtractParseData: null,
   transformerFilterParseData: null,
-  transformerMapCloumns: null,
+  transformerMapColumns: null,
   transformerParserData: null,
   transformColumnIdentify: [],
   transformEchoMapData: null,
   csvTransformerParser: null,
   csvTransformerlocalCols: [], //csv无头部时候的自定义列
-  splitExpresList: null, //transformer的split
+  splitExpressionList: null, //transformer的split
   mappingjoin: '', //mapping时候映射值是join时候的
   definitions: [],
   topParse: null,
@@ -63,7 +63,7 @@ const state = {
   limitOffset: 5,
   showSystemMes: false, // 辅助判断是否展示联系团队的弹框
   validOpcFileRes: { valid: true },
-  stbDefaultColumns: [], // transfrom 创建超级表时默认的列
+  stbDefaultColumns: [], // transform 创建超级表时默认的列
   configData: [],
   activeName: 'datasource',
   viaId: null // 点击数据源列表中的agent
@@ -142,7 +142,7 @@ const mutations = {
     state.mappingjoin = data;
   },
   SET_SPLIT_EXPRESS: (state, data) => {
-    state.splitExpresList = data;
+    state.splitExpressionList = data;
   },
   SET_CSV_LOCAL_COLS: (state, data) => {
     state.csvTransformerlocalCols = data;
@@ -166,7 +166,7 @@ const mutations = {
     state.transformerParserData = data;
   },
   SET_TRANSFORMER_MAPCOLUMNS: (state, data) => {
-    state.transformerMapCloumns = data;
+    state.transformerMapColumns = data;
   },
   SET_AGENT_DIALOG: (state, data) => {
     state.agentDialog = data;

@@ -11,7 +11,7 @@ use std::{
 use anyhow::Context;
 use archive::ArchiveType;
 use arrow::array::{Array, RecordBatch, StringArray, TimestampNanosecondArray};
-use arrow_schema::{ArrowError, Field};
+use arrow_schema::ArrowError;
 use async_backtrace::framed;
 use chrono::Utc;
 use flume::Sender;
@@ -34,11 +34,13 @@ use tracing::{error, info, instrument, trace, Instrument};
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     plugins::transform::{
-        get_primary_timestamp_ns, parse::ArrayForTaos, MessageArrowRecords, MessageTableMeta,
+        get_primary_timestamp_ns, parse::ArrayForTaos, ConcatBatches, MessageArrowRecords,
+        MessageTableMeta,
     },
     sink::{
         consume_flat_record, persist::get_stream, process_archive, process_cache,
         transform::handling_strategy::HandlingResult, DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+        LARGE_RECORD_LEN,
     },
     utils::{
         sql::{
@@ -437,7 +439,7 @@ pub async fn flat_write_with_sql(
     _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the success
     macro_rules! metrics_success {
@@ -471,8 +473,7 @@ pub async fn flat_write_with_sql(
     let db_name = match get_database(pool, taos, DEFAULT_MAX_RETRIES_FOR_CONNECTION, cancel).await {
         Ok(db) => Some(db),
         Err(err) => {
-            return match handling_database_not_exist(global, messages, err, archive_tx.clone())
-                .await
+            return match handling_database_not_exist(global, &groups, err, archive_tx.clone()).await
             {
                 Ok(_) => Ok(0),
                 Err(e) => Err(e),
@@ -506,7 +507,6 @@ pub async fn flat_write_with_sql(
                 match write_stable_with_sql(pool, taos, qid.get(), &records, cancel).await {
                     Ok(n) => {
                         trace!(stable, rows = n, "write stable success");
-
                         count += n;
                         metrics_success!(n, cols);
 
@@ -529,7 +529,11 @@ pub async fn flat_write_with_sql(
                                         break;
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
-                                        for batch in records.batches {
+                                        if let Some(batch) = records
+                                            .batches
+                                            .concat_batches()
+                                            .context("concat archive invalid column error")?
+                                        {
                                             if let Err(e) =
                                                 process_archive(&err, &batch, archive_tx.clone())
                                                     .await
@@ -618,7 +622,11 @@ pub async fn flat_write_with_sql(
                                         break;
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
-                                        for batch in records.batches {
+                                        if let Some(batch) = records
+                                            .batches
+                                            .concat_batches()
+                                            .context("concat archive table not exits error")?
+                                        {
                                             if let Err(e) =
                                                 process_archive(&err, &batch, archive_tx.clone())
                                                     .await
@@ -839,7 +847,11 @@ pub async fn flat_write_with_sql(
                                         break;
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
-                                        for batch in records.batches {
+                                        if let Some(batch) = records
+                                            .batches
+                                            .concat_batches()
+                                            .context("concat archive db not exits error")?
+                                        {
                                             if let Err(e) =
                                                 process_archive(&err, &batch, archive_tx.clone())
                                                     .await
@@ -891,41 +903,45 @@ async fn handle_primary_timestamp_null_and_rewrite(
     stable: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<bool> {
-    let mut success = true;
-    // loop the batches
-    for batch in batches {
-        let all_fields: Vec<&Arc<Field>> = batch.schema_ref().fields().iter().collect();
-        let field_name = all_fields[0].name();
-
-        let time_array: Vec<_> = (0..batch.num_rows())
-            .map(
-                |row| match get_primary_timestamp_ns(field_name, batch.column(0), row) {
-                    Ok(Some(ts)) => Some(ts),
-                    _ => Utc::now().timestamp_nanos_opt(),
-                },
-            )
-            .collect();
-        let col_new = Arc::new(TimestampNanosecondArray::from(time_array.clone()));
-
-        // handling the abnormal
-        match global
-            .process_on_abnormal
-            .primary_timestamp_null
-            .handle(format!("{err:?}"))
-        {
-            Ok((HandlingResult::Skip, _)) => {
-                success = false;
-            }
-            Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(&err, batch, archive_tx.clone()).await;
+    // handling the abnormal
+    match global
+        .process_on_abnormal
+        .primary_timestamp_null
+        .handle(format!("{err:?}"))
+    {
+        Ok((HandlingResult::Skip, _)) => Ok(false),
+        Ok((HandlingResult::Archive, err)) => {
+            if let Some(batch) = batches
+                .concat_batches()
+                .context("concat archive primary timestamp null error")?
+            {
+                let res = process_archive(&err, &batch, archive_tx.clone()).await;
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
-                success = false;
             }
-            Ok((HandlingResult::Modify(_), _)) => {
+            Ok(false)
+        }
+        Ok((HandlingResult::Modify(_), _)) => {
+            let mut success = true;
+            // loop the batches
+            for batch in batches {
+                let Some(field_name) = batch.schema_ref().fields().first().map(|f| f.name()) else {
+                    continue;
+                };
+
+                let time_array: Vec<_> = (0..batch.num_rows())
+                    .map(
+                        |row| match get_primary_timestamp_ns(field_name, batch.column(0), row) {
+                            Ok(Some(ts)) => Some(ts),
+                            _ => Utc::now().timestamp_nanos_opt(),
+                        },
+                    )
+                    .collect();
+                let col_new = Arc::new(TimestampNanosecondArray::from(time_array.clone()));
+
                 // modify and rewrite
                 if let Err(e) = modify_batch_and_rewrite(
                     pool,
@@ -949,18 +965,11 @@ async fn handle_primary_timestamp_null_and_rewrite(
                     success = false;
                 }
             }
-            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-            Ok((HandlingResult::Retry, _)) => unreachable!(),
-            Err(e) => {
-                return Err(e);
-            }
-        };
-    }
-
-    if success {
-        Ok(true)
-    } else {
-        Ok(false)
+            Ok(success)
+        }
+        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+        Ok((HandlingResult::Retry, _)) => unreachable!(),
+        Err(e) => Err(e),
     }
 }
 
@@ -980,7 +989,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // get the length of the field
@@ -1015,8 +1024,11 @@ async fn handle_field_length_overflow_and_rewrite(
                 success = false;
             }
             Ok((HandlingResult::Archive, err)) => {
-                for batch in batches {
-                    let res = process_archive(&err, batch, archive_tx.clone()).await;
+                if let Some(batch) = batches
+                    .concat_batches()
+                    .context("concat archive field length overflow error")?
+                {
+                    let res = process_archive(&err, &batch, archive_tx.clone()).await;
                     if let Err(e) = res {
                         tracing::error!("archive error: {e:#}");
                     }
@@ -1071,8 +1083,11 @@ async fn handle_field_length_overflow_and_rewrite(
                     success = false;
                 }
                 // archive
-                for batch in batches {
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
+                if let Some(batch) = batches
+                    .concat_batches()
+                    .context("concat archive field length overflow error")?
+                {
+                    if let Err(e) = process_archive(&err, &batch, archive_tx.clone()).await {
                         tracing::error!("archive error: {e:#}");
                     }
                 }
@@ -1083,9 +1098,10 @@ async fn handle_field_length_overflow_and_rewrite(
             }
         };
     } else {
+        let mut is_archive = false;
+        let mut err_msg = format!("{err:?}");
         // loop and modify the batches
         for batch in batches {
-            let archive_tx = archive_tx.clone();
             let field_values = batch
                 .column_by_name(field)
                 .unwrap()
@@ -1112,11 +1128,10 @@ async fn handle_field_length_overflow_and_rewrite(
                     success = false;
                 }
                 Ok((HandlingResult::Archive, err)) => {
-                    let res = process_archive(&err, batch, archive_tx.clone()).await;
-                    if let Err(e) = res {
-                        tracing::error!("archive error: {e:#}");
-                    }
                     success = false;
+                    is_archive = true;
+                    err_msg = err;
+                    break;
                 }
                 Ok((HandlingResult::Modify(values), _)) => {
                     let col_new = Arc::new(StringArray::from(values));
@@ -1168,9 +1183,8 @@ async fn handle_field_length_overflow_and_rewrite(
                         success = false;
                     }
                     // archive
-                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
-                        tracing::error!("archive error: {e:#}");
-                    }
+                    is_archive = true;
+                    err_msg = err;
                 }
                 Ok((HandlingResult::Retry, _)) => unreachable!(),
                 Err(e) => {
@@ -1178,12 +1192,18 @@ async fn handle_field_length_overflow_and_rewrite(
                 }
             };
         }
+        if is_archive {
+            if let Some(batch) = batches
+                .concat_batches()
+                .context("concat archive field length overflow error")?
+            {
+                if let Err(e) = process_archive(&err_msg, &batch, archive_tx.clone()).await {
+                    tracing::error!("archive error: {e:#}");
+                }
+            }
+        }
     }
-    if success {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    Ok(success)
 }
 
 async fn modify_meta_and_rewrite(
@@ -1297,7 +1317,7 @@ async fn handle_ingesting_error(
     global: &TableOptions,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -1308,8 +1328,11 @@ async fn handle_ingesting_error(
             // do nothing
         }
         Ok((HandlingResult::Archive, err)) => {
-            for batch in batches {
-                if let Err(e) = process_archive(&err, batch, archive_tx.clone()).await {
+            if let Some(batch) = batches
+                .concat_batches()
+                .context("concat invalid archive columns error")?
+            {
+                if let Err(e) = process_archive(&err, &batch, archive_tx.clone()).await {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -1336,7 +1359,7 @@ pub async fn flat_write_with_raw_block(
     notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the error
     macro_rules! metrics_failed {
@@ -1451,7 +1474,9 @@ pub async fn flat_write_with_raw_block(
                                                 max_lengths.insert(name.to_string(), length);
                                             }
                                             Err(err) => {
-                                                tracing::warn!("alter column failed: {err:#}");
+                                                tracing::warn!(
+                                                    "alter column failed: {err:#}, sql: {sql}"
+                                                );
                                             }
                                         }
                                         continue;
@@ -1892,7 +1917,9 @@ pub async fn flat_write_with_raw_block(
                             // do nothing, continue the below codes
                         }
                         Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                        Ok((HandlingResult::Retry, _)) => unreachable!(),
+                        Ok((HandlingResult::Retry, _)) => {
+                            // do nothing, continue the below codes
+                        }
                         Err(e) => {
                             metrics_failed!(raw);
                             return Err(e)?;
@@ -2077,9 +2104,9 @@ pub async fn flat_write_with_raw_block(
 
 pub async fn handling_database_not_exist(
     global: &TableOptions,
-    messages: &[MessageArrowRecords],
+    sptb_groups: &HashMap<Option<String>, Vec<&MessageArrowRecords>>,
     err: taos::Error,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -2090,9 +2117,15 @@ pub async fn handling_database_not_exist(
             // do nothing
         }
         Ok((HandlingResult::Archive, err)) => {
-            for batch in messages
+            for batch in sptb_groups
                 .iter()
-                .map(|m: &MessageArrowRecords| m.records.clone())
+                .filter_map(|(_, tbs)| match tbs.concat_batches() {
+                    Ok(v) => v,
+                    Err(err) => {
+                        tracing::error!("concat archive db not exists error: {err:?}");
+                        None
+                    }
+                })
             {
                 if let Err(e) = process_archive(&err, &batch, archive_tx.clone()).await {
                     tracing::error!("archive error: {e:#}");
@@ -2106,6 +2139,85 @@ pub async fn handling_database_not_exist(
     }
 
     Ok(())
+}
+
+const MAX_ALLOWED_BLOB_LEN: usize = 8 * 1024 * 1024;
+pub async fn handle_sql_too_long(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    target_precision: taos::Precision,
+    messages: Vec<MessageArrowRecords>,
+    metrics: &IpcMetrics,
+    _notifier: Option<&crate::TaskNotifySender>,
+    cancel: &CancellationToken,
+    parser: &Parser,
+    archive_tx: Option<Sender<ArchiveType>>,
+    qid: &mut Qid,
+    max_lengths: &mut HashMap<String, usize>,
+) -> anyhow::Result<usize> {
+    qid.add_sub_batch_id();
+
+    tracing::debug!("some records too long, need to filter them out");
+    let rows: usize = messages.iter().map(|m| m.records.num_rows()).sum();
+    let messages = messages
+        .into_iter()
+        .flat_map(|item| item.drop_above_blob_limit(MAX_ALLOWED_BLOB_LEN))
+        .collect::<Vec<_>>();
+
+    let rows_after: usize = messages.iter().map(|m| m.records.num_rows()).sum();
+    let filtered = rows - rows_after;
+    tracing::info!(
+        rows,
+        filtered,
+        after = rows_after,
+        "Filter out records in sql to long"
+    );
+    metrics.add_drained_rows(filtered as _);
+
+    if messages.is_empty() {
+        return Ok(0);
+    }
+
+    let has_large_record = messages
+        .iter()
+        .any(|m| m.has_large_record(LARGE_RECORD_LEN));
+    let factor = messages
+        .iter()
+        .map(|message| message.records.num_rows())
+        .sum::<usize>()
+        / messages.len();
+    let success_n = if factor < 200 && !has_large_record {
+        flat_write_with_sql(
+            pool,
+            taos,
+            target_precision,
+            &messages,
+            metrics,
+            _notifier,
+            cancel,
+            parser.global(),
+            archive_tx.clone(),
+        )
+        .in_current_span()
+        .await
+    } else {
+        flat_write_with_raw_block(
+            pool,
+            taos,
+            max_lengths,
+            parser,
+            target_precision,
+            &messages,
+            metrics,
+            _notifier,
+            cancel,
+            parser.global(),
+            archive_tx.clone(),
+        )
+        .in_current_span()
+        .await
+    }?;
+    Ok(success_n)
 }
 
 pub type FlatItem = (
@@ -2131,7 +2243,7 @@ impl FlatSink {
         metrics_arc: Arc<CoreMetrics>,
         notifier: crate::TaskNotifySender,
         cancel: CancellationToken,
-        archive_tx: Sender<ArchiveType>,
+        archive_tx: Option<Sender<ArchiveType>>,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -2166,18 +2278,21 @@ impl FlatSink {
                         let mut max_lengths = HashMap::new();
                         let mut total = 0;
                         loop {
-                            let (mut messages, qid, sender): FlatItem = rx.recv_async().await?;
+                            let (mut messages, mut qid, sender): FlatItem = rx.recv_async().await?;
                             taoslog::utils::Span.set_qid(&qid);
                             if messages.is_empty() {
                                 continue;
                             }
+                            let has_large_record = messages
+                                .iter()
+                                .any(|m| m.has_large_record(LARGE_RECORD_LEN));
                             let num_of_rows = messages
                                 .iter()
                                 .map(|message| message.records.num_rows())
                                 .sum::<usize>();
                             let factor = num_of_rows / messages.len();
 
-                            let res = if factor < 200 {
+                            let res = if factor < 200 && !has_large_record {
                                 flat_write_with_sql(
                                     &pool,
                                     &mut taos,
@@ -2271,7 +2386,7 @@ impl FlatSink {
                                             .map(|message| message.records.num_rows())
                                             .sum::<usize>()
                                             / messages.len();
-                                        let written = if factor < 200 {
+                                        let written = if factor < 200 && !has_large_record {
                                             flat_write_with_sql(
                                                 &pool,
                                                 &mut taos,
@@ -2327,10 +2442,24 @@ impl FlatSink {
                                                 continue;
                                             }
                                             Ok((HandlingResult::Archive, err)) => {
-                                                for m in messages {
+                                                let tb_batches = messages
+                                                    .iter()
+                                                    .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()))
+                                                    .into_iter()
+                                                    .filter_map(|(_, tbs)| {
+                                                        match tbs.concat_batches() {
+                                                            Ok(v) => v,
+                                                            Err(err) => {
+                                                                tracing::error!("concat archive db connection error: {err:?}");
+                                                                None
+                                                            },
+                                                        }
+                                                    });
+
+                                                for batch in tb_batches {
                                                     if let Err(e) = process_archive(
                                                         &err,
-                                                        &m.records,
+                                                        &batch,
                                                         archive_tx.clone(),
                                                     )
                                                     .await
@@ -2358,6 +2487,33 @@ impl FlatSink {
                                             Err(e) => {
                                                 return Err(e)?;
                                             }
+                                        }
+                                    } else if errstr.contains("SQL statement too long") {
+                                        let written = handle_sql_too_long(
+                                            &pool,
+                                            &mut taos,
+                                            target_precision,
+                                            messages,
+                                            metrics,
+                                            Some(&notifier),
+                                            &cancel,
+                                            parser.as_ref(),
+                                            archive_tx.clone(),
+                                            &mut qid,
+                                            &mut max_lengths,
+                                        )
+                                        .await?;
+                                        total += written;
+                                        metrics.add_processed_rows(num_of_rows as u64);
+                                        tracing::debug!(
+                                            count = total,
+                                            written,
+                                            "flat write in sink worker"
+                                        );
+                                        if let Err(e) = sender.send(written) {
+                                            tracing::warn!(
+                                                "oneshot send written count failed: {e:#}"
+                                            );
                                         }
                                     } else {
                                         return Err(err);
@@ -2464,7 +2620,7 @@ async fn consume_flat_record_with_sink(
     batch: &RecordBatch,
     count: &mut usize,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let batch = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
 
@@ -2492,7 +2648,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2679,7 +2835,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2822,7 +2978,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Option<Sender<ArchiveType>>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
@@ -3094,7 +3250,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     tracing::error!("flat task exit with error: {e:#}");
                 }
                 Err(e) => {
-                    tracing::error!("flat task paniced: {e:#}");
+                    tracing::error!("flat task panicked: {e:#}");
                 }
             }
         }
@@ -3122,13 +3278,17 @@ pub mod tests {
     use super::*;
 
     use arrow::array::*;
-    use arrow_schema::{Field, FieldRef, Schema};
+    use arrow_schema::{DataType, Field, FieldRef, Schema};
     use serde_json::json;
-    use taos::AsyncTBuilder;
+    use taos::{AsyncTBuilder, IntoDsn};
     use taosx_ipc::prelude::IpcDataType;
     use IpcDataType::*;
 
-    use crate::{plugins::transform::MessageTableMeta, sink::transform::STable};
+    use crate::{
+        core_metrics::insert_metrics,
+        plugins::transform::{handling_strategy::HandlingTableNotExist, MessageTableMeta},
+        sink::transform::STable,
+    };
 
     pub struct STableMessagesBuilder {
         /// The stable name of the table, if not set, use ordinary table instead.
@@ -3233,6 +3393,13 @@ pub mod tests {
                 Arc::new(builder.finish())
             }
             VarBinary(_) => {
+                let mut builder = StringBuilder::new();
+                for _ in 0..len {
+                    builder.append_value("\\x0102030405060708090a0b0c0d0e0f10");
+                }
+                Arc::new(builder.finish())
+            }
+            Blob => {
                 let mut builder = StringBuilder::new();
                 for _ in 0..len {
                     builder.append_value("\\x0102030405060708090a0b0c0d0e0f10");
@@ -3460,7 +3627,7 @@ pub mod tests {
             None,
             &CancellationToken::new(),
             &TableOptions::default(),
-            tx.clone(),
+            Some(tx.clone()),
         )
         .await?;
 
@@ -3546,5 +3713,223 @@ pub mod tests {
         assert_eq!(records[0].tables, 2);
         assert_eq!(records[0].records, 4);
         assert_eq!(records[0].batches[0].num_rows(), 2);
+    }
+
+    #[tokio::test]
+    pub async fn test_handle_sql_too_long_with_taos() -> anyhow::Result<()> {
+        // let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+
+        // prepare
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let to = format!("taos://{host}/");
+
+        let pool = {
+            let builder = TaosBuilder::from_dsn(to.into_dsn()?)?;
+            let mut pool_config = builder.default_pool_config();
+            pool_config.timeouts.wait = Some(Duration::from_secs(15));
+            builder.with_pool_config(pool_config)?
+        };
+        let taos = pool.get().await?;
+
+        let db = "test_sql_too_long";
+        taos.exec_many([
+            format!("drop database if exists `{db}`"),
+            format!("create database `{db}`"),
+            format!("use {db}"),
+        ])
+        .await?;
+        let mut taos = Some(taos);
+
+        let task_id: i64 = 999;
+        let target_precision = taos::Precision::Millisecond;
+
+        let stable = String::from("taosx_task_t1");
+        let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(stable, task_id, None)));
+        insert_metrics(task_id, metrics.clone()).await;
+
+        let cancel = CancellationToken::new();
+
+        let (archive_tx, archive_rx) = flume::bounded(0);
+        drop(archive_rx);
+
+        let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
+        let mut max_lengths = HashMap::new();
+
+        let config = r#"{
+            "global": {
+                "database_connection_error": "break"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+
+        let batch = gen_record_batch(12 * 1024 * 1024)?;
+
+        let using = Some(Arc::new(STable::Name("meters".into())));
+        let tags = Some(Arc::new(arrow::array::record_batch!(
+            ("groupid", Int32, [3]),
+            ("location", Utf8, ["AK"])
+        )?));
+        let stable_meta = MessageTableMeta {
+            name: Arc::new("t3".into()),
+            using,
+            tags,
+        };
+        let opts = Arc::new(TableOptions::default());
+
+        let messages = vec![MessageArrowRecords {
+            table: stable_meta,
+            records: batch,
+            opts,
+        }];
+
+        // test
+        let success_n = handle_sql_too_long(
+            &pool,
+            &mut taos,
+            target_precision,
+            messages,
+            metrics.ipc(),
+            None,
+            &cancel,
+            &parser,
+            Some(archive_tx.clone()),
+            &mut qid,
+            &mut max_lengths,
+        )
+        .await?;
+
+        println!("success insert rows: {success_n}");
+        assert_eq!(success_n, 1);
+
+        taos.as_ref()
+            .unwrap()
+            .exec(format!("drop database if exists `{db}`"))
+            .await?;
+
+        Ok(())
+    }
+
+    pub fn build_schema() -> Schema {
+        let mut metadata = HashMap::new();
+        metadata.insert(String::from("version"), String::from("1.0"));
+        metadata.insert(String::from("stream"), String::from("flat"));
+        metadata.insert(String::from("ack"), String::from("lush"));
+        let flat_columns = vec![
+            arrow::datatypes::Field::new(
+                "ts",
+                DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
+                false,
+            ),
+            arrow::datatypes::Field::new("id", DataType::Int32, false),
+            arrow::datatypes::Field::new("voltage", DataType::Float32, true),
+            arrow::datatypes::Field::new("v_blob", DataType::LargeBinary, true),
+            // arrow::datatypes::Field::new("groupid", DataType::Int32, true),
+            // arrow::datatypes::Field::new("location", DataType::Utf8, true),
+        ];
+
+        Schema::new(flat_columns).with_metadata(metadata)
+    }
+
+    pub fn gen_record_batch(n: usize) -> anyhow::Result<RecordBatch> {
+        let schema = build_schema();
+
+        let mut timestamp = TimestampMillisecondBuilder::new();
+        timestamp.append_value(chrono::Utc::now().timestamp_millis());
+        timestamp.append_value(chrono::Utc::now().timestamp_millis() + 1);
+        let mut id = Int32Builder::new();
+        id.append_value(1);
+        id.append_value(2);
+        let mut voltage = Float32Builder::new();
+        voltage.append_value(3.3);
+        voltage.append_value(7.3);
+        let mut v_blob = LargeBinaryBuilder::new();
+        v_blob.append_value(b"9".repeat(10));
+        v_blob.append_value(b"8".repeat(n));
+
+        let batch = RecordBatch::try_new(
+            Arc::new(schema),
+            vec![
+                Arc::new(timestamp.finish()),
+                Arc::new(id.finish()),
+                Arc::new(voltage.finish()),
+                Arc::new(v_blob.finish()),
+            ],
+        )?;
+
+        Ok(batch)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_archive_td38264() -> anyhow::Result<()> {
+        tracing_subscriber::fmt()
+            .with_level(true)
+            .with_file(true)
+            .with_max_level(tracing::Level::DEBUG)
+            .pretty()
+            .init();
+        let builder = STableMessagesBuilder::new()
+            .stable("meters")
+            .table_num(10)
+            .table_prefix("tb_")
+            .table_suffix("_suffix")
+            .column_names(vec!["v"])
+            .table_num(10)
+            .string_repeats(12);
+        let messages1 = builder.build();
+
+        let builder = STableMessagesBuilder::new()
+            .stable("meters")
+            .table_num(3)
+            .table_prefix("tb_")
+            .table_suffix("_suffix")
+            .column_names(vec!["v"])
+            .table_num(5)
+            .string_repeats(2);
+        let messages2 = builder.build();
+
+        // messages2.iter_mut().for_each(|m| {
+        //     println!("message2: {:?}", m.records.schema());
+        //     m.records.remove_column(1);
+        // });
+
+        let mut messages = vec![];
+        messages.extend(messages1);
+        messages.extend(messages2);
+
+        let dsn = std::env::var("TEST_TAOS_DSN").unwrap_or("taos+ws://localhost:6041".to_string());
+        let pool = TaosBuilder::from_dsn(&dsn)?.pool()?;
+
+        let mut taos = Some(pool.get().await?);
+
+        let (tx, rx) = flume::bounded(0);
+        tokio::spawn(async move {
+            while let Ok(ArchiveType::Archive(batch)) = rx.recv_async().await {
+                assert_eq!(batch.num_rows(), 125);
+            }
+        });
+
+        let metrics = IpcMetrics::default();
+        let mut table_opts = TableOptions::default();
+        table_opts.process_on_abnormal.table_not_exist = HandlingTableNotExist::Retry;
+        flat_write_with_sql(
+            &pool,
+            &mut taos,
+            taos::Precision::Millisecond,
+            &messages,
+            &metrics,
+            None,
+            &CancellationToken::new(),
+            &table_opts,
+            Some(tx),
+        )
+        .await?;
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        Ok(())
     }
 }

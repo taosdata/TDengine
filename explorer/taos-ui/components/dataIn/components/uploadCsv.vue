@@ -26,7 +26,7 @@
             size="default"
             plain
             icon="Upload"
-            type="primary"
+            :type="dataInProps.isIdmp ? 'default' : 'primary'"
             :disabled="dataInProps.isCommunity || disabled"
             >{{ btnText || t('dataIn.selectFile') }}</el-button
           >

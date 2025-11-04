@@ -39,8 +39,8 @@ impl ColumnMeta {
             // 大文本
             OracleType::CLOB => Ok(IpcDataType::NChar(50)),
             OracleType::NCLOB => Ok(IpcDataType::NChar(50)),
-            OracleType::BLOB => Ok(IpcDataType::NChar(50)),
-            OracleType::BFILE => Ok(IpcDataType::NChar(50)),
+            OracleType::BLOB => Ok(IpcDataType::Blob),
+            OracleType::BFILE => Ok(IpcDataType::Blob),
             OracleType::RefCursor => Ok(IpcDataType::NChar(50)),
             OracleType::Boolean => Ok(IpcDataType::NChar(50)),
             OracleType::Object(_) => Ok(IpcDataType::NChar(50)),
@@ -82,14 +82,15 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         // 大文本
         OracleType::CLOB => Ok(DataType::Utf8),
         OracleType::NCLOB => Ok(DataType::Utf8),
-        OracleType::BLOB => Ok(DataType::Utf8),
-        OracleType::BFILE => Ok(DataType::Utf8),
         OracleType::RefCursor => Ok(DataType::Utf8),
         OracleType::Boolean => Ok(DataType::Utf8),
         OracleType::Object(_) => Ok(DataType::Utf8),
         OracleType::Long => Ok(DataType::Utf8),
         OracleType::Json => Ok(DataType::Utf8),
         OracleType::Xml => Ok(DataType::Utf8),
+        // blob
+        OracleType::BLOB => Ok(DataType::LargeBinary),
+        OracleType::BFILE => Ok(DataType::LargeBinary),
         // 字节数组
         OracleType::Raw(_) => Ok(DataType::Binary),
         OracleType::LongRaw => Ok(DataType::Binary),
@@ -189,11 +190,11 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::BLOB).unwrap(),
-            DataType::Utf8
+            DataType::LargeBinary
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::BFILE).unwrap(),
-            DataType::Utf8
+            DataType::LargeBinary
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::RefCursor).unwrap(),

@@ -93,7 +93,7 @@ function searchBucket(params: Recordable) {
         return {
           label: item,
           value: item,
-          chidlren: data[item].map((ite: any) => ({ label: ite, value: ite }))
+          children: data[item].map((ite: any) => ({ label: ite, value: ite }))
         };
       });
       if (!bucketList.value.some(item => item.value === localData[props.config.field])) {
@@ -128,7 +128,7 @@ function searchMetrics(params: Recordable) {
     });
 }
 function change(val: string) {
-  const measurementsOptions = bucketList.value.find(item => item.value === val)?.chidlren ?? [];
+  const measurementsOptions = bucketList.value.find(item => item.value === val)?.children ?? [];
   measurementConfig.value.options = measurementsOptions;
   if (!measurementsOptions.some((item: any) => item.value === localData.measurements)) {
     localData.measurements = '';

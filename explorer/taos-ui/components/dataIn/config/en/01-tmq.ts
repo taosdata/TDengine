@@ -330,9 +330,9 @@ export default {
           max: 1000000000
         },
         {
-          label: 'Commit Inerval(ms)',
+          label: 'Commit Interval(ms)',
           field: 'commit.interval.ms',
-          description: 'Commit Inerval(ms)',
+          description: 'Commit Interval(ms)',
           defaultValue: '0',
           required: false,
           hint: {

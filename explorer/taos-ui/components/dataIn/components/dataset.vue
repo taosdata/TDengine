@@ -9,7 +9,7 @@
           v-if="!isOpcDsnValid"
           size="default"
           plain
-          type="primary"
+          :type="dataInProps.isIdmp ? 'default' : 'primary'"
           icon="Upload"
           :disabled="dataInProps.isCommunity"
           @click="handleBeforeUpload"
@@ -53,14 +53,19 @@
           </div>
         </a>
       </el-tooltip>
-      <el-button v-if="isShowAddOpcPoint" type="primary" size="small" class="ml15" @click="handleOpcPoint">{{
-        t('dataIn.addOpcPoint')
-      }}</el-button>
+      <el-button
+        v-if="isShowAddOpcPoint"
+        :type="dataInProps.isIdmp ? 'default' : 'primary'"
+        size="small"
+        class="ml15"
+        @click="handleOpcPoint"
+        >{{ t('dataIn.addOpcPoint') }}</el-button
+      >
       <el-button
         v-if="modelValue"
         :loading="loading"
         :disabled="loading"
-        type="primary"
+        :type="dataInProps.isIdmp ? 'default' : 'primary'"
         size="small"
         class="ml15"
         @click="search"

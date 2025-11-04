@@ -114,6 +114,9 @@ function handleSeriesChange() {
       type: chartForm.chartType,
       name: seriesName[index],
       data: sqlExecResult.data.map(ite => {
+        if (typeof ite[item] === 'string') {
+          return [ite[chartForm.label], ite[item]];
+        }
         const bignumber = JSONBig.stringify(ite[item]);
         if (bignumber) {
           return [ite[chartForm.label], bignumber];

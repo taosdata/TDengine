@@ -390,7 +390,7 @@ pub async fn process_metrics(
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
     }
     if monitor_enabled {
-        // task summeries
+        // task summaries
         let (running_tasks, completed_tasks, failed_tasks) =
             controller.get_task_summaries(monitor_interval).await;
         gauge!("running_tasks", &labels).set(running_tasks as f64);

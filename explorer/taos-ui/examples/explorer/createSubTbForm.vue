@@ -24,7 +24,7 @@ const props: Props = {
       }
     ]
   },
-  reqeustApi: (data: Recordable, dbName: string) =>
+  requestApi: (data: Recordable, dbName: string) =>
     new Promise((resolve: AnyFunction) => {
       console.log(data, dbName);
       resolve();

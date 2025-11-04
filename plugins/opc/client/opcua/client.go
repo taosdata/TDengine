@@ -52,6 +52,8 @@ type UAClient struct {
 	subIndex      int
 
 	reconnectMutex sync.Mutex
+
+	autoReconnect bool
 }
 
 type subscription struct {
@@ -115,6 +117,7 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, inde
 		maxMonitoredItemsPerCall: 0,
 		maxNodesPerRead:          0,
 		maxAge:                   maxAge,
+		autoReconnect:            connectConfig.GetAutoReconnect(),
 	}, nil
 }
 
@@ -183,6 +186,7 @@ func createUAConn(connectConfig config.UaConnectConfig) (*opcua.Client, error) {
 	}
 
 	opts = append(opts, opcua.SecurityFromEndpoint(serverEndpoint, authType))
+	opts = append(opts, opcua.AutoReconnect(connectConfig.GetAutoReconnect()))
 
 	return opcua.NewClient(connectConfig.Endpoint, opts...)
 }
@@ -489,6 +493,9 @@ func (c *UAClient) reconnect(oldConn *opcua.Client, err error) {
 	if err == nil {
 		return
 	}
+	if !c.autoReconnect {
+		c.logger.Fatal("reconnect disabled, skip reconnect, exit")
+	}
 	if _, ok := err.(*net.OpError); !ok {
 		return
 	}
@@ -692,8 +699,16 @@ func (s *subscription) handleSubCallback() {
 		}()
 		c := s.client
 		var readNameList []*nodeValue
+		connectStatusTicker := time.NewTicker(3 * time.Second)
 		for {
 			select {
+			case <-connectStatusTicker.C:
+				if c.autoReconnect {
+					continue
+				}
+				if c.conn.State() != opcua.Connected {
+					c.logger.Fatal("connection not connected, auto reconnect disabled, exit")
+				}
 			case <-c.ctx.Done():
 				c.logger.Info("context done,handleSubCallback exit")
 				return

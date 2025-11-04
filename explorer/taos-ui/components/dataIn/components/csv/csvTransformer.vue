@@ -8,8 +8,27 @@
           :disabled="state.isModifying && !isAddable && localData.currentTab == 'monitor_file_directory'"
         >
           <div style="margin-bottom: 20px">
-            <el-form ref="fileformRef" :model="localData.upload_csv_file" :rules="fileRules">
+            <el-form
+              ref="fileformRef"
+              :model="localData.upload_csv_file"
+              :rules="fileRules"
+              label-width="240px"
+              label-position="left"
+            >
               <el-form-item prop="file_url">
+                <template #label>
+                  <el-tooltip placement="top" effect="light" :open-delay="0">
+                    <template #content>
+                      <DocsContent :content="t('dataIn.csvSelectFilesTip')" />
+                    </template>
+                    <span>
+                      <span>{{ t('dataIn.csvSelectFiles') }}</span>
+                      <span style="margin-left: 1px">
+                        <Icon name="label_info" class="info-icon-custom"></Icon>
+                      </span>
+                    </span>
+                  </el-tooltip>
+                </template>
                 <div class="upload-file">
                   <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
                     <template #content>
@@ -19,6 +38,7 @@
                       ref="upload"
                       class="upload-demo"
                       accept=".csv"
+                      :label="t('dataIn.selectFile')"
                       :headers="uploadHeaders"
                       multiple
                       :on-remove="handleRemove"
@@ -34,7 +54,7 @@
                       <template #trigger>
                         <el-button
                           size="default"
-                          type="primary"
+                          :type="dataInProps.isIdmp ? 'default' : 'primary'"
                           plain
                           :disabled="dataInProps.isCommunity || state.isModifying"
                           >{{ t('dataIn.selectFile') }}</el-button
@@ -47,11 +67,22 @@
                   }}</span>
                 </div>
               </el-form-item>
-              <el-switch
-                v-model="localData.upload_csv_file.keep_processed_files"
-                :active-text="t('dataIn.keepProcessedFile')"
-              >
-              </el-switch>
+              <el-form-item prop="keep_processed_files" class="hidden-required">
+                <template #label>
+                  <el-tooltip placement="top" effect="light" :open-delay="0">
+                    <template #content>
+                      <DocsContent :content="t('dataIn.csvKeepProcessedFileDesc')" />
+                    </template>
+                    <span>
+                      <span>{{ t('dataIn.csvKeepProcessedFile') }}</span>
+                      <span style="margin-left: 1px">
+                        <Icon name="label_info" class="info-icon-custom"></Icon>
+                      </span>
+                    </span>
+                  </el-tooltip>
+                </template>
+                <el-switch v-model="localData.keep_processed_files"> </el-switch>
+              </el-form-item>
             </el-form>
           </div>
         </el-tab-pane>
@@ -155,6 +186,22 @@
               </el-input-number>
               <span style="margin-left: 10px">{{ t('dataIn.seconds') }}</span>
             </el-form-item>
+            <el-form-item prop="keep_processed_files" class="hidden-required">
+              <template #label>
+                <el-tooltip placement="top" effect="light" :open-delay="0">
+                  <template #content>
+                    <DocsContent :content="t('dataIn.csvKeepProcessedFileDesc')" />
+                  </template>
+                  <span>
+                    <span>{{ t('dataIn.csvKeepProcessedFile') }}</span>
+                    <span style="margin-left: 1px">
+                      <Icon name="label_info" class="info-icon-custom"></Icon>
+                    </span>
+                  </span>
+                </el-tooltip>
+              </template>
+              <el-switch v-model="localData.keep_processed_files"> </el-switch>
+            </el-form-item>
             <el-form-item prop="filesort" class="hidden-required">
               <template #label>
                 <el-tooltip placement="top" effect="light" :open-delay="0">
@@ -221,6 +268,7 @@ const props = defineProps<{
 const localData: any = reactive({
   currentTab: 'upload_csv_file',
   path: '',
+  keep_processed_files: false,
   monitor_file_directory: {
     file_url: '',
     file_pattern: '',
@@ -229,7 +277,6 @@ const localData: any = reactive({
     sort: '1'
   },
   upload_csv_file: {
-    keep_processed_files: false,
     file_url: ''
   }
 });
@@ -434,14 +481,9 @@ async function getCsvColumnsData() {
 
     const columns = result.file_header.column_names;
     const columnInObj: Recordable = {};
-    const columnRegexPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
     for (let i = 0; i < columns.length; i++) {
       if (columns[i] === '') {
         ElMessage.error(t('dataIn.transformer.emptyColumnName') + columns.join(', '));
-        return;
-      }
-      if (!columnRegexPattern.test(columns[i])) {
-        ElMessage.error(t('dataIn.transformer.invalidColumnName') + columns[i]);
         return;
       }
       if (columnInObj[columns[i]]) {
@@ -488,7 +530,7 @@ function formatCsvTransformerData(columns: string[], values: any[]) {
         value: ''
       };
     });
-    ((obj['columnname'] = ''), (obj['expression'] = ''), (obj['type'] = ''));
+    (obj['columnname'] = ''), (obj['expression'] = ''), (obj['type'] = '');
     state.extractArr.push(obj);
   });
   const csvTransformer = {

@@ -6,7 +6,7 @@ import { getDataInProps } from './useDataIn';
 // 1. 校验 form 表单
 // 2. 获取Ticket
 // 2. 检查数据是否准备完成checkReadyFile
-// 4. 最后根据 complate 将数据展示在右边
+// 4. 最后根据 complete 将数据展示在右边
 
 export default function () {
   const dataInProps = getDataInProps();

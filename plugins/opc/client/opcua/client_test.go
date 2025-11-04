@@ -128,9 +128,9 @@ func TestUAClient_Collect_Observer(t *testing.T) {
 		Ua: config.UaCollectConfig{
 			CollectMode: "observe",
 			Nodes: []config.NodeConfig{
-				{"ns=2;i=1001"},
-				{"ns=2;i=1002"},
-				{"ns=2;i=1003"},
+				{ID: "ns=2;i=1001"},
+				{ID: "ns=2;i=1002"},
+				{ID: "ns=2;i=1003"},
 			},
 		},
 	}

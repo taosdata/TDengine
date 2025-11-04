@@ -255,13 +255,13 @@ impl TD2TDFactors {
 
 /// td2td_history 输出的性能指标
 #[derive(Debug, Clone)]
-struct TD2TDHistryMetrics {
+struct TD2TDHistoryMetrics {
     write: BasicMetrics, // 写入的性能指标
     mig: BasicMetrics,   // 迁移的性能指标
     sys: SysMetrics,     // 系统负载
 }
 
-async fn run_td2td_history(params: TD2TDFactors) -> anyhow::Result<TD2TDHistryMetrics> {
+async fn run_td2td_history(params: TD2TDFactors) -> anyhow::Result<TD2TDHistoryMetrics> {
     let pool = connect_taos_pool(&params.taosd_params.host, params.taosd_params.ws_enable).await?;
 
     // create DB_SRC and DB_DST
@@ -278,7 +278,7 @@ async fn run_td2td_history(params: TD2TDFactors) -> anyhow::Result<TD2TDHistryMe
     .await?;
 
     let start = Utc::now().timestamp_millis() / 60000 * 60000;
-    // simuate write
+    // simulate write
     let sim: Simulation = Simulation {
         db: DB_SRC.to_string(),
         writers: std::thread::available_parallelism()
@@ -329,7 +329,7 @@ async fn run_td2td_history(params: TD2TDFactors) -> anyhow::Result<TD2TDHistryMe
     let total_rows = sim.tables * sim.rows_per_table;
     let rate = total_rows as f64 / time_cost;
 
-    Ok(TD2TDHistryMetrics {
+    Ok(TD2TDHistoryMetrics {
         write: write_metrics,
         mig: BasicMetrics {
             total_rows,

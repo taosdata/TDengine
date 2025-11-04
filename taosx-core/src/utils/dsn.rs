@@ -337,10 +337,22 @@ where
     T: std::str::FromStr,
     T::Err: std::error::Error + Send + Sync + 'static,
 {
-    dsn.get(key)
-        .filter(|v| !v.is_empty())
-        .map(|v| {
-            v.split(',')
+    Ok(dsn
+        .get(key)
+        .map(|v| parse_multiple_dsn_value(key, v))
+        .transpose()?
+        .flatten())
+}
+
+pub fn parse_multiple_dsn_value<T>(key: &str, value: &str) -> anyhow::Result<Option<Vec<T>>>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    (!value.is_empty())
+        .then(|| {
+            value
+                .split(',')
                 .map(|v| v.trim())
                 .filter(|v| !v.is_empty())
                 .map(|v| {

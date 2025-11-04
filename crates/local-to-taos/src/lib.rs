@@ -21,9 +21,12 @@ use conf::{LocalRestoreConfig, LocalRestoreConfigBuilder, PostAction};
 use file_watcher::FileWatcher;
 use metrics::LocalToTaosMetrics;
 
+use crate::t2l::is_t2l;
+
 pub mod conf;
 pub mod file_watcher;
 pub mod metrics;
+pub mod t2l;
 
 /// # 从本地备份恢复到 taos
 /// 1. 备份文件对应某个备份对象：database 或 database.stable，在 target 中：
@@ -49,12 +52,17 @@ pub async fn local_to_taos(
         .build()
         .await
         .context("parse local_to_taos config error")?;
+
     tracing::info!("local_to_taos config: {:#?}", config);
 
     // 如果配置了 S3 转储，则先从 S3 下载备份文件到本地
     if let Some(s3_config) = &config.s3_config {
         let s3_loader = S3Loader::try_from(s3_config).await?;
         s3_loader.load_to(config.backup_dir.as_path()).await?;
+    }
+
+    if is_t2l(&config.backup_dir).await? {
+        return t2l::restore_t2l(config).await;
     }
 
     // 创建 watcher

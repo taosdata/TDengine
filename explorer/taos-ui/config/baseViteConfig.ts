@@ -19,15 +19,15 @@ import { createSvgIconsPlugin } from 'vite-plugin-svg-icons';
 // import viteCompression from 'vite-plugin-compression';
 import UnoCss from 'unocss/vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
-
 import { ConfigEnv, UserConfig, loadEnv } from 'vite';
+import VueJsx from '@vitejs/plugin-vue-jsx';
 export function resolve(path: string) {
   return join(process.cwd(), path);
 }
 
 export function getBaseConfig(
   configEnv: ConfigEnv,
-  addtionalScss?: string,
+  additionalScss?: string,
   deployUrl?: string,
   commonIcons?: boolean,
   viteDeploy?: (url: string) => void
@@ -38,14 +38,15 @@ export function getBaseConfig(
     base: '/',
     resolve: {
       alias: {
-        '@': resolve('src')
+        '@': resolve('src'),
+        '@codemirror/state': resolve('node_modules/@codemirror/state')
       },
-      extensions: ['.js', '.json', '.ts', '.vue']
+      extensions: ['.js', '.json', '.ts', '.vue', '.tsx', '.jsx']
     },
     css: {
       preprocessorOptions: {
         scss: {
-          additionalData: addtionalScss ? addtionalScss : '',
+          additionalData: additionalScss ? additionalScss : '',
           api: 'modern-compiler'
         }
       }
@@ -53,6 +54,7 @@ export function getBaseConfig(
     plugins: [
       nodePolyfills(),
       vue(),
+      VueJsx(),
       // VueDevTools(),
       UnoCss(),
       createSvgIconsPlugin({

@@ -150,6 +150,9 @@ impl DsSampleIn {
                         DataType::Binary => {
                             DataType::List(Arc::new(Field::new(name, DataType::UInt8, true)))
                         }
+                        DataType::LargeBinary => {
+                            DataType::List(Arc::new(Field::new(name, DataType::UInt8, true)))
+                        }
                         _ => arrow_dt,
                     }
                 }

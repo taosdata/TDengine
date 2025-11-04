@@ -12,7 +12,6 @@ use taosx_core::s3::{S3_ENABLE, S3Config, S3Loader};
 use taosx_core::taoz::ZFile;
 use taosx_core::tmq::BackupObject;
 use taosx_core::utils;
-use tmq_to_local::conf::BackupConfig;
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -86,7 +85,7 @@ async fn get_backup_points_impl(
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("oneshot topic not found, task_id: {}", id))?;
 
-    let backup_dir = BackupConfig::parse_backup_dir(&to, Some(task_id.as_str()))?;
+    let backup_dir = utils::parse_backup_dir(&to, Some(task_id.as_str()))?;
     // 如果目录不存在，返回空列表，不报错，因为可能是备份计划还没有执行
     if tokio::fs::metadata(&backup_dir).await.is_err() {
         tracing::warn!("backup dir not found: {:?}", backup_dir);

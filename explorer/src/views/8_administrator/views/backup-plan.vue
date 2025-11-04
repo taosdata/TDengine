@@ -265,7 +265,7 @@
 <script setup lang="ts">
 import { defineEmits } from 'vue';
 import { addBackupData, editBackup } from '@/api/backup';
-import { excuteStart, excuteStop, excuteDel } from '@/api/common';
+import { executeStart, executeStop, executeDel } from '@/api/common';
 import { getStables } from '@/api/database';
 import { decrypt } from '@/utils/index';
 import { concatS3Config } from '@/utils/util';
@@ -526,7 +526,7 @@ const toDel = row => {
 };
 
 const del = () => {
-  excuteDel(currentId.value, yesDeleteFile.value).then(res => {
+  executeDel(currentId.value, yesDeleteFile.value).then(res => {
     if (res && Object.hasOwnProperty.call(res, 'id')) {
       ElMessage.success(t('delSucc'));
       deleteConfirmDialog.value = false;
@@ -543,7 +543,7 @@ const handleDSStatus = (value: string) => {
 
 const start = async (val, data) => {
   try {
-    const res = await excuteStart(data.id);
+    const res = await executeStart(data.id);
     if (res && Object.hasOwnProperty.call(res, 'code')) {
       $error(res?.message);
     } else {
@@ -557,7 +557,7 @@ const start = async (val, data) => {
 
 const stop = async (_val: any, data: any) => {
   try {
-    const res = await excuteStop(data.id);
+    const res = await executeStop(data.id);
     if (res && Object.hasOwnProperty.call(res, 'code')) {
       $error(res?.message);
     } else {

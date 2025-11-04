@@ -1,3 +1,4 @@
+mod failover;
 pub mod sample;
 pub mod validate;
 
@@ -33,6 +34,7 @@ use source_mysql::mysql_to_taos;
 use source_oracle::oracle_to_taos;
 use source_postgres::postgres_to_taos;
 use source_sparkplugb::sparkplugb_to_taos;
+use taos_to_local::taos_to_local;
 
 #[derive(Debug, Default)]
 pub struct Transferred {
@@ -98,9 +100,13 @@ impl TaskOpts {
                 .unwrap_or_default(),
         );
 
-        // debug_assert!(qid.task_id() > 0);
+        let configs = failover::get_datasource_failover_config(from.clone(), to.clone())?;
         // Run task
-        {
+        let mut last_error = None;
+        for (from, to) in configs {
+            if cancel.is_cancelled() {
+                break;
+            }
             let task_id_number = task_id
                 .as_ref()
                 .map(|t| t.parse::<i64>().context("parse task id"))
@@ -179,7 +185,7 @@ impl TaskOpts {
                     .await?;
                 }
                 ("opc" | "opcda" | "opcua", "taos") => {
-                    opc_to_taos(
+                    if let Err(e) = opc_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -191,7 +197,11 @@ impl TaskOpts {
                         task_id_number,
                         notify.clone(),
                     )
-                    .await?;
+                    .await
+                    {
+                        tracing::error!("opc task exit with error: {e:#}");
+                        last_error = Some(e);
+                    }
                 }
                 ("mqtt", "taos") => {
                     mqtt_to_taos(
@@ -207,12 +217,12 @@ impl TaskOpts {
                     .await?;
                 }
                 ("tmq", "mqtt") => {
-                    tmq_to_mqtt(from, to, task_id_number, cancel).await?;
+                    tmq_to_mqtt(&from, &to, task_id_number, cancel).await?;
                 }
                 (source_sparkplugb::SPARKPLUGB_ID, "taos") => {
                     sparkplugb_to_taos(
-                        from,
-                        to,
+                        &from,
+                        &to,
                         with_agent.clone(),
                         parser.clone(),
                         task_id_number,
@@ -223,7 +233,7 @@ impl TaskOpts {
                 }
                 ("influxdb", "taos") => {
                     influxdb_to_taos(
-                        Self::append_breakpoints_in_dsn(breakpoints, from),
+                        Self::append_breakpoints_in_dsn(breakpoints, &from),
                         to.clone(),
                         port_pool,
                         cancel.clone(),
@@ -236,7 +246,7 @@ impl TaskOpts {
                 }
                 ("opentsdb", "taos") => {
                     opentsdb_to_taos(
-                        Self::append_breakpoints_in_dsn(breakpoints, from),
+                        Self::append_breakpoints_in_dsn(breakpoints, &from),
                         to.clone(),
                         port_pool,
                         cancel.clone(),
@@ -304,21 +314,6 @@ impl TaskOpts {
                     )
                     .await?;
                 }
-                // ("fake", "taos") => {
-                //     fake::fake_to_taos(
-                //         from.clone(),
-                //         parser.clone(),
-                //         transform.clone(),
-                //         to.clone(),
-                //         0,
-                //         port_pool,
-                //         cancel.clone(),
-                //         with_agent.clone(),
-                //         None,
-                //         notify.clone(),
-                //     )
-                //     .await?;
-                // }
                 (source_mysql::MYSQL_ID, "taos") => {
                     mysql_to_taos(
                         from.clone(),
@@ -408,8 +403,15 @@ impl TaskOpts {
                     )
                     .await?
                 }
+                ("taos", "local") => {
+                    taos_to_local(task_id.clone(), from.clone(), to.clone(), cancel.clone())
+                        .await?;
+                }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
+        }
+        if let Some(e) = last_error {
+            return Err(e);
         }
 
         Ok(())

@@ -465,6 +465,8 @@ mod tests {
         assert!(!comparator.matches("3.1.0.0"));
     }
 
+    // todo: open after TD-38169 fixed
+    #[ignore]
     #[tokio::test]
     async fn test_export_import_with_taos() -> anyhow::Result<()> {
         use file_guard::Lock;

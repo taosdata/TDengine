@@ -1,0 +1,141 @@
+use std::error::Error;
+use std::fmt;
+
+use crate::windows::bindings;
+
+/// KDB error code definition
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i32)]
+pub enum KDBError {
+    Fail = -1,
+    Timeout = -2,
+    OutOfMemory = -3,
+    NotConnected = -4,
+    AccessDenied = -5,
+    NotSupported = -6,
+    InvalidUser = -7,
+    InvalidTagName = -8,
+    InvalidArg = -9,
+    NoData = -10,
+    LicInvalid = -11,
+    LicTooManyTags = -12,
+    LicTooManyUsers = -13,
+    InvalidCommand = -14,
+    InvalidData = -15,
+    NetworkError = -16,
+    SystemError = -17,
+    NotFound = -18,
+    ServiceNotRunning = -21,
+    IoPending = -22,
+    BufferTooSmall = -23,
+    NoMoreData = -24,
+    Deadlock = -25,
+    OutOfSpace = -26,
+    AlreadyExist = -27,
+    Duplicate = -28,
+    Overflow = -30,
+    Aborted = -31,
+    RecordTooLong = -32,
+    KeyTooLong = -33,
+    LoadResourceFail = -34,
+    ServiceStatusError = -35,
+    TooManyDataVersions = -36,
+    SqlSyntaxError = -37,
+    DataOutOfTimeRange = -39,
+    DataTypeError = -40,
+    CallerCancel = -41,
+    Unknown = -42,
+}
+
+impl fmt::Display for KDBError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let msg = match self {
+            KDBError::Fail => "General error",
+            KDBError::Timeout => "Timeout error",
+            KDBError::OutOfMemory => "Out of memory",
+            KDBError::NotConnected => "Not connected or unable to establish connection",
+            KDBError::AccessDenied => "Access denied",
+            KDBError::NotSupported => "Attribute or method not supported",
+            KDBError::InvalidUser => "Invalid user or password",
+            KDBError::InvalidTagName => "Invalid tag name",
+            KDBError::InvalidArg => "Invalid argument",
+            KDBError::NoData => "No data",
+            KDBError::LicInvalid => "Invalid license",
+            KDBError::LicTooManyTags => "Tag license count exceeded",
+            KDBError::LicTooManyUsers => "User license count exceeded",
+            KDBError::InvalidCommand => "Invalid command",
+            KDBError::InvalidData => "Invalid data",
+            KDBError::NetworkError => "Network error",
+            KDBError::SystemError => "System error",
+            KDBError::NotFound => "Object not found",
+            KDBError::ServiceNotRunning => "Service not running",
+            KDBError::IoPending => "IO pending",
+            KDBError::BufferTooSmall => "Buffer too small",
+            KDBError::NoMoreData => "No more data",
+            KDBError::Deadlock => "Deadlock occurred",
+            KDBError::OutOfSpace => "Out of disk space",
+            KDBError::AlreadyExist => "Object already exists",
+            KDBError::Duplicate => "Duplicate item found",
+            KDBError::Overflow => "Overflow occurred",
+            KDBError::Aborted => "Aborted",
+            KDBError::RecordTooLong => "Record too long",
+            KDBError::KeyTooLong => "Key too long",
+            KDBError::LoadResourceFail => "Failed to load resource",
+            KDBError::ServiceStatusError => "Service status error",
+            KDBError::TooManyDataVersions => "Too many data versions",
+            KDBError::SqlSyntaxError => "SQL syntax error",
+            KDBError::DataOutOfTimeRange => "Data out of time range",
+            KDBError::DataTypeError => "Data type error",
+            KDBError::CallerCancel => "Caller cancelled",
+            KDBError::Unknown => "Unknown kdb error",
+        };
+        write!(f, "{} (code: {})", msg, *self as i32)
+    }
+}
+
+impl Error for KDBError {}
+
+impl From<bindings::KDBErrorCode> for KDBError {
+    fn from(value: bindings::KDBErrorCode) -> Self {
+        match value {
+            -1 => KDBError::Fail,
+            -2 => KDBError::Timeout,
+            -3 => KDBError::OutOfMemory,
+            -4 => KDBError::NotConnected,
+            -5 => KDBError::AccessDenied,
+            -6 => KDBError::NotSupported,
+            -7 => KDBError::InvalidUser,
+            -8 => KDBError::InvalidTagName,
+            -9 => KDBError::InvalidArg,
+            -10 => KDBError::NoData,
+            -11 => KDBError::LicInvalid,
+            -12 => KDBError::LicTooManyTags,
+            -13 => KDBError::LicTooManyUsers,
+            -14 => KDBError::InvalidCommand,
+            -15 => KDBError::InvalidData,
+            -16 => KDBError::NetworkError,
+            -17 => KDBError::SystemError,
+            -18 => KDBError::NotFound,
+            -21 => KDBError::ServiceNotRunning,
+            -22 => KDBError::IoPending,
+            -23 => KDBError::BufferTooSmall,
+            -24 => KDBError::NoMoreData,
+            -25 => KDBError::Deadlock,
+            -26 => KDBError::OutOfSpace,
+            -27 => KDBError::AlreadyExist,
+            -28 => KDBError::Duplicate,
+            -30 => KDBError::Overflow,
+            -31 => KDBError::Aborted,
+            -32 => KDBError::RecordTooLong,
+            -33 => KDBError::KeyTooLong,
+            -34 => KDBError::LoadResourceFail,
+            -35 => KDBError::ServiceStatusError,
+            -36 => KDBError::TooManyDataVersions,
+            -37 => KDBError::SqlSyntaxError,
+            -39 => KDBError::DataOutOfTimeRange,
+            -40 => KDBError::DataTypeError,
+            -41 => KDBError::CallerCancel,
+            _ => KDBError::Unknown,
+        }
+    }
+}

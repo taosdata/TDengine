@@ -1,0 +1,11 @@
+[package]
+name = "source-kinghistorian"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kinghistorian-sys = { path = "./kinghistorian-sys" }
+
+[lints]
+workspace = true

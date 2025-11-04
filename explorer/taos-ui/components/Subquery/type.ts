@@ -12,7 +12,7 @@ export interface WindowClauseValue {
   interval_unit?: string;
   sliding_val?: number;
   sliding_unit?: string;
-  parttionSet?: string[];
+  partitionSet?: string[];
   window_type?: string;
   state_column?: string;
 }

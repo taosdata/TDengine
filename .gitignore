@@ -53,3 +53,6 @@ output.txt
 *.log
 tests/tools/dist/
 tests/tools/sample/*.z
+explorer/playwright-report/
+explorer/public/docs
+explorer/public/docs-en

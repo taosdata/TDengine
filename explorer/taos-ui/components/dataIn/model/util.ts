@@ -517,7 +517,7 @@ export const dataInMockData = [
     name: 'td3-demo',
     localname: 'td3',
     localtype: 'TDengine Data Subscription',
-    target: 'targetDatabse',
+    target: 'targetDatabsse',
     created_at: '2024-03-27T10:34:15.994Z',
     finished_at: '2024-03-27T21:20:51.681Z',
     status: 'completed',

@@ -15,6 +15,7 @@ use taos_query::common::RawData;
 use taosx_core::core_metrics::{CoreMetrics, get_metrics};
 use taosx_core::s3::S3Dumper;
 use taosx_core::taoz::{RawType, ZFile};
+use taosx_core::utils::wait_for_upcoming;
 use tokio::select;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -64,7 +65,7 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
     tracing::debug!("backup config: {:#?}", config);
 
     // 等待并更新 upcoming
-    wait_for_upcoming_impl(config.upcoming).await?;
+    wait_for_upcoming(config.upcoming).await?;
     if config.upcoming.is_some() {
         config.upcoming = Some(Utc::now());
     }
@@ -181,23 +182,6 @@ struct BackupWorker {
     man: Arc<ZFileMan>,
     cancel: CancellationToken,
     metrics: Option<Arc<CoreMetrics>>,
-}
-
-/// 如果当前时间比 upcoming 早，等待到 upcoming
-async fn wait_for_upcoming_impl(upcoming: Option<DateTime<Utc>>) -> Result<()> {
-    if let Some(upcoming) = upcoming {
-        let now = Utc::now();
-        if now < upcoming {
-            let duration = upcoming - now;
-            tracing::info!("tmq_to_local wait for upcoming: {}", upcoming);
-            tokio::time::sleep(duration.to_std().map_err(|err| {
-                anyhow::Error::from(err)
-                    .context(format!("failed to convert: {:?} to std duration", duration))
-            })?)
-            .await;
-        }
-    }
-    Ok(())
 }
 
 impl BackupWorker {
@@ -521,28 +505,4 @@ impl ZFileMan {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_wait_for_upcoming() {
-        let now = Utc::now();
-        wait_for_upcoming_impl(Some(now + chrono::Duration::seconds(2)))
-            .await
-            .unwrap();
-        let current = Utc::now();
-        assert_eq!(current.timestamp() - now.timestamp(), 2);
-
-        let now = Utc::now();
-        wait_for_upcoming_impl(None).await.unwrap();
-        let current = Utc::now();
-        assert_eq!(current.timestamp() - now.timestamp(), 0);
-
-        let now = Utc::now();
-        wait_for_upcoming_impl(Some(now - chrono::Duration::days(1)))
-            .await
-            .unwrap();
-        let current = Utc::now();
-        assert_eq!(current.timestamp() - now.timestamp(), 0);
-    }
-}
+mod tests {}

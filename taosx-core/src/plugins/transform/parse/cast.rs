@@ -2,8 +2,9 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use arrow::{
     array::{
-        ArrayRef, BinaryArray, Int64Array, ListArray, StringArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray,
+        ArrayRef, BinaryArray, Int64Array, LargeBinaryArray, ListArray, StringArray,
+        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+        TimestampSecondArray,
     },
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
@@ -97,7 +98,6 @@ impl Parse for Cast {
             }
             _ => (),
         }
-
         let name = self
             .alias
             .as_deref()
@@ -223,6 +223,26 @@ impl Parse for Cast {
                     .collect::<Result<Vec<_>, ArrowError>>()?;
                 Arc::new(BinaryArray::from_iter(iter))
             }
+            (DataType::List(field), IpcDataType::Blob) if field.data_type().is_numeric() => {
+                let iter = (0..array.len())
+                    .map(|row| {
+                        if array.is_null(row) {
+                            return Ok(None);
+                        }
+                        let array = array.as_any().downcast_ref::<ListArray>().unwrap();
+                        // ListArray 每一行转换为一个 Bytes 数组
+                        let row_data = array.value(row);
+                        let u8_array =
+                            arrow::compute::cast(&row_data, &arrow_schema::DataType::UInt8)?;
+                        let u8_array = u8_array
+                            .as_any()
+                            .downcast_ref::<arrow::array::UInt8Array>()
+                            .unwrap();
+                        Ok(Some(u8_array.values().to_vec()))
+                    })
+                    .collect::<Result<Vec<_>, ArrowError>>()?;
+                Arc::new(LargeBinaryArray::from_iter(iter))
+            }
             _ => cast(array, field.data_type())?,
         };
 
@@ -238,6 +258,11 @@ fn parse_str_without_tz(s: &str, fmt: &str, tz: &Tz) -> ParseResult<DateTime<Tz>
 
 #[cfg(test)]
 mod tests {
+    use arrow::{
+        array::UInt8Array,
+        buffer::{OffsetBuffer, ScalarBuffer},
+    };
+
     use super::*;
 
     #[test]
@@ -248,6 +273,44 @@ mod tests {
         let array: ArrayRef = Arc::new(StringArray::from(vec![r#"1"#, r#"2"#]));
 
         // let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
+
+        let (records, indices) = parser.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
+        assert_eq!(records.schema().field(0).name(), "b");
+        assert_eq!(records.num_columns(), 1);
+        assert_eq!(records.num_rows(), 2);
+        assert_eq!(indices, None);
+    }
+
+    #[test]
+    pub fn test_cast_blob() {
+        let parser = Cast::new(IpcDataType::Blob).alias("b");
+
+        let data = vec![57, 56, 102, 52, 54, 51, 57, 56, 102, 52, 54, 51];
+        let values = UInt8Array::from(data);
+        let offsets = OffsetBuffer::new(ScalarBuffer::from(vec![0, 6, 12]));
+        let u8_field = Arc::new(Field::new("a", DataType::UInt8, true));
+        let array: ArrayRef = Arc::new(ListArray::new(
+            u8_field.clone(),
+            offsets,
+            Arc::new(values),
+            None,
+        ));
+        let field = Field::new("a", DataType::List(u8_field), true);
+
+        let (records, indices) = parser.parse_array(&field, &array).unwrap();
+
+        dbg!(&records);
+        dbg!(&indices);
+        assert_eq!(records.schema().field(0).name(), "b");
+        assert_eq!(records.num_columns(), 1);
+        assert_eq!(records.num_rows(), 2);
+        assert_eq!(indices, None);
+
+        let field = Field::new("a", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![r#"\x393866343633"#, r#"98f463"#]));
 
         let (records, indices) = parser.parse_array(&field, &array).unwrap();
 

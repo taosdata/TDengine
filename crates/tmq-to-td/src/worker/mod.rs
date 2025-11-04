@@ -1522,8 +1522,16 @@ impl Worker {
             if let Some(data) = &mut message.data {
                 match code {
                     // Table not exist error codes or invalid input.
-                    0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000
-                    | 0x0603 => {
+                    0x070F
+                    | 0x0218
+                    | 0x2603
+                    | 0x036D
+                    | 0x0618
+                    | 0x2662
+                    | 0x0118
+                    | 0x4000
+                    | 0x0603
+                    | 0x0112..=0x0115 => {
                         // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                         // 0x070F: invalid input
                         // 0x0218: the table does not exist
@@ -1534,6 +1542,7 @@ impl Worker {
                         // 0x0118: invalid parameter
                         // 0x4000: invalid msg
                         // 0x0603: table already exists
+                        // 0x0112: Out of range,detail:decode mq taosx data rsp failed
                         tracing::debug!("Fallback to block-by-block method due to: {err:#}.");
                         self.try_mutate_data(data)?;
                         self.write_blocks(data).await?;

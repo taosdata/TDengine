@@ -140,7 +140,7 @@ public class BucketDataThread implements Runnable {
                                 List<InfluxdbBucketDataEntity> entityList = influxdbService.selectBucketDataV1(this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, queryLimit, this.offset, last_time);
                                 addToBucketDataCache(entityList, amount, start);
                                 long time = -1;
-                                logger.info("tagset query result compare: tag {}, entiyList size: {}, query limit: {}, fieldMap size: {}", tagCondition, entityList.size(), queryLimit, fieldMap.size());
+                                logger.debug("tagset query result compare: tag {}, entityList size: {}, query limit: {}, fieldMap size: {}", tagCondition, entityList.size(), queryLimit, fieldMap.size());
                                 if (!entityList.isEmpty()) {
                                     InfluxdbBucketDataEntity last_one = entityList.get(entityList.size() - 1);
                                     time = last_one.getTime().getEpochSecond() * 1000_000_000L + last_one.getTime().getNano();

@@ -20,9 +20,7 @@ export const DownloadUrl = computed(() =>
   isEn.value ? 'https://downloads.taosdata.com' : 'https://downloads.tdengine.com'
 );
 
-export const ClientUrlForWindows = computed(() =>
-  DownloadUrl.value + '/client/taos-tools-for-windows.zip'
-);
+export const ClientUrlForWindows = computed(() => DownloadUrl.value + '/client/taos-tools-for-windows.zip');
 
 const isLessThen3_1_1_11 = computed(() => compareVersion(instance.version, '<3.1.1.11'));
 const isLessThen3_3_2_1 = computed(() => compareVersion(instance.version, '<3.3.2.1'));
@@ -37,7 +35,7 @@ const commonDownloadUrl = computed(() =>
   isLessThen3_3_7_0.value
     ? `${OfficialUrl.value}/assets-download/3.0/TDengine${isLessThen3_1_1_11.value ? '' : '-enterprise'}-client-${instance.version}-Linux-x64.tar.gz`
     : DownloadUrl.value +
-    `/tdengine-tsdb-enterprise/${instance.version}/tdengine-tsdb-enterprise-client-${instance.version}-`
+      `/tdengine-tsdb-enterprise/${instance.version}/tdengine-tsdb-enterprise-client-${instance.version}-`
 );
 const macDownloadPrefix = computed(() => {
   const prefix = commonDownloadUrl.value + (isLessThen3_3_7_0.value ? 'macOS-' : 'macos-');
@@ -45,25 +43,29 @@ const macDownloadPrefix = computed(() => {
 });
 export const installUrlMac = computed(() => macDownloadPrefix.value + `x64.pkg`);
 export const installUrlMacArm = computed(() => macDownloadPrefix.value + `arm64.pkg`);
-export const installUrlWindows = computed(
-  () => {
-    console.log('installUrlWindows', commonDownloadUrl.value, isLessThen3_3_7_0.value);
-    return (
-      commonDownloadUrl.value + `${isLessThen3_3_7_0.value ? 'W' : 'w'}indows-x64.exe`
-    );
-  }
-);
+export const installUrlWindows = computed(() => {
+  console.log('installUrlWindows', commonDownloadUrl.value, isLessThen3_3_7_0.value);
+  return commonDownloadUrl.value + `${isLessThen3_3_7_0.value ? 'W' : 'w'}indows-x64.exe`;
+});
 export const installUrlLinux = computed(
   () => commonDownloadUrl.value + `${isLessThen3_3_7_0.value ? 'L' : 'l'}inux-x64.tar.gz`
 );
 
 export const AgentDownloadUrlForLinux = computed(() =>
-  isLessThen3_3_7_0.value ? `${OfficialUrl.value}/assets-download/3.0/taosx-agent-${instance.version}-linux-x64.tar.gz` :
-    DownloadUrl.value + '/tdengine-taosx-agent-enterprise/' + instance.version + `/tdengine-taosx-agent-${instance.version}-linux-x64.tar.gz`
+  isLessThen3_3_7_0.value
+    ? `${OfficialUrl.value}/assets-download/3.0/taosx-agent-${instance.version}-linux-x64.tar.gz`
+    : DownloadUrl.value +
+      '/tdengine-taosx-agent-enterprise/' +
+      instance.version +
+      `/tdengine-taosx-agent-${instance.version}-linux-x64.tar.gz`
 );
 export const AgentDownloadUrlForWindows = computed(() =>
-  isLessThen3_3_7_0.value ? `${OfficialUrl.value}/assets-download/3.0/taosx-agent-${instance.version}-windows-x64-installer.exe` :
-    DownloadUrl.value + '/tdengine-taosx-agent-enterprise/' + instance.version + `/tdengine-taosx-agent-${instance.version}-windows-x64.exe`
+  isLessThen3_3_7_0.value
+    ? `${OfficialUrl.value}/assets-download/3.0/taosx-agent-${instance.version}-windows-x64-installer.exe`
+    : DownloadUrl.value +
+      '/tdengine-taosx-agent-enterprise/' +
+      instance.version +
+      `/tdengine-taosx-agent-${instance.version}-windows-x64.exe`
 );
 export const organization = reactive({
   orgName: '',

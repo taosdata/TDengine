@@ -1,6 +1,23 @@
 <template>
   <div v-loading="requestIng" style="height: 100%">
+    <div v-if="$slots.actions" class="custom-header">
+      <slot
+        name="actions"
+        :refresh="refresh"
+        :add-db-source="addDbSource"
+        :handle-batch-task="handleBatchTask"
+        :handle-export-task="handleExportTask"
+        :start-case="startCase"
+        :is-disabled="isDisabled"
+        :is-community="dataInProps.isCommunity"
+        :request-ing="requestIng"
+        :multiple-selection="multipleSelection"
+        :task-list="taskList"
+      ></slot>
+    </div>
+
     <PageTitle
+      v-else
       :title="t('dataIn.datasource')"
       :add-title="t('dataIn.addsource')"
       :request-ing="requestIng"
@@ -72,7 +89,7 @@
 
       <task-import @import-o-k="refresh" />
     </PageTitle>
-    <div>
+    <div class="container-right-table">
       <el-table
         ref="dataSourceTableRef"
         class="tasks-table with-operations"
@@ -81,6 +98,7 @@
         size="default"
         :max-height="maxHeight"
         row-key="id"
+        :border="dataInProps.isIdmp"
         @selection-change="handleSelectionChange"
         @cell-click="clickAgent"
         @cell-mouse-enter="onTaskTableMouseEnter"
@@ -92,15 +110,18 @@
             <Activities :data="rowData.row.activities" />
           </template>
         </el-table-column>
-        <el-table-column v-if="false" :label="t('dataIn.taskid')" prop="taskid" width="80">
+        <el-table-column :label="t('dataIn.taskid')" prop="taskid" min-width="50" max-width="100">
           <template #default="scope">
-            <span>
-              <i class="el-circle" :class="getStatusClass(scope.row.healthStatus)"></i>
-            </span>
             <span style="padding-left: 5px">{{ scope.row.taskid }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.name2')" sortable prop="localname" min-width="100">
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.localname : true"
+          :label="t('dataIn.name2')"
+          sortable
+          prop="localname"
+          min-width="100"
+        >
           <template #default="scope">
             <span>
               <i class="el-circle mr-5px" :class="getStatusClass(scope.row.healthStatus)"></i>
@@ -111,9 +132,10 @@
           </template>
         </el-table-column>
         <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.localtype : true"
           :label="t('dataIn.type')"
           prop="localtype"
-          width="180"
+          min-width="180"
           sortable
           :filters="filterMap.type"
           :filter-method="filterHandler"
@@ -124,19 +146,36 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.target')" prop="target" width="120">
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.target : true"
+          :label="t('dataIn.target')"
+          prop="target"
+          sortable
+          min-width="120"
+        >
           <template #default="scope">
             <el-tooltip :content="scope.row.target" placement="top-start">
               <span class="nowrap">{{ scope.row.target }}</span>
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.createat')" prop="created_at" width="220">
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.created_at : true"
+          :label="t('dataIn.createat')"
+          prop="created_at"
+          sortable
+          min-width="220"
+        >
           <template #default="scope">
             <span>{{ getTimeParser(scope.row.created_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.via')" prop="via" width="80">
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.via : true"
+          :label="t('dataIn.via')"
+          prop="via"
+          width="80"
+        >
           <template #default="{ row }">
             <el-tooltip :content="agentMap[row.via]" placement="top-start">
               <span class="nowrap" style="cursor: pointer">{{ agentMap[row.via] }}</span>
@@ -144,7 +183,12 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('dataIn.metrics')" prop="finished_at" width="120">
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.metrics : true"
+          :label="t('dataIn.metrics')"
+          prop="finished_at"
+          min-width="120"
+        >
           <template #default="scope">
             <el-button
               size="small"
@@ -157,12 +201,13 @@
         </el-table-column>
 
         <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.status : true"
           :label="t('dataIn.status')"
           prop="status"
           sortable
           :filters="filterMap.status"
           :filter-method="filterHandler"
-          width="150"
+          min-width="150"
         >
           <template #default="scope">
             <div class="status-operation" style="display: flex; white-space: nowrap">
@@ -182,6 +227,7 @@
           </template>
         </el-table-column>
         <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.healthStatus : true"
           :label="t('dataIn.healthStatusTitle')"
           prop="healthStatus"
           width="120"
@@ -212,22 +258,36 @@
             <span v-else style="display: inline-block; width: 80px">-</span>
           </template>
         </el-table-column>
-        <el-table-column class="with-operations" width="50">
+        <el-table-column
+          class="with-operations"
+          :width="dataInProps.isIdmp ? 45 : 50"
+          :fixed="dataInProps.isIdmp ? 'right' : false"
+        >
           <template #default="scope">
-            <el-dropdown class="operations" :class="{ show: scope.row.hover }">
-              <el-button icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
+            <el-dropdown
+              :class="{
+                operations: !dataInProps.isIdmp,
+                show: dataInProps.isIdmp || scope.row.hover
+              }"
+              :trigger="dataInProps.isIdmp ? 'click' : 'hover'"
+            >
+              <span v-if="dataInProps.isIdmp" class="cursor-pointer" @click.stop>
+                <Icon name="el-more-filled" class="rotate-90deg font-size-20px" />
+              </span>
+              <el-button v-else icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
+
               <template #dropdown>
                 <el-dropdown-menu @mouseenter="onMenuMouseEnter" @mouseleave="onMenuMouseLeave">
                   <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
                     <el-dropdown-item @click="start(scope.row)">
                       <el-icon><VideoPlay /></el-icon>
-                      {{ t('dataIn.excutestart').replace('{name}', scope.row.name) }}
+                      {{ t('dataIn.executestart').replace('{name}', scope.row.name) }}
                     </el-dropdown-item>
                   </template>
                   <template v-if="permitStopStatus.includes(scope.row.status.toLowerCase())">
                     <el-dropdown-item @click="stop(scope.row)">
                       <el-icon><VideoPause /></el-icon>
-                      {{ t('dataIn.excutestop').replace('{name}', scope.row.name) }}
+                      {{ t('dataIn.executestop').replace('{name}', scope.row.name) }}
                     </el-dropdown-item>
                   </template>
                   <el-dropdown-item @click="refreshCurrentTask(scope.row)">
@@ -339,6 +399,10 @@ const router = useRouter();
 const dataInProps = getDataInProps();
 const isMetricsVisible = ref<boolean>(false);
 
+const props = defineProps<{
+  columnPropMap?: Record<string, boolean>;
+}>();
+
 const connectData: Recordable = reactive({
   activity: null,
   close: null
@@ -435,7 +499,7 @@ async function getList() {
         statusFilterSet[item.status] = true;
       }
 
-      ((item['taskid'] = item.id), (item['localname'] = item.name));
+      (item['taskid'] = item.id), (item['localname'] = item.name);
       item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
       item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
@@ -538,7 +602,7 @@ async function refreshCurrentTask(data: Recordable) {
       index,
       1,
       [].concat(result).map((item: any) => {
-        ((item['taskid'] = item.id), (item['localname'] = item.name));
+        (item['taskid'] = item.id), (item['localname'] = item.name);
         item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
         // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
         item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
@@ -699,14 +763,18 @@ function addDbSource() {
 async function edit(data: Recordable, status: string) {
   currentTaskStatus.value = status;
   router.push({
-    path: `/dataIn/${data.id}/${data.from.type}/edit`
+    path: dataInProps.isIdmp
+      ? `/management/tsdb-dataIn/tasks/${data.id}/${data.from.type}/edit`
+      : `/dataIn/${data.id}/${data.from.type}/edit`
   });
 }
 //copy一个新的task
 async function copyTask(data: Recordable, status: string) {
   currentTaskStatus.value = status;
   router.push({
-    path: `/dataIn/${data.id}/${data.from.type}/copy`
+    path: dataInProps.isIdmp
+      ? `/management/tsdb-dataIn/tasks/${data.id}/${data.from.type}/copy`
+      : `/dataIn/${data.id}/${data.from.type}/copy`
   });
 }
 
@@ -979,8 +1047,7 @@ const skipToLatest = async () => {
 
 .table-expand {
   min-width: 70%;
-  padding: 0 5px;
-  margin-left: 40px;
+  padding: 0 5px 0 45px;
 
   :deep(.el-table th.el-table__cell.is-leaf) {
     border: none !important;

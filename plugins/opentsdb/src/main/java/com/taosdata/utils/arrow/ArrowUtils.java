@@ -40,6 +40,8 @@ import java.util.Map;
 public class ArrowUtils {
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
+    static String timestampFieldName = "timestamp";
+    static String valueFieldName = "value";
 
     /**
      * arrow数据结构信息
@@ -67,6 +69,17 @@ public class ArrowUtils {
         }
     }
 
+    public static void setTimestampFieldName(String fieldName) {
+        if (StringUtils.isNotBlank(fieldName)) {
+            timestampFieldName = fieldName;
+        }
+    }
+    public static void setValueFieldName(String fieldName) {
+        if (StringUtils.isNotBlank(fieldName)) {
+            valueFieldName = fieldName;
+        }
+    }
+
     /**
      * 根据Metric获取arrow初始化信息
      *
@@ -80,8 +93,8 @@ public class ArrowUtils {
         arrowInitDto.setName(opentsdbMetricEntity.getMetric().replaceAll("\\.", "_"));
         // columns
         List<ArrowInitDto.Column> columns = new ArrayList<>();
-        columns.add(arrowInitDto.new Column("timestamp", "timestamp"));
-        columns.add(arrowInitDto.new Column("value", "double"));
+        columns.add(arrowInitDto.new Column(timestampFieldName, "timestamp"));
+        columns.add(arrowInitDto.new Column(valueFieldName, "double"));
         columns.add(arrowInitDto.new Column("__table_name__", "string"));
         arrowInitDto.setColumns(columns);
         // tags
@@ -290,8 +303,8 @@ public class ArrowUtils {
                     recordDataVector.setIndexDefined(amount);
                     // edit at 2023.08.16 replace `.` to `_`
                     setData(recordDataVector, "__table_name__", opentsdbDataEntity.getTable().replaceAll("\\.", "_"), "string", amount);
-                    setData(recordDataVector, "timestamp", opentsdbDataPointEntity.getTimestamp(), "timestamp", amount);
-                    setData(recordDataVector, "value", opentsdbDataPointEntity.getValue(), "double", amount);
+                    setData(recordDataVector, timestampFieldName, opentsdbDataPointEntity.getTimestamp(), "timestamp", amount);
+                    setData(recordDataVector, valueFieldName, opentsdbDataPointEntity.getValue(), "double", amount);
                     amount++;
                 }
             }
