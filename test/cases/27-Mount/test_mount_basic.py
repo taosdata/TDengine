@@ -6,28 +6,7 @@ import os
 import time
 import shutil
 
-class TestCase:
-    """ Test case for mount data path function.
-
-    1. Prepare mount path with data.
-    2. Prepare host cluster.
-    3. Check mount error cases.
-    4. Create, drop, and show mount.
-    5. Check mount SDB object conflicts.
-
-    Catalog:
-        - Mounts:Create/Drop/Show/Query/Conflicts Detect/ReOpen
-
-    Since: v3.3.7.0
-
-    Lables: common,ci,mount
-
-    Jira: TS-5868
-
-    History:
-        - 2025-07-08: Initial version from Kaili Xu.
-    """
-
+class TestMountBasic:
     path_parts = os.getcwd().split(os.sep)
     try:
         tdinternal_index = path_parts.index("TDinternal")
@@ -392,17 +371,14 @@ class TestCase:
         tdDnodes.start(1)
         self.s3_create_drop_show_mount()
 
-    def test_mount(self):
-        """ Test case for mount data path function.
+    def test_mount_basic(self):
+        """ Mount basic
 
         1. Prepare mount path with data.
         2. Prepare host cluster.
         3. Check mount error cases.
         4. Create, drop, and show mount.
         5. Check mount SDB object conflicts.
-
-        Catalog:
-            - xxx:xxx
 
         Since: v3.3.7.0
 
@@ -411,7 +387,8 @@ class TestCase:
         Jira: TS-5868
 
         History:
-            - 2025-07-08: Initial version from Kaili Xu.
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_mount_basic.py
+
         """
         self.s0_prepare_mount_path()
         self.s1_prepare_host_cluster()
@@ -420,5 +397,3 @@ class TestCase:
         self.s4_recheck_mount_path()
         self.s5_check_remount()
         self.s4_recheck_mount_path() # recheck
-
-        tdLog.success("%s successfully executed" % __file__)

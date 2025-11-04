@@ -5,7 +5,7 @@ import sys
 import time
 import platform
 
-class TestView:
+class TestViewBasic:
     """This test case is used to veirfy the tmq consume data from non marterial view
     """
     def setup_class(cls):
@@ -700,23 +700,29 @@ class TestView:
         for i in range(0, 200):
             tdSql.execute(f'drop view test.view{i}')
 
-    def test_view(self):
-        """summary: xxx
+    def test_view_basic(self):
+        """ View basic
 
-        description: xxx
+        1. Create view from one database
+        2. Create view from multi database
+        3. Create view with different view name params
+        4. Create view with different data type in query
+        5. Show view
+        6. Drop view
+        7. View permission test
+        8. Query from view
+        9. TMQ consume from view
+        10. Verify bug TD-33390
 
-        Since: xxx
+        Since: v3.3.7.0
 
-        Labels: xxx
+        Lables: common,ci,mount
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: TS-5868
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_view_basic.py
+
         """
         self.run_TD_33390()
         self.run_create_view_from_one_database()

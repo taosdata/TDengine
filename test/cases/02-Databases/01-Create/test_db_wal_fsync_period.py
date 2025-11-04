@@ -206,23 +206,26 @@ class TestFsync:
     #     now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
 
 
-    def test_fsync(self):
-        """summary: xxx
+    def test_db_wal_fsync_period(self):
+        """Database option wal_fsync_period
+        
+        1. Create database with wal_fsync_period options
+        2. Verify wal_fsync_period value from information_schema.ins_databases
+        3. Verify wal_fsync_period value after alter database
+        4. Verify wal_fsync_period value after restart taosd
+        5. Verify error cases for wal_fsync_period option
+        6. Verify error cases for alter wal_fsync_period option
+        
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_fsync.py
+
         """
         tdSql.prepare()
 

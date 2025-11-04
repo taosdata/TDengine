@@ -48,8 +48,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create_encrypt.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_tables.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_retention.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_wal_retention.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_wal_fsync_period.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_wal_level.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_wal_retention.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_name_all.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_name_len.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_op_all.py -N 3
@@ -460,7 +461,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_perf.py
 
 # 16-Views
-
+,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_mgmt.py
 ,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_nested_join.py
 
@@ -688,6 +689,8 @@
 #,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_cluster_basic.py -N 5
 
 # 27-Mount
+
+,,y,.,./ci/pytest.sh pytest cases/27-Mount/test_mount_basic.py
 
 # 28-Except
 
@@ -978,24 +981,18 @@
 ### 1-insert (empty)
 
 ### 0-others
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_mounts.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_balance_vgroups_r1.py -N 6
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_error.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taos_shell_net_chk.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_telemetry.py
-#newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_backquote_check.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_monitor.py
 #failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_new_monitor.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_taosd_audit.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosdlog.py
 #newstm,,n,.,pytest cases/uncatalog/system-test/0-others/test_taosd_shell.py -N 5 -M 3 -Q 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_cachemodel.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_fsync.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_multilevel_createdb.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_sml_restart.py
-,,n,.,pytest cases/uncatalog/system-test/0-others/test_tag_index_basic.py
 ,,n,.,pytest cases/uncatalog/system-test/0-others/test_time_range_wise.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_hot_refresh_configurations.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_subscribe_stream_privilege.py
@@ -1006,11 +1003,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan_vgroups.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_scan.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_information_schema.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_ins_filesets.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/test_grant.py
-
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/view/non_marterial_view/test_view.py
-
 
 #develop test
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py
