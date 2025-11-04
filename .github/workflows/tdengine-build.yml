@@ -226,7 +226,8 @@ jobs:
           taos -V
           sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
           rm -rf /var/lib/taos/*
-          nohup taosd -c /etc/taos/ &
+          cat /etc/taos/taos.cfg
+          nohup  TAOS_FQDN=localhost taosd -c /etc/taos/ &
           nohup taosadapter &
           pgrep -l taos
           sleep 6     # NOTE: wait for taosd initialization to complete
