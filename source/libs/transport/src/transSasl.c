@@ -357,6 +357,7 @@ static int32_t authConnCheck(SSaslConn* p) {
   if (p == NULL || p->conn == NULL) {
     return TSDB_CODE_THIRDPARTY_ERROR;
   }
+  return code;
 }
 int32_t authInitFp(SSaslConn* p, const char* input, int32_t len) {
   int32_t code = 0;
