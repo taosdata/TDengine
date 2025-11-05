@@ -16,8 +16,8 @@ TDengine is designed for various writing scenarios, and many of these scenarios 
 ### Syntax
 
 ```sql
-COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY];
-COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'] [META_ONLY];
+COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
+COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
 SHOW COMPACTS;
 SHOW COMPACT compact_id;
 KILL COMPACT compact_id;
@@ -31,6 +31,7 @@ KILL COMPACT compact_id;
 - You can specify the start time of the COMPACT data with the start with keyword
 - You can specify the end time of the COMPACT data with the end with keyword
 - You can specify the META_ONLY keyword to only compact the meta data which are not compacted by default. Meta data compaction can block write and the database compacting meta should stop write and query
+- A file group will not be compacted if no new data has been written since the last compaction, unless the FORCE keyword is specified  
 - The COMPACT command will return the ID of the COMPACT task
 - COMPACT tasks are executed asynchronously in the background, and you can view the progress of COMPACT tasks using the SHOW COMPACTS command
 - The SHOW command will return the ID of the COMPACT task, and you can terminate the COMPACT task using the KILL COMPACT command
