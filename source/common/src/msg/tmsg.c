@@ -2627,6 +2627,25 @@ int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **
 
   return code;
 }
+
+int32_t tEncodeSDateTimeRange(SEncoder* pEncoder, const SDateTimeRange* pRange) {
+  TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pRange->year));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRange->month));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRange->day));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRange->hour));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRange->minute));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRange->duration));
+}
+
+int32_t tDecodeSDateTimeRange(SDecoder* pDecoder, SDateTimeRange* pRange) {
+  TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pRange->year));
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRange->month));
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRange->day));
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRange->hour));
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRange->minute));
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRange->duration));
+}
+
 int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -2643,8 +2662,8 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pass));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numIpRanges));
   for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
-    TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->pIpRanges[i].ip));
-    TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->pIpRanges[i].mask));
+    TAOS_CHECK_EXIT(tEncodeU32(&encoder, 0)); // for backward compatibility
+    TAOS_CHECK_EXIT(tEncodeU32(&encoder, 0)); // for backward compatibility
   }
   ENCODESQL();
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isImport));
@@ -2656,6 +2675,33 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
     code = tSerializeIpRange(&encoder, pRange);
     TAOS_CHECK_EXIT(code);
   }
+
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreExisting));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->totpseed));
+
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->changepass));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negIpRanges));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negTimeRanges));
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sessionPerUser));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->connectTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->connectIdleTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->callPerSession));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vnodePerCall));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->failedLoginAttempts));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordLifeTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordReuseTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordReuseMax));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordLockTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordGraceTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->inactiveAccountTime));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->allowTokenNum));
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numTimeRanges));
+  for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
+    TAOS_CHECK_EXIT(tEncodeSDateTimeRange(&encoder, &pReq->pTimeRanges[i]));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -2682,13 +2728,10 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pass));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numIpRanges));
-  pReq->pIpRanges = taosMemoryMalloc(pReq->numIpRanges * sizeof(SIpV4Range));
-  if (pReq->pIpRanges == NULL) {
-    TAOS_CHECK_EXIT(terrno);
-  }
   for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
-    TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pReq->pIpRanges[i].ip)));
-    TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pReq->pIpRanges[i].mask)));
+    uint32_t dummy;
+    TAOS_CHECK_EXIT(tDecodeU32(&decoder, &dummy)); // for backward compatibility
+    TAOS_CHECK_EXIT(tDecodeU32(&decoder, &dummy)); // for backward compatibility
   }
   DECODESQL();
   if (!tDecodeIsEnd(&decoder)) {
@@ -2708,6 +2751,38 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
       SIpRange *pRange = &pReq->pIpDualRanges[i];
       code = tDeserializeIpRange(&decoder, pRange);
       TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ignoreExisting));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->totpseed));
+
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->changepass));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negIpRanges));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negTimeRanges));
+
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sessionPerUser));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->connectTime));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->connectIdleTime));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->callPerSession));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vnodePerCall));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->failedLoginAttempts));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordLifeTime));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordReuseTime));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordReuseMax));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordLockTime));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordGraceTime));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->inactiveAccountTime));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->allowTokenNum));
+
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numTimeRanges));
+    pReq->pTimeRanges = taosMemoryMalloc(pReq->numTimeRanges * sizeof(SDateTimeRange));
+    if (pReq->pTimeRanges == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
+      TAOS_CHECK_EXIT(tDecodeSDateTimeRange(&decoder, &pReq->pTimeRanges[i]));
     }
   }
 
@@ -3189,8 +3264,8 @@ void tFreeRetrieveAnalyticAlgoRsp(SRetrieveAnalyticAlgoRsp *pRsp) {
 
 void tFreeSCreateUserReq(SCreateUserReq *pReq) {
   FREESQL();
-  taosMemoryFreeClear(pReq->pIpRanges);
   taosMemoryFreeClear(pReq->pIpDualRanges);
+  taosMemoryFreeClear(pReq->pTimeRanges);
 }
 
 int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) {
@@ -3994,6 +4069,42 @@ void tIpRangeSetDefaultMask(SIpRange *range) {
   }
 }
 void tFreeSGetUserWhiteListDualRsp(SGetUserWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteListsDual); }
+
+bool isValidDateTimeRange(SDateTimeRange* pRange) {
+  if (pRange->hour < 0 || pRange->hour > 23) {
+    return false;
+  }
+  if (pRange->minute < 0 || pRange->minute > 59) {
+    return false;
+  }
+  if (pRange->duration < 1) {
+    return false;
+  }
+
+  if (pRange->month == -1) {
+    if (pRange->day < 0 || pRange->day > 6) {
+      return false;
+    }
+  } else {
+    if (pRange->year < 1970 || pRange->year > 9999) {
+      return false;
+    }
+    if (pRange->month < 1 || pRange->month > 12) {
+      return false;
+    }
+    if (pRange->day < 1) {
+      return false;
+    }
+    int32_t days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if ((pRange->year % 4 == 0 && pRange->year % 100 != 0) || (pRange->year % 400 == 0)) {
+      days[1] = 29;
+    }
+    if (pRange->day > days[pRange->month - 1]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 int32_t tSerializeSMCfgClusterReq(void *buf, int32_t bufLen, SMCfgClusterReq *pReq) {
   SEncoder encoder = {0};

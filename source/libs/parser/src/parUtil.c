@@ -286,10 +286,12 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Option:%s invalid value";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG:
       return "Option:%s value too long, should be less than %d";
+    case TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT:
+      return "Option:%s value too short, should be %d or longer";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG:
       return "Option:%s value too big, should be less than %d";
     case TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL:
-      return "Option:%s value too small, should be greater than %d";
+      return "Option:%s value too small, should be %d or greater";
     default:
       return "Unknown error";
   }

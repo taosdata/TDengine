@@ -638,7 +638,10 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SBnodeOptions), &pNode);
       break;
     case QUERY_NODE_DATE_TIME_RANGE:
-      code = makeNode(type, sizeof(SDateTimeRange), &pNode);
+      code = makeNode(type, sizeof(SDateTimeRangeNode), &pNode);
+      break;
+    case QUERY_NODE_IP_RANGE:
+      code = makeNode(type, sizeof(SIpRangeNode), &pNode);
       break;
     case QUERY_NODE_USER_OPTIONS:
       code = makeNode(type, sizeof(SUserOptions), &pNode);
@@ -1650,7 +1653,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_USER_STMT: {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
-      nodesDestroyList(pStmt->pNodeListIpRanges);
+      taosMemoryFree(pStmt->pTimeRanges);
       break;
     }
     case QUERY_NODE_ALTER_USER_STMT: {
@@ -1679,11 +1682,14 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_DATE_TIME_RANGE: // no pointer field
+    case QUERY_NODE_IP_RANGE: // no pointer field
       break;
     case QUERY_NODE_USER_OPTIONS: {
-      SUserOptions* pOptions = (SUserOptions*)pNode;
-      void destroyUserOptions(SUserOptions* pOptions);
-      destroyUserOptions(pOptions);
+      SUserOptions* opts = (SUserOptions*)pNode;
+      nodesDestroyList(opts->pIpRanges);
+      nodesDestroyList(opts->pDropIpRanges);
+      nodesDestroyList(opts->pTimeRanges);
+      nodesDestroyList(opts->pDropTimeRanges);
       break;
     }
     case QUERY_NODE_CREATE_INDEX_STMT: {

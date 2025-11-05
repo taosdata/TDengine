@@ -415,11 +415,15 @@ typedef struct {
   char    user[TSDB_USER_LEN];
   char    pass[TSDB_PASSWORD_LEN];
   char    acct[TSDB_USER_LEN];
+  char    totpsecret[TSDB_TOTP_SECRET_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;
+  int8_t  changePass;
+  int8_t  negIpRanges;
+  int8_t  negTimeRanges;
   union {
     uint8_t flag;
     struct {
@@ -427,11 +431,29 @@ typedef struct {
       uint8_t reserve : 7;
     };
   };
+
+  int32_t sessionPerUser;
+  int32_t connectTime;
+  int32_t connectIdleTime;
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;
+  int32_t passwordReuseTime;
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;
+  int32_t passwordGraceTime;
+  int32_t inactiveAccountTime;
+  int32_t allowTokenNum;
+
   int32_t       acctId;
   int32_t       authVersion;
   int32_t       passVersion;
   int64_t       ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
+
+  int32_t     numTimeRanges;
+  SDateTimeRange* pTimeRanges;
 
   SHashObj* readDbs;
   SHashObj* writeDbs;
