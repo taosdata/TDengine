@@ -165,8 +165,9 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
                                                 SExtSchema* extSchemaRow, char* tableType, SColRefWrapper* colRef);
 
 static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
-                                                            const SSDataBlock* dataBlock, char* tName, char* stName,
-                                                            SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef, tb_uid_t uid, int32_t vgId);
+                                                       const SSDataBlock* dataBlock, char* tName, char* stName,
+                                                       SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef,
+                                                       tb_uid_t uid, int32_t vgId, int32_t globalVer);
 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
@@ -836,6 +837,9 @@ _end:
 }
 
 static bool virtualChildTableNeedCollect(STableListInfo* pTableListInfo, tb_uid_t tableUid) {
+  if (!pTableListInfo) {
+    return true;
+  }
   for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
     tb_uid_t* childUid = taosArrayGet(pTableListInfo->pTableList, i);
     if (childUid == NULL) {
@@ -858,11 +862,35 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   int32_t            ret = 0;
   char               dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   SSDataBlock*       pDataBlock = NULL;
+  int32_t            globalVer = 0;
 
-  if (pOperator->status == OP_EXEC_DONE) {
+  if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     return NULL;
   }
 
+  if (pOperator->pOperatorGetParam) {
+    pOperator->status = OP_NOT_OPENED;
+    int64_t version = ((SSysScanOperatorParam *)pOperator->pOperatorGetParam->value)->version; // get version from param
+    int64_t uid = ((SSysScanOperatorParam *)pOperator->pOperatorGetParam->value)->uid;
+    bool    isVstb = ((SSysScanOperatorParam *)pOperator->pOperatorGetParam->value)->isVstb;
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
+    if (isVstb) {
+      code = pAPI->metaFn.metaGetVirtualSupertableVersion(pInfo->readHandle.vnode, uid, &globalVer);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (version == globalVer) {
+        setOperatorCompleted(pOperator);
+        return NULL;
+      }
+    } else {
+      code = pAPI->metaFn.metaGetVirtualNormalChildtableVersion(pInfo->readHandle.vnode, uid, &globalVer);
+      if (version == globalVer || code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+        setOperatorCompleted(pOperator);
+        return NULL;
+      }
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
   blockDataCleanup(pInfo->pRes);
 
   pDataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_VC_COLS);
@@ -1004,7 +1032,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       }
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
-    code = sysTableUserColsFillOneVirtualTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, stableName, schemaRow, typeName, colRef, pInfo->pCur->mr.me.uid, pOperator->pTaskInfo->id.vgId);
+    code = sysTableUserColsFillOneVirtualTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, stableName, schemaRow, typeName, colRef, pInfo->pCur->mr.me.uid, pOperator->pTaskInfo->id.vgId, globalVer);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1617,7 +1645,7 @@ _end:
 static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                        const SSDataBlock* dataBlock, char* tName, char* stName,
                                                        SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef,
-                                                       tb_uid_t uid, int32_t vgId) {
+                                                       tb_uid_t uid, int32_t vgId, int32_t globalVer) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (schemaRow == NULL) {
@@ -1702,6 +1730,14 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->version, false);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    // vstb version
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&globalVer, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+
     ++numOfRows;
   }
 

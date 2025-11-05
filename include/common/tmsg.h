@@ -3424,6 +3424,12 @@ typedef struct STagScanOperatorParam {
   tb_uid_t       vcUid;
 } STagScanOperatorParam;
 
+typedef struct SSysScanOperatorParam {
+  bool           isVstb;
+  tb_uid_t       uid;
+  int64_t        version;
+} SSysScanOperatorParam;
+
 typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
   SOperatorParam* pTagScanOp;

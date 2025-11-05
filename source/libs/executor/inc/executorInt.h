@@ -171,11 +171,14 @@ typedef struct SSortMergeJoinOperatorParam {
 typedef struct SExchangeOperatorBasicParam {
   int32_t               vgId;
   int32_t               srcOpType;
+  int32_t               version;
   bool                  tableSeq;
   SArray*               uidList;
   bool                  isVtbRefScan;
   bool                  isVtbTagScan;
+  bool                  isVtbSysScan;
   bool                  isNewDeployed; // used with newDeployedSrc
+  bool                  isVSuperTable;
   SOrgTbInfo*           colMap;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed

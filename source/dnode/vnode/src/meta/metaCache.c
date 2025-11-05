@@ -1509,6 +1509,39 @@ _return:
   return code;
 }
 
+int32_t metaGetVirtualSupertableVersion(void *pVnode, tb_uid_t suid, int32_t *version) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SVnode*        vnode = (SVnode*)pVnode;
+
+  (void)taosThreadRwlockRdlock(&vnode->versionLock);
+  int32_t* ver = taosHashGet(vnode->pVtableVersion, &suid, sizeof(tb_uid_t));
+  if (ver != NULL) {
+    *version = (*ver);
+  } else {
+    *version = 0;
+  }
+  (void)taosThreadRwlockUnlock(&vnode->versionLock);
+  return code;
+}
+
+int32_t metaGetVirtualNormalChildtableVersion(void *pVnode, tb_uid_t uid, int32_t *version) {
+  int         code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SMetaReader mr = {0};
+  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK);
+  code = metaReaderGetTableEntryByUid(&mr, uid);
+  TSDB_CHECK_CODE(code, lino, _return);
+
+  *version = mr.me.colRef.version;
+
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    metaError("%s failed since %s, line %d", __func__, tstrerror(code), lino);
+  }
+  metaReaderClear(&mr);
+  return code;
+}
+
 int32_t metaGetCachedRefDbs(void* pVnode, tb_uid_t suid, SArray* pList) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        line = 0;
