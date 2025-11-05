@@ -6788,7 +6788,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "from_base64",
-    .type = FUNCTION_TYPE_BASE64,
+    .type = FUNCTION_TYPE_FROM_BASE64,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
