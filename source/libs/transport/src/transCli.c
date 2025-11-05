@@ -269,6 +269,8 @@ static int32_t   addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn);
 static int32_t   delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn);
 static int8_t    balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, SCliConn** pNewConn);
 
+static int32_t cliConnSendAuth(SCliConn* pConn);
+
 static void cliSendSaslCb(uv_write_t* req, int status) {
   int32_t   code = 0;
   SCliConn* pConn = (SCliConn*)req->data;
@@ -1007,6 +1009,8 @@ static void cliRecvCbSaslImpl(SCliConn* conn, int32_t nread) {
         TAOS_UNUSED(transUnrefCliHandle(conn));
       } else {
         // reset buffer
+        code = cliConnSendAuth(conn);
+
         pBuf->len = 0;
         // check if auth completed
         if (!saslConnShoudDoAuth(conn->saslConn)) {
@@ -1900,6 +1904,34 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
 
 bool filteGetAll(void* q, void* arg) { return true; }
 
+int32_t cliConnSendAuth(SCliConn* pConn) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  uv_write_t* writeReq = (uv_write_t*)taosMemCalloc(1, sizeof(uv_write_t));
+  if (writeReq == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  writeReq->data = pConn;
+  uv_buf_t buf = {.base = (char*)pConn->saslConn->out.buf, .len = pConn->saslConn->out.len};
+
+  int32_t ret = uv_write(writeReq, pConn->stream, &buf, 1, cliSendSaslCb);
+  if (ret != 0) {
+    tDebug("%s conn:%p, failed to send sasl auth msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+    taosMemFree(writeReq);
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  // saslBufferClear(&pConn->saslConn->out);
+
+_error:
+  if (code != 0) {
+    tError("conn %p failed to send auth", pConn);
+  }
+  return code;
+}
 void cliConnCb(uv_connect_t* req, int status) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -1951,33 +1983,16 @@ void cliConnCb(uv_connect_t* req, int status) {
   }
 
   if (pConn->saslConn) {
+    code = cliConnStartRead(pConn);
+    if (code != 0) {
+      tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+
     code = saslConnInit(pConn->saslConn);
     if (code != 0) {
       tDebug("%s conn:%p, failed to init saslConn since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
       TAOS_CHECK_GOTO(code, &lino, _error);
-    }
-    if (saslConnShoudDoAuth(pConn->saslConn)) {
-      // code = saslConnStartAuth(pConn->saslConn);
-      // TAOS_CHECK_GOTO(code, &lino, _error);
-
-      // uv_write_t* writeReq = (uv_write_t*)taosMemCalloc(1, sizeof(uv_write_t));
-      // if (writeReq == NULL) {
-      //   code = TSDB_CODE_OUT_OF_MEMORY;
-      //   TAOS_CHECK_GOTO(code, &lino, _error);
-      // }
-
-      // writeReq->data = pConn;
-      // uv_buf_t buf = {.base = (char*)pConn->saslConn->authInfo.buf, .len = pConn->saslConn->authInfo.len};
-
-      // int32_t ret = uv_write(writeReq, pConn->stream, &buf, 1, cliSendSaslCb);
-      // if (ret != 0) {
-      //   tDebug("%s conn:%p, failed to send sasl auth msg since %s", CONN_GET_INST_LABEL(pConn), pConn,
-      //          uv_err_name(ret));
-      //   taosMemFree(writeReq);
-      //   code = TSDB_CODE_THIRDPARTY_ERROR;
-      //   TAOS_CHECK_GOTO(code, &lino, _error);
-      // }
-      return;
     }
   }
 
@@ -3676,7 +3691,7 @@ int32_t transSendRecvWithTimeout(void* pInstRef, SEpSet* pEpSet, STransMsg* pReq
     pSyncMsg->pRsp->pCont = NULL;
     if (pSyncMsg->hasEpSet == 1) {
       epsetAssign(pEpSet, &pSyncMsg->epSet);
-      if(epUpdated) *epUpdated = 1;
+      if (epUpdated) *epUpdated = 1;
     }
   }
 _RETURN:
