@@ -333,6 +333,7 @@ typedef enum ENodeType {
   QUERY_NODE_REVOKE_STMT,
   QUERY_NODE_ALTER_CLUSTER_STMT,
   QUERY_NODE_S3MIGRATE_DATABASE_STMT,
+  QUERY_NODE_TRIM_DATABASE_WAL_STMT,
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
   QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT,
@@ -375,6 +376,7 @@ typedef enum ENodeType {
   QUERY_NODE_ASSIGN_LEADER_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_VTABLE_STMT,
+  QUERY_NODE_SET_VNODE_KEEP_VERSION_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -1710,6 +1712,14 @@ typedef struct {
 
 int32_t tSerializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
 int32_t tDeserializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+  int64_t keepVersion;
+} SMndSetVnodeKeepVersionReq;
+
+int32_t tSerializeSMndSetVnodeKeepVersionReq(void* buf, int32_t bufLen, SMndSetVnodeKeepVersionReq* pReq);
+int32_t tDeserializeSMndSetVnodeKeepVersionReq(void* buf, int32_t bufLen, SMndSetVnodeKeepVersionReq* pReq);
 
 typedef struct {
   int32_t timestampSec;
@@ -4091,6 +4101,13 @@ typedef struct {
 int32_t tSerializeSMDropStreamReq(void* buf, int32_t bufLen, const SMDropStreamReq* pReq);
 int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* pReq);
 void    tFreeMDropStreamReq(SMDropStreamReq* pReq);
+
+typedef struct SVndSetKeepVersionReq {
+  int64_t keepVersion;
+} SVndSetKeepVersionReq;
+
+int32_t tSerializeSVndSetKeepVersionReq(void* buf, int32_t bufLen, SVndSetKeepVersionReq* pReq);
+int32_t tDeserializeSVndSetKeepVersionReq(void* buf, int32_t bufLen, SVndSetKeepVersionReq* pReq);
 
 typedef struct SVUpdateCheckpointInfoReq {
   SMsgHead head;

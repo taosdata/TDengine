@@ -41,6 +41,7 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessS3MigrateReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
@@ -692,6 +693,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_TRIM:
       if (vnodeProcessTrimReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
+    case TDMT_VND_TRIM_WAL:
+      if (vnodeProcessTrimWalReq(pVnode, pReq, len, pRsp) < 0) goto _err;
+      break;
     case TDMT_VND_S3MIGRATE:
       if (vnodeProcessS3MigrateReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
@@ -1106,6 +1110,27 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int3
   code = vnodeAsyncRetention(pVnode, trimReq.timestamp);
 
 _exit:
+  return code;
+}
+
+static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t code = 0;
+
+  vInfo("vgId:%d, process trim wal request, force clean expired WAL files", pVnode->config.vgId);
+
+  // Trigger WAL snapshot with forceTrim flag to bypass keepVersion constraint
+  // This does NOT modify the persisted keepVersion, avoiding potential data loss if crashed
+  code = walBeginSnapshot(pVnode->pWal, pVnode->state.applied, 0);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = walEndSnapshot(pVnode->pWal, true);  // forceTrim = true
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to trim wal since %s", pVnode->config.vgId, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, successfully trimmed wal files", pVnode->config.vgId);
+  }
+
   return code;
 }
 

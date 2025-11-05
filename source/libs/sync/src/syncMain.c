@@ -537,7 +537,7 @@ int32_t syncEndSnapshot(int64_t rid) {
 
   if (atomic_load_64(&pSyncNode->snapshottingIndex) != SYNC_INDEX_INVALID) {
     SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
-    code = walEndSnapshot(pData->pWal);
+    code = walEndSnapshot(pData->pWal, false);
     if (code != 0) {
       sNError(pSyncNode, "wal snapshot end error since:%s", tstrerror(code));
       syncNodeRelease(pSyncNode);
