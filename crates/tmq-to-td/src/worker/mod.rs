@@ -21,7 +21,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
 use legacy_to_taos::{
-    sync_normal_table_schema, sync_super_table_schema, sync_super_table_schema_with_subs,
+    TargetOpts, sync_normal_table_schema, sync_super_table_schema,
+    sync_super_table_schema_with_subs,
 };
 
 use super::{TaosConnection, execute_many_sql, migrate_data_schema};
@@ -492,7 +493,7 @@ pub(super) async fn write_with_raw_block(
                         // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
                         if let Some(stable) = super_table_name {
                             let from = source.get().await?;
-                            let target_opts = Default::default();
+                            let target_opts = TargetOpts::default().check_table_exists(false);
                             sync_super_table_schema(
                                 &from,
                                 &stable,
@@ -1175,7 +1176,8 @@ impl Worker {
                                 // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
                                 if let Some(stable) = super_table_name {
                                     let from = self.source.get().await?;
-                                    let target_opts = Default::default();
+                                    let target_opts =
+                                        TargetOpts::default().check_table_exists(false);
                                     sync_super_table_schema(
                                         &from,
                                         &stable,
@@ -1370,7 +1372,7 @@ impl Worker {
                             get_stable_name(&from, Some(database), source_table_name).await?;
                         // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
                         if let Some(stable) = super_table_name {
-                            let target_opts = Default::default();
+                            let target_opts = TargetOpts::default().check_table_exists(false);
                             sync_super_table_schema(&from, &stable, conn, None, &target_opts, &[])
                                 .await
                                 .context("Create super table error")?;
