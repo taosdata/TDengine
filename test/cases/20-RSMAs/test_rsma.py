@@ -798,14 +798,14 @@ class TestCase:
             - 2025-09-25: Initial version from Kaili Xu(TS-6113).
             - 2025-11-04: Check negative ts from Kaili Xu(TD-38485).
         """
-        # self.s1_create_db_table()
-        # self.s2_create_rsma()
-        # self.s3_show_rsma()
-        # self.s4_drop_rsma()
-        # self.s5_trim_db()
-        # self.s6_rollup_db()
-        # self.s7_rollup_vgroups()
-        # self.s8_decimal_composite_key_add_drop_column()
+        self.s1_create_db_table()
+        self.s2_create_rsma()
+        self.s3_show_rsma()
+        self.s4_drop_rsma()
+        self.s5_trim_db()
+        self.s6_rollup_db()
+        self.s7_rollup_vgroups()
+        self.s8_decimal_composite_key_add_drop_column()
         self.s9_negative_ts()
 
         tdLog.success("%s successfully executed" % __file__)
