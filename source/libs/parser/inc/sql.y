@@ -241,6 +241,7 @@ cmd ::= USE db_name(A).                                                         
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
+cmd ::= TRIM DATABASE db_name(A) WAL.                                             { pCxt->pRootNode = createTrimDbWalStmt(pCxt, &A); }
 cmd ::= S3MIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createS3MigrateDatabaseStmt(pCxt, &A); }
 cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D); }
 cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E); }

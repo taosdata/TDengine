@@ -9781,6 +9781,15 @@ static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt*
   return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
 }
 
+static int32_t translateTrimDbWal(STranslateContext* pCxt, STrimDbWalStmt* pStmt) {
+  STrimDbReq req = {.maxSpeed = 0};  // WAL trim doesn't need maxSpeed
+  SName      name = {0};
+  int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+  (void)tNameGetFullDbName(&name, req.db);
+  return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB_WAL, (FSerializeFunc)tSerializeSTrimDbReq, &req);
+}
+
 static int32_t checkColumnOptions(SNodeList* pList) {
   SNode* pNode;
   FOREACH(pNode, pList) {
@@ -14924,6 +14933,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_TRIM_DATABASE_STMT:
       code = translateTrimDatabase(pCxt, (STrimDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      code = translateTrimDbWal(pCxt, (STrimDbWalStmt*)pNode);
       break;
     case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
       code = translateS3MigrateDatabase(pCxt, (SS3MigrateDatabaseStmt*)pNode);

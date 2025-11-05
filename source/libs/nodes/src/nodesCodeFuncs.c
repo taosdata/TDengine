@@ -218,6 +218,8 @@ const char* nodesNodeName(ENodeType type) {
       return "BalanceVgroupLeaderStmt";
     case QUERY_NODE_SET_VNODE_KEEP_VERSION_STMT:
       return "SetVnodeKeepVersionStmt";
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      return "TrimDbWalStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -9006,6 +9008,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SET_VNODE_KEEP_VERSION_STMT:
       return TSDB_CODE_SUCCESS;  // SSetVnodeKeepVersionStmt has simple fields, no need to serialize.
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      return TSDB_CODE_SUCCESS;  // STrimDbWalStmt has simple fields, no need to serialize.
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return mergeVgroupStmtToJson(pObj, pJson);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -9404,6 +9408,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return TSDB_CODE_SUCCESS;  // SBalanceVgroupLeaderStmt has no fields to deserialize.
     case QUERY_NODE_SET_VNODE_KEEP_VERSION_STMT:
       return TSDB_CODE_SUCCESS;  // SSetVnodeKeepVersionStmt has simple fields, no need to deserialize.
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      return TSDB_CODE_SUCCESS;  // STrimDbWalStmt has simple fields, no need to deserialize.
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return jsonToMergeVgroupStmt(pJson, pObj);
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:

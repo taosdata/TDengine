@@ -210,6 +210,7 @@ SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, STo
 SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
 SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t maxSpeed);
+SNode* createTrimDbWalStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd, bool metaOnly);
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,

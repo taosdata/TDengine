@@ -748,6 +748,11 @@ typedef struct SSetVnodeKeepVersionStmt {
   int64_t   keepVersion;
 } SSetVnodeKeepVersionStmt;
 
+typedef struct STrimDbWalStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_FNAME_LEN];
+} STrimDbWalStmt;
+
 typedef struct SMergeVgroupStmt {
   ENodeType type;
   int32_t   vgId1;

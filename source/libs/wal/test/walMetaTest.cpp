@@ -357,7 +357,7 @@ TEST_F(WalCleanEnv, rollbackMultiFile) {
     ASSERT_EQ(pWal->vers.lastVer, i);
     if (i == 5) {
       walBeginSnapshot(pWal, i, 0);
-      walEndSnapshot(pWal);
+      walEndSnapshot(pWal, false);
     }
   }
   code = walRollback(pWal, 12);
@@ -395,7 +395,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
 
   walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
-  walEndSnapshot(pWal);
+  walEndSnapshot(pWal, false);
   ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
 
@@ -411,7 +411,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
 
   code = walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(code, 0);
-  code = walEndSnapshot(pWal);
+  code = walEndSnapshot(pWal, false);
   ASSERT_EQ(code, 0);
 }
 
@@ -802,7 +802,7 @@ TEST_F(WalSkipLevel, roll) {
     code = walCommit(pWal, i);
   }
   walBeginSnapshot(pWal, i - 1, 0);
-  walEndSnapshot(pWal);
+  walEndSnapshot(pWal, false);
   code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen, NULL);
   ASSERT_NE(code, 0);
   for (; i < 200; i++) {
@@ -812,7 +812,7 @@ TEST_F(WalSkipLevel, roll) {
   }
   code = walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(code, 0);
-  code = walEndSnapshot(pWal);
+  code = walEndSnapshot(pWal, false);
   ASSERT_EQ(code, 0);
 }
 
@@ -870,7 +870,7 @@ TEST_F(WalCleanDeleteEnv, walSetKeepVersionWithDeletion) {
   // Trigger snapshot, this should not delete logs with version >= 50
   walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
-  walEndSnapshot(pWal);
+  walEndSnapshot(pWal, false);
   ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
 
@@ -892,7 +892,7 @@ TEST_F(WalCleanDeleteEnv, walSetKeepVersionWithDeletion) {
   // Trigger another snapshot
   code = walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(code, 0);
-  code = walEndSnapshot(pWal);
+  code = walEndSnapshot(pWal, false);
   ASSERT_EQ(code, 0);
 
   // The firstVer should be no greater than 150

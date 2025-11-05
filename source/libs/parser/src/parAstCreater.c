@@ -2292,6 +2292,18 @@ _err:
   return NULL;
 }
 
+SNode* createTrimDbWalStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
+  STrimDbWalStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRIM_DATABASE_WAL_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
