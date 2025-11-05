@@ -345,8 +345,13 @@ async function submit() {
     requestIng.value = true;
 
     const via = sourceForm.agent;
+    // normalize namespaces: join array to comma-separated string for backend DSN parsing
+    const namespaces = Array.isArray(info.namespaces)
+      ? info.namespaces.map(v => String(v)).join(',')
+      : (info.namespaces as unknown as string) || '';
+
     const params: Recordable = {
-      from_json: { ...sourceForm, ...info },
+      from_json: { ...sourceForm, ...info, namespaces },
       categories: category.value
     };
 
