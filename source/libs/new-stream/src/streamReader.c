@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <tdef.h>
 #include "osMemPool.h"
+#include "osMemory.h"
 #include "streamInt.h"
 #include "executor.h"
 #include "tarray.h"
@@ -100,7 +101,7 @@ static int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int6
     list->size -= 1;
   }
 
-  taosArrayRemove(pTableListInfo->pTableList, info->index);
+  taosArrayRemoveP(pTableListInfo->pTableList, info->index, taosMemFree);
   code = taosHashRemove(pTableListInfo->uIdMap, &uid, LONG_BYTES);
   
 end:
@@ -121,6 +122,7 @@ static void* copyTableInfo(void* p) {
 int32_t  qStreamCopyTableInfo(StreamTableListInfo* src, StreamTableListInfo* dst, TdThreadRwlock* lock){
   int32_t code = 0;
   int32_t lino = 0;
+  STREAM_CHECK_NULL_GOTO(src->pTableList, code);
   (void)taosThreadRwlockRdlock(lock);
   dst->pTableList = taosArrayDup(src->pTableList, copyTableInfo);
   (void)taosThreadRwlockUnlock(lock);
@@ -262,7 +264,7 @@ int32_t qStreamIterTableList(StreamTableListInfo* tableInfo, STableKeyInfo** pKe
   *size = 0;
   *pKeyInfo = NULL;
   tableInfo->pIter = taosHashIterate(tableInfo->gIdMap, tableInfo->pIter);
-  STREAM_CHECK_NULL_GOTO(tableInfo->pIter, terrno);
+  STREAM_CHECK_NULL_GOTO(tableInfo->pIter, code);
 
   SStreamTableList* list = (SStreamTableList*)(tableInfo->pIter);
   STREAM_CHECK_RET_GOTO(buildTableListFromList(pKeyInfo, size, list));
@@ -451,12 +453,10 @@ int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTas
   }
 
   cleanupQueryTableDataCond(&pTaskInner->cond);
-  if (pNum != 0) {
-    STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTaskInner->cond, options->order, pTaskInner->options.schemas, options->isSchema,
-                                                      options->twindows, options->suid, options->ver, NULL));
-    STREAM_CHECK_RET_GOTO(pTaskInner->api.tsdReader.tsdReaderOpen(pVnode, &pTaskInner->cond, &pList, pNum, pTaskInner->pResBlock,
-                                                           (void**)&pTaskInner->pReader, pTaskInner->idStr, NULL));
-  }
+  STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTaskInner->cond, options->order, pTaskInner->options.schemas, options->isSchema,
+                                                    options->twindows, options->suid, options->ver, options->pSlotList));
+  STREAM_CHECK_RET_GOTO(pTaskInner->api.tsdReader.tsdReaderOpen(pVnode, &pTaskInner->cond, &pList, pNum, pTaskInner->pResBlock,
+                                                          (void**)&pTaskInner->pReader, pTaskInner->idStr, NULL));
   
   *ppTask = pTaskInner;
   pTaskInner = NULL;
