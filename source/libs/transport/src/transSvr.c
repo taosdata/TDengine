@@ -1407,6 +1407,11 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
     if (saslConnShoudDoAuth(pConn->saslConn)) {
       code = saslConnHandleAuth(pConn->saslConn, NULL, 0);
+      if (code != 0) {
+        tWarn("conn:%p, failed to handle auth since %s", pConn, tstrerror(code));
+        transUnrefSrvHandle(pConn);
+        return;
+      }
 
       if (saslConnShoudDoAuth(pConn->saslConn)) {
         tDebug("conn:%p, need to do sasl auth", pConn);

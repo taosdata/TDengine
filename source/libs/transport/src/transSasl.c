@@ -178,7 +178,7 @@ int32_t saslConnInit(SSaslConn* pConn) {
   TAOS_CHECK_GOTO(code, &lino, _error);
 
   if (pConn->server) {
-    result = sasl_server_new("tdengine", NULL, NULL, NULL, NULL, callbacks, 0, &pConn->conn);
+    result = sasl_server_new("tdengine", NULL, NULL, NULL, NULL, NULL, 0, &pConn->conn);
     if (result != SASL_OK) {
       tError("sasl_server_new failed: %s", sasl_errstring(result, NULL, NULL));
       code = TSDB_CODE_THIRDPARTY_ERROR;
@@ -304,7 +304,7 @@ int32_t saslConnListMech(SSaslConn* pConn, const char* tgt) {
   uint32_t    len = 0;
   int32_t     count = 0;
   const char* mechList = NULL;
-  result = sasl_listmech(pConn->conn, NULL, NULL, NULL, NULL, &mechList, &len, &count);
+  result = sasl_listmech(pConn->conn, NULL, NULL, "", "", &mechList, &len, &count);
   if (result != SASL_OK) {
     tError("sasl_listmech failed: %s", sasl_errstring(result, NULL, NULL));
     code = TSDB_CODE_THIRDPARTY_ERROR;
