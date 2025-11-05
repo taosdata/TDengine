@@ -14,7 +14,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
     
     
       
@@ -2614,12 +2614,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../case_list_docs/Tools/TaosBenchmark/" class="md-nav__link">
+      <a href="../../../case_list_docs/Tools/Benchmark/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    03-TaosBenchmark
+    03-Benchmark
     
   </span>
   
@@ -4307,6 +4307,17 @@
     <li class="md-nav__item">
       <a href="#__init__.TDSql.getData" class="md-nav__link">
         getData 
+      </a>
+      
+    </li>
+  
+
+        
+          
+  
+    <li class="md-nav__item">
+      <a href="#__init__.TDSql.getDataWithOutCheck" class="md-nav__link">
+        getDataWithOutCheck 
       </a>
       
     </li>
@@ -6094,6 +6105,17 @@
     <li class="md-nav__item">
       <a href="#sql.TDSql.getData" class="md-nav__link">
         getData 
+      </a>
+      
+    </li>
+  
+
+        
+          
+  
+    <li class="md-nav__item">
+      <a href="#sql.TDSql.getDataWithOutCheck" class="md-nav__link">
+        getDataWithOutCheck 
       </a>
       
     </li>
@@ -8703,6 +8725,17 @@
           
   
     <li class="md-nav__item">
+      <a href="#__init__.TDSql.getDataWithOutCheck" class="md-nav__link">
+        getDataWithOutCheck 
+      </a>
+      
+    </li>
+  
+
+        
+          
+  
+    <li class="md-nav__item">
       <a href="#__init__.TDSql.getFirstValue" class="md-nav__link">
         getFirstValue 
       </a>
@@ -10481,6 +10514,17 @@
     <li class="md-nav__item">
       <a href="#sql.TDSql.getData" class="md-nav__link">
         getData 
+      </a>
+      
+    </li>
+  
+
+        
+          
+  
+    <li class="md-nav__item">
+      <a href="#sql.TDSql.getDataWithOutCheck" class="md-nav__link">
+        getDataWithOutCheck 
       </a>
       
     </li>
@@ -17642,7 +17686,7 @@ None</p>
   
   
 <h4 id="__init__.TDSql.checkData" class="doc doc-heading">
-                  checkData(row, col, data, show=False, exit=True)
+                  checkData(row, col, data, show=False, exit=True, dbPrecision='')
 <a href="#__init__.TDSql.checkData" class="headerlink" title="Permanent link">&para;</a></h4>  
         <div class="doc doc-contents ">
 
@@ -21234,6 +21278,28 @@ False otherwise</p>
   
   
   
+<h4 id="__init__.TDSql.getDataWithOutCheck" class="doc doc-heading">
+                  getDataWithOutCheck(row, col)
+<a href="#__init__.TDSql.getDataWithOutCheck" class="headerlink" title="Permanent link">&para;</a></h4>  
+        <div class="doc doc-contents ">
+
+        <p>Retrieves the data at the specified row and column from the last query result.
+Args:
+    row (int): The row index of the data to be retrieved.
+    col (int): The column index of the data to be retrieved.
+Returns:
+    The data at the specified row and column.
+Raises:
+    IndexError: If the specified row or column is out of range.</p>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h4 id="__init__.TDSql.getFirstValue" class="doc doc-heading">
                   getFirstValue(sql)
 <a href="#__init__.TDSql.getFirstValue" class="headerlink" title="Permanent link">&para;</a></h4>  
@@ -22388,7 +22454,7 @@ Raises:
   
   
 <h4 id="__init__.TDSql.queryAndCheckResult" class="doc doc-heading">
-                  queryAndCheckResult(sql_list, expect_result_list)
+                  queryAndCheckResult(sql_list, expect_result_list, dbPrecision='')
 <a href="#__init__.TDSql.queryAndCheckResult" class="headerlink" title="Permanent link">&para;</a></h4>  
         <div class="doc doc-contents ">
 
@@ -29277,7 +29343,7 @@ that contain the specified thread name.</p>
   
   
 <h4 id="sql.TDSql.checkData" class="doc doc-heading">
-                  checkData(row, col, data, show=False, exit=True)
+                  checkData(row, col, data, show=False, exit=True, dbPrecision='')
 <a href="#sql.TDSql.checkData" class="headerlink" title="Permanent link">&para;</a></h4>  
         <div class="doc doc-contents ">
 
@@ -32869,6 +32935,28 @@ False otherwise</p>
   
   
   
+<h4 id="sql.TDSql.getDataWithOutCheck" class="doc doc-heading">
+                  getDataWithOutCheck(row, col)
+<a href="#sql.TDSql.getDataWithOutCheck" class="headerlink" title="Permanent link">&para;</a></h4>  
+        <div class="doc doc-contents ">
+
+        <p>Retrieves the data at the specified row and column from the last query result.
+Args:
+    row (int): The row index of the data to be retrieved.
+    col (int): The column index of the data to be retrieved.
+Returns:
+    The data at the specified row and column.
+Raises:
+    IndexError: If the specified row or column is out of range.</p>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h4 id="sql.TDSql.getFirstValue" class="doc doc-heading">
                   getFirstValue(sql)
 <a href="#sql.TDSql.getFirstValue" class="headerlink" title="Permanent link">&para;</a></h4>  
@@ -34023,7 +34111,7 @@ Raises:
   
   
 <h4 id="sql.TDSql.queryAndCheckResult" class="doc doc-heading">
-                  queryAndCheckResult(sql_list, expect_result_list)
+                  queryAndCheckResult(sql_list, expect_result_list, dbPrecision='')
 <a href="#sql.TDSql.queryAndCheckResult" class="headerlink" title="Permanent link">&para;</a></h4>  
         <div class="doc doc-contents ">
 
