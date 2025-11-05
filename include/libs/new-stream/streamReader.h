@@ -114,6 +114,7 @@ typedef struct {
   STimeWindow twindows;
   int64_t     suid;
   int64_t     ver;
+  int32_t**   pSlotList;
 } SStreamOptions;
 
 typedef struct {

@@ -308,6 +308,30 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   pArray->size -= 1;
 }
 
+void taosArrayRemoveP(SArray* pArray, size_t index, void (*fp)(void*)){
+  if (!(index < pArray->size)) {
+    return;
+  }
+
+  if (index == pArray->size - 1) {
+    void** t = taosArrayPop(pArray);
+    if (fp && t!= NULL) {
+      fp(*t);
+    }
+    return;
+  }
+
+  void* p = taosArrayGetP(pArray, index);
+  if (fp) {
+    fp(p);
+  }
+
+  size_t remain = pArray->size - index - 1;
+  memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + 1) * pArray->elemSize,
+          remain * pArray->elemSize);
+  pArray->size -= 1;
+}
+
 void taosArrayRemoveBatch(SArray* pArray, size_t index, size_t num, FDelete fp) {
   if(num == 0) {
     return;
