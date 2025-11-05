@@ -12464,46 +12464,61 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
   SCreateUserReq createReq = {0};
-  if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
-    return code;
-  }
-  tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
+
   createReq.createType = 0;
   createReq.superUser = 0;
-  createReq.sysInfo = pStmt->sysinfo;
-  createReq.enable = 1;
-  createReq.isImport = pStmt->isImport;
-  createReq.createDb = pStmt->createDb;
+  createReq.passIsMd5 = 1;
+  createReq.ignoreExisting = pStmt->ignoreExisting;
 
+  tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   if (pStmt->isImport == 1) {
-    tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
+    tstrncpy(createReq.pass, pStmt->password, TSDB_USER_PASSWORD_LEN);
   } else {
     taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
   }
-  createReq.passIsMd5 = 1;
+  tstrncpy(createReq.totpseed, pStmt->totpseed, sizeof(createReq.totpseed));
+
+  createReq.sysInfo = pStmt->sysinfo;
+  createReq.createDb = pStmt->createDb;
+  createReq.isImport = pStmt->isImport;
+  createReq.changepass = pStmt->changepass;
+  createReq.enable = pStmt->enable;
+
+  createReq.negIpRanges = pStmt->negIpRanges;
+  createReq.negTimeRanges = pStmt->negTimeRanges;
+
+  createReq.sessionPerUser = pStmt->sessionPerUser;
+  createReq.connectTime = pStmt->connectTime;
+  createReq.connectIdleTime = pStmt->connectIdleTime;
+  createReq.callPerSession = pStmt->callPerSession;
+  createReq.vnodePerCall = pStmt->vnodePerCall;
+  createReq.failedLoginAttempts = pStmt->failedLoginAttempts;
+
+  createReq.passwordLifeTime = pStmt->passwordLifeTime;
+  createReq.passwordReuseTime = pStmt->passwordReuseTime;
+  createReq.passwordReuseMax = pStmt->passwordReuseMax;
+  createReq.passwordLockTime = pStmt->passwordLockTime;
+  createReq.passwordGraceTime = pStmt->passwordGraceTime;
+  createReq.inactiveAccountTime = pStmt->inactiveAccountTime;
+  createReq.allowTokenNum = pStmt->allowTokenNum;
 
   createReq.numIpRanges = pStmt->numIpRanges;
-  if (pStmt->numIpRanges > 0) {
-    createReq.pIpRanges = taosMemoryCalloc(1, createReq.numIpRanges * sizeof(SIpV4Range));
-    if (!createReq.pIpRanges) {
-      return terrno;
-    }
+  createReq.pIpDualRanges = pStmt->pIpRanges;
 
-    createReq.pIpDualRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpRange));
-    if (!createReq.pIpDualRanges) {
-      tFreeSCreateUserReq(&createReq);
-      return terrno;
-    }
-
-    memcpy(createReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * createReq.numIpRanges);
-  }
+  createReq.numTimeRanges = pStmt->numTimeRanges;
+  createReq.pTimeRanges = pStmt->pTimeRanges;
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+
+  // set to NULL because the memory is not owned by createReq, so that tFreeSCreateUserReq will not free them
+  createReq.pIpDualRanges = NULL;
+  createReq.pTimeRanges = NULL;
   tFreeSCreateUserReq(&createReq);
   return code;
 }
 
 static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
   int32_t code = 0;
+  /*
   switch (pStmt->alterType) {
     case TSDB_ALTER_USER_ENABLE:
       code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "enable", pStmt->enable, 0, 1, false);
@@ -12515,6 +12530,7 @@ static int32_t checkAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
       code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "createdb", pStmt->createdb, 0, 1, false);
       break;
   }
+  */
   return code;
 }
 
