@@ -324,9 +324,28 @@ typedef enum ELogicConditionType {
 #define TSDB_AUTH_LEN              16
 #define TSDB_PASSWORD_MIN_LEN      8
 #define TSDB_PASSWORD_MAX_LEN      255
-#define TSDB_PASSWORD_LEN          32
+#define TSDB_PASSWORD_LEN          32   // this is the length after encryption
 #define TSDB_USER_PASSWORD_LEN     129
 #define TSDB_USER_PASSWORD_LONGLEN 256
+#define TSDB_TOTP_SECRET_LEN       32
+#define TSDB_USER_TOTPSEED_MIN_LEN 8    // minimum length for TOTP seed, excluding the terminator '\0'
+#define TSDB_USER_TOTPSEED_MAX_LEN 255  // maximum length for TOTP seed, excluding the terminator '\0'
+#define TSDB_USER_SESSION_PER_USER_DEFAULT      32
+#define TSDB_USER_CONNECT_TIME_DEFAULT          480
+#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     30
+#define TSDB_USER_CALL_PER_SESSION_DEFAULT      10
+#define TSDB_USER_VNODE_PER_CALL_DEFAULT        10
+#define TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT 3
+#define TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT    1440
+#define TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT    90
+#define TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT   7
+#define TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT   30
+#define TSDB_USER_PASSWORD_REUSE_TIME_MAX       365
+#define TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT    5
+#define TSDB_USER_PASSWORD_REUSE_MAX_MAX        100
+#define TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT 90
+#define TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT       3
+
 #define TSDB_VERSION_LEN           32
 #define TSDB_LABEL_LEN             16
 #define TSDB_JOB_STATUS_LEN        32
