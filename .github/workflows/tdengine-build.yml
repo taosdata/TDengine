@@ -30,7 +30,6 @@ jobs:
         os:
           - ubuntu-22.04
           - ubuntu-24.04
-          - macos-13
           - macos-14
           - macos-15
           - windows-2022
@@ -236,6 +235,7 @@ jobs:
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
+          export TAOS_FQDN=localhost
           taos -s "show databases"
           taosBenchmark -t 10 -n 10 -s 1744951233012 -y
           taos -s "select count(*) from test.meters"
