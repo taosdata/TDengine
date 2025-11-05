@@ -1921,6 +1921,7 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
   }
 
   TSWAP(pLogicNode->vtbScan.pOrgVgIds, pDynCtrl->vtbScan.pOrgVgIds);
+  TSWAP(pLogicNode->vtbScan.pSysScanVgIds, pDynCtrl->vtbScan.pSysScanVgIds);
   PLAN_ERR_JRET(nodesCloneList(pLogicNode->node.pTargets, &pDynCtrl->vtbScan.pScanCols));
 
   pDynCtrl->vtbScan.scanAllCols = pLogicNode->vtbScan.scanAllCols;

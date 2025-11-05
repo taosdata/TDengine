@@ -379,7 +379,7 @@ static int32_t addVtbPrimaryTsCol(SVirtualTableNode* pTable, SNodeList** pCols) 
 }
 
 static int32_t addInsColumnScanCol(SRealTableNode* pTable, SNodeList** pCols) {
-  for (int32_t i = 1; i <= 8; i++) {
+  for (int32_t i = 1; i <= 9; i++) {
     PLAN_ERR_RET(nodesListMakeStrictAppend(pCols, createInsColsScanCol(pTable, &pTable->pMeta->schema[i])));
   }
   return TSDB_CODE_SUCCESS;
@@ -1131,6 +1131,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pInsColumnsScan)->pScanCols, &((SScanLogicNode*)pInsColumnsScan)->node.pTargets));
   ((SScanLogicNode *)pInsColumnsScan)->virtualStableScan = true;
   ((SScanLogicNode *)pInsColumnsScan)->stableId = pVtableScan->stableId;
+  ((SScanLogicNode *)pInsColumnsScan)->node.dynamicOp = pCxt->pPlanCxt->streamCalcQuery;
 
   // Dynamic query control node -> Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
@@ -1145,6 +1146,14 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     pDynCtrl->vtbScan.uid = pVtableScan->tableId;
     pDynCtrl->vtbScan.rversion = pVirtualTable->pMeta->rversion;
   }
+
+  for (int32_t i = 0; i < ((SScanLogicNode*)pInsColumnsScan)->pVgroupList->numOfVgroups; i++) {
+    int32_t    vgId = ((SScanLogicNode*)pInsColumnsScan)->pVgroupList->vgroups[i].vgId;
+    SValueNode *pVal = NULL;
+    PLAN_ERR_JRET(nodesMakeValueNodeFromInt32(vgId, (SNode**)&pVal));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->vtbScan.pSysScanVgIds, (SNode*)pVal));
+  }
+
   for (int32_t i = 0; i < ((SScanLogicNode*)pRealTableScan)->pVgroupList->numOfVgroups; i++) {
     int32_t    vgId = ((SScanLogicNode*)pRealTableScan)->pVgroupList->vgroups[i].vgId;
     SValueNode *pVal = NULL;

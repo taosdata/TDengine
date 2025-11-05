@@ -10996,6 +10996,13 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pOpParam->opType));
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pOpParam->downstreamIdx));
   switch (pOpParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN: {
+      SSysScanOperatorParam* pSysScan = (SSysScanOperatorParam *)pOpParam->value;
+      TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pSysScan->isVstb));
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pSysScan->version));
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pSysScan->uid));
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
       STagScanOperatorParam *pTagScan = (STagScanOperatorParam *)pOpParam->value;
       TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pTagScan->vcUid));
@@ -11047,6 +11054,17 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->opType));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->downstreamIdx));
   switch (pOpParam->opType) {
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN: {
+      pOpParam->value = taosMemoryMalloc(sizeof(SSysScanOperatorParam));
+      if (NULL == pOpParam->value) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+      SSysScanOperatorParam* pSysScan = pOpParam->value;
+      TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pSysScan->isVstb));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pSysScan->version));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pSysScan->uid));
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
       pOpParam->value = taosMemoryMalloc(sizeof(STagScanOperatorParam));
       if (NULL == pOpParam->value) {

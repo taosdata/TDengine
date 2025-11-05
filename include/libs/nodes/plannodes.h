@@ -264,6 +264,7 @@ typedef struct SDynQueryCtrlVtbScan {
   uint64_t      uid;
   int32_t       rversion;
   SNodeList*    pOrgVgIds;
+  SNodeList*    pSysScanVgIds;
   SVgroupsInfo* pVgroupList;
 } SDynQueryCtrlVtbScan;
 
@@ -675,6 +676,7 @@ typedef struct SVtbScanDynCtrlBasic {
   SEpSet     mgmtEpSet;
   SNodeList *pScanCols;
   SNodeList *pOrgVgIds;
+  SNodeList *pSysScanVgIds;
 } SVtbScanDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {

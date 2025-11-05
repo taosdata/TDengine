@@ -2540,6 +2540,24 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
     pMeta->changed = true;
     metaDebug("vgId:%d, index:%" PRId64 ", handle meta entry success, type:%d tb:%s uid:%" PRId64, vgId,
               pEntry->version, pEntry->type, pEntry->type > 0 ? pEntry->name : "", pEntry->uid);
+    if (type == TSDB_VIRTUAL_CHILD_TABLE) {
+      int64_t suid = pEntry->ctbEntry.suid;
+      (void)taosThreadRwlockWrlock(&pMeta->pVnode->versionLock);
+      int32_t  *ver = taosHashGet(pMeta->pVnode->pVtableVersion, &suid, sizeof(tb_uid_t));
+      if (ver != NULL) {
+        int32_t newVersion = (*ver) + 1;
+        metaDebug("vgId:%d, vtable uid:%" PRId64 " version updated to %d" , TD_VID(pMeta->pVnode), suid, newVersion);
+        code = taosHashRemove(pMeta->pVnode->pVtableVersion, &suid, sizeof(tb_uid_t));
+        if (TSDB_CODE_SUCCESS == code) {
+          code = taosHashPut(pMeta->pVnode->pVtableVersion, &suid, sizeof(tb_uid_t), &newVersion, sizeof(newVersion));
+        }
+      } else {
+        int32_t newVersion = 1;
+        metaDebug("vgId:%d, vtable uid:%" PRId64 " version set to %c", TD_VID(pMeta->pVnode), suid, newVersion);
+        code = taosHashPut(pMeta->pVnode->pVtableVersion, &suid, sizeof(tb_uid_t), &newVersion, sizeof(newVersion));
+      }
+      (void)taosThreadRwlockUnlock(&pMeta->pVnode->versionLock);
+    }
   } else {
     metaErr(vgId, code);
   }

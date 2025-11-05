@@ -302,6 +302,9 @@ typedef struct SStoreMeta {
   int32_t (*metaGetCachedRefDbs)(void* pVnode, tb_uid_t suid, SArray* pList);
   int32_t (*metaPutRefDbsToCache)(void* pVnode, tb_uid_t suid, SArray* pList);
 
+  int32_t (*metaGetVirtualSupertableVersion)(void* pVnode, tb_uid_t suid, int32_t* version);
+  int32_t (*metaGetVirtualNormalChildtableVersion)(void* pVnode, tb_uid_t uid, int32_t* version);
+
   void* (*storeGetIndexInfo)(void* pVnode);
   void* (*getInvertIndex)(void* pVnode);
   // support filter and non-filter cases. [vnodeGetCtbIdList & vnodeGetCtbIdListByFilter]

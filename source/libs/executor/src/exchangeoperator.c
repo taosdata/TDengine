@@ -49,8 +49,11 @@ typedef struct SSourceDataInfo {
   SOrgTbInfo*        colMap;
   bool               isVtbRefScan;
   bool               isVtbTagScan;
+  bool               isVtbSysScan;
+  bool               isVSuperTable;
   STimeWindow        window;
   bool               fetchSent; // need reset
+  int64_t            version;
 } SSourceDataInfo;
 
 static void destroyExchangeOperatorInfo(void* param);
@@ -932,6 +935,37 @@ _return:
   return code;
 }
 
+int32_t buildSysScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, int64_t version, bool isVstb) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SSysScanOperatorParam*   pScan = NULL;
+
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
+
+  pScan = taosMemoryMalloc(sizeof(SSysScanOperatorParam));
+  QUERY_CHECK_NULL(pScan, code, lino, _return, terrno);
+
+  pScan->version = version;
+  pScan->isVstb = isVstb;
+  pScan->uid = *(tb_uid_t*)taosArrayGet(pUidList, 0);
+
+  (*ppRes)->opType = srcOpType;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->value = pScan;
+  (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
+
+  return code;
+_return:
+  qError("%s failed at %d, failed to build scan operator msg:%s", __FUNCTION__, lino, tstrerror(code));
+  taosMemoryFreeClear(*ppRes);
+  if (pScan) {
+    taosMemoryFree(pScan);
+  }
+  return code;
+}
+
 int32_t buildTagScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -1066,6 +1100,15 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       }
     } else if (pDataInfo->isVtbTagScan) {
       code = buildTagScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType);
+      taosArrayDestroy(pDataInfo->pSrcUidList);
+      pDataInfo->pSrcUidList = NULL;
+      if (TSDB_CODE_SUCCESS != code) {
+        pTaskInfo->code = code;
+        taosMemoryFree(pWrapper);
+        return pTaskInfo->code;
+      }
+    } else if (pDataInfo->isVtbSysScan) {
+      code = buildSysScanOperatorParam(&req.pOpParam,  pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->version, pDataInfo->isVSuperTable);
       taosArrayDestroy(pDataInfo->pSrcUidList);
       pDataInfo->pSrcUidList = NULL;
       if (TSDB_CODE_SUCCESS != code) {
@@ -1508,6 +1551,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
   SExchangeSrcIndex* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
   if (NULL == pIdx) {
     if (pBasicParam->isNewDeployed) {
+      qDebug("%s vgId:%d not found in existing exchange sources, add new deployed source", __func__, pBasicParam->vgId);
       SDownstreamSourceNode *pNode = NULL;
       int32_t code = nodesCloneNode((SNode*)&pBasicParam->newDeployedSrc, (SNode**)&pNode);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1540,40 +1584,20 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
 
   qDebug("start to add single exchange source");
 
-  if (pBasicParam->isVtbRefScan) {
+  if (pBasicParam->isVtbRefScan || pBasicParam->isVtbTagScan) {
     SSourceDataInfo dataInfo = {0};
     dataInfo.status = EX_SOURCE_DATA_NOT_READY;
     dataInfo.taskId = pExchangeInfo->pTaskId;
     dataInfo.index = pIdx->srcIdx;
     dataInfo.window = pBasicParam->window;
-    dataInfo.colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
-    dataInfo.colMap->vgId = pBasicParam->colMap->vgId;
-    tstrncpy(dataInfo.colMap->tbName, pBasicParam->colMap->tbName, TSDB_TABLE_FNAME_LEN);
-    dataInfo.colMap->colMap = taosArrayDup(pBasicParam->colMap->colMap, NULL);
-
-    dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
-    if (dataInfo.pSrcUidList == NULL) {
-      return terrno;
+    if (pBasicParam->isVtbRefScan) {
+      dataInfo.colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
+      dataInfo.colMap->vgId = pBasicParam->colMap->vgId;
+      tstrncpy(dataInfo.colMap->tbName, pBasicParam->colMap->tbName, TSDB_TABLE_FNAME_LEN);
+      dataInfo.colMap->colMap = taosArrayDup(pBasicParam->colMap->colMap, NULL);
+    } else {
+      dataInfo.colMap = NULL;
     }
-
-    dataInfo.isVtbRefScan = pBasicParam->isVtbRefScan;
-    dataInfo.isVtbTagScan = pBasicParam->isVtbTagScan;
-    dataInfo.srcOpType = pBasicParam->srcOpType;
-    dataInfo.tableSeq = pBasicParam->tableSeq;
-
-    taosArrayClearEx(pExchangeInfo->pSourceDataInfo, clearVtbScanDataInfo);
-    void* tmp = taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
-    if (!tmp) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return terrno;
-    }
-  } else if (pBasicParam->isVtbTagScan) {
-    SSourceDataInfo dataInfo = {0};
-    dataInfo.status = EX_SOURCE_DATA_NOT_READY;
-    dataInfo.taskId = pExchangeInfo->pTaskId;
-    dataInfo.index = pIdx->srcIdx;
-    dataInfo.window = pBasicParam->window;
-    dataInfo.colMap = NULL;
 
     dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
     if (dataInfo.pSrcUidList == NULL) {
@@ -1597,13 +1621,6 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
       dataInfo.status = EX_SOURCE_DATA_NOT_READY;
       dataInfo.taskId = pExchangeInfo->pTaskId;
       dataInfo.index = pIdx->srcIdx;
-      if (pBasicParam->isVtbRefScan) {
-        dataInfo.window = pBasicParam->window;
-        dataInfo.colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
-        dataInfo.colMap->vgId = pBasicParam->colMap->vgId;
-        tstrncpy(dataInfo.colMap->tbName, pBasicParam->colMap->tbName, TSDB_TABLE_FNAME_LEN);
-        dataInfo.colMap->colMap = taosArrayDup(pBasicParam->colMap->colMap, NULL);
-      }
 
       dataInfo.pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
       if (dataInfo.pSrcUidList == NULL) {
@@ -1612,8 +1629,11 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
 
       dataInfo.isVtbRefScan = pBasicParam->isVtbRefScan;
       dataInfo.isVtbTagScan = pBasicParam->isVtbTagScan;
+      dataInfo.isVtbSysScan = pBasicParam->isVtbSysScan;
+      dataInfo.isVSuperTable = pBasicParam->isVSuperTable;
       dataInfo.srcOpType = pBasicParam->srcOpType;
       dataInfo.tableSeq = pBasicParam->tableSeq;
+      dataInfo.version = pBasicParam->version;
 
       void* tmp = taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
       if (!tmp) {
@@ -1630,16 +1650,6 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
       }
 
-      if (pBasicParam->isVtbRefScan) {
-        pDataInfo->window = pBasicParam->window;
-        if (!pDataInfo->colMap) {
-          pDataInfo->colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
-        }
-        pDataInfo->colMap->vgId = pBasicParam->colMap->vgId;
-        tstrncpy(pDataInfo->colMap->tbName, pBasicParam->colMap->tbName, TSDB_TABLE_FNAME_LEN);
-        pDataInfo->colMap->colMap = taosArrayDup(pBasicParam->colMap->colMap, NULL);
-      }
-
       pDataInfo->pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
       if (pDataInfo->pSrcUidList == NULL) {
         return terrno;
@@ -1649,6 +1659,9 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
       pDataInfo->isVtbTagScan = pBasicParam->isVtbTagScan;
       pDataInfo->srcOpType = pBasicParam->srcOpType;
       pDataInfo->tableSeq = pBasicParam->tableSeq;
+      pDataInfo->isVSuperTable = pBasicParam->isVSuperTable;
+      pDataInfo->isVtbSysScan = pBasicParam->isVtbSysScan;
+      pDataInfo->version = pBasicParam->version;
     }
   }
 

@@ -115,6 +115,9 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->metaGetCachedRefDbs = metaGetCachedRefDbs;
   pMeta->metaPutRefDbsToCache = metaPutRefDbsToCache;
+
+  pMeta->metaGetVirtualSupertableVersion = metaGetVirtualSupertableVersion;
+  pMeta->metaGetVirtualNormalChildtableVersion = metaGetVirtualNormalChildtableVersion;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

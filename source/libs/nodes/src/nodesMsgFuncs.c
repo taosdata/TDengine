@@ -4526,6 +4526,7 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_IS_SUPER_TABLE,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_RVERSION,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ORG_VG_IDS,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SYS_VG_IDS,
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4590,6 +4591,9 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ORG_VG_IDS, nodeListToMsg, pNode->vtbScan.pOrgVgIds);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SYS_VG_IDS, nodeListToMsg, pNode->vtbScan.pSysScanVgIds);
         }
         break;
       }
@@ -4672,6 +4676,9 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ORG_VG_IDS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->vtbScan.pOrgVgIds);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SYS_VG_IDS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->vtbScan.pSysScanVgIds);
         break;
       default:
         break;
