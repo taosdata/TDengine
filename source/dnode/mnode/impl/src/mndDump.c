@@ -18,6 +18,7 @@
 #include "mndInt.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndVgroup.h"
 #include "sdb.h"
 #include "tconfig.h"
 #include "tjson.h"
@@ -309,17 +310,19 @@ void dumpVgroup(SSdb *pSdb, SJson *json) {
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "version", i642str(pObj->version)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "hashBegin", i642str(pObj->hashBegin)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "hashEnd", i642str(pObj->hashEnd)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "db", mndGetDbStr(pObj->dbName)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "db", pObj->dbName), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "isTsma", i642str(pObj->isTsma)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "replica", i642str(pObj->replica)), pObj, &lino, _OVER);
+    SJson *replicas = tjsonAddArrayToObject(item, "replicas");
     for (int32_t i = 0; i < pObj->replica; ++i) {
-      SJson *replicas = tjsonAddArrayToObject(item, "replicas");
       SJson *replica = tjsonCreateObject();
       RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(replicas, replica), pObj, &lino, _OVER);
       RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(replica, "dnodeId", i642str(pObj->vnodeGid[i].dnodeId)), pObj, &lino,
                           _OVER);
     }
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "syncConfChangeVer", i642str(pObj->syncConfChangeVer)), pObj,
+                        &lino, _OVER);
     sdbRelease(pSdb, pObj);
   }
 _OVER:
@@ -796,10 +799,9 @@ int32_t mndDumpSdb() {
   return 0;
 }
 
-int32_t mndDeleteTrans() {
-  mInfo("start to dump sdb info to sdb.json");
-
-  char path[PATH_MAX * 2] = {0};
+static SMnode *mndPrepareMnode() {
+  int32_t code = 0;
+  char    path[PATH_MAX * 2] = {0};
   (void)snprintf(path, sizeof(path), "%s%smnode", tsDataDir, TD_DIRSEP);
 
   SMsgCb msgCb = {0};
@@ -810,18 +812,177 @@ int32_t mndDeleteTrans() {
   msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
   tmsgSetDefault(&msgCb);
 
-  TAOS_CHECK_RETURN(walInit(NULL));
-  TAOS_CHECK_RETURN(syncInit());
+  if ((code = walInit(NULL)) != 0) {
+    terrno = code;
+    return NULL;
+  }
+  if ((code = syncInit()) != 0) {
+    terrno = code;
+    return NULL;
+  }
 
   SMnodeOpt opt = {.msgCb = msgCb};
   SMnode   *pMnode = mndOpen(path, &opt);
+
+  return pMnode;
+}
+
+int32_t mndDeleteTrans() {
+  mInfo("start to dump sdb info to sdb.json");
+
+  SMnode *pMnode = mndPrepareMnode();
   if (pMnode == NULL) return terrno;
 
-  TAOS_CHECK_RETURN(sdbWriteFileForDump(pMnode->pSdb));
+  TAOS_CHECK_RETURN(sdbWriteFileForDump(pMnode->pSdb, 0));
 
   mInfo("dump sdb info success");
 
   return 0;
+}
+
+static SJson *mndLoadSdbJson(char *path) {
+  int32_t   code = 0;
+  TdFilePtr pFile = NULL;
+  char     *pData = NULL;
+  SJson    *pJson = NULL;
+
+  mInfo("start to load sdb info from sdb.json");
+  pFile = taosOpenFile(path, TD_FILE_READ);
+  if (pFile == NULL) {
+    code = terrno;
+    mError("failed to open file:%s since %s", path, tstrerror(code));
+    goto _OVER;
+  }
+
+  int64_t size = 0;
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
+    mError("failed to fstat file:%s since %s", path, tstrerror(code));
+    goto _OVER;
+  }
+
+  pData = taosMemoryMalloc(size + 1);
+  if (pData == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if (taosReadFile(pFile, pData, size) != size) {
+    code = terrno;
+    mError("failed to read file:%s since %s", path, tstrerror(code));
+    goto _OVER;
+  }
+
+  pData[size] = '\0';
+
+  pJson = tjsonParse(pData);
+  if (pJson == NULL) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  terrno = code;
+  return pJson;
+
+_OVER:
+  if (pFile != NULL) taosCloseFile(&pFile);
+  if (pData != NULL) taosMemoryFree(pData);
+  mError("failed to load sdb json, since %s", tstrerror(code));
+  terrno = code;
+  return NULL;
+}
+
+static int32_t mndGenerateVgroup(SMnode *pMnode, SJson *pJson) {
+  int32_t code = 0;
+
+  mInfo("start to generate vgroup from sdb.json");
+
+  SJson *pVgroups = tjsonGetObjectItem(pJson, "vgroups");
+
+  int32_t nVgroups = tjsonGetArraySize(pVgroups);
+
+  for (int32_t i = 0; i < nVgroups; ++i) {
+    SVgObj group = {0};
+    SJson *pNodeVgroup = tjsonGetArrayItem(pVgroups, i);
+
+    tjsonGetNumberValue(pNodeVgroup, "vgId", group.vgId, code);
+    if (code) return code;
+    tjsonGetNumberValue(pNodeVgroup, "createdTime", group.createdTime, code);
+    if (code) return code;
+    tjsonGetNumberValue(pNodeVgroup, "updateTime", group.updateTime, code);
+    if (code) return code;
+    tjsonGetNumberValue(pNodeVgroup, "version", group.version, code);
+    if (code) return code;
+    tjsonGetNumberValue(pNodeVgroup, "hashBegin", group.hashBegin, code);
+    if (code) return code;
+    tjsonGetNumberValue(pNodeVgroup, "hashEnd", group.hashEnd, code);
+    if (code) return code;
+    code = tjsonGetStringValue(pNodeVgroup, "db", group.dbName);
+    if (code) return code;
+    mInfo("group.dbname %s", group.dbName);
+    tjsonGetNumberValue(pNodeVgroup, "dbUid", group.dbUid, code);
+    if (code) return code;
+    tjsonGetNumberValue(pNodeVgroup, "isTsma", group.isTsma, code);
+    if (code) return code;
+    tjsonGetNumberValue(pNodeVgroup, "replica", group.replica, code);
+    if (code) return code;
+    tjsonGetNumberValue(pNodeVgroup, "syncConfChangeVer", group.syncConfChangeVer, code);
+    if (code) return code;
+
+    SJson *pReplicas = tjsonGetObjectItem(pNodeVgroup, "replicas");
+    for (int8_t j = 0; j < group.replica; ++j) {
+      SVnodeGid *pVgid = &group.vnodeGid[j];
+
+      SJson *pVnodeGid = tjsonGetArrayItem(pReplicas, j);
+      tjsonGetNumberValue(pVnodeGid, "dnodeId", pVgid->dnodeId, code);
+      if (code) return code;
+      mInfo("SVnodeGid %d", pVgid->dnodeId);
+    }
+
+    mInfo("group.dbname %s", group.dbName);
+    SSdbRaw *pRaw = mndVgroupActionEncode(&group);
+    if (pRaw == NULL) {
+      mError("failed to encode while finish trans since %s", terrstr());
+      return terrno;
+    }
+    TAOS_CHECK_RETURN(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
+
+    mInfo("sdbWrite vgroup raw obj");
+    code = sdbWrite(pMnode->pSdb, pRaw);
+    if (code != 0) {
+      mError("failed to write sdb since %s", terrstr());
+    }
+  }
+
+  return 0;
+}
+
+int32_t mndModifySdb(char *path) {
+  int32_t code = 0;
+  SJson  *pJson = NULL;
+
+  mInfo("start to modify sdb info from sdb.json");
+
+  SMnode *pMnode = mndPrepareMnode();
+  if (pMnode == NULL) return terrno;
+
+  pJson = mndLoadSdbJson(path);
+  if (pJson == NULL) return terrno;
+
+  TAOS_CHECK_RETURN(mndGenerateVgroup(pMnode, pJson));
+
+  mInfo("write back to sdb file");
+  TAOS_CHECK_RETURN(sdbWriteFileForDump(pMnode->pSdb, -1));
+
+  return 0;
+_OVER:
+  if (pJson != NULL) cJSON_Delete(pJson);
+
+  if (code != 0) {
+    mError("failed to modify sdb, file:%s since %s", path, tstrerror(code));
+  }
+
+  TAOS_RETURN(code);
 }
 
 #pragma GCC diagnostic pop

@@ -88,7 +88,7 @@ int32_t mndInitArbGroup(SMnode *pMnode) {
 
 void mndCleanupArbGroup(SMnode *pMnode) { taosHashCleanup(arbUpdateHash); }
 
-SArbGroup *mndAcquireArbGroup(SMnode *pMnode, int32_t vgId) {
+static SArbGroup *mndAcquireArbGroup(SMnode *pMnode, int32_t vgId) {
   SArbGroup *pGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &vgId);
   if (pGroup == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_ARBGROUP_NOT_EXIST;
@@ -96,7 +96,7 @@ SArbGroup *mndAcquireArbGroup(SMnode *pMnode, int32_t vgId) {
   return pGroup;
 }
 
-void mndReleaseArbGroup(SMnode *pMnode, SArbGroup *pGroup) {
+static void mndReleaseArbGroup(SMnode *pMnode, SArbGroup *pGroup) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pGroup);
 }
@@ -989,7 +989,7 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
         newGroup.assignedLeader.dnodeId, newGroup.assignedLeader.token, newGroup.assignedLeader.acked,
         pUpdateGroup->code, pUpdateGroup->updateTimeMs);
 
-    SArbGroup *pOldGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &newGroup.vgId);
+    SArbGroup *pOldGroup = mndAcquireArbGroup(pMnode, newGroup.vgId);
     if (!pOldGroup) {
       mError("trans:%d, arbgroup:%d, arb skip to update arbgroup, since no obj found", pTrans->id, newGroup.vgId);
       if (taosHashRemove(arbUpdateHash, &newGroup.vgId, sizeof(int32_t)) != 0) {
@@ -1003,6 +1003,7 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
     if ((code = mndSetCreateArbGroupCommitLogs(pTrans, &newGroup)) != 0) {
       mError("trans:%d, arbgroup:%d, failed to update arbgroup in set commit log since %s", pTrans->id, newGroup.vgId,
              tstrerror(code));
+      mndReleaseArbGroup(pMnode, pOldGroup);
       goto _OVER;
     }
 
@@ -1011,7 +1012,7 @@ static int32_t mndProcessArbUpdateGroupBatchReq(SRpcMsg *pReq) {
           newGroup.members[1].info.dnodeId, newGroup.members[1].state.token, newGroup.isSync,
           newGroup.assignedLeader.dnodeId, newGroup.assignedLeader.token, newGroup.assignedLeader.acked);
 
-    sdbRelease(pMnode->pSdb, pOldGroup);
+    mndReleaseArbGroup(pMnode, pOldGroup);
   }
 
   if ((code = mndTransCheckConflict(pMnode, pTrans)) != 0) goto _OVER;
@@ -1120,7 +1121,7 @@ static int32_t mndArbUpdateByHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *
     SVArbHbRspMember *pRspMember = taosArrayGet(memberArray, i);
 
     SArbGroup  newGroup = {0};
-    SArbGroup *pGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &pRspMember->vgId);
+    SArbGroup *pGroup = mndAcquireArbGroup(pMnode, pRspMember->vgId);
     if (pGroup == NULL) {
       mError("arbgroup:%d failed to update arb token, not found", pRspMember->vgId);
       continue;
@@ -1133,7 +1134,7 @@ static int32_t mndArbUpdateByHeartBeat(SMnode *pMnode, int32_t dnodeId, SArray *
       }
     }
 
-    sdbRelease(pMnode->pSdb, pGroup);
+    mndReleaseArbGroup(pMnode, pGroup);
   }
 
   TAOS_CHECK_RETURN(mndArbPutBatchUpdateIntoWQ(pMnode, pUpdateArray));
@@ -1182,7 +1183,7 @@ _OVER:
 static int32_t mndArbUpdateByCheckSync(SMnode *pMnode, int32_t vgId, char *member0Token, char *member1Token,
                                        bool newIsSync, int32_t rsp_code) {
   int32_t    code = 0;
-  SArbGroup *pGroup = sdbAcquire(pMnode->pSdb, SDB_ARBGROUP, &vgId);
+  SArbGroup *pGroup = mndAcquireArbGroup(pMnode, vgId);
   if (pGroup == NULL) {
     mError("arbgroup:%d, failed to update arb sync, not found", vgId);
     code = -1;
@@ -1199,7 +1200,7 @@ static int32_t mndArbUpdateByCheckSync(SMnode *pMnode, int32_t vgId, char *membe
     }
   }
 
-  sdbRelease(pMnode->pSdb, pGroup);
+  mndReleaseArbGroup(pMnode, pGroup);
   return 0;
 }
 
@@ -1370,6 +1371,8 @@ static int32_t mndProcessArbSetAssignedLeaderRsp(SRpcMsg *pRsp) {
       goto _OVER;
     }
   }
+
+  mndReleaseArbGroup(pMnode, pGroup);
 
   code = 0;
 

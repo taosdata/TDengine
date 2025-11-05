@@ -7688,7 +7688,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
           newWin.range.skey = pTsData[i];
           newWin.range.ekey = INT64_MAX;
           newWin.wrownum = 1;
-          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD || taosArrayGetSize(pContext->pWindows) == 0) {
+          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
             newWin.range.skey = startTs;
             newWin.wrownum += pGroup->numPendingNull;
           }
