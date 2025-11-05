@@ -97,6 +97,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t shaFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t maskFullFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

@@ -1672,6 +1672,25 @@ static int32_t translateReplace(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateMaskFull(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  uint8_t maskType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+  int32_t maskLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->bytes;
+
+  if (orgType == TSDB_DATA_TYPE_NCHAR && maskType != orgType) {
+    maskLen = maskLen * TSDB_NCHAR_SIZE;
+  }
+
+  int32_t resLen = TMAX(orgLen, maskLen);
+
+  pFunc->node.resType = (SDataType){.bytes = resLen, .type = orgType};
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
@@ -6856,6 +6875,27 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc = NULL,
     .initFunc = NULL,
     .sprocessFunc = sha2Function,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "mask_full",
+    .type = FUNCTION_TYPE_MASK_FULL,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
+    .translateFunc = translateMaskFull,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = maskFullFunction,
     .finalizeFunc = NULL
   },
 };

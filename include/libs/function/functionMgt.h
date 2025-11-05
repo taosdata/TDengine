@@ -75,7 +75,6 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_DTW_PATH,
   FUNCTION_TYPE_TLCC,
 
-
   // math function
   FUNCTION_TYPE_ABS = 1000,
   FUNCTION_TYPE_LOG,
@@ -128,6 +127,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_REGEXP_IN_SET,
   FUNCTION_TYPE_SHA1,
   FUNCTION_TYPE_SHA2,
+  FUNCTION_TYPE_MASK_FULL,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
