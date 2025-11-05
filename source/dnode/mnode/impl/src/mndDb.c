@@ -2222,7 +2222,7 @@ static int32_t mndTrimDbWal(SMnode *pMnode, SDbObj *pDb) {
 
     // Prepare message to send to vnode
     int32_t   contLen = sizeof(SMsgHead);
-    SMsgHead *pHead = taosMemoryMalloc(contLen);
+    SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {
       sdbCancelFetch(pSdb, pVgroup);
       sdbRelease(pSdb, pVgroup);
