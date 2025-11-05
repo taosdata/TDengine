@@ -1,3 +1,16 @@
+from typing import Optional, Tuple, List, Union
+import torch
+from torch import nn
+import torch.nn.functional as F
+from typing import Any, Dict, List, Optional, Union, Callable
+from flask import Flask, request, jsonify
+import sys
+import argparse
+from logging.handlers import RotatingFileHandler
+import os
+import torch
+from transformers import AutoModelForCausalLM
+
 # not used from 3.3.7.7
 log_file = "log.time-moe_server"
 import logging
@@ -23,27 +36,12 @@ console_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
-# 记录日志
-from logging.handlers import RotatingFileHandler
-
 handler = RotatingFileHandler(log_file, maxBytes=1024*1024, backupCount=5)
 handler.setLevel(logging.DEBUG)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-from typing import Optional, Tuple, List, Union
-import torch
-from torch import nn
-import torch.nn.functional as F
-from typing import Any, Dict, List, Optional, Union, Callable
-from flask import Flask, request, jsonify
-import sys
-import argparse
 app = Flask(__name__)
-
-import os
-import torch
-from transformers import AutoModelForCausalLM
 
 device = 'cpu'
 

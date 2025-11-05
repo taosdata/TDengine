@@ -82,7 +82,7 @@ def is_white_noise(input_list):
 def is_stationary(input_list):
     """ determine whether the input list is weak stationary or not """
     adf, pvalue, usedlag, nobs, critical_values, _ = adfuller(input_list, autolag='AIC')
-    app_logger.log_inst.info("adf is:%f critical value is:%s" % (adf, critical_values))
+    app_logger.log_inst.info("adf is:%f critical value is:%s", adf, critical_values)
     return pvalue < 0.05
 
 

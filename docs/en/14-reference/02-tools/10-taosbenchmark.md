@@ -435,7 +435,7 @@ If the execution time of the query exceeds the interval time, it will no longer 
 #### Supertables
 
 Configuration parameters for querying supertables are set in `super_table_query`.  
-The thread mode of the super table query is the same as the `Normal Query` mode of the specified query statement described above, except that `sqls` is filled all sub tables.
+The thread mode of the super table query is the same as the `General Query` mode of the specified query statement described above, except that `sqls` is filled all sub tables.
 
 - **stblname** : The name of the supertable to query, required.
 - **query_interval** : Query interval, in seconds, default is 0.
