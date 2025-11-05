@@ -235,7 +235,7 @@ jobs:
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
-          export TAOS_FQDN=localhost
+          sudo printf '\n%s\n' 'fqdn localhost' >> /etc/taos/taos.cfg
           taos -s "show databases"
           taosBenchmark -t 10 -n 10 -s 1744951233012 -y
           taos -s "select count(*) from test.meters"
