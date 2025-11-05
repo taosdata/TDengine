@@ -31,9 +31,10 @@
 
 // clang-format on
 
-#define USER_VER_NUMBER                      7
+#define USER_VER_NUMBER                      8
 #define USER_VER_SUPPORT_WHITELIST           5
 #define USER_VER_SUPPORT_WHITELIT_DUAL_STACK 7
+#define USER_VER_SUPPORT_ADVANCED_SECURITY   8
 #define USER_RESERVE_SIZE                    63
 
 #define BIT_FLAG_MASK(n)              (1 << n)
@@ -718,24 +719,35 @@ static bool isIpWhiteListEqual(SIpWhiteListDual *a, SIpWhiteListDual *b) {
   }
   return true;
 }
-int32_t convertIpWhiteListToStr(SIpWhiteListDual *pList, char **buf) {
-  if (pList->num == 0) {
-    *buf = NULL;
-    return 0;
-  }
-  int64_t bufLen = pList->num * 256;
+
+
+
+static int32_t convertIpWhiteListToStr(SUserObj *pUser, char **buf) {
+  SIpWhiteListDual *pList = pUser->pIpWhiteListDual;
+
+  int64_t bufLen = pList->num * 128 + 8;
   *buf = taosMemoryCalloc(1, bufLen);
   if (*buf == NULL) {
     return 0;
   }
 
-  int32_t len = ipRangeListToStr(pList->pIpRanges, pList->num, *buf, bufLen);
+  if (pList->num == 0) {
+    return tsnprintf(*buf, bufLen, "+ ALL");
+  }
+
+  (*buf)[0] = pUser->negIpRanges ? '-' : '+';
+  (*buf)[1] = ' ';
+
+  int32_t len = ipRangeListToStr(pList->pIpRanges, pList->num, *buf + 2, bufLen - 2);
   if (len == 0) {
     taosMemoryFreeClear(*buf);
     return 0;
   }
   return strlen(*buf);
 }
+
+
+
 int32_t tSerializeIpWhiteList(void *buf, int32_t len, SIpWhiteListDual *pList, uint32_t *pLen) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -899,6 +911,43 @@ _error:
   return 0;
 }
 
+
+static const char* weekdays[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+
+static int32_t convertTimeRangesToStr(SUserObj *pUser, char **buf) {
+  int32_t bufLen = pUser->numTimeRanges * 32 + 8;
+  *buf = taosMemoryCalloc(1, bufLen);
+  if (*buf == NULL) {
+    return 0;
+  }
+
+  int32_t pos = 0;
+  if (pUser->numTimeRanges == 0) {
+    pos += tsnprintf(*buf + pos, bufLen - pos, "+ ALL");
+    return pos;
+  }
+
+  (*buf)[0] = pUser->negTimeRanges ? '-' : '+';
+  (*buf)[1] = ' ';
+  pos = 2;
+
+  for (int32_t i = 0; i < pUser->numTimeRanges; i++) {
+    if (i > 0) {
+      (*buf)[pos++] = ',';
+    }
+    SDateTimeRange *range = pUser->pTimeRanges + i;
+    if (range->month == -1) {
+      pos += tsnprintf(*buf + pos, bufLen - pos, "%s %02d:%02d %dm", weekdays[range->day], range->hour, range->minute, range->duration);
+    } else {
+      pos += tsnprintf(*buf + pos, bufLen - pos, "%04d-%02d-%02d %02d:%02d %dm", range->year, range->month, range->day, range->hour, range->minute, range->duration);
+    }
+  }
+
+  return pos;
+}
+
+
+
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -910,11 +959,36 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.updateTime = userObj.createdTime;
   userObj.sysInfo = 1;
   userObj.enable = 1;
+  userObj.changePass = 2;
   userObj.ipWhiteListVer = taosGetTimestampMs();
+  userObj.sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+  userObj.connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
+  userObj.connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
+  userObj.callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
+  userObj.vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
+  userObj.failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+  userObj.passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+  userObj.passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+  userObj.passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
+  userObj.passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
+  userObj.passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+  userObj.inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+  userObj.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+  userObj.numTimeRanges = 0;
+  userObj.pTimeRanges = NULL;
+  
   TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteListDual));
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
     userObj.superUser = 1;
     userObj.createdb = 1;
+    userObj.sessionPerUser = -1;
+    userObj.callPerSession = -1;
+    userObj.vnodePerCall = -1;
+    userObj.failedLoginAttempts = -1;
+    userObj.passwordLifeTime = -1;
+    userObj.passwordLockTime = -1;
+    userObj.inactiveAccountTime = -1;
+    userObj.allowTokenNum = -1;
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
@@ -1226,6 +1300,34 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   SDB_SET_INT64(pRaw, dataPos, pUser->ipWhiteListVer, _OVER);
   SDB_SET_INT8(pRaw, dataPos, pUser->passEncryptAlgorithm, _OVER);
+
+  SDB_SET_BINARY(pRaw, dataPos, pUser->totpsecret, sizeof(pUser->totpsecret), _OVER);
+  SDB_SET_INT8(pRaw, dataPos, pUser->changePass, _OVER);
+  SDB_SET_INT8(pRaw, dataPos, pUser->negIpRanges, _OVER);
+  SDB_SET_INT8(pRaw, dataPos, pUser->negTimeRanges, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->sessionPerUser, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->connectTime, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->connectIdleTime, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->callPerSession, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->vnodePerCall, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->failedLoginAttempts, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->passwordLifeTime, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->passwordReuseTime, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->passwordReuseMax, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->passwordLockTime, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->passwordGraceTime, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->inactiveAccountTime, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->allowTokenNum, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->numTimeRanges, _OVER);
+  for (int32_t i = 0; i < pUser->numTimeRanges; i++) {
+    SDateTimeRange *range = pUser->pTimeRanges + i;
+    SDB_SET_INT16(pRaw, dataPos, range->year, _OVER);
+    SDB_SET_INT8(pRaw, dataPos, range->month, _OVER);
+    SDB_SET_INT8(pRaw, dataPos, range->day, _OVER);
+    SDB_SET_INT8(pRaw, dataPos, range->hour, _OVER);
+    SDB_SET_INT8(pRaw, dataPos, range->minute, _OVER);
+    SDB_SET_INT32(pRaw, dataPos, range->duration, _OVER);
+  }
 
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -1572,6 +1674,62 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT8(pRaw, dataPos, &pUser->passEncryptAlgorithm, _OVER);
 
+  if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
+    memset(pUser->totpsecret, 0, sizeof(pUser->totpsecret));
+    pUser->changePass = 2;
+    pUser->negIpRanges = 0;
+    pUser->negTimeRanges = 0;
+    pUser->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+    pUser->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
+    pUser->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
+    pUser->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
+    pUser->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
+    pUser->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+    pUser->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+    pUser->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+    pUser->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
+    pUser->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
+    pUser->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+    pUser->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+    pUser->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+    pUser->numTimeRanges = 0;
+    pUser->pTimeRanges = NULL;
+  } else {
+    SDB_GET_BINARY(pRaw, dataPos, pUser->totpsecret, sizeof(pUser->totpsecret), _OVER);
+    SDB_GET_INT8(pRaw, dataPos, &pUser->changePass, _OVER);
+    SDB_GET_INT8(pRaw, dataPos, &pUser->negIpRanges, _OVER);
+    SDB_GET_INT8(pRaw, dataPos, &pUser->negTimeRanges, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->sessionPerUser, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->connectTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->connectIdleTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->callPerSession, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->vnodePerCall, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->failedLoginAttempts, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->passwordLifeTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->passwordReuseTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->passwordReuseMax, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->passwordLockTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->passwordGraceTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->inactiveAccountTime, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->allowTokenNum, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->numTimeRanges, _OVER);
+    
+    pUser->pTimeRanges = (SDateTimeRange *)taosMemoryCalloc(pUser->numTimeRanges, sizeof(SDateTimeRange));
+    if (pUser->pTimeRanges == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
+
+    for (int32_t i = 0; i < pUser->numTimeRanges; i++) {
+      SDateTimeRange *range = pUser->pTimeRanges + i;
+      SDB_GET_INT16(pRaw, dataPos, &range->year, _OVER);
+      SDB_GET_INT8(pRaw, dataPos, &range->month, _OVER);
+      SDB_GET_INT8(pRaw, dataPos, &range->day, _OVER);
+      SDB_GET_INT8(pRaw, dataPos, &range->hour, _OVER);
+      SDB_GET_INT8(pRaw, dataPos, &range->minute, _OVER);
+      SDB_GET_INT32(pRaw, dataPos, &range->duration, _OVER);
+    }
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pUser->lock);
 
@@ -1594,6 +1752,7 @@ _OVER:
       taosHashCleanup(pUser->alterViews);
       taosHashCleanup(pUser->useDbs);
       taosMemoryFreeClear(pUser->pIpWhiteListDual);
+      taosMemoryFreeClear(pUser->pTimeRanges);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -1687,6 +1846,15 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->pIpWhiteListDual = cloneIpWhiteList(pUser->pIpWhiteListDual);
   if (pNew->pIpWhiteListDual == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  if (pUser->numTimeRanges > 0) {
+    pNew->pTimeRanges = taosMemoryCalloc(pUser->numTimeRanges, sizeof(SDateTimeRange));
+    if (pNew->pTimeRanges == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(pNew->pTimeRanges, pUser->pTimeRanges, pUser->numTimeRanges * sizeof(SDateTimeRange));
+    }
   }
 
 _OVER:
@@ -1706,6 +1874,7 @@ void mndUserFreeObj(SUserObj *pUser) {
   taosHashCleanup(pUser->alterViews);
   taosHashCleanup(pUser->useDbs);
   taosMemoryFreeClear(pUser->pIpWhiteListDual);
+  taosMemoryFreeClear(pUser->pTimeRanges);
   pUser->readDbs = NULL;
   pUser->writeDbs = NULL;
   pUser->topics = NULL;
@@ -1852,12 +2021,42 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
+  if (pCreate->totpseed[0] != 0) {
+    // TODO: generate totp seed
+  }
+
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
   userObj.superUser = 0;  // pCreate->superUser;
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
   userObj.createdb = pCreate->createDb;
+
+  userObj.changePass = pCreate->changepass;
+  userObj.negIpRanges = pCreate->negIpRanges;
+  userObj.negTimeRanges = pCreate->negTimeRanges;
+  userObj.sessionPerUser = pCreate->sessionPerUser;
+  userObj.connectTime = pCreate->connectTime;
+  userObj.connectIdleTime = pCreate->connectIdleTime;
+  userObj.callPerSession = pCreate->callPerSession;
+  userObj.vnodePerCall = pCreate->vnodePerCall;
+  userObj.failedLoginAttempts = pCreate->failedLoginAttempts;
+  userObj.passwordLifeTime = pCreate->passwordLifeTime;
+  userObj.passwordReuseTime = pCreate->passwordReuseTime;
+  userObj.passwordReuseMax = pCreate->passwordReuseMax;
+  userObj.passwordLockTime = pCreate->passwordLockTime;
+  userObj.passwordGraceTime = pCreate->passwordGraceTime;
+  userObj.inactiveAccountTime = pCreate->inactiveAccountTime;
+  userObj.allowTokenNum = pCreate->allowTokenNum;
+  userObj.numTimeRanges = pCreate->numTimeRanges;
+  userObj.pTimeRanges = NULL;
+  if (userObj.numTimeRanges > 0) {
+    userObj.pTimeRanges = (SDateTimeRange *)taosMemoryCalloc(userObj.numTimeRanges, sizeof(SDateTimeRange));
+    if (userObj.pTimeRanges == NULL) {
+      TAOS_CHECK_RETURN(terrno);
+    }
+    memcpy(userObj.pTimeRanges, pCreate->pTimeRanges, userObj.numTimeRanges * sizeof(SDateTimeRange));
+  }
 
   if (pCreate->numIpRanges == 0) {
     TAOS_CHECK_RETURN(createDefaultIpWhiteList(&userObj.pIpWhiteListDual));
@@ -1869,12 +2068,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     int32_t dummpy = 0;
     for (int i = 0; i < pCreate->numIpRanges; i++) {
       SIpRange range = {0};
-      if (pCreate->pIpDualRanges == NULL) {
-        range.type = 0;
-        memcpy(&range.ipV4, &(pCreate->pIpRanges[i]), sizeof(SIpV4Range));
-      } else {
-        memcpy(&range, pCreate->pIpDualRanges + i, sizeof(SIpRange));
-      }
+      memcpy(&range, pCreate->pIpDualRanges + i, sizeof(SIpRange));
 
       if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy))) != 0) {
         taosHashCleanup(pUniqueTab);
@@ -2072,7 +2266,9 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail));
 
 _OVER:
-  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+  if (code == TSDB_CODE_MND_USER_ALREADY_EXIST && createReq.ignoreExisting) {
+    code = 0;
+  } else if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create at line %d since %s", createReq.user, lino, tstrerror(code));
   }
 
@@ -2319,6 +2515,7 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
 }
 
 static char *mndUserAuditTypeStr(int32_t type) {
+  #if 0
   if (type == TSDB_ALTER_USER_PASSWD) {
     return "changePassword";
   }
@@ -2334,6 +2531,7 @@ static char *mndUserAuditTypeStr(int32_t type) {
   if (type == TSDB_ALTER_USER_CREATEDB) {
     return "userCreateDB";
   }
+    #endif
   return "error";
 }
 
@@ -2531,7 +2729,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SUserObj     *pOperUser = NULL;
   SUserObj      newUser = {0};
   SAlterUserReq alterReq = {0};
-
+#if 0
   TAOS_CHECK_GOTO(tDeserializeSAlterUserReq(pReq->pCont, pReq->contLen, &alterReq), &lino, _OVER);
 
   mInfo("user:%s, start to alter", alterReq.user);
@@ -2599,7 +2797,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);
   }
 
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WHITE_LIST) {
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_ALLOWED_HOST) {
     taosMemoryFreeClear(newUser.pIpWhiteListDual);
 
     int32_t           num = pUser->pIpWhiteListDual->num + alterReq.numIpRanges;
@@ -2642,7 +2840,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_USER_HOST, &lino, _OVER);
     }
   }
-  if (alterReq.alterType == TSDB_ALTER_USER_DROP_WHITE_LIST) {
+  if (alterReq.alterType == TSDB_ALTER_USER_DROP_ALLOWED_HOST) {
     taosMemoryFreeClear(newUser.pIpWhiteListDual);
 
     int32_t           num = pUser->pIpWhiteListDual->num;
@@ -2758,7 +2956,7 @@ _OVER:
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
   mndUserFreeObj(&newUser);
-
+#endif
   TAOS_RETURN(code);
 }
 
@@ -2918,13 +3116,34 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     cols++;
 
-    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteListDual, &buf);
+    int32_t tlen = convertIpWhiteListToStr(pUser, &buf);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
         sdbRelease(pSdb, pUser);
         sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
+      }
+      varDataSetLen(varstr, tlen);
+      (void)memcpy(varDataVal(varstr), buf, tlen);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      COL_DATA_SET_VAL_GOTO((const char *)varstr, false, pUser, pShow->pIter, _exit);
+
+      taosMemoryFreeClear(buf);
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pUser, pShow->pIter, _exit);
+    }
+
+    cols++;
+    tlen = convertTimeRangesToStr(pUser, &buf);
+    if (tlen != 0) {
+      TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
+      if (varstr == NULL) {
+        sdbRelease(pSdb, pUser);
+        sdbCancelFetch(pSdb, pShow->pIter);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
       varDataSetLen(varstr, tlen);
       (void)memcpy(varDataVal(varstr), buf, tlen);
@@ -2994,7 +3213,14 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     COL_DATA_SET_VAL_GOTO((const char *)&flag, false, pUser, pShow->pIter, _exit);
 
-    // mInfo("pUser->pass:%s", pUser->pass);
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->createdTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->changePass, false, pUser, pShow->pIter, _exit);
+
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     char pass[TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -3002,8 +3228,82 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     COL_DATA_SET_VAL_GOTO((const char *)pass, false, pUser, pShow->pIter, _exit);
 
     cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->sessionPerUser, false, pUser, pShow->pIter, _exit);
 
-    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteListDual, &buf);
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->connectTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->connectIdleTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->callPerSession, false, pUser, pShow->pIter, _exit);
+
+    /* not supported yet
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->vnodePerSession, false, pUser, pShow->pIter, _exit);
+*/
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->failedLoginAttempts, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->passwordLifeTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->passwordReuseTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->passwordReuseMax, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->passwordLockTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->passwordGraceTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->inactiveAccountTime, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->allowTokenNum, false, pUser, pShow->pIter, _exit);
+
+    cols++;
+    int32_t tlen = convertIpWhiteListToStr(pUser, &buf);
+    if (tlen != 0) {
+      TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
+      if (varstr == NULL) {
+        sdbRelease(pSdb, pUser);
+        sdbCancelFetch(pSdb, pShow->pIter);
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      }
+      varDataSetLen(varstr, tlen);
+      (void)memcpy(varDataVal(varstr), buf, tlen);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      COL_DATA_SET_VAL_GOTO((const char *)varstr, false, pUser, pShow->pIter, _exit);
+
+      taosMemoryFreeClear(buf);
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pUser, pShow->pIter, _exit);
+    }
+
+    cols++;
+    tlen = convertTimeRangesToStr(pUser, &buf);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
