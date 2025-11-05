@@ -267,7 +267,7 @@ class TestTDgptBasic:
         """
 
         tdSql.execute("create database if not exists d1 vgroups 3")
-        tdSql.execute("use d1") 
+        tdSql.execute("use d1")
         tdSql.execute("create stable st_corr(ts timestamp, a int, b float, c double, d varchar(10), e tinyint, f int unsigned, g bool) tags(t1 int)")
         tdSql.execute("create table t_corr_1 using st_corr tags(1)")
         tdSql.execute("create table t_corr_2 using st_corr tags(2)")

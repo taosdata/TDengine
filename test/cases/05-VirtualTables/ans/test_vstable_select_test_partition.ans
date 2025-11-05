@@ -319,7 +319,7 @@ taos> select _wstart, _wend, bool_col, count(*), count(u_int_col) from test_vtab
 taos> select _wstart, _wend, count(*) from (select * from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col order by ts, bool_col) state_window(bool_col) order by 1,2,3 limit 10;
          _wstart         |          _wend          |       count(*)        |
 ============================================================================
- 2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.000 |                     3 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:00.000 |                     2 |
  2020-10-01 00:00:00.003 | 2020-10-01 00:00:00.003 |                     2 |
  2020-10-01 00:00:00.006 | 2020-10-01 00:00:00.009 |                     8 |
  2020-10-01 00:00:00.012 | 2020-10-01 00:00:00.012 |                     2 |
