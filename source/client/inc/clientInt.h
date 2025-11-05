@@ -161,6 +161,7 @@ typedef struct {
   timezone_t    timezone;
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
+  char          cInfo[CONNECTOR_INFO_LEN];
   uint32_t      userIp;
   SIpRange      userDualIp;  // user ip range
 }SOptionInfo;
