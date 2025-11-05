@@ -465,6 +465,14 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   }
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
+  (void)taosThreadRwlockInit(&pVnode->versionLock, NULL);
+
+  pVnode->pVtableVersion = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  if (pVnode->pVtableVersion == NULL) {
+    vError("vgId:%d, failed to init vnode vtable version hash", TD_VID(pVnode));
+    goto _err;
+  }
+
 
   vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir,
         pVnode->state.committed);
@@ -628,6 +636,12 @@ void vnodeClose(SVnode *pVnode) {
     (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);
     (void)taosThreadMutexDestroy(&pVnode->mutex);
     (void)taosThreadMutexDestroy(&pVnode->lock);
+
+    if (pVnode->pVtableVersion) {
+      taosHashCleanup(pVnode->pVtableVersion);
+      pVnode->pVtableVersion = NULL;
+    }
+    (void)taosThreadRwlockDestroy(&pVnode->versionLock);
     taosMemoryFree(pVnode);
   }
 }

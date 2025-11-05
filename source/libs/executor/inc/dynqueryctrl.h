@@ -81,12 +81,14 @@ typedef struct {
   col_id_t colId;
   int32_t  vgId;
   int32_t  rversion;
+  int32_t  sversion;
 } SColRefInfo;
 
 typedef struct SVtbScanDynCtrlInfo {
   bool             scanAllCols;
   bool             isSuperTable;
   bool             needRedeploy;
+  bool             firstDeploy;
   char*            dbName;
   char*            tbName;
   tsem_t           ready;
@@ -108,6 +110,7 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        orgTbVgColMap; // key: orgTbFName, value: SOrgTbInfo
   SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
+  SHashObj*        vtbVersionMap; // key: vgId, value: version
   SMsgCb*          pMsgCb;
   SOperatorParam*  vtbScanParam;
 } SVtbScanDynCtrlInfo;
