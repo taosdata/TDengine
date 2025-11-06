@@ -46,7 +46,7 @@ int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (ver < 0 && ver != -1) {  // Allow -1 to clear the keep version
+  if (ver < 0) {
     wError("vgId:%d, failed to set keep version, invalid ver:%" PRId64, pWal->cfg.vgId, ver);
     return TSDB_CODE_INVALID_PARA;
   }

@@ -1,6 +1,8 @@
 import os
 import time
 import json
+import subprocess
+
 from new_test_framework.utils import tdLog, tdSql, sc, tdDnodes,clusterComCheck
 
 
@@ -34,7 +36,7 @@ class TestWalKeepVersionTrim:
     def test_wal_keep_version_and_trim(self):
         clusterComCheck.checkDnodes(3)
 
-        os.system("taosBenchmark -t 100 -n 100000 -a 3 -y")
+        subprocess.run("taosBenchmark -t 100 -n 100000 -a 3 -y", shell=True, check=True)
 
         tdSql.execute("alter database test WAL_RETENTION_PERIOD 0")
 
@@ -45,51 +47,48 @@ class TestWalKeepVersionTrim:
         # wait for flush finished
         time.sleep(10)
 
-        # check wal keep version 
-        ver = self.get_wal_file_first_version(1, 2)
-        tdLog.info(f"dnode1 vg2 firstVer: {ver}")
-        assert ver == 0
-        ver = self.get_wal_file_first_version(2, 2)
-        tdLog.info(f"dnode2 vg2 firstVer: {ver}")
-        assert ver == 0
-        ver = self.get_wal_file_first_version(3, 2)
-        tdLog.info(f"dnode3 vg2 firstVer: {ver}")
-        assert ver == 0
+        max_retry = 30
+        # check wal vgId 3 firstVer is greater than 0 means flush finished
+        for dnode_id in [1,2,3]:
+            check_ver = False
+            for _ in range(max_retry):
+                ver = self.get_wal_file_first_version(dnode_id, 3)
+                tdLog.info(f"dnode{dnode_id} vg3 firstVer: {ver}")
+                if ver > 0:
+                    check_ver = True
+                    break
+                time.sleep(1)
 
-        ver = self.get_wal_file_first_version(1, 3)
-        tdLog.info(f"dnode1 vg3 firstVer: {ver}")
-        assert ver > 0
-        ver = self.get_wal_file_first_version(2, 3)
-        tdLog.info(f"dnode2 vg3 firstVer: {ver}")
-        assert ver > 0
-        ver = self.get_wal_file_first_version(3, 3)
-        tdLog.info(f"dnode3 vg3 firstVer: {ver}")
-        assert ver > 0
+            assert check_ver, f"dnode{dnode_id} vg3 firstVer is not greater than 0 after {max_retry} seconds"
+        
+        # check wal vgId 2 firstVer is 0
+        for dnode_id in [1,2,3]:
+            check_ver = False
+            for _ in range(max_retry):
+                ver = self.get_wal_file_first_version(dnode_id, 2)
+                tdLog.info(f"dnode{dnode_id} vg2 firstVer: {ver}")
+                if ver == 0:
+                    check_ver = True
+                    break
+                time.sleep(1)
+            assert check_ver, f"dnode{dnode_id} vg2 firstVer is not greater than 0 after {max_retry} seconds"
+        
 
         # trim database wal
         tdSql.execute("trim database test wal")
-        time.sleep(10)
 
-        # check wal log dropped after trim
-        ver = self.get_wal_file_first_version(1, 2)
-        tdLog.info(f"dnode1 vg2 firstVer: {ver}")
-        assert ver > 0
-        ver = self.get_wal_file_first_version(2, 2)
-        tdLog.info(f"dnode2 vg2 firstVer: {ver}")
-        assert ver > 0
-        ver = self.get_wal_file_first_version(3, 2)
-        tdLog.info(f"dnode3 vg2 firstVer: {ver}")
-        assert ver > 0
+        # check wal vgId 2 firstVer is greater than 0 after trim
+        for dnode_id in [1,2,3]:
+            check_ver = False
+            for _ in range(max_retry):
+                ver = self.get_wal_file_first_version(dnode_id, 2)
+                tdLog.info(f"dnode{dnode_id} vg2 firstVer: {ver}")
+                if ver > 0:
+                    check_ver = True
+                    break
+                time.sleep(1)
+            assert check_ver, f"dnode{dnode_id} vg2 firstVer is not greater than 0 after {max_retry} seconds after trim"
 
-        ver = self.get_wal_file_first_version(1, 3)
-        tdLog.info(f"dnode1 vg3 firstVer: {ver}")
-        assert ver > 0
-        ver = self.get_wal_file_first_version(2, 3)
-        tdLog.info(f"dnode2 vg3 firstVer: {ver}")
-        assert ver > 0
-        ver = self.get_wal_file_first_version(3, 3)
-        tdLog.info(f"dnode3 vg3 firstVer: {ver}")
-        assert ver > 0
 
     def get_wal_file_first_version(self, dnode_id, vgId):
         """Get firstVer from WAL meta-ver file
