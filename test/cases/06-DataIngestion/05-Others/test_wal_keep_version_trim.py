@@ -26,7 +26,7 @@ class TestWalKeepVersionTrim:
     Jira: TS-7567
 
     History:
-        - 2025-11-06 Simon Guan Migrated from tsim/wal/keep.sim
+        - 2025-11-06 beryl bao created
     """
 
     def setup_class(cls):
