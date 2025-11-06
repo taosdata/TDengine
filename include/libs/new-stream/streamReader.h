@@ -15,11 +15,8 @@ extern "C" {
 #endif
 
 typedef struct SStreamTableKeyInfo {
-  uint64_t uid;
-  union {
-    uint64_t groupId;
-    int64_t  suid;
-  };
+  int64_t uid;
+  uint64_t groupId;
   struct SStreamTableKeyInfo* prev;
   struct SStreamTableKeyInfo* next;
 } SStreamTableKeyInfo;
@@ -33,6 +30,7 @@ typedef struct SStreamTableList {
 typedef struct SStreamTableMapElement {
   SStreamTableKeyInfo* table;
   int32_t index;
+  int64_t suid;
 } SStreamTableMapElement;
 
 typedef struct StreamTableListInfo {
