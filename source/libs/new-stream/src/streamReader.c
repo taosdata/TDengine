@@ -718,6 +718,18 @@ end:
   return sStreamReaderInfo;
 }
 
+static EDealRes checkPlaceHolderColumn(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION != nodeType((pNode))) {
+    return DEAL_RES_CONTINUE;
+  }
+  SFunctionNode* pFuncNode = (SFunctionNode*)(pNode);
+  if (fmIsStreamPesudoColVal(pFuncNode->funcId)) {
+    *(bool*)pContext = true;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(void* pTask, const SStreamReaderDeployMsg* pMsg, SNode* pPlan, bool keepPlan) {
   int32_t    code = 0;
   int32_t    lino = 0;
@@ -744,7 +756,10 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(void* pTask, con
       }
     }
   }
-
+  
+  bool hasPlaceHolderColumn = false;
+  nodesWalkExpr(((SSubplan*)pPlan)->pTagCond, checkPlaceHolderColumn, (void*)&hasPlaceHolderColumn);
+  sStreamReaderCalcInfo->hasPlaceHolder = hasPlaceHolderColumn;
   sStreamReaderCalcInfo->calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcScanPlan, terrno);
   sStreamReaderCalcInfo->pTaskInfo = NULL;

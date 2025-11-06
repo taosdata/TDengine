@@ -1,0 +1,19 @@
+{
+  "filetype":"query",
+  "cfgdir": "/etc/taos",
+  "host": "localhost",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "confirm_parameter_prompt": "no",
+  "databases": "db",
+  "query_times": 1,
+  "reset_query_cache": "yes",
+  "specified_table_query":
+  {
+    "query_interval": 1,
+    "concurrent":1,
+    "sql_file": "cases/81-Tools/03-Benchmark/json/query-sqls.txt",
+    "result": "taosc_query_specified-sqlfile"
+  }
+}

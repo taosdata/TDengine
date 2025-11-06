@@ -263,6 +263,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
   pNew->compact = pOld->compact;
   memcpy(pOld->vnodeGid, pNew->vnodeGid, (TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA) * sizeof(SVnodeGid));
   pOld->syncConfChangeVer = pNew->syncConfChangeVer;
+  tstrncpy(pOld->dbName, pNew->dbName, TSDB_DB_FNAME_LEN);
   return 0;
 }
 
@@ -3954,12 +3955,14 @@ bool mndVgroupInDnode(SVgObj *pVgroup, int32_t dnodeId) {
 }
 
 static void *mndBuildCompactVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, int64_t compactTs,
-                                     STimeWindow tw, bool metaOnly, ETsdbOpType type, ETriggerType triggerType) {
+                                     STimeWindow tw, bool metaOnly, bool force, ETsdbOpType type,
+                                     ETriggerType triggerType) {
   SCompactVnodeReq compactReq = {0};
   compactReq.dbUid = pDb->uid;
   compactReq.compactStartTime = compactTs;
   compactReq.tw = tw;
   compactReq.metaOnly = metaOnly;
+  compactReq.force = force;
   compactReq.optrType = type;
   compactReq.triggerType = triggerType;
   tstrncpy(compactReq.db, pDb->name, TSDB_DB_FNAME_LEN);
@@ -3992,13 +3995,15 @@ static void *mndBuildCompactVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgrou
 }
 
 static int32_t mndAddCompactVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
-                                        STimeWindow tw, bool metaOnly, ETsdbOpType type, ETriggerType triggerType) {
+                                        STimeWindow tw, bool metaOnly, bool force, ETsdbOpType type,
+                                        ETriggerType triggerType) {
   int32_t      code = 0;
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, compactTs, tw, metaOnly, type, triggerType);
+  void   *pReq =
+      mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, compactTs, tw, metaOnly, force, type, triggerType);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -4018,8 +4023,10 @@ static int32_t mndAddCompactVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 }
 
 int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
-                                    STimeWindow tw, bool metaOnly, ETsdbOpType type, ETriggerType triggerType) {
-  TAOS_CHECK_RETURN(mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly, type, triggerType));
+                                    STimeWindow tw, bool metaOnly, bool force, ETsdbOpType type,
+                                    ETriggerType triggerType) {
+  TAOS_CHECK_RETURN(
+      mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly, force, type, triggerType));
   return 0;
 }
 
@@ -4031,7 +4038,7 @@ int32_t mndBuildTrimVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
 
   int32_t contLen = 0;
   // reuse SCompactVnodeReq as SVTrimDbReq
-  void *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, startTs, tw, false, type, triggerType);
+  void *pReq = mndBuildCompactVnodeReq(pMnode, pDb, pVgroup, &contLen, startTs, tw, false, false, type, triggerType);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;

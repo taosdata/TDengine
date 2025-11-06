@@ -19,7 +19,7 @@
 #include "thash.h"
 #include "osString.h"
 
-#define   CONV_MAX_NUM 32
+#define CONV_MAX_NUM 512
 SHashObj *gConvInfo = NULL;
 
 // M2C: Mbs --> Ucs4

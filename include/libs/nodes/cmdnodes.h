@@ -188,6 +188,7 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pStart;
   SNode*    pEnd;
   bool      metaOnly;
+  bool      force;
 } SCompactDatabaseStmt;
 
 typedef struct SRollupDatabaseStmt {
@@ -225,6 +226,7 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pStart;
   SNode*     pEnd;
   bool       metaOnly;
+  bool       force;
 } SCompactVgroupsStmt;
 
 typedef struct SRollupVgroupsStmt {

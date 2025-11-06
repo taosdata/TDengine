@@ -1932,6 +1932,7 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pNode, SRpcMsg
     sError("vgId:%d, failed to send sync msg since %s. epset:%p dnode:%d addr:0x%" PRIx64, pNode->vgId, tstrerror(code),
            epSet, DID(destRaftId), destRaftId->addr);
     rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   }
 
   TAOS_RETURN(code);

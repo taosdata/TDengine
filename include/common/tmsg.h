@@ -530,7 +530,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL,
   QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
   QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN,
-  QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC,
+  QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -600,7 +600,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INSERT,
-  QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC,
+  QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC,
 } ENodeType;
 
 typedef struct {
@@ -2082,6 +2082,7 @@ typedef struct {
   SArray*     vgroupIds;
   int32_t     compactId;
   int8_t      metaOnly;
+  int8_t      force;
 } SCompactDbReq;
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
@@ -2583,6 +2584,7 @@ typedef struct {
       uint16_t reserved : 12;
     };
   };
+  int8_t force;  // force compact
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
@@ -5216,6 +5218,7 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define SUBMIT_REQUEST_VERSION        (2)
 #define SUBMIT_REQ_WITH_BLOB          0x10
 #define SUBMIT_REQ_SCHEMA_RES         0x20
+#define SUBMIT_REQ_ONLY_CREATE_TABLE  0x40
 
 #define TD_REQ_FROM_TAOX_OLD 0x1  // for compatibility
 

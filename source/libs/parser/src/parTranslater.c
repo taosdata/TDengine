@@ -3370,9 +3370,13 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
                                                                    FUNCTION_TYPE_ELAPSED == pFunc->funcType);
     pSelect->hasInterpPseudoColFunc = pSelect->hasInterpPseudoColFunc || fmIsInterpPseudoColumnFunc(pFunc->funcId);
     pSelect->hasForecastFunc = pSelect->hasForecastFunc || (FUNCTION_TYPE_FORECAST == pFunc->funcType);
-    pSelect->hasImputationFunc = pSelect->hasImputationFunc || (FUNCTION_TYPE_IMPUTATION == pFunc->funcType);
+    pSelect->hasGenericAnalysisFunc =
+        pSelect->hasGenericAnalysisFunc || (FUNCTION_TYPE_IMPUTATION == pFunc->funcType) ||
+        (FUNCTION_TYPE_DTW == pFunc->funcType) || (FUNCTION_TYPE_DTW_PATH == pFunc->funcType) ||
+        (FUNCTION_TYPE_TLCC == pFunc->funcType) || (FUNCTION_TYPE_ANOMALYCHECK == pFunc->funcType);
     pSelect->hasForecastPseudoColFunc =
-        pSelect->hasForecastPseudoColFunc ? true : fmIsAnalysisPseudoColumnFunc(pFunc->funcId) && (pFunc->funcType != FUNCTION_TYPE_ANOMALY_MARK);
+        pSelect->hasForecastPseudoColFunc
+            || fmIsAnalysisPseudoColumnFunc(pFunc->funcId) && (pFunc->funcType != FUNCTION_TYPE_ANOMALY_MARK);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
     pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
@@ -6863,6 +6867,7 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
 typedef struct SConditionOnlyPhAndConstContext {
   bool onlyPhAndConst;
   bool hasPhOrConst;
+  bool onlyConst;
 } SConditionOnlyPhAndConstContext;
 
 static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
@@ -6870,13 +6875,20 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
   if (nodeType(pNode) == QUERY_NODE_VALUE) {
     pCxt->onlyPhAndConst &= true;
     pCxt->hasPhOrConst = true;
+    pCxt->onlyConst &= true;
   } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode *pFunc = (SFunctionNode*)pNode;
-    if (fmIsPlaceHolderFunc(pFunc->funcId) || pFunc->funcType == FUNCTION_TYPE_NOW || pFunc->funcType == FUNCTION_TYPE_TODAY || fmIsScalarFunc(pFunc->funcId)) {
+    if (fmIsPlaceHolderFunc(pFunc->funcId)) {
       pCxt->onlyPhAndConst &= true;
       pCxt->hasPhOrConst = true;
+      pCxt->onlyConst = false;
+    } else if (pFunc->funcType == FUNCTION_TYPE_NOW || pFunc->funcType == FUNCTION_TYPE_TODAY || fmIsScalarFunc(pFunc->funcId)) {
+      pCxt->onlyPhAndConst &= true;
+      pCxt->hasPhOrConst = true;
+      pCxt->onlyConst &= true;
     } else {
       pCxt->onlyPhAndConst = false;
+      pCxt->onlyConst = false;
     }
   }
   return DEAL_RES_CONTINUE;
@@ -6885,18 +6897,20 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
 typedef struct SFilterExtractTsContext {
   SNodeList* pStart;
   SNodeList* pEnd;
+  bool       onlyTsConst;
 } SFilterExtractTsContext;
 
-static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight) {
+static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight, bool* pOnlyTsConst) {
   if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
     SColumnNode* pCol = (SColumnNode*)pLeft;
     if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
       return false;
     }
 
-    SConditionOnlyPhAndConstContext cxt = {true, false};
+    SConditionOnlyPhAndConstContext cxt = {true, false, true};
     nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
-    if (cxt.onlyPhAndConst && cxt.hasPhOrConst) {
+    *pOnlyTsConst &= cxt.onlyConst;
+    if (cxt.onlyPhAndConst && cxt.hasPhOrConst && (((SExprNode*)pRight)->resType.type == TSDB_DATA_TYPE_TIMESTAMP)) {
       return true;
     } else {
       return false;
@@ -6911,11 +6925,12 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
   switch(nodeType(*pNode)) {
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOperator = (SOperatorNode*)*pNode;
+      PAR_ERR_JRET(scalarConvertOpValueNodeTs(pOperator));
       if (pOperator->opType == OP_TYPE_LOWER_EQUAL ||
           pOperator->opType == OP_TYPE_LOWER_THAN ||
           pOperator->opType == OP_TYPE_GREATER_EQUAL ||
           pOperator->opType == OP_TYPE_GREATER_THAN) {
-        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight)) {
+        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight, &pCxt->onlyTsConst)) {
           SValueNode *pVal = NULL;
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
             PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, *pNode));
@@ -6925,7 +6940,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
           *pNode = (SNode*)pVal;
           return DEAL_RES_IGNORE_CHILD;
-        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
+        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft, &pCxt->onlyTsConst)) {
           SValueNode *pVal = NULL;
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
             TSWAP(pOperator->pLeft, pOperator->pRight);
@@ -6943,7 +6958,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           return DEAL_RES_CONTINUE;
         }
       } else if (pOperator->opType == OP_TYPE_EQUAL) {
-        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight)) {
+        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight, &pCxt->onlyTsConst)) {
           SNode*      startNode = NULL;
           SNode*      endNode = NULL;
           SValueNode* pVal = NULL;
@@ -6956,7 +6971,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
           *pNode = (SNode*)pVal;
           return DEAL_RES_IGNORE_CHILD;
-        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
+        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft, &pCxt->onlyTsConst)) {
           SNode*      startNode = NULL;
           SNode*      endNode = NULL;
           SValueNode* pVal = NULL;
@@ -7038,12 +7053,13 @@ static bool tsRangeSameToWindowRange(SNode* pCond, bool start, bool equal) {
   }
 }
 
-static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr, bool leftEq, bool rightEq) {
+static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr, bool leftEq, bool rightEq, bool *onlyTsConst) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   SNode*                  pNew = NULL;
-  SFilterExtractTsContext pCxt = {0};
+  SFilterExtractTsContext pCxt = {.onlyTsConst = true};
 
   nodesRewriteExpr(pCond, filterExtractTsCondImpl, &pCxt);
+  *onlyTsConst = pCxt.onlyTsConst;
   if (!pCxt.pStart && !pCxt.pEnd) {
     return TSDB_CODE_SUCCESS;
   }
@@ -7089,11 +7105,20 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
       extractJoinCond = false;
     }
   }
+  bool onlyTsConst = false;
   if (inStreamCalcClause(pCxt) && nodeType(pFromTable) != QUERY_NODE_TEMP_TABLE && extractJoinCond) {
-    PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr, pCxt->streamInfo.extLeftEq, pCxt->streamInfo.extRightEq));
+    PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr, pCxt->streamInfo.extLeftEq, pCxt->streamInfo.extRightEq, &onlyTsConst));
     // some node may be replaced
-    TSWAP(*pWhere, pCond);
-    goto _return;
+    if (onlyTsConst) {
+      nodesDestroyNode(pCond);
+      PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCond));
+      nodesDestroyNode(*pTimeRangeExpr);
+      *pTimeRangeExpr = NULL;
+      // we can extract time range to pTimerange but not time range expr
+    } else {
+      TSWAP(*pWhere, pCond);
+      goto _return;
+    }
   }
 
   PAR_ERR_JRET(filterPartitionCond(&pCond, &pPrimaryKeyCond, NULL, NULL, NULL));
@@ -8120,7 +8145,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t translateForecast(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (!(pSelect->hasForecastFunc || pSelect->hasImputationFunc)) {
+  if (!(pSelect->hasForecastFunc || pSelect->hasGenericAnalysisFunc)) {
     if (pSelect->hasForecastPseudoColFunc) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                      "has analysis pseudo column(s) but missing analysis function");
@@ -13150,6 +13175,7 @@ static int32_t translateTimeRange(STranslateContext* pCxt, const char* dbName, S
 static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
   SCompactDbReq compactReq = {
       .metaOnly = pStmt->metaOnly,
+      .force = pStmt->force,
   };
   SName   name;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -13285,6 +13311,7 @@ static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsS
   SName         name;
   SCompactDbReq req = {
       .metaOnly = pStmt->metaOnly,
+      .force = pStmt->force,
   };
 
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
