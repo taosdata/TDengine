@@ -132,7 +132,7 @@ echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir="$(
   cat /proc/sys/kernel/core_pattern 2>/dev/null | xargs -r dirname || true
 )"
-if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
+if [ -z "$coredump_dir" ] || [[ ! "$coredump_dir" =~ ^/ ]]; then
   coredump_dir="/home/coredump"
 fi
 
