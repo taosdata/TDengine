@@ -425,6 +425,7 @@ int32_t authInitFp(SSaslConn* p, const char* input, int32_t len) {
     }
 
     code = saslBufferAppend(&p->out, (uint8_t*)SASL_CMD_INIT, strlen(SASL_CMD_INIT));
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
   p->state = p->state + 1;
