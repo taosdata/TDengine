@@ -25,4 +25,6 @@ public class TaskConfig {
     private String endTime;
     private Map<String, Long> breakpoint;
     private String logLevel = "info";
+    private String timestampFieldName = "timestamp";
+    private String valueFieldName = "value";
 }

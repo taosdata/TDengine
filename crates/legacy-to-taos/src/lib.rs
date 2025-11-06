@@ -1189,75 +1189,81 @@ pub async fn sync_super_table_schema_with_subs(
         .join(",");
 
     let stable_name_for_to = transform_tbname_with_actions(name, actions, true)?;
-    let sql = if target_is_v3 {
-        format!(
-            "SELECT distinct tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})"
-        )
-    } else {
-        format!(
-            "SELECT tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})"
-        )
-    };
 
-    let meta = to
-        .query(transform_sql_with_remap(sql, remap))
+    let sub_tables = query_sub_tables_from_source(from, source_is_v3, subs, name, &tag_names)
         .await?
-        .to_records()
-        .await?;
-
-    if cfg!(test) {
-        // Ensure that the number of metadata rows does not exceed the number of subs.
-        if meta.len() > subs.len() {
-            bail!(
-                "Metadata rows ({}) exceed subs ({}) for table `{}`",
-                meta.len(),
-                subs.len(),
-                name
-            );
-        }
-    }
-    debug_assert!(meta.len() <= subs.len());
-    let res_to: HashMap<_, _> = meta
         .into_iter()
-        .map(|mut v| (format!("{}", v.remove(0)), v))
-        .collect();
-    let (exists, non_exists): (Vec<_>, Vec<_>) =
-        query_sub_tables_from_source(from, source_is_v3, subs, name, &tag_names)
-            .await?
-            .into_iter()
-            .map(|mut v| (format!("{}", v.remove(0)), v))
-            .partition(|v| res_to.contains_key(&v.0));
-    if target_opts.update_tags {
-        let mut updated_tags = 0;
-        for (n, l) in &exists {
-            let r = res_to.get(n).unwrap();
+        .map(|mut v| (format!("{}", v.remove(0)), v));
+    let non_exists = if target_opts.check_table_exists || target_opts.update_tags {
+        let sql = if target_is_v3 {
+            format!(
+                "SELECT distinct tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})"
+            )
+        } else {
+            format!(
+                "SELECT tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})"
+            )
+        };
 
-            for (tag, l, _r) in l
-                .iter()
-                .zip(r)
-                .zip(&tag_name_vec)
-                .filter_map(|((l, r), tag)| if l == r { None } else { Some((tag, l, r)) })
-            {
-                let sql = format!(
-                    "alter table `{n}` set tag `{tag}` = {}",
-                    l.to_sql_value_with_rfc3339()
+        let meta = to
+            .query(transform_sql_with_remap(sql, remap))
+            .await?
+            .to_records()
+            .await?;
+
+        if cfg!(test) {
+            // Ensure that the number of metadata rows does not exceed the number of subs.
+            if meta.len() > subs.len() {
+                bail!(
+                    "Metadata rows ({}) exceed subs ({}) for table `{}`",
+                    meta.len(),
+                    subs.len(),
+                    name
                 );
-                let sql = transform_sql_with_remap(sql, remap);
-                if let Err(err) = to.exec(&sql).await {
-                    tracing::error!(
-                        "Altering table `{n}` tag `{tag}` to {} error: {err:?}",
-                        l.to_sql_value_with_rfc3339()
-                    );
-                } else {
-                    updated_tags += 1;
-                    metrics.total_updated_tags.fetch_add(1, Ordering::SeqCst);
-                    metrics.updated_tags.fetch_add(1, Ordering::SeqCst);
-                }
             }
         }
+        debug_assert!(meta.len() <= subs.len());
+        let res_to: HashMap<_, _> = meta
+            .into_iter()
+            .map(|mut v| (format!("{}", v.remove(0)), v))
+            .collect();
+        let (exists, non_exists): (Vec<_>, Vec<_>) =
+            sub_tables.partition(|v| res_to.contains_key(&v.0));
+        if target_opts.update_tags {
+            let mut updated_tags = 0;
+            for (n, l) in &exists {
+                let r = res_to.get(n).unwrap();
 
-        tracing::info!("Totally updated {} tags in this chunk", updated_tags);
-    }
+                for (tag, l, _r) in l
+                    .iter()
+                    .zip(r)
+                    .zip(&tag_name_vec)
+                    .filter_map(|((l, r), tag)| if l == r { None } else { Some((tag, l, r)) })
+                {
+                    let sql = format!(
+                        "alter table `{n}` set tag `{tag}` = {}",
+                        l.to_sql_value_with_rfc3339()
+                    );
+                    let sql = transform_sql_with_remap(sql, remap);
+                    if let Err(err) = to.exec(&sql).await {
+                        tracing::error!(
+                            "Altering table `{n}` tag `{tag}` to {} error: {err:?}",
+                            l.to_sql_value_with_rfc3339()
+                        );
+                    } else {
+                        updated_tags += 1;
+                        metrics.total_updated_tags.fetch_add(1, Ordering::SeqCst);
+                        metrics.updated_tags.fetch_add(1, Ordering::SeqCst);
+                    }
+                }
+            }
+
+            tracing::info!("Totally updated {} tags in this chunk", updated_tags);
+        }
+        non_exists
+    } else {
+        sub_tables.collect_vec()
+    };
     const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
     let max_sql_length = target_opts.max_sql_length.unwrap_or(MAX_SQL_LEN);
     let mut tables = 0;
@@ -1986,6 +1992,8 @@ pub struct SourceOpts {
     write_concurrency: Option<usize>,
     /// This option will overwrite the same option in TargetOpts.
     fails_to: Option<String>,
+    /// Check table exists before create table.
+    check_table_exists: Option<bool>,
 }
 
 impl SourceOpts {
@@ -2144,6 +2152,12 @@ impl SourceOpts {
         if let Some(value) = dsn.remove("minimal") {
             opts.minimal = matches!(value.as_str(), "" | "true" | "1" | "yes");
         }
+        if let Some(value) = dsn
+            .remove("check-table-exists")
+            .or_else(|| dsn.remove("check_table_exists"))
+        {
+            opts.check_table_exists = Some(matches!(value.as_str(), "" | "true" | "1" | "yes"));
+        }
         Ok(opts)
     }
 }
@@ -2199,6 +2213,7 @@ pub struct TargetOpts {
     /// A map of table name to another map of field name to another.
     remap: Option<HashMap<String, Arc<HashMap<String, String>>>>,
     minimal: bool,
+    check_table_exists: bool,
 }
 
 impl Default for TargetOpts {
@@ -2220,6 +2235,7 @@ impl Default for TargetOpts {
             retry_sleep: Duration::from_secs(2),
             retry_limit: 600,
             minimal: false,
+            check_table_exists: true,
         }
     }
 }
@@ -2408,7 +2424,21 @@ impl TargetOpts {
                 || false,
                 |v| matches!(v.as_str(), "" | "true" | "1" | "yes"),
             );
+
+        if let Some(check) = to_dsn
+            .remove("check-table-exists")
+            .map(|v| matches!(v.as_str(), "" | "true" | "1" | "yes"))
+            .or(source_opts.check_table_exists)
+        {
+            opts.check_table_exists = check;
+        }
+
         Ok(opts)
+    }
+
+    pub fn check_table_exists(mut self, check: bool) -> Self {
+        self.check_table_exists = check;
+        self
     }
 }
 

@@ -1,6 +1,16 @@
 <template>
   <div class="data-agent">
+    <div v-if="$slots.actions" class="custom-header">
+      <slot
+        name="actions"
+        :add="add"
+        :refresh="refresh"
+        :is-community="dataInProps.isCommunity"
+        :request-ing="requestIng"
+      ></slot>
+    </div>
     <PageTitle
+      v-else
       :title="t('dataIn.agent')"
       :add-title="t('dataIn.taosxAgent.createnewagent')"
       :request-ing="requestIng"
@@ -9,64 +19,102 @@
       @add="add"
       @refresh="refresh"
     />
-    <el-table
-      ref="singleTableRef"
-      style="margin-top: 20px"
-      :data="agentList"
-      size="small"
-      row-key="id"
-      :max-height="maxHeight"
-      highlight-current-row
-    >
-      <el-table-column type="expand">
-        <template #default="rowData">
-          <Activities :data="rowData.row.activities" />
-        </template>
-      </el-table-column>
-      <el-table-column label="ID" prop="id"></el-table-column>
-      <el-table-column :label="t('dataIn.taosxAgent.name')" prop="name"></el-table-column>
+    <div class="container-right-table">
+      <el-table
+        ref="singleTableRef"
+        class="agents-table"
+        style="margin-top: 20px"
+        :data="agentList"
+        size="small"
+        row-key="id"
+        :border="dataInProps.isIdmp"
+        :max-height="maxHeight"
+        highlight-current-row
+      >
+        <el-table-column type="expand">
+          <template #default="rowData">
+            <Activities :data="rowData.row.activities" />
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.id : true"
+          label="ID"
+          prop="id"
+        ></el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.name : true"
+          :label="t('dataIn.taosxAgent.name')"
+          prop="name"
+        ></el-table-column>
 
-      <el-table-column :label="t('dataIn.taosxAgent.created_at')" prop="created_at">
-        <template #default="scope">
-          <span>{{ getTimeParser(scope.row.created_at) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column :label="t('dataIn.taosxAgent.status')" prop="status">
-        <template #default="scope">
-          <span>{{ getStatusText(scope.row.status) }}</span>
-        </template>
-      </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.created_at : true"
+          :label="t('dataIn.taosxAgent.created_at')"
+          prop="created_at"
+        >
+          <template #default="scope">
+            <span>{{ getTimeParser(scope.row.created_at) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="dataInProps.isIdmp ? props.columnPropMap?.status : true"
+          :label="t('dataIn.taosxAgent.status')"
+          prop="status"
+        >
+          <template #default="scope">
+            <span>{{ getStatusText(scope.row.status) }}</span>
+          </template>
+        </el-table-column>
 
-      <el-table-column :label="t('common.action')" width="100">
-        <template #default="scope">
-          <el-button
-            plain
-            size="small"
-            icon="Edit"
-            :disabled="dataInProps.isCommunity"
-            @click="edit(scope.row)"
-          ></el-button>
-          <el-button
-            plain
-            size="small"
-            icon="Delete"
-            :disabled="dataInProps.isCommunity"
-            @click="del(scope.row)"
-          ></el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    <el-pagination
-      v-model:current-page="currentPage"
-      class="pagination"
-      layout="total, prev, pager, next"
-      :page-size="pageSize"
-      :hide-on-single-page="true"
-      :total="total"
-      @current-change="handlePageChange"
-    ></el-pagination>
+        <el-table-column :label="dataInProps.isIdmp ? '' : t('common.action')" :width="dataInProps.isIdmp ? 45 : 100">
+          <template #default="scope">
+            <el-dropdown v-if="dataInProps.isIdmp" :trigger="'click'">
+              <span v-if="dataInProps.isIdmp" class="cursor-pointer" @click.stop>
+                <Icon name="el-more-filled" class="rotate-90deg font-size-20px" />
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item :disabled="dataInProps.isCommunity" @click="edit(scope.row)"
+                    ><el-icon><Edit /></el-icon>{{ t('common.edit') }}</el-dropdown-item
+                  >
+                  <el-dropdown-item :disabled="dataInProps.isCommunity" @click="del(scope.row)"
+                    ><el-icon><Delete /></el-icon>{{ t('common.delete') }}</el-dropdown-item
+                  >
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <template v-else>
+              <el-button
+                plain
+                size="small"
+                icon="Edit"
+                :disabled="dataInProps.isCommunity"
+                @click="edit(scope.row)"
+              ></el-button>
+              <el-button
+                plain
+                size="small"
+                icon="Delete"
+                :disabled="dataInProps.isCommunity"
+                @click="del(scope.row)"
+              ></el-button>
+            </template>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        v-model:current-page="currentPage"
+        class="pagination"
+        layout="total, prev, pager, next"
+        :page-size="pageSize"
+        :hide-on-single-page="true"
+        :total="total"
+        @current-change="handlePageChange"
+      ></el-pagination>
+    </div>
     <el-dialog
       v-model="showAgent"
+      class="tda-dialog"
       :title="dialogTitle"
       :destroy-on-close="true"
       :close-on-click-modal="false"
@@ -104,6 +152,10 @@ import { t } from 'locales';
 
 const dataInProps = getDataInProps();
 const singleTableRef = ref<TableInstance>();
+
+const props = defineProps<{
+  columnPropMap?: Record<string, boolean>;
+}>();
 
 interface Agent {
   id: number;
@@ -268,8 +320,7 @@ function handleTaskActivities(activity: ActivitieProps) {
 <style lang="scss" scoped>
 .table-expand {
   min-width: 70%;
-  padding: 0 5px;
-  margin-left: 40px;
+  padding: 0 5px 0 45px;
 
   :deep(.el-table th.el-table__cell.is-leaf) {
     border: none !important;

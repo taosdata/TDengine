@@ -163,7 +163,7 @@ export default {
           placeholder: '',
           pattern: null,
           grid_two: false,
-          type: 'password',
+          type: 'password'
         },
         {
           label: 'Client certificate',

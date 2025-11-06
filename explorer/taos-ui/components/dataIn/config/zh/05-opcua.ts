@@ -22,7 +22,7 @@ export default {
         },
         {
           label: '故障切换服务地址',
-          description: "OPC 服务器的故障切换服务器端点，可以指定多个，用逗号分割。",
+          description: 'OPC 服务器的故障切换服务器端点，可以指定多个，用逗号分割。',
           field: 'failover_endpoints',
           required: false,
           type: 'input'

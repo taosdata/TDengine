@@ -718,6 +718,7 @@ async fn ipc_tcp_read(
     batch_counter: Option<BatchCounter>,
     notifier: crate::TaskNotifySender,
     persist_component: Option<PersistComponents>,
+    breakpoint_db: Option<BreakpointDb>,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -748,6 +749,7 @@ async fn ipc_tcp_read(
         batch_counter,
         notifier,
         persist_component,
+        breakpoint_db,
     )
     .await?;
     info!("IPC stream processed");
@@ -795,7 +797,7 @@ struct LushMessageTagModify {
 }
 
 // 这里特意不删除 task_id, 降低代码复杂度。即使任务量达到1000000，实测这里内存占用60M左右，可以忽略不计
-static LUSH_BREAKPOINTS_LAST_TIME: LazyLock<DashMap<Option<i64>, AtomicU64>> =
+static LUSH_BREAKPOINTS_LAST_TIME: LazyLock<DashMap<String, AtomicU64>> =
     LazyLock::new(DashMap::new);
 // #[instrument(skip(taos, record, names, marks))]
 #[instrument(skip_all)]
@@ -1004,32 +1006,28 @@ async fn consume_lush_record(
                 // RawBlock
                 // taos.write_raw_block()
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
-                let now_sec =
-                    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-                        Ok(duration) => duration.as_secs(),
-                        Err(_) => 0,
-                    };
-                if !LUSH_BREAKPOINTS_LAST_TIME.contains_key(&task) {
-                    LUSH_BREAKPOINTS_LAST_TIME.insert(task, AtomicU64::new(0));
-                }
-                if now_sec
-                    - LUSH_BREAKPOINTS_LAST_TIME
-                        .get(&task)
-                        .unwrap()
-                        .load(Ordering::Relaxed)
-                    > 5
+                if let Some((task, stable, sqls)) = task
+                    .and_then(|task| record.stable_name().map(|stable| (task, stable)))
+                    .and_then(|(task, stable)| sqls.as_ref().map(|(sqls, _)| (task, stable, sqls)))
                 {
-                    LUSH_BREAKPOINTS_LAST_TIME
-                        .get(&task)
-                        .unwrap()
-                        .store(now_sec, Ordering::Relaxed);
-
-                    if let Some((task, stable, sqls)) = task
-                        .and_then(|task| record.stable_name().map(|stable| (task, stable)))
-                        .and_then(|(task, stable)| {
-                            sqls.as_ref().map(|(sqls, _)| (task, stable, sqls))
-                        })
+                    let now_sec =
+                        match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                            Ok(duration) => duration.as_secs(),
+                            Err(_) => 0,
+                        };
+                    let key = format!("{task}_{stable}");
+                    if now_sec
+                        - LUSH_BREAKPOINTS_LAST_TIME
+                            .entry(key.clone())
+                            .or_insert(AtomicU64::new(0))
+                            .load(Ordering::Relaxed)
+                        > 5
                     {
+                        LUSH_BREAKPOINTS_LAST_TIME
+                            .entry(key)
+                            .or_default()
+                            .store(now_sec, Ordering::Relaxed);
+
                         for sql in sqls {
                             if let Some(ts) = get_ts_from_sql(sql) {
                                 let task_clone = task.to_string();
@@ -2383,6 +2381,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
     archive_tx: Option<Sender<ArchiveType>>,
+    breakpoint_db: Option<BreakpointDb>,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -2399,18 +2398,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 
     // TODO: 使用 scheduler 中的 lush_table_cache
     let lush_table_cache = Arc::new(TableTagCache::new());
-    // pibackfill, influxdb, opentsdb 都支持 breakpoints; 命令行方式不支持,因为命令行无 task_id
-    let breakpoint_db: Option<BreakpointDb> = if task_id.is_none() {
-        None
-    } else {
-        match BreakpointDb::new_with_task(&task_id.unwrap_or(-1).to_string()).await {
-            Ok(db) => Some(db),
-            Err(e) => {
-                tracing::warn!("task {task_id:?} get breakpoint db error: {e:#}");
-                None
-            }
-        }
-    };
 
     // let qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
@@ -2929,6 +2916,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     batch_counter: Option<BatchCounter>,
     notifier: crate::TaskNotifySender,
     persist_component: Option<PersistComponents>,
+    breakpoint_db: Option<BreakpointDb>,
 ) -> anyhow::Result<()> {
     // the queue for transmitting cache and archived data
     let (archive_tx, archive_rx) = if parser.is_some() && task_id.is_some() {
@@ -3095,6 +3083,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 metrics,
                 &metrics_arc_clone,
                 archive_tx.clone(),
+                breakpoint_db,
             )
             .await
             .inspect_err(|err| {
@@ -3698,6 +3687,15 @@ pub async fn listen_tcp_socket(
         batch_counter = Some(BatchCounter::new(*task_id as u16).await?);
     };
 
+    let breakpoint_db: Option<BreakpointDb> = if let Some(task_id) = task_id {
+        BreakpointDb::new_with_task(&task_id.to_string())
+            .await
+            .map_err(|e| tracing::warn!("task {task_id:?} get breakpoint db error: {e:#}"))
+            .ok()
+    } else {
+        None
+    };
+
     let (persist_component, mut persist_tasks) = match persist_config {
         Some(config) => Some(persist::get_persist(config, &cancel).await?).unzip(),
         _ => (None, None),
@@ -3726,6 +3724,7 @@ pub async fn listen_tcp_socket(
                 let notify = notified.clone();
                 let batch_counter = batch_counter.clone();
                 let persist_components = persist_component.clone();
+                let breakpoint_db = breakpoint_db.clone();
                 set.spawn(async move {
                     // let dsn: Dsn = "taos:///db2".parse().unwrap();
                     // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -3743,6 +3742,7 @@ pub async fn listen_tcp_socket(
                         batch_counter,
                         notifier,
                         persist_components,
+                        breakpoint_db,
                     )
                         .in_current_span()
                         .await;

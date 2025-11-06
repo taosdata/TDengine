@@ -17,10 +17,7 @@
       </li>
       <li>
         <span class="odbc-span">
-          {{ t('connector.odbc.step12desc1')
-          }}<a
-            :href="installUrlWindows"
-            >{{ t('connector.odbc.step12desc2') }}</a
+          {{ t('connector.odbc.step12desc1') }}<a :href="installUrlWindows">{{ t('connector.odbc.step12desc2') }}</a
           >{{ t('connector.odbc.step12desc3') }}
         </span>
       </li>

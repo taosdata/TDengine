@@ -46,6 +46,10 @@ env_scripts = ['''
   end
   echo "Product: ${cus_name}"
 
+  if eq "${cus_name}" "TDengine TSDB-Lite"
+    set_env "TSDB_LITE" "true"
+  end
+
   cus_prompt = get_env "CUS_PROMPT"
   if is_empty "${cus_prompt}"
     cus_prompt = set "taos"
@@ -889,10 +893,33 @@ chmod +x ./build.sh
 docker run --rm -e CI=true -e COMMUNITY=${COMMUNITY} -e "CUS_PROMPT=${CUS_PROMPT}" -e "CUS_NAME=${CUS_NAME}" -e "CUS_EMAIL=${CUS_EMAIL}" -v $(pwd):/app -w /app node:22.3.0 bash /app/build.sh
 """
 
-[tasks.explorer]
+[tasks.explorer-disable-x-api]
+dependencies = ["explorer-ui-prod"]
+command = "cargo"
+args = [
+  "build",
+  "-p",
+  "taos-explorer",
+  "--profile",
+  "${BUILD_PROFILE}",
+  "--features",
+  "disable-x-api",
+]
+
+[tasks.explorer-with-x-api]
 dependencies = ["explorer-ui-prod"]
 command = "cargo"
 args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
+
+
+[tasks.explorer]
+run_task = [
+  { name = "explorer-disable-x-api", condition = { env_true = [
+    "TSDB_LITE",
+  ] } },
+  { name = "explorer-with-x-api" },
+]
+
 [tasks.taos-explorer]
 alias = "explorer"
 

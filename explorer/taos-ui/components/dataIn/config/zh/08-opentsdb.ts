@@ -132,6 +132,30 @@ export default {
               type: 'number',
               min: 1,
               max: 30
+            },
+            {
+              label: '重命名时间戳字段',
+              description:
+                '重命名从 OpenTSDB 写入 TDengine 的时间戳字段，默认是 "timestamp"。',
+              field: 'timestampFieldName',
+              placeholder: '默认: timestamp',
+              pattern: null,
+              grid_two: false,
+              type: 'input',
+              min: 1,
+              max: 30
+            },
+            {
+              label: '重命名值字段',
+              description:
+                '重命名从 OpenTSDB 写入 TDengine 的值字段，默认是 "value"。',
+              field: 'valueFieldName',
+              placeholder: '默认: value',
+              pattern: null,
+              grid_two: false,
+              type: 'input',
+              min: 1,
+              max: 30
             }
           ],
           hide: false

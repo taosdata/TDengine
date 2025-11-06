@@ -49,7 +49,7 @@
                 <span v-dompurify-html="t('common.communityTip')"></span>
               </template>
               <el-button
-                type="primary"
+                :type="dataInProps.isIdmp ? 'default' : 'primary'"
                 plain
                 size="default"
                 :loading="requesting"
@@ -76,9 +76,14 @@
                 :file-list="fileList"
                 :show-file-list="false"
               >
-                <el-button size="default" type="primary" plain :loading="request" :disabled="dataInProps.isCommunity">{{
-                  t('dataIn.transformer.msgbodytypes.type3')
-                }}</el-button>
+                <el-button
+                  size="default"
+                  :type="dataInProps.isIdmp ? 'default' : 'primary'"
+                  plain
+                  :loading="request"
+                  :disabled="dataInProps.isCommunity"
+                  >{{ t('dataIn.transformer.msgbodytypes.type3') }}</el-button
+                >
               </el-upload>
             </el-tooltip>
           </el-col>
@@ -254,7 +259,7 @@
           <span v-dompurify-html="t('common.communityTip')"></span>
         </template>
         <el-button
-          type="primary"
+          :type="dataInProps.isIdmp ? 'default' : 'primary'"
           icon="el-icon-plus"
           size="default"
           class="btn-icon-small"
@@ -301,7 +306,7 @@
           <span v-dompurify-html="t('common.communityTip')"></span>
         </template>
         <el-button
-          type="primary"
+          :type="dataInProps.isIdmp ? 'default' : 'primary'"
           icon="el-icon-plus"
           size="default"
           class="btn-icon-small"
@@ -320,7 +325,7 @@
       <div class="table-content">
         <div class="table-title" style="margin-bottom: 16px">
           <div class="title">
-            <span style="color: #4259ce">
+            <span class="stb-label">
               {{ t('dataIn.transformer.targetSt') }}
             </span>
             <el-form ref="sruleFormRef" :model="sruleForm" :rules="srules">
@@ -348,7 +353,7 @@
               <span v-dompurify-html="t('common.communityTip')"></span>
             </template>
             <el-dropdown v-if="supportTransform.supportTopicBody" size="default" @command="createStable">
-              <el-button size="default" type="primary" plain>
+              <el-button size="default" :type="dataInProps.isIdmp ? 'default' : 'primary'" plain>
                 {{ t('dataIn.transformer.createstb') }}
                 <el-icon class="el-icon--right"><arrow-down /></el-icon>
               </el-button>
@@ -363,7 +368,7 @@
             </el-dropdown>
             <el-button
               v-else
-              type="primary"
+              :type="dataInProps.isIdmp ? 'default' : 'primary'"
               class="btn-icon-small"
               size="default"
               icon="Plus"
@@ -2586,5 +2591,9 @@ $color-description: rgb(137 130 130);
 
 .udt {
   margin-bottom: 16px;
+}
+
+.stb-label {
+  color: #4259ce;
 }
 </style>

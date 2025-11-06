@@ -52,7 +52,7 @@
               </template>
               <el-button
                 :disabled="dataInProps.isCommunity"
-                type="primary"
+                :type="dataInProps.isIdmp ? 'default' : 'primary'"
                 plain
                 class="ml15"
                 icon="Plus"
@@ -77,7 +77,7 @@
               </template>
               <el-button
                 :disabled="dataInProps.isCommunity"
-                type="primary"
+                :type="dataInProps.isIdmp ? 'default' : 'primary'"
                 plain
                 class="ml15"
                 icon="Plus"
@@ -109,6 +109,7 @@
               <el-button
                 type="primary"
                 size="default"
+                :round="dataInProps.isIdmp"
                 :loading="loading"
                 :disabled="dataInProps.isCommunity"
                 @click="save"
@@ -116,7 +117,9 @@
                 {{ currentPageType === 'edit' ? t('dataIn.saveAndApply') : t('dataIn.submit') }}
               </el-button>
             </el-tooltip>
-            <el-button class="cancel-btn" size="default" @click="goTaskPage">{{ t('common.cancel') }}</el-button>
+            <el-button :round="dataInProps.isIdmp" class="cancel-btn" size="default" @click="goTaskPage">{{
+              t('common.cancel')
+            }}</el-button>
           </div>
         </el-affix>
       </section>
@@ -239,7 +242,7 @@ const toUrl = computed(() => {
   const user = instance?.user || getUser();
   const password = instance?.password || getPassword();
   const splitArr = base_url?.split('//') || [];
-  const url = splitArr[0] + '//' + user + ':' +password + '@' + splitArr[1];
+  const url = splitArr[0] + '//' + user + ':' + password + '@' + splitArr[1];
   return (splitArr[0].startsWith('taos') ? '' : 'taos+') + url + (sourceForm.targetDB ? '/' + sourceForm.targetDB : '');
 });
 
@@ -254,7 +257,6 @@ function getUser(): string {
 function getBaseUrl(): string {
   return localStorage.getItem('native_url') || localStorage.getItem('base_url') || '';
 }
-
 
 const labels = computed(() => {
   if (dataInProps.isCloud) {
@@ -559,7 +561,10 @@ async function submit() {
     } else {
       console.log('sourceForm.-submit:', sourceForm);
       nextTick(() => {
-        document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView();
+        document.querySelector('.source-ui .left-ui .is-error')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
       });
       loading.value = false;
     }
@@ -567,12 +572,17 @@ async function submit() {
 }
 function goTaskPage() {
   router.push({
-    path: '/dataIn/Task'
+    path: dataInProps.isIdmp ? `/management/tsdb-dataIn/tasks/task` : `/dataIn/Task`
   });
 }
 
 onBeforeUnmount(() => {
   resetTransformerState();
+});
+
+defineExpose({
+  save,
+  sourceForm
 });
 </script>
 <style lang="scss" scoped>
@@ -648,6 +658,7 @@ $color-description: rgb(137 130 130);
   .right-ui {
     position: relative;
     flex: 1;
+    min-width: 200px;
     margin-left: 40px;
     overflow: hidden;
 

@@ -54,7 +54,7 @@
                       <template #trigger>
                         <el-button
                           size="default"
-                          type="primary"
+                          :type="dataInProps.isIdmp ? 'default' : 'primary'"
                           plain
                           :disabled="dataInProps.isCommunity || state.isModifying"
                           >{{ t('dataIn.selectFile') }}</el-button

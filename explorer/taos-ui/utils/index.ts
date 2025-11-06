@@ -1,6 +1,7 @@
 import jsonBigint from 'json-big';
 import { ElNotification } from 'element-plus';
 import { t } from 'locales';
+import { fromByteArray, toByteArray } from 'base64-js';
 
 const { parse } = jsonBigint({ storeAsString: true });
 
@@ -409,3 +410,20 @@ export function getMousePosition(e: MouseEvent) {
     y: e.clientY - target.offsetTop
   };
 }
+
+/**
+ * @description base64 编码解码工具
+ */
+
+export const base64Utils = {
+  encode: (str: string): string => {
+    const bytes = new TextEncoder().encode(str);
+    return fromByteArray(bytes);
+  },
+
+  decode: (base64: string): string => {
+    const cleanBase64 = base64.replace(/[^A-Za-z0-9+/=]/g, '');
+    const bytes = toByteArray(cleanBase64);
+    return new TextDecoder().decode(bytes);
+  }
+};

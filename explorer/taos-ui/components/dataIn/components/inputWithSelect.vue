@@ -23,7 +23,7 @@
     v-loading.fullscreen.lock="fullscreenLoading"
     plain
     style="margin-top: 10px"
-    type="primary"
+    :type="dataInProps.isIdmp ? 'default' : 'primary'"
     size="default"
     :icon="`${config.action}`"
     @click="submitAction"

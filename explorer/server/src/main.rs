@@ -29,7 +29,7 @@ use taos::{taos_query::common::RowView, *};
 use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, Instrument};
+use tracing::{error, info, instrument};
 use tracing_actix_web::TracingLogger;
 
 use actix_embed::Embed;
@@ -45,7 +45,7 @@ use actix_web::{
 use anyhow::bail;
 use awc::Client as AwcClient;
 use clap::Parser;
-use qid::{headers_with_qid, Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
+use qid::{Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use taoslog::{
@@ -292,8 +292,10 @@ async fn main() -> anyhow::Result<()> {
     args.profile
         .cluster
         .get_or_insert(EXPLORER_CLUSTER.to_string());
-    args.profile.x_api.get_or_insert(EXPLORER_X_PAI.to_string());
-    args.profile.grpc.get_or_insert(EXPLORER_GRPC.to_string());
+    if cfg!(not(feature = "disable-x-api")) {
+        args.profile.x_api.get_or_insert(EXPLORER_X_PAI.to_string());
+        args.profile.grpc.get_or_insert(EXPLORER_GRPC.to_string());
+    }
 
     let port = args.port.unwrap();
 
@@ -646,6 +648,13 @@ async fn check_binding(args: web::Data<Args>) -> impl Responder {
     HttpResponse::Ok().json(R::success(is_bound))
 }
 
+#[cfg(feature = "disable-x-api")]
+#[instrument(skip_all)]
+async fn profile(args: web::Data<Args>) -> impl Responder {
+    HttpResponse::Ok().json(&args.profile)
+}
+
+#[cfg(not(feature = "disable-x-api"))]
 #[instrument(skip_all)]
 async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> impl Responder {
     if args.profile.x_api.is_none() {
@@ -659,7 +668,7 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/profile");
     tracing::debug!(url, "send request to taosx");
-    let client = client.get(url).headers(headers_with_qid(&qid));
+    let client = client.get(url).headers(qid::headers_with_qid(&qid));
     let client = client.timeout(Duration::from_secs(10));
 
     if let Ok(resp) = client.send().await {
@@ -1271,19 +1280,8 @@ async fn get_body_from_payload(mut payload: web::Payload) -> Result<String, Rest
         RestErrResponse::new("Error converting body bytes to string")
     })
 }
-/*
-#[derive(Debug, thiserror::Error)]
-enum Error {
-    #[error(transparent)]
-    Payload(#[from] PayloadError),
-    #[error(transparent)]
-    ApiDoc(#[from] JsonPayloadError),
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-}
 
-impl error::ResponseError for Error {}
-*/
+#[cfg(not(feature = "disable-x-api"))]
 #[derive(Deserialize)]
 struct ImportRequest {
     server: String,
@@ -1295,6 +1293,12 @@ struct ImportRequest {
     whitelist: bool,
 }
 
+#[cfg(feature = "disable-x-api")]
+async fn import(_req: HttpRequest) -> impl Responder {
+    Ok::<_, std::convert::Infallible>(HttpResponse::NotFound().body("taosX API is required"))
+}
+
+#[cfg(not(feature = "disable-x-api"))]
 #[instrument(skip_all)]
 async fn import(
     args: web::Data<Args>,
@@ -1345,7 +1349,7 @@ async fn import(
     client
         .post(url)
         .json(&migrate)
-        .headers(headers_with_qid(&qid))
+        .headers(qid::headers_with_qid(&qid))
         .send()
         .await
         .map_err(RestErrResponse::new)
@@ -1361,6 +1365,13 @@ fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
     client_resp.streaming(res.bytes_stream())
 }
 
+#[cfg(feature = "disable-x-api")]
+#[instrument(skip_all)]
+async fn x_api(_req: HttpRequest) -> impl Responder {
+    Ok::<_, std::convert::Infallible>(HttpResponse::NotFound().body("taosX API is required"))
+}
+
+#[cfg(not(feature = "disable-x-api"))]
 #[instrument(skip_all)]
 async fn x_api(
     args: web::Data<Args>,
@@ -1370,16 +1381,22 @@ async fn x_api(
     payload: web::Payload,
 ) -> impl Responder {
     if args.profile.x_api.is_none() {
-        return Ok(HttpResponse::NotFound().finish());
+        return Ok(HttpResponse::NotFound().body("taosX API is required"));
     }
     let x = args.profile.x_api.as_deref().unwrap();
     let url = format!("{x}/{api}?{}", req.query_string());
 
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
     qid.add_sequence_id();
-    proxy(req, payload, client, &url, Some(headers_with_qid(&qid)))
-        .await
-        .map_err(RestErrResponse::new)
+    proxy(
+        req,
+        payload,
+        client,
+        &url,
+        Some(qid::headers_with_qid(&qid)),
+    )
+    .await
+    .map_err(RestErrResponse::new)
 }
 
 static GRAFANA_API: OnceLock<String> = OnceLock::new();
@@ -1426,6 +1443,13 @@ async fn grafana_api(
         .map_err(RestErrResponse::new)
 }
 
+#[cfg(feature = "disable-x-api")]
+#[instrument(skip_all)]
+async fn x_api_doc(_req: HttpRequest) -> impl Responder {
+    Ok::<_, std::convert::Infallible>(HttpResponse::NotFound().body("taosX API is required"))
+}
+
+#[cfg(not(feature = "disable-x-api"))]
 #[instrument(skip_all)]
 async fn x_api_doc(
     req: HttpRequest,
@@ -1434,7 +1458,7 @@ async fn x_api_doc(
     payload: web::Payload,
 ) -> Result<HttpResponse, RestErrResponse> {
     if args.profile.x_api.is_none() {
-        return Ok(HttpResponse::NotFound().finish());
+        return Ok(HttpResponse::NotFound().body("taosX API is required"));
     }
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
 
@@ -1442,6 +1466,7 @@ async fn x_api_doc(
     let url = format!("{x}/api-doc/openapi.json");
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
+    use tracing::Instrument;
     tokio::task::spawn_local(
         async move {
             let mut payload = payload;
@@ -1459,7 +1484,7 @@ async fn x_api_doc(
     let builder = client
         .request(req.method().clone(), url)
         .timeout(Duration::from_secs(u64::MAX))
-        .headers(headers_with_qid(&qid))
+        .headers(qid::headers_with_qid(&qid))
         .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
     let builder = real_ip_forward(&req, builder);
     let res = builder

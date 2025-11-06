@@ -74,16 +74,16 @@ impl TaosxConfig {
 }
 
 #[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TaskConfig {
     pub mode: String,
     pub metrics: Vec<String>,
-    #[serde(rename = "beginTime")]
     pub begin_time: String,
-    #[serde(rename = "endTime")]
     pub end_time: Option<String>,
     pub breakpoints: Option<String>,
-    #[serde(rename = "logLevel")]
-    log_level: Option<String>,
+    pub log_level: Option<String>,
+    pub timestamp_field_name: Option<String>,
+    pub value_field_name: Option<String>,
 }
 
 impl TaskConfig {
@@ -106,11 +106,26 @@ impl TaskConfig {
             begin_time: dsn
                 .params
                 .get("beginTime")
+                .or(dsn.params.get("begin_time"))
                 .ok_or(anyhow::anyhow!("beginTime is required"))?
                 .to_string(),
-            end_time: dsn.params.get("endTime").map(|s| s.to_string()),
+            end_time: dsn
+                .params
+                .get("endTime")
+                .or(dsn.params.get("end_time"))
+                .map(|s| s.to_string()),
             breakpoints: dsn.params.get("breakpoints").map(|s| s.to_string()),
             log_level: dsn.get("log_level").map(|s| s.to_string()),
+            timestamp_field_name: dsn
+                .params
+                .get("timestampFieldName")
+                .or(dsn.params.get("timestamp_field_name"))
+                .map(|s| s.to_string()),
+            value_field_name: dsn
+                .params
+                .get("valueFieldName")
+                .or(dsn.params.get("value_field_name"))
+                .map(|s| s.to_string()),
         })
     }
 }
