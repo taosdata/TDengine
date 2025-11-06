@@ -1598,21 +1598,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
   // If len > 0 means there already have uids, and we only want the
   // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
   // in the hash map, that may require a lot of memory
-  SHashObj *pSepecifiedUidMap = NULL;
   size_t    numOfElems = taosArrayGetSize(pUidTagInfo);
-  if (numOfElems > 0) {
-    pSepecifiedUidMap =
-        taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-    for (int i = 0; i < numOfElems; i++) {
-      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, i);
-      int32_t       code = taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
-      if (code) {
-        metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
-        return code;
-      }
-    }
-  }
 
   if (numOfElems == 0) {  // all data needs to be added into the pUidTagInfo list
     while (1) {
@@ -1625,43 +1611,16 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
       if (!info.pTagVal) {
         metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
         return terrno;
       }
       memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
       if (taosArrayPush(pUidTagInfo, &info) == NULL) {
         taosMemoryFreeClear(info.pTagVal);
         metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
         return terrno;
       }
     }
-  } else {  // only the specified tables need to be added
-    while (1) {
-      tb_uid_t uid = metaCtbCursorNext(pCur);
-      if (uid == 0) {
-        break;
-      }
-
-      int32_t *index = taosHashGet(pSepecifiedUidMap, &uid, sizeof(uint64_t));
-      if (index == NULL) {
-        continue;
-      }
-
-      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, *index);
-      if (pTagInfo->pTagVal == NULL) {
-        pTagInfo->pTagVal = taosMemoryMalloc(pCur->vLen);
-        if (!pTagInfo->pTagVal) {
-          metaCloseCtbCursor(pCur);
-          taosHashCleanup(pSepecifiedUidMap);
-          return terrno;
-        }
-        memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
-      }
-    }
-  }
-
-  taosHashCleanup(pSepecifiedUidMap);
+  } 
   metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
