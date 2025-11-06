@@ -5133,7 +5133,7 @@ _err:
   return NULL;
 }
 
-SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
+SNode* createGrantStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair* pPrivLevel, SToken* pUserName,
                        SNode* pTagCond) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
@@ -5155,7 +5155,7 @@ _err:
   return NULL;
 }
 
-SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
+SNode* createRevokeStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair* pPrivLevel, SToken* pUserName,
                         SNode* pTagCond) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));

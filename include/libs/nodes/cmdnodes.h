@@ -794,7 +794,7 @@ typedef struct SGrantStmt {
   char      userName[TSDB_USER_LEN];
   char      objName[TSDB_DB_NAME_LEN];  // db or topic
   char      tabName[TSDB_TABLE_NAME_LEN];
-  int64_t   privileges;
+  SPrivSet  privileges;
   SNode*    pTagCond;
 } SGrantStmt;
 

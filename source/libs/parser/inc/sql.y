@@ -143,7 +143,7 @@ cmd ::= REVOKE privileges(A) ON priv_level(B) with_clause_opt(D) FROM user_name(
 
 %type privileges                                                                  { SPrivSet }
 %destructor privileges                                                            { }
-privileges(A) ::= ALL.                                                            { A = priv_add_all; }
+privileges(A) ::= ALL.                                                            { A = PRIV_TYPE(PRIV_TYPE_ALL); }
 privileges(A) ::= ALL PRIVILEGES.                                                 { A = PRIV_TYPE(PRIV_TYPE_ALL); }
 privileges(A) ::= priv_type_list(B).                                              { A = B; }
 privileges(A) ::= SUBSCRIBE.                                                      { A = PRIV_TYPE(PRIV_TYPE_SUBSCRIBE); }
@@ -207,28 +207,28 @@ priv_type(A) ::= SHOW INDEXES.                                                  
 
 priv_type(A) ::= CREATE VIEW.                                                     { A = PRIV_TYPE(PRIV_VIEW_CREATE); }
 priv_type(A) ::= DROP VIEW.                                                       { A = PRIV_TYPE(PRIV_VIEW_DROP); }
-priv_type(A) ::= SHOW VIEW.                                                       { A = PRIV_TYPE(PRIV_VIEW_SHOW); }
+priv_type(A) ::= SHOW VIEWS.                                                      { A = PRIV_TYPE(PRIV_VIEW_SHOW); }
 priv_type(A) ::= READ VIEW.                                                       { A = PRIV_TYPE(PRIV_VIEW_READ); }
 
 priv_type(A) ::= CREATE RSMA.                                                     { A = PRIV_TYPE(PRIV_RSMA_CREATE); }
 priv_type(A) ::= DROP RSMA.                                                       { A = PRIV_TYPE(PRIV_RSMA_DROP); }
 priv_type(A) ::= ALTER RSMA.                                                      { A = PRIV_TYPE(PRIV_RSMA_ALTER); }
-priv_type(A) ::= SHOW RSMA.                                                       { A = PRIV_TYPE(PRIV_RSMA_SHOW); }
+priv_type(A) ::= SHOW RSMAS.                                                      { A = PRIV_TYPE(PRIV_RSMA_SHOW); }
 priv_type(A) ::= SHOW CREATE RSMA.                                                { A = PRIV_TYPE(PRIV_RSMA_SHOW_CREATE); }
 priv_type(A) ::= CREATE TSMA.                                                     { A = PRIV_TYPE(PRIV_TSMA_CREATE); }
 priv_type(A) ::= DROP TSMA.                                                       { A = PRIV_TYPE(PRIV_TSMA_DROP); }
-priv_type(A) ::= SHOW TSMA.                                                       { A = PRIV_TYPE(PRIV_TSMA_SHOW); }
+priv_type(A) ::= SHOW TSMAS.                                                      { A = PRIV_TYPE(PRIV_TSMA_SHOW); }
   
 priv_type(A) ::= CREATE MOUNT.                                                    { A = PRIV_TYPE(PRIV_MOUNT_CREATE); }
 priv_type(A) ::= DROP MOUNT.                                                      { A = PRIV_TYPE(PRIV_MOUNT_DROP); }
-priv_type(A) ::= SHOW MOUNT.                                                      { A = PRIV_TYPE(PRIV_MOUNT_SHOW); }
+priv_type(A) ::= SHOW MOUNTS.                                                     { A = PRIV_TYPE(PRIV_MOUNT_SHOW); }
   
 priv_type(A) ::= ALTER PASS.                                                      { A = PRIV_TYPE(PRIV_PASS_ALTER); }
 priv_type(A) ::= ALTER SELF PASS.                                                 { A = PRIV_TYPE(PRIV_PASS_ALTER_SELF); }
   
 priv_type(A) ::= CREATE ROLE.                                                     { A = PRIV_TYPE(PRIV_ROLE_CREATE); }
 priv_type(A) ::= DROP ROLE.                                                       { A = PRIV_TYPE(PRIV_ROLE_DROP); }
-priv_type(A) ::= SHOW ROLE.                                                       { A = PRIV_TYPE(PRIV_ROLE_SHOW); }
+priv_type(A) ::= SHOW ROLES.                                                      { A = PRIV_TYPE(PRIV_ROLE_SHOW); }
 
 priv_type(A) ::= CREATE USER.                                                     { A = PRIV_TYPE(PRIV_USER_CREATE); }
 priv_type(A) ::= DROP USER.                                                       { A = PRIV_TYPE(PRIV_USER_DROP); }
@@ -248,11 +248,10 @@ priv_type(A) ::= WRITE AUDIT DATABASE.                                          
 priv_type(A) ::= CREATE TOKEN.                                                    { A = PRIV_TYPE(PRIV_TOKEN_CREATE); }
 priv_type(A) ::= DROP TOKEN.                                                      { A = PRIV_TYPE(PRIV_TOKEN_DROP); }
 priv_type(A) ::= ALTER TOKEN.                                                     { A = PRIV_TYPE(PRIV_TOKEN_ALTER); }
-priv_type(A) ::= SHOW TOKEN.                                                      { A = PRIV_TYPE(PRIV_TOKEN_SHOW); }
+priv_type(A) ::= SHOW TOKENS.                                                     { A = PRIV_TYPE(PRIV_TOKEN_SHOW); }
 
 priv_type(A) ::= UPDATE KEY.                                                      { A = PRIV_TYPE(PRIV_KEY_UPDATE); }
 priv_type(A) ::= CREATE TOTP.                                                     { A = PRIV_TYPE(PRIV_TOTP_CREATE); }
-priv_type(A) ::= SHOW TOTP.                                                       { A = PRIV_TYPE(PRIV_TOTP_SHOW); }
 priv_type(A) ::= DROP TOTP.                                                       { A = PRIV_TYPE(PRIV_TOTP_DROP); }
 priv_type(A) ::= UPDATE TOTP.                                                     { A = PRIV_TYPE(PRIV_TOTP_UPDATE); }
 
@@ -265,16 +264,16 @@ priv_type(A) ::= REVOKE SYSAUDIT PRIVILEGE.                                     
 
 priv_type(A) ::= CREATE NODE.                                                     { A = PRIV_TYPE(PRIV_NODE_CREATE); }
 priv_type(A) ::= DROP NODE.                                                       { A = PRIV_TYPE(PRIV_NODE_DROP); }
-priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_TYPE(PRIV_NODE_SHOW); }
+priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_TYPE(PRIV_NODES_SHOW); }
 
 priv_type(A) ::= ALTER SECURITY VARIABLE.                                         { A = PRIV_TYPE(PRIV_VAR_SECURITY_ALTER); }
 priv_type(A) ::= ALTER AUDIT VARIABLE.                                            { A = PRIV_TYPE(PRIV_VAR_AUDIT_ALTER); }
 priv_type(A) ::= ALTER SYSTEM VARIABLE.                                           { A = PRIV_TYPE(PRIV_VAR_SYSTEM_ALTER); }
 priv_type(A) ::= ALTER DEBUG VARIABLE.                                            { A = PRIV_TYPE(PRIV_VAR_DEBUG_ALTER); }
-priv_type(A) ::= SHOW SECURITY VARIABLE.                                          { A = PRIV_TYPE(PRIV_VAR_SECURITY_SHOW); }
-priv_type(A) ::= SHOW AUDIT VARIABLE.                                             { A = PRIV_TYPE(PRIV_VAR_AUDIT_SHOW); }
-priv_type(A) ::= SHOW SYSTEM VARIABLE.                                            { A = PRIV_TYPE(PRIV_VAR_SYSTEM_SHOW); }
-priv_type(A) ::= SHOW DEBUG VARIABLE.                                             { A = PRIV_TYPE(PRIV_VAR_DEBUG_SHOW); }
+priv_type(A) ::= SHOW SECURITY VARIABLES.                                         { A = PRIV_TYPE(PRIV_VAR_SECURITY_SHOW); }
+priv_type(A) ::= SHOW AUDIT VARIABLES.                                            { A = PRIV_TYPE(PRIV_VAR_AUDIT_SHOW); }
+priv_type(A) ::= SHOW SYSTEM VARIABLES.                                           { A = PRIV_TYPE(PRIV_VAR_SYSTEM_SHOW); }
+priv_type(A) ::= SHOW DEBUG VARIABLES.                                            { A = PRIV_TYPE(PRIV_VAR_DEBUG_SHOW); }
 
 priv_type(A) ::= CREATE TOPIC.                                                    { A = PRIV_TYPE(PRIV_TOPIC_CREATE); }
 priv_type(A) ::= DROP TOPIC.                                                      { A = PRIV_TYPE(PRIV_TOPIC_DROP); }
@@ -284,7 +283,7 @@ priv_type(A) ::= SHOW SUBSCRIPTIONS.                                            
 
 priv_type(A) ::= CREATE STREAM.                                                   { A = PRIV_TYPE(PRIV_STREAM_CREATE); }
 priv_type(A) ::= DROP STREAM.                                                     { A = PRIV_TYPE(PRIV_STREAM_DROP); }
-priv_type(A) ::= SHOW STREAM.                                                     { A = PRIV_TYPE(PRIV_STREAM_SHOW); }
+priv_type(A) ::= SHOW STREAMS.                                                    { A = PRIV_TYPE(PRIV_STREAM_SHOW); }
 priv_type(A) ::= START STREAM.                                                    { A = PRIV_TYPE(PRIV_STREAM_START); }
 priv_type(A) ::= STOP STREAM.                                                     { A = PRIV_TYPE(PRIV_STREAM_STOP); }
 priv_type(A) ::= RECALC STREAM.                                                   { A = PRIV_TYPE(PRIV_STREAM_RECALC); }

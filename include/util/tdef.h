@@ -578,6 +578,8 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
+#define TSDB_ROLE_CHAIN_MAX_DEPTH 100
+
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
@@ -816,23 +818,23 @@ typedef enum {
   // view management
   PRIV_VIEW_CREATE = 76,  // CREATE VIEW
   PRIV_VIEW_DROP,         // DROP VIEW
-  PRIV_VIEW_SHOW,         // SHOW VIEW
+  PRIV_VIEW_SHOW,         // SHOW VIEWS
   PRIV_VIEW_READ,         // READ VIEW
 
   // SMA management
   PRIV_RSMA_CREATE = 80,  // CREATE RSMA
   PRIV_RSMA_DROP,         // DROP RSMA
   PRIV_RSMA_ALTER,        // ALTER RSMA
-  PRIV_RSMA_SHOW,         // SHOW RSMA
+  PRIV_RSMA_SHOW,         // SHOW RSMAS
   PRIV_RSMA_SHOW_CREATE,  // SHOW CREATE RSMA
   PRIV_TSMA_CREATE,       // CREATE TSMA
   PRIV_TSMA_DROP,         // DROP TSMA
-  PRIV_TSMA_SHOW,         // SHOW TSMA
+  PRIV_TSMA_SHOW,         // SHOW TSMAS
 
   // mount management
   PRIV_MOUNT_CREATE = 90,  // CREATE MOUNT
   PRIV_MOUNT_DROP,         // DROP MOUNT
-  PRIV_MOUNT_SHOW,         // SHOW MOUNT
+  PRIV_MOUNT_SHOW,         // SHOW MOUNTS
 
   // password management
   PRIV_PASS_ALTER = 93,  // ALTER PASS
@@ -841,7 +843,7 @@ typedef enum {
   // role management
   PRIV_ROLE_CREATE = 100,  // CREATE ROLE
   PRIV_ROLE_DROP,          // DROP ROLE
-  PRIV_ROLE_SHOW,          // SHOW ROLE
+  PRIV_ROLE_SHOW,          // SHOW ROLES
 
   // user management
   PRIV_USER_CREATE = 110,  // CREATE USER
@@ -864,12 +866,11 @@ typedef enum {
   PRIV_TOKEN_CREATE = 130,  // CREATE TOKEN
   PRIV_TOKEN_DROP,          // DROP TOKEN
   PRIV_TOKEN_ALTER,         // ALTER TOKEN
-  PRIV_TOKEN_SHOW,          // SHOW TOKEN
+  PRIV_TOKEN_SHOW,          // SHOW TOKENS
 
   // key management
   PRIV_KEY_UPDATE = 140,  // UPDATE KEY
   PRIV_TOTP_CREATE,       // CREATE TOTP
-  PRIV_TOTP_SHOW,         // SHOW TOTP
   PRIV_TOTP_DROP,         // DROP TOTP
   PRIV_TOTP_UPDATE,       // UPDATE TOTP
 
@@ -884,19 +885,19 @@ typedef enum {
   PRIV_REVOKE_SYSAUDIT,        // REVOKE SYSAUDIT PRIVILEGE
 
   // node management
-  PRIV_DNODE_CREATE = 160,  // CREATE NODE
-  PRIV_DNODE_DROP,          // DROP NODE
-  PRIV_DNODE_SHOW,          // SHOW NODES
+  PRIV_NODE_CREATE = 160,  // CREATE NODE
+  PRIV_NODE_DROP,          // DROP NODE
+  PRIV_NODES_SHOW,          // SHOW NODES
 
   // system variables
   PRIV_VAR_SECURITY_ALTER = 190,  // ALTER SECURITY VARIABLE
   PRIV_VAR_AUDIT_ALTER,           // ALTER AUDIT VARIABLE
   PRIV_VAR_SYSTEM_ALTER,          // ALTER SYSTEM VARIABLE
   PRIV_VAR_DEBUG_ALTER,           // ALTER DEBUG VARIABLE
-  PRIV_VAR_SECURITY_SHOW,         // SHOW SECURITY VARIABLE
-  PRIV_VAR_AUDIT_SHOW,            // SHOW AUDIT VARIABLE
-  PRIV_VAR_SYSTEM_SHOW,           // SHOW SYSTEM VARIABLE
-  PRIV_VAR_DEBUG_SHOW,            // SHOW DEBUG VARIABLE
+  PRIV_VAR_SECURITY_SHOW,         // SHOW SECURITY VARIABLES
+  PRIV_VAR_AUDIT_SHOW,            // SHOW AUDIT VARIABLES
+  PRIV_VAR_SYSTEM_SHOW,           // SHOW SYSTEM VARIABLES
+  PRIV_VAR_DEBUG_SHOW,            // SHOW DEBUG VARIABLES
 
   // topic management
   PRIV_TOPIC_CREATE = 200,  // CREATE TOPIC
@@ -908,7 +909,7 @@ typedef enum {
   // stream management
   PRIV_STREAM_CREATE = 210,  // CREATE STREAM
   PRIV_STREAM_DROP,          // DROP STREAM
-  PRIV_STREAM_SHOW,          // SHOW STREAM
+  PRIV_STREAM_SHOW,          // SHOW STREAMS
   PRIV_STREAM_START,         // START STREAM
   PRIV_STREAM_STOP,          // STOP STREAM
   PRIV_STREAM_RECALC,        // RECALC STREAM
@@ -941,8 +942,13 @@ typedef enum {
 
 #define PRIV_GROUP_COUNT ((MAX_PRIV_TYPE + 63) / 64)
 typedef struct {
-  uint64_t bits[PRIV_GROUP_COUNT];  // bits[0] 0~63, ..., bits[7] 448~511
+  uint64_t set[PRIV_GROUP_COUNT];
 } SPrivSet;
+
+#define PRIV_GROUP(bit)  ((bit) / 64)
+#define PRIV_OFFSET(bit) ((bit) & 63)
+#define PRIV_TYPE(bit) \
+  (SPrivSet) { .set[PRIV_GROUP(bit)] = 1ULL << PRIV_OFFSET(bit) }
 
 #ifdef __cplusplus
 }
