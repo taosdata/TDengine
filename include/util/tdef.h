@@ -945,10 +945,20 @@ typedef struct {
   uint64_t set[PRIV_GROUP_COUNT];
 } SPrivSet;
 
-#define PRIV_GROUP(bit)  ((bit) / 64)
-#define PRIV_OFFSET(bit) ((bit) & 63)
-#define PRIV_TYPE(bit) \
-  (SPrivSet) { .set[PRIV_GROUP(bit)] = 1ULL << PRIV_OFFSET(bit) }
+#define PRIV_GROUP(type)  ((type) / 64)
+#define PRIV_OFFSET(type) ((type) & 63)
+#define PRIV_TYPE(type) \
+  (SPrivSet) { .set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type) }
+
+static inline SPrivSet PRIV_ADD(SPrivSet privSet1, SPrivSet privSet2) {
+  SPrivSet merged = privSet1;
+  for (int32_t i = 0; i < PRIV_GROUP_COUNT; ++i) {
+    if (privSet2.set[i]) {
+      merged.set[i] |= privSet2.set[i];
+    }
+  }
+  return merged;
+}
 
 #ifdef __cplusplus
 }
