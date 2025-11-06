@@ -115,10 +115,9 @@ int32_t saslConnInitImpl(SSaslConn * pConn) {
 void saslConnCleanupImpl(SSaslConn * pConn) {
   return;
 }
-void saslConnSetStateImpl(SSaslConn * pConn, int32_t state) {
-  return TSDB_CODE_INVALID_CFG; 
 
-}
+void saslConnSetStateImpl(SSaslConn* pConn, int32_t state) { return; }
+
 int32_t saslConnEncodeImpl(SSaslConn * pConn, const char* input, int32_t len, const char** output,
                            unsigned* outputLen) {
   return TSDB_CODE_INVALID_CFG; 
