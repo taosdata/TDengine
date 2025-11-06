@@ -302,9 +302,9 @@ typedef struct {
 } SSnodeObj;
 
 typedef struct {
-  int32_t dnodeId;
+  int32_t assignedDnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
-  int8_t  acked;
+  int8_t  assignAcked;
 } SArbAssignedLeader;
 
 typedef struct {
