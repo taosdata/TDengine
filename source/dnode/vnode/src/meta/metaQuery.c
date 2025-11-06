@@ -1595,32 +1595,25 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  // If len > 0 means there already have uids, and we only want the
-  // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
-  // in the hash map, that may require a lot of memory
-  size_t    numOfElems = taosArrayGetSize(pUidTagInfo);
-
-  if (numOfElems == 0) {  // all data needs to be added into the pUidTagInfo list
-    while (1) {
-      tb_uid_t uid = metaCtbCursorNext(pCur);
-      if (uid == 0) {
-        break;
-      }
-
-      STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
-      info.pTagVal = taosMemoryMalloc(pCur->vLen);
-      if (!info.pTagVal) {
-        metaCloseCtbCursor(pCur);
-        return terrno;
-      }
-      memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
-      if (taosArrayPush(pUidTagInfo, &info) == NULL) {
-        taosMemoryFreeClear(info.pTagVal);
-        metaCloseCtbCursor(pCur);
-        return terrno;
-      }
+  while (1) {
+    tb_uid_t uid = metaCtbCursorNext(pCur);
+    if (uid == 0) {
+      break;
     }
-  } 
+
+    STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
+    info.pTagVal = taosMemoryMalloc(pCur->vLen);
+    if (!info.pTagVal) {
+      metaCloseCtbCursor(pCur);
+      return terrno;
+    }
+    memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
+    if (taosArrayPush(pUidTagInfo, &info) == NULL) {
+      taosMemoryFreeClear(info.pTagVal);
+      metaCloseCtbCursor(pCur);
+      return terrno;
+    }
+  }
   metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
