@@ -1116,19 +1116,16 @@ _exit:
 static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t code = 0;
 
-  vInfo("vgId:%d, process trim wal request, force clean expired WAL files", pVnode->config.vgId);
+  vInfo("vgId:%d, process trim wal request, force clean expired WAL files by triggering commit with forceTrim",
+        pVnode->config.vgId);
 
-  // Trigger WAL snapshot with forceTrim flag to bypass keepVersion constraint
-  // This does NOT modify the persisted keepVersion, avoiding potential data loss if crashed
-  code = walBeginSnapshot(pVnode->pWal, pVnode->state.applied, 0);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = walEndSnapshot(pVnode->pWal, true);  // forceTrim = true
-  }
-
+  // Trigger a commit with forceTrim flag
+  // This will properly calculate ver through sync layer and apply forceTrim during snapshot
+  code = vnodeAsyncCommitEx(pVnode, true);
   if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to trim wal since %s", pVnode->config.vgId, tstrerror(code));
+    vError("vgId:%d, failed to trigger trim wal commit since %s", pVnode->config.vgId, tstrerror(code));
   } else {
-    vInfo("vgId:%d, successfully trimmed wal files", pVnode->config.vgId);
+    vInfo("vgId:%d, successfully triggered trim wal commit", pVnode->config.vgId);
   }
 
   return code;

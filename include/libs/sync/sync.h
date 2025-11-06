@@ -281,7 +281,7 @@ int64_t   syncGetTerm(int64_t rid);
 int32_t   syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t   syncReconfig(int64_t rid, SSyncCfg* pCfg);
 int32_t   syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
-int32_t   syncEndSnapshot(int64_t rid);
+int32_t   syncEndSnapshot(int64_t rid, bool forceTrim);
 int32_t   syncLeaderTransfer(int64_t rid);
 int32_t   syncStepDown(int64_t rid, SyncTerm newTerm);
 bool      syncIsReadyForRead(int64_t rid);
