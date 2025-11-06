@@ -2860,6 +2860,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   size_t               size = 0;
   SStreamMsgVTableInfo vTableInfo = {0};
   SMetaReader          metaReader = {0};
+  SArray*              pTableListArray = NULL;
   SStorageAPI api = {0};
   initStorageAPI(&api);
 
@@ -2870,7 +2871,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   SArray* cids = req->virTableInfoReq.cids;
   STREAM_CHECK_NULL_GOTO(cids, terrno);
 
-  SArray* pTableListArray = qStreamGetTableArrayList(sStreamReaderInfo);
+  pTableListArray = qStreamGetTableArrayList(sStreamReaderInfo);
   STREAM_CHECK_NULL_GOTO(pTableListArray, terrno);
 
   vTableInfo.infos = taosArrayInit(taosArrayGetSize(pTableListArray), sizeof(VTableInfo));
@@ -2878,7 +2879,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   api.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &api.metaFn);
 
   for (size_t i = 0; i < taosArrayGetSize(pTableListArray); i++) {
-    STableKeyInfo* pKeyInfo = taosArrayGet(pTableListArray, i);
+    SStreamTableKeyInfo* pKeyInfo = taosArrayGetP(pTableListArray, i);
     if (pKeyInfo == NULL) {
       continue;
     }
@@ -2921,6 +2922,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   STREAM_CHECK_RET_GOTO(buildVTableInfoRsp(&vTableInfo, &buf, &size));
 
 end:
+  taosArrayDestroyP(pTableListArray, taosMemFree);
   tDestroySStreamMsgVTableInfo(&vTableInfo);
   api.metaReaderFn.clearReader(&metaReader);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
