@@ -306,7 +306,7 @@ int32_t sdbReadFile(SSdb *pSdb);
  */
 int32_t sdbWriteFile(SSdb *pSdb, int32_t delta);
 
-int32_t sdbWriteFileForDump(SSdb *pSdb);
+int32_t sdbWriteFileForDump(SSdb *pSdb, int32_t skip_type);
 /**
  * @brief Parse and write raw data to sdb, then free the pRaw object
  *

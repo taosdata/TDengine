@@ -3,6 +3,8 @@
 
 import numpy as np
 import sklearn.neighbors as neighbor
+
+from taosanalytics.conf import app_logger
 from taosanalytics.service import AbstractAnomalyDetectionService
 
 
@@ -28,8 +30,8 @@ class _LofService(AbstractAnomalyDetectionService):
         arr_2d = np.reshape(self.list, (len(self.list), 1))
         res = checker.fit_predict(arr_2d)
 
-        print(f"The negative outlier factor is:{checker.negative_outlier_factor_}")
-        return res
+        app_logger.log_inst.debug(f"The negative outlier factor is:{checker.negative_outlier_factor_}")
+        return res.tolist()
 
     def set_params(self, params):
         super().set_params(params)
