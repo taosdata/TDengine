@@ -6154,6 +6154,23 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       goto _end;
       // TODO(kjq): backward start time to the previous window end of each group
     } else if (pContext->scanRange.skey > pContext->scanRange.ekey) {
+      // history calculation finished since no data in scan range
+      bool calcFinish = false;
+      code = stHistoryContextAllCalcFinish(pContext, &calcFinish);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CONDITION(calcFinish, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      if (pContext->isHistory) {
+        atomic_store_8(&pTask->historyFinished, 1);
+      }
+      stHistoryContextDestroy(&pTask->pHistoryContext);
+      pTask->pHistoryContext = taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext));
+      QUERY_CHECK_NULL(pTask->pHistoryContext, code, lino, _end, terrno);
+      pContext = pTask->pHistoryContext;
+      code = stHistoryContextInit(pContext, pTask);
+      QUERY_CHECK_CODE(code, lino, _end);
+      int64_t resumeTime = taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS;
+      code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, resumeTime);
+      QUERY_CHECK_CODE(code, lino, _end);
       goto _end;
     }
 
