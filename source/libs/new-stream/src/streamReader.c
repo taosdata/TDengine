@@ -122,27 +122,25 @@ static void* copyTableInfo(void* p) {
 int32_t  qStreamCopyTableInfo(StreamTableListInfo* src, StreamTableListInfo* dst, TdThreadRwlock* lock){
   int32_t code = 0;
   int32_t lino = 0;
-  STREAM_CHECK_NULL_GOTO(src->pTableList, code);
   (void)taosThreadRwlockRdlock(lock);
-  dst->pTableList = taosArrayDup(src->pTableList, copyTableInfo);
-  (void)taosThreadRwlockUnlock(lock);
-
-  STREAM_CHECK_NULL_GOTO(dst->pTableList, terrno);
-
-  int32_t totalSize = taosArrayGetSize(dst->pTableList);
+  int32_t totalSize = taosArrayGetSize(src->pTableList);
   for (int32_t i = 0; i < totalSize; ++i) {
-    SStreamTableKeyInfo* info = taosArrayGetP(dst->pTableList, i);
+    SStreamTableKeyInfo* info = taosArrayGetP(src->pTableList, i);
     if (info == NULL) {
       continue;
     }
     STREAM_CHECK_RET_GOTO(qStreamSetTableList(dst, info->uid, info->groupId));
   }
 end:
+  (void)taosThreadRwlockUnlock(lock);
   return code;
 }
 
 SArray* qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo) { 
-  return sStreamReaderInfo->tableList.pTableList;
+  (void)taosThreadRwlockRdlock(&sStreamReaderInfo->lock);
+  SArray* pTableList = taosArrayDup(sStreamReaderInfo->tableList.pTableList, copyTableInfo);
+  (void)taosThreadRwlockUnlock(&sStreamReaderInfo->lock);
+  return pTableList;
 }
 
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo){
@@ -455,7 +453,7 @@ int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTas
   cleanupQueryTableDataCond(&pTaskInner->cond);
   STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTaskInner->cond, options->order, pTaskInner->options.schemas, options->isSchema,
                                                     options->twindows, options->suid, options->ver, options->pSlotList));
-  STREAM_CHECK_RET_GOTO(pTaskInner->api.tsdReader.tsdReaderOpen(pVnode, &pTaskInner->cond, &pList, pNum, pTaskInner->pResBlock,
+  STREAM_CHECK_RET_GOTO(pTaskInner->api.tsdReader.tsdReaderOpen(pVnode, &pTaskInner->cond, pList, pNum, pTaskInner->pResBlock,
                                                           (void**)&pTaskInner->pReader, pTaskInner->idStr, NULL));
   
   *ppTask = pTaskInner;
