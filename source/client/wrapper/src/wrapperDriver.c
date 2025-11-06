@@ -54,22 +54,30 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
 void readEnvDriver() {
   const char *envDriver = getenv("TDENGINE_DRIVER");
   if (envDriver != NULL) {
-    //printf("wrapper read env TDENGINE_DRIVER:%s\n", envDriver);
     if (strcasecmp(envDriver, STR_NATIVE) == 0) {
-      //printf("env set driver to 'native'\n");
       tsDriverType = DRIVER_NATIVE;      
     } else if (strcasecmp(envDriver, STR_WEBSOCKET) == 0) {
-      //printf("env set driver to 'websocket'\n");
       tsDriverType = DRIVER_WEBSOCKET;
-    }    
+    }
   }
 }
 
-// Automatically called when the library is loaded
+#ifdef WINDOWS
+BOOL WINAPI DllMain(
+    _In_ HINSTANCE hinstDLL,
+    _In_ DWORD     fdwReason,
+    _In_ LPVOID    lpvReserved) {
+  if (fdwReason == DLL_PROCESS_ATTACH) {
+    readEnvDriver();
+  }
+  return TRUE;
+}
+#else
 __attribute__((constructor))
 void wrapper_library_init() {
     readEnvDriver();
 }
+#endif
 
 int32_t taosDriverInit(EDriverType driverType) {
   int32_t     code = -1;
