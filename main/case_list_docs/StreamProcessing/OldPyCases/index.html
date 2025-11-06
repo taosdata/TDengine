@@ -1,0 +1,4412 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../Compatibility/">
+      
+      
+        <link rel="next" href="../OldTsimCases/">
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>30-OldPyCases - TDengine Case List</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#30-oldpycases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="TDengine Case List" class="md-header__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            TDengine Case List
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              30-OldPyCases
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../DataTypes/" class="md-tabs__link">
+          
+  
+  
+  Case list docs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-tabs__link">
+          
+  
+  
+  Util funcs docs
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="TDengine Case List" class="md-nav__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    TDengine Case List
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      <li>
+      
+      <a href="../../.." class="md-nav__link">Home</a>
+    </li>
+      
+      
+    
+      <li>
+      
+      <a href="../../DataTypes/" class="md-nav__link">Case list docs</a>
+    </li>
+      
+      
+        <ul class="md-nav__sublist">
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataTypes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Data Types
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    02-Databases
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            02-Databases
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Drop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Alter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Sync
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Precision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-Precision
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Flush/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-Flush
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    03-Tables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            03-Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    01-NormalTables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            01-NormalTables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/NormalTables/Create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/NormalTables/Drop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/NormalTables/Alter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/NormalTables/Query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    02-SubTables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            02-SubTables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/SubTables/Create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/SubTables/Alter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/SubTables/Query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    04-Super Tables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            04-Super Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SuperTables/Create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SuperTables/Drop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SuperTables/Alter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SuperTables/Query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../VirtualTables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Virtual Tables
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    06-Data Ingestion
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            06-Data Ingestion
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataIngestion/SQL/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-SQL
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataIngestion/STMT/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-STMT
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataIngestion/SML/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-SML
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataIngestion/Import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Import
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataDeletion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-Data Deletion
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataCompression/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    08-Data Compression
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    09-Data Querying
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            09-Data Querying
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Select/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Select
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Filter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Filter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/GroupBy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-GroupBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/OrderBy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-OrderBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Limit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-Limit
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/SLimit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-SLimit
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/SubQuery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    08-SubQuery
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Having/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    09-Having
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Distinct/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    10-Distinct
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/PseudoColumn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    11-PseudoColumn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Interp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    12-Interp
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/CaseWhen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    13-CaseWhen
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Tags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    14-Tags
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Explain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    15-Explain
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/BiMode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    17-BiMode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    10-Operators
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    11-Functions
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            11-Functions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Scalar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Scalar
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Aggregate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Aggregate
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Selection
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Timeseries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Timeseries
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Compare
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/System/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-System
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Geometry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-Geometry
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../UDFs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    12-UDFs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    13-Time-SeriesExt
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            13-Time-SeriesExt
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/PartitionBy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-PartitionBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/Fill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Fill
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/TimeWindow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-TimeWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/EventWindow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-EventWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/SessionWindow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-SessionWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/CountWindow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-CountWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../JoinQueries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    14-Join Queries
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TagIndices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    15-Tag Indices
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    16-Views
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_17" id="__nav_17_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    17-Data Subscription
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_17">
+            <span class="md-nav__icon md-icon"></span>
+            17-Data Subscription
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataSubscription/Mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Mgmt
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataSubscription/Native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Native
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataSubscription/MQTT/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-MQTT
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataSubscription/sh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    sh
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_18" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_18" id="__nav_18_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    18-Stream Processing
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_18_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_18">
+            <span class="md-nav__icon md-icon"></span>
+            18-Stream Processing
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Snode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Snode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Stream/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Stream
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../TriggerMode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-TriggerMode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Options
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Notify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Notify
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ResultSaved/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-ResultSaved
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../SubQuery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-SubQuery
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Recalc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    08-Recalc
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UseCase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    20-UseCase
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    22-Performance
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Compatibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    23-Compatibility
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    30-OldPyCases
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    30-OldPyCases
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
+
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_empty_identifier.TestEmptyIdentifier.test_empty_identifier" class="md-nav__link">
+        Empty Identifier Validation Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_stream_multi_agg.TestStreamMultiAggCase.test_steram_multi_agg" class="md-nav__link">
+        OldPy: aggregation func 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_at_once.TestOthersOldCaseAtonce.test_others_oldcase_atonce" class="md-nav__link">
+        OldPy: at once 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_backquote_check.TestOthersOldCaseBackquoteCheck.test_others_oldcase_backquote_check" class="md-nav__link">
+        OldPy: back quote 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_stream_basic.TestStreamBasicCase.test_stream_basic" class="md-nav__link">
+        OldPy: basic test 1 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_checkpoint_info.Test_checkpoint_info_Case.test_checkpoint_info" class="md-nav__link">
+        OldPy: checkpoint 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_forcewindowclose.TestIntervalCases.test_period_interval" class="md-nav__link">
+        OldPy: force window close 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_math_func.TestMathFunctionInStream.test_math_function" class="md-nav__link">
+        OldPy: math function 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_interval_partition.TestIntervalPartition.test_interval_partition" class="md-nav__link">
+        OldPy: partitionby 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_taosdShell.TestOthersOldCaseTaosdshell.test_others_oldcase_taosdShell" class="md-nav__link">
+        OldPy: shell create stream 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_sliding_partition.TestSlindingPartition.test_sliding_partition" class="md-nav__link">
+        OldPy: sliding 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_snode_restart_with_checkpoint.Test_snode_restart_with_checkpoint.test_case1" class="md-nav__link">
+        OldPy: snode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_state_window.TestStateWindow.test_state_window" class="md-nav__link">
+        OldPy: state window 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_string_func.TestStringFunctionInStream.test_string_function" class="md-nav__link">
+        OldPy: string function 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_window_true_for.TestWindowTrueFor.test_window_true_for" class="md-nav__link">
+        OldPy: true for 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_drop.TestStreamDrop.test_stream_drop" class="md-nav__link">
+        Stream Processing Drop Operations Test 
+      </a>
+      
+    </li>
+  
+
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../OldTsimCases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    31-OldTsimCases
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Others/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    99-Others
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TSMAs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    19-TSMAs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../RSMAs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    20-RSMAs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../MetaData/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    21-Meta Data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../PerformanceData/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    22-Performance Data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ShowCommands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    23-Show Commands
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Users/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    24-Users
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Privileges/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    25-Privileges
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NodeManager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    26-Node Manager
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Mount/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    27-Mount
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Except/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    28-Except
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Escape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    29-Escape Characters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NameLimits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    30-Name & Limits
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    70-Cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_32" >
+        
+          
+          <label class="md-nav__link" for="__nav_32" id="__nav_32_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    80-Components
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_32_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_32">
+            <span class="md-nav__icon md-icon"></span>
+            80-Components
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Components/Taosd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Taosd
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Components/Taosc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Taosc
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Components/TDgpt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    10-TDgpt
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_33" >
+        
+          
+          <label class="md-nav__link" for="__nav_33" id="__nav_33_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    81-Tools
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_33_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_33">
+            <span class="md-nav__icon md-icon"></span>
+            81-Tools
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Check/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Check
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Taos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Taos
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Benchmark
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Taosdump/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Taosdump
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Valgrind/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Valgrind
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../UnitTest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    82-UnitTest
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DocTest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    83-DocTest
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      
+    
+      <li>
+      
+      <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">Util funcs docs</a>
+    </li>
+      
+      
+        <ul class="md-nav__sublist">
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    new_test_framework
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            new_test_framework
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+        </ul>
+      
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
+
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_empty_identifier.TestEmptyIdentifier.test_empty_identifier" class="md-nav__link">
+        Empty Identifier Validation Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_stream_multi_agg.TestStreamMultiAggCase.test_steram_multi_agg" class="md-nav__link">
+        OldPy: aggregation func 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_at_once.TestOthersOldCaseAtonce.test_others_oldcase_atonce" class="md-nav__link">
+        OldPy: at once 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_backquote_check.TestOthersOldCaseBackquoteCheck.test_others_oldcase_backquote_check" class="md-nav__link">
+        OldPy: back quote 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_stream_basic.TestStreamBasicCase.test_stream_basic" class="md-nav__link">
+        OldPy: basic test 1 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_checkpoint_info.Test_checkpoint_info_Case.test_checkpoint_info" class="md-nav__link">
+        OldPy: checkpoint 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_forcewindowclose.TestIntervalCases.test_period_interval" class="md-nav__link">
+        OldPy: force window close 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_math_func.TestMathFunctionInStream.test_math_function" class="md-nav__link">
+        OldPy: math function 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_interval_partition.TestIntervalPartition.test_interval_partition" class="md-nav__link">
+        OldPy: partitionby 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_taosdShell.TestOthersOldCaseTaosdshell.test_others_oldcase_taosdShell" class="md-nav__link">
+        OldPy: shell create stream 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_sliding_partition.TestSlindingPartition.test_sliding_partition" class="md-nav__link">
+        OldPy: sliding 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_snode_restart_with_checkpoint.Test_snode_restart_with_checkpoint.test_case1" class="md-nav__link">
+        OldPy: snode 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_state_window.TestStateWindow.test_state_window" class="md-nav__link">
+        OldPy: state window 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_string_func.TestStringFunctionInStream.test_string_function" class="md-nav__link">
+        OldPy: string function 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_window_true_for.TestWindowTrueFor.test_window_true_for" class="md-nav__link">
+        OldPy: true for 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_drop.TestStreamDrop.test_stream_drop" class="md-nav__link">
+        Stream Processing Drop Operations Test 
+      </a>
+      
+    </li>
+  
+
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="30-oldpycases">30-OldPyCases<a class="headerlink" href="#30-oldpycases" title="Permanent link">&para;</a></h1>
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_at_once.TestOthersOldCaseAtonce.test_others_oldcase_atonce" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_at_once.TestOthersOldCaseAtonce.test_others_oldcase_atonce" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: at once</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">test replace the at once in old cases with the count(1) window function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_backquote_check.TestOthersOldCaseBackquoteCheck.test_others_oldcase_backquote_check" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_backquote_check.TestOthersOldCaseBackquoteCheck.test_others_oldcase_backquote_check" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: back quote</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">test back quote check</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_checkpoint_info.Test_checkpoint_info_Case.test_checkpoint_info" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_checkpoint_info.Test_checkpoint_info_Case.test_checkpoint_info" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: checkpoint</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create snode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. create stream and restart stream</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. drop snode </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. alter db replica</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. balance vgropu leader </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. drop stream</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. redistribute vgroup</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. drop snode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. drop dnode  </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. check checkpoint file</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_drop.TestStreamDrop.test_stream_drop" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_drop.TestStreamDrop.test_stream_drop" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Processing Drop Operations Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test drop operations on tables with special characters and batch drop operations:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test [Normal Table Drop] Operations</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Create and drop normal table with timestamp column</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.1 Create table with 20 child tables using super table</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.2 Insert 10 rows per child table</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.3 Query and verify data by timestamp column</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.4 Drop each child table individually</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Test drop with flush database operations</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.1 Recreate child tables after drop</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.2 Insert data again and query</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.3 Verify data consistency after flush</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.4 Drop super table and recreate</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test [Special Character Table Names] Drop Operations</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 Create databases and tables with special names</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.1 Create databases: dbtest_0, dbtest_1 with vgroups 4</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.2 Create super table with Unicode name: aa¿​stb0</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.3 Create child tables with special names: aa¿​ctb0, aa¿​ctb1</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.4 Create normal tables with special names: aa¿​ntb0, aa¿​ntb1</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.2 Test drop operations with special character handling</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.1 Insert data into tables with special names</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.2 Query data using backticks for table names</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.3 Drop tables with special character names</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.4 Clean up databases after testing</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test [Batch Drop Operations] with Super Tables</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 Query information_schema.ins_stables for batch operations</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.1 Find stable information across test databases</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.2 Verify stable count equals 2 (one per database)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.3 Extract database and stable names for batch operations</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.2 Test batch drop with error scenarios</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.1 Test &#34;drop table with&#34; invalid table names (should error)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.2 Test &#34;drop stable with&#34; non-existent tables (should error)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.3 Test &#34;drop stable with&#34; space-containing names (should error)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.4 Verify error message: &#34;Cannot drop super table in batch&#34;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Test [Error Handling] for Drop Operations</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 Test error messages for invalid drop operations</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.1 &#34;Table does not exist&#34; for invalid table drop</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.2 &#34;STable not exist&#34; for invalid stable drop</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.3 &#34;Cannot drop super table in batch&#34; for batch stable drop</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.2 Repeat error tests multiple times</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.1 Execute each error scenario 5 times</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.2 Verify consistent error handling</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.3 Check error message consistency</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.4 Validate connection stability after errors</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_drop.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_drop.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_empty_identifier.TestEmptyIdentifier.test_empty_identifier" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_empty_identifier.TestEmptyIdentifier.test_empty_identifier" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Empty Identifier Validation Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test empty identifier `` handling in 28 specific SQL statements and verify error code -2147473897:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test [Table Operations] with Empty Identifiers</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 show create table `` - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 show create table test.`` - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.3 create table `` (ts timestamp, c1 int) - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.4 drop table `` - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.5 alter table `` add column c2 int - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.6 select * from `` - verify error -2147473897</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test [Column and Tag Operations] with Empty Identifiers</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 alter table meters add column `` int - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.2 alter table meters drop column `` - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.3 alter stable meters add tag `` int - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.4 alter stable meters rename tag cc `` - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.5 alter stable meters drop tag `` - verify error -2147473897</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test [Data Manipulation] with Empty Identifiers</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 insert into `` select * from t0 - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.2 insert into t100 using `` tags(&#39;&#39;, &#39;&#39;) values(1,1,1) - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.3 insert into `` values(1,1,1) - verify error -2147473897</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Test [View Operations] with Empty Identifiers</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 create view `` as select count(*) from meters interval(10s) - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.2 create view ``.view1 as select count(*) from meters - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.3 drop view `` - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.4 drop view ``.st1 - verify error -2147473897</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Test [TSMA Operations] with Empty Identifiers</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.1 create tsma `` on meters function(count(c1)) interval(1m) - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.2 create tsma tsma1 on `` function(count(c1)) interval(1m) - verify error -2147473897</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Test [Stream Operations] with Empty Identifiers</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.1 create stream `` interval(10s) sliding(10s) from meters into st1 as select count(*) from meters - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.2 create stream stream1 interval(10s) sliding(10s) from meters into `` as select count(*) from meters - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.3 create stream stream1 interval(10s) sliding(10s) from meters into st1 as select count(*) from `` - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.4 create stream stream1 interval(10s) sliding(10s) from meters stream_options(max_delay(100s)) into st1 as select count(*) from `` - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.5 create stream stream1 interval(10s) sliding(10s) from `` stream_options(max_delay(100s)) into st1 as select count(*) from meters - verify error -2147473897</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Test [Topic Operations] with Empty Identifiers</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    7.1 create topic `` as select count(*) from meters interval(10s) - verify error -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    7.2 drop topic `` - verify error -2147473897</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Test [Error Code Verification] for All Cases</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.1 Execute all 28 SQL statements with empty identifiers</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.2 Verify each returns exact error code -2147473897</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.3 Confirm error message consistency</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    8.4 Validate connection stability after errors</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_empty_identifier.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_empty_identifier.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_forcewindowclose.TestIntervalCases.test_period_interval" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_forcewindowclose.TestIntervalCases.test_period_interval" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: force window close</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">interval + sliding simulates the force window close trigger model.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_forcewindowclose.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_forcewindowclose.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_interval_partition.TestIntervalPartition.test_interval_partition" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_interval_partition.TestIntervalPartition.test_interval_partition" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: partitionby</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">老用例 tests/system-test/8-stream/partition_interval.py</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">老的建流语句</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">CREATE STREAM xxx INTO xxx AS SELECT _wstart,count(val) FROM stb PARTITION BY tbname INTERVAL(10s)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">新的建流语句</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">CREATE STREAM xxx INTERVAL(10s) SLIDING(10s) FROM stb PARTITON BY tbname INTO xxx AS SELECT _tcurrent_ts as ts,count(val) FROM %%trows;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_interval_partition.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_interval_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_math_func.TestMathFunctionInStream.test_math_function" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_math_func.TestMathFunctionInStream.test_math_function" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: math function</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">旧用例 tests/system-test/8-stream/scalar_function.py</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">测试在流计算中使用数学函数</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">旧的建流语句：</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">create stream XXX trigger at_once ignore expired 0 ignore update 0 fill_history 1 into XXX as select ts, log(c1, 2), log(c2, 2), c3 from scalar_tb</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">新的建流语句：</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">CREATE STREAM XXX SLIDING(10s) FROM tb INTO XXX AS SELECT ts, log(val, 2) as val FROM %%trows;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_math_func.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_sliding_partition.TestSlindingPartition.test_sliding_partition" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_sliding_partition.TestSlindingPartition.test_sliding_partition" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: sliding</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">老用例 tests/system-test/8-stream/partition_interval.py</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">老的建流语句</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">CREATE STREAM xxx INTO xxx AS SELECT _wstart,count(val) FROM stb PARTITION BY tbname INTERVAL(10s)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">新的建流语句</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">CREATE STREAM xxx SLINDING(10s) FROM stb PARTITON BY tbname INTO xxx AS SELECT _tcurrent_ts as ts,count(val) FROM %%trows;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_sliding_partition.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_sliding_partition.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_snode_restart_with_checkpoint.Test_snode_restart_with_checkpoint.test_case1" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_snode_restart_with_checkpoint.Test_snode_restart_with_checkpoint.test_case1" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: snode</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. -</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_snode_restart_with_checkpoint.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_state_window.TestStateWindow.test_state_window" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_state_window.TestStateWindow.test_state_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: state window</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">迁移自老用例: tests/system-test/8-stream/state_window_case.py</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_state_window.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_stream_basic.TestStreamBasicCase.test_stream_basic" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_stream_basic.TestStreamBasicCase.test_stream_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: basic test 1</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test stream basic</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_stream_basic.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_stream_multi_agg.TestStreamMultiAggCase.test_steram_multi_agg" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_stream_multi_agg.TestStreamMultiAggCase.test_steram_multi_agg" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: aggregation func</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. test_Stream_Multi_Agg</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_string_func.TestStringFunctionInStream.test_string_function" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_string_func.TestStringFunctionInStream.test_string_function" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: string function</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">旧用例 tests/system-test/8-stream/scalar_function.py</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">测试在流计算中使用字符串函数</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">旧的建流语句：</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">create stream XXX trigger at_once ignore expired 0 ignore update 0 fill_history 1 into XXX as select ts, char_length(c3) from scalar_tb</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">新的建流语句：</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">CREATE STREAM XXX SLIDING(10s) FROM tb INTO XXX AS SELECT ts, char_length(val) as val FROM %%trows;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_taosdShell.TestOthersOldCaseTaosdshell.test_others_oldcase_taosdShell" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_taosdShell.TestOthersOldCaseTaosdshell.test_others_oldcase_taosdShell" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: shell create stream</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">test taosd shell command</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.30-OldPyCases.test_oldcase_window_true_for.TestWindowTrueFor.test_window_true_for" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.30-OldPyCases.test_oldcase_window_true_for.TestWindowTrueFor.test_window_true_for" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>OldPy: true for</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">tests/system-test/2-query/test_window_true_for.py</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py" target="_blank">
+                      cases/18-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

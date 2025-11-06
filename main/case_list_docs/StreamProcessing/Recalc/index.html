@@ -1,0 +1,4749 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../SubQuery/">
+      
+      
+        <link rel="next" href="../UseCase/">
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.23">
+    
+    
+      
+        <title>08-Recalc - TDengine Case List</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.84d31ad4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#08-recalc" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="TDengine Case List" class="md-header__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            TDengine Case List
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              08-Recalc
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../DataTypes/" class="md-tabs__link">
+          
+  
+  
+  Case list docs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-tabs__link">
+          
+  
+  
+  Util funcs docs
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="TDengine Case List" class="md-nav__button md-logo" aria-label="TDengine Case List" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    TDengine Case List
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      <li>
+      
+      <a href="../../.." class="md-nav__link">Home</a>
+    </li>
+      
+      
+    
+      <li>
+      
+      <a href="../../DataTypes/" class="md-nav__link">Case list docs</a>
+    </li>
+      
+      
+        <ul class="md-nav__sublist">
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataTypes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Data Types
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    02-Databases
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            02-Databases
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Drop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Alter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Sync
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Precision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-Precision
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Databases/Flush/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-Flush
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    03-Tables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            03-Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    01-NormalTables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            01-NormalTables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/NormalTables/Create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/NormalTables/Drop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/NormalTables/Alter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/NormalTables/Query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    02-SubTables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            02-SubTables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/SubTables/Create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/SubTables/Alter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tables/SubTables/Query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    04-Super Tables
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            04-Super Tables
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SuperTables/Create/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Create
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SuperTables/Drop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Drop
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SuperTables/Alter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Alter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../SuperTables/Query/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Query
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../VirtualTables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Virtual Tables
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    06-Data Ingestion
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            06-Data Ingestion
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataIngestion/SQL/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-SQL
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataIngestion/STMT/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-STMT
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataIngestion/SML/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-SML
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataIngestion/Import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Import
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataDeletion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-Data Deletion
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataCompression/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    08-Data Compression
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    09-Data Querying
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            09-Data Querying
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Select/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Select
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Filter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Filter
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/GroupBy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-GroupBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/OrderBy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-OrderBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Limit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-Limit
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/SLimit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-SLimit
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/SubQuery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    08-SubQuery
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Having/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    09-Having
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Distinct/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    10-Distinct
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/PseudoColumn/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    11-PseudoColumn
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Interp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    12-Interp
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/CaseWhen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    13-CaseWhen
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Tags/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    14-Tags
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/Explain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    15-Explain
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataQuerying/BiMode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    17-BiMode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    10-Operators
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    11-Functions
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            11-Functions
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Scalar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Scalar
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Aggregate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Aggregate
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Selection
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Timeseries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Timeseries
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Compare/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Compare
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/System/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-System
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Functions/Geometry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-Geometry
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../UDFs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    12-UDFs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    13-Time-SeriesExt
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            13-Time-SeriesExt
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/PartitionBy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-PartitionBy
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/Fill/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Fill
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/TimeWindow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-TimeWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/EventWindow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-EventWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/SessionWindow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-SessionWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TimeSeriesExt/CountWindow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-CountWindow
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../JoinQueries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    14-Join Queries
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TagIndices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    15-Tag Indices
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    16-Views
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_17" id="__nav_17_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    17-Data Subscription
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_17">
+            <span class="md-nav__icon md-icon"></span>
+            17-Data Subscription
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataSubscription/Mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Mgmt
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataSubscription/Native/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Native
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataSubscription/MQTT/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-MQTT
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DataSubscription/sh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    sh
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_18" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_18" id="__nav_18_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    18-Stream Processing
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_18_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_18">
+            <span class="md-nav__icon md-icon"></span>
+            18-Stream Processing
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Snode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Snode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Stream/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Stream
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../TriggerMode/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-TriggerMode
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Options
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Notify/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Notify
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ResultSaved/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    06-ResultSaved
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../SubQuery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    07-SubQuery
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    08-Recalc
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    08-Recalc
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
+
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_delete_recalc.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="md-nav__link">
+        Recalc: DELETE_RECALC 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_expired_time.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Recalc: EXPIRED_TIME 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_ignore_disorder.TestStreamRecalcIgnoreDisorder.test_stream_recalc_ignore_disorder" class="md-nav__link">
+        Recalc: IGNORE_DISORDER 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_manual_basic.TestStreamRecalcManual.test_stream_recalc_manual" class="md-nav__link">
+        Recalc: Manual basic testing 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_manual_with_options.TestStreamRecalcWithOptions.test_stream_recalc_with_options" class="md-nav__link">
+        Recalc: Manual testing with options 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_combined_options.TestStreamRecalcCombinedOptions.test_stream_recalc_combined_options" class="md-nav__link">
+        Recalc: mixed options 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_watermark.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="md-nav__link">
+        Recalc: WATERMARK 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_11.TestStreamRecalcManual.test_stream_recalc_manual" class="md-nav__link">
+        Stream Manual Recalculation Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_12.TestStreamRecalcManual.test_stream_recalc_manual" class="md-nav__link">
+        Stream Manual Recalculation Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_8.TestStreamRecalcManual.test_stream_recalc_manual" class="md-nav__link">
+        Stream Manual Recalculation Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_5.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="md-nav__link">
+        Stream Recalculation DELETE_RECALC Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_6.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="md-nav__link">
+        Stream Recalculation DELETE_RECALC Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_1.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Stream Recalculation EXPIRED_TIME Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_2.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Stream Recalculation EXPIRED_TIME Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_3.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Stream Recalculation EXPIRED_TIME Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_4.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Stream Recalculation EXPIRED_TIME Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_10.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="md-nav__link">
+        Stream Recalculation WATERMARK Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_7.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="md-nav__link">
+        Stream Recalculation WATERMARK Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_9.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="md-nav__link">
+        Stream Recalculation WATERMARK Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UseCase/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    20-UseCase
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    22-Performance
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Compatibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    23-Compatibility
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../OldPyCases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    30-OldPyCases
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../OldTsimCases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    31-OldTsimCases
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Others/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    99-Others
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../TSMAs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    19-TSMAs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../RSMAs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    20-RSMAs
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../MetaData/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    21-Meta Data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../PerformanceData/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    22-Performance Data
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ShowCommands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    23-Show Commands
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Users/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    24-Users
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Privileges/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    25-Privileges
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NodeManager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    26-Node Manager
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Mount/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    27-Mount
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Except/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    28-Except
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Escape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    29-Escape Characters
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../NameLimits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    30-Name & Limits
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Cluster/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    70-Cluster
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_32" >
+        
+          
+          <label class="md-nav__link" for="__nav_32" id="__nav_32_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    80-Components
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_32_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_32">
+            <span class="md-nav__icon md-icon"></span>
+            80-Components
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Components/Taosd/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Taosd
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Components/Taosc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Taosc
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Components/TDgpt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    10-TDgpt
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_33" >
+        
+          
+          <label class="md-nav__link" for="__nav_33" id="__nav_33_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    81-Tools
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_33_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_33">
+            <span class="md-nav__icon md-icon"></span>
+            81-Tools
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Check/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    01-Check
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Taos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    02-Taos
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    03-Benchmark
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Taosdump/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    04-Taosdump
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Tools/Valgrind/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    05-Valgrind
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../UnitTest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    82-UnitTest
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+            
+            
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DocTest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    83-DocTest
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      
+    
+      <li>
+      
+      <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">Util funcs docs</a>
+    </li>
+      
+      
+        <ul class="md-nav__sublist">
+          
+            
+            
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    new_test_framework
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            new_test_framework
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../util_funcs_docs/new_test_framework/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    utils
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+          
+        </ul>
+      
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<style>
+  .md-nav--secondary {
+    max-width: none !important;
+    width: auto !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+  
+  .md-nav--secondary .md-nav__list {
+    max-width: none !important;
+    width: auto !important;
+  }
+  
+  .md-nav--secondary .md-nav__item {
+    white-space: nowrap;
+    overflow: visible;
+  }
+</style>
+
+
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_delete_recalc.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="md-nav__link">
+        Recalc: DELETE_RECALC 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_expired_time.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Recalc: EXPIRED_TIME 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_ignore_disorder.TestStreamRecalcIgnoreDisorder.test_stream_recalc_ignore_disorder" class="md-nav__link">
+        Recalc: IGNORE_DISORDER 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_manual_basic.TestStreamRecalcManual.test_stream_recalc_manual" class="md-nav__link">
+        Recalc: Manual basic testing 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_manual_with_options.TestStreamRecalcWithOptions.test_stream_recalc_with_options" class="md-nav__link">
+        Recalc: Manual testing with options 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_combined_options.TestStreamRecalcCombinedOptions.test_stream_recalc_combined_options" class="md-nav__link">
+        Recalc: mixed options 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.test_recalc_watermark.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="md-nav__link">
+        Recalc: WATERMARK 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_11.TestStreamRecalcManual.test_stream_recalc_manual" class="md-nav__link">
+        Stream Manual Recalculation Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_12.TestStreamRecalcManual.test_stream_recalc_manual" class="md-nav__link">
+        Stream Manual Recalculation Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_8.TestStreamRecalcManual.test_stream_recalc_manual" class="md-nav__link">
+        Stream Manual Recalculation Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_5.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="md-nav__link">
+        Stream Recalculation DELETE_RECALC Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_6.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="md-nav__link">
+        Stream Recalculation DELETE_RECALC Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_1.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Stream Recalculation EXPIRED_TIME Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_2.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Stream Recalculation EXPIRED_TIME Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_3.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Stream Recalculation EXPIRED_TIME Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_4.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="md-nav__link">
+        Stream Recalculation EXPIRED_TIME Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_10.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="md-nav__link">
+        Stream Recalculation WATERMARK Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_7.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="md-nav__link">
+        Stream Recalculation WATERMARK Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.08-Recalc.recalc_bug_9.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="md-nav__link">
+        Stream Recalculation WATERMARK Option Test 
+      </a>
+      
+    </li>
+  
+
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="08-recalc">08-Recalc<a class="headerlink" href="#08-recalc" title="Permanent link">&para;</a></h1>
+
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_bug_10.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_bug_10.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation WATERMARK Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test WATERMARK option with out-of-order data:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Write out-of-order data within WATERMARK tolerance - should trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Write out-of-order data exceeding WATERMARK tolerance - should be handled by recalculation mechanism</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with WATERMARK</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_bug_10.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_bug_10.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_bug_11.TestStreamRecalcManual.test_stream_recalc_manual" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_bug_11.TestStreamRecalcManual.test_stream_recalc_manual" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Manual Recalculation Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test manual recalculation functionality:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Manual recalculation with time range - should recalculate specified time period</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Manual recalculation without end time - should recalculate from start time to current</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with manual recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Edge cases and error handling</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_bug_11.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_bug_11.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_bug_12.TestStreamRecalcManual.test_stream_recalc_manual" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_bug_12.TestStreamRecalcManual.test_stream_recalc_manual" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Manual Recalculation Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test manual recalculation functionality:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Manual recalculation with time range - should recalculate specified time period</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Manual recalculation without end time - should recalculate from start time to current</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with manual recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Edge cases and error handling</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_bug_12.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_bug_12.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_bug_5.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_bug_5.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation DELETE_RECALC Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test DELETE_RECALC option with data deletion:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Delete data from trigger table - streams with DELETE_RECALC should trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Delete child table - streams with DELETE_RECALC should trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with data deletion</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_bug_5.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_bug_5.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_bug_6.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_bug_6.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation DELETE_RECALC Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test DELETE_RECALC option with data deletion:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Delete data from trigger table - streams with DELETE_RECALC should trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Delete child table - streams with DELETE_RECALC should trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with data deletion</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_bug_6.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_bug_6.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_bug_7.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_bug_7.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation WATERMARK Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test WATERMARK option with out-of-order data:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Write out-of-order data within WATERMARK tolerance - should trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Write out-of-order data exceeding WATERMARK tolerance - should be handled by recalculation mechanism</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with WATERMARK</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_bug_7.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_bug_7.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_bug_8.TestStreamRecalcManual.test_stream_recalc_manual" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_bug_8.TestStreamRecalcManual.test_stream_recalc_manual" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Manual Recalculation Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test manual recalculation functionality:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Manual recalculation with time range - should recalculate specified time period</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Manual recalculation without end time - should recalculate from start time to current</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with manual recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Edge cases and error handling</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_bug_8.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_bug_8.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_bug_9.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_bug_9.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation WATERMARK Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test WATERMARK option with out-of-order data:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Write out-of-order data within WATERMARK tolerance - should trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Write out-of-order data exceeding WATERMARK tolerance - should be handled by recalculation mechanism</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with WATERMARK</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_bug_9.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_bug_9.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_expired_bug_1.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_1.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation EXPIRED_TIME Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test EXPIRED_TIME option with expired data:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Write expired data - all windows should not trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Combine with WATERMARK - test boundary value behavior</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with expired data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_expired_bug_1.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_expired_bug_1.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_expired_bug_2.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_2.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation EXPIRED_TIME Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test EXPIRED_TIME option with expired data:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Write expired data - all windows should not trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Combine with WATERMARK - test boundary value behavior</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with expired data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_expired_bug_2.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_expired_bug_2.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_expired_bug_3.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_3.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation EXPIRED_TIME Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test EXPIRED_TIME option with expired data:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Write expired data - all windows should not trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Combine with WATERMARK - test boundary value behavior</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with expired data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_expired_bug_3.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_expired_bug_3.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.recalc_expired_bug_4.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.recalc_expired_bug_4.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream Recalculation EXPIRED_TIME Option Test</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test EXPIRED_TIME option with expired data:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Write expired data - all windows should not trigger recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Combine with WATERMARK - test boundary value behavior</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Different trigger types behavior with expired data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/recalc_expired_bug_4.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/recalc_expired_bug_4.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.test_recalc_combined_options.TestStreamRecalcCombinedOptions.test_stream_recalc_combined_options" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.test_recalc_combined_options.TestStreamRecalcCombinedOptions.test_stream_recalc_combined_options" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Recalc: mixed options</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test complex interactions between multiple stream recalculation options:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test [EXPIRED_TIME + WATERMARK] Combination</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Test option compatibility verification</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.1 Both options specified - verify legal combination</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.2 Option value conflict checking - verify error handling</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Test data processing behavior</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.1 Data within watermark tolerance - should process normally</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.2 Data beyond watermark but within expired_time - should trigger recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.3 Data beyond both watermark and expired_time - should be ignored</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.3 Test boundary conditions</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.1 Data exactly at watermark boundary</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.2 Data exactly at expired_time boundary</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.3.3 Watermark value equals expired_time value</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test [IGNORE_DISORDER + WATERMARK] Combination</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 Test option conflict resolution</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.1 IGNORE_DISORDER true with WATERMARK - verify conflict handling</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.2 IGNORE_DISORDER false with WATERMARK - verify normal operation</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.2 Test out-of-order data handling</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.1 Disorder within watermark tolerance - test processing priority</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.2 Disorder beyond watermark tolerance - test ignore behavior</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.3 Test window trigger behavior</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.3.1 INTERVAL windows with conflicting options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.3.2 SESSION windows with conflicting options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.3.3 STATE_WINDOW with conflicting options</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test [DELETE_RECALC + EXPIRED_TIME] Combination</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 Test delete operation with expired data</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.1 Delete recent data - should trigger recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.2 Delete expired data - should not trigger recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.3 Delete data at expired_time boundary</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.2 Test different deletion scenarios</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.1 Delete from trigger table</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.2 Delete entire child table</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.3 Batch delete operations</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Test [WATERMARK + DELETE_RECALC + EXPIRED_TIME] Comprehensive Combination</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 Test three-option interaction</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.1 All options compatible - verify normal operation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.2 Option precedence verification</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.3 Performance impact assessment</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.2 Test complex data scenarios</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.1 Mixed operations (insert, update, delete) with all options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.2 Out-of-order data with deletion and expiration</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.3 Boundary data across all option thresholds</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.3 Test error handling and recovery</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.3.1 Invalid option combinations</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.3.2 Resource constraints with multiple options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.3.3 Stream recovery after option conflicts</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Test Window Type Compatibility</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.1 Test INTERVAL windows with combined options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.1 Different sliding window configurations</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.2 Option behavior with overlapping windows</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.2 Test SESSION windows with combined options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.2.1 Session timeout interaction with options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.2.2 Session boundary handling</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.3 Test STATE_WINDOW with combined options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.3.1 State change detection with multiple options</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.3.2 State persistence across option boundaries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/test_recalc_combined_options.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.test_recalc_delete_recalc.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.test_recalc_delete_recalc.TestStreamRecalcDeleteRecalc.test_stream_recalc_delete_recalc" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Recalc: DELETE_RECALC</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test DELETE_RECALC option behavior with various data deletion scenarios:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test [DELETE_RECALC] Option Specification</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Test option existence verification</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.1 DELETE_RECALC specified - verify recalculation on deletion</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.2 DELETE_RECALC not specified - verify no recalculation on deletion</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.3 DELETE_RECALC with invalid syntax - verify error handling</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Test option value validation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.1 Valid DELETE_RECALC specification</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.2 Invalid DELETE_RECALC syntax</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.2.3 DELETE_RECALC with other conflicting options</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test [Data Record Deletion] Scenarios</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 Test single record deletion</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.1 Delete recent data - should trigger recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.2 Delete historical data - should trigger recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.3 Delete data from closed window - verify window reopening</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.2 Test batch record deletion</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.1 Delete multiple records from same window</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.2 Delete records across multiple windows</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.2.3 Delete all records from a window</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.3 Test conditional deletion</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.3.1 DELETE with WHERE clause affecting single window</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.3.2 DELETE with WHERE clause affecting multiple windows</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.3.3 DELETE with complex WHERE conditions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test [Child Table Deletion] Scenarios</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 Test entire child table deletion</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.1 DROP child table - verify impact on stream calculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.2 Delete all records from child table - verify empty table handling</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.3 Recreate child table after deletion - verify stream recovery</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.2 Test multiple child table operations</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.1 Delete multiple child tables simultaneously</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.2 Mix of record deletion and table deletion</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.2.3 Partial child table set deletion</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Test [Window Type Behavior] with DELETE_RECALC</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 Test INTERVAL windows</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.1 Delete data from current window - verify immediate recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.2 Delete data from sliding windows - verify overlapping window updates</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.3 Delete data causing empty windows - verify window state handling</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.2 Test SESSION windows</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.1 Delete data from active session - verify session recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.2 Delete data causing session split - verify session boundary changes</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.2.3 Delete data causing session merge - verify session consolidation</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.3 Test STATE_WINDOW</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.3.1 Delete data causing state change - verify state window recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.3.2 Delete data from state boundary - verify window boundary updates</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.3.3 Delete all data from state window - verify window closure</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.4 Test EVENT_WINDOW</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.4.1 Delete start event data - verify window start recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.4.2 Delete end event data - verify window end recalculation</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.4.3 Delete intermediate data - verify window content recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Test [Performance and Resource Impact]</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.1 Test large-scale deletion impact</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.1 Delete large volume of data - verify performance</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.2 Concurrent deletion operations - verify system stability</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.3 Resource usage during deletion recalculation</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.2 Test recovery scenarios</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.2.1 System restart after deletion - verify state recovery</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.2.2 Network interruption during deletion - verify consistency</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.2.3 Storage failure scenarios - verify data integrity</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.test_recalc_expired_time.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.test_recalc_expired_time.TestStreamRecalcExpiredTime.test_stream_recalc_expired_time" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Recalc: EXPIRED_TIME</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test EXPIRED_TIME(1h) option with 6 different window types and verify expired data handling:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Test [INTERVAL+SLIDING Window] with EXPIRED_TIME(1h)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Create s_interval_expired: interval(2m) sliding(2m) with expired_time(1h)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.1 Process data from &#39;2025-01-01 02:00:00&#39; onwards (within 1h)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.2 Insert expired data from &#39;2025-01-01 01:00:00&#39; (beyond 1h)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.3 Verify expired data does not increase result count</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        1.1.4 Check result table structure: ts, cnt, avg_val</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Test [SESSION Window] with EXPIRED_TIME(1h)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 Create s_session_expired: session(ts,45s) with expired_time(1h)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.1 Insert normal trigger data at &#39;2025-01-01 02:00:00&#39; series</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.2 Insert non-expired data at &#39;2025-01-01 01:30:00&#39; (within 1h)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.3 Insert expired data at &#39;2025-01-01 01:00:00&#39; (beyond 1h)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        2.1.4 Verify session results: 3 sessions created, expired data ignored</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Test [STATE_WINDOW] with EXPIRED_TIME(1h)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 Create s_state_expired: state_window(status) with expired_time(1h)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.1 Insert state changes: normal-&gt;warning-&gt;error at &#39;2025-01-01 02:00:00&#39;</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.2 Insert non-expired state data at &#39;2025-01-01 01:30:00&#39;</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.3 Insert expired state data at &#39;2025-01-01 01:00:00&#39;</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        3.1.4 Verify 4 state windows created, expired data ignored</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Test [EVENT_WINDOW] with EXPIRED_TIME(1h)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 Create s_event_expired: event_window(start with event_val &gt;= 5 end with event_val &gt; 10)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.1 Insert event trigger data with event_val pattern: 6,7,12 at &#39;2025-01-01 02:00:00&#39;</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.2 Insert non-expired events at &#39;2025-01-01 01:30:00&#39;</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.3 Insert expired events at &#39;2025-01-01 01:00:00&#39;</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        4.1.4 Verify 3 event windows, expired data ignored in final result</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Test [PERIOD Window] with EXPIRED_TIME(1h)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.1 Create s_period_expired: period(30s) with expired_time(1h)|ignore_nodata_trigger</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.1 Insert period trigger data every 30s from &#39;2025-01-01 02:00:00&#39;</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.2 Test periodic triggering with current timestamp data</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.3 Verify period computation ignores expired data</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        5.1.4 Check ignore_nodata_trigger option interaction</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Test [COUNT_WINDOW] with EXPIRED_TIME(1h) - Option Ignored</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.1 Create s_count_expired: count_window(3) with expired_time(1h)</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        6.1.1 Insert count trigger data in batches of 3</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        6.1.2 Insert both current and expired data</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        6.1.3 Verify COUNT_WINDOW ignores EXPIRED_TIME option</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        6.1.4 Confirm all data processed regardless of timestamp</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/test_recalc_expired_time.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/test_recalc_expired_time.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.test_recalc_ignore_disorder.TestStreamRecalcIgnoreDisorder.test_stream_recalc_ignore_disorder" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.test_recalc_ignore_disorder.TestStreamRecalcIgnoreDisorder.test_stream_recalc_ignore_disorder" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Recalc: IGNORE_DISORDER</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test IGNORE_DISORDER option behavior with six different window types to verify out-of-order data handling:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. INTERVAL Window with IGNORE_DISORDER Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Create interval(2m) sliding(2m) stream with ignore_disorder (s_interval_disorder)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Test out-of-order data processing behavior - should not trigger recalculation</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.3 Verify sliding window results without recalculation for disorder</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. SESSION Window with IGNORE_DISORDER Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 Create session(ts,45s) stream with ignore_disorder (s_session_disorder)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.2 Test session boundary maintenance with out-of-order data</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.3 Verify session windows are not recalculated for disorder</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. STATE_WINDOW with IGNORE_DISORDER Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 Create state_window(status) stream with ignore_disorder (s_state_disorder)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.2 Test state transition handling with out-of-order data</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.3 Verify state windows are not recalculated for disorder</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. EVENT_WINDOW with IGNORE_DISORDER Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 Create event_window(start with event_val &gt;= 5 end with event_val &gt; 10) stream with ignore_disorder (s_event_disorder)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.2 Test event sequence maintenance with out-of-order events</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.3 Verify event windows are not recalculated for disorder</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. PERIOD Window with IGNORE_DISORDER Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.1 Create period(30s) stream with ignore_disorder (s_period_disorder)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.2 Test periodic window handling with out-of-order data</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.3 Verify period windows are not recalculated for disorder</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. COUNT_WINDOW with IGNORE_DISORDER Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.1 Create count_window(3) stream with ignore_disorder (s_count_disorder)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.2 Test count-based window handling with out-of-order data</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.3 Verify count windows are not recalculated for disorder</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.test_recalc_manual_basic.TestStreamRecalcManual.test_stream_recalc_manual" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.test_recalc_manual_basic.TestStreamRecalcManual.test_stream_recalc_manual" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Recalc: Manual basic testing</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test manual recalculation functionality for four different window types, verifying the recalculate stream command in various window scenarios:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. INTERVAL Window Stream Manual Recalculation Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Create interval(2m) sliding(2m) stream (s_interval_manual)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Insert test data and execute recalculation from specified time point</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.3 Verify data correctness in result table after recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. SESSION Window Stream Manual Recalculation Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 Create session(ts,45s) stream (s_session_manual)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.2 Insert test data and execute recalculation from specified time point</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.3 Verify session window data correctness after recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. STATE_WINDOW Stream Manual Recalculation Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 Create state_window(status) stream (s_state_manual)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.2 Insert test data and execute recalculation for specified time range</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.3 Verify state window data correctness after recalculation</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. EVENT_WINDOW Stream Manual Recalculation Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 Create event_window(start with event_val &gt;= 5 end with event_val &gt; 10) stream (s_event_manual)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.2 Verify initial computation results for event window</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.3 Test event window manual recalculation functionality (currently blocked by TD-36691)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/test_recalc_manual_basic.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/test_recalc_manual_basic.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.test_recalc_manual_with_options.TestStreamRecalcWithOptions.test_stream_recalc_with_options" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.test_recalc_manual_with_options.TestStreamRecalcWithOptions.test_stream_recalc_with_options" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Recalc: Manual testing with options</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test manual recalculation functionality combined with four different stream options:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Manual Recalculation with WATERMARK Option Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Create interval(2m) sliding(2m) stream with watermark(30s) (s_watermark_interval)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Test manual recalculation behavior within watermark tolerance</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.3 Verify watermark option interaction with manual recalc commands</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Manual Recalculation with EXPIRED_TIME Option Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 Create interval(2m) sliding(2m) stream with expired_time(5m) (s_expired_interval)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.2 Test manual recalculation for expired data processing</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.3 Verify expired_time option behavior during manual recalc</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Manual Recalculation with IGNORE_DISORDER Option Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 Create interval(2m) sliding(2m) stream with ignore_disorder (s_disorder_interval)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.2 Test manual recalculation for previously ignored out-of-order data</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.3 Verify disorder handling during manual recalc operations</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Manual Recalculation without DELETE_RECALC Option Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 Create interval(2m) sliding(2m) stream without DELETE_RECALC (s_delete_interval)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.2 Test manual recalculation behavior after data deletion</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.3 Verify recalculation consistency without automatic deletion handling</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/test_recalc_manual_with_options.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.08-Recalc.test_recalc_watermark.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.08-Recalc.test_recalc_watermark.TestStreamRecalcWatermark.test_stream_recalc_watermark" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Recalc: WATERMARK</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test WATERMARK option behavior with six different window types and out-of-order data handling:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. INTERVAL Window with WATERMARK Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.1 Create interval(2m) sliding(2m) stream with watermark(45s) (s_interval_watermark)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.2 Test out-of-order data handling within watermark tolerance</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1.3 Verify recalculation triggered by data within watermark window</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. SESSION Window with WATERMARK Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.1 Create session(ts,45s) stream with watermark(1m) (s_session_watermark)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.2 Test session modification with out-of-order data within tolerance</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2.3 Verify session window recalculation behavior</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. STATE_WINDOW with WATERMARK Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.1 Create state_window(status) stream with watermark(45s) (s_state_watermark)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.2 Test state window recalculation with delayed state changes</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3.3 Verify state transition handling within watermark tolerance</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. EVENT_WINDOW with WATERMARK Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.1 Create event_window(start with event_val &gt;= 5 end with event_val &gt; 10) stream with watermark(1m) (s_event_watermark)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.2 Test event sequence processing with out-of-order events</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4.3 Verify event window completion with delayed events</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. PERIOD Window with WATERMARK Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.1 Create period(30s) stream with watermark(45s) (s_period_watermark)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.2 Test periodic window recalculation with out-of-order data</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5.3 Verify period-based time window behavior</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. COUNT_WINDOW with WATERMARK Test</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.1 Create count_window(3) stream with watermark(1m) (s_count_watermark)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.2 Test count-based window recalculation with delayed records</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    6.3 Verify count window completion with out-of-order data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/08-Recalc/test_recalc_watermark.py" target="_blank">
+                      cases/18-StreamProcessing/08-Recalc/test_recalc_watermark.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>
