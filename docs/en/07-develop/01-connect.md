@@ -18,34 +18,9 @@ import InstallOnMacOS from "../assets/resources/_macos_install.mdx";
 import VerifyLinux from "../assets/resources/_verify_linux.mdx";
 import VerifyMacOS from "../assets/resources/_verify_macos.mdx";
 import VerifyWindows from "../assets/resources/_verify_windows.mdx";
+import ConnectorType from "../assets/resources/_connector_type.mdx";
 
-TDengine provides a rich set of application development interfaces. To facilitate users in quickly developing their applications, TDengine supports connectors for multiple programming languages. The official connectors include support for C/C++, Java, Python, Go, Node.js, C#, Rust, Lua (community contribution), and PHP (community contribution). These connectors support connecting to the TDengine cluster using the native interface (taosc) and REST interface (not supported in some languages yet). Community developers have also contributed several unofficial connectors, such as ADO.NET connector, Lua connector, and PHP connector. Additionally, TDengine can directly call the REST API provided by taosadapter for data writing and querying operations.
-
-## Connection Methods
-
-TDengine provides three methods for establishing connections:
-
-1. Direct connection between the client driver taosc and the server program taosd, referred to as "native connection" in the text below.
-2. Connection to taosd through the REST API provided by the taosAdapter component, referred to as "REST connection" in the text below.
-3. Connection to taosd through the WebSocket API provided by the taosAdapter component, referred to as "WebSocket connection" in the text below.
-
-![Connecting to TDengine](../assets/connecting-to-tdengine-01.png)
-
-Regardless of the method used to establish the connection, the connectors provide the same or similar API to operate the database and can execute SQL statements. The initialization of the connection slightly differs, but users will not feel any difference in usage.
-For various connection methods and language connector support, please refer to: [Connector Features](../../tdengine-reference/client-libraries/)
-
-Key differences include:
-
-1. Using native connection requires ensuring that the client driver taosc and the server's TDengine version are compatible.
-2. Using REST connection does not require installing the client driver taosc, offering the advantage of cross-platform ease of use, but it lacks features like data subscription and binary data types. Additionally, compared to native and WebSocket connections, the performance of REST connections is the lowest. REST interfaces are stateless. When using REST connections, it is necessary to specify the database names of tables and supertables in SQL.
-3. Using WebSocket connection also does not require installing the client driver taosc.
-4. Connecting to cloud service instances must use REST connection or WebSocket connection.
-
-:::note
-
-WebSocket connection is recommended
-
-:::
+<ConnectorType /> 
 
 ## Installing the Client Driver taosc
 
@@ -140,7 +115,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.5
+    pip3 install taospy==2.8.6
     ```
 
     - Install from GitHub

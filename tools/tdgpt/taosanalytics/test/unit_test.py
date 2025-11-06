@@ -5,9 +5,6 @@ import os.path
 import unittest
 import sys
 
-import numpy as np
-from matplotlib import pyplot as plt
-
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 from taosanalytics.servicemgmt import loader
@@ -138,13 +135,15 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 3)
+        self.assertEqual(len(service_list["details"]), 4)
 
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
                 self.assertEqual(len(item["algo"]), 6)
             elif item["type"] == "forecast":
                 self.assertEqual(len(item["algo"]), 8)
+            elif item["type"] == 'correlation':
+                self.assertEqual(len(item['algo']), 2)
             else:
                 self.assertEqual(len(item["algo"]), 1)
 

@@ -925,8 +925,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode);
       break;
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
-      code = makeNode(type, sizeof(SImputationFuncLogicNode), &pNode);
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
+      code = makeNode(type, sizeof(SGenericAnalysisLogicNode), &pNode);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = makeNode(type, sizeof(SGroupCacheLogicNode), &pNode);
@@ -1033,8 +1033,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
-      code = makeNode(type, sizeof(SImputationFuncPhysiNode), &pNode);
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
+      code = makeNode(type, sizeof(SGenericAnalysisPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       code = makeNode(type, sizeof(SDataDispatcherNode), &pNode);
@@ -1267,6 +1267,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pState->pExpr);
       nodesDestroyNode(pState->pTrueForLimit);
       nodesDestroyNode(pState->pExtend);
+      nodesDestroyNode(pState->pZeroth);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -2085,8 +2086,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFuncs);
       break;
     }
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC: {
-      SImputationFuncLogicNode* pLogicNode = (SImputationFuncLogicNode*)pNode;
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC: {
+      SGenericAnalysisLogicNode* pLogicNode = (SGenericAnalysisLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
       break;
@@ -2299,7 +2300,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pTimeSeries);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC: {
       SForecastFuncPhysiNode* pPhyNode = (SForecastFuncPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);

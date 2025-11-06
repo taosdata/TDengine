@@ -30,14 +30,11 @@ jobs:
         os:
           - ubuntu-22.04
           - ubuntu-24.04
-          - macos-13
           - macos-14
           - macos-15
           - windows-2022
     env:
       TD_CONFIG: Release
-      RUSTUP_DIST_SERVER: https://rsproxy.cn
-      RUSTUP_UPDATE_ROOT: https://rsproxy.cn/rustup
 
     steps:
       - name: Get CPU Cores
@@ -226,8 +223,8 @@ jobs:
           taosadapter -V
           taosBenchmark -V
           taos -V
-          sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
-          nohup taosd  &
+          export TAOS_FQDN=localhost
+          nohup taosd &
           nohup taosadapter &
           pgrep -l taos
           sleep 6     # NOTE: wait for taosd initialization to complete
@@ -238,6 +235,7 @@ jobs:
       - name: Run tests with taosBenchmark
         if: runner.os != 'Windows'
         run: |
+          export TAOS_FQDN=localhost
           taos -s "show databases"
           taosBenchmark -t 10 -n 10 -s 1744951233012 -y
           taos -s "select count(*) from test.meters"

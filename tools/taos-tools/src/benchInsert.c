@@ -4290,13 +4290,13 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
 
             case STMT_IFACE:
                 // close stmt
-                if(pThreadInfo->conn->stmt) {
+                if(pThreadInfo->conn && pThreadInfo->conn->stmt) {
                     taos_stmt_close(pThreadInfo->conn->stmt);
                     pThreadInfo->conn->stmt = NULL;
                 }
             case STMT2_IFACE:
                 // close stmt2
-                if (pThreadInfo->conn->stmt2) {
+                if (pThreadInfo->conn && pThreadInfo->conn->stmt2) {
                     taos_stmt2_close(pThreadInfo->conn->stmt2);
                     pThreadInfo->conn->stmt2 = NULL;
                 }
@@ -4350,10 +4350,12 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         totalDelay1 += pThreadInfo->totalDelay1;
         totalDelay2 += pThreadInfo->totalDelay2;
         totalDelay3 += pThreadInfo->totalDelay3;
-        benchArrayAddBatch(total_delay_list, pThreadInfo->delayList->pData,
-                pThreadInfo->delayList->size, true);
-        tmfree(pThreadInfo->delayList);
-        pThreadInfo->delayList = NULL;
+        if (pThreadInfo->delayList != NULL) {
+            benchArrayAddBatch(total_delay_list, pThreadInfo->delayList->pData,
+                    pThreadInfo->delayList->size, true);
+            tmfree(pThreadInfo->delayList);
+            pThreadInfo->delayList = NULL;
+        }
         //  free conn
         if (pThreadInfo->conn) {
             closeBenchConn(pThreadInfo->conn);

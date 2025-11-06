@@ -1,248 +1,93 @@
 ---
 sidebar_label: Deploy from Package
-title: Get Started with TDengine Using an Installation Package
-description: Quick experience with TDengine using the installation package
+title: Get Started with TDengine TSDB Using an Installation Package
 slug: /get-started/deploy-from-package
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import PkgListV37 from "/components/PkgListV37";
+import Getstarted from './_get_started.mdx';
 
-You can install TDengine on a local machine and perform some basic tests to verify its performance. The TDengine OSS server can be installed on Linux and macOS, and the TDengine OSS client can be installed on Linux, macOS, and Windows.
-
-To install TDengine in a Docker container instead of on your machine, see [Get Started with TDengine in Docker](../deploy-in-docker/).
+You can install TDengine TSDB Enterprise on Linux and Windows. To install TDengine TSDB in a Docker container instead of on your machine, see [Get Started with TDengine in Docker](../deploy-in-docker/).
 
 ## Before You Begin
 
-- Verify that your machine meets the minimum system requirements for TDengine. For more information, see [Supported Platforms](../../tdengine-reference/supported-platforms/) and [System Requirements](../../operations-and-maintenance/system-requirements/).
+- Verify that your machine meets the minimum system requirements for TDengine TSDB. For more information, see [Supported Platforms](../../tdengine-reference/supported-platforms/) and [System Requirements](../../operations-and-maintenance/system-requirements/).
 - **(Windows only)** Verify that the latest version of the Microsoft Visual C++ Redistributable is installed on your machine. To download the redistributable package, see [Microsoft Visual C++ Redistributable latest supported downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
 
 ## Procedure
 
-The TDengine OSS installation package is provided for Linux users in .deb, .rpm, and .tar.gz format and can also be installed via APT from our repository. Installation packages are also provided for macOS (client and server) and Windows (client only).
+<Tabs>
+<TabItem label="Linux" value="linux">
 
-1. Select the appropriate package for your machine and follow the steps to install TDengine.
-
-   <Tabs>
-   <TabItem label=".deb" value="debinst">
-
-   1. Download the .deb installation package:
-      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Linux-Ubuntu" arch="x64" pkgType="Server"/>
-   2. Run the following command to install TDengine:
-
-      ```bash
-      sudo dpkg -i tdengine-tsdb-oss-<version>-linux-x64.deb
-      ```
-
-      Replace `<version>` with the version of the package that you downloaded.
-
-   </TabItem>
-
-   <TabItem label=".rpm" value="rpminst">
-
-   1. Download the .rpm installation package:
-      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Linux-Red Hat" arch="x64" pkgType="Server"/>
-   2. Run the following command to install TDengine:
-
-      ```bash
-      sudo rpm -ivh tdengine-tsdb-oss-<version>-linux-x64.rpm
-      ```
-
-      Replace `<version>` with the version of the package that you downloaded.
-
-   </TabItem>
-
-   <TabItem label=".tar.gz" value="tarinst">
-
-   1. Download the desired .tar.gz package from the following list:
-      <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.1" platform="Linux-Generic" pkgType="Server"/>
-      <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="Linux-Generic" pkgType="Server"/>
-   2. Run the following command to decompress the package:
-
-      ```bash
-      tar -zxvf tdengine-tsdb-oss-<version>-linux-x64.tar.gz
-      ```
-
-      Replace `<version>` with the version of the package that you downloaded.
-   3. In the directory where you decompressed the package, run the following command to install TDengine:
-
-      ```bash
-      sudo ./install.sh
-      ```
-
-      :::note
-
-      The `install.sh` script requires you to enter configuration information in the terminal. For a non-interactive installation, run `./install.sh -e no`. You can run `./install.sh -h` for detailed information about all parameters.
-
-      :::
-
-   </TabItem>
-
-   <TabItem label="APT" value="apt-get">
-
-   1. Configure the package repository:
-
-      ```bash
-      wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
-      echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
-      ```
-
-   2. Update the list of available packages and install TDengine.
-
-      ```bash
-      sudo apt-get update
-      apt-cache policy tdengine-tsdb
-      sudo apt-get install tdengine-tsdb
-      ```
-
-   </TabItem>
-
-   <TabItem label="Windows" value="windows">
-
-   :::note
-
-   This procedure installs the TDengine OSS client on Windows. The TDengine OSS server does not support Windows.
-
-   :::
-
-   1. Download the Windows installation package:
-      <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.1" platform="Windows" pkgType="Server"/>
-   2. Run the installation package to install TDengine.
-
-   </TabItem>
-
-   <TabItem label="macOS" value="macos">
-
-   1. Download the desired installation package from the following list:
-     <PkgListV37 productName="TDengine TSDB-OSS" version="3.3.8.1" platform="macOS" pkgType="Server"/>
-   2. Run the installation package to install TDengine.
-
-      :::note
-
-      If the installation is blocked, right-click on the package and choose **Open**.
-
-      :::
-
-   </TabItem>
-   </Tabs>
-
-2. When installing the first node and prompted with `Enter FQDN:`, you do not need to input anything. Only when installing the second or subsequent nodes do you need to input the FQDN of any available node in the existing cluster to join the new node to the cluster. Alternatively, you can configure it in the new node's configuration file before starting.
-
-3. Select your operating system and follow the steps to start TDengine services.
-
-   <Tabs>
-   <TabItem label="Linux" value="linux">
-
-   Run the following command to start all TDengine services:
-
+1. Download the tar.gz installation package from the list below:  
+   <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.4" platform="Linux-Generic" pkgType="Server" />
+2. Navigate to the directory where the package is located and extract it using `tar`. For example, on an x64 architecture:  
    ```bash
-   sudo start-all.sh 
+   tar -zxvf tdengine-tsdb-enterprise-3.3.8.4-linux-x64.tar.gz
    ```
-
-   Alternatively, you can manage specific TDengine services through systemd:
-
+3. After extracting the files, go into the subdirectory and run the `install.sh` script:  
    ```bash
-   sudo systemctl start taosd
-   sudo systemctl start taosadapter
-   sudo systemctl start taoskeeper
-   sudo systemctl start taos-explorer
+   sudo ./install.sh
    ```
+</TabItem>
 
-   :::note
+<TabItem label="Windows" value="windows">
 
-   If your machine does not support systemd, you can manually run the TDengine services located in the `/usr/local/taos/bin` directory.
+1. Download the Windows installation package from the list below:  
+   <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.4" platform="Windows" pkgType="Server" />
+2. Run the installation package and follow the on-screen instructions to complete the installation of TDengine TSDB.
 
-   :::
+</TabItem>
+</Tabs>
 
-   </TabItem>
+For more package types and versions, visit the [TDengine Download Center](https://tdengine.com/downloads/?product=TDengine+TSDB-Enterprise).
 
-   <TabItem label="macOS" value="macos">
+## Start the Service
 
-   Run the following command to start all TDengine services:
+<Tabs>
+<TabItem label="Linux" value="linux">
 
-   ```bash
-   sudo start-all.sh
-   ```
+After installation, execute the following command in your terminal to start all services:
 
-   Alternatively, you can manage specific TDengine services with the `launchctl` command:
+```bash
+start-all.sh
+```
 
-   ```bash
-   sudo launchctl start com.tdengine.taosd
-   sudo launchctl start com.tdengine.taosadapter
-   sudo launchctl start com.tdengine.taoskeeper
-   sudo launchctl start com.tdengine.taos-explorer
-   ```
+All TDengine TSDB components are managed by systemd. You can check their service status with the following commands:
 
-   </TabItem>
-   </Tabs>
+```bash
+sudo systemctl status taosd
+sudo systemctl status taosadapter
+sudo systemctl status taoskeeper
+sudo systemctl status taos-explorer
+```
 
-   You can now work with TDengine on your local machine. For example, you can run the `taos` command to open the TDengine command-line interface.
+If the output shows the status as `Active: active (running) since ...`, it means the services have started successfully.
 
-## What to Do Next
+</TabItem>
 
-### Test Data Ingestion
+<TabItem label="Windows System" value="windows">
 
-Your TDengine installation includes taosBenchmark, a tool specifically designed to test TDengine's performance. taosBenchmark can simulate data generated by many devices with a wide range of configuration options so that you can perform tests on sample data similar to your real-world use cases. For more information about taosBenchmark, see [taosBenchmark](../../tdengine-reference/tools/taosbenchmark/).
+After installation, open a terminal as administrator and run the following command to start all services:
 
-Perform the following steps to use taosBenchmark to test TDengine's ingestion performance on your machine:
+```cmd
+C:\TDengine\start-all.bat
+```
 
-1. Run taosBenchmark with the default settings:
+You can check the status of each service using:
 
-   ```bash
-   taosBenchmark -y
-   ```
+```cmd
+sc query taosd
+sc query taosadapter
+sc query taoskeeper
+sc query taos-explorer
+```
 
-taosBenchmark automatically creates the `test` database and the `meters` supertable inside that database. This supertable contains 10,000 subtables, named `d0` to `d9999`, with each subtable containing 10,000 records. Each record includes the following four metrics:
+If the output shows `RUNNING`, it means the services have started successfully.
 
-- `ts` (timestamp), ranging from `2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999`
-- `current`
-- `voltage`
-- `phase`
+</TabItem>
+</Tabs>
 
-Each subtable also has the following two tags:
-
-- `groupId`, ranging from `1` to `10`
-- `location`, indicating a city and state such as `California.Campbell` or `California.Cupertino`
-
-When the ingestion process is finished, taosBenchmark outputs the time taken to ingest the specified sample data. From this, you can estimate how TDengine would perform on your system in a production environment.
-
-### Test Data Querying
-
-After inserting data with taosBenchmark as described above, you can use the TDengine CLI to test TDengine's query performance on your machine:
-
-1. Start the TDengine CLI:
-
-   ```bash
-   taos
-   ```
-
-2. Query the total number of records in the `meters` supertable:
-
-   ```sql
-   SELECT COUNT(*) FROM test.meters;
-   ```
-
-3. Query the average, maximum, and minimum values of 100 million records:
-
-   ```sql
-   SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
-   ```
-
-4. Query the total number of records where the value of the `location` tag is `California.SanFrancisco`:
-
-   ```sql
-   SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
-   ```
-
-5. Query the average, maximum, and minimum values of all records where the value of the `groupId` tag is `10`:
-
-   ```sql
-   SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
-   ```
-
-6. Calculate the average, maximum, and minimum values for the `d1001` table every 10 seconds:
-
-   ```sql
-   SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
-   ```
+<Getstarted />

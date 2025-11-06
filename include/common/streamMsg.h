@@ -186,6 +186,7 @@ typedef struct SSessionTrigger {
 typedef struct SStateWinTrigger {
   int16_t slotId;
   int16_t extend;
+  void*   zeroth;
   int64_t trueForDuration;
   void*   expr;
 } SStateWinTrigger;
@@ -1016,6 +1017,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
   int32_t triggerType;
   int32_t addOptions;
+  bool    hasPlaceHolder;
 } SStreamRuntimeFuncInfo;
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);
