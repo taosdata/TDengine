@@ -14,19 +14,13 @@
 #ifndef _TD_TRANSPORT_SASL_H
 #define _TD_TRANSPORT_SASL_H
 
-#if defined(LINUX)
+#if defined(TD_ENTERPRISE ) && defined(LINUX)
 #include <sasl/sasl.h>
 #else
-typedef struct {
-  void* p;
-} SASL_CTX;
-typedef struct {
-  void* p;
-} SASL_Bio;
 
 typedef struct {
-  void* p;
-} SASL_Arg;
+  void* p; 
+}  sasl_conn_t ;
 #endif
 
 #include "taoserror.h"
