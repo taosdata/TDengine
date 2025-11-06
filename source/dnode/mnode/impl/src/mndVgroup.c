@@ -2698,7 +2698,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
     goto _OVER;
   }
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "split-vgroup");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "split-vgroup");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to split vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
