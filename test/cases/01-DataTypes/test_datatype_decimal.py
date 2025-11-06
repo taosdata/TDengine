@@ -28,10 +28,6 @@ class TestDatatypeDecimal:
 
         test decimal types filtering with tag conditions crash fix
 
-        Catalog:
-            - DataTypes
-            - Tables:SubTables:Create
-
         Since: v3.3.6.4
 
         Labels: common,ci

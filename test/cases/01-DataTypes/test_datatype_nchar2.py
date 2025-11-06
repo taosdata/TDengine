@@ -13,10 +13,6 @@ class TestNChar:
         2. Insert data
         3. Query data
 
-        Catalog:
-            - DataTypes
-            - Tables:SubTables:Create
-
         Since: v3.0.0.0
 
         Labels: common,ci

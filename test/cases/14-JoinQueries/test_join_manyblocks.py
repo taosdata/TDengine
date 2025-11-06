@@ -9,10 +9,10 @@ class TestJoinManyBlocks:
     def test_join_manyblocks(self):
         """Join Test Manyblocks
 
-        1.
-
-        Catalog:
-            - Query:Join
+        1. Create database and two super tables
+        2. Insert data into each child tables with same timestamps
+        3. Join two super tables on timestamps and tag columns
+        4. Check the result of join correctly
 
         Since: v3.0.0.0
 

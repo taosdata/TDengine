@@ -60,10 +60,7 @@ nav:
             - 02-Drop: case_list_docs/Tables/NormalTables/Drop.md
             - 03-Alter: case_list_docs/Tables/NormalTables/Alter.md
             - 04-Query: case_list_docs/Tables/NormalTables/Query.md
-        - 02-SubTables:
-            - 01-Create: case_list_docs/Tables/SubTables/Create.md
-            - 03-Alter: case_list_docs/Tables/SubTables/Alter.md
-            - 04-Query: case_list_docs/Tables/SubTables/Query.md
+        - 02-SubTables: case_list_docs/Tables/SubTables.md
     - 04-Super Tables:
         - 01-Create: case_list_docs/SuperTables/Create.md
         - 02-Drop: case_list_docs/SuperTables/Drop.md
@@ -117,7 +114,6 @@ nav:
         - 01-Mgmt: case_list_docs/DataSubscription/Mgmt.md
         - 02-Native: case_list_docs/DataSubscription/Native.md
         - 04-MQTT: case_list_docs/DataSubscription/MQTT.md
-        - sh: case_list_docs/DataSubscription/sh.md
     - 18-Stream Processing:
         - 01-Snode: case_list_docs/StreamProcessing/Snode.md
         - 02-Stream: case_list_docs/StreamProcessing/Stream.md
@@ -132,7 +128,6 @@ nav:
         - 23-Compatibility: case_list_docs/StreamProcessing/Compatibility.md
         - 30-OldPyCases: case_list_docs/StreamProcessing/OldPyCases.md
         - 31-OldTsimCases: case_list_docs/StreamProcessing/OldTsimCases.md
-        - 99-Others: case_list_docs/StreamProcessing/Others.md
     - 19-TSMAs: case_list_docs/TSMAs.md
     - 20-RSMAs: case_list_docs/RSMAs.md
     - 21-Meta Data: case_list_docs/MetaData.md
@@ -155,9 +150,6 @@ nav:
         - 02-Taos: case_list_docs/Tools/Taos.md
         - 03-Benchmark: case_list_docs/Tools/Benchmark.md
         - 04-Taosdump: case_list_docs/Tools/Taosdump.md
-        - 05-Valgrind: case_list_docs/Tools/Valgrind.md
-    - 82-UnitTest: case_list_docs/UnitTest.md
-    - 83-DocTest: case_list_docs/DocTest.md
 
   - Util funcs docs:
       - new_test_framework:

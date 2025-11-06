@@ -627,7 +627,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_change.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_sysdb.py
 
-# 22-Performance
+# 22-PerformanceData
+
+,,y,.,./ci/pytest.sh pytest cases/22-PerformanceData/test_performance_schema.py
 
 # 23-ShowCommands
 
