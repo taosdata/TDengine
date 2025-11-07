@@ -137,6 +137,7 @@ extern "C" {
 #define GRANT_ACTIVE_FLG_CHECK_UPTIME     0x04
 #define GRANT_ACTIVE_FLG_TDENGINE_ASSIGNED  0x08
 #define GRANT_ACTIVE_FLG_IDMP_ASSIGNED    0x10
+#define GRANT_ACTIVE_FLG_AUTH_SERVER      0x20
 
 #ifndef GRANTS_CFG
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE        GRANT_EXPIRE_DAY
@@ -467,6 +468,7 @@ typedef struct {
       uint64_t storageSizeLimited : 1;
       uint64_t checkAuthServer : 1;
       uint64_t reserve2 : 1;
+    };
   };
   union {
     int64_t p5;
