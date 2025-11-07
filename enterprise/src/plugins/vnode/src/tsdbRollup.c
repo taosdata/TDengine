@@ -44,7 +44,7 @@ static bool tsdbRollupCheck(SRSchema *pRSchema, int32_t expLevel, int64_t durati
 }
 
 static void tsdbRollupSetAggWindow(int64_t interval, int64_t ts, int64_t *itvStart, int64_t *itvEnd) {
-  *itvStart = (ts / interval) * interval;
+  *itvStart = (ts >= 0) ? (ts / interval) * interval : ((ts - interval + 1) / interval) * interval;
   *itvEnd = *itvStart + interval - 1;
 }
 

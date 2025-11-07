@@ -3,8 +3,6 @@ name: TDinternal Test
 on:
   pull_request:
     branches:
-      - 'main'
-      - '3.0'
       - '3.3.6'
     paths-ignore:
       - 'enterprise/documentation/**'

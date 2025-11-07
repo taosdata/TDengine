@@ -372,7 +372,9 @@ static void    mndCancelGetNextEncryptions(SMnode *pMnode, void *pIter);
 static int32_t tSerializeGrantDataIns(SEncoder *encoder, SGrantDataIn *pIns);
 static int32_t tDeserializeGrantDataIns(SDecoder *decoder, SGrantDataIn *pIns);
 static int32_t tSerializeGrantDynDataIns(SEncoder *encoder, SArray *pIns);
-static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns);
+static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray **pIns);
+static int32_t tSerializeGrantDynGrantItems(SEncoder *encoder, SArray *pItems);
+static int32_t tDeserializeGrantDynGrantItems(SDecoder *decoder, SArray **pItems);
 
 typedef struct {
   SSHashObj *pMachineHash;
@@ -797,8 +799,12 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
   // step 2: set local dnode grant status
   taosWLockLatch(&grantHandle.rwLock);
   SArray *pDataIns = gStatus.pDataIns;
+  SArray *pItemN64 = gStatus.pItemN64;
+  SArray *pItemT64 = gStatus.pItemT64;
   gStatus = grantStatusReq;  // assign directly
   taosArrayDestroy(pDataIns);
+  taosArrayDestroy(pItemN64);
+  taosArrayDestroy(pItemT64);
   taosWUnLockLatch(&grantHandle.rwLock);
 
   uint32_t grantExpireVal = GRANT_EXPIRE_VAL;
@@ -3461,6 +3467,25 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   // since 3.3.7.x
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p16));
 
+  // since 3.3.8.5 2025.11.05
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->limitMounts));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->curMounts));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->idmpLimitTsAttributes));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->idmpLimitNonTsAttributes));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->idmpLimitElements));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->idmpLimitServers));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->idmpLimitCpuCores));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->idmpLimitUsers));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p32));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p33));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p34));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p35));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p36));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p37));
+
+  TAOS_CHECK_EXIT(tSerializeGrantDynGrantItems(&encoder, pStatus->pItemN64));
+  TAOS_CHECK_EXIT(tSerializeGrantDynGrantItems(&encoder, pStatus->pItemT64));
+
   // for future grantItems
 
   tEndEncode(&encoder);
@@ -3506,7 +3531,7 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
 
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, clusterTime));
   TAOS_CHECK_EXIT(tDeserializeGrantDataIns(&decoder, pStatus->dataIns));
-  TAOS_CHECK_EXIT(tDeserializeGrantDynDataIns(&decoder, pStatus->pDataIns));
+  TAOS_CHECK_EXIT(tDeserializeGrantDynDataIns(&decoder, &pStatus->pDataIns));
 
   // since 3.3.0.0
   if (!tDecodeIsEnd(&decoder)) {
@@ -3534,6 +3559,28 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p16));
   }
+
+  // since 3.3.8.5 2025.11.05
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->limitMounts));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->curMounts));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->idmpLimitTsAttributes));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->idmpLimitNonTsAttributes));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->idmpLimitElements));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->idmpLimitServers));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->idmpLimitCpuCores));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->idmpLimitUsers));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p32));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p33));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p34));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p35));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p36));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p37));
+
+    TAOS_CHECK_EXIT(tDeserializeGrantDynGrantItems(&decoder, &pStatus->pItemN64));
+    TAOS_CHECK_EXIT(tDeserializeGrantDynGrantItems(&decoder, &pStatus->pItemT64));
+  }
+
   // for future grantItems
   // ...
   // if(!tDecodeIsEnd(&decoder) ...
@@ -3587,20 +3634,51 @@ static int32_t tSerializeGrantDynDataIns(SEncoder *encoder, SArray *pIns) {
   TAOS_RETURN(0);
 }
 
-static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray *pIns) {
+static int32_t tDeserializeGrantDynDataIns(SDecoder *decoder, SArray **pIns) {
   int16_t nIns = 0;
   TAOS_CHECK_RETURN(tDecodeI16v(decoder, &nIns));
   if (nIns <= 0) TAOS_RETURN(0);
-  if (!pIns && !(pIns = taosArrayInit_s(sizeof(SGrantDataIns), nIns))) {
+  if (!pIns || (*pIns)) TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  if (!((*pIns) = taosArrayInit_s(sizeof(SGrantDataIns), nIns))) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   for (int32_t i = 0; i < nIns; ++i) {
-    SGrantDataIns *pIn = TARRAY_GET_ELEM(pIns, i);
+    SGrantDataIns *pIn = TARRAY_GET_ELEM(*pIns, i);
     TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, &pIn->name[0]));
     TAOS_CHECK_RETURN(tDecodeI32v(decoder, &pIn->number));
     TAOS_CHECK_RETURN(tDecodeI32v(decoder, &pIn->speed));
     TAOS_CHECK_RETURN(tDecodeI32v(decoder, &pIn->expire));
+  }
+  TAOS_RETURN(0);
+}
+
+static int32_t tSerializeGrantDynGrantItems(SEncoder *encoder, SArray *pItems) {
+  int32_t nItems = taosArrayGetSize(pItems);
+  TAOS_CHECK_RETURN(tEncodeI32v(encoder, nItems));
+  for (int32_t i = 0; i < nItems; ++i) {
+    SGrantItem64 *pItem = TARRAY_GET_ELEM(pItems, i);
+    TAOS_CHECK_RETURN(tEncodeCStr(encoder, pItem->name));
+    TAOS_CHECK_RETURN(tEncodeI32v(encoder, pItem->expire));
+    TAOS_CHECK_RETURN(tEncodeI64v(encoder, pItem->number));
+  }
+  TAOS_RETURN(0);
+}
+
+static int32_t tDeserializeGrantDynGrantItems(SDecoder *decoder, SArray **pItems) {
+  int32_t nItems = 0;
+  TAOS_CHECK_RETURN(tDecodeI32v(decoder, &nItems));
+  if (nItems <= 0) TAOS_RETURN(0);
+  if (!pItems || (*pItems)) TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  if (!(*pItems = taosArrayInit_s(sizeof(SGrantItem64), nItems))) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  for (int32_t i = 0; i < nItems; ++i) {
+    SGrantItem64 *pItem = TARRAY_GET_ELEM(*pItems, i);
+    TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, &pItem->name[0]));
+    TAOS_CHECK_RETURN(tDecodeI32v(decoder, &pItem->expire));
+    TAOS_CHECK_RETURN(tDecodeI64v(decoder, &pItem->number));
   }
   TAOS_RETURN(0);
 }
