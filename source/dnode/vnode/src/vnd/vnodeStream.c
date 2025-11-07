@@ -3249,9 +3249,6 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       sStreamReaderInfo->pVnode = pVnode;
       if (sStreamReaderInfo->tableList.pTableList == NULL) {
         code = generateTablistForStreamReader(pVnode, sStreamReaderInfo);  
-        if (code == 0){
-          code = filterInitFromNode(sStreamReaderInfo->pConditions, &sStreamReaderInfo->pFilterInfo, 0, NULL);
-        }
       }
       (void)taosThreadRwlockUnlock(&sStreamReaderInfo->lock);
       STREAM_CHECK_RET_GOTO(code);
