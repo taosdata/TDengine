@@ -465,8 +465,8 @@ typedef struct {
       uint64_t tdGptExpired : 1;  // since 3.3.6.0
       uint64_t dualReplicaHADefined : 1;
       uint64_t storageSizeLimited : 1;
-      int64_t  reserve2 : 2;
-    };
+      uint64_t checkAuthServer : 1;
+      uint64_t reserve2 : 1;
   };
   union {
     int64_t p5;
