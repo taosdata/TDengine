@@ -43,7 +43,6 @@ typedef struct SPlanContext {
   bool        showRewrite;
   bool        isView;
   bool        isAudit;
-  bool        withExtWindow;
   bool        hasScan;
   int32_t     sysScanFlag;
   int8_t      triggerType;

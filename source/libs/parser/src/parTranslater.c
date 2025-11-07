@@ -7803,6 +7803,33 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateExtWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pExtWindow || !inStreamCalcClause(pCxt)) {
+    nodesDestroyNode(pSelect->pExtWindow);
+    pSelect->pExtWindow = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != pSelect->pFromTable) {
+    if (nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
+        nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE) {
+      nodesDestroyNode(pSelect->pExtWindow);
+      pSelect->pExtWindow = NULL;
+      return TSDB_CODE_SUCCESS;
+    }
+    if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
+        ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType == TSDB_SYSTEM_TABLE) {
+      nodesDestroyNode(pSelect->pExtWindow);
+      pSelect->pExtWindow = NULL;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  int32_t code = 0;
+  pCxt->currClause = SQL_CLAUSE_EXT_WINDOW;
+  code = translateExpr(pCxt, &pSelect->pExtWindow);
+  return code;
+}
+
 static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -9207,6 +9234,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translatePartitionBy(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExtWindow(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateWindow(pCxt, pSelect);
