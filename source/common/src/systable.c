@@ -588,6 +588,14 @@ static const SSysDbTableSchema retentionDetailsSchema[] = {
     {.name = "remain_time(s)", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
+static const SSysDbTableSchema userRolesSchema[] = {
+    {.name = "name", .bytes = TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "enable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+    {.name = "children", .bytes = TSDB_ROLE_MAX_CHILDREN * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -639,6 +647,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_RSMAS, rsmaSchema, tListLen(rsmaSchema), false},
     {TSDB_INS_TABLE_RETENTIONS, retentionsSchema, tListLen(retentionsSchema), false},
     {TSDB_INS_TABLE_RETENTION_DETAILS, retentionDetailsSchema, tListLen(retentionDetailsSchema), false},
+    {TSDB_INS_TABLE_ROLES, userRolesSchema, tListLen(userRolesSchema), true},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

@@ -168,6 +168,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_RETENTION;
   } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTION_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_RETENTION_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
