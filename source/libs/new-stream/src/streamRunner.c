@@ -427,7 +427,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
       bool                    cont = false;
       code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
       ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
-                    code, pBlock->info.rows, pExec->tbname, *createTb, pExec->runtimeInfo.funcInfo.groupId);
+                    code, (pBlock != NULL ? pBlock->info.rows : 0), pExec->tbname, *createTb, pExec->runtimeInfo.funcInfo.groupId);
       printDataBlock(pBlock, "output block to sink", "runner", pTask->task.streamId);
       if(code == TSDB_CODE_SUCCESS) *createTb = false;  // if output block success, then no need to create table
     } else {

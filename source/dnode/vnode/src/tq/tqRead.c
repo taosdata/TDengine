@@ -1068,7 +1068,9 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
     curRow++;
   }
   SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
-  pLastBlock->info.rows = curRow - lastRow;
+  if (pLastBlock != NULL) {
+    pLastBlock->info.rows = curRow - lastRow;
+  }
 
   tqTrace("vgId:%d, tqProcessRowData end, rows:%d, block num:%d", pReader->pWalReader->pWal->cfg.vgId, numOfRows,
           (int)taosArrayGetSize(blocks));
