@@ -371,6 +371,7 @@ typedef struct SWindowLogicNode {
   SNodeList*       pProjs;  // for external window
   bool             isSingleTable; // for external window
   bool             inputHasOrder; // for external window, whether input data is ordered
+  bool             genNewGroup; // for external window, whether to generate new group id
   EStateWinExtendOption extendOption;
 } SWindowLogicNode;
 
@@ -811,6 +812,7 @@ typedef struct SExternalWindowPhysiNode {
   SNode*           pTimeRange;
   bool             isSingleTable;
   bool             inputHasOrder;
+  bool             genNewGroup;
 } SExternalWindowPhysiNode;
 
 typedef struct SSortPhysiNode {

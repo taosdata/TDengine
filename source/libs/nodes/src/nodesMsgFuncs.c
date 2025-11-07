@@ -3714,7 +3714,9 @@ enum { PHY_EXT_CODE_WINDOW = 1,
        PHY_EXT_CODE_EKEY,
        PHY_EXT_CODE_TIME_RANGE_EXPR,
        PHY_EXT_CODE_IS_SINGLE_TABLE,
-       PHY_EXT_CODE_INPUT_HAS_ORDER};
+       PHY_EXT_CODE_INPUT_HAS_ORDER,
+       PHY_EXT_CODE_GEN_NEW_GROUP,
+};
 
 static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3734,6 +3736,10 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_INPUT_HAS_ORDER, pNode->inputHasOrder);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_GEN_NEW_GROUP, pNode->genNewGroup);
+  }
+
 
   return code;
 }
@@ -3762,6 +3768,9 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_INPUT_HAS_ORDER:
         code = tlvDecodeBool(pTlv, &pNode->inputHasOrder);
+        break;
+      case PHY_EXT_CODE_GEN_NEW_GROUP:
+        code = tlvDecodeBool(pTlv, &pNode->genNewGroup);
         break;
       default:
         break;
