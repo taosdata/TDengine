@@ -856,7 +856,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfMnodeStreamMgmtThreads", tsNumOfMnodeStreamMgmtThreads, 2, 5, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamMgmtThreads", tsNumOfStreamMgmtThreads, 2, 5, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeStreamReaderThreads", tsNumOfVnodeStreamReaderThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeStreamReaderThreads", tsNumOfVnodeStreamReaderThreads, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamTriggerThreads", tsNumOfStreamTriggerThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamRunnerThreads", tsNumOfStreamRunnerThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * RPC_MEMORY_USAGE_RATIO * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
