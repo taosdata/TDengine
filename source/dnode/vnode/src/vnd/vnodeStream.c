@@ -1823,33 +1823,6 @@ end:
   return code;
 }
 
-static int32_t processWalVerDataVTable(SVnode* pVnode, SArray *cids, int64_t ver,
-  int64_t uid, STimeWindow* window, SSDataBlock** pBlock) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  SArray*      schemas = NULL;
-
-  SSDataBlock* pBlock2 = NULL;
-
-  STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, uid, &schemas));
-  STREAM_CHECK_RET_GOTO(shrinkScheams(cids, schemas));
-  STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlock2));
-
-  pBlock2->info.id.uid = uid;
-
-  // STREAM_CHECK_RET_GOTO(scanWalOneVer(pVnode, pBlock2, ver, uid, window));
-  //printDataBlock(pBlock2, __func__, "");
-
-  *pBlock = pBlock2;
-  pBlock2 = NULL;
-
-end:
-  STREAM_PRINT_LOG_END(code, lino);
-  blockDataDestroy(pBlock2);
-  taosArrayDestroy(schemas);
-  return code;
-}
-
 static int32_t createTSAndCondition(int64_t start, int64_t end, SLogicConditionNode** pCond,
                                     STargetNode* pTargetNodeTs) {
   int32_t code = 0;
@@ -2550,6 +2523,7 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
   int32_t* slotIdList = NULL;
   SArray* sortedCid = NULL;
   SArray* schemas = NULL;
+  SSDataBlock*   pBlockRes = NULL;
   
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
@@ -2581,16 +2555,18 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
 
     STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, req->tsdbDataReq.uid, &schemas));
     STREAM_CHECK_RET_GOTO(shrinkScheams(req->tsdbDataReq.cids, schemas));
-    taosArraySort(schemas, sortSSchema);
+    STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlockRes));
 
+    taosArraySort(schemas, sortSSchema);
     BUILD_OPTION(options, req->tsdbDataReq.suid, req->tsdbDataReq.ver, req->tsdbDataReq.order, req->tsdbDataReq.skey,
                     req->tsdbDataReq.ekey, schemas, true, &slotIdList);
     SStorageAPI api = {0};
     initStorageAPI(&api);
     STableKeyInfo       keyInfo = {.uid = req->tsdbDataReq.uid, .groupId = 0};
-    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, NULL, &api, &keyInfo, 1));
+    STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTaskInner, pBlockRes, &api, &keyInfo, 1));
     STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTaskInner, sizeof(pTaskInner)));
-    STREAM_CHECK_RET_GOTO(createOneDataBlock(pTaskInner->pResBlock, false, &pTaskInner->pResBlockDst));
+    pTaskInner->pResBlockDst = pBlockRes;
+    pBlockRes = NULL;
   } else {
     void** tmp = taosHashGet(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES);
     STREAM_CHECK_NULL_GOTO(tmp, TSDB_CODE_STREAM_NO_CONTEXT);
@@ -2628,6 +2604,7 @@ end:
   taosMemFree(slotIdList);
   taosArrayDestroy(sortedCid);
   taosArrayDestroy(schemas);
+  blockDataDestroy(pBlockRes);
   return code;
 }
 
