@@ -1,33 +1,14 @@
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, tdCom
 
 
-
-
 class TestExplain:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
-
-    def test_explain_basic(self):
-        """Explain
-
-        Performing EXPLAIN on queries involving various functions, windows, subqueries, and sorting operations
-
-        Catalog:
-            - Query:Explain
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-8-20 Simon Guan Migrated from tsim/query/explain.sim
-            - 2025-8-20 Simon Guan Migrated from tsim/query/explain_tsorder.sim
-
-        """
-
+    #
+    # ------------------- sim ----------------
+    #
+    def do_explain_basic(self):
         self.Explain()
         tdStream.dropAllStreamsAndDbs()
         self.ExplainTsOrder()
@@ -239,4 +220,100 @@ class TestExplain:
         tdCom.compare_result_files(
             resultfile, "cases/09-DataQuerying/15-Explain/r/test_explain.result"
         )
+        print("do explain basic ...................... [passed]")
+        
+    #
+    # ------------------- test_TD_20582.py ----------------
+    #
+    def prepare_datas(self, dbname="db"):
 
+        tdSql.execute(
+            f''' CREATE TABLE ac_stb (TS TIMESTAMP, C1 INT, C2 BIGINT, C3 FLOAT, C4 DOUBLE, C5 BINARY(10), C6 BOOL, 
+            C7 SMALLINT, C8 TINYINT, C9 NCHAR(10)) TAGS (T1 INT);
+            '''            
+        )
+        
+        tdSql.execute(
+            f''' insert into ctb0 using ac_stb tags (1) values ( 1537146001000 , 1,1,1,1,'bin',1,1,1,'________') 
+            ( 1537146002000 , 2,2,2,2,'binar', 1,1,1,'nchar');
+            '''       
+        ) 
+
+        tdSql.execute(
+            f'''  insert into ntb0 using ac_stb tags (-1) values ( 1537146001000 , 1,1,1,1,'bin',1,1,1,'________') 
+            ( 1537146002000 , 2,2,2,2,'binar', 1,1,1,'nchar');
+            '''       
+        ) 
+
+        tdSql.execute(
+            f'''  insert into ntb0 using ac_stb tags (2) values ( 1537146003000 , 1,1,1,1,'bin',1,1,1,'________') 
+            ( 1537146004000 , 2,2,2,2,'binar', 1,1,1,'nchar');
+            '''       
+        ) 
+
+        tdSql.execute(
+            f''' insert into ctb6 using ac_stb tags(1) values ( 1537146000000 , 1, 1, 1, 1, 'bin1', 1, 1, 1, '________1') 
+            ctb6 using ac_stb tags(2) values ( 1537146000000 , 2, 2, 2, 2, 'bin2', 2, 2, 2, '________2') 
+            ctb6 using ac_stb tags(3) values ( 1537146000000 , 3, 3, 3, 3, 'bin3', 3, 3, 3, '________3')
+            '''       
+        )
+    
+
+    def check_result(self, dbname="db"):
+        tdSql.query("select c1,c1,c2,c3,c4,c5,c7,c8,c9 from ac_stb")
+        tdSql.checkRows(7)
+
+        tdSql.query("select t1, count(*), first(c9) from ac_stb partition by t1 order by t1 asc slimit 3")
+        tdSql.checkRows(2)
+
+        # TD-20582
+        tdSql.query("explain analyze verbose true select count(*) from ac_stb where T1=1")
+        tdSql.checkRows(16)
+
+        # TD-20581
+        tdSql.execute("insert into ntb0 select * from ntb0")
+        tdSql.query("select * from ntb0")
+        tdSql.checkRows(4)
+
+        return
+        # basic query
+
+    def do_td_20582(self):
+
+        # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("========== step1: create table ==============")
+
+        self.prepare_datas()
+
+        tdLog.printNoPrefix("========== step2: check results ==============")
+
+        self.check_result()
+
+        print("do TD-20582 ........................... [passed]")
+
+    
+    #
+    # ------------------- main ----------------
+    #
+    def test_explain_basic(self):
+        """Explain command basic
+
+        1. Performing EXPLAIN on queries involving various functions, windows, subqueries, and sorting operations
+        2. Verify bug TD-20582 (explain order by sql error)
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-8-20 Simon Guan Migrated from tsim/query/explain.sim
+            - 2025-8-20 Simon Guan Migrated from tsim/query/explain_tsorder.sim
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TD_20582.py
+
+        """
+        self.do_explain_basic()
+        self.do_td_20582()

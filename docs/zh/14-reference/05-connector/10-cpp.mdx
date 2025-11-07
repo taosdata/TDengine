@@ -176,7 +176,7 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
     - 同样参数多次调用该接口，以后面的为准，可以作为修改的方法。
     - TSDB_OPTION_CONNECTION_CLEAR 选项用于重置所有连接选项。
     - 时区和字符集重置后，使用系统的设置，user ip 和 user app 重置后为空。
-    - 连接选项的值都是 string 类型，user app 参数值最大长度为 23， connector info 最大长度为255，超过该长度会被截断；其他参数非法时报错。
+    - 连接选项的值都是 string 类型，user app 参数值最大长度为 23，connector info 最大长度为 255，超过该长度会被截断；其他参数非法时报错。
     - 时区配置找不到时区文件或者不能按照规范解释时，默认为 UTC，和操作系统时区规则相同，详见 tzset 函数说明。可通过 select timezone() 查看当前连接的时区。
     - 时区和字符集只在 client 侧起作用，对于在服务端的相关行为不起作用。
     - 时区文件使用操作系统时区文件，可以自行更新操作系统时区文件。如果设置时区报错，请检查是否有时区文件或路径（mac:/var/db/timezone/zoneinfo, linux:/usr/share/zoneinfo）是否正确。
