@@ -303,7 +303,7 @@ typedef struct SStoreMeta {
     const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes);
   int32_t (*putCachedTableList2)(void* pVnode, uint64_t suid,
     const void* pTagCondKey, int32_t tagCondKeyLen,
-    const void* pKey, int32_t keyLen, void* pPayload);
+    const void* pKey, int32_t keyLen, SArray* pUidList);
 
   int32_t (*metaGetCachedRefDbs)(void* pVnode, tb_uid_t suid, SArray* pList);
   int32_t (*metaPutRefDbsToCache)(void* pVnode, tb_uid_t suid, SArray* pList);

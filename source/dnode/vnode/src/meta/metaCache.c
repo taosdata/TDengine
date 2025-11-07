@@ -674,11 +674,11 @@ int32_t metaGetCachedTableUidList2(void* pVnode, tb_uid_t suid,
   }
 
 _end:
-  // unlock meta
   if (TSDB_CODE_SUCCESS != code) {
     metaError("vgId:%d, %s failed at %s:%d since %s",
       vgId, __func__, __FILE__, lino, tstrerror(code));
   }
+  // unlock meta
   code = taosThreadRwlockUnlock(pRwlock);
   if (TSDB_CODE_SUCCESS != code) {
     metaError("vgId:%d, %s unlock failed at %s:%d since %s",
@@ -811,7 +811,7 @@ _end:
 
 int32_t metaUidFilterCachePut2(
   void* pVnode, uint64_t suid, const void* pTagCondKey, int32_t tagCondKeyLen,
-  const void* pKey, int32_t keyLen, void* pPayload) {
+  const void* pKey, int32_t keyLen, SArray* pUidList) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -863,8 +863,7 @@ int32_t metaUidFilterCachePut2(
     TSDB_CHECK_NULL(pEntry->set, code, lino, _end, terrno);
 
     code = taosHashPut(
-      (*pTagConds)->set, pTagCondKey, tagCondKeyLen,
-      &pFilterEntry, POINTER_BYTES);
+      (*pTagConds)->set, pTagCondKey, tagCondKeyLen, &pEntry, POINTER_BYTES);
     TSDB_CHECK_CODE(code, lino, _end);
 
     pFilterEntry = (STagCondFilterEntry**)taosHashGet(
@@ -873,8 +872,9 @@ int32_t metaUidFilterCachePut2(
   }
 
   // add to cache.
+  SArray* pPayload = taosArrayDup(pUidList, NULL);
   code = taosHashPut(
-    (*pFilterEntry)->set, pKey, keyLen, pPayload, POINTER_BYTES);
+    (*pFilterEntry)->set, pKey, keyLen, &pPayload, POINTER_BYTES);
   TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -887,6 +887,7 @@ _end:
       vgId, suid, (int32_t)taosHashGetSize(pTableEntry),
       pTagConds ? (int32_t)taosHashGetSize((*pTagConds)->set) : 0);
   }
+  // unlock meta
   code = taosThreadRwlockUnlock(pRwlock);
   if (TSDB_CODE_SUCCESS != code) {
     metaError("vgId:%d, %s unlock failed at %s:%d since %s",

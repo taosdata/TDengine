@@ -2149,7 +2149,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen);
         code = pStorageAPI->metaFn.putCachedTableList2(
           pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
-          context.digest, tListLen(context.digest), pPayload);
+          context.digest, tListLen(context.digest), pUidList);
         QUERY_CHECK_CODE(code, lino, _error);
       }
       code = pStorageAPI->metaFn.putCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),

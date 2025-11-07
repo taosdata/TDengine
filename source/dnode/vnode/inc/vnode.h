@@ -146,7 +146,7 @@ int32_t  metaGetCachedTableUidList2(void* pVnode, tb_uid_t suid,
   const uint8_t* pKey, int32_t keyLen, SArray* pList, bool* acquired);
 int32_t  metaUidFilterCachePut2(void* pVnode, uint64_t suid,
   const void* pTagCondKey, int32_t tagCondKeyLen,
-  const void* pKey, int32_t keyLen, void* pPayload);
+  const void* pKey, int32_t keyLen, SArray* pUidList);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
