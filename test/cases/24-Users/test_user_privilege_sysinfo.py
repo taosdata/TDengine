@@ -1,32 +1,16 @@
 import time
 import platform
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
-
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck,tdCom
 
 class TestUserPrivilegeSysinfo:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_user_privilege_sysinfo(self):
-        """Privilege: sysinfo
-
-        Verify user privileges related to sysinfo operation, including grant, revoke, and query privileges.
-
-        Catalog:
-            - User
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-4-30 Simon Guan Migrated from tsim/user/privilege_sysinfo.sim
-
-        """
-
+    #
+    # ------------------- sim----------------
+    #
+    def do_user_privilege_sysinfo(self):
         tdLog.info(f"=============== create user and login")
         tdSql.execute(f"create user sysinfo0 pass 'taosdata'")
         tdSql.execute(f"create user sysinfo1 pass 'taosdata'")
@@ -132,6 +116,7 @@ class TestUserPrivilegeSysinfo:
         loop_cnt = 5
         loop_idx = 0
         loop_flag = 0
+        print("do sim case ....................... [passed]")
 
         def loop_check_sysinfo_0():
             tdLog.info(f"=============== check show of sysinfo 0")
@@ -317,3 +302,54 @@ class TestUserPrivilegeSysinfo:
                 tdSql.execute("alter user sysinfo0 sysinfo 0")
                 tdSql.connect("sysinfo0")
                 loop_check_sysinfo_0()
+
+    #
+    # ------------------- test_TS_3581.py ----------------
+    #
+    def prepare_user(self):
+        tdSql.execute(f"create user test pass 'test123@#$' sysinfo 1")
+
+    def check_connect_user(self, uname):
+        try:
+            for db in ['information_schema', 'performance_schema']:
+                new_tdsql = tdCom.newTdSql(user=uname, password=self.passwd[uname], database=db)
+                new_tdsql.query('show databases')
+                new_tdsql.checkData(0, 0, 'information_schema')
+                new_tdsql.checkData(1, 0, 'performance_schema')
+                tdLog.success(f"Test User {uname} for {db} .......[OK]")
+        except:
+            tdLog.exit(f'{__file__} failed')
+    
+    def do_ts_5130(self):
+        tdSql.connect('root')
+        self.passwd = {'root':'taosdata',
+                       'test':'test123@#$'}
+
+        self.prepare_user()
+        self.check_connect_user('root')
+        self.check_connect_user('test')
+
+        print("do TS-5130 ............................ [passed]")
+    
+    #
+    # ------------------- main ----------------
+    #
+    def test_user_privilege_sysinfo(self):
+        """Privilege: sysinfo
+
+        1. Verify user privileges related to sysinfo operation, including grant, revoke, and query privileges.
+        2. Verify bug TS-5130 (normal user with sysinfo privilege cannot access information_schema)
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-4-30 Simon Guan Migrated from tsim/user/privilege_sysinfo.sim
+            - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TS_5130.py
+
+        """
+        self.do_user_privilege_sysinfo()
+        self.do_ts_5130()

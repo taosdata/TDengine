@@ -65,6 +65,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.6 | Support for pandas' read_Sql_table, to_Sql, and read_Sql interface calls                                    | - |
 |2.8.5 | Support the SQLAlchemy feature of taos-ws-py                                                                | - |
 |2.8.4 | Support DBUtils connection pool.                                                                            | - |
 |2.8.3 | Support BLOB data type.                                                                                     | - |
