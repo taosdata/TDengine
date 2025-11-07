@@ -246,9 +246,11 @@ typedef enum {
 #define TSDB_FILL_NEAR        8
 
 #if 1
+
+#define TSDB_ALTER_USER_BASIC_INFO             1
 // these definitions start from 5 is to keep compatible with old versions
-#define TSDB_ALTER_USER_ADD_PRIVILEGES         5
-#define TSDB_ALTER_USER_DEL_PRIVILEGES         6
+#define TSDB_ALTER_USER_ADD_PRIVILEGES         2
+#define TSDB_ALTER_USER_DEL_PRIVILEGES         3
 
 #else
 #define TSDB_ALTER_USER_PASSWD                 1
@@ -1461,30 +1463,71 @@ void    tFreeRetrieveAnalyticAlgoRsp(SRetrieveAnalyticAlgoRsp* pRsp);
 
 typedef struct {
   int8_t alterType;
-  int8_t superUser;
-  int8_t sysInfo;
-  int8_t enable;
+
   int8_t isView;
-  union {
-    uint8_t flag;
-    struct {
-      uint8_t createdb : 1;
-      uint8_t reserve : 7;
-    };
-  };
-  char        user[TSDB_USER_LEN];
-  char        pass[TSDB_USER_PASSWORD_LEN];
+  
+  int8_t hasPassword;
+  int8_t hasTotpseed;
+  int8_t hasEnable;
+  int8_t hasSysinfo;
+  int8_t hasCreatedb;
+  int8_t hasChangepass;
+  int8_t hasSessionPerUser;
+  int8_t hasConnectTime;
+  int8_t hasConnectIdleTime;
+  int8_t hasCallPerSession;
+  int8_t hasVnodePerCall;
+  int8_t hasFailedLoginAttempts;
+  int8_t hasPasswordLifeTime;
+  int8_t hasPasswordReuseTime;
+  int8_t hasPasswordReuseMax;
+  int8_t hasPasswordLockTime;
+  int8_t hasPasswordGraceTime;
+  int8_t hasInactiveAccountTime;
+  int8_t hasAllowTokenNum;
+
+  int8_t enable;
+  int8_t sysinfo;
+  int8_t createdb;
+  int8_t changepass;
+
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_USER_PASSWORD_LEN];
+  char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
+  int32_t sessionPerUser;
+  int32_t connectTime;
+  int32_t connectIdleTime;
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;
+  int32_t passwordReuseTime;
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;
+  int32_t passwordGraceTime;
+  int32_t inactiveAccountTime;
+  int32_t allowTokenNum;
+
+  int8_t          negIpRanges;        // negative ip ranges
+  int8_t          negDropIpRanges;    // negative drop ip ranges
+  int8_t          negTimeRanges;      // negative time ranges
+  int8_t          negDropTimeRanges;  // negative drop time ranges
+  int32_t         numIpRanges;
+  int32_t         numTimeRanges;
+  int32_t         numDropIpRanges;
+  int32_t         numDropTimeRanges;
+  SIpRange*       pIpRanges;
+  SDateTimeRange* pTimeRanges;
+  SIpRange*       pDropIpRanges;
+  SDateTimeRange* pDropTimeRanges;
+
   char        objname[TSDB_DB_FNAME_LEN];  // db or topic
   char        tabName[TSDB_TABLE_NAME_LEN];
   char*       tagCond;
   int32_t     tagCondLen;
-  int32_t     numIpRanges;
-  SIpV4Range* pIpRanges;
-  int64_t     privileges;
   int32_t     sqlLen;
   char*       sql;
-  int8_t      passIsMd5;
-  SIpRange*   pIpDualRanges;
+  int64_t     privileges;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);

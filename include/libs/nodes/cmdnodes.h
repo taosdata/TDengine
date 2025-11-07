@@ -514,15 +514,7 @@ typedef struct SCreateUserStmt {
 typedef struct SAlterUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];
-  int8_t      alterType;
-  char        password[TSDB_USER_PASSWORD_LONGLEN];
-  int8_t      enable;
-  int8_t      sysinfo;
-  int8_t      createdb;
-  int32_t     numIpRanges;
-  SIpRange*   pIpRanges;
-
-  SNodeList* pNodeListIpRanges;
+  SUserOptions* pUserOptions;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {

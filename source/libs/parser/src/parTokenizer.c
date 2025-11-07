@@ -419,6 +419,7 @@ static SKeyword keywordTable[] = {
     {"SCAN",                 TK_SCAN},
     {"SCANS",                TK_SCANS},
     {"_ANOMALYMARK",         TK_ANOMALYMARK},
+    {"CHANGEPASS",           TK_CHANGEPASS},
     {"SESSION_PER_USER",     TK_SESSION_PER_USER},
     {"CONNECT_TIME",         TK_CONNECT_TIME},
     {"CONNECT_IDLE_TIME",    TK_CONNECT_IDLE_TIME},
