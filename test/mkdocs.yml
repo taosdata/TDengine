@@ -150,7 +150,3 @@ nav:
         - 02-Taos: case_list_docs/Tools/Taos.md
         - 03-Benchmark: case_list_docs/Tools/Benchmark.md
         - 04-Taosdump: case_list_docs/Tools/Taosdump.md
-
-  - Util funcs docs:
-      - new_test_framework:
-          - utils: util_funcs_docs/new_test_framework/utils.md

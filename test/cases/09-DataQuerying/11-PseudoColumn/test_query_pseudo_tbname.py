@@ -7,12 +7,20 @@ class TestTbname:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_tbname(self):
-        """tbname
-
-        1. Querying with tbname and IN operator together
-
-        Catalog:
-            - PsedoColumn
+        """Pseudo column tbname
+        
+        1. Create 1 database 1 stable 2000 child tables
+        2. Insert 10 rows for each child table
+        3. select tbname from stable with tbname in (...) 
+        4. select tbname from child table with tbname in (...) 
+        5. select tbname from stable with tbname in (...) and other tag filtering 
+        6. select tbname from stable with tbname in (...) and group by tag 
+        7. select tbname from stable with duplicated tbnames in (...) 
+        8. select tbname from stable with wrong tbnames in (...) 
+        9. select tbname from stable with tbname in (...) and column filtering 
+        10. select tbname from stable with tbname in (...) with Upper case table name
+        11. Restart dnode and check tbname in query again
+        
 
         Since: v3.0.0.0
 

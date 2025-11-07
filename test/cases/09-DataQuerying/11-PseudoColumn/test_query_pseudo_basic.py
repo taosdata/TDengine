@@ -2,7 +2,7 @@ from new_test_framework.utils import tdLog, tdSql, tdDnodes
 import sys 
 from math import inf
 
-class TestPseudoColumn:
+class TestQueryPseudoColumn:
     def caseDescription(self):
         '''
         case1<shenglian zhou>: [TS-3904/TS-3005] pseudo column test case
@@ -18,23 +18,31 @@ class TestPseudoColumn:
         tdDnodes.startWithoutSleep(index)
         tdSql.execute(f"use pseudo_col")
 
-    def test_pseudo_column(self):
-        """summary: xxx
+    def test_query_pseudo_column(self):
+        """Pseudo column basic
+        
+        1. Create 1 database 1 stable 2 child tables
+        2. Insert 1 rows for each child table
+        3. select tbname from stable and check the result
+        4. order by tbname and check the result
+        5. select tbname with backquote and check the result
+        6. select tbname with table prefix and check the result
+        7. select _wstart, _wend, _wduration with interval clause and check the result
+        8. select _wstart, _wend, _wduration without interval clause and expect error
+        9. select _irowts with range clause and check the result
+        10. select _irowts without range clause and expect error
+        11. select _wstart, _wend, _wduration with nested query and check the result
+        
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-06 Alex Duan Migrated from  uncatalog/develop-test/2-query/test_pseudo_column.py
+
         """
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists pseudo_col")
