@@ -237,7 +237,7 @@ typedef struct SInterpFuncLogicNode {
 typedef struct SForecastFuncLogicNode {
   SLogicNode node;
   SNodeList* pFuncs;
-} SForecastFuncLogicNode, SImputationFuncLogicNode;
+} SForecastFuncLogicNode, SGenericAnalysisLogicNode;
 
 typedef struct SGroupCacheLogicNode {
   SLogicNode node;
@@ -596,7 +596,7 @@ typedef struct SForecastFuncPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;
   SNodeList* pFuncs;
-} SForecastFuncPhysiNode, SImputationFuncPhysiNode;
+} SForecastFuncPhysiNode, SGenericAnalysisPhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;

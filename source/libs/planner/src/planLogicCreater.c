@@ -19,6 +19,7 @@
 #include "planInt.h"
 #include "planner.h"
 #include "plannodes.h"
+#include "querynodes.h"
 #include "systable.h"
 #include "tglobal.h"
 
@@ -1678,41 +1679,41 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   return code;
 }
 
-static bool isImputationFunc(int32_t funcId) {
-  return fmIsImputationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId) ||
+static bool isGenericAnalysisFunc(int32_t funcId) {
+  return fmIsImputationCorrelationFunc(funcId) || fmIsGroupKeyFunc(funcId) || fmisSelectGroupConstValueFunc(funcId) ||
          fmIsAnalysisPseudoColumnFunc(funcId);
 }
 
-static int32_t createImputationFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (!pSelect->hasImputationFunc) {
+static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (!pSelect->hasGenericAnalysisFunc) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SImputationFuncLogicNode * pImputatFunc = NULL;
-  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC, (SNode**)&pImputatFunc);
-  if (NULL == pImputatFunc) {
+  SGenericAnalysisLogicNode * pFunc = NULL;
+  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC, (SNode**)&pFunc);
+  if (NULL == pFunc) {
     return code;
   }
 
-  pImputatFunc->node.groupAction = getGroupAction(pCxt, pSelect);
-  pImputatFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
-  pImputatFunc->node.resultDataOrder = pImputatFunc->node.requireDataOrder;
+  pFunc->node.groupAction = getGroupAction(pCxt, pSelect);
+  pFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
+  pFunc->node.resultDataOrder = pFunc->node.requireDataOrder;
 
   // interp functions and _group_key functions
-  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isImputationFunc, &pImputatFunc->pFuncs);
+  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isGenericAnalysisFunc, &pFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pImputatFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
+    code = rewriteExprsForSelect(pFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExprs(pImputatFunc->pFuncs, &pImputatFunc->node.pTargets);
+    code = createColumnByRewriteExprs(pFunc->pFuncs, &pFunc->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    *pLogicNode = (SLogicNode*)pImputatFunc;
+    *pLogicNode = (SLogicNode*)pFunc;
   } else {
-    nodesDestroyNode((SNode*)pImputatFunc);
+    nodesDestroyNode((SNode*)pFunc);
   }
 
   return code;
@@ -2155,60 +2156,83 @@ static bool placeHolderCanMakeExternalWindow(int32_t startType, int32_t endType)
   }
 }
 
-static bool filterHasPlaceHolderRange(SOperatorNode *pStart, SOperatorNode *pEnd) {
-  SNode* pStartLeft = pStart->pLeft;
-  SNode* pStartRight = pStart->pRight;
-  SNode* pEndLeft = pEnd->pLeft;
-  SNode* pEndRight = pEnd->pRight;
+static bool filterHasPlaceHolderRange(SOperatorNode *pOperator) {
+  SNode* pOpLeft = pOperator->pLeft;
+  SNode* pOpRight = pOperator->pRight;
 
-  if (pStartLeft == NULL || pStartRight == NULL || pEndLeft == NULL || pEndRight == NULL) {
+  if (pOpLeft == NULL || pOpRight == NULL) {
     return false;
   }
 
-  if (nodeType(pStartLeft) == QUERY_NODE_COLUMN && nodeType(pEndLeft) == QUERY_NODE_COLUMN) {
-    SColumnNode* pLeftCol = (SColumnNode*)pStartLeft;
-    SColumnNode* pRightCol = (SColumnNode*)pEndLeft;
-    if (pLeftCol->colType != COLUMN_TYPE_COLUMN || pLeftCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID ||
-        pRightCol->colType != COLUMN_TYPE_COLUMN || pRightCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+  if (nodeType(pOpLeft) == QUERY_NODE_COLUMN) {
+    SColumnNode* pTsCol = (SColumnNode*)pOpLeft;
+    if (pTsCol->colType != COLUMN_TYPE_COLUMN || pTsCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
       return false;
     }
   } else {
     return false;
   }
 
-  SConditionCheckContext startCxt = {.hasNotBasicOp = false,
-                                     .hasNegativeConst = false,
-                                     .hasOtherFunc = false,
-                                     .placeholderAtRight = false,
-                                     .placeholderType = 0};
+  SConditionCheckContext opCxt = {.hasNotBasicOp = false,
+                                  .hasNegativeConst = false,
+                                  .hasOtherFunc = false,
+                                  .placeholderAtRight = false,
+                                  .placeholderType = 0};
 
-  SConditionCheckContext endCxt = {.hasNotBasicOp = false,
-                                   .hasNegativeConst = false,
-                                   .hasOtherFunc = false,
-                                   .placeholderAtRight = false,
-                                   .placeholderType = 0};
-
-  nodesWalkExpr(pStartRight, conditionOnlyPhAndConstImpl, &startCxt);
-  nodesWalkExpr(pEndRight, conditionOnlyPhAndConstImpl, &endCxt);
-  if (startCxt.hasNotBasicOp || startCxt.hasNegativeConst || startCxt.hasOtherFunc || startCxt.placeholderAtRight ||
-    endCxt.hasNotBasicOp || endCxt.hasNegativeConst || endCxt.hasOtherFunc || endCxt.placeholderAtRight ||
-    !placeHolderCanMakeExternalWindow(startCxt.placeholderType, endCxt.placeholderType)) {
+  nodesWalkExpr(pOpRight, conditionOnlyPhAndConstImpl, &opCxt);
+  if (opCxt.hasNotBasicOp || opCxt.hasNegativeConst || opCxt.hasOtherFunc || opCxt.placeholderAtRight) {
     return false;
   }
   return true;
 }
 
+static bool logicConditionSatisfyExternalWindow(SLogicConditionNode *pLogicCond) {
+  if (pLogicCond->condType != LOGIC_COND_TYPE_AND || LIST_LENGTH(pLogicCond->pParameterList) == 0) {
+    return false;
+  }
+  SNode *pOperator = NULL;
+  FOREACH(pOperator, pLogicCond->pParameterList) {
+    if (nodeType(pOperator) != QUERY_NODE_OPERATOR) {
+      return false;
+    }
+    if (!filterHasPlaceHolderRange((SOperatorNode*)pOperator)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+
 static bool timeRangeSatisfyExternalWindow(STimeRangeNode* pTimeRange) {
-  if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd ||
-      nodeType(pTimeRange->pStart) != QUERY_NODE_OPERATOR ||
-      nodeType(pTimeRange->pEnd) != QUERY_NODE_OPERATOR) {
+  if (!pTimeRange || !pTimeRange->pStart || !pTimeRange->pEnd) {
     return false;
   }
 
-  SOperatorNode *pStart = (SOperatorNode *)(pTimeRange->pStart);
-  SOperatorNode *pEnd = (SOperatorNode *)(pTimeRange->pEnd);
+  if (nodeType(pTimeRange->pStart) == QUERY_NODE_OPERATOR) {
+    if (!filterHasPlaceHolderRange((SOperatorNode*)pTimeRange->pStart)) {
+      return false;
+    }
+  } else if (nodeType(pTimeRange->pStart) == QUERY_NODE_LOGIC_CONDITION) {
+    if (!logicConditionSatisfyExternalWindow((SLogicConditionNode*)pTimeRange->pStart)) {
+      return false;
+    }
+  } else {
+    return false;
+  }
 
-  return filterHasPlaceHolderRange(pStart, pEnd);
+  if (nodeType(pTimeRange->pEnd) == QUERY_NODE_OPERATOR) {
+    if (!filterHasPlaceHolderRange((SOperatorNode*)pTimeRange->pEnd)) {
+      return false;
+    }
+  } else if (nodeType(pTimeRange->pEnd) == QUERY_NODE_LOGIC_CONDITION) {
+    if (!logicConditionSatisfyExternalWindow((SLogicConditionNode*)pTimeRange->pEnd)) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  return true;
 }
 
 static int32_t conditionHasPlaceHolder(SNode* pNode, bool* pHasPlaceHolder) {
@@ -2239,7 +2263,7 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       !pCxt->pPlanCxt->streamCalcQuery ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
-      NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
+      NULL != pSelect->pSlimit || NULL != pSelect->pLimit || pSelect->hasInterpFunc ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
       !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
     pCxt->pPlanCxt->withExtWindow = false;
@@ -2731,7 +2755,7 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     code = createSelectRootLogicNode(pCxt, pSelect, createForecastFuncLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createSelectRootLogicNode(pCxt, pSelect, createImputationFuncLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createGenericAnalysisLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createDistinctLogicNode, &pRoot);

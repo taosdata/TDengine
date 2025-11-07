@@ -92,6 +92,7 @@ typedef struct {
   STsdb    *tsdb;
   int32_t   fid;
   ETsdbOpType type;
+  bool        force;
   SVATaskID taskid;
 } SCompactArg;
 
