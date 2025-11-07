@@ -9,10 +9,10 @@ class TestJoinMultitables:
     def test_join_multitables(self):
         """Join Test Multitables
 
-        1.Create supe table st0-stb with same schema but different tag numbers
-        2.Create child tables from supe tables with different tag values
+        1.Create super table st0-stb with same schema but different tag numbers
+        2.Create child tables from super tables with different tag values
         3.Insert data into child tables with same timestamps
-        4.Join tables on timestamps and tag columns from different supe tables 
+        4.Join tables on timestamps and tag columns from different super tables 
         5. Check the result of join correctly
 
         Catalog:
