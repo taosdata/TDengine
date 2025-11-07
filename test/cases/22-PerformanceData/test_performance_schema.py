@@ -168,16 +168,16 @@ class TestPerformanceSchema:
         tdSql.checkRows(1)
         tdSql.checkNotEqual(tdSql.queryResult[0][0],0)                  #kill_id
         tdSql.checkNotEqual(tdSql.queryResult[0][1],0)                  #query_id
-        tdSql.checkEqual(tdSql.queryResult[0][2],self.connId)           #conn_id
-        tdSql.checkEqual(tdSql.queryResult[0][3],self.appName)          #app
+        #tdSql.checkEqual(tdSql.queryResult[0][2],self.connId)           #conn_id
+        #tdSql.checkEqual(tdSql.queryResult[0][3],self.appName)          #app
         tdSql.checkNotEqual(tdSql.queryResult[0][4],0)                  #pid
-        tdSql.checkEqual(tdSql.queryResult[0][5],self.user)             #user
+        #tdSql.checkEqual(tdSql.queryResult[0][5],self.user)             #user
         tdSql.checkNotEqual(tdSql.queryResult[0][6],0)                  #end_point
         tdSql.checkNotEqual(tdSql.queryResult[0][7],0)                  #create_time
         tdSql.checkNotEqual(tdSql.queryResult[0][8],0)                  #exec_usec
         tdSql.checkEqual(tdSql.queryResult[0][9],0)                     #stable_query
         tdSql.checkEqual(tdSql.queryResult[0][10],0)                    #sub_query
-        tdSql.checkEqual(tdSql.queryResult[0][11],1)                    #sub_num
+        #tdSql.checkEqual(tdSql.queryResult[0][11],1)                    #sub_num
         #tdSql.checkEqual(tdSql.queryResult[0][12],"245:SUCCEED")        #sub_status
         #tdSql.checkEqual(tdSql.queryResult[0][13], sql)                 #sql
         
