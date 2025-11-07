@@ -6,17 +6,19 @@ toc_max_heading_level: 4
 
 ### IPv6
 
-#### 概述
-
-自 TDengine v3.3.7 版本起，全面支持 IPv6 网络环境。该功能允许用户在现代网络基础设施中部署和连接 TDengine，减少对 IPv4 的依赖，以满足日益增长的 IPv6 网络需求。
+TDengine 支持 IPv6 网络环境。该功能允许用户在现代网络基础设施中部署和连接 TDengine，减少对 IPv4 的依赖，以满足日益增长的 IPv6 网络需求。
 
 #### 支持范围
+
 - 支持版本：TDengine Server 和 Client 版本均需 ≥ 3.3.7.0
+
 - 支持组件：
+
   - taosd：TDengine 数据库服务端
   - taos：TDengine 命令行客户端 (CLI)
   - 各种连接器：如 JDBC, Go, Python, C#, Rust 等（需使用支持 IPv6 的版本）
- - 网络环境：纯 IPv6 环境或 IPv4/IPv6 双栈环境均支持
+
+- 网络环境：纯 IPv6 环境或 IPv4/IPv6 双栈环境均支持
 
 #### 服务端 (taosd) 配置
 
@@ -24,8 +26,8 @@ toc_max_heading_level: 4
 
 1. 定位配置文件：默认路径通常为 `/etc/taos/taos.cfg`
 2. 修改配置参数：找到并修改以下关键参数
-   
-```
+
+```bash
 // 设置 TDengine 服务端在指定网络接口上监听 IPv6 地址，值为该接口对应的 IPv6 地址，或 "::" 表示监听所有可用 IPv6 接口
 
 firstEp    ipv6_address1:port
@@ -37,11 +39,12 @@ enableIPv6 1
 
 3. 重启服务：修改配置后，需要重启 TDengine 服务以使配置生效
 
-```
+```bash
 sudo systemctl restart taosd
 ```
 
-**重要说明**
+重要说明
+
 - 强烈建议使用 FQDN（全限定域名）配置 firstEP 和 secondEP，而非直接使用 IP 地址。通过 DNS 解析可自动选 IPv6 地址，提升灵活性和兼容性。
 - 默认端口 6030 同样适用于 IPv6 连接。
 
@@ -51,13 +54,13 @@ sudo systemctl restart taosd
 
 1. 使用 FQDN：在客户端的 taos.cfg 或连接字符串中，使用服务端的域名。若该域名的 AAAA 记录指向正确的 IPv6 地址，客户端会自动通过 IPv6 建立连接。示例：
 
-```
+```bash
 taos -h your_server_fqdn -P 6030
 ```
 
 2. 直接使用 IPv6 地址：连接时需直接指定服务端的 IPv6 地址，且在命令行或连接字符串中必须用中括号包裹。示例：
 
-```
+```bash
 taos -h [2001:db8::1] -P 6030
 ```
 
@@ -70,11 +73,9 @@ taos -h [2001:db8::1] -P 6030
 - 双栈环境优先级：在同时支持 IPv4 和 IPv6 的双栈主机上，需显式配置 FQDN 对应 IPv6 地址，以优先使用 IPv6 连接。
 - 连接器版本：确保所有 TDengine 客户端连接器（如 JDBC、Go、Python 等）为 3.3.7.0 或更高版本，以完全兼容 IPv6。
 
-### TLS 
+### TLS
 
-#### 概述
-
-自 TDengine v3.3.8 版本起, 传输层支持加密通信，可保障数据在网络传输过程中的安全性。
+TDengine 的传输层支持加密通信，保障数据在网络传输过程中的安全性。
 
 #### 参数说明
 
@@ -85,11 +86,11 @@ taos -h [2001:db8::1] -P 6030
 5. `tlsCliKeyPath`：客户端私钥路径，客户端和服务端均需配置（服务端用于集群间通信，含单节点），不可动态调整。
 6. `enableTLS`：客户端和服务端均需配置的开关参数。启用 TLS 前，必须先配置所有必需的证书路径参数；若配置错误或不完整，服务将无法启动。
 
-#### 查看参数 
+#### 查看参数
 
 通过以下命令可查看集群中各节点的 TLS 相关配置：
 
-```
+```sql
 SHOW VARIABLES LIKE '%tls%'; 
 ```
 
@@ -125,7 +126,7 @@ openssl req -new -key client.key -out client.csr -subj "/CN=Client"
 openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365
 ```
 
-2. 客户端配置（taos.cfg）：
+2. 客户端配置（taos.cfg）
 
 ```bash
 tlsCliKeyPath  /path/client.key
@@ -134,9 +135,9 @@ tlsCaPath      /path/ca.crt
 enableTLS      1 
 ```
 
-3. 服务端配置（taos.cfg）：
+3. 服务端配置（taos.cfg）
 
-```  
+```bash
 tlsCliKeyPath  /path/client.key
 tlsCliCertPath /path/client.crt
 tlsSvrKeyPath  /path/server.key
@@ -145,7 +146,7 @@ tlsCaPath      /path/ca.crt
 enableTLS      1
 ```
 
-4. 启动服务端后，使用客户端访问即可。
+4. 启动服务端后，使用客户端访问即可
 
 #### 性能说明
 
