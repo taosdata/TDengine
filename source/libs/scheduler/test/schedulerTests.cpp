@@ -1591,7 +1591,6 @@ TEST(otherTest, branch) {
   task.plan = &subplan;
   schInitTaskRetryInfo(&job, &task, &level);
   
-  job.attr.type = JOB_TYPE_INSERT;
   memset(&schMgmt.cfg, 0, sizeof(schMgmt.cfg));
   memset(&level, 0, sizeof(level));
 
