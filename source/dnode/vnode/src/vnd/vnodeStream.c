@@ -2101,7 +2101,6 @@ static int32_t vnodeProcessStreamSetTableReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
 
   STREAM_CHECK_RET_GOTO(qBuildVTableList(sStreamReaderInfo->uidHashTrigger, sStreamReaderInfo));
   sStreamReaderInfo->isVtableStream = true;
-  sStreamReaderInfo->groupByTbname  = true;
 end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {

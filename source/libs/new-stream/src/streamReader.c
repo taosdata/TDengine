@@ -175,7 +175,6 @@ static uint64_t qStreamGetGroupId(StreamTableListInfo* tmp, int64_t uid){
 }
 
 uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid){
-  if (sStreamReaderInfo->tableType != TSDB_SUPER_TABLE) return uid;
   StreamTableListInfo* tmp = &sStreamReaderInfo->tableList;
   (void)taosThreadRwlockRdlock(&sStreamReaderInfo->lock);
   uint64_t groupId = qStreamGetGroupId(tmp, uid);
@@ -184,7 +183,6 @@ uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo
 }
 
 uint64_t qStreamGetGroupIdFromSet(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid){
-  if (sStreamReaderInfo->tableType != TSDB_SUPER_TABLE) return uid;
   StreamTableListInfo* tmp = sStreamReaderInfo->isVtableStream ? &sStreamReaderInfo->vSetTableList : &sStreamReaderInfo->tableList;
   (void)taosThreadRwlockRdlock(&sStreamReaderInfo->lock);
   uint64_t groupId = qStreamGetGroupId(tmp, uid);
