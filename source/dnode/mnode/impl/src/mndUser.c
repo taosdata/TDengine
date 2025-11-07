@@ -1714,19 +1714,21 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &pUser->allowTokenNum, _OVER);
     SDB_GET_INT32(pRaw, dataPos, &pUser->numTimeRanges, _OVER);
     
-    pUser->pTimeRanges = (SDateTimeRange *)taosMemoryCalloc(pUser->numTimeRanges, sizeof(SDateTimeRange));
-    if (pUser->pTimeRanges == NULL) {
-      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-    }
+    if (pUser->numTimeRanges > 0) {
+      pUser->pTimeRanges = (SDateTimeRange *)taosMemoryCalloc(pUser->numTimeRanges, sizeof(SDateTimeRange));
+      if (pUser->pTimeRanges == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
 
-    for (int32_t i = 0; i < pUser->numTimeRanges; i++) {
-      SDateTimeRange *range = pUser->pTimeRanges + i;
-      SDB_GET_INT16(pRaw, dataPos, &range->year, _OVER);
-      SDB_GET_INT8(pRaw, dataPos, &range->month, _OVER);
-      SDB_GET_INT8(pRaw, dataPos, &range->day, _OVER);
-      SDB_GET_INT8(pRaw, dataPos, &range->hour, _OVER);
-      SDB_GET_INT8(pRaw, dataPos, &range->minute, _OVER);
-      SDB_GET_INT32(pRaw, dataPos, &range->duration, _OVER);
+      for (int32_t i = 0; i < pUser->numTimeRanges; i++) {
+        SDateTimeRange *range = pUser->pTimeRanges + i;
+        SDB_GET_INT16(pRaw, dataPos, &range->year, _OVER);
+        SDB_GET_INT8(pRaw, dataPos, &range->month, _OVER);
+        SDB_GET_INT8(pRaw, dataPos, &range->day, _OVER);
+        SDB_GET_INT8(pRaw, dataPos, &range->hour, _OVER);
+        SDB_GET_INT8(pRaw, dataPos, &range->minute, _OVER);
+        SDB_GET_INT32(pRaw, dataPos, &range->duration, _OVER);
+      }
     }
   }
 
@@ -1848,6 +1850,8 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
+
+  pNew->pTimeRanges = NULL;
   if (pUser->numTimeRanges > 0) {
     pNew->pTimeRanges = taosMemoryCalloc(pUser->numTimeRanges, sizeof(SDateTimeRange));
     if (pNew->pTimeRanges == NULL) {
@@ -2729,7 +2733,6 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   SUserObj     *pOperUser = NULL;
   SUserObj      newUser = {0};
   SAlterUserReq alterReq = {0};
-#if 0
   TAOS_CHECK_GOTO(tDeserializeSAlterUserReq(pReq->pCont, pReq->contLen, &alterReq), &lino, _OVER);
 
   mInfo("user:%s, start to alter", alterReq.user);
@@ -2737,6 +2740,133 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, alterReq.user, &pUser), &lino, _OVER);
+
+  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
+  }
+
+  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
+
+  if (alterReq.hasPassword) {
+   // if (alterReq.passIsMd5 == 1) {
+      (void)memcpy(newUser.pass, alterReq.pass, TSDB_PASSWORD_LEN);
+   // } else {
+   //   taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
+   // }
+
+    TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorithm), &lino, _OVER);
+
+    if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
+      ++newUser.passVersion;
+    }
+  }
+
+  if (alterReq.hasTotpseed) {
+    // TODO: totp seed to secret
+  }
+
+  if (alterReq.hasEnable) {
+    newUser.enable = alterReq.enable;
+  }
+
+  if (alterReq.hasSysinfo) {
+    newUser.sysInfo = alterReq.sysinfo;
+  }
+
+  if (alterReq.hasCreatedb) {
+    newUser.createdb = alterReq.createdb;
+  }
+
+  if (alterReq.hasChangepass) {
+    newUser.changePass = alterReq.changepass;
+  }
+
+
+  if (alterReq.hasSessionPerUser) {
+    newUser.sessionPerUser = alterReq.sessionPerUser;
+  }
+
+  if (alterReq.hasConnectTime) {
+    newUser.connectTime = alterReq.connectTime;
+  }
+
+  if (alterReq.hasConnectIdleTime) {
+    newUser.connectIdleTime = alterReq.connectIdleTime;
+  }
+
+  if (alterReq.hasCallPerSession) {
+    newUser.callPerSession = alterReq.callPerSession;
+  }
+
+  if (alterReq.hasVnodePerCall) {
+    newUser.vnodePerCall = alterReq.vnodePerCall;
+  }
+
+  if (alterReq.hasFailedLoginAttempts) {
+    newUser.failedLoginAttempts = alterReq.failedLoginAttempts;
+  }
+
+  if (alterReq.hasPasswordLifeTime) {
+    newUser.passwordLifeTime = alterReq.passwordLifeTime;
+  }
+
+  if (alterReq.hasPasswordReuseTime) {
+    newUser.passwordReuseTime = alterReq.passwordReuseTime;
+  }
+
+  if (alterReq.hasPasswordReuseMax) {
+    newUser.passwordReuseMax = alterReq.passwordReuseMax;
+  }
+
+  if (alterReq.hasPasswordLockTime) {
+    newUser.passwordLockTime = alterReq.passwordLockTime;
+  }
+
+  if (alterReq.hasPasswordGraceTime) {
+    newUser.passwordGraceTime = alterReq.passwordGraceTime;
+  }
+
+  if (alterReq.hasInactiveAccountTime) {
+    newUser.inactiveAccountTime = alterReq.inactiveAccountTime;
+  }
+
+  if (alterReq.hasAllowTokenNum) {
+    newUser.allowTokenNum = alterReq.allowTokenNum;
+  }
+
+  /*
+  if (alterReq.numIpRanges > 0) {
+    if (newUser.numIpRanges > 0 && newUser.negIpRanges != alterReq.negIpRanges) {
+    }
+  }
+
+  if (alterReq.numDropIpRanges > 0) {
+    if (newUser.numIpRanges > 0 && newUser.negIpRanges != alterReq.negDropIpRanges) {
+    }
+  }
+    */
+
+  if (alterReq.numTimeRanges > 0) {
+    if (newUser.numTimeRanges > 0 && newUser.negTimeRanges != alterReq.negTimeRanges) {
+    }
+  }
+
+  if (alterReq.numDropTimeRanges > 0) {
+    if (newUser.numTimeRanges > 0 && newUser.negTimeRanges != alterReq.negDropTimeRanges) {
+    }
+  }
+
+  if (ALTER_USER_ADD_PRIVS(alterReq.alterType) || ALTER_USER_DEL_PRIVS(alterReq.alterType)) {
+    TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);
+  }
+
+  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+#if 0
   if (alterReq.passIsMd5 == 0) {
     if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
       int32_t len = strlen(alterReq.pass);
@@ -2947,6 +3077,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     }
   }
 
+#endif
+
 _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to alter at line %d since %s", alterReq.user, lino, tstrerror(code));
@@ -2956,7 +3088,6 @@ _OVER:
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
   mndUserFreeObj(&newUser);
-#endif
   TAOS_RETURN(code);
 }
 

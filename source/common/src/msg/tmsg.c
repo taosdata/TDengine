@@ -2635,6 +2635,7 @@ int32_t tEncodeSDateTimeRange(SEncoder* pEncoder, const SDateTimeRange* pRange) 
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRange->hour));
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRange->minute));
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRange->duration));
+  return 0;
 }
 
 int32_t tDecodeSDateTimeRange(SDecoder* pDecoder, SDateTimeRange* pRange) {
@@ -2644,6 +2645,7 @@ int32_t tDecodeSDateTimeRange(SDecoder* pDecoder, SDateTimeRange* pRange) {
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRange->hour));
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRange->minute));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRange->duration));
+  return 0;
 }
 
 int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq) {
@@ -3277,12 +3279,129 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->alterType));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->superUser));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->sysInfo));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->enable));
+
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isView));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasPassword));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasTotpseed));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasEnable));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasSysinfo));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasCreatedb));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasChangepass));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasSessionPerUser));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasConnectTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasConnectIdleTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasCallPerSession));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasVnodePerCall));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasFailedLoginAttempts));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasPasswordLifeTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasPasswordReuseTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasPasswordReuseMax));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasPasswordLockTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasPasswordGraceTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasInactiveAccountTime));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasAllowTokenNum));
+
+  if (pReq->hasEnable) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->enable));
+  }
+  if (pReq->hasSysinfo) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->sysinfo));
+  }
+  if (pReq->hasCreatedb) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->createdb));
+  }
+  if (pReq->hasChangepass) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->changepass));
+  }
+
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pass));
+  if (pReq->hasPassword) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pass));
+  }
+  if (pReq->hasTotpseed) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->totpseed));
+  }
+
+  if (pReq->hasSessionPerUser) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sessionPerUser));
+  }
+  if (pReq->hasConnectTime) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->connectTime));
+  }
+  if (pReq->hasConnectIdleTime) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->connectIdleTime));
+  }
+  if (pReq->hasCallPerSession) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->callPerSession));
+  }
+  if (pReq->hasVnodePerCall) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vnodePerCall));
+  }
+  if (pReq->hasFailedLoginAttempts) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->failedLoginAttempts));
+  }
+  if (pReq->hasPasswordLifeTime) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordLifeTime));
+  }
+  if (pReq->hasPasswordReuseTime) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordReuseTime));
+  }
+  if (pReq->hasPasswordReuseMax) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordReuseMax));
+  }
+  if (pReq->hasPasswordLockTime) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordLockTime));
+  }
+  if (pReq->hasPasswordGraceTime) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passwordGraceTime));
+  }
+  if (pReq->hasInactiveAccountTime) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->inactiveAccountTime));
+  }
+  if (pReq->hasAllowTokenNum) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->allowTokenNum));
+  }
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numIpRanges));
+  if (pReq->numIpRanges > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negIpRanges));
+    for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
+      SIpRange *pRange = pReq->pIpRanges + i;
+      code = tSerializeIpRange(&encoder, pRange);
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numDropIpRanges));
+  if (pReq->numDropIpRanges > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negDropIpRanges));
+    for (int32_t i = 0; i < pReq->numDropIpRanges; ++i) {
+      SIpRange *pRange = pReq->pDropIpRanges + i;
+      code = tSerializeIpRange(&encoder, pRange);
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numTimeRanges));
+  if (pReq->numTimeRanges > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negTimeRanges));
+    for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
+      SDateTimeRange *pRange = pReq->pTimeRanges + i;
+      code = tEncodeSDateTimeRange(&encoder, pRange);
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numDropTimeRanges));
+  if (pReq->numDropTimeRanges > 0) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negDropTimeRanges));
+    for (int32_t i = 0; i < pReq->numDropTimeRanges; ++i) {
+      SDateTimeRange *pRange = pReq->pDropTimeRanges + i;
+      code = tEncodeSDateTimeRange(&encoder, pRange);
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objname));
   int32_t len = strlen(pReq->tabName);
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, len));
@@ -3290,21 +3409,9 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tabName));
   }
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->tagCond, pReq->tagCondLen));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numIpRanges));
-  for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
-    TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->pIpRanges[i].ip));
-    TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->pIpRanges[i].mask));
-  }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->privileges));
   ENCODESQL();
-  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->flag));
-  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->passIsMd5));
 
-  for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
-    SIpRange *pRange = &pReq->pIpDualRanges[i];
-    code = tSerializeIpRange(&encoder, pRange);
-    TAOS_CHECK_EXIT(code);
-  }
   tEndEncode(&encoder);
 
 _exit:
@@ -3325,52 +3432,159 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->alterType));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->superUser));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->sysInfo));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->enable));
+
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isView));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pass));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->objname));
-  if (!tDecodeIsEnd(&decoder)) {
-    int32_t len = 0;
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &len));
-    if (len > 0) {
-      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tabName));
-    }
-    uint64_t tagCondLen = 0;
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->tagCond, &tagCondLen));
-    pReq->tagCondLen = tagCondLen;
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasPassword));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasTotpseed));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasEnable));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasSysinfo));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasCreatedb));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasChangepass));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasSessionPerUser));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasConnectTime));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasConnectIdleTime));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasCallPerSession));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasVnodePerCall));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasFailedLoginAttempts));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasPasswordLifeTime));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasPasswordReuseTime));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasPasswordReuseMax));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasPasswordLockTime));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasPasswordGraceTime));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasInactiveAccountTime));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasAllowTokenNum));
+
+  if (pReq->hasEnable) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->enable));
   }
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numIpRanges));
-  pReq->pIpRanges = taosMemoryMalloc(pReq->numIpRanges * sizeof(SIpV4Range));
-  if (pReq->pIpRanges == NULL) {
-    TAOS_CHECK_EXIT(terrno);
+  if (pReq->hasSysinfo) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->sysinfo));
   }
-  for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
-    TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pReq->pIpRanges[i].ip)));
-    TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pReq->pIpRanges[i].mask)));
+  if (pReq->hasCreatedb) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createdb));
   }
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->privileges));
-  DECODESQL();
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->flag));
-  }
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->passIsMd5));
+  if (pReq->hasChangepass) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->changepass));
   }
 
-  if (!tDecodeIsEnd(&decoder)) {
-    pReq->pIpDualRanges = taosMemoryMalloc(pReq->numIpRanges * sizeof(SIpRange));
-    if (pReq->pIpDualRanges == NULL) {
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+  if (pReq->hasPassword) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pass));
+  }
+  if (pReq->hasTotpseed) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->totpseed));
+  }
+
+  if (pReq->hasSessionPerUser) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sessionPerUser));
+  }
+  if (pReq->hasConnectTime) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->connectTime));
+  }
+  if (pReq->hasConnectIdleTime) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->connectIdleTime));
+  }
+  if (pReq->hasCallPerSession) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->callPerSession));
+  }
+  if (pReq->hasVnodePerCall) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vnodePerCall));
+  }
+  if (pReq->hasFailedLoginAttempts) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->failedLoginAttempts));
+  }
+  if (pReq->hasPasswordLifeTime) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordLifeTime));
+  }
+  if (pReq->hasPasswordReuseTime) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordReuseTime));
+  }
+  if (pReq->hasPasswordReuseMax) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordReuseMax));
+  }
+  if (pReq->hasPasswordLockTime) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordLockTime));
+  }
+  if (pReq->hasPasswordGraceTime) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passwordGraceTime));
+  }
+  if (pReq->hasInactiveAccountTime) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->inactiveAccountTime));
+  }
+  if (pReq->hasAllowTokenNum) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->allowTokenNum));
+  }
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numIpRanges));
+  if (pReq->numIpRanges > 0) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negIpRanges));
+    pReq->pIpRanges = taosMemoryMalloc(pReq->numIpRanges * sizeof(SIpRange));
+    if (pReq->pIpRanges == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
     for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
-      SIpRange *pRange = &pReq->pIpDualRanges[i];
+      SIpRange *pRange = pReq->pIpRanges + i;
       code = tDeserializeIpRange(&decoder, pRange);
       TAOS_CHECK_EXIT(code);
     }
   }
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numDropIpRanges));
+  if (pReq->numDropIpRanges > 0) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negDropIpRanges));
+    pReq->pDropIpRanges = taosMemoryMalloc(pReq->numDropIpRanges * sizeof(SIpRange));
+    if (pReq->pDropIpRanges == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < pReq->numDropIpRanges; ++i) {
+      SIpRange *pRange = pReq->pDropIpRanges + i;
+      code = tDeserializeIpRange(&decoder, pRange);
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numTimeRanges));
+  if (pReq->numTimeRanges > 0) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negTimeRanges));
+    pReq->pTimeRanges = taosMemoryMalloc(pReq->numTimeRanges * sizeof(SDateTimeRange));
+    if (pReq->pTimeRanges == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
+      SDateTimeRange *pRange = pReq->pTimeRanges + i;
+      code = tDecodeSDateTimeRange(&decoder, pRange);
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numDropTimeRanges));
+  if (pReq->numDropTimeRanges > 0) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negDropTimeRanges));
+    pReq->pDropTimeRanges = taosMemoryMalloc(pReq->numDropTimeRanges * sizeof(SDateTimeRange));
+    if (pReq->pDropTimeRanges == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < pReq->numDropTimeRanges; ++i) {
+      SDateTimeRange *pRange = pReq->pDropTimeRanges + i;
+      code = tDecodeSDateTimeRange(&decoder, pRange);
+      TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->objname));
+
+  int32_t len = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &len));
+  if (len > 0) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tabName));
+  }
+
+  uint64_t tagCondLen = 0;
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->tagCond, &tagCondLen));
+  pReq->tagCondLen = tagCondLen;
+
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->privileges));
+  DECODESQL();
 
   tEndDecode(&decoder);
 
@@ -3382,7 +3596,9 @@ _exit:
 void tFreeSAlterUserReq(SAlterUserReq *pReq) {
   taosMemoryFreeClear(pReq->tagCond);
   taosMemoryFree(pReq->pIpRanges);
-  taosMemoryFree(pReq->pIpDualRanges);
+  taosMemoryFree(pReq->pTimeRanges);
+  taosMemoryFree(pReq->pDropIpRanges);
+  taosMemoryFree(pReq->pDropTimeRanges);
   FREESQL();
 }
 
