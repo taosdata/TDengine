@@ -376,7 +376,7 @@ typedef enum ENodeType {
   QUERY_NODE_ASSIGN_LEADER_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_VTABLE_STMT,
-  QUERY_NODE_SET_VNODE_KEEP_VERSION_STMT,
+  QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -1716,10 +1716,10 @@ int32_t tDeserializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq
 typedef struct {
   int32_t vgId;
   int64_t keepVersion;
-} SMndSetVnodeKeepVersionReq;
+} SMndSetVgroupKeepVersionReq;
 
-int32_t tSerializeSMndSetVnodeKeepVersionReq(void* buf, int32_t bufLen, SMndSetVnodeKeepVersionReq* pReq);
-int32_t tDeserializeSMndSetVnodeKeepVersionReq(void* buf, int32_t bufLen, SMndSetVnodeKeepVersionReq* pReq);
+int32_t tSerializeSMndSetVgroupKeepVersionReq(void* buf, int32_t bufLen, SMndSetVgroupKeepVersionReq* pReq);
+int32_t tDeserializeSMndSetVgroupKeepVersionReq(void* buf, int32_t bufLen, SMndSetVgroupKeepVersionReq* pReq);
 
 typedef struct {
   int32_t timestampSec;

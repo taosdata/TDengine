@@ -46,7 +46,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
-static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq);
+static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -79,7 +79,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessVgroupBalanceLeaderMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessBalanceVgroupMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP_LEADER, mndProcessVgroupBalanceLeaderMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_SET_VNODE_KEEP_VERSION, mndProcessSetVnodeKeepVersionReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SET_VGROUP_KEEP_VERSION, mndProcessSetVgroupKeepVersionReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -3876,19 +3876,19 @@ int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
   return 0;
 }
 
-static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
+static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   int32_t code = TSDB_CODE_SUCCESS;
   STrans *pTrans = NULL;
   SVgObj *pVgroup = NULL;
 
-  SMndSetVnodeKeepVersionReq req = {0};
-  if (tDeserializeSMndSetVnodeKeepVersionReq(pReq->pCont, pReq->contLen, &req) != 0) {
+  SMndSetVgroupKeepVersionReq req = {0};
+  if (tDeserializeSMndSetVgroupKeepVersionReq(pReq->pCont, pReq->contLen, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  mInfo("start to set vnode keep version, vgId:%d, keepVersion:%" PRId64, req.vgId, req.keepVersion);
+  mInfo("start to set vgroup keep version, vgId:%d, keepVersion:%" PRId64, req.vgId, req.keepVersion);
 
   // Check permission
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB)) != 0) {
@@ -3904,7 +3904,7 @@ static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
   }
 
   // Create transaction
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "set-vnode-keep-version");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "set-vgroup-keep-version");
   if (pTrans == NULL) {
     code = terrno != 0 ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL;
     mndReleaseVgroup(pMnode, pVgroup);
@@ -3912,7 +3912,7 @@ static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
   }
 
   mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to set vnode keep version, vgId:%d keepVersion:%" PRId64, pTrans->id, req.vgId,
+  mInfo("trans:%d, used to set vgroup keep version, vgId:%d keepVersion:%" PRId64, pTrans->id, req.vgId,
         req.keepVersion);
 
   // Update SVgObj's keepVersion in mnode
