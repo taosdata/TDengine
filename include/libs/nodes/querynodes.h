@@ -482,11 +482,7 @@ typedef struct SSlidingWindowNode {
 
 typedef struct SExternalWindowNode {
   ENodeType   type;       // QUERY_NODE_EXTERNAL_WINDOW
-  SNodeList*  pProjectionList;
-  SNodeList*  pAggFuncList;
-  STimeWindow timeRange;
-  SNode*      pTimeRange;
-  void*       timezone;
+  SNode*      pCol;  // timestamp primary key
 } SExternalWindowNode;
 
 typedef struct SStreamTriggerOptions {
@@ -650,6 +646,7 @@ typedef struct SSelectStmt {
   SNode*          pWhere;
   SNodeList*      pPartitionByList;
   SNode*          pWindow;
+  SNode*          pExtWindow;
   SNodeList*      pGroupByList;  // SGroupingSetNode
   SNode*          pHaving;
   SNode*          pRange;
@@ -723,6 +720,7 @@ typedef enum ESqlClause {
   SQL_CLAUSE_FROM = 1,
   SQL_CLAUSE_WHERE,
   SQL_CLAUSE_PARTITION_BY,
+  SQL_CLAUSE_EXT_WINDOW,
   SQL_CLAUSE_WINDOW,
   SQL_CLAUSE_FILL,
   SQL_CLAUSE_GROUP_BY,

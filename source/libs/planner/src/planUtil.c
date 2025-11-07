@@ -34,6 +34,8 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "Planner invalid table type";
     case TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE:
       return "Planner invalid query control plan type";
+    case TSDB_CODE_PLAN_INVALID_WINDOW_TYPE:
+      return "Planner invalid window type";
     default:
       break;
   }
