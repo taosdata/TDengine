@@ -60,6 +60,11 @@ typedef struct SSTriggerAHandle {
   void*   param;
 } SSTriggerAHandle;
 
+typedef enum sinkHandleInitState {
+  SINK_HANDLE_UNINITIALIZED = 0,
+  SINK_HANDLE_INITIALIZING = 1,
+  SINK_HANDLE_INITIALIZED = 2
+} sinkHandleInitState;
 
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
@@ -70,6 +75,7 @@ typedef struct SStreamRunnerTaskExecution {
   char               tbname[TSDB_TABLE_NAME_LEN];
   void              *pSinkHandle;
   SSDataBlock       *pOutBlock;
+  int32_t            sinkHandleInited;  // 0: Uninitialized, 1: initializing, 2: initialized
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {

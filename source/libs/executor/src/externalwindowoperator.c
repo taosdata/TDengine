@@ -1116,6 +1116,7 @@ _error:
   return code;
 }
 
+static void extWinResetResultRows(SExtWinResultRows* pRows);
 static int32_t resetExternalWindowExprSupp(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo,
                                            SExternalWindowPhysiNode* pPhynode) {
   int32_t    code = 0, lino = 0, num = 0;
@@ -1133,6 +1134,8 @@ static int32_t resetExternalWindowExprSupp(SExternalWindowOperator* pExtW, SExec
   QUERY_CHECK_CODE(code, lino, _error);
   code = initExprSupp(&pExtW->scalarSupp, pExprInfo, num, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
+  pExtW->lastGrpId = UINT64_MAX;
+  extWinResetResultRows(&pExtW->resultRows);
   return code;
 _error:
   if (code != TSDB_CODE_SUCCESS) {
