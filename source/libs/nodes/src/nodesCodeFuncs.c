@@ -3486,6 +3486,7 @@ static const char* jkExternalPhysiPlanIsSingleTable = "IsSingleTable";
 static const char* jkExternalPhysiPlanInputHasOrder = "InputHasOrder";
 static const char* jkExternalPhysiPlanOrgTableUid = "OrgTableUid";
 static const char* jkExternalPhysiPlanOrgTableVgId = "OrgTableVgId";
+static const char* jkExternalPhysiPlanGenNewGroup = "GenNewGroup";
 
 static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3512,7 +3513,9 @@ static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkExternalPhysiPlanOrgTableVgId, pNode->orgTableVgId);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanGenNewGroup, pNode->genNewGroup);
+  }
   return code;
 }
 
@@ -3540,6 +3543,9 @@ static int32_t jsonToPhysiExternalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkExternalPhysiPlanOrgTableVgId, &pNode->orgTableVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanGenNewGroup, &pNode->genNewGroup);
   }
 
   return code;

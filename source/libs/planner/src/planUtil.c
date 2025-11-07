@@ -633,7 +633,15 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return (pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  if ((pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)))) {
+    return true;
+  }
+  if (nodeType((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_WINDOW &&
+      ((SWindowLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0))->winType == WINDOW_TYPE_EXTERNAL &&
+      isPartTableWinodw((SWindowLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0))) {
+    return true;
+  }
+  return false;
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {

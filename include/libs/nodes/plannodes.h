@@ -383,6 +383,7 @@ typedef struct SWindowLogicNode {
   SNodeList*            pProjs;        // for external window
   bool                  isSingleTable; // for external window
   bool                  inputHasOrder; // for external window, whether input data is ordered
+  bool                  genNewGroup;  // for external window, whether to generate new group id
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
 
@@ -856,6 +857,7 @@ typedef struct SExternalWindowPhysiNode {
   SNode*           pTimeRange;
   bool             isSingleTable;
   bool             inputHasOrder;
+  bool             genNewGroup;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
 } SExternalWindowPhysiNode;

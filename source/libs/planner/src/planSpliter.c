@@ -304,6 +304,10 @@ static bool stbSplHasMultiTbScan(SLogicNode* pNode) {
       return ((SScanLogicNode*)pChild)->needSplit;
     }
   }
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pChild) &&
+      ((SWindowLogicNode*)pChild)->winType == WINDOW_TYPE_EXTERNAL) {
+    return stbSplHasMultiTbScan((SLogicNode*)pChild);
+  }
   return false;
 }
 
