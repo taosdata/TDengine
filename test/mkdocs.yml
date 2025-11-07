@@ -90,7 +90,12 @@ nav:
         - 14-Tags: case_list_docs/DataQuerying/Tags.md
         - 15-Explain: case_list_docs/DataQuerying/Explain.md
         - 17-BiMode: case_list_docs/DataQuerying/BiMode.md
-    - 10-Operators: case_list_docs/Operators.md
+    - 10-Operators:
+        - 01-Arithmetic: case_list_docs/Operators/Arithmetic.md
+        - 03-Json: case_list_docs/Operators/Json.md
+        - 04-Set: case_list_docs/Operators/Set.md
+        - 05-Comparison: case_list_docs/Operators/Comparison.md
+        - 06-Logical: case_list_docs/Operators/Logical.md
     - 11-Functions:
         - 01-Scalar: case_list_docs/Functions/Scalar.md
         - 02-Aggregate: case_list_docs/Functions/Aggregate.md
