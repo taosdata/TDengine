@@ -1467,10 +1467,10 @@ int32_t schUpdateCurrentEpset(SSchTask *pTask, SSchJob *pJob) {
 }
 
 int32_t schFailedTaskNeedRetry(SSchTask *pTask, SSchJob *pJob, int32_t rspCode) {
-  double el = (taosGetTimestampMs() - pTask->redirectCtx.startTs) / 1000.0;
+  double el = (pTask->redirectCtx.startTs > 0) ? (taosGetTimestampMs() - pTask->redirectCtx.startTs) / 1000.0 : 0.0;
 
   // check if the failed task may cause the query job to quit retrying
-  if ((pTask->retryTimes + 1) > pTask->maxRetryTimes) {
+  if (pTask->retryTimes >= pTask->maxRetryTimes) {
     pJob->noMoreRetry = true;
     SCH_TASK_DLOG("task no more retry since reach max retry times, retryTimes:%d/%d, elapsedTime:%.2fs",
                   pTask->retryTimes, pTask->maxRetryTimes, el);
