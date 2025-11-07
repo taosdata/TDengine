@@ -974,13 +974,13 @@ typedef struct SSTriggerCalcRequest {
   int8_t  stbPartByTbname;  // trigger table is s-table and partitioned by tbname
 
   // The following fields are used for single group calculation
-  int64_t gid;
+  int64_t gid;           // valid when isMultiGroupCalc is false
   SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
   int8_t  createTable;
 
   // The following fields are used for multi-group calculation
-  SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>
+  SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>, valid when isMultiGroupCalc is true
   SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
 
   // The following fields are not serialized and only used by the runner task

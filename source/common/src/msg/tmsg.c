@@ -12478,6 +12478,7 @@ int tEncodeSVCreateTbRsp(SEncoder *pCoder, const SVCreateTbRsp *pRsp) {
   if (pRsp->pMeta) {
     TAOS_CHECK_RETURN(tEncodeSTableMetaRsp(pCoder, pRsp->pMeta));
   }
+  TAOS_CHECK_RETURN(tEncodeI32(pCoder, pRsp->index));
 
   tEndEncode(pCoder);
   return 0;
@@ -12499,6 +12500,7 @@ int tDecodeSVCreateTbRsp(SDecoder *pCoder, SVCreateTbRsp *pRsp) {
   } else {
     pRsp->pMeta = NULL;
   }
+  TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pRsp->index));
 
   tEndDecode(pCoder);
   return 0;

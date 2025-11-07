@@ -3893,6 +3893,7 @@ void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq* pReq);
 
 typedef struct {
   int32_t        code;
+  int32_t        index;  // index in batch req, start from 0
   STableMetaRsp* pMeta;
 } SVCreateTbRsp, SVUpdateTbRsp;
 

@@ -770,6 +770,7 @@ _error:
   return code;
 }
 
+static void extWinResetResultRows(SExtWinResultRows* pRows);
 static int32_t resetExternalWindowExprSupp(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo,
                                            SExternalWindowPhysiNode* pPhynode) {
   int32_t    code = 0, lino = 0, num = 0;
@@ -787,6 +788,8 @@ static int32_t resetExternalWindowExprSupp(SExternalWindowOperator* pExtW, SExec
   QUERY_CHECK_CODE(code, lino, _error);
   code = initExprSupp(&pExtW->scalarSupp, pExprInfo, num, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
+  pExtW->lastGrpId = UINT64_MAX;
+  extWinResetResultRows(&pExtW->resultRows);
   return code;
 _error:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2299,7 +2302,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
 
     printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
-    qInfo("%s ext window mode:%d grp:%" PRIu64 " got %" PRId64 " rows from downstream", 
+    qDebug("%s ext window mode:%d grp:%" PRIu64 " got %" PRId64 " rows from downstream", 
         GET_TASKID(pTaskInfo), pExtW->mode, pBlock->info.id.groupId, pBlock->info.rows);
     
     switch (pExtW->mode) {
@@ -2379,7 +2382,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   }
 
   if (*ppRes && (*ppRes)->info.rows > 0) {
-    qInfo("%s ext window return block with %" PRId64 " rows", GET_TASKID(pTaskInfo), (*ppRes)->info.rows);
+    qDebug("%s ext window return block with %" PRId64 " rows", GET_TASKID(pTaskInfo), (*ppRes)->info.rows);
         
     pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
   }
