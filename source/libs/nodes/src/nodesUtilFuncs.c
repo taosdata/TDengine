@@ -1652,8 +1652,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_ALTER_USER_STMT: {
       SAlterUserStmt* pStmt = (SAlterUserStmt*)pNode;
-      taosMemoryFree(pStmt->pIpRanges);
-      nodesDestroyList(pStmt->pNodeListIpRanges);
+      nodesDestroyNode((SNode*)pStmt->pUserOptions);
     }
     case QUERY_NODE_DROP_USER_STMT:     // no pointer field
     case QUERY_NODE_USE_DATABASE_STMT:  // no pointer field
