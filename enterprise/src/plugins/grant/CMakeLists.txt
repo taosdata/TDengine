@@ -28,6 +28,21 @@ INCLUDE_DIRECTORIES(inc)
 LIST(APPEND LIB_SRC ./src/grantMain.c)
 LIST(APPEND LIB_SRC ./src/mndGrant.c)
 
+# AUTH_SERVER 编译选项：控制是否编译授权服务器功能
+# Windows 平台自动禁用授权服务器功能（由于线程模型和网络接口差异）
+IF(TD_WINDOWS)
+  MESSAGE(STATUS "AUTH_SERVER disabled on Windows platform")
+ELSEIF(DEFINED AUTH_SERVER AND AUTH_SERVER)
+  ADD_DEFINITIONS(-DAUTH_SERVER=1)
+  LIST(APPEND LIB_SRC ./src/authServer.c)
+  LIST(APPEND LIB_SRC ./src/dbRest.c)
+  MESSAGE(STATUS "AUTH_SERVER enabled: authServer.c dbRest.c will be compiled")
+ELSE()
+  MESSAGE(STATUS "AUTH_SERVER disabled: authServer.c dbRest.c will be excluded")
+ENDIF()
+
+LIST(APPEND LIB_SRC ./src/authClient.c)
+
 IF(BUILD_WITH_CFG_GRANTS)
   ADD_DEFINITIONS(-DGRANTS_CFG)
 
