@@ -342,7 +342,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         if (pParent->retryTimes > taosArrayGetSize(pParent->candidateAddrs)) {
           SCH_ERR_RET(schUpdateCurrentEpset(pParent, pJob));
         }
-        schSwitchTaskCandidateAddr(pJob, pParent);
       }
 
       SCH_TASK_DLOG("all %d children task done, start to launch parent task, TID:0x%" PRIx64, readyNum, pParent->taskId);
