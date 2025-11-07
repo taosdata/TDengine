@@ -179,7 +179,7 @@ void     tsdbReaderClose2(void *pReader);
 int32_t  tsdbNextDataBlock2(void *pReader, bool *hasNext);
 int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
 void     tsdbReleaseDataBlock2(void *pReader);
-int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock, SArray *pIdList);
+int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock);
 int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);
 int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 void     tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock);

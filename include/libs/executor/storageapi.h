@@ -196,7 +196,7 @@ typedef struct TsdReader {
   int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
-  int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock, SArray* pIdList);
+  int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock);
 
   void         (*tsdReaderReleaseDataBlock)(void* pReader);
 

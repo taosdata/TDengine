@@ -126,8 +126,7 @@ typedef struct STableBlockScanInfo {
   bool         sttBlockReturned;  // result block returned alreay
   int64_t      numOfRowsInStt;
   SSttKeyRange sttRange;
-  //  STimeWindow sttWindow;         // timestamp window for current stt files
-  STimeWindow filesetWindow;  // timestamp window for current file set
+  STimeWindow  filesetWindow;  // timestamp window for current file set
 } STableBlockScanInfo;
 
 typedef struct SResultBlockInfo {
