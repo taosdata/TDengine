@@ -6207,6 +6207,25 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     }
   }
 
+  bool finished = false;
+  if (TD_DLIST_NELES(&pContext->groupsForceClose) > 0) {
+    finished = true;
+  } else if (pContext->needTsdbMeta) {
+    // TODO(kjq): use precision of trigger table
+    int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
+    QUERY_CHECK_CONDITION(pContext->stepRange.skey <= pContext->stepRange.ekey, code, lino, _end,
+                          TSDB_CODE_INTERNAL_ERROR);
+    finished = (pContext->stepRange.ekey + 1 > pContext->scanRange.ekey);
+  } else if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
+    for (int32_t i = 0; i < TARRAY_SIZE(pContext->pTrigDataBlocks); i++) {
+      SSDataBlock *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pContext->pTrigDataBlocks, i);
+      if (blockDataGetNumOfRows(pDataBlock) > 0) {
+        finished = false;
+        break;
+      }
+    }
+  }
+
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     SSTriggerHistoryGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
     switch (pContext->status) {
@@ -6260,7 +6279,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         } else {
           if (TARRAY_SIZE(pContext->pCalcReq->params) == 0) {
             int32_t nParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-            bool    needCalc = (nParams > 0);
+            bool    needCalc = (nParams >= STREAM_CALC_REQ_MAX_WIN_NUM) || (finished && (nParams > 0));
             if (needCalc) {
               SSTriggerCalcParam *pParam = NULL;
               for (int32_t i = 0; i < nParams; i++) {
@@ -6316,36 +6335,17 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
 
-  bool finished = true;
-  if (TD_DLIST_NELES(&pContext->groupsForceClose) == 0) {
-    if (pContext->needTsdbMeta) {
-      // TODO(kjq): use precision of trigger table
-      int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-      QUERY_CHECK_CONDITION(pContext->stepRange.skey <= pContext->stepRange.ekey, code, lino, _end,
-                            TSDB_CODE_INTERNAL_ERROR);
-      finished = (pContext->stepRange.ekey + 1 > pContext->scanRange.ekey);
-    } else if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
-      for (int32_t i = 0; i < TARRAY_SIZE(pContext->pTrigDataBlocks); i++) {
-        SSDataBlock *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pContext->pTrigDataBlocks, i);
-        if (blockDataGetNumOfRows(pDataBlock) > 0) {
-          finished = false;
-          break;
-        }
+  if (finished && TD_DLIST_NELES(&pContext->groupsForceClose) == 0 && pContext->isHistory &&
+      (pTask->triggerType == STREAM_TRIGGER_SLIDING || pTask->triggerType == STREAM_TRIGGER_SESSION ||
+       pTask->triggerType == STREAM_TRIGGER_STATE)) {
+    int32_t iter = 0;
+    void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+    while (px != NULL) {
+      SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
+      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+        TD_DLIST_APPEND(&pContext->groupsForceClose, pGroup);
       }
-    }
-
-    if (finished && pContext->isHistory &&
-        (pTask->triggerType == STREAM_TRIGGER_SLIDING || pTask->triggerType == STREAM_TRIGGER_SESSION ||
-         pTask->triggerType == STREAM_TRIGGER_STATE)) {
-      int32_t iter = 0;
-      void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
-      while (px != NULL) {
-        SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
-        if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
-          TD_DLIST_APPEND(&pContext->groupsForceClose, pGroup);
-        }
-        px = tSimpleHashIterate(pContext->pGroups, px, &iter);
-      }
+      px = tSimpleHashIterate(pContext->pGroups, px, &iter);
     }
   }
 
@@ -8248,8 +8248,8 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
                pGroup->pPendingCalcParams.neles);
 
   if (pGroup->pPendingCalcParams.neles > 0) {
-    int64_t origNele = pGroup->pPendingCalcParams.neles;
-    int64_t origTotal = pContext->calcParamPool.size;
+    int64_t             origNele = pGroup->pPendingCalcParams.neles;
+    int64_t             origTotal = pContext->calcParamPool.size;
     int32_t             nele = 0;
     SSTriggerCalcParam *pParam = NULL;
     SObjListIter        iter = {0};
