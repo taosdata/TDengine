@@ -105,12 +105,40 @@ def parse_catalog(module_name, docstring):
 
     return catalogs if catalogs else ["Uncategorized"]
 
+def parse_labels(docstring):
+    """解析 docstring 中的 Labels 字段"""
+    labels_pattern = re.compile(
+        r"Labels:\s*(.*?)(?=\n\s*(?:Since|Catalog|Jira|History):\s*|\Z)", 
+        re.DOTALL | re.IGNORECASE
+    )
+    match = labels_pattern.search(docstring)
+    labels = []
+    if match:
+        # 提取 Labels 块并按行分割
+        labels_content = match.group(1).strip()
+        labels_line = re.sub(r'\s+', ' ', labels_content)
+        labels = [label.strip() for label in labels_line.split(",") if label.strip()]
+    
+    return labels
+
+def has_special_labels(labels, special_markers=None):
+    """检查是否有特殊标记"""
+    if special_markers is None:
+        special_markers = ["ignore"] 
+    
+    for label in labels:
+        if any(marker.lower() in label.lower() for marker in special_markers):
+            return True
+    return False
+
 def process_file(doc_dir, file_path):
     with open(file_path, "r", encoding="utf-8") as f:
         tree = ast.parse(f.read())
         add_parent_references(tree)
     functions = extract_functions_with_docstring(file_path)
     for function_name, docstring, class_name, file_name in functions:
+        labels = parse_labels(docstring)
+        
         # 提取 file_name 中 cases 后的字段，去掉 .py 后缀
         relative_path = file_name.split("test/cases/")[1].replace(".py", "").replace("/", ".")
         content = f"::: {relative_path}.{class_name}.{function_name}" if class_name else f"{relative_path}.{function_name}"
@@ -123,9 +151,16 @@ def process_file(doc_dir, file_path):
         # 去掉每一级目录中的前两位数字和 '-'
         module_path = ":".join([re.sub(r"^\d{2}-", "", part) for part in module_path.split(":")])
         catalog = parse_catalog(module_path, docstring)
-        print(f"function: {function_name} in class: {class_name} in file: {file_name} with catalog: {catalog}, relative path: {relative_path}")
         
-        process_markdown_files(doc_dir, content, ",".join(catalog))
+        if has_special_labels(labels):
+            # lables 中有特殊标记 ignore，跳过默认路径
+            print(f"function: {function_name} in class: {class_name} in file: {file_name} with catalog: {catalog}, relative path: {relative_path} (special labels, skipping default path)")
+            catalog_only = [cat for cat in catalog if cat != module_path]
+            if catalog_only:
+                process_markdown_files(doc_dir, content, ",".join(catalog_only))
+        else: 
+            print(f"function: {function_name} in class: {class_name} in file: {file_name} with catalog: {catalog}, relative path: {relative_path}")
+            process_markdown_files(doc_dir, content, ",".join(catalog))
     
 
 if __name__ == "__main__":

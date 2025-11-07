@@ -34,7 +34,7 @@ Since the TSMA output is a supertable, the row length of the output table is sub
 
 The window size limit is [1m ~ 1y/12n]. The units for INTERVAL are the same as those used in the INTERVAL clause in queries, such as a (milliseconds), b (nanoseconds), h (hours), m (minutes), s (seconds), u (microseconds), d (days), w (weeks), n (months), y (years).
 
-TSMA is an object within the library, but its name is globally unique. The total number of TSMAs that can be created within a cluster is limited by the parameter `maxTsmaNum`, with a default value of 3, range: [0-3]. Note, since TSMA background calculation uses stream computing, each TSMA creation will create a stream, thus the number of TSMAs that can be created is also limited by the current number of existing streams and the maximum number of streams that can be created.
+TSMA is an object within the library, but its name is globally unique. The total number of TSMAs that can be created within a cluster is limited by the parameter `maxTsmaNum`, with a default value of 10, range: [0-10]. Note, since TSMA background calculation uses stream computing, each TSMA creation will create a stream, thus the number of TSMAs that can be created is also limited by the current number of existing streams and the maximum number of streams that can be created.
 
 ## Supported Function List
 

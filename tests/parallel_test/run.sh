@@ -82,7 +82,7 @@ workdirs=()
 threads=()
 
 i=0
-while true; do
+while [ $i -lt 1 ]; do
     host=$(jq .[$i].host "$config_file")
     if [ "$host" = "null" ]; then
         break

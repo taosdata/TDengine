@@ -782,3 +782,10 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0xF004 | WebSocket Write Timeout          | WebSocket 写请求超时                      | 检查网络问题，调大写超时参数，关闭当前连接使用新连接进行重试 |
 | 0xF005 | WebSocket Connection Failed      | 连接的 taosAdapter 退出                   | 检查 taosAdapter 状态，等待一段时间后重试                    |
 | 0xF006 | WebSocket Close Message Received | 网络原因导致心跳超时 taosAdapter 关闭连接 | 检查网络问题，等待一段时间后重试                             |
+
+### taosAdapter
+
+| 错误码    | 错误描述                                           | 可能的出错场景或者可能的原因        | 建议用户采取的措施    |
+|--------|------------------------------------------------|-----------------------|--------------|
+| 0xFFFF | taosAdapter request parameter or process error | taosAdapter 请求参数或流程错误 | 根据错误消息检查错误原因 |
+| 0xFFFE | taosAdapter query request exceeded the limit   | taosAdapter 查询请求超过限制  | 降低查询请求并发     |

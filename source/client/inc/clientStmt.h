@@ -64,6 +64,7 @@ typedef struct SStmtBindInfo {
   int32_t    sBindLastIdx;
   int8_t     tbType;
   bool       tagsCached;
+  bool       boundColsCached;
   uint8_t    tbNameFlag;
   void      *boundTags;
   SSHashObj *boundCols;  // SArray<SBoundColInfo>

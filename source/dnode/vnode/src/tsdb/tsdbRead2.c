@@ -2745,7 +2745,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   STSchema* piSchema = NULL;
   if (piRow->type == TSDBROW_ROW_FMT) {
     piSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
-    TSDB_CHECK_NULL(pSchema, code, lino, _end, terrno);
+    TSDB_CHECK_NULL(piSchema, code, lino, _end, terrno);
   }
 
   // merge is not initialized yet, due to the fact that the pReader->info.pSchema is not initialized
@@ -3087,6 +3087,14 @@ static void initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
     w.skey = pScanInfo->sttKeyInfo.nextProcKey.ts;
   } else {
     w.ekey = pScanInfo->sttKeyInfo.nextProcKey.ts;
+  }
+
+  // early filter for invalid time window
+  if (w.skey > w.ekey) {
+    pScanInfo->sttKeyInfo.status = STT_FILE_NO_DATA;
+    tsdbDebug("uid:%" PRIu64 " set no stt-file data, skey:%" PRId64 " > ekey:%" PRId64 " %s",
+              pScanInfo->uid, w.skey, w.ekey, pReader->idStr);
+    goto _end;
   }
 
   st = taosGetTimestampUs();
@@ -6737,6 +6745,17 @@ static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t num
     bucketIndex -= 1;
   }
   return bucketIndex;
+}
+
+void tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock) {
+  *pBlock = pReader->resBlockInfo.pResBlock;
+}
+
+void tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock) {
+  pReader->resBlockInfo.pResBlock = pBlock;
+  if (pBlock) {
+    pReader->status.pPrimaryTsCol = taosArrayGet(pBlock->pDataBlock,  pReader->suppInfo.slotId[0]);
+  }
 }
 
 int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pTableBlockInfo) {

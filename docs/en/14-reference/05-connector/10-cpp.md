@@ -164,7 +164,7 @@ The basic API is used to establish database connections and provide a runtime en
 
 - `int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...)`
 
-  - **description**:Set each connection option on the client side. Currently, it supports character set setting(`TSDB_OPTION_CONNECTION_CHARSET`), time zone setting(`TSDB_OPTION_CONNECTION_TIMEZONE`), user IP setting(`TSDB_OPTION_CONNECTION_USER_IP`), and user APP setting(`TSDB_OPTION_CONNECTION_USER_APP`).
+  - **description**:Set each connection option on the client side. Currently, it supports character set setting(`TSDB_OPTION_CONNECTION_CHARSET`), time zone setting(`TSDB_OPTION_CONNECTION_TIMEZONE`), user IP setting(`TSDB_OPTION_CONNECTION_USER_IP`), and user APP setting(`TSDB_OPTION_CONNECTION_USER_APP`), and connector info setting(`TSDB_OPTION_CONNECTION_CONNECTOR_INFO`).
   - **input**:
     - `taos`: returned by taos_connect.
     - `option`: option name.
@@ -179,7 +179,7 @@ The basic API is used to establish database connections and provide a runtime en
     - If the same parameter is called multiple times, the latter shall prevail and can be used as a modification method.
     - The option of TSDB_OPTION_CONNECTION_CLEAR is used to reset all connection options.
     - After resetting the time zone and character set, using the operating system settings, the user IP and user app will be reset to empty.
-    - The values of the connection options are all string type, and the maximum value of the user app parameter is 23, which will be truncated if exceeded; Error reported when other parameters are illegal.
+    - The values of the connection options are all string type, and the maximum value of the user app parameter is 23, the maximum value of the connector info parameter is 255, which will be truncated if exceeded; Error reported when other parameters are illegal.
     - If time zone value can not be used to find a time zone file or can not be interpreted as a direct specification, UTC is used, which is the same as the operating system time zone rules. Please refer to the tzset function description for details. You can view the current time zone of the connection by sql:select timezone().
     - Time zones and character sets only work on the client side and do not affect related behaviors on the server side.
     - The time zone file uses the operating system time zone file and can be updated by oneself. If there is an error when setting the time zone, please check if the time zone file or path (mac:/var/db/timezone/zoneinfo, Linux:/var/share/zoneinfo) is correct.
@@ -326,6 +326,15 @@ This section introduces APIs that are all synchronous interfaces. After being ca
   - **Parameter Description**:
     - res: [Input] Result set.
   - **Return Value**: Non-`NULL`: Success, returns a pointer to a TAOS_FIELD_E structure, where each element represents the metadata of a column. `NULL`: Failure.
+
+- `int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields)`
+
+  - **Interface Description**: Formats a row of query results as text according to column types and writes it to the `str` buffer for logging or debugging output.
+  - **Parameter Description**:
+    - `str`: [Output] A user-provided character buffer that receives the entire line of formatted text. Ensure that the capacity meets the output requirements. If the result exceeds the buffer size, it will be truncated (possibly incomplete output).
+    - `fields`: [Input] An array of column metadata, returned by `taos_fetch_fields()`. Used to format each column according to its column type.
+    - `num_fields`: [Input] The number of columns, typically the return value of `taos_num_fields()`.
+  - **Return Value**: `>=0` indicates the number of characters actually written to `str` (excluding the trailing `'\0'`); `<0` indicates a failure error code.
 
 - `void taos_stop_query(TAOS_RES *res)`
 
