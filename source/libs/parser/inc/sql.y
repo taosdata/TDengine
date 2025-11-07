@@ -448,7 +448,7 @@ alter_user_options(A) ::= user_options(B) ADD HOST ip_range_list(C) user_options
 alter_user_options(A) ::= user_options(B) DROP HOST ip_range_list(C) user_options(D). {
     A = mergeUserOptions(pCxt, B, D);
     if (A->pDropIpRanges == NULL) {
-      A->pIpRanges = C;
+      A->pDropIpRanges = C;
     } else if (A->negDropIpRanges) {
       nodesDestroyList(C);
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
@@ -471,7 +471,7 @@ alter_user_options(A) ::= user_options(B) ADD NOT_ALLOW_HOST ip_range_list(C) us
 alter_user_options(A) ::= user_options(B) DROP NOT_ALLOW_HOST ip_range_list(C) user_options(D). {
     A = mergeUserOptions(pCxt, B, D);
     if (A->pDropIpRanges == NULL) {
-      A->pIpRanges = C;
+      A->pDropIpRanges = C;
       A->negDropIpRanges = true;
     } else if (!A->negDropIpRanges) {
       nodesDestroyList(C);
@@ -494,7 +494,7 @@ alter_user_options(A) ::= user_options(B) ADD ALLOW_DATETIME date_time_range_lis
 alter_user_options(A) ::= user_options(B) DROP ALLOW_DATETIME date_time_range_list(C) user_options(D). {
     A = mergeUserOptions(pCxt, B, D);
     if (A->pDropTimeRanges == NULL) {
-      A->pTimeRanges = C;
+      A->pDropTimeRanges = C;
     } else if (A->negDropTimeRanges) {
       nodesDestroyList(C);
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
@@ -517,7 +517,7 @@ alter_user_options(A) ::= user_options(B) ADD NOT_ALLOW_DATETIME date_time_range
 alter_user_options(A) ::= user_options(B) DROP NOT_ALLOW_DATETIME date_time_range_list(C) user_options(D). {
     A = mergeUserOptions(pCxt, B, D);
     if (A->pDropTimeRanges == NULL) {
-      A->pTimeRanges = C;
+      A->pDropTimeRanges = C;
       A->negDropTimeRanges = true;
     } else if (!A->negDropTimeRanges) {
       nodesDestroyList(C);

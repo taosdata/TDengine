@@ -4309,7 +4309,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (!isValidPassword(pCxt, opts->password, opts->hasIsImport && opts->isImport)) {
+  if (opts->hasPassword && !isValidPassword(pCxt, opts->password, opts->hasIsImport && opts->isImport)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
     return false;
   }
@@ -4479,56 +4479,22 @@ _err:
 
 
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions) {
-  /*
   SAlterUserStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pUserName));
+  if (!isValidUserOptions(pCxt, pUserOptions)) {
+    goto _err;
+  }
+
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
-  pStmt->alterType = alterType;
-  switch (alterType) {
-    case TSDB_ALTER_USER_PASSWD: {
-      char    password[TSDB_USER_PASSWORD_LONGLEN] = {0};
-      SToken* pVal = pAlterInfo;
-      CHECK_NAME(checkPassword(pCxt, pVal, password));
-      tstrncpy(pStmt->password, password, TSDB_USER_PASSWORD_LONGLEN);
-      break;
-    }
-    case TSDB_ALTER_USER_ENABLE: {
-      SToken* pVal = pAlterInfo;
-      pStmt->enable = taosStr2Int8(pVal->z, NULL, 10);
-      break;
-    }
-    case TSDB_ALTER_USER_SYSINFO: {
-      SToken* pVal = pAlterInfo;
-      pStmt->sysinfo = taosStr2Int8(pVal->z, NULL, 10);
-      break;
-    }
-    case TSDB_ALTER_USER_CREATEDB: {
-      SToken* pVal = pAlterInfo;
-      pStmt->createdb = taosStr2Int8(pVal->z, NULL, 10);
-      break;
-    }
-    case TSDB_ALTER_USER_ADD_ALLOWED_HOST:
-    case TSDB_ALTER_USER_DROP_ALLOWED_HOST: {
-      SNodeList* pIpRangesNodeList = pAlterInfo;
-      pStmt->pNodeListIpRanges = pIpRangesNodeList;
-      pStmt->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
-      pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpRange));
-      CHECK_OUT_OF_MEM(pStmt->pIpRanges);
-
-      pCxt->errCode = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pStmt->pIpRanges);
-      CHECK_PARSER_STATUS(pCxt);
-      break;
-    }
-    default:
-      break;
-  }
+  pStmt->pUserOptions = pUserOptions;
   return (SNode*)pStmt;
+
 _err:
   nodesDestroyNode((SNode*)pStmt);
-  */
+  nodesDestroyNode((SNode*)pUserOptions);
   return NULL;
 }
 
