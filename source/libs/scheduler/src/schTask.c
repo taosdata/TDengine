@@ -49,7 +49,7 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
 }
 
 void schInitTaskRetryInfo(SSchJob *pJob, SSchTask *pTask, SSchLevel *pLevel) {
-  pTask->redirectCtx.redirectDelayMs = 5000;  // 5s by default
+  pTask->redirectCtx.redirectDelayMs = 2000;  // 2s by default
 
   // 3 is the maximum replica factor in tsdb, so here multiply 3 to increase the retry chance
   int32_t REPLICA_FACTOR = 3;
