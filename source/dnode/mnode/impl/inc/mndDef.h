@@ -526,6 +526,7 @@ typedef struct {
   void*     pTsma;
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
+  int64_t   keepVersion;  // WAL keep version, -1 for disabled
 } SVgObj;
 
 typedef struct {

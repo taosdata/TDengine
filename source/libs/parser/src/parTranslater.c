@@ -14298,12 +14298,12 @@ static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgr
   return code;
 }
 
-static int32_t translateSetVnodeKeepVersion(STranslateContext* pCxt, SSetVnodeKeepVersionStmt* pStmt) {
-  SMndSetVnodeKeepVersionReq req = {0};
+static int32_t translateSetVgroupKeepVersion(STranslateContext* pCxt, SSetVgroupKeepVersionStmt* pStmt) {
+  SMndSetVgroupKeepVersionReq req = {0};
   req.vgId = pStmt->vgId;
   req.keepVersion = pStmt->keepVersion;
   int32_t code =
-      buildCmdMsg(pCxt, TDMT_MND_SET_VNODE_KEEP_VERSION, (FSerializeFunc)tSerializeSMndSetVnodeKeepVersionReq, &req);
+      buildCmdMsg(pCxt, TDMT_MND_SET_VGROUP_KEEP_VERSION, (FSerializeFunc)tSerializeSMndSetVgroupKeepVersionReq, &req);
   return code;
 }
 
@@ -15077,8 +15077,8 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);
       break;
-    case QUERY_NODE_SET_VNODE_KEEP_VERSION_STMT:
-      code = translateSetVnodeKeepVersion(pCxt, (SSetVnodeKeepVersionStmt*)pNode);
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:
+      code = translateSetVgroupKeepVersion(pCxt, (SSetVgroupKeepVersionStmt*)pNode);
       break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = translateMergeVgroup(pCxt, (SMergeVgroupStmt*)pNode);

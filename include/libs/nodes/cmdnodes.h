@@ -742,11 +742,11 @@ typedef struct SBalanceVgroupLeaderStmt {
   char      dbName[TSDB_DB_NAME_LEN];
 } SBalanceVgroupLeaderStmt;
 
-typedef struct SSetVnodeKeepVersionStmt {
+typedef struct SSetVgroupKeepVersionStmt {
   ENodeType type;
   int32_t   vgId;
   int64_t   keepVersion;
-} SSetVnodeKeepVersionStmt;
+} SSetVgroupKeepVersionStmt;
 
 typedef struct STrimDbWalStmt {
   ENodeType type;

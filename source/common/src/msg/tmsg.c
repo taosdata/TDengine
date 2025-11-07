@@ -6232,7 +6232,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSMndSetVnodeKeepVersionReq(void *buf, int32_t bufLen, SMndSetVnodeKeepVersionReq *pReq) {
+int32_t tSerializeSMndSetVgroupKeepVersionReq(void *buf, int32_t bufLen, SMndSetVgroupKeepVersionReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6254,7 +6254,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSMndSetVnodeKeepVersionReq(void *buf, int32_t bufLen, SMndSetVnodeKeepVersionReq *pReq) {
+int32_t tDeserializeSMndSetVgroupKeepVersionReq(void *buf, int32_t bufLen, SMndSetVgroupKeepVersionReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;

@@ -41,11 +41,12 @@ class TestWalKeepVersionTrim:
         tdSql.execute("alter database test WAL_RETENTION_PERIOD 0")
 
         # set keep version 0
-        tdSql.execute("alter vnode 2 set keep version 0")
+        tdSql.execute("alter vgroup 2 set keep version 0")
         tdSql.execute("flush database test")
 
-        # wait for flush finished
-        time.sleep(10)
+        tdSql.query("show test.vgroups")
+        tdSql.checkData(0, 18, 0)
+        tdSql.checkData(1, 18, -1)
 
         max_retry = 30
         # check wal vgId 3 firstVer is greater than 0 means flush finished

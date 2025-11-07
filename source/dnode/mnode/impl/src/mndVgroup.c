@@ -46,7 +46,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
-static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq);
+static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -79,7 +79,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessVgroupBalanceLeaderMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessBalanceVgroupMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP_LEADER, mndProcessVgroupBalanceLeaderMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_SET_VNODE_KEEP_VERSION, mndProcessSetVnodeKeepVersionReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SET_VGROUP_KEEP_VERSION, mndProcessSetVgroupKeepVersionReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -115,6 +115,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
     SDB_SET_INT32(pRaw, dataPos, pVgid->dnodeId, _OVER)
   }
   SDB_SET_INT32(pRaw, dataPos, pVgroup->syncConfChangeVer, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersion, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -173,7 +174,9 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   if (dataPos + sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
   }
-
+  if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersion, _OVER)
+  }
   SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -239,6 +242,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
   pOld->hashEnd = pNew->hashEnd;
   pOld->replica = pNew->replica;
   pOld->isTsma = pNew->isTsma;
+  pOld->keepVersion = pNew->keepVersion;
   for (int32_t i = 0; i < pNew->replica; ++i) {
     SVnodeGid *pNewGid = &pNew->vnodeGid[i];
     for (int32_t j = 0; j < pOld->replica; ++j) {
@@ -1005,6 +1009,7 @@ int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup) {
   memcpy(pVgroup->dbName, pDb->name, TSDB_DB_FNAME_LEN);
   pVgroup->dbUid = pDb->uid;
   pVgroup->replica = 1;
+  pVgroup->keepVersion = -1;  // default: WAL keep version disabled
 
   if (mndGetAvailableDnode(pMnode, pDb, pVgroup, pArray) != 0) return -1;
   taosArrayDestroy(pArray);
@@ -1058,6 +1063,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups, SArray *
     memcpy(pVgroup->dbName, pDb->name, TSDB_DB_FNAME_LEN);
     pVgroup->dbUid = pDb->uid;
     pVgroup->replica = pDb->cfg.replications;
+    pVgroup->keepVersion = -1;  // default: WAL keep version disabled
 
     if ((code = mndGetAvailableDnode(pMnode, pDb, pVgroup, pArray)) != 0) {
       goto _OVER;
@@ -1293,6 +1299,14 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       mError("vgId:%d, failed to set isTsma, since %s", pVgroup->vgId, tstrerror(code));
       return code;
     }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->keepVersion, false);
+    if (code != 0) {
+      mError("vgId:%d, failed to set keepVersion, since %s", pVgroup->vgId, tstrerror(code));
+      return code;
+    }
+
     numOfRows++;
     sdbRelease(pSdb, pVgroup);
   }
@@ -3859,19 +3873,19 @@ int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
   return 0;
 }
 
-static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
+static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   int32_t code = TSDB_CODE_SUCCESS;
   STrans *pTrans = NULL;
   SVgObj *pVgroup = NULL;
 
-  SMndSetVnodeKeepVersionReq req = {0};
-  if (tDeserializeSMndSetVnodeKeepVersionReq(pReq->pCont, pReq->contLen, &req) != 0) {
+  SMndSetVgroupKeepVersionReq req = {0};
+  if (tDeserializeSMndSetVgroupKeepVersionReq(pReq->pCont, pReq->contLen, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  mInfo("start to set vnode keep version, vgId:%d, keepVersion:%" PRId64, req.vgId, req.keepVersion);
+  mInfo("start to set vgroup keep version, vgId:%d, keepVersion:%" PRId64, req.vgId, req.keepVersion);
 
   // Check permission
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB)) != 0) {
@@ -3887,7 +3901,7 @@ static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
   }
 
   // Create transaction
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "set-vnode-keep-version");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "set-vgroup-keep-version");
   if (pTrans == NULL) {
     code = terrno != 0 ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL;
     mndReleaseVgroup(pMnode, pVgroup);
@@ -3895,9 +3909,29 @@ static int32_t mndProcessSetVnodeKeepVersionReq(SRpcMsg *pReq) {
   }
 
   mndTransSetSerial(pTrans);
-  mndTransSetChangeless(pTrans);
-  mInfo("trans:%d, used to set vnode keep version, vgId:%d keepVersion:%" PRId64, pTrans->id, req.vgId,
+  mInfo("trans:%d, used to set vgroup keep version, vgId:%d keepVersion:%" PRId64, pTrans->id, req.vgId,
         req.keepVersion);
+
+  // Update SVgObj's keepVersion in mnode
+  SVgObj newVgroup = {0};
+  memcpy(&newVgroup, pVgroup, sizeof(SVgObj));
+  newVgroup.keepVersion = req.keepVersion;
+  newVgroup.updateTime = taosGetTimestampMs();
+
+  // Add prepare log for SDB vgroup update (execute in PREPARE stage, before redo actions)
+  SSdbRaw *pCommitRaw = mndVgroupActionEncode(&newVgroup);
+  if (pCommitRaw == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    mndReleaseVgroup(pMnode, pVgroup);
+    goto _OVER;
+  }
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    code = terrno;
+    sdbFreeRaw(pCommitRaw);
+    mndReleaseVgroup(pMnode, pVgroup);
+    goto _OVER;
+  }
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   // Prepare message for vnodes
   SVndSetKeepVersionReq vndReq = {.keepVersion = req.keepVersion};
