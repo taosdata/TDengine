@@ -176,10 +176,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   }
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersion, _OVER)
-  } else {
-    pVgroup->keepVersion = -1;  // default value for old version data
   }
-
   SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
 
   terrno = 0;
