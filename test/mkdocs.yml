@@ -113,8 +113,26 @@ nav:
     - 14-Join Queries: case_list_docs/JoinQueries.md
     - 15-Tag Indices: case_list_docs/TagIndices.md
     - 16-Views: case_list_docs/Views.md
-    - 17-Data Subscription: case_list_docs/DataSubscription.md
-    - 18-Stream Processing: case_list_docs/StreamProcessing.md
+    - 17-Data Subscription: 
+        - 01-Mgmt: case_list_docs/DataSubscription/Mgmt.md
+        - 02-Native: case_list_docs/DataSubscription/Native.md
+        - 04-MQTT: case_list_docs/DataSubscription/MQTT.md
+        - sh: case_list_docs/DataSubscription/sh.md
+    - 18-Stream Processing:
+        - 01-Snode: case_list_docs/StreamProcessing/Snode.md
+        - 02-Stream: case_list_docs/StreamProcessing/Stream.md
+        - 03-TriggerMode: case_list_docs/StreamProcessing/TriggerMode.md
+        - 04-Options: case_list_docs/StreamProcessing/Options.md
+        - 05-Notify: case_list_docs/StreamProcessing/Notify.md
+        - 06-ResultSaved: case_list_docs/StreamProcessing/ResultSaved.md
+        - 07-SubQuery: case_list_docs/StreamProcessing/SubQuery.md
+        - 08-Recalc: case_list_docs/StreamProcessing/Recalc.md
+        - 20-UseCase: case_list_docs/StreamProcessing/UseCase.md
+        - 22-Performance: case_list_docs/StreamProcessing/Performance.md
+        - 23-Compatibility: case_list_docs/StreamProcessing/Compatibility.md
+        - 30-OldPyCases: case_list_docs/StreamProcessing/OldPyCases.md
+        - 31-OldTsimCases: case_list_docs/StreamProcessing/OldTsimCases.md
+        - 99-Others: case_list_docs/StreamProcessing/Others.md
     - 19-TSMAs: case_list_docs/TSMAs.md
     - 20-RSMAs: case_list_docs/RSMAs.md
     - 21-Meta Data: case_list_docs/MetaData.md
@@ -127,15 +145,15 @@ nav:
     - 28-Except: case_list_docs/Except.md
     - 29-Escape Characters: case_list_docs/Escape.md
     - 30-Name & Limits: case_list_docs/NameLimits.md
+    - 70-Cluster: case_list_docs/Cluster.md
     - 80-Components: 
         - 01-Taosd: case_list_docs/Components/Taosd.md
         - 02-Taosc: case_list_docs/Components/Taosc.md
         - 10-TDgpt: case_list_docs/Components/TDgpt.md
-    - 70-Cluster: case_list_docs/Cluster.md
     - 81-Tools: 
         - 01-Check: case_list_docs/Tools/Check.md
         - 02-Taos: case_list_docs/Tools/Taos.md
-        - 03-TaosBenchmark: case_list_docs/Tools/TaosBenchmark.md
+        - 03-Benchmark: case_list_docs/Tools/Benchmark.md
         - 04-Taosdump: case_list_docs/Tools/Taosdump.md
         - 05-Valgrind: case_list_docs/Tools/Valgrind.md
     - 82-UnitTest: case_list_docs/UnitTest.md

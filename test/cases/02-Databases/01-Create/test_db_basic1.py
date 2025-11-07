@@ -13,9 +13,7 @@ class TestDatabaseBasic1:
         1. Create database with vgroup option
         2. Show vgroups
         3. Show vnodes
-
-        Catalog:
-            - Databases:Create
+        4. Create same name db and drop loop 100 times(TD-25762)
 
         Since: v3.0.0.0
 
@@ -25,6 +23,7 @@ class TestDatabaseBasic1:
 
         History:
             - 2025-5-12 Simon Guan Migrated from tsim/db/basic1.sim
+            - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_create_same_name_db.py
 
         """
 
@@ -144,3 +143,15 @@ class TestDatabaseBasic1:
 
         tdSql.query(f"show d5.vgroups")
         tdSql.checkRows(5)
+        
+        # test_create_same_name_db.py
+        self.do_create_same_name_db()
+
+    def do_create_same_name_db(self):
+        try:
+            # create same name database multiple times
+            for i in range(100):
+                tdSql.execute(f"create database db")
+                tdSql.execute(f"drop database db")
+        except Exception as ex:
+            tdLog.exit(str(ex))
