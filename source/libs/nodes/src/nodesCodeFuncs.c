@@ -223,6 +223,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ScanDatabaseStmt";
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return "CompactVgroupsStmt";
+    case QUERY_NODE_DUMP_META_STMT:
+      return "DumpMetaStmt";
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
       return "RollupVgroupsStmt";
     case QUERY_NODE_SCAN_VGROUPS_STMT:
@@ -8744,6 +8746,16 @@ static int32_t jsonToCompactVgroupsStmt(const SJson* pJson, void* pObj) {
   return 0;
 }
 
+static int32_t dumpMetaStmtToJson(const void* pObj, SJson* pJson) {
+  const SDumpMetaStmt* pNode = (const SDumpMetaStmt*)pObj;
+  return 0;
+}
+
+static int32_t jsonToDumpMetaStmt(const SJson* pJson, void* pObj) {
+  SDumpMetaStmt* pNode = (SDumpMetaStmt*)pObj;
+  return 0;
+}
+
 static int32_t rollupVgroupsStmtToJson(const void* pObj, SJson* pJson) {
   const SRollupVgroupsStmt* pNode = (const SRollupVgroupsStmt*)pObj;
   return 0;
@@ -9720,6 +9732,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return scanDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return compactVgroupsStmtToJson(pObj, pJson);
+    case QUERY_NODE_DUMP_META_STMT:
+      return dumpMetaStmtToJson(pObj, pJson);
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
       return rollupVgroupsStmtToJson(pObj, pJson);
     case QUERY_NODE_SCAN_VGROUPS_STMT:
@@ -10137,6 +10151,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToScanDatabaseStmt(pJson, pObj);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return jsonToCompactVgroupsStmt(pJson, pObj);
+    case QUERY_NODE_DUMP_META_STMT:
+      return jsonToDumpMetaStmt(pJson, pObj);
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
       return jsonToRollupVgroupsStmt(pJson, pObj);
     case QUERY_NODE_SCAN_VGROUPS_STMT:

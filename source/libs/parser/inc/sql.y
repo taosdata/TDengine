@@ -253,6 +253,7 @@ cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D) force_o
 cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E) force_opt(F).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E, F); }
 cmd ::= SCAN DATABASE db_name(A) start_opt(B) end_opt(C).                                          { pCxt->pRootNode = createScanStmt(pCxt, &A, B, C); }
 cmd ::= SCAN db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D).   { pCxt->pRootNode = createScanVgroupsStmt(pCxt, A, B, C, D); }
+cmd ::= DUMPMETA db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP.                       { pCxt->pRootNode = createDumpMetaStmt(pCxt, A, B); }
 
 %type meta_only                                                                  { bool }
 %destructor meta_only                                                            { }

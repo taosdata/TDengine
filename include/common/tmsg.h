@@ -601,6 +601,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INSERT,
   QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC,
+  QUERY_NODE_DUMP_META_STMT,
 } ENodeType;
 
 typedef struct {
@@ -5655,6 +5656,15 @@ typedef struct {
 
 int32_t tSerializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq);
 int32_t tDeserializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq);
+
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
+  SArray* vgroupIds;
+} SDumpMetaReq;
+
+int32_t tSerializeSDumpMetaReq(void* buf, int32_t bufLen, SDumpMetaReq* pReq);
+int32_t tDeserializeSDumpMetaReq(void* buf, int32_t bufLen, SDumpMetaReq* pReq);
+void    tFreeSDumpMetaReq(SDumpMetaReq* pReq);
 
 #ifdef __cplusplus
 }

@@ -13337,6 +13337,29 @@ static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsS
   return code;
 }
 
+static int32_t translateDumpMeta(STranslateContext* pCxt, SDumpMetaStmt* pStmt) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SName        name;
+  SDumpMetaReq req = {0};
+
+  code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+                        strlen(((SValueNode*)pStmt->pDbName)->literal));
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)tNameGetFullDbName(&name, req.db);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateVgroupList(pCxt, pStmt->vgidList, &req.vgroupIds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_DUMP_META, (FSerializeFunc)tSerializeSDumpMetaReq, &req);
+  }
+
+  tFreeSDumpMetaReq(&req);
+  return code;
+}
+
 static int32_t translateRollupVgroups(STranslateContext* pCxt, SRollupVgroupsStmt* pStmt) {
 #ifdef TD_ENTERPRISE
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -17330,6 +17353,9 @@ _return:
       break;
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       code = translateCompactVgroups(pCxt, (SCompactVgroupsStmt*)pNode);
+      break;
+    case QUERY_NODE_DUMP_META_STMT:
+      code = translateDumpMeta(pCxt, (SDumpMetaStmt*)pNode);
       break;
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
       code = translateRollupVgroups(pCxt, (SRollupVgroupsStmt*)pNode);

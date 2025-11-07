@@ -1071,6 +1071,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_SCORES_STMT:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
+    case QUERY_NODE_DUMP_META_STMT:
+      code = makeNode(type, sizeof(SDumpMetaStmt), &pNode);
+      break;
     default:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
@@ -1725,6 +1728,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->vgidList);
       nodesDestroyNode(pStmt->pStart);
       nodesDestroyNode(pStmt->pEnd);
+      break;
+    }
+    case QUERY_NODE_DUMP_META_STMT: {
+      SDumpMetaStmt* pStmt = (SDumpMetaStmt*)pNode;
+      nodesDestroyNode(pStmt->pDbName);
+      nodesDestroyList(pStmt->vgidList);
       break;
     }
     case QUERY_NODE_ROLLUP_VGROUPS_STMT: {

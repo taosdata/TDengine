@@ -229,6 +229,12 @@ typedef struct SCompactVgroupsStmt {
   bool       force;
 } SCompactVgroupsStmt;
 
+typedef struct SDumpMetaStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+} SDumpMetaStmt;
+
 typedef struct SRollupVgroupsStmt {
   ENodeType  type;
   SNode*     pDbName;

@@ -1074,6 +1074,10 @@ static int32_t collectMetaKeyFromCompactVgroups(SCollectMetaKeyCxt* pCxt, SCompa
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromDumpMeta(SCollectMetaKeyCxt* pCxt, SDumpMetaStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromRollupVgroups(SCollectMetaKeyCxt* pCxt, SRollupVgroupsStmt* pStmt) {
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
 }
@@ -1270,6 +1274,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromTrimDatabase(pCxt, (STrimDatabaseStmt*)pStmt);
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
       return collectMetaKeyFromCompactVgroups(pCxt, (SCompactVgroupsStmt*)pStmt);
+    case QUERY_NODE_DUMP_META_STMT:
+      return collectMetaKeyFromDumpMeta(pCxt, (SDumpMetaStmt*)pStmt);
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
       return collectMetaKeyFromRollupVgroups(pCxt, (SRollupVgroupsStmt*)pStmt);
     case QUERY_NODE_SCAN_VGROUPS_STMT:

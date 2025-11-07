@@ -443,6 +443,7 @@ SNode* createScanStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, S
 SNode* createScanVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart, SNode* pEnd);
 SNode* createShowScansStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowScanDetailsStmt(SAstCreateContext* pCxt, SNode* pScanIdNode);
+SNode* createDumpMetaStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList);
 
 #ifdef __cplusplus
 }

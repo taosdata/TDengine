@@ -5550,3 +5550,17 @@ _err:
   nodesDestroyNode(pScanIdNode);
   return NULL;
 }
+
+SNode* createDumpMetaStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDumpMetaStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DUMP_META_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pDbName = pDbName;
+  pStmt->vgidList = vgidList;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pDbName);
+  nodesDestroyList(vgidList);
+  return NULL;
+}
