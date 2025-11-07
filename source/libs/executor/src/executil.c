@@ -21,6 +21,7 @@
 #include "querynodes.h"
 #include "taoserror.h"
 #include "tarray.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -693,6 +694,143 @@ void freeItem(void* p) {
   }
 }
 
+static bool canOptimizeTagFilter(const SNode* pTagCond) {
+  if (NULL == pTagCond) return false;
+  if (nodeType(pTagCond) == QUERY_NODE_OPERATOR &&
+    ((SOperatorNode*)pTagCond)->opType == OP_TYPE_EQUAL) {
+    return true;
+  }
+  if (nodeType(pTagCond) == QUERY_NODE_LOGIC_CONDITION &&
+    ((SLogicConditionNode*)pTagCond)->condType == LOGIC_COND_TYPE_AND) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, ((SLogicConditionNode*)pTagCond)->pParameterList) {
+      if (QUERY_NODE_OPERATOR != nodeType(pChild) ||
+        ((SOperatorNode*)pChild)->opType != OP_TYPE_EQUAL) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+typedef struct {
+  col_id_t  colId;
+  SNode*    pValueNode;
+} STagDataEntry;
+
+static int compareTagDataEntry(const void* a, const void* b) {
+  STagDataEntry* p1 = (STagDataEntry*)a;
+  STagDataEntry* p2 = (STagDataEntry*)b;
+  
+  return compareInt16Val(&p1->colId, &p2->colId);
+}
+
+static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t keyLen) {
+  *keyBuf = (char*)taosMemoryCalloc(1, keyLen);
+  if (NULL == *keyBuf) {
+    qError(
+      "failed to allocate memory for tag filter optimization key, size:%d",
+      keyLen);
+    return terrno;
+  }
+  char* pStart = *keyBuf;
+  for (int32_t i = 0; i < taosArrayGetSize(pIdWithValue); ++i) {
+    STagDataEntry* entry = (STagDataEntry*)taosArrayGet(pIdWithValue, i);
+    SValueNode*   pValueNode = (SValueNode*)entry->pValueNode;
+
+    (void)memcpy(pStart, &entry->colId, sizeof(col_id_t));
+    pStart += sizeof(col_id_t);
+
+    switch (pValueNode->node.resType.type) {
+      case TSDB_DATA_TYPE_BOOL:
+        (void)memcpy(
+          pStart, &pValueNode->datum.b, pValueNode->node.resType.bytes);
+        pStart += pValueNode->node.resType.bytes;
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        (void)memcpy(
+          pStart, &pValueNode->datum.i, pValueNode->node.resType.bytes);
+        pStart += pValueNode->node.resType.bytes;
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+        (void)memcpy(
+          pStart, &pValueNode->datum.u, pValueNode->node.resType.bytes);
+        pStart += pValueNode->node.resType.bytes;
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE:
+        (void)memcpy(
+          pStart, &pValueNode->datum.d, pValueNode->node.resType.bytes);
+        pStart += pValueNode->node.resType.bytes;
+        break;
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_NCHAR:
+        (void)memcpy(pStart,
+          varDataVal(pValueNode->datum.p), varDataLen(pValueNode->datum.p));
+        pStart += varDataLen(pValueNode->datum.p);
+        break;
+      case TSDB_DATA_TYPE_JSON:
+        int32_t jsonLen = getJsonValueLen(pValueNode->datum.p);
+        (void)memcpy(pStart, varDataVal(pValueNode->datum.p), jsonLen);
+        pStart += jsonLen;
+        break;
+      default:
+        qError("unsupported tag data type %d in tag filter optimization",
+          pValueNode->node.resType.type);
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void extractTagDataEntry(
+  SOperatorNode* pOpNode, SArray* pIdWithValue) {
+  SNode* pLeft = pOpNode->pLeft;
+  SNode* pRight = pOpNode->pRight;
+  SColumnNode* pColNode = nodeType(pLeft) == QUERY_NODE_COLUMN ?
+    (SColumnNode*)pLeft : (SColumnNode*)pRight;
+  SValueNode* pValueNode = nodeType(pLeft) == QUERY_NODE_VALUE ?
+    (SValueNode*)pLeft : (SValueNode*)pRight;
+
+  STagDataEntry entry = {0};
+  entry.colId = pColNode->colId;
+  entry.pValueNode = (SNode*)pValueNode;
+  TAOS_UNUSED(taosArrayPush(pIdWithValue, &entry));
+}
+
+static int32_t extractTagFilterTagDataEntries(
+  const SNode* pTagCond, SArray* pIdWithVal) {
+  if (NULL == pTagCond || NULL == pIdWithVal ||
+    (nodeType(pTagCond) != QUERY_NODE_OPERATOR &&
+      nodeType(pTagCond) != QUERY_NODE_LOGIC_CONDITION)) {
+    qError("invalid parameter to extract tag filter symbol");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
+  if (nodeType(pTagCond) == QUERY_NODE_OPERATOR) {
+    extractTagDataEntry((SOperatorNode*)pTagCond, pIdWithVal);
+  } else if (nodeType(pTagCond) == QUERY_NODE_LOGIC_CONDITION) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, ((SLogicConditionNode*)pTagCond)->pParameterList) {
+      extractTagDataEntry((SOperatorNode*)pChild, pIdWithVal);
+    }
+  }
+
+  taosArraySort(pIdWithVal, compareTagDataEntry);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -700,9 +838,34 @@ static int32_t genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
 
   char*   payload = NULL;
   int32_t len = 0;
-  int32_t code = nodesNodeToMsg(pTagCond, &payload, &len);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (canOptimizeTagFilter(pTagCond)) {
+    SArray* pIdWithVal = taosArrayInit(TARRAY_MIN_SIZE, sizeof(STagDataEntry));
+    code = extractTagFilterTagDataEntries(pTagCond, pIdWithVal);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("%s failed at line %d since %s",
+        __func__, __LINE__, tstrerror(code));
+      taosArrayDestroy(pIdWithVal);
+      return code;
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(pIdWithVal); ++i) {
+      STagDataEntry* pEntry = taosArrayGet(pIdWithVal, i);
+      len += sizeof(col_id_t) + 
+        ((SValueNode*)pEntry->pValueNode)->node.resType.bytes;
+    }
+    code = buildTagDataEntryKey(pIdWithVal, &payload, len);
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("%s failed at line %d since %s",
+        __func__, __LINE__, tstrerror(code));
+      taosArrayDestroy(pIdWithVal);
+      return code;
+    }
+  } else {
+    code = nodesNodeToMsg(pTagCond, &payload, &len);
+  }
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    qError("%s failed at line %d since %s",
+      __func__, __LINE__, tstrerror(code));
     return code;
   }
 
@@ -1805,6 +1968,64 @@ static EDealRes replacePlaceHolderColumn(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static void extractTagColId(SOperatorNode* pOpNode, SArray* pColIdArray) {
+  SNode* pLeft = pOpNode->pLeft;
+  SNode* pRight = pOpNode->pRight;
+  SColumnNode* pColNode = nodeType(pLeft) == QUERY_NODE_COLUMN ?
+    (SColumnNode*)pLeft : (SColumnNode*)pRight;
+
+  col_id_t colId = pColNode->colId;
+  TAOS_UNUSED(taosArrayPush(pColIdArray, &colId));
+}
+
+static int32_t buildTagCondKey(
+  SNode* pTagCond, char** pTagCondKey, int32_t* tagCondKeyLen) {
+  if (NULL == pTagCond ||
+    (nodeType(pTagCond) != QUERY_NODE_OPERATOR &&
+      nodeType(pTagCond) != QUERY_NODE_LOGIC_CONDITION)) {
+    qError("invalid parameter to extract tag filter symbol");
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pTagColIds = taosArrayInit(4, sizeof(col_id_t));
+
+  if (nodeType(pTagCond) == QUERY_NODE_OPERATOR) {
+    extractTagColId((SOperatorNode*)pTagCond, pTagColIds);
+  } else if (nodeType(pTagCond) == QUERY_NODE_LOGIC_CONDITION) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, ((SLogicConditionNode*)pTagCond)->pParameterList) {
+      extractTagColId((SOperatorNode*)pChild, pTagColIds);
+    }
+  }
+
+  taosArraySort(pTagColIds, compareUint16Val);
+
+  // encode ordered colIds into key string, separated by ','
+  *tagCondKeyLen = 
+    (int32_t)(taosArrayGetSize(pTagColIds) * (sizeof(col_id_t) + 1) - 1);
+  *pTagCondKey = (char*)taosMemoryCalloc(1, *tagCondKeyLen);
+  TSDB_CHECK_NULL(*pTagCondKey, code, lino, _end, terrno);
+  char* pStart = *pTagCondKey;
+  for (int32_t i = 0; i < taosArrayGetSize(pTagColIds); ++i) {
+    col_id_t* pColId = (col_id_t*)taosArrayGet(pTagColIds, i);
+    TSDB_CHECK_NULL(pColId, code, lino, _end, terrno);
+    memcpy(pStart, pColId, sizeof(col_id_t));
+    pStart += sizeof(col_id_t);
+    if (i != taosArrayGetSize(pTagColIds) - 1) {
+      *pStart = ',';
+      pStart += 1;
+    }
+  }
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    terrno = code;
+  }
+  return code;
+}
+
 int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI, void* pStreamInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1851,6 +2072,23 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       // try to retrieve the result from meta cache
       QUERY_CHECK_CODE(code, lino, _error);      
       bool acquired = false;
+      if (pTagCond != NULL && canOptimizeTagFilter(pTagCond)) {
+        qDebug("tag filter condition can be optimized");
+        char* pTagCondKey;
+        int32_t tagCondKeyLen;
+        buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen);
+        code = pStorageAPI->metaFn.getCachedTableList2(
+          pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
+          context.digest, tListLen(context.digest), pUidList, &acquired);
+        QUERY_CHECK_CODE(code, lino, _error);
+
+        if (acquired) {
+          digest[0] = 1;
+          memcpy(digest + 1, context.digest, tListLen(context.digest));
+          qDebug("retrieve table uid list from cache, numOfTables:%d", (int32_t)taosArrayGetSize(pUidList));
+          goto _end;
+        }
+      }
       code = pStorageAPI->metaFn.getCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),
                                                     pUidList, &acquired);
       QUERY_CHECK_CODE(code, lino, _error);
@@ -1904,6 +2142,16 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         memcpy(pPayload + sizeof(int32_t), tmp, numOfTables * sizeof(uint64_t));
       }
 
+      if (canOptimizeTagFilter(pTagCond)) {
+        qDebug("tag filter condition can be optimized, cache separately");
+        char* pTagCondKey;
+        int32_t tagCondKeyLen;
+        buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen);
+        code = pStorageAPI->metaFn.putCachedTableList2(
+          pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
+          context.digest, tListLen(context.digest), pPayload);
+        QUERY_CHECK_CODE(code, lino, _error);
+      }
       code = pStorageAPI->metaFn.putCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),
                                                     pPayload, size, 1);
       QUERY_CHECK_CODE(code, lino, _error);
