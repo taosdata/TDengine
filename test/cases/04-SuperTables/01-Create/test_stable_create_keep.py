@@ -115,7 +115,7 @@ class TestCreateStbKeep:
         
     # run
     def test_create_stb_keep(self):
-        """Create table keep options
+        """Stable keep options
         
         1. prepare database
         2. check create stb with keep

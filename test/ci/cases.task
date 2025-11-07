@@ -285,8 +285,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having.py
 ## 10-Distinct
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/10-Distinct/test_distinct.py
-## 11-Psedocolumn
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/11-Psedocolumn/test_tbname.py
+## 11-PseudoColumn
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/11-PseudoColumn/test_query_pseudo_basic.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/11-PseudoColumn/test_query_pseudo_tbname.py
 ## 12-Interp
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
@@ -1010,7 +1011,6 @@
 
 #develop test
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py
-,,n,.,pytest cases/uncatalog/develop-test/2-query/test_pseudo_column.py
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_ts_range.py
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_tag_scan.py
 
