@@ -215,9 +215,6 @@ typedef struct TsdReader {
   int32_t (*fileSetReadNext)(struct SFileSetReader *);
   int32_t (*fileSetGetEntryField)(struct SFileSetReader *, const char *, void *);
   void (*fileSetReaderClose)(struct SFileSetReader **);
-
-  int32_t (*getProgress)(const void* pReader, void** pBuf, uint64_t* pLen);
-  int32_t (*setProgress)(void *pReader, const void *pBuf, uint64_t len);
 } TsdReader;
 
 typedef struct SStoreCacheReader {

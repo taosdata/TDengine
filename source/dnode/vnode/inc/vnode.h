@@ -163,6 +163,8 @@ typedef struct STsdbReader STsdbReader;
 
 #define TIMEWINDOW_RANGE_CONTAINED 1
 #define TIMEWINDOW_RANGE_EXTERNAL  2
+#define TABLE_LAST_TS              3
+#define TABLE_FIRST_TS             4
 
 #define CACHESCAN_RETRIEVE_TYPE_ALL    0x1
 #define CACHESCAN_RETRIEVE_TYPE_SINGLE 0x2
