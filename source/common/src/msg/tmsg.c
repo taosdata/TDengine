@@ -3220,7 +3220,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->pIpRanges[i].ip));
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, pReq->pIpRanges[i].mask));
   }
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->privileges));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, 0));  // reserving field
   ENCODESQL();
   TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->flag));
   TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->passIsMd5));
@@ -3230,6 +3230,11 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     code = tSerializeIpRange(&encoder, pRange);
     TAOS_CHECK_EXIT(code);
   }
+
+  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+    TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pReq->privileges.set[i]));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -3276,7 +3281,8 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pReq->pIpRanges[i].ip)));
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pReq->pIpRanges[i].mask)));
   }
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->privileges));
+  int64_t reserved = 0;
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &reserved));
   DECODESQL();
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->flag));
@@ -3294,6 +3300,12 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
       SIpRange *pRange = &pReq->pIpDualRanges[i];
       code = tDeserializeIpRange(&decoder, pRange);
       TAOS_CHECK_EXIT(code);
+    }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+      TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pReq->privileges.set[i]));
     }
   }
 

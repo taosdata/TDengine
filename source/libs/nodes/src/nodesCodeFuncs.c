@@ -4398,7 +4398,7 @@ static int32_t oTableHashToJson(const void* pObj, SJson* pJson) {
   if (code) {
     return code;
   }
-  
+
   SJson* pJsonArray = tjsonAddArrayToObject(pJson, jkOtableHashKV);
   if (NULL == pJsonArray) {
     return terrno;
@@ -4442,7 +4442,7 @@ static int32_t vtablesHashToJson(const void* pObj, SJson* pJson) {
   if (code) {
     return code;
   }
-  
+
   SJson* pJsonArray = tjsonAddArrayToObject(pJson, jkVtablesHashKV);
   if (NULL == pJsonArray) {
     return terrno;
@@ -4604,7 +4604,7 @@ static int32_t jsonToOtableHash(const SJson* pJson, void* pObj) {
       return terrno;
     }
     tSimpleHashSetFreeFp(*pHash, tFreeStreamVtbOtbInfo);
-    
+
     SJson *ovalues = tjsonGetObjectItem(pJson, jkOtableHashKV);
     if (ovalues == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
     char tbName[TSDB_TABLE_NAME_LEN];
@@ -4612,7 +4612,7 @@ static int32_t jsonToOtableHash(const SJson* pJson, void* pObj) {
     for (int32_t d = 0; d < hashSize; ++d) {
       SJson *okeyValue = tjsonGetArrayItem(ovalues, d);
       if (okeyValue == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-    
+
       code = tjsonGetStringValue(okeyValue, jkOtableHashName, tbName);
       if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
       SJson *ovalue = tjsonGetObjectItem(okeyValue, jkOtableHashValue);
@@ -4645,7 +4645,7 @@ static int32_t jsonToVtablesHash(const SJson* pJson, void* pObj) {
     for (int32_t d = 0; d < hashSize; ++d) {
       SJson *vkeyValue = tjsonGetArrayItem(vvalues, d);
       if (vkeyValue == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
-    
+
       code = tjsonGetUBigIntValue(vkeyValue, jkVtablesVuid, &vuid);
       if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
       SJson *vvalue = tjsonGetObjectItem(vkeyValue, jkVtablesVValue);
@@ -8981,7 +8981,20 @@ static int32_t grantStmtToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddStringToObject(pJson, jkGrantStmtObjName, pNode->objName);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkGrantStmtPrivileges, pNode->privileges);
+    char    privSet[256] = {0};
+    int32_t len = 0;
+    for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+      len += snprintf(privSet + len, sizeof(privSet) - len, "%" PRIu64 ",", pNode->privileges.set[i]);
+      if (len >= sizeof(privSet)) {
+        code = TSDB_CODE_OUT_OF_RANGE;
+        break;
+      }
+    }
+    if (len > 0) privSet[len - 1] = '\0';
+
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddStringToObject(pJson, jkGrantStmtPrivileges, privSet);
+    }
   }
 
   return code;
@@ -8995,7 +9008,34 @@ static int32_t jsonToGrantStmt(const SJson* pJson, void* pObj) {
     code = tjsonGetStringValue(pJson, jkGrantStmtObjName, pNode->objName);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkGrantStmtPrivileges, &pNode->privileges);
+    char privSet[256] = {0};
+    code = tjsonGetStringValue(pJson, jkGrantStmtPrivileges, privSet);
+    if (TSDB_CODE_SUCCESS == code) {
+      char*   token = strtok(privSet, ",");
+      int32_t i = 0;
+
+      while (token != NULL && i < PRIV_GROUP_CNT) {
+        char* cleaned_token = token;
+        while (*cleaned_token == ' ') cleaned_token++;
+
+        char*    endptr;
+        uint64_t value = 0;
+        TAOS_CHECK_RETURN(taosStr2Uint64(cleaned_token, &value));
+
+        if (endptr == cleaned_token || *endptr != '\0') {
+          code = TSDB_CODE_INVALID_PARA;
+          break;
+        }
+
+        pNode->privileges.set[i] = value;
+        i++;
+        token = strtok(NULL, ",");
+      }
+
+      if (TSDB_CODE_SUCCESS == code && i != PRIV_GROUP_CNT) {
+        code = TSDB_CODE_INVALID_PARA;
+      }
+    }
   }
 
   return code;

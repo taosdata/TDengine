@@ -248,6 +248,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_UNI_LEN  24
 #define TSDB_USER_LEN TSDB_UNI_LEN
+#define TSDB_ROLE_LEN 64
 
 #define TSDB_POINTER_PRINT_BYTES 18  // 0x1122334455667788
 // ACCOUNT is a 32 bit positive integer
@@ -940,9 +941,9 @@ typedef enum {
   MAX_PRIV_TYPE = 255
 } EPrivType;
 
-#define PRIV_GROUP_COUNT ((MAX_PRIV_TYPE + 63) / 64)
+#define PRIV_GROUP_CNT ((MAX_PRIV_TYPE + 63) / 64)
 typedef struct {
-  uint64_t set[PRIV_GROUP_COUNT];
+  uint64_t set[PRIV_GROUP_CNT];
 } SPrivSet;
 
 #define PRIV_GROUP(type)  ((type) / 64)
@@ -950,9 +951,11 @@ typedef struct {
 #define PRIV_TYPE(type) \
   (SPrivSet) { .set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type) }
 
+#define PRIV_HAS(privSet, type) (((privSet)->set[PRIV_GROUP(type)] & (1ULL << PRIV_OFFSET(type))) != 0)
+
 static inline SPrivSet PRIV_ADD(SPrivSet privSet1, SPrivSet privSet2) {
   SPrivSet merged = privSet1;
-  for (int32_t i = 0; i < PRIV_GROUP_COUNT; ++i) {
+  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     if (privSet2.set[i]) {
       merged.set[i] |= privSet2.set[i];
     }
