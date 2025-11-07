@@ -2549,20 +2549,18 @@ static int32_t csvParserReadLine(SCsvParser* parser) {
       // Comma marks the start of a new field
       fieldStart = true;
       afterQuote = false;
-    } else if (ch != '\r' && ch != '\n') {
+    } else if (ch != '\r' && ch != '\n' && ch != ' ') {
+      // Non-space, non-newline character processing
       // Check if we have invalid characters after closing quote
-      if (afterQuote && ch != ' ') {
+      if (afterQuote) {
         // Invalid: non-whitespace character after closing quote
-        // RFC 4180: after closing quote, only comma or line end is allowed
-        // We allow spaces for flexibility, but other chars are errors
+        // RFC 4180: after closing quote, only comma, space, or line end is allowed
         code = TSDB_CODE_TSC_INVALID_INPUT;
         break;
       }
-      // Any other character means we're no longer at field start
+      // Non-space character means we're no longer at field start
       fieldStart = false;
-      if (ch != ' ') {
-        afterQuote = false;
-      }
+      afterQuote = false;
     }
 
     // Handle newlines
@@ -2630,8 +2628,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
     }
     if (code == TSDB_CODE_TSC_INVALID_INPUT) {
       // Invalid CSV format detected
-      code = buildSyntaxErrMsg(&pCxt->msg, "Invalid CSV format: quote must be at field start/end, not in middle",
-                               pStmt->pCsvParser->lineBuffer);
+      code = buildSyntaxErrMsg(&pCxt->msg, "Invalid CSV format", pStmt->pCsvParser->lineBuffer);
       break;
     }
     if (code != TSDB_CODE_SUCCESS) {
