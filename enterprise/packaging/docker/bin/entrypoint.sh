@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 # for TZ awareness
 if [ "$TZ" != "" ]; then
@@ -76,7 +76,7 @@ sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 set -e
 
 if [ $# -gt 0 ]; then
-    exec $@
+    exec "$@"
     exit 0
 fi
 
@@ -98,19 +98,19 @@ if [ "$DISABLE_SERVER" = "0" ]; then
         done
 
         while true; do
-            es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+            es=$(taos -h "$FIRST_EP_HOST" -P "$FIRST_EP_PORT" --check)
             echo "Try to connect to first ep with return: ${es} (taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)"
             if [ "${es%%:*}" -eq 2 ]; then
                 if [ "$FQDN" = "$FIRST_EP_HOST" ]; then
-                    if [ ! -f "${data_dir}/.docker-entrypoint-root-password-changed" ]; then
+                    if [ ! -f "${DATA_DIR}/.docker-entrypoint-root-password-changed" ]; then
                         if [ "$TAOS_ROOT_PASSWORD" != "taosdata" ]; then
                             # change default root password
                             taos -s "ALTER USER root PASS '$TAOS_ROOT_PASSWORD'"
-                            touch "${data_dir}/.docker-entrypoint-root-password-changed"
+                            touch "${DATA_DIR}/.docker-entrypoint-root-password-changed"
                         fi
                     fi
                     # Initialization scripts should only work in first node.
-                    if [ ! -f "${data_dir}/.inited" ]; then
+                    if [ ! -f "${DATA_DIR}/.inited" ]; then
                         NEEDS_INITDB=1
                     fi
                 fi
@@ -119,14 +119,14 @@ if [ "$DISABLE_SERVER" = "0" ]; then
         done
     else
         while true; do
-            es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+            es=$(taos -h "$FIRST_EP_HOST" -P "$FIRST_EP_PORT" --check)
             echo "Try to connect to first ep with return: ${es} (taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)"
             if [ "${es%%:*}" -eq 2 ]; then
                 echo "execute to create dnode after connected to first ep"
                 taosd &
                 # wait for serverPort ready
                 for _ in $(seq 1 20); do
-                    nc -z localhost $SERVER_PORT && break
+                    nc -z localhost "$SERVER_PORT" && break
                     sleep 0.5
                 done
                 ENDPOINT=$FQDN:$SERVER_PORT
@@ -221,6 +221,7 @@ if [ "$NEEDS_INITDB" = "1" ]; then
                 if [[ "$OUTPUT" =~ "DB error" ]]; then
                     echo "Retrying in 2 seconds..."
                     sleep 2
+                    RETRY_COUNT=$((RETRY_COUNT + 1))
                 else
                     SUCCESS=1
                 fi
@@ -233,7 +234,5 @@ fi
 
 sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create snode on dnode 1;'"
 
-# never exit
-while true; do
-  sleep 1000s
-done
+trap 'echo "Received stop signal, killing children"; pkill -P $$ || true; exit 0' SIGINT SIGTERM
+wait
