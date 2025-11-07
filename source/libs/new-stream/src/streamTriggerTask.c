@@ -6217,6 +6217,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
                           TSDB_CODE_INTERNAL_ERROR);
     finished = (pContext->stepRange.ekey + 1 > pContext->scanRange.ekey);
   } else if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
+    finished = true;
     for (int32_t i = 0; i < TARRAY_SIZE(pContext->pTrigDataBlocks); i++) {
       SSDataBlock *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pContext->pTrigDataBlocks, i);
       if (blockDataGetNumOfRows(pDataBlock) > 0) {
