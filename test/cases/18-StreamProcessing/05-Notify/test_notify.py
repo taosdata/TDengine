@@ -1667,7 +1667,7 @@ class TestStreamNotifyTrigger:
                 and tdSql.compareData(3, 1, 9)
                 and tdSql.compareData(4, 0, "2025-01-01 00:00:04.000")
                 and tdSql.compareData(4, 1, 10)
-                and tdSql.compareData(5, 0, "2025-01-01 00:00:06.000")
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:05.000")
                 and tdSql.compareData(5, 1, 11),
             )
 
