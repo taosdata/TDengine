@@ -158,9 +158,9 @@ static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf)
 static void uvWorkerAsyncCb(uv_async_t* handle);
 static void uvAcceptAsyncCb(uv_async_t* handle);
 static void uvShutDownCb(uv_shutdown_t* req, int status);
-static void uvOnSendSaslCb(uv_write_t* req, int status);
+static void uvOnSendAuthWithTLSCb(uv_write_t* req, int status);
 
-static int32_t uvSendAuth(SSvrConn* conn);
+static int32_t uvSendAuthWithTLS(SSvrConn* conn);
 
 /*
  * time-consuming task throwed into BG work thread
@@ -669,72 +669,31 @@ static bool uvHandleReq(SSvrConn* pConn) {
   return true;
 }
 
-static int32_t uvSendAuth(SSvrConn* conn) {
+static int32_t uvSendAuthWithTLS(SSvrConn* conn) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  uv_write_t* writeReq = taosMemoryCalloc(1, sizeof(uv_write_t));
-  if (writeReq == NULL) {
+  uv_write_t* req = taosMemoryCalloc(1, sizeof(uv_write_t));
+  if (req == NULL) {
     code = terrno;
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  writeReq->data = conn;
-  uv_buf_t writeBuf = {.base = (char*)conn->saslConn->out.buf, .len = conn->saslConn->out.len};
+  req->data = conn;
+  uv_buf_t buf = {.base = (char*)conn->saslConn->out.buf, .len = conn->saslConn->out.len};
 
-  int ret = uv_write(writeReq, (uv_stream_t*)conn->pTcp, &writeBuf, 1, uvOnSendSaslCb);
+  int ret = sslWrite(conn->pTls, (uv_stream_t*)conn->pTcp, req, &buf, 1, uvOnSendAuthWithTLSCb);
   if (ret != 0) {
     tError("%s conn:%p, failed to send sasl auth data since %s", transLabel(conn->pInst), conn, uv_strerror(ret));
     code = TSDB_CODE_THIRDPARTY_ERROR;
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  // saslBufferClear(&conn->saslConn->out);
-
 _error:
   if (code != 0) {
-    tError("conn failed to send auth since %s", conn, tstrerror(code));
+    tError("conn %p failed to send auth since %s", conn, tstrerror(code));
   }
   return code;
-}
-static void uvOnRecvSaslCb(SSvrConn* conn, ssize_t nread, const uv_buf_t* buf) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  SConnBuffer* pBuf = &conn->readBuf;
-  if (nread > 0) {
-    pBuf->len += nread;
-    if (saslConnShoudDoAuth(conn->saslConn)) {
-      code = saslConnHandleAuth(conn->saslConn, (const char*)buf->base, buf->len);
-      TAOS_CHECK_GOTO(code, &lino, _error);
-
-      if (saslConnShoudDoAuth(conn->saslConn)) {
-        code = uvSendAuth(conn);
-        TAOS_CHECK_GOTO(code, &lino, _error);
-
-        return;
-      }
-    } else {
-      while (transReadComplete(pBuf)) {
-        if (true == pBuf->invalid || false == uvHandleReq(conn)) {
-          tError("%s conn:%p, read invalid packet, received from %s, local info:%s", transLabel(conn->pInst), conn,
-                 conn->dst, conn->src);
-          code = TSDB_CODE_THIRDPARTY_ERROR;
-          TAOS_CHECK_GOTO(code, &lino, _error);
-        }
-      }
-    }
-  } else if (nread == 0) {
-    return;
-  } else {
-    tDebug("%s conn:%p, read error:%s", transLabel(conn->pInst), conn, uv_err_name(nread));
-    code = TSDB_CODE_THIRDPARTY_ERROR;
-    TAOS_CHECK_GOTO(code, &lino, _error);
-  }
-_error:
-  if (nread < 0 || code != 0) {
-    conn->broken = true;
-    transUnrefSrvHandle(conn);
-  }
 }
 void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   int32_t    code = 0;
@@ -753,10 +712,6 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   code = transSetReadOption((uv_handle_t*)cli);
   if (code != 0) {
     tWarn("%s conn:%p, failed to set recv opt since %s", transLabel(pInst), conn, tstrerror(code));
-  }
-
-  if (conn->saslConn) {
-    return uvOnRecvSaslCb(conn, nread, buf);
   }
 
   SConnBuffer* pBuf = &conn->readBuf;
@@ -815,7 +770,22 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     code = sslRead(conn->pTls, pBuf, nread, 0);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
-    if (pBuf->len <= TRANS_PACKET_LIMIT) {
+    if (sslIsInited(conn->pTls) && !saslAuthIsInited(conn->saslConn)) {
+      code = saslConnHandleAuth(conn->saslConn, (const char*)pBuf->buf, pBuf->len);
+      TAOS_CHECK_GOTO(code, &lino, _error);
+
+      if (conn->saslConn->out.len == 0) {
+        return;
+      }
+
+      code = uvSendAuthWithTLS(conn);
+      TAOS_CHECK_GOTO(code, &lino, _error);
+
+      pBuf->len = 0;
+      return;
+    }
+
+    if (sslIsInited(conn->pTls) && saslAuthIsInited(conn->saslConn) && pBuf->len <= TRANS_PACKET_LIMIT) {
       while (transReadComplete(pBuf)) {
         if (true == pBuf->invalid || false == uvHandleReq(conn)) {
           tError("%s conn:%p, read invalid packet, received from %s, local info:%s", transLabel(pInst), conn, conn->dst,
@@ -826,14 +796,14 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
         }
       }
       return;
-    } else {
-      tError("%s conn:%p, read invalid packet, exceed limit, received from %s, local info:%s", transLabel(pInst), conn,
-             conn->dst, conn->src);
-      transUnrefSrvHandle(conn);
-      return;
     }
-  }
-  if (nread == 0) {
+    return;
+  } else if (nread == 0) {
+    return;
+  } else {
+    tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,uv_err_name(nread),
+           conn->dst, conn->src);
+    transUnrefSrvHandle(conn);
     return;
   }
 
@@ -1223,7 +1193,7 @@ static void uvShutDownCb(uv_shutdown_t* req, int status) {
   taosMemoryFree(req);
 }
 
-static void uvOnSendSaslCb(uv_write_t* req, int status) {
+static void uvOnSendAuthWithTLSCb(uv_write_t* req, int status) {
   int32_t   code = 0;
   int32_t   lino = 0;
   SSvrConn* pConn = req->data;
@@ -1235,8 +1205,9 @@ static void uvOnSendSaslCb(uv_write_t* req, int status) {
     TAOS_CHECK_GOTO(code, &lino, _error);
   } else {
     tDebug("%s conn:%p, send sasl auth data successfully", transLabel(pConn), pConn);
-    saslBufferClear(&pConn->saslConn->out);
   }
+  saslBufferClear(&pConn->saslConn->out);
+
 _error:
   taosMemoryFree(req);
   return;
@@ -1432,7 +1403,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    if (saslConnShoudDoAuth(pConn->saslConn)) {
+    if (sslIsInited(pConn->pTls) && !saslAuthIsInited(pConn->saslConn)) {
       code = saslConnHandleAuth(pConn->saslConn, NULL, 0);
       if (code != 0) {
         tWarn("conn:%p, failed to handle auth since %s", pConn, tstrerror(code));
@@ -1440,11 +1411,20 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
         return;
       }
 
-      uvSendAuth(pConn);
+      if (pConn->saslConn->out.len == 0) {
+        tDebug("conn:%p, no need to send auth data", pConn);
+        return;
+      }
 
-      if (saslConnShoudDoAuth(pConn->saslConn)) {
+      code = uvSendAuthWithTLS(pConn);
+      if (code != 0) {
+        tWarn("conn:%p, failed to handle auth since %s", pConn, tstrerror(code));
+        transUnrefSrvHandle(pConn);
+        return;
+      }
+
+      if (!saslAuthIsInited(pConn->saslConn)) {
         tDebug("conn:%p, need to do sasl auth", pConn);
-
       } else {
         tDebug("conn:%p, sasl auth done", pConn);
       }
@@ -1694,9 +1674,8 @@ static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
 
   if (pInst->enableSasl) {
     TAOS_CHECK_GOTO(saslConnCreate(&pConn->saslConn, 1), &lino, _end);
+    pConn->saslConn->pUvConn = pConn;
   }
-
-  pConn->saslConn->pUvConn = pConn;
 
   transRefSrvHandle(pConn);
   return pConn;
@@ -2448,7 +2427,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-  // impl later
+   // impl later
   return;
 }
 

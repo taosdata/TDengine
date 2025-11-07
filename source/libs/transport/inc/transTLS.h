@@ -63,6 +63,7 @@ typedef struct {
   SSL*    ssl;       // SSL connection
   int32_t refCount;  // reference count
   int32_t status;    // connection status
+  int8_t inited;
 
   BIO* readBio;
   BIO* writeBio;  // BIO for reading and writing data

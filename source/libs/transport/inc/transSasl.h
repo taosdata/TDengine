@@ -70,7 +70,7 @@ int32_t saslConnDecode(SSaslConn* pConn, const char* input, int32_t len, const c
 
 int32_t saslConnHandleAuth(SSaslConn* pConn, const char* input, int32_t len);
 
-int8_t  saslConnShoudDoAuth(SSaslConn* pConn);
+int8_t  saslAuthIsInited(SSaslConn* pConn);
 // int32_t saslConnStartAuth(SSaslConn* pConn);
 
 // sasl buffer func

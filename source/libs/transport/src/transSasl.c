@@ -71,7 +71,7 @@ int32_t saslConnDecode(SSaslConn* pConn, const char* input, int32_t len, const c
   return saslConnDecodeImpl(pConn, input, len, output, outputLen);
 }
 
-int8_t saslConnShoudDoAuth(SSaslConn* pConn) {
+int8_t saslAuthIsInited(SSaslConn* pConn) {
   return saslConnShoudDoAuthImpl(pConn);
 }
 

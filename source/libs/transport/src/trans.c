@@ -118,7 +118,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
   pRpc->ipv6 = pInit->ipv6;
 
-  pRpc->enableSasl = pInit->enableSasl;
 
   if (pInit->enableSSL == 1) {
     code = transTlsCtxCreate(pInit, (SSslCtx**)&pRpc->pSSLContext);
@@ -133,6 +132,18 @@ void* rpcOpen(const SRpcInit* pInit) {
   } else {
     tInfo("TLS is not enabled for %s", pRpc->label);
     pRpc->enableSSL = 0;
+  }
+
+  pRpc->enableSasl = pInit->enableSasl;
+
+  if (pRpc->enableSasl) {
+    tInfo("SASL is enabled for %s", pRpc->label);
+    if (!pRpc->enableSSL) {
+      tWarn("Enabling SASL without TLS may expose sensitive information for %s", pRpc->label);
+      TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    }
+  } else {
+    tInfo("SASL is not enabled for %s", pRpc->label);
   }
 
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(&addr, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
