@@ -155,25 +155,27 @@ class TestCountalwaysreturnvalue:
         tdSql.query(f"select count(*), hyperloglog(c0), sum(1), max(c0) from {dbname}.tb_empty")
         tdSql.checkRows(0)
 
-    def test_countAlwaysReturnValue(self):
-        """summary: xxx
+    def test_com_count_always_return_value(self):
+        """Client options
+        
+        1. Config set countAlwaysReturnValue to 0
+        2. Create 1 database and 1 normal table, 2 super table with 4 child tables
+        3. Query count/hyperloglog on empty stable and child tables
+        4. Expect return 0 rows for all above queries
+        5. Query count with group by on empty stable and select hyperloglog(NULL)
+        6. Expect return 1 row 
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-10-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_countAlwaysReturnValue.py
 
         """
+        pass
 
         tdSql.prepare()
 
@@ -185,6 +187,6 @@ class TestCountalwaysreturnvalue:
         tdLog.printNoPrefix("==========step2:test results ==============")
 
         self.check_results()
-
+        
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

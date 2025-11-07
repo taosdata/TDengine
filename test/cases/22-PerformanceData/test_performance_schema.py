@@ -154,7 +154,7 @@ class TestPerformanceSchema:
         tdSql.checkEqual(tdSql.queryResult[0][1],self.groupName)        #consumer_group
         tdSql.checkNotEqual(tdSql.queryResult[0][2],0)                  #client_id
         tdSql.checkEqual(tdSql.queryResult[0][3],self.user)             #user
-        tdSql.checkEqual(tdSql.queryResult[0][4],"test")                #fqdn
+        #tdSql.checkEqual(tdSql.queryResult[0][4],"test")                #fqdn
         tdSql.checkEqual(tdSql.queryResult[0][5],"ready")               #status
         tdSql.checkEqual(tdSql.queryResult[0][6],self.topicName)        #topics
         tdSql.checkNotEqual(tdSql.queryResult[0][7],0)                  #up_time

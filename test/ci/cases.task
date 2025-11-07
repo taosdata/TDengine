@@ -769,6 +769,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3 -M 3
+# 02-Taosc
+,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_count_always_return_value.py
 
 # 81-Tools
 
@@ -910,7 +912,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_char_length.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_check_tsdb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_group_partition.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_countAlwaysReturnValue.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_db.py -N 3 --replica 3 -R
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_distinct.py
