@@ -49,6 +49,7 @@ class TestOfflineReason:
         tdSql.checkKeyData(2, 4, "ready")
 
         tdLog.info(f"========== step3")
+        time.sleep(5)
         sc.dnodeStop(2)
         clusterComCheck.checkDnodes(1)
 

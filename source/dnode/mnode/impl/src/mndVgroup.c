@@ -271,6 +271,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
   pNew->compact = pOld->compact;
   memcpy(pOld->vnodeGid, pNew->vnodeGid, (TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA) * sizeof(SVnodeGid));
   pOld->syncConfChangeVer = pNew->syncConfChangeVer;
+  tstrncpy(pOld->dbName, pNew->dbName, TSDB_DB_FNAME_LEN);
   return 0;
 }
 
