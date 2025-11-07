@@ -553,6 +553,13 @@ typedef struct {
       int64_t reserve12 : 8;
     };
   };
+  union {
+    int64_t p16; // since 3.3.7.x
+    struct {
+      int64_t mountExpireSec : 40;
+      int64_t reserve13 : 24;
+    };
+  };
   int64_t limitTimeSeries;
   int64_t curTimeSeries;
   int32_t limitCpuCores;
@@ -562,6 +569,8 @@ typedef struct {
   int32_t limitVnodes;
   int32_t curVnodes;
   int64_t revokedExpireSec;
+  int64_t limitMounts;
+  int64_t curMounts;
   int64_t limitStorageSize;  // storage limits in GB
   int64_t curStorageSize;    // current storage size in MB
   // TDengine IDMP grant items
