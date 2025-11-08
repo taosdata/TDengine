@@ -10634,11 +10634,11 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     }
 
     case TDMT_MND_DROP_ROLE: {
-      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropUserReq, pReq);
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropRoleReq, pReq);
       break;
     }
     case TDMT_MND_CREATE_ROLE: {
-      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateUserReq, pReq);
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateRoleReq, pReq);
       break;
     }
 
