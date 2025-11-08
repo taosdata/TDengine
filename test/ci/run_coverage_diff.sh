@@ -135,7 +135,7 @@ function collect_info_from_tests_single() {
         echo "$filtered_info_files" > "$info_files_list"
         
         # 构建合并命令并显示文件列表
-        local merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+        local merge_cmd="lcov --quiet --rc lcov_branch_coverage=0"
         local file_index=0
         
         echo "合并文件列表:"
@@ -375,7 +375,7 @@ function merge_files_uniform_batch() {
                 fi
             else
                 # 多文件批次，使用lcov合并
-                local merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+                local merge_cmd="lcov --quiet --rc lcov_branch_coverage=0"
                 local actual_files=0
                 
                 while IFS= read -r file_path; do
@@ -538,7 +538,7 @@ function merge_files_uniform_batch() {
                         echo "  [最终-批次${batch_no}] ✓ 单文件复制"
                     fi
                 else
-                    local merge_cmd="lcov --quiet --rc lcov_branch_coverage=1"
+                    local merge_cmd="lcov --quiet --rc lcov_branch_coverage=0"
                     while IFS= read -r file_path; do
                         if [ -f "$file_path" ]; then
                             merge_cmd="$merge_cmd --add-tracefile '$file_path'"
@@ -691,7 +691,7 @@ function lcovFunc {
         if [ -n "$include_patterns" ]; then
             # 使用 lcov --extract 提取指定的文件
             eval "lcov --quiet --extract coverage_tdengine_raw.info $include_patterns \
-                --rc lcov_branch_coverage=1 \
+                --rc lcov_branch_coverage=0 \
                 -o coverage_tdengine.info"
             
             if [ -s "coverage_tdengine.info" ]; then
@@ -720,7 +720,7 @@ function lcovFunc {
 
     # generate result
     echo "generate result"
-    lcov --quiet -l --rc lcov_branch_coverage=1 coverage_tdengine.info 
+    lcov --quiet -l --rc lcov_branch_coverage=0 coverage_tdengine.info 
     
     # 修正路径以确保与 TDengine 仓库根目录匹配    
     sed -i "s|SF:/home/TDinternal/community/|SF:|g" $TDENGINE_DIR/coverage_tdengine.info

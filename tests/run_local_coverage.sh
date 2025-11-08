@@ -341,7 +341,7 @@ function lcovFunc {
     fi
 
     # collect data
-    $LCOV_DIR/lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
+    $LCOV_DIR/lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=0 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info
 
     # remove exclude paths
     $LCOV_DIR/lcov --remove coverage.info \
@@ -353,11 +353,11 @@ function lcovFunc {
         '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' \
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c'\
         '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c' '*/debug/*' '*/tests/*'\
-         --rc lcov_branch_coverage=1  -o coverage.info
+         --rc lcov_branch_coverage=0  -o coverage.info
 
     # generate result
     echo "generate result"
-    $LCOV_DIR/lcov -l --rc lcov_branch_coverage=1 coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
+    $LCOV_DIR/lcov -l --rc lcov_branch_coverage=0 coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
 
 }
 

@@ -49,7 +49,7 @@ function lcovFunc {
     # # 收集数据时仅处理 enterprise 开头的文件
     # # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。
     # lcov --quiet -d $TDINTERNAL_DIR/debug/ -capture \
-    #     --rc lcov_branch_coverage=1 \
+    #     --rc lcov_branch_coverage=0 \
     #     --rc genhtml_branch_coverage=1 \
     #     --no-external \
     #     --config-file lcov_internal.config \
@@ -69,12 +69,12 @@ function lcovFunc {
       
       echo "处理文件：$gcda_file"
       # 打印完整的 lcov 命令
-      echo "执行命令：lcov --quiet --capture --directory \"$gcda_file\" --output-file \"$temp_info\" --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external --config-file lcov_tdengine.config" >> debug_lcov.log
+      echo "执行命令：lcov --quiet --capture --directory \"$gcda_file\" --output-file \"$temp_info\" --rc lcov_branch_coverage=0 --rc genhtml_branch_coverage=1 --no-external --config-file lcov_tdengine.config" >> debug_lcov.log
       
       lcov --capture --initial \
         --directory "$gcda_file" \
         --output-file "$temp_info" \
-        --rc lcov_branch_coverage=1 \
+        --rc lcov_branch_coverage=0 \
         --rc genhtml_branch_coverage=1 2>> lcov_errors.log
       
       if [ $? -ne 0 ]; then
@@ -103,7 +103,7 @@ function lcovFunc {
         lcov --add-tracefile "$temp_info" \
             --add-tracefile "$temp_merged_file" \
             --output-file "$temp_merged_file" \
-            --rc lcov_branch_coverage=1 \
+            --rc lcov_branch_coverage=0 \
             --rc genhtml_branch_coverage=1 2>> lcov_errors.log
         if [ $? -ne 0 ]; then
           echo "错误：合并 $temp_info 失败" >> lcov_errors.log
@@ -112,7 +112,7 @@ function lcovFunc {
       fi
       
       # 打印完整的 lcov 命令
-      echo "执行命令：lcov --add-tracefile \"$temp_info\" --add-tracefile \"$temp_merged_file\" --output-file \"$temp_merged_file\" --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1" >> debug_merge.log
+      echo "执行命令：lcov --add-tracefile \"$temp_info\" --add-tracefile \"$temp_merged_file\" --output-file \"$temp_merged_file\" --rc lcov_branch_coverage=0 --rc genhtml_branch_coverage=1" >> debug_merge.log
     done
 
     # 将最终合并的文件复制到 OUTPUT_FILE
@@ -122,7 +122,7 @@ function lcovFunc {
     # remove exclude paths (确保只保留 enterprise 相关的文件)
     lcov --quiet --remove $TDINTERNAL_DIR/coverage_internal_2.info \
         '*/community/*' '*/contrib/*' '*/test/*' '*/packaging/*' '*/docs/*' '*/debug/*' '*/sql.c' '*/sql.y'\
-         --rc lcov_branch_coverage=1  -o $TDINTERNAL_DIR/coverage_internal_2.info 
+         --rc lcov_branch_coverage=0  -o $TDINTERNAL_DIR/coverage_internal_2.info 
 
     sed -i "s|SF:/home/TDinternal/|SF:|g" $TDINTERNAL_DIR/coverage_internal_2.info
 
@@ -134,7 +134,7 @@ function lcovFunc {
     # generate result
     echo "generate result"
     cat $TDINTERNAL_DIR/coverage_internal_2.info | grep SF
-    lcov -l --rc lcov_branch_coverage=1 $TDINTERNAL_DIR/coverage_internal_2.info    
+    lcov -l --rc lcov_branch_coverage=0 $TDINTERNAL_DIR/coverage_internal_2.info    
 
     # push result to https://app.codecov.io/
     pip install codecov

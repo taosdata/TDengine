@@ -29,7 +29,7 @@ function lcovFunc {
     cd $TDENGINE_DIR
 
     # collect data
-    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=1 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
+    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=0 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
 
 
     # remove exclude paths 
@@ -47,11 +47,11 @@ function lcovFunc {
         '*/streamsessionnonblockoperator.c' '*/streameventnonblockoperator.c' '*/streamstatenonblockoperator.c' '*/streamfillnonblockoperator.c' \
         '*/streamclient.c' '*/cos_cp.c' '*/cos.c' '*/trow.c' '*/trow.h' '*/tsdbSnapshot.c' '*/smaTimeRange.c' \
         '*/metaSma.c' '*/mndDump.c' '*/td_block_blob_client.cpp' \
-        --rc lcov_branch_coverage=1 -o coverage.info
+        --rc lcov_branch_coverage=0 -o coverage.info
 
     # generate result
     echo "generate result"
-    lcov -l --rc lcov_branch_coverage=1 coverage.info    
+    lcov -l --rc lcov_branch_coverage=0 coverage.info    
 
     sed -i 's/\/home\/TDinternal\/community\/sql.c/\/home\/TDinternal\/community\/source\/libs\/parser\/src\/sql.c/g' coverage.info
     sed -i 's/\/home\/TDinternal\/community\/sql.y/\/home\/TDinternal\/community\/source\/libs\/parser\/inc\/sql.y/g' coverage.info
