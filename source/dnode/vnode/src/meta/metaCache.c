@@ -80,11 +80,11 @@ struct SMetaCache {
 
   // cache table list for tag filter conditions
   // that match format "tag1 = v1 AND tag2 = v2 AND ..."
-  struct STagFilterResCache2 {
+  struct SStableTagFilterResCache {
     TdThreadRwlock rwlock;
     uint32_t       accTimes;
     SHashObj*      pTableEntry;  // HashObj<suid, STagConds>
-  } sTagFilterResCache2;
+  } sStableTagFilterResCache;
 
   struct STbGroupResCache {
     TdThreadMutex lock;
@@ -203,18 +203,18 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   (void)taosThreadMutexInit(&pMeta->pCache->sTagFilterResCache.lock, NULL);
 
   // open tag filter cache2
-  pMeta->pCache->sTagFilterResCache2.accTimes = 0;
-  pMeta->pCache->sTagFilterResCache2.pTableEntry =
+  pMeta->pCache->sStableTagFilterResCache.accTimes = 0;
+  pMeta->pCache->sStableTagFilterResCache.pTableEntry =
     taosHashInit(1024,
       taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
-  if (pMeta->pCache->sTagFilterResCache2.pTableEntry == NULL) {
+  if (pMeta->pCache->sStableTagFilterResCache.pTableEntry == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   taosHashSetFreeFp(
-    pMeta->pCache->sTagFilterResCache2.pTableEntry, freeTagCondsFp);
-  
+    pMeta->pCache->sStableTagFilterResCache.pTableEntry, freeTagCondsFp);
+
   TAOS_UNUSED(taosThreadRwlockInit(
-    &pMeta->pCache->sTagFilterResCache2.rwlock, NULL));
+    &pMeta->pCache->sStableTagFilterResCache.rwlock, NULL));
 
   // open group res cache
   pMeta->pCache->STbGroupResCache.pResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
@@ -276,8 +276,8 @@ void metaCacheClose(SMeta* pMeta) {
     (void)taosThreadMutexDestroy(&pMeta->pCache->sTagFilterResCache.lock);
     taosHashCleanup(pMeta->pCache->sTagFilterResCache.pTableEntry);
 
-    (void)taosThreadRwlockDestroy(&pMeta->pCache->sTagFilterResCache2.rwlock);
-    taosHashCleanup(pMeta->pCache->sTagFilterResCache2.pTableEntry);
+    (void)taosThreadRwlockDestroy(&pMeta->pCache->sStableTagFilterResCache.rwlock);
+    taosHashCleanup(pMeta->pCache->sStableTagFilterResCache.pTableEntry);
 
     taosHashClear(pMeta->pCache->STbGroupResCache.pTableEntry);
     taosLRUCacheCleanup(pMeta->pCache->STbGroupResCache.pResCache);
@@ -627,7 +627,7 @@ int32_t metaGetCachedTableUidList(void* pVnode, tb_uid_t suid, const uint8_t* pK
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t metaGetCachedTableUidList2(void* pVnode, tb_uid_t suid,
+int32_t metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid,
   const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
   const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes) {
 
@@ -638,12 +638,12 @@ int32_t metaGetCachedTableUidList2(void* pVnode, tb_uid_t suid,
   *acquireRes = 0;
 
   // generate the composed key for LRU cache
-  SHashObj*       pTableMap = pMeta->pCache->sTagFilterResCache2.pTableEntry;
-  TdThreadRwlock* pRwlock = &pMeta->pCache->sTagFilterResCache2.rwlock;
+  SHashObj*       pTableMap = pMeta->pCache->sStableTagFilterResCache.pTableEntry;
+  TdThreadRwlock* pRwlock = &pMeta->pCache->sStableTagFilterResCache.rwlock;
 
   code = taosThreadRwlockRdlock(pRwlock);
   TSDB_CHECK_CODE(code, lino, _end);
-  pMeta->pCache->sTagFilterResCache.accTimes += 1;
+  pMeta->pCache->sStableTagFilterResCache.accTimes += 1;
 
   STagConds** pTagConds =
     (STagConds**)taosHashGet(pTableMap, &suid, sizeof(tb_uid_t));
@@ -809,7 +809,7 @@ _end:
   return code;
 }
 
-int32_t metaUidFilterCachePut2(
+int32_t metaStableTagFilterCachePut(
   void* pVnode, uint64_t suid, const void* pTagCondKey, int32_t tagCondKeyLen,
   const void* pKey, int32_t keyLen, SArray* pUidList) {
 
@@ -818,8 +818,8 @@ int32_t metaUidFilterCachePut2(
   SMeta*  pMeta = ((SVnode*)pVnode)->pMeta;
   int32_t vgId = TD_VID(pMeta->pVnode);
 
-  SHashObj*       pTableEntry = pMeta->pCache->sTagFilterResCache2.pTableEntry;
-  TdThreadRwlock* pRwlock = &pMeta->pCache->sTagFilterResCache2.rwlock;
+  SHashObj*       pTableEntry = pMeta->pCache->sStableTagFilterResCache.pTableEntry;
+  TdThreadRwlock* pRwlock = &pMeta->pCache->sStableTagFilterResCache.rwlock;
 
   code = taosThreadRwlockWrlock(pRwlock);
   TSDB_CHECK_CODE(code, lino, _end);

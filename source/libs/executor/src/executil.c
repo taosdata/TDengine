@@ -2077,7 +2077,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         char* pTagCondKey;
         int32_t tagCondKeyLen;
         buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen);
-        code = pStorageAPI->metaFn.getCachedTableList2(
+        code = pStorageAPI->metaFn.getStableCachedTableList(
           pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
           context.digest, tListLen(context.digest), pUidList, &acquired);
         QUERY_CHECK_CODE(code, lino, _error);
@@ -2147,7 +2147,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         char* pTagCondKey;
         int32_t tagCondKeyLen;
         buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen);
-        code = pStorageAPI->metaFn.putCachedTableList2(
+        code = pStorageAPI->metaFn.putStableCachedTableList(
           pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
           context.digest, tListLen(context.digest), pUidList);
         QUERY_CHECK_CODE(code, lino, _error);
