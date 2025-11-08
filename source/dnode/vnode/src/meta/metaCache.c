@@ -897,6 +897,90 @@ _end:
   return code;
 }
 
+// drop all the cache entries for a super table 
+int32_t metaStableTagFilterCacheDropSTable(
+  SMeta* pMeta, SMetaEntry* pSuperTable) {
+  if (pMeta == NULL || pSuperTable == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t   lino = 0;
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SHashObj* pTableEntry = pMeta->pCache->sStableTagFilterResCache.pTableEntry;
+  TdThreadRwlock* pRwlock = &pMeta->pCache->sStableTagFilterResCache.rwlock;
+
+  code = taosThreadRwlockWrlock(pRwlock);
+  TSDB_CHECK_CODE(code, lino, _end);
+  tb_uid_t suid = pSuperTable->uid;
+  code = taosHashRemove(pTableEntry, &suid, sizeof(tb_uid_t));
+  TSDB_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s",
+      TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+  } else {
+    metaDebug(
+      "vgId:%d, suid:%" PRIu64 " stable tag filter cache dropped from cache",
+      TD_VID(pMeta->pVnode), pSuperTable->uid);
+  }
+  code = taosThreadRwlockUnlock(pRwlock);
+  if (TSDB_CODE_SUCCESS != code) {
+    metaError("vgId:%d, %s unlock failed at %s:%d since %s",
+      TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// remove the dropped table uid from all cache entries
+// pDroppedTable is the dropped child table meta entry
+int32_t metaStableTagFilterCacheRemoveUid(
+  SMeta* pMeta, SMetaEntry* pDroppedTable) {
+  if (pMeta == NULL || pDroppedTable == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t   lino = 0;
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SHashObj* pTableEntry = pMeta->pCache->sStableTagFilterResCache.pTableEntry;
+  TdThreadRwlock* pRwlock = &pMeta->pCache->sStableTagFilterResCache.rwlock;
+
+  code = taosThreadRwlockWrlock(pRwlock);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  tb_uid_t suid = pDroppedTable->ctbEntry.suid;;
+  STagConds** pTagConds =
+    (STagConds**)taosHashGet(pTableEntry, &suid, sizeof(tb_uid_t));
+  if (pTagConds != NULL) {
+    void* iter = taosHashIterate((*pTagConds)->set, NULL);
+    while (iter != NULL) {
+      STagCondFilterEntry** pFilterEntry = (STagCondFilterEntry**)iter;
+      if (pFilterEntry != NULL) {
+        // rebuild the tagCondKey and check existence
+        SArray* pColIds = (*pFilterEntry)->aColIds;
+        // TODO(Tony Zhang)
+      }
+      iter = taosHashIterate((*pTagConds)->set, iter);
+    }
+  }
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    metaError("vgId:%d, %s failed at %s:%d since %s",
+      TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+  } else {
+    metaDebug(
+      "vgId:%d, suid:%" PRIu64 " dropped table uid:%" PRIu64
+      " removed from stable tag filter cache",
+      TD_VID(pMeta->pVnode),
+      pDroppedTable->ctbEntry.suid, pDroppedTable->uid);
+  }
+  code = taosThreadRwlockUnlock(pRwlock);
+  if (TSDB_CODE_SUCCESS != code) {
+    metaError("vgId:%d, %s unlock failed at %s:%d since %s",
+      TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 void metaCacheClear(SMeta* pMeta) {
   metaWLock(pMeta);
   metaCacheClose(pMeta);
