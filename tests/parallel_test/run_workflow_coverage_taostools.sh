@@ -63,7 +63,7 @@ EOF
 
     # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。
     lcov --quiet -d ../debug/ -capture \
-        --rc lcov_branch_coverage=1 \
+        --rc lcov_branch_coverage=0 \
         --rc genhtml_branch_coverage=1 \
         --no-external \
         --config-file lcov_taostools.config \
@@ -90,11 +90,11 @@ EOF
         '*/streamclient.c' '*/cos_cp.c' '*/cos.c' '*/trow.c' '*/trow.h' '*/tsdbSnapshot.c' '*/smaTimeRange.c' \
         '*/metaSma.c' '*/mndDump.c' '*/td_block_blob_client.cpp' \
         '*/taos-tools/deps/toolscJson/src/*' '*/taos-tools/deps/jansson/src/*' \
-         --rc lcov_branch_coverage=1  -o coverage_taostools.info 
+         --rc lcov_branch_coverage=0  -o coverage_taostools.info 
 
     # generate result
     echo "generate result"
-    lcov --quiet -l --rc lcov_branch_coverage=1 coverage_taostools.info 
+    lcov --quiet -l --rc lcov_branch_coverage=0 coverage_taostools.info 
 
     
     # 修正路径以确保与 TDengine 仓库根目录匹配    

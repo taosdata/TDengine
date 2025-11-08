@@ -89,7 +89,7 @@ for debug_entry in "${DEBUG_DIRS[@]}"; do
     
     # 执行 lcov 命令 - 关键：使用正确的源码路径
     LCOV_CMD="cd ${DEBUG_PATH} && lcov --quiet -d . -capture \
-        --rc lcov_branch_coverage=1 \
+        --rc lcov_branch_coverage=0 \
         --rc genhtml_branch_coverage=1 \
         --no-external \
         -b /home/TDinternal/community/ \
@@ -122,7 +122,7 @@ if [ "${#GENERATED_FILES[@]}" -gt 1 ]; then
     MERGED_FILE="${COVERAGE_OUTPUT_DIR}/coverage_${CASE_NAME}_merged.info"
     
     # 构建合并命令
-    MERGE_CMD="lcov --quiet --rc lcov_branch_coverage=1"
+    MERGE_CMD="lcov --quiet --rc lcov_branch_coverage=0"
     for info_file in "${GENERATED_FILES[@]}"; do
         MERGE_CMD="$MERGE_CMD --add-tracefile '$info_file'"
     done

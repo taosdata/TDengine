@@ -312,11 +312,11 @@ function lcovFunc {
         '*/tthread.c' '*/tversion.c'  '*/ctgDbg.c' '*/schDbg.c' '*/qwDbg.c' '*/tencode.h' \
         '*/shellAuto.c' '*/shellTire.c' '*/shellCommand.c'\
         '*/sql.c' '*/sql.y' '*/smaSnapshot.c' '*/smaCommit.c' '*/debug/*' '*/tests/*'\
-         --rc lcov_branch_coverage=1  -o coverage.info
+         --rc lcov_branch_coverage=0  -o coverage.info
 
     # generate result
     echo "generate result"
-    lcov -l --rc lcov_branch_coverage=1 coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
+    lcov -l --rc lcov_branch_coverage=0 coverage.info | tee -a $TDENGINE_COVERAGE_REPORT
 
 }
 
