@@ -580,6 +580,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
 #define TSDB_ROLE_CHAIN_MAX_DEPTH 100
+#define TSDB_ROLE_MAX_CHILDREN    32
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))

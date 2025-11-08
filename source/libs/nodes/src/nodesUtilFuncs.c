@@ -607,6 +607,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_USER_STMT:
       code = makeNode(type, sizeof(SDropUserStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_ROLE_STMT:
+      code = makeNode(type, sizeof(SCreateRoleStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_ROLE_STMT:
+      code = makeNode(type, sizeof(SDropRoleStmt), &pNode);
+      break;
     case QUERY_NODE_USE_DATABASE_STMT:
       code = makeNode(type, sizeof(SUseDatabaseStmt), &pNode);
       break;

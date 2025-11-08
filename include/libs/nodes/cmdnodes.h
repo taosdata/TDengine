@@ -434,6 +434,18 @@ typedef struct SDropUserStmt {
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
 
+typedef struct SCreateRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  bool      ignoreExists;
+} SCreateRoleStmt;
+
+typedef struct SDropRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  bool      ignoreNotExists;
+} SDropRoleStmt;
+
 typedef struct SCreateDnodeStmt {
   ENodeType type;
   char      fqdn[TSDB_FQDN_LEN];

@@ -54,8 +54,6 @@ static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 
 
 int32_t mndInitRole(SMnode *pMnode) {
-  TAOS_CHECK_RETURN(ipWhiteMgtInit());
-
   SSdbTable table = {
       .sdbType = SDB_ROLE,
       .keyType = SDB_KEY_BINARY,
@@ -191,7 +189,7 @@ void mndReleaseRole(SMnode *pMnode, SRoleObj *pRole) {
 static int32_t mndCreateRole(SMnode *pMnode, char *acct, SCreateRoleReq *pCreate, SRpcMsg *pReq) { return 0; }
 
 static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
-  
+  assert(0);
 
   TAOS_RETURN(0);
 }
@@ -202,7 +200,7 @@ static int32_t mndDropRole(SMnode *pMnode, SRpcMsg *pReq, SRoleObj *pRole) {
 }
 
 static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
-  
+  assert(0);  
   TAOS_RETURN(0);
 }
 
