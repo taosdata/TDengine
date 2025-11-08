@@ -13,6 +13,7 @@ env:
   REPORT_BASE_URL: http://192.168.1.45:8788
   COVERAGE_REPORT_BASE_DIR: /data/code_coverage_taosx
   COVERAGE_DATABASE_URL: http://192.168.0.204:6041/rest/sql
+  WINDOWS_AGENT_TOKEN: "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIwLCJpYXQiOjE3NjIxMjg1ODh9.mBRgWr7XiY2x5YhSn1pvmuGmjAlYfpkiQ7w1Q8ODFCc"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -108,7 +109,7 @@ jobs:
           cp -r ./target/debug/taosx-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           cp -r ./target/debug/taosx-agent-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           cd ..
-          tar --exclude=./taosx/target/* --exclude=./taosx/explorer --exclude=./taosx/.git/* -caf taosx.tar.gz ./taosx
+          tar --exclude=./taosx/target/* --exclude=./taosx/explorer --exclude=./taosx/.git/* -caf taosx.tar.gz ./taosx # spellchecker:disable-line
           cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm taosx.tar.gz
           tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
@@ -217,7 +218,7 @@ jobs:
           echo "RPC_PORT: 6055"
           # 调用 windows 远程服务拉起 windows-agent
           echo $PATH
-          cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py 6055 eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
+          cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py 6055 ${WINDOWS_AGENT_TOKEN}
   run_e2e_test:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [deploy_taosx_plugins, set_env]

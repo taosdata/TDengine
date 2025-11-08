@@ -1047,8 +1047,8 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[0])
 			continue
 		}
-		nodeClass := ua.NodeClass(res.Results[index].Value.Int())
-		if nodeClass != ua.NodeClassVariable {
+		v := res.Results[index].Value
+		if v == nil || ua.NodeClass(v.Int()) != ua.NodeClassVariable {
 			continue
 		}
 		// Browse Name
@@ -1057,14 +1057,19 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[1])
 			continue
 		}
-		browseName := res.Results[index+1].Value.String()
+		browseName := ""
+		if res.Results[index+1].Value != nil {
+			browseName = res.Results[index+1].Value.String()
+		}
 		// get Description attribute
-		var description string
+		description := ""
 		err = res.Results[index+2].Status
 		// ignore get description error, some nodes may not have description
 		if errors.Is(err, ua.StatusOK) {
 			// success
-			description = res.Results[index+2].Value.String()
+			if res.Results[index+2].Value != nil {
+				description = res.Results[index+2].Value.String()
+			}
 		} else if !errors.Is(err, ua.StatusBadAttributeIDInvalid) {
 			// log error if not BadAttributeIDInvalid
 			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[2])

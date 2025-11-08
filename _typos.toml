@@ -49,12 +49,13 @@ extend-exclude = [
   "tests/*.toml",
   "tests/e2e/**",                                             # FIXME: should be removed after while
   "crates/source-kinghistorian/kinghistorian-sys/KRTDBAPI.h",
+  "explorer/public/**",
 ]
 
 [default]
 extend-ignore-re = [
   # Line ignore with trailing comment: spellchecker:disable-line
-  ".*(#|//)\\s*spellchecker:disable-line\\s*$",
+  "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
   # Block ignore with spellchecker:off ... spellchecker:on
   "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
   # Ignore certificate keys
