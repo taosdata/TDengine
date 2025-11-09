@@ -33,7 +33,7 @@ function collect_info_from_tests_single() {
         return 0
     fi
     
-    echo "=== 收集并合并所有测试case的覆盖率信息文件 ==="
+    echo "=== 收集并合并所有测试 case 的覆盖率信息文件 === SINGLE"
     echo "源目录: $test_log_dir"
     
     # 查找所有 .info 文件
@@ -48,68 +48,10 @@ function collect_info_from_tests_single() {
     local info_count=$(echo "$info_files" | wc -l)
     echo "找到 $info_count 个覆盖率信息文件"
     
-    # 使用 coverage.txt 过滤需要处理的文件
-    local filtered_info_files=""
-    if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
-        echo "使用 coverage.txt 过滤覆盖率信息文件..."
-        
-        # 创建临时过滤模式文件
-        local coverage_patterns_file=$(mktemp)
-        while IFS= read -r line; do
-            # 跳过空行和注释行
-            [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-            
-            # 提取文件名（去掉路径）
-            local filename=$(basename "$line")
-            
-            # 去掉扩展名，得到基础名称
-            if [[ "$filename" == *.* ]]; then
-                local base_name="${filename%%.*}"
-                echo "$base_name" >> "$coverage_patterns_file"
-            else
-                echo "$filename" >> "$coverage_patterns_file"
-            fi
-        done < "$TDENGINE_DIR/test/ci/coverage.txt"
-        
-        # 去重并排序
-        sort -u "$coverage_patterns_file" -o "$coverage_patterns_file"
-        local pattern_count=$(wc -l < "$coverage_patterns_file")
-        echo "加载了 $pattern_count 个过滤模式"
-        
-        # 过滤 .info 文件：只保留包含coverage.txt中文件的info文件
-        local temp_filtered_list=$(mktemp)
-        echo "$info_files" | while read -r info_file; do
-            if [ -f "$info_file" ]; then
-                # 检查 info 文件中是否包含我们关心的源文件
-                local has_covered_files=false
-                while IFS= read -r pattern; do
-                    if grep -q "SF:.*${pattern}" "$info_file" 2>/dev/null; then
-                        has_covered_files=true
-                        break
-                    fi
-                done < "$coverage_patterns_file"
-                
-                if [ "$has_covered_files" = true ]; then
-                    echo "$info_file" >> "$temp_filtered_list"
-                fi
-            fi
-        done
-        
-        if [ -s "$temp_filtered_list" ]; then
-            filtered_info_files=$(cat "$temp_filtered_list")
-            local filtered_count=$(wc -l < "$temp_filtered_list")
-            echo "过滤后剩余 $filtered_count 个有效的覆盖率信息文件"
-        else
-            echo "警告: 过滤后没有有效的覆盖率信息文件"
-            rm -f "$coverage_patterns_file" "$temp_filtered_list"
-            return 1
-        fi
-        
-        rm -f "$coverage_patterns_file" "$temp_filtered_list"
-    else
-        echo "Warning: coverage.txt 不存在，使用所有找到的 .info 文件"
-        filtered_info_files="$info_files"
-    fi
+    # 不使用 coverage.txt 过滤，直接使用所有文件
+    filtered_info_files="$info_files"
+    local filtered_count=$info_count
+    echo "不使用 coverage.txt 过滤，直接使用所有 $filtered_count 个文件"
     
     # 检查是否有文件需要合并
     local final_info_count=$(echo "$filtered_info_files" | wc -l)
@@ -184,6 +126,7 @@ function collect_info_from_tests_single() {
         return 1
     fi
 }
+
 function collect_info_from_tests() {
     local test_log_dir="$1"
     
@@ -192,7 +135,7 @@ function collect_info_from_tests() {
         return 0
     fi
     
-    echo "=== 收集并合并所有测试case的覆盖率信息文件 ==="
+    echo "=== 收集并合并所有测试 case 的覆盖率信息文件 === tests"
     echo "源目录: $test_log_dir"
     
     # 查找所有 .info 文件
@@ -207,68 +150,10 @@ function collect_info_from_tests() {
     local info_count=$(echo "$info_files" | wc -l)
     echo "找到 $info_count 个覆盖率信息文件"
     
-    # 使用 coverage.txt 过滤需要处理的文件
-    local filtered_info_files=""
-    if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
-        echo "使用 coverage.txt 过滤覆盖率信息文件..."
-        
-        # 创建临时过滤模式文件
-        local coverage_patterns_file=$(mktemp)
-        while IFS= read -r line; do
-            # 跳过空行和注释行
-            [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-            
-            # 提取文件名（去掉路径）
-            local filename=$(basename "$line")
-            
-            # 去掉扩展名，得到基础名称
-            if [[ "$filename" == *.* ]]; then
-                local base_name="${filename%%.*}"
-                echo "$base_name" >> "$coverage_patterns_file"
-            else
-                echo "$filename" >> "$coverage_patterns_file"
-            fi
-        done < "$TDENGINE_DIR/test/ci/coverage.txt"
-        
-        # 去重并排序
-        sort -u "$coverage_patterns_file" -o "$coverage_patterns_file"
-        local pattern_count=$(wc -l < "$coverage_patterns_file")
-        echo "加载了 $pattern_count 个过滤模式"
-        
-        # 过滤 .info 文件：只保留包含coverage.txt中文件的info文件
-        local temp_filtered_list=$(mktemp)
-        echo "$info_files" | while read -r info_file; do
-            if [ -f "$info_file" ]; then
-                # 检查 info 文件中是否包含我们关心的源文件
-                local has_covered_files=false
-                while IFS= read -r pattern; do
-                    if grep -q "SF:.*${pattern}" "$info_file" 2>/dev/null; then
-                        has_covered_files=true
-                        break
-                    fi
-                done < "$coverage_patterns_file"
-                
-                if [ "$has_covered_files" = true ]; then
-                    echo "$info_file" >> "$temp_filtered_list"
-                fi
-            fi
-        done
-        
-        if [ -s "$temp_filtered_list" ]; then
-            filtered_info_files=$(cat "$temp_filtered_list")
-            local filtered_count=$(wc -l < "$temp_filtered_list")
-            echo "过滤后剩余 $filtered_count 个有效的覆盖率信息文件"
-        else
-            echo "警告: 过滤后没有有效的覆盖率信息文件"
-            rm -f "$coverage_patterns_file" "$temp_filtered_list"
-            return 1
-        fi
-        
-        rm -f "$coverage_patterns_file" "$temp_filtered_list"
-    else
-        echo "Warning: coverage.txt 不存在，使用所有找到的 .info 文件"
-        filtered_info_files="$info_files"
-    fi
+    # 不使用 coverage.txt 过滤，直接使用所有文件
+    filtered_info_files="$info_files"
+    local filtered_count=$info_count
+    echo "不使用 coverage.txt 过滤，直接使用所有 $filtered_count 个文件"
     
     # 检查是否有文件需要合并
     local final_info_count=$(echo "$filtered_info_files" | wc -l)
@@ -647,7 +532,7 @@ function merge_files_uniform_batch() {
 }
 
 function lcovFunc {
-    echo "collect data by lcov"
+    echo "collect data by lcov func"
     cd $TDENGINE_DIR || exit
 
     # 收集并合并所有测试case的覆盖率信息文件
@@ -675,29 +560,65 @@ function lcovFunc {
     echo "原始文件行数: $raw_lines 行"
     echo "原始源文件数: $raw_sources 个"
 
-    # 使用 coverage.txt 文件来进一步过滤覆盖率数据
+    # 使用 coverage.txt 文件来排除指定的文件
     if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
-        echo "使用 coverage.txt 进行最终过滤..."
+        echo "使用 coverage.txt 进行排除过滤..."
         
-        local include_patterns=""
+        # 先打印所有源文件
+        echo "=== 覆盖率文件中的所有源文件列表 ==="
+        grep "^SF:" coverage_tdengine_raw.info | sed 's/^SF://' | head -2000
+        local total_sources=$(grep "^SF:" coverage_tdengine_raw.info | wc -l)
+        echo "总源文件数: $total_sources"
+        
+        local exclude_patterns=""
+        local exclude_count=0
+        echo "扫描 coverage.txt 文件..."
+        
         while IFS= read -r file_pattern; do
             # 跳过空行和注释行
             [[ -z "$file_pattern" || "$file_pattern" =~ ^[[:space:]]*# ]] && continue
             
-            # 添加到 include 列表
-            include_patterns="$include_patterns '*/$file_pattern'"
+            # 如果是相对路径，转换为绝对路径
+            if [[ "$file_pattern" != /* ]]; then
+                file_pattern="$TDENGINE_DIR/$file_pattern"
+            fi
+            
+            # 打印当前处理的模式
+            echo "处理排除模式: $file_pattern"
+            exclude_patterns="$exclude_patterns '$file_pattern'"
+            ((exclude_count++))
         done < "$TDENGINE_DIR/test/ci/coverage.txt"
         
-        if [ -n "$include_patterns" ]; then
-            # 使用 lcov --extract 提取指定的文件
-            eval "lcov --quiet --extract coverage_tdengine_raw.info $include_patterns \
+        echo "加载了 $exclude_count 个排除模式"
+        
+        if [ -n "$exclude_patterns" ]; then
+            # 使用 lcov --remove 排除指定的文件
+            echo "执行排除过滤..."
+            echo "排除命令: lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns --rc lcov_branch_coverage=0 -o coverage_tdengine.info"
+            
+            eval "lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns \
                 --rc lcov_branch_coverage=0 \
                 -o coverage_tdengine.info"
             
             if [ -s "coverage_tdengine.info" ]; then
-                echo "✓ 成功应用 coverage.txt 过滤"
+                echo "✓ 成功应用 coverage.txt 排除过滤"
+                # 打印过滤后的文件统计
+                local final_sources=$(grep "^SF:" "coverage_tdengine.info" | wc -l || echo "0")
+                local excluded_count=$((raw_sources - final_sources))
+                echo "排除文件数: $excluded_count 个"
+                echo "剩余文件数: $final_sources 个"
+                
+                # 验证特定文件是否被过滤
+                echo "=== 过滤验证 ==="
+                for test_file in "get_db_name_test.c" "replay_test.c" "sml_test.c"; do
+                    if grep -q "SF:.*$test_file" coverage_tdengine.info; then
+                        echo "✗ 未过滤: $test_file"
+                    else
+                        echo "✓ 已过滤: $test_file"
+                    fi
+                done
             else
-                echo "✗ 过滤后文件为空，使用原始数据"
+                echo "✗ 排除后文件为空，使用原始数据"
                 cp coverage_tdengine_raw.info coverage_tdengine.info
             fi
         else
@@ -1014,4 +935,4 @@ OUTPUT_DIR="$CAPTURE_GCDA_DIR/coverage_report"
 
 print_color "$GREEN" "End of coverage test on workflow!"
 
-echo "For more details: https://app.codecov.io/github/taosdata/TDengine"
+echo "For more details: https://app.codecov.io/github/taosdata/TDengine"\n
