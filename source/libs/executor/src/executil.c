@@ -806,6 +806,8 @@ static void extractTagDataEntry(
   entry.colId = pColNode->colId;
   entry.pValueNode = (SNode*)pValueNode;
   TAOS_UNUSED(taosArrayPush(pIdWithValue, &entry));
+  STagDataEntry* pLastEntry = taosArrayGetLast(pIdWithValue);
+  ((SValueNode*)pLastEntry->pValueNode)->node.resType = pColNode->node.resType;
 }
 
 static int32_t extractTagFilterTagDataEntries(
@@ -1979,7 +1981,7 @@ static void extractTagColId(SOperatorNode* pOpNode, SArray* pColIdArray) {
 }
 
 static int32_t buildTagCondKey(
-  SNode* pTagCond, char** pTagCondKey, int32_t* tagCondKeyLen) {
+  SNode* pTagCond, char** pTagCondKey, int32_t* tagCondKeyLen, SArray** pTagColIds) {
   if (NULL == pTagCond ||
     (nodeType(pTagCond) != QUERY_NODE_OPERATOR &&
       nodeType(pTagCond) != QUERY_NODE_LOGIC_CONDITION)) {
@@ -1988,31 +1990,31 @@ static int32_t buildTagCondKey(
   }
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SArray* pTagColIds = taosArrayInit(4, sizeof(col_id_t));
+  *pTagColIds = taosArrayInit(4, sizeof(col_id_t));
 
   if (nodeType(pTagCond) == QUERY_NODE_OPERATOR) {
-    extractTagColId((SOperatorNode*)pTagCond, pTagColIds);
+    extractTagColId((SOperatorNode*)pTagCond, *pTagColIds);
   } else if (nodeType(pTagCond) == QUERY_NODE_LOGIC_CONDITION) {
     SNode* pChild = NULL;
     FOREACH(pChild, ((SLogicConditionNode*)pTagCond)->pParameterList) {
-      extractTagColId((SOperatorNode*)pChild, pTagColIds);
+      extractTagColId((SOperatorNode*)pChild, *pTagColIds);
     }
   }
 
-  taosArraySort(pTagColIds, compareUint16Val);
+  taosArraySort(*pTagColIds, compareUint16Val);
 
   // encode ordered colIds into key string, separated by ','
-  *tagCondKeyLen = 
-    (int32_t)(taosArrayGetSize(pTagColIds) * (sizeof(col_id_t) + 1) - 1);
+  *tagCondKeyLen =
+    (int32_t)(taosArrayGetSize(*pTagColIds) * (sizeof(col_id_t) + 1) - 1);
   *pTagCondKey = (char*)taosMemoryCalloc(1, *tagCondKeyLen);
   TSDB_CHECK_NULL(*pTagCondKey, code, lino, _end, terrno);
   char* pStart = *pTagCondKey;
-  for (int32_t i = 0; i < taosArrayGetSize(pTagColIds); ++i) {
-    col_id_t* pColId = (col_id_t*)taosArrayGet(pTagColIds, i);
+  for (int32_t i = 0; i < taosArrayGetSize(*pTagColIds); ++i) {
+    col_id_t* pColId = (col_id_t*)taosArrayGet(*pTagColIds, i);
     TSDB_CHECK_NULL(pColId, code, lino, _end, terrno);
     memcpy(pStart, pColId, sizeof(col_id_t));
     pStart += sizeof(col_id_t);
-    if (i != taosArrayGetSize(pTagColIds) - 1) {
+    if (i != taosArrayGetSize(*pTagColIds) - 1) {
       *pStart = ',';
       pStart += 1;
     }
@@ -2076,7 +2078,9 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         qDebug("tag filter condition can be optimized");
         char* pTagCondKey;
         int32_t tagCondKeyLen;
-        buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen);
+        SArray* pTagColIds = NULL;
+        buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
+        taosArrayDestroy(pTagColIds);
         code = pStorageAPI->metaFn.getStableCachedTableList(
           pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
           context.digest, tListLen(context.digest), pUidList, &acquired);
@@ -2146,10 +2150,12 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         qDebug("tag filter condition can be optimized, cache separately");
         char* pTagCondKey;
         int32_t tagCondKeyLen;
-        buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen);
+        SArray* pTagColIds = NULL;
+        code = buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
+        QUERY_CHECK_CODE(code, lino, _error);
         code = pStorageAPI->metaFn.putStableCachedTableList(
           pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
-          context.digest, tListLen(context.digest), pUidList);
+          context.digest, tListLen(context.digest), pUidList, pTagColIds);
         QUERY_CHECK_CODE(code, lino, _error);
       }
       code = pStorageAPI->metaFn.putCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest),

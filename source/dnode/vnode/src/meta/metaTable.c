@@ -728,6 +728,13 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
       metaError("vgId:%d, failed to clear uid cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
                 e.ctbEntry.suid, tstrerror(ret));
     }
+    ret = metaStableTagFilterCacheUpdateUid(
+      pMeta, &e, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
+    if (ret < 0) {
+      metaError("vgId:%d, failed to update stable tag filter cache:%s "
+        "uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
+        e.ctbEntry.suid, tstrerror(ret));
+    }
     ret = metaTbGroupCacheClear(pMeta, e.ctbEntry.suid);
     if (ret < 0) {
       metaError("vgId:%d, failed to clear group cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
@@ -766,6 +773,11 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
     if (ret < 0) {
       metaError("vgId:%d, failed to clear uid cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name, e.uid,
                 tstrerror(ret));
+    }
+    ret = metaStableTagFilterCacheDropSTable(pMeta, uid);
+    if (ret < 0) {
+      metaError("vgId:%d, failed to clear stable tag filter cache:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), e.name,
+                e.uid, tstrerror(ret));
     }
     ret = metaTbGroupCacheClear(pMeta, uid);
     if (ret < 0) {

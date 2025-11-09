@@ -146,7 +146,14 @@ int32_t  metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid,
   const uint8_t* pKey, int32_t keyLen, SArray* pList, bool* acquired);
 int32_t  metaStableTagFilterCachePut(void* pVnode, uint64_t suid,
   const void* pTagCondKey, int32_t tagCondKeyLen,
-  const void* pKey, int32_t keyLen, SArray* pUidList);
+  const void* pKey, int32_t keyLen, SArray* pUidList, SArray* pTagColIds);
+int32_t metaStableTagFilterCacheDropSTable(SMeta* pMeta, tb_uid_t suid);
+typedef enum {
+  STABLE_TAG_FILTER_CACHE_DROP_TABLE = 1,
+  STABLE_TAG_FILTER_CACHE_ADD_TABLE = 2,
+} ETagFilterCacheAction;
+int32_t metaStableTagFilterCacheUpdateUid(
+  SMeta* pMeta, const SMetaEntry* pDroppedTable, ETagFilterCacheAction action);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
