@@ -154,6 +154,8 @@ typedef enum {
 } ETagFilterCacheAction;
 int32_t metaStableTagFilterCacheUpdateUid(
   SMeta* pMeta, const SMetaEntry* pDroppedTable, ETagFilterCacheAction action);
+int32_t metaStableTagFilterCacheDropTag(
+  SMeta* pMeta, tb_uid_t suid, int16_t tagColId);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,

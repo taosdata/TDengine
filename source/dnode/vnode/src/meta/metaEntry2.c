@@ -477,6 +477,13 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
         return code;
       }
 
+      // drop old tag from meta stable tag filter cache
+      code = metaStableTagFilterCacheDropTag(pMeta, pEntry->uid, pOldColumn->colId);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        return code;
+      }
+
       iOld++;
     } else {
       code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, NULL, pNewColumn);
@@ -492,6 +499,12 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
   for (; iOld < pOldTagSchema->nCols; iOld++) {
     SSchema *pOldColumn = pOldTagSchema->pSchema + iOld;
     code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, pOldColumn, NULL);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+    // drop old tag from meta stable tag filter cache
+    code = metaStableTagFilterCacheDropTag(pMeta, pEntry->uid, pOldColumn->colId);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
       return code;
