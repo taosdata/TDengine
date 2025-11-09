@@ -3108,6 +3108,7 @@ static void initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
       .timewindow = w,
       .verRange = pSttBlockReader->verRange,
       .strictTimeRange = false,
+      .cacheStatis = pReader->info.cacheSttStatis,
       .pSchema = pReader->info.pSchema,
       .pCurrentFileset = pReader->status.pCurrentFileset,
       .backward = (pSttBlockReader->order == TSDB_ORDER_DESC),
@@ -5803,6 +5804,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
 
   pReader->flag = READER_STATUS_SUSPEND;
   pReader->info.execMode = pCond->notLoadData ? READER_EXEC_ROWS : READER_EXEC_DATA;
+  pReader->info.cacheSttStatis = true;//pCond->cacheSttStatis;
 
   pReader->pIgnoreTables = pIgnoreTables;
   tsdbDebug("%p total numOfTable:%d, window:%" PRId64 " - %" PRId64 ", verRange:%" PRId64 " - %" PRId64
