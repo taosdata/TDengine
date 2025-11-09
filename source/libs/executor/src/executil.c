@@ -805,7 +805,7 @@ static void extractTagDataEntry(
   STagDataEntry entry = {0};
   entry.colId = pColNode->colId;
   entry.pValueNode = (SNode*)pValueNode;
-  TAOS_UNUSED(taosArrayPush(pIdWithValue, &entry));
+  taosArrayPush(pIdWithValue, &entry);
   STagDataEntry* pLastEntry = taosArrayGetLast(pIdWithValue);
   ((SValueNode*)pLastEntry->pValueNode)->node.resType = pColNode->node.resType;
 }
@@ -1977,7 +1977,7 @@ static void extractTagColId(SOperatorNode* pOpNode, SArray* pColIdArray) {
     (SColumnNode*)pLeft : (SColumnNode*)pRight;
 
   col_id_t colId = pColNode->colId;
-  TAOS_UNUSED(taosArrayPush(pColIdArray, &colId));
+  taosArrayPush(pColIdArray, &colId);
 }
 
 static int32_t buildTagCondKey(
