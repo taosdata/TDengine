@@ -778,11 +778,12 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
           varDataVal(pValueNode->datum.p), varDataLen(pValueNode->datum.p));
         pStart += varDataLen(pValueNode->datum.p);
         break;
-      case TSDB_DATA_TYPE_JSON:
+      case TSDB_DATA_TYPE_JSON: {
         int32_t jsonLen = getJsonValueLen(pValueNode->datum.p);
         (void)memcpy(pStart, varDataVal(pValueNode->datum.p), jsonLen);
         pStart += jsonLen;
         break;
+      }
       default:
         qError("unsupported tag data type %d in tag filter optimization",
           pValueNode->node.resType.type);
