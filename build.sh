@@ -53,7 +53,6 @@ do_gen() {
         -DBUILD_KEEPER=true                             \
         -DBUILD_HTTP=false                              \
         -DBUILD_TEST=true                               \
-	-DBUILD_SANITIZER=true				\
         -DWEBSOCKET:STRING=true                         \
         -DBUILD_DEPENDENCY_TESTS=false                  \
         -DLOCAL_REPO:STRING=${LOCAL_REPO}               \

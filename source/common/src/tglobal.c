@@ -308,6 +308,7 @@ int32_t tsMaxInsertBatchRows = 1000000;
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
 char    tsTagFilterCache = 0;
+char    tsStableTagFilterCache = 0;
 
 int32_t tsBypassFlag = 0;
 
@@ -733,6 +734,9 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "AVX512Enable", tsAVX512Enable, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "tagFilterCache", tsTagFilterCache, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "stableTagFilterCache", tsStableTagFilterCache,
+        CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(
       cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
@@ -1664,6 +1668,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tagFilterCache");
   tsTagFilterCache = (bool)pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "stableTagFilterCache");
+  tsStableTagFilterCache = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogExceptDb");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_DB_NAME_LEN));
@@ -2810,7 +2817,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"forceKillTrans", &tsForceKillTrans},
                                          {"enableTLS", &tsEnableTLS},
                                          {"rpcRecvLogThreshold", &tsRpcRecvLogThreshold},
-                                         {"tagFilterCache", &tsTagFilterCache}};
+                                         {"tagFilterCache", &tsTagFilterCache},
+                                         {"stableTagFilterCache", &tsStableTagFilterCache}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
