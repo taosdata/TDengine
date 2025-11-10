@@ -2054,6 +2054,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   int32_t lino = 0;
   size_t  numOfTables = 0;
   bool    listAdded = false;
+  char*   pTagCondStr = NULL;
 
   pListInfo->idInfo.suid = pScanNode->suid;
   pListInfo->idInfo.tableType = pScanNode->tableType;
@@ -2094,6 +2095,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
           code = ctx.code;
           goto _error;
         }
+        code = nodesNodeToString(tmp, false, &pTagCondStr, NULL);
+
         code = genStableTagFilterDigest(tmp, &contextStable);
         nodesDestroyNode(tmp);
       } else {
@@ -2115,8 +2118,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         
         digest[0] = 1;
         memcpy(digest + 1, contextStable.digest, tListLen(contextStable.digest));
-        qDebug("retrieve table uid list from stable cache, numOfTables:%d",
-          (int32_t)taosArrayGetSize(pUidList));
+        qDebug("%s retrieve table uid list from stable cache, key:%s, kenLen:%d, tagCondStr:%s, numOfTables:%d", 
+          idstr, pTagCondKey, tagCondKeyLen, pTagCondStr, (int32_t)taosArrayGetSize(pUidList));
         goto _end;
       } else {
         qDebug("failed to get table uid list from stable cache");
@@ -2208,7 +2211,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     }
     if (tsStableTagFilterCache && pStreamInfo != NULL &&
       canCacheTagCondFilter) {
-      qDebug("tag filter condition can be optimized, cache separately");
+      qDebug("%s add uid list to stableTagFilterCache, key:%s, keyLen:%d, condition:%s, uidListSize:%d", 
+        idstr, pTagCondKey, tagCondKeyLen, pTagCondStr, (int32_t)taosArrayGetSize(pUidList));
       code = pStorageAPI->metaFn.putStableCachedTableList(
         pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
         contextStable.digest, tListLen(contextStable.digest),
