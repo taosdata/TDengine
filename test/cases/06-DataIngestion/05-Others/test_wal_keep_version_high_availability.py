@@ -8,33 +8,34 @@ from new_test_framework.utils import tdLog, tdSql, sc, tdDnodes,clusterComCheck
 
 
 class TestWalKeepVersionTrim:
-    """Test WAL keep version and trim functionality
-    
-    This test verifies:
-    1. prepare data
-    2. set keep version 0
-    3. check wal keep version
-    4. trim database wal
-    5. check wal log dropped after trim
-
-    Catalog:
-        - Database:WAL
-
-    Since: v3.3.6.31
-
-    Labels: common,ci
-
-    Jira: TS-7567
-
-    History:
-        - 2025-11-06 beryl bao created
-    """
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
 
-    def test_wal_keep_version_and_trim(self):
+    def test_wal_keep_version_high_availability(self):
+        """Test WAL keep version and trim functionality
+        
+        This test verifies:
+        1. prepare data
+        2. stop dnode 3
+        3. set keep version 0
+        4. start dnode 3
+        5. check wal keep version
+
+        Catalog:
+            - Database:WAL
+
+        Since: v3.3.6.31
+
+        Labels: common,ci
+
+        Jira: TS-7567
+
+        History:
+            - 2025-11-06 beryl bao created
+        """
+
         clusterComCheck.checkDnodes(3)
 
         subprocess.run("taosBenchmark -t 100 -n 100000 -a 3 -y", shell=True, check=True)
