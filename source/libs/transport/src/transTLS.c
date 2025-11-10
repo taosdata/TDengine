@@ -31,6 +31,7 @@ extern int32_t sslWriteImpl(STransTLS* pTls, uv_stream_t* stream, uv_write_t* re
 
 extern int32_t sslReadImpl(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
 extern int8_t  sslIsInitedImpl(STransTLS* pTls);
+extern int32_t sslGetCertificateImpl(STransTLS* pTls);
 
 extern int32_t sslBufferInitImpl(SSslBuffer* buf, int32_t cap);
 extern void    sslBufferDestroyImpl(SSslBuffer* buf);
@@ -62,6 +63,16 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
 
 int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode) {
   return sslReadImpl(pTls, pBuf, nread, cliMode);
+}
+
+int32_t sslGetCertificate(STransTLS* pTls, char buf[]) {
+  int32_t code = sslGetCertificateImpl(pTls);
+  if (code == 0) {
+    strncpy(buf, pTls->certDn, sizeof(pTls->certDn));
+  }
+
+  return code;
+
 }
 
 int8_t sslIsInited(STransTLS* pTls) { return sslIsInitedImpl(pTls); }

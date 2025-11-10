@@ -17,6 +17,7 @@
 #if defined(TD_ENTERPRISE) && defined(LINUX)
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/x509.h>
 #else
 typedef struct {
   void* p;
@@ -77,6 +78,8 @@ typedef struct {
   void (*connCb)(uv_connect_t* pStream, int32_t status);                        // callback for connection events
   void (*readCb)(uv_stream_t* pStream, ssize_t nread, const uv_buf_t* buffer);  // callback for read events
   void (*writeCb)(uv_write_t* pReq, int32_t status);                            // callback for write events
+
+  char certDn[512]; 
 } STransTLS;
 
 int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs);
@@ -91,6 +94,7 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
 
 int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
 
+int32_t sslGetCertificate(STransTLS* pTls, char buf[]);
 int8_t sslIsInited(STransTLS* pTls);
 
 int32_t sslBufferInit(SSslBuffer* buf, int32_t cap);
