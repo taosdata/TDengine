@@ -1823,7 +1823,7 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 
 </details>
 
-从 **3.3.4.0** 版本开始新增 `adapter_input_json` 表记录 taosAdapter 的 JSON 数据写入监控信息：
+从 **3.4.0.0** 版本开始新增 `adapter_input_json` 表记录 taosAdapter 的 JSON 数据写入监控信息：
 
 <details>
 <summary>详细信息</summary>

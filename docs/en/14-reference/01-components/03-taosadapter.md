@@ -124,7 +124,7 @@ An exporter used by Prometheus that exposes hardware and operating system metric
 
 taosAdapter has supported writing JSON-formatted data to TDengine TSDB through the RESTful interface since version **3.4.0.0**. You can use any HTTP-compatible client to send JSON-formatted data to TDengine TSDB via the POST RESTful endpoint at `http://<fqdn>:6041/input_json/v1/{endpoint}`.
 
-The required JSON format is an array containing multiple rows of data, with each row being a JSON object. Each JSON object corresponds to a single data record. Data extraction can be defined through configuration files. If the input JSON format does not meet the requirements, it can be transformed using [JSONata](https://jsonata.org/) expressions（support JSONata version 1.5.4）.
+The required JSON format is an array containing multiple rows of data, with each row being a JSON object. Each JSON object corresponds to a single data record. Data extraction can be defined through configuration files. If the input JSON format does not meet the requirements, it can be transformed using [JSONata](https://jsonata.org/) expressions(supports JSONata version 1.5.4).
 
 A sample configuration is as follows (default configuration file path: `/etc/taos/taosadapter.toml`):
 
@@ -473,7 +473,7 @@ SQL generation description:
 
 To facilitate debugging and validating the correctness of JSON configuration rules, taosAdapter provides a dry run mode. This mode can be enabled by adding the query parameter `dry_run=true` to the write request. In dry-run mode, taosAdapter does not write data to TDengine TSDB but instead returns the converted JSON and generated SQL statements for user review and validation.
 
-Request example :
+Request example:
 
 ```shell
 curl -L 'http://localhost:6041/input_json/v1/rule1?dry_run=true' \
@@ -481,7 +481,7 @@ curl -L 'http://localhost:6041/input_json/v1/rule1?dry_run=true' \
 -d '{"time":"2025-11-04 09:24:13.123","Los Angeles":{"group_1":{"d_001":{"current":10.5,"voltage":220,"phase":30},"d_002":{"current":15.2,"voltage":230,"phase":45},"d_003":{"current":8.7,"voltage":210,"phase":60}},"group_2":{"d_004":{"current":12.3,"voltage":225,"phase":15},"d_005":{"current":9.8,"voltage":215,"phase":75}}},"New York":{"group_1":{"d_006":{"current":11.0,"voltage":240,"phase":20},"d_007":{"current":14.5,"voltage":235,"phase":50}},"group_2":{"d_008":{"current":13.2,"voltage":245,"phase":10},"d_009":{"current":7.9,"voltage":220,"phase":80}}}}'
 ```
 
-Response example :
+Response example:
 
 ```json
 {
@@ -1831,7 +1831,7 @@ Starting from version **3.3.6.29**/**3.3.8.3**, the `adapter_request_limit` tabl
 
 </details>
 
-Starting from version **3.4.0.0**, the `adapter_input_json ` table has been added to record taosAdapter JSON write input metrics:
+Starting from version **3.4.0.0**, the `adapter_input_json` table has been added to record taosAdapter JSON write input metrics:
 
 <details>
 <summary>Details</summary>
