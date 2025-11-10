@@ -3852,59 +3852,6 @@ static bool parseIp(const char* strIp, SIpRange* pIpRange) {
 }
 
 
-#if 0
-static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIpRangesNodeList, SIpRange* pIpRanges) {
-  int32_t i = 0;
-  int32_t code = 0;
-
-  SNode* pNode = NULL;
-  FOREACH(pNode, pIpRangesNodeList) {
-    if (QUERY_NODE_VALUE != nodeType(pNode)) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IP_RANGE);
-      return TSDB_CODE_PAR_INVALID_IP_RANGE;
-    }
-    SValueNode* pValNode = (SValueNode*)(pNode);
-    code = getIpRangeFromWhitelistItem(pValNode->literal, pIpRanges + i);
-    ++i;
-    if (code != TSDB_CODE_SUCCESS) {
-      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid IP range %s", pValNode->literal);
-      return code;
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-
-
-SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
-  if (NULL == pCreateUserStmt) {
-    if (pIpRangesNodeList != NULL) {
-      nodesDestroyList(pIpRangesNodeList);
-    }
-    return NULL;
-  }
-
-  if (NULL == pIpRangesNodeList) {
-    return pCreateUserStmt;
-  }
-
-  ((SCreateUserStmt*)pCreateUserStmt)->pNodeListIpRanges = pIpRangesNodeList;
-  SCreateUserStmt* pCreateUser = (SCreateUserStmt*)pCreateUserStmt;
-  pCreateUser->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
-  pCreateUser->pIpRanges = taosMemoryMalloc(pCreateUser->numIpRanges * sizeof(SIpRange));
-  CHECK_OUT_OF_MEM(pCreateUser->pIpRanges);
-
-  pCxt->errCode = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pCreateUser->pIpRanges);
-  CHECK_PARSER_STATUS(pCxt);
-
-  return pCreateUserStmt;
-_err:
-  nodesDestroyNode(pCreateUserStmt);
-  nodesDestroyList(pIpRangesNodeList);
-  return NULL;
-}
-#endif
-
 
 SIpRangeNode* parseIpRange(SAstCreateContext* pCxt, const SToken* token) {
   CHECK_PARSER_STATUS(pCxt);
@@ -3913,10 +3860,9 @@ SIpRangeNode* parseIpRange(SAstCreateContext* pCxt, const SToken* token) {
   return NULL;
 #else
 
-  SIpRangeNode* pIpRange = NULL;
-
-  int32_t code = nodesMakeNode(QUERY_NODE_IP_RANGE, (SNode**)&pIpRange);
-  if (pIpRange == NULL) {
+  SIpRangeNode* node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_IP_RANGE, (SNode**)&node);
+  if (node == NULL) {
     goto _err;
   }
 
@@ -3934,29 +3880,29 @@ SIpRangeNode* parseIpRange(SAstCreateContext* pCxt, const SToken* token) {
     *slash = '\0';
   }
 
-  if (!parseIp(buf, &pIpRange->range)) {
+  if (!parseIp(buf, &node->range)) {
     code = TSDB_CODE_PAR_INVALID_IP_RANGE;
     goto _err;
   }
 
   int32_t mask = 0;
   if (!slash) {
-    mask = pIpRange->range.type == 0 ? 32 : 128;
+    mask = node->range.type == 0 ? 32 : 128;
   } else if (taosStr2int32(slash + 1, &mask) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_PAR_INVALID_IP_RANGE;
     goto _err;
   }
 
-  code = tIpRangeSetMask(&pIpRange->range, mask);
+  code = tIpRangeSetMask(&node->range, mask);
   if (code != TSDB_CODE_SUCCESS) {
     goto _err;
   }
 
-  return pIpRange;
+  return node;
 
 _err:
   pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code);
-  nodesDestroyNode((SNode*)pIpRange);
+  nodesDestroyNode((SNode*)node);
   return NULL;
 
 #endif
@@ -3964,24 +3910,79 @@ _err:
 
 
 
-SDateTimeRangeNode* createDateTimeRangeNode(SAstCreateContext* pCxt) {
+SDateTimeRangeNode* parseDateTimeRange(SAstCreateContext* pCxt, const SToken* token) {
   CHECK_PARSER_STATUS(pCxt);
-  SDateTimeRangeNode* pRange = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_DATE_TIME_RANGE, (SNode**)&pRange);
-  CHECK_MAKE_NODE(pRange);
-  return pRange;
+
+  SDateTimeRangeNode* node = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_DATE_TIME_RANGE, (SNode**)&node);
+  if (code != TSDB_CODE_SUCCESS) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code);
+    goto _err;
+  }
+
+  char buf[128];
+  if (token->n >= sizeof(buf)) {
+    code = TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG;
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Date time range string is too long");
+    goto _err;
+  }
+  memcpy(buf, token->z, token->n);
+  buf[token->n] = '\0';
+  (void)strdequote(buf);
+
+  code = TSDB_CODE_PAR_INVALID_OPTION_VALUE;
+  int32_t year = 0, month = 0, day = 0, hour = 0, minute = 0, duration = 0;
+  if (buf[0] >= '1' && buf[0] <= '9') {
+    // format: YYYY-MM-DD HH:MM duration
+    int ret = sscanf(buf, "%d-%d-%d %d:%d %d", &year, &month, &day, &hour, &minute, &duration);
+    if (ret != 6) {
+      goto _err;
+    }
+    if (month < 1 || month > 12) {
+      goto _err;
+    }
+  } else {
+    // format: WEEKDAY HH:MM duration
+    char weekday[4];
+    int ret = sscanf(buf, "%3s %d:%d %d", weekday, &hour, &minute, &duration);
+    if (ret != 4) {
+      goto _err;
+    }
+    day = taosParseShortWeekday(weekday);
+    if (day < 0 || day > 6) {
+      goto _err;
+    }
+    month = -1;
+  }
+
+  node->range.year = (int16_t)year;
+  node->range.month = (int8_t)month;
+  node->range.day = (int8_t)day;
+  node->range.hour = (int8_t)hour;
+  node->range.minute = (int8_t)minute;
+  node->range.duration = duration;
+  if (!isValidDateTimeRange(&node->range)) {
+    goto _err;
+  }
+
+  return node;
 
 _err:
+  if (code == TSDB_CODE_PAR_INVALID_OPTION_VALUE) { // other error types have been set above
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid date time range");
+  }
+  nodesDestroyNode((SNode*)node);
   return NULL;
 }
 
 
-
 SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
-  CHECK_PARSER_STATUS(pCxt);
   SUserOptions* pOptions = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_USER_OPTIONS, (SNode**)&pOptions);
-  CHECK_MAKE_NODE(pOptions);
+  int32_t code = nodesMakeNode(QUERY_NODE_USER_OPTIONS, (SNode**)&pOptions);
+  if (pOptions == NULL) {
+    pCxt->errCode = code;
+    return NULL;
+  }
 
   pOptions->enable = 1;
   pOptions->sysinfo = 1;
@@ -4001,10 +4002,8 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
   pOptions->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
   pOptions->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
-  return pOptions;
 
-_err:
-  return NULL;
+  return pOptions;
 }
 
 
@@ -4194,6 +4193,7 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   if (b->pIpRanges != NULL) {
     if (a->pIpRanges == NULL) {
       a->pIpRanges = b->pIpRanges;
+      a->negIpRanges = b->negIpRanges;
     } else if (a->negIpRanges != b->negIpRanges) {
       nodesDestroyList(b->pIpRanges);
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
@@ -4206,6 +4206,7 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   if (b->pDropIpRanges != NULL) {
     if (a->pDropIpRanges == NULL) {
       a->pDropIpRanges = b->pDropIpRanges;
+      a->negDropIpRanges = b->negDropIpRanges;
     } else if (a->negDropIpRanges != b->negDropIpRanges) {
       nodesDestroyList(b->pDropIpRanges);
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
@@ -4218,6 +4219,7 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   if (b->pTimeRanges != NULL) {
     if (a->pTimeRanges == NULL) {
       a->pTimeRanges = b->pTimeRanges;
+      a->negTimeRanges = b->negTimeRanges;
     } else if (a->negTimeRanges != b->negTimeRanges) {
       nodesDestroyList(b->pTimeRanges);
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
@@ -4230,6 +4232,7 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   if (b->pDropTimeRanges != NULL) {
     if (a->pDropTimeRanges == NULL) {
       a->pDropTimeRanges = b->pDropTimeRanges;
+      a->negDropTimeRanges = b->negDropTimeRanges;
     } else if (a->negDropTimeRanges != b->negDropTimeRanges) {
       nodesDestroyList(b->pDropTimeRanges);
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
@@ -4384,24 +4387,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  // ip ranges has been validated during parsing
-
-  SNode* pNode = NULL;
-  FOREACH(pNode, opts->pTimeRanges) {
-    SDateTimeRangeNode* pRange = (SDateTimeRangeNode*)(pNode);
-    if (!isValidDateTimeRange(&pRange->range)) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, opts->negTimeRanges ? "NOT_ALLOW_DATETIME" : "ALLOW_DATETIME");
-      return false;
-    }
-  }
-
-  FOREACH(pNode, opts->pDropTimeRanges) {
-    SDateTimeRangeNode* pRange = (SDateTimeRangeNode*)(pNode);
-    if (!isValidDateTimeRange(&pRange->range)) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, opts->negDropTimeRanges ? "DROP NOT_ALLOW_DATETIME" : "DROP ALLOW_DATETIME");
-      return false;
-    }
-  }
+  // ip ranges and date time ranges has been validated during parsing
 
   return true;
 }

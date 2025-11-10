@@ -334,8 +334,8 @@ SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable
 SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pLikePattern);
 SNode* createShowVnodesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pDnodeEndpoint);
 SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* pDbName, SNodeList* pTags);
-SDateTimeRangeNode* createDateTimeRangeNode(SAstCreateContext* pCxt);
-SIpRangeNode* parseIpRange(SAstCreateContext* pCxt, const SToken* pIpRangeToken);
+SDateTimeRangeNode* parseDateTimeRange(SAstCreateContext* pCxt, const SToken* token);
+SIpRangeNode* parseIpRange(SAstCreateContext* pCxt, const SToken* token);
 SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOptions* b);
 void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pTotpseed);
 void setUserOptionsPassword(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pPassword);
