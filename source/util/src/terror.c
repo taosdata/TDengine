@@ -447,6 +447,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRIM_ALREADY_EXIST,       "Trim or rollup alread
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_ALREADY_EXIST,       "Role already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_EXIST,           "Invalid role")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_AVAILABLE,       "Role not available")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ROLE_FORMAT,      "Invalid role format")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")

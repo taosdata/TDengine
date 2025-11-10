@@ -90,6 +90,8 @@ typedef enum {
   MND_OPER_ROLLUP_DB,
   MND_OPER_SHOW_STB,
   MND_OPER_ALTER_RSMA,
+  MND_OPER_CREATE_ROLE,
+  MND_OPER_DROP_ROLE,
 } EOperType;
 
 typedef enum {

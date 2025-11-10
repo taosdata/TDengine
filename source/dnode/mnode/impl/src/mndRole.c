@@ -20,7 +20,7 @@
 #endif
 #include "crypt.h"
 #include "mndRole.h"
-#include "mndRole.h"
+#include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
@@ -189,11 +189,62 @@ void mndReleaseRole(SMnode *pMnode, SRoleObj *pRole) {
 static int32_t mndCreateRole(SMnode *pMnode, char *acct, SCreateRoleReq *pCreate, SRpcMsg *pReq) { return 0; }
 
 static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
-  assert(0);
+  SMnode        *pMnode = pReq->info.node;
+  int32_t        code = 0, lino = 0;
+  SRoleObj      *pRole = NULL;
+  SUserObj      *pOperUser = NULL;
+  SUserObj      *pUser = NULL;
+  SCreateRoleReq createReq = {0};
 
-  TAOS_RETURN(0);
+  if (tDeserializeSCreateRoleReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  if ((code = mndAcquireRole(pMnode, createReq.name, &pRole)) == 0) {
+    if (createReq.ignoreExists) {
+      mInfo("role:%s, already exist, ignore exist is set", createReq.name);
+      goto _exit;
+    } else {
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_ALREADY_EXIST);
+    }
+  } else {
+    if ((code = terrno) == TSDB_CODE_MND_ROLE_NOT_EXIST) {
+      // continue
+    } else {
+      goto _exit;
+    }
+  }
+  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_USER_FROM_CONN);
+  }
+
+  mInfo("role:%s, start to create by %s", createReq.name, pOperUser->user);
+
+  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ROLE));
+
+  if (createReq.name[0] == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_ROLE_FORMAT);
+  }
+  code = mndAcquireUser(pMnode, createReq.name, &pUser);
+  if (pUser != NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_ALREADY_EXIST);
+  }
+  code = mndCreateRole(pMnode, pOperUser->acct, &createReq, pReq);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  char    detail[128] = {0};
+  int32_t len = snprintf(detail, sizeof(detail), "operUser:%s", pOperUser->user);
+  auditRecord(pReq, pMnode->clusterId, "createRole", "", createReq.name, detail, len);
+_exit:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("role:%s, failed to create at line %d since %s", createReq.name, lino, tstrerror(code));
+  }
+  mndReleaseUser(pMnode, pUser);
+  mndReleaseUser(pMnode, pOperUser);
+  mndReleaseRole(pMnode, pRole);
+  tFreeSCreateRoleReq(&createReq);
+  TAOS_RETURN(code);
 }
-
 
 static int32_t mndDropRole(SMnode *pMnode, SRpcMsg *pReq, SRoleObj *pRole) {
   TAOS_RETURN(0);
