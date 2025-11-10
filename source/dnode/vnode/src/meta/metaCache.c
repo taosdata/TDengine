@@ -53,6 +53,7 @@ typedef struct STagCondFilterEntry {
 typedef struct STagConds {
   SHashObj* set;       // SHashObj<tagColIdStr, STagCondFilterEntry>
   uint32_t  hitTimes;  // queried times for current super table
+  uint32_t  numTagDataEntries; // total num of tag data entries in this stable
 } STagConds;
 
 struct SMetaCache {
@@ -82,8 +83,13 @@ struct SMetaCache {
   // that match format "tag1 = v1 AND tag2 = v2 AND ..."
   struct SStableTagFilterResCache {
     TdThreadRwlock rwlock;
-    uint32_t       accTimes;
     SHashObj*      pTableEntry;  // HashObj<suid, STagConds>
+    // access times
+    uint64_t       accTimes;
+    // hit times
+    uint64_t       hitTimes;
+    // total num of tag data entries in all stables
+    uint32_t       numTagDataEntries;
   } sStableTagFilterResCache;
 
   struct STbGroupResCache {
@@ -204,6 +210,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
 
   // open stable tag filter cache
   pMeta->pCache->sStableTagFilterResCache.accTimes = 0;
+  pMeta->pCache->sStableTagFilterResCache.numTagDataEntries = 0;
   pMeta->pCache->sStableTagFilterResCache.pTableEntry =
     taosHashInit(1024,
       taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
@@ -664,13 +671,15 @@ int32_t metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid,
   // do some bookmark work after acquiring the filter result from cache
   (*pTagConds)->hitTimes += 1;
   (*pFilterEntry)->hitTimes += 1;
-  uint32_t acc = pMeta->pCache->sTagFilterResCache.accTimes;
-  if ((*pTagConds)->hitTimes % 5000 == 1) {
+  uint64_t hit = ++pMeta->pCache->sStableTagFilterResCache.hitTimes;
+  uint64_t acc = pMeta->pCache->sStableTagFilterResCache.accTimes;
+  if ((*pTagConds)->hitTimes % 1000 == 0 && (*pTagConds)->hitTimes > 0) {
     metaInfo(
-      "vgId:%d, suid:%" PRIu64 ", table cache hit:%d, "
-      "total meta acc:%d, rate:%.2f%%, tag condition hit:%d",
-      vgId, suid, (*pTagConds)->hitTimes, acc,
-      (100 * (double)(*pTagConds)->hitTimes / acc), (*pFilterEntry)->hitTimes);
+      "vgId:%d, suid:%" PRIu64 
+      ", current stable cache hit:%" PRIu32 ", this tag condition hit:%" PRIu32
+      ", total cache hit:%" PRIu64 ", acc:%" PRIu64 ", hit rate:%.2f%%",
+      vgId, suid, (*pTagConds)->hitTimes, (*pFilterEntry)->hitTimes, hit, acc,
+      ((double)hit / acc * 100));
   }
 
 _end:
@@ -816,7 +825,7 @@ static void freeSArrayPtr(void* pp) {
 
 int32_t metaStableTagFilterCachePut(
   void* pVnode, uint64_t suid, const void* pTagCondKey, int32_t tagCondKeyLen,
-  const void* pKey, int32_t keyLen, SArray* pUidList, SArray* pTagColIds) {
+  const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -848,7 +857,7 @@ int32_t metaStableTagFilterCachePut(
     TSDB_CHECK_CODE(code, lino, _end);
 
     pTagConds = (STagConds**)taosHashGet(pTableEntry, &suid, sizeof(uint64_t));
-    TSDB_CHECK_NULL(pTagConds, code, lino, _end, terrno);
+    TSDB_CHECK_NULL(pTagConds, code, lino, _end, TSDB_CODE_NOT_FOUND);
   }
 
   STagCondFilterEntry** pFilterEntry =
@@ -864,8 +873,10 @@ int32_t metaStableTagFilterCachePut(
     pEntry->set = taosHashInit(
       1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
       false, HASH_NO_LOCK);
-    taosHashSetFreeFp(pEntry->set, freeSArrayPtr);
     TSDB_CHECK_NULL(pEntry->set, code, lino, _end, terrno);
+    taosHashSetFreeFp(pEntry->set, freeSArrayPtr);
+    pEntry->pColIds = *pTagColIds;
+    *pTagColIds = NULL;
 
     code = taosHashPut(
       (*pTagConds)->set, pTagCondKey, tagCondKeyLen, &pEntry, POINTER_BYTES);
@@ -873,11 +884,10 @@ int32_t metaStableTagFilterCachePut(
 
     pFilterEntry = (STagCondFilterEntry**)taosHashGet(
       (*pTagConds)->set, pTagCondKey, tagCondKeyLen);
-    TSDB_CHECK_NULL(pFilterEntry, code, lino, _end, terrno);
-    (*pFilterEntry)->pColIds = pTagColIds;
   } else {
     // pColIds is already set, so we can destroy the new one
-    taosArrayDestroy(pTagColIds);
+    taosArrayDestroy(*pTagColIds);
+    *pTagColIds = NULL;
   }
 
   // add to cache.
@@ -885,16 +895,24 @@ int32_t metaStableTagFilterCachePut(
   code = taosHashPut(
     (*pFilterEntry)->set, pKey, keyLen, &pPayload, POINTER_BYTES);
   TSDB_CHECK_CODE(code, lino, _end);
+  pMeta->pCache->sStableTagFilterResCache.numTagDataEntries += 1;
+  (*pTagConds)->numTagDataEntries += 1;
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {
     metaError("vgId:%d, %s failed at %s:%d since %s",
       vgId, __func__, __FILE__, lino, tstrerror(code));
   } else {
-    metaDebug("vgId:%d, suid:%" PRIu64 " new tag filter cache added into cache,"
-      " num stable:%d, tag conditions:%d",
+    metaInfo("vgId:%d, suid:%" PRIu64 " new tag data filter entry added"
+      "(stable num:%d, total tag data entries num:%" PRIu32 "); "
+      "this tag condition data entries num:%d, "
+      "current stable tag conditions num:%d, "
+      "total tag data entries num:%" PRIu32,
       vgId, suid, (int32_t)taosHashGetSize(pTableEntry),
-      pTagConds ? (int32_t)taosHashGetSize((*pTagConds)->set) : 0);
+      pMeta->pCache->sStableTagFilterResCache.numTagDataEntries,
+      pTagConds ? (int32_t)taosHashGetSize((*pTagConds)->set) : 0,
+      pFilterEntry ? (int32_t)taosHashGetSize((*pFilterEntry)->set) : 0,
+      (*pTagConds)->numTagDataEntries);
   }
   // unlock meta
   code = taosThreadRwlockUnlock(pRwlock);
@@ -919,6 +937,11 @@ int32_t metaStableTagFilterCacheDropSTable(
 
   code = taosThreadRwlockWrlock(pRwlock);
   TSDB_CHECK_CODE(code, lino, _end);
+  STagConds** pTagConds = taosHashGet(pTableEntry, &suid, sizeof(tb_uid_t));
+  if (pTagConds != NULL) {
+    pMeta->pCache->sStableTagFilterResCache.
+      numTagDataEntries -= (*pTagConds)->numTagDataEntries;
+  }
   code = taosHashRemove(pTableEntry, &suid, sizeof(tb_uid_t));
   TSDB_CHECK_CODE(code, lino, _end);
 
@@ -1067,10 +1090,10 @@ _end:
       TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {
     metaDebug(
-      "vgId:%d, suid:%" PRIu64 " dropped table uid:%" PRIu64
-      " removed from stable tag filter cache",
+      "vgId:%d, suid:%" PRIu64 " update table uid:%" PRIu64
+      " in stable tag filter cache, action:%d",
       TD_VID(pMeta->pVnode),
-      pDroppedTable->ctbEntry.suid, pDroppedTable->uid);
+      pDroppedTable->ctbEntry.suid, pDroppedTable->uid, action);
   }
   code = taosThreadRwlockUnlock(pRwlock);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1108,10 +1131,13 @@ int32_t metaStableTagFilterCacheDropTag(SMeta* pMeta,
         }
       }
       if (found) {
+        uint32_t numEntries = taosHashGetSize(pFilterEntry->set);
         size_t keyLen = 0;
         char  *key = (char *)taosHashGetKey(pIter, &keyLen);
         code = taosHashRemove((*pTagConds)->set, key, keyLen);
         TSDB_CHECK_CODE(code, lino, _end);
+        (*pTagConds)->numTagDataEntries -= numEntries;
+        pMeta->pCache->sStableTagFilterResCache.numTagDataEntries -= numEntries;
       }
       pIter = taosHashIterate((*pTagConds)->set, pIter);
     }

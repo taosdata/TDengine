@@ -48,8 +48,8 @@ static void    clearStatisInfoCache(SLRUCache *pCache, SSttStatisCacheKey *pKey)
 static int32_t putStatisInfoIntoCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue *pValue,
                                        const char *id);
 static int32_t getStatisInfoFromCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue **pValue,
-                                      const char *id);
-
+                                      LRUHandle **pHandle, const char *id);
+static void releaseCacheHandle(SLRUCache* pCache, LRUHandle** pHandle);
 static void tLDataIterClose2(SLDataIter *pIter);
 
 // SLDataIter =================================================
@@ -985,7 +985,7 @@ static FORCE_INLINE int32_t tLDataIterDescCmprFn(const SRBTreeNode *p1, const SR
 
 static void clearTableRowsInfoCache(void) {
   taosLRUCacheCleanup(statisCacheInfo.pStatisFileCache); 
-  taosThreadMutexDestroy(&statisCacheInfo.lock);
+  (void)taosThreadMutexDestroy(&statisCacheInfo.lock);
 }
 
 // init the statis file cache, 10MiB by default
@@ -1002,6 +1002,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
   int32_t               lino = 0;
   int32_t               numOfLevels = pFset->lvlArr->size;
   SSttStatisCacheValue* pValue = NULL;
+  LRUHandle*            pHandle = NULL;
   SSttStatisCacheKey    key = {.suid = pConf->suid, .fid = pFset->fid, .vgId = TD_VID(pConf->pTsdb->pVnode)};
 
   (void)taosThreadOnce(&tsCacheInit, initTableRowsInfoCache);
@@ -1029,15 +1030,16 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
   }
 
   if (pConf->cacheStatis) {
-    int32_t ret = getStatisInfoFromCache(statisCacheInfo.pStatisFileCache, &key, &pValue, pConf->idstr);
-    if (ret == TSDB_CODE_SUCCESS) { // use cached statis info
+    int32_t ret = getStatisInfoFromCache(statisCacheInfo.pStatisFileCache, &key, &pValue, &pHandle, pConf->idstr);
+    if (ret == TSDB_CODE_SUCCESS) {  // use cached statis info
       if (pValue->commitTs == pFset->lastCommit) {
         loadStatisFromDisk = false;
-      } else {
+      } else {  // release the handle ref, and then remove it from lru cache
+        releaseCacheHandle(statisCacheInfo.pStatisFileCache, &pHandle);
         clearStatisInfoCache(statisCacheInfo.pStatisFileCache, &key);
-        tsdbDebug(
+        tsdbInfo(
             "cache expired since new commit occurs, remove the cache and load from disk, vgId:%d, fid:%d, suid:%" PRId64
-            ", commitTs:%" PRId64 ", new commitTs:%" PRId64 ,
+            ", commitTs:%" PRId64 ", new commitTs:%" PRId64,
             key.vgId, key.fid, key.suid, pValue->commitTs, pFset->lastCommit);
       }
     }
@@ -1122,19 +1124,17 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
 
     code = buildSttTableRowsInfoKV(pConf, TD_VID(pConf->pTsdb->pVnode), &k, &pVal);
     if (code == TSDB_CODE_SUCCESS) {
-      // SSttStatisCacheValue *vx = NULL;
-      // int32_t               ret = getStatisInfoFromCache(statisCacheInfo.pStatisFileCache, &k, &vx, pConf->idstr);
-      // if (ret != 0) {
-        code = putStatisInfoIntoCache(statisCacheInfo.pStatisFileCache, &k, pVal, pConf->idstr);
-      // } else {
-        // taosMemoryFree(pVal);        // already exists
-      // }
+      code = putStatisInfoIntoCache(statisCacheInfo.pStatisFileCache, &k, pVal, pConf->idstr);
     }
   }
 
   return code;
 
 _end:
+  if (pHandle != NULL && pConf->cacheStatis) {
+    releaseCacheHandle(statisCacheInfo.pStatisFileCache, &pHandle);
+  }
+
   tMergeTreeClose(pMTree);
   return code;
 }
@@ -1309,28 +1309,36 @@ int32_t buildSttTableRowsInfoKV(SMergeTreeConf *pConf, int32_t vgId, SSttStatisC
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getStatisInfoFromCache(SLRUCache* pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue **pValue,
-                               const char *id) {
+int32_t getStatisInfoFromCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue **pValue,
+                               LRUHandle **pHandle, const char *id) {
   *pValue = NULL;
+  *pHandle = NULL;
 
-  (void) taosThreadMutexLock(&statisCacheInfo.lock);
-  LRUHandle *pHandle = taosLRUCacheLookup(pCache, pKey, sizeof(SSttStatisCacheKey));
-  if (pHandle == NULL) {
+  (void)taosThreadMutexLock(&statisCacheInfo.lock);
+  LRUHandle *pItemHandle = taosLRUCacheLookup(pCache, pKey, sizeof(SSttStatisCacheKey));
+  if (pItemHandle == NULL) {
     (void)taosThreadMutexUnlock(&statisCacheInfo.lock);
     return TSDB_CODE_NOT_FOUND;
   }
 
-  void* p = taosLRUCacheValue(pCache, pHandle);
+  void *p = taosLRUCacheValue(pCache, pItemHandle);
+
   *pValue = p;
+  *pHandle = pItemHandle;
 
   tsdbDebug("get statis info from cache suid:%" PRId64 ", vgId:%d, fid:%d, %s, commitTs:%" PRId64, pKey->suid,
             pKey->vgId, pKey->fid, id, (*pValue)->commitTs);
 
-  bool ret = taosLRUCacheRelease(pCache, pHandle, false);
-
   // (*pEntry)->hitTimes += 1;
   (void)taosThreadMutexUnlock(&statisCacheInfo.lock);
   return TSDB_CODE_SUCCESS;
+}
+
+void releaseCacheHandle(SLRUCache* pCache, LRUHandle** pHandle) {
+  (void) taosThreadMutexLock(&statisCacheInfo.lock);
+  bool ret = taosLRUCacheRelease(pCache, *pHandle, false);
+  *pHandle = NULL;
+  (void)taosThreadMutexUnlock(&statisCacheInfo.lock);
 }
 
 static void freeStatisFileItems(const void* key, size_t keyLen, void* value, void* ud) {
@@ -1405,9 +1413,21 @@ int32_t sttRowInfoDeepCopy(SSttTableRowsInfo *pDst, SSttTableRowsInfo *pInfo, in
     int32_t len = taosArrayGetSize(pDst->pCount);
     for (int32_t i = 0; i < len; ++i) {
       SValue *p1 = (SValue *)taosArrayGet(pDst->pFirstKey, i);
-      dupPlayload(p1);
+      if (p1 == NULL) {
+        return terrno;
+      }
+      code = tValueDupPayload(p1);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       SValue *p2 = (SValue *)taosArrayGet(pDst->pLastKey, i);
-      dupPlayload(p2);
+      if (p2 == NULL) {
+        return terrno;
+      }
+      code = tValueDupPayload(p2);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
