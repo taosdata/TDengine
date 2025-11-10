@@ -6327,7 +6327,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     }
     TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
     int32_t nRemainParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-    bool    needMoreCalc = (nRemainParams >= STREAM_CALC_REQ_MAX_WIN_NUM) || (finished && (nRemainParams > 0));
+    bool    needMoreCalc = (nRemainParams > 0);
     if (needMoreCalc) {
       // the group has remaining calc params to be calculated
       TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
