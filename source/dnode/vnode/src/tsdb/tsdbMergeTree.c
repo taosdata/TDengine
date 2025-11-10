@@ -43,12 +43,12 @@ static int32_t getSttTableRowsInfo(SSttStatisCacheValue *pValue, int32_t numOfPK
                                    SSttTableRowsInfo *pSttTableRowsInfo);
 static int32_t buildSttTableRowsInfoKV(SMergeTreeConf *pConf, int32_t vgId, SSttStatisCacheKey *pKey,
                                        SSttStatisCacheValue **pValue);
-static void    clearStatisInfoCache2(SLRUCache *pCache, SSttStatisCacheKey *pKey);
+static void    clearStatisInfoCache(SLRUCache *pCache, SSttStatisCacheKey *pKey);
 
-static int32_t putStatisInfoIntoCache2(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue *pValue,
+static int32_t putStatisInfoIntoCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue *pValue,
                                        const char *id);
-static int32_t getStatisInfoFromCache2(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue **pValue,
-                                       const char *id);
+static int32_t getStatisInfoFromCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue **pValue,
+                                      const char *id);
 
 static void tLDataIterClose2(SLDataIter *pIter);
 
@@ -116,12 +116,12 @@ void destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   pInfo->sttBlockIndex = -1;
   pInfo->pin = false;
 
-  // taosArrayDestroy(pLoadInfo->info.pUid);
-  // taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
-  // taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
-  // taosArrayDestroy(pLoadInfo->info.pCount);
-  // taosArrayDestroy(pLoadInfo->info.pFirstTs);
-  // taosArrayDestroy(pLoadInfo->info.pLastTs);
+  taosArrayDestroy(pLoadInfo->info.pUid);
+  taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
+  taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
+  taosArrayDestroy(pLoadInfo->info.pCount);
+  taosArrayDestroy(pLoadInfo->info.pFirstTs);
+  taosArrayDestroy(pLoadInfo->info.pLastTs);
 
   pLoadInfo->info.pUid = NULL;
   pLoadInfo->info.pFirstKey = NULL;
@@ -983,10 +983,16 @@ static FORCE_INLINE int32_t tLDataIterDescCmprFn(const SRBTreeNode *p1, const SR
   return -1 * tLDataIterCmprFn(p1, p2);
 }
 
+static void clearTableRowsInfoCache(void) {
+  taosLRUCacheCleanup(statisCacheInfo.pStatisFileCache); 
+  taosThreadMutexDestroy(&statisCacheInfo.lock);
+}
+
 // init the statis file cache, 10MiB by default
 static void initTableRowsInfoCache(void) {
-  statisCacheInfo.pStatisFileCache = taosLRUCacheInit(10 * 1024 * 1024, -1, 0.5);
+  statisCacheInfo.pStatisFileCache = taosLRUCacheInit(40 * 1024 * 1024, -1, 0.5);
   (void)taosThreadMutexInit(&statisCacheInfo.lock, NULL);
+  (void) atexit(clearTableRowsInfoCache);
 }
 
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoForTable *pSttDataInfo) {
@@ -1023,13 +1029,12 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
   }
 
   if (pConf->cacheStatis) {
-    int32_t ret = getStatisInfoFromCache2(statisCacheInfo.pStatisFileCache, &key, &pValue, pConf->idstr);
-    if (ret == TSDB_CODE_SUCCESS) {
-      // use cached statis info
+    int32_t ret = getStatisInfoFromCache(statisCacheInfo.pStatisFileCache, &key, &pValue, pConf->idstr);
+    if (ret == TSDB_CODE_SUCCESS) { // use cached statis info
       if (pValue->commitTs == pFset->lastCommit) {
         loadStatisFromDisk = false;
       } else {
-        clearStatisInfoCache2(statisCacheInfo.pStatisFileCache, &key);
+        clearStatisInfoCache(statisCacheInfo.pStatisFileCache, &key);
         tsdbDebug(
             "cache expired since new commit occurs, remove the cache and load from disk, vgId:%d, fid:%d, suid:%" PRId64
             ", commitTs:%" PRId64 ", new commitTs:%" PRId64 ,
@@ -1068,11 +1073,11 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
         }
       }
 
-      if (!loadStatisFromDisk) {
-        code = getSttTableRowsInfo(pValue, pConf->pCurRowKey->numOfPKs,  j, i, &pLoadInfo->info);
-        if (code != TSDB_CODE_SUCCESS) {
-          loadStatisFromDisk = true; // failed to get statis info from cache, load it from stt file
-        }
+      if (!loadStatisFromDisk && (pLoadInfo->info.pCount == NULL)) {
+          code = getSttTableRowsInfo(pValue, pConf->pCurRowKey->numOfPKs, j, i, &pLoadInfo->info);
+          if (code != TSDB_CODE_SUCCESS) {
+            loadStatisFromDisk = true;  // failed to get statis info from cache, load it from stt file
+          }
       }
 
       memset(pIter, 0, sizeof(SLDataIter));
@@ -1111,19 +1116,19 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
     }
   }
 
-  if (pConf->cacheStatis) {
-    SSttStatisCacheKey   k = {0};
-    SSttStatisCacheValue* pVal = NULL;
+  if (pConf->cacheStatis && loadStatisFromDisk) {
+    SSttStatisCacheKey    k = {0};
+    SSttStatisCacheValue *pVal = NULL;
 
     code = buildSttTableRowsInfoKV(pConf, TD_VID(pConf->pTsdb->pVnode), &k, &pVal);
     if (code == TSDB_CODE_SUCCESS) {
-      SSttStatisCacheValue* vx = NULL;
-      int32_t               ret = getStatisInfoFromCache2(statisCacheInfo.pStatisFileCache, &k, &vx, pConf->idstr);
-      if (ret != 0) {
-        code = putStatisInfoIntoCache2(statisCacheInfo.pStatisFileCache, &k, pVal, pConf->idstr);
-      } else {
-        // already exists
-      }
+      // SSttStatisCacheValue *vx = NULL;
+      // int32_t               ret = getStatisInfoFromCache(statisCacheInfo.pStatisFileCache, &k, &vx, pConf->idstr);
+      // if (ret != 0) {
+        code = putStatisInfoIntoCache(statisCacheInfo.pStatisFileCache, &k, pVal, pConf->idstr);
+      // } else {
+        // taosMemoryFree(pVal);        // already exists
+      // }
     }
   }
 
@@ -1247,7 +1252,6 @@ void tMergeTreeClose(SMergeTree *pMTree) {
 
 int32_t buildSttTableRowsInfoKV(SMergeTreeConf *pConf, int32_t vgId, SSttStatisCacheKey *pKey,
                                 SSttStatisCacheValue **pValue) {
-  // TSDB_CHECK_NULL(pConf, code, lino, _end, terrno);
   *pValue = taosMemoryCalloc(1, sizeof(SSttStatisCacheValue));
   if (*pValue == NULL) {
     return terrno;
@@ -1290,6 +1294,8 @@ int32_t buildSttTableRowsInfoKV(SMergeTreeConf *pConf, int32_t vgId, SSttStatisC
       if (px == NULL) {
         return terrno;
       }
+
+      memset(&pLoadInfo->info, 0, sizeof(SSttTableRowsInfo));
     }
 
     void *px = taosArrayPush((*pValue)->pLevel, &pRowsInfoArr);
@@ -1298,25 +1304,12 @@ int32_t buildSttTableRowsInfoKV(SMergeTreeConf *pConf, int32_t vgId, SSttStatisC
     }
   }
 
+  // todo handle memory failure
+
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getStatisInfoFromCache(SHashObj *pHashObj, SSttStatisCacheKey *pKey, SSttStatisCacheValue **pValue,
-                               const char *id) {
-  *pValue = NULL;
-
-  void *p = taosHashGet(pHashObj, pKey, sizeof(SSttStatisCacheKey));
-  if (p != NULL) {
-    *pValue = (SSttStatisCacheValue *)p;
-    tsdbDebug("get statis info from cache suid:%" PRId64 ", vgId:%d, fid:%d, %s, commitTs:%" PRId64, pKey->suid,
-              pKey->vgId, pKey->fid, id, (*pValue)->commitTs);
-    return TSDB_CODE_SUCCESS;
-  } else {
-    return TSDB_CODE_NOT_FOUND;
-  }
-}
-
-int32_t getStatisInfoFromCache2(SLRUCache* pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue **pValue,
+int32_t getStatisInfoFromCache(SLRUCache* pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue **pValue,
                                const char *id) {
   *pValue = NULL;
 
@@ -1333,6 +1326,8 @@ int32_t getStatisInfoFromCache2(SLRUCache* pCache, SSttStatisCacheKey *pKey, SSt
   tsdbDebug("get statis info from cache suid:%" PRId64 ", vgId:%d, fid:%d, %s, commitTs:%" PRId64, pKey->suid,
             pKey->vgId, pKey->fid, id, (*pValue)->commitTs);
 
+  bool ret = taosLRUCacheRelease(pCache, pHandle, false);
+
   // (*pEntry)->hitTimes += 1;
   (void)taosThreadMutexUnlock(&statisCacheInfo.lock);
   return TSDB_CODE_SUCCESS;
@@ -1348,7 +1343,8 @@ static void freeStatisFileItems(const void* key, size_t keyLen, void* value, voi
   SSttStatisCacheValue* pVal = value;
 
   for(int32_t i = 0; i < taosArrayGetSize(pVal->pLevel); ++i) {
-    SArray* pInfos = taosArrayGet(pVal->pLevel, i);
+    SArray* pInfos = taosArrayGetP(pVal->pLevel, i);
+
     for(int32_t j = 0; j < taosArrayGetSize(pInfos); ++j) {
       SSttTableRowsInfo* p = taosArrayGet(pInfos, j);
       taosArrayDestroy(p->pCount);
@@ -1357,18 +1353,18 @@ static void freeStatisFileItems(const void* key, size_t keyLen, void* value, voi
       taosArrayDestroy(p->pFirstTs);
       taosArrayDestroy(p->pLastTs);
       taosArrayDestroy(p->pUid);
-
-      taosMemoryFree(p);
     }
 
     taosArrayDestroy(pInfos);
   }
 
+  taosArrayDestroy(pVal->pLevel);
   taosMemoryFree(pVal);
 }
 
-int32_t putStatisInfoIntoCache2(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue *pValue,
+int32_t putStatisInfoIntoCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSttStatisCacheValue *pValue,
                                const char *id) {
+  (void) taosThreadMutexLock(&statisCacheInfo.lock);
 
   (void)taosLRUCacheInsert(pCache, pKey, sizeof(SSttStatisCacheKey), pValue, sizeof(SSttStatisCacheValue), freeStatisFileItems, NULL, NULL,
                            TAOS_LRU_PRIORITY_LOW, NULL);
@@ -1376,11 +1372,15 @@ int32_t putStatisInfoIntoCache2(SLRUCache *pCache, SSttStatisCacheKey *pKey, SSt
   int32_t total = taosLRUCacheGetElems(pCache);
   tsdbDebug("put statis info into cache, total:%d suid:%" PRId64 ", vgId:%d, fid:%d, %s", total, pKey->suid, pKey->vgId,
             pKey->fid, id);
+
+  (void) taosThreadMutexUnlock(&statisCacheInfo.lock);
   return TSDB_CODE_SUCCESS;
 }
 
-void clearStatisInfoCache2(SLRUCache* pStatisCache, SSttStatisCacheKey* pKey) {
+void clearStatisInfoCache(SLRUCache *pStatisCache, SSttStatisCacheKey *pKey) {
+  (void)taosThreadMutexLock(&statisCacheInfo.lock);
   taosLRUCacheErase(pStatisCache, pKey, sizeof(SSttStatisCacheKey));
+  (void)taosThreadMutexUnlock(&statisCacheInfo.lock);
 }
 
 int32_t sttRowInfoDeepCopy(SSttTableRowsInfo *pDst, SSttTableRowsInfo *pInfo, int32_t numOfPKs) {
