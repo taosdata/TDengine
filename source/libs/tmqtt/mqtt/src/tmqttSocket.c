@@ -264,10 +264,17 @@ static void ttq_handle_sighup(int signal) {
 }
 
 static void ttq_signal_setup(void) {
-  signal(SIGINT, ttq_handle_sigint);
-  signal(SIGTERM, ttq_handle_sigint);
+  struct sigaction sa = {0};
+
+  sa.sa_handler = ttq_handle_sigint;
+  (void)sigemptyset(&sa.sa_mask);
+  (void)sigaction(SIGINT, &sa, NULL);
+  sa.sa_handler = ttq_handle_sigint;
+  (void)sigaction(SIGTERM, &sa, NULL);
+
 #ifdef SIGHUP
-  signal(SIGHUP, ttq_handle_sighup);
+  sa.sa_handler = ttq_handle_sighup;
+  (void)sigaction(SIGHUP, &sa, NULL);
 #endif
 }
 
