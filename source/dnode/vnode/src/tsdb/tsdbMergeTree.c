@@ -985,7 +985,7 @@ static FORCE_INLINE int32_t tLDataIterDescCmprFn(const SRBTreeNode *p1, const SR
 
 static void clearTableRowsInfoCache(void) {
   taosLRUCacheCleanup(statisCacheInfo.pStatisFileCache); 
-  taosThreadMutexDestroy(&statisCacheInfo.lock);
+  (void)taosThreadMutexDestroy(&statisCacheInfo.lock);
 }
 
 // init the statis file cache, 10MiB by default
@@ -1413,9 +1413,21 @@ int32_t sttRowInfoDeepCopy(SSttTableRowsInfo *pDst, SSttTableRowsInfo *pInfo, in
     int32_t len = taosArrayGetSize(pDst->pCount);
     for (int32_t i = 0; i < len; ++i) {
       SValue *p1 = (SValue *)taosArrayGet(pDst->pFirstKey, i);
-      dupPlayload(p1);
+      if (p1 == NULL) {
+        return terrno;
+      }
+      code = tValueDupPayload(p1);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
       SValue *p2 = (SValue *)taosArrayGet(pDst->pLastKey, i);
-      dupPlayload(p2);
+      if (p2 == NULL) {
+        return terrno;
+      }
+      code = tValueDupPayload(p2);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
