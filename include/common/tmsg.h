@@ -1375,6 +1375,7 @@ typedef struct {
 
 typedef struct {
   int32_t  num;
+  int8_t   neg;  // this is a negative whitelist, that is, a blacklist
   SIpRange pIpRanges[];
 } SIpWhiteListDual;
 
@@ -1383,6 +1384,9 @@ int32_t           cvtIpWhiteListToDual(SIpWhiteList* pWhiteList, SIpWhiteListDua
 int32_t           cvtIpWhiteListDualToV4(SIpWhiteListDual* pWhiteListDual, SIpWhiteList** pWhiteList);
 int32_t           createDefaultIp6Range(SIpRange* pRange);
 int32_t           createDefaultIp4Range(SIpRange* pRange);
+
+// copyIpRange ensures that unused bytes are always zeroed, so that [pDst] can be used as a key in hash tables
+void copyIpRange(SIpRange* pDst, const SIpRange* pSrc);
 
 typedef struct SDateTimeRange {
   int16_t year;
@@ -1570,6 +1574,7 @@ typedef struct {
   int64_t ver;
   char    user[TSDB_USER_LEN];
   int32_t numOfRange;
+  int8_t  neg;  // 0-positive, i.e. whitelist, 1-negative, i.e. blacklist
   union {
     SIpV4Range* pIpRanges;
     SIpRange*   pIpDualRanges;
@@ -1607,6 +1612,7 @@ int32_t tDeserializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhit
 typedef struct {
   char    user[TSDB_USER_LEN];
   int32_t numWhiteLists;
+  int8_t  neg; // 0-positive, i.e. whitelist, 1-negative, i.e. blacklist
   union {
     SIpV4Range* pWhiteLists;
     SIpRange*   pWhiteListsDual;

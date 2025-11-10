@@ -2570,6 +2570,7 @@ int32_t cvtIpWhiteListToDual(SIpWhiteList *pWhiteList, SIpWhiteListDual **pWhite
   if (pList == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
+  pList->neg = 0; // always whitelist
   pList->num = pWhiteList->num;
   for (int i = 0; i < pWhiteList->num; i++) {
     SIpV4Range *pIp4 = &(pWhiteList->pIpRange[i]);
@@ -2626,6 +2627,16 @@ int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **
   *pWhiteList = p;
 
   return code;
+}
+
+void copyIpRange(SIpRange* pDst, const SIpRange* pSrc) {
+  memset(pDst, 0, sizeof(*pDst));
+  pDst->type = pSrc->type;
+  if (pSrc->type == 0) {
+    memcpy(&pDst->ipV4, &pSrc->ipV4, sizeof(SIpV4Range));
+  } else {
+    memcpy(&pDst->ipV6, &pSrc->ipV6, sizeof(SIpV6Range));
+  }
 }
 
 int32_t tEncodeSDateTimeRange(SEncoder* pEncoder, const SDateTimeRange* pRange) {
@@ -2842,6 +2853,7 @@ int32_t tSerializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pReq
 
     TAOS_CHECK_EXIT(getIpv4Range(pUser, &p, &num));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, num));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pUser->neg));
     for (int32_t i = 0; i < num; i++) {
       SIpV4Range *pRange = &p[i];
       TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRange->ip));
@@ -2881,6 +2893,7 @@ int32_t tDeserializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pR
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pUserWhite->ver));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pUserWhite->user));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pUserWhite->numOfRange));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pUserWhite->neg));
 
     if ((pUserWhite->pIpRanges = taosMemoryCalloc(1, pUserWhite->numOfRange * sizeof(SIpV4Range))) == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -2964,6 +2977,7 @@ int32_t tSerializeSUpdateIpWhiteDual(void *buf, int32_t bufLen, SUpdateIpWhite *
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pUser->ver));
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pUser->user));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pUser->numOfRange));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pUser->neg));
     for (int j = 0; j < pUser->numOfRange; j++) {
       SIpRange *pRange = &pUser->pIpDualRanges[j];
       TAOS_CHECK_EXIT(tSerializeIpRange(&encoder, pRange));
@@ -3000,6 +3014,7 @@ int32_t tDeserializeSUpdateIpWhiteDual(void *buf, int32_t bufLen, SUpdateIpWhite
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pUserWhite->ver));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pUserWhite->user));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pUserWhite->numOfRange));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pUserWhite->neg));
 
     if ((pUserWhite->pIpRanges = taosMemoryCalloc(1, pUserWhite->numOfRange * sizeof(SIpRange))) == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -4121,6 +4136,7 @@ int32_t tSerializeSGetUserWhiteListRsp(void *buf, int32_t bufLen, SGetUserWhiteL
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRsp->pWhiteLists[i].ip));
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, pRsp->pWhiteLists[i].mask));
   }
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->neg));
   tEndEncode(&encoder);
 
 _exit:
@@ -4150,6 +4166,11 @@ int32_t tDeserializeSGetUserWhiteListRsp(void *buf, int32_t bufLen, SGetUserWhit
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pRsp->pWhiteLists[i].ip)));
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &(pRsp->pWhiteLists[i].mask)));
   }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->neg));
+  } else {
+    pRsp->neg = 0;
+  }
 
   tEndDecode(&decoder);
 _exit:
@@ -4172,6 +4193,7 @@ int32_t tSerializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUserWh
     SIpRange *range = &pRsp->pWhiteListsDual[i];
     TAOS_CHECK_EXIT(tSerializeIpRange(&encoder, range));
   }
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->neg));
   tEndEncode(&encoder);
 
 _exit:
@@ -4200,6 +4222,11 @@ int32_t tDeserializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUser
   for (int32_t i = 0; i < pRsp->numWhiteLists; ++i) {
     SIpRange *range = &pRsp->pWhiteListsDual[i];
     TAOS_CHECK_EXIT(tDeserializeIpRange(&decoder, range));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->neg));
+  } else {
+    pRsp->neg = 0;
   }
 
   tEndDecode(&decoder);

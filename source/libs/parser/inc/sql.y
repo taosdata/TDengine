@@ -110,437 +110,214 @@ user_enabled(A) ::= ACCOUNT LOCK.                                               
 user_enabled(A) ::= ACCOUNT UNLOCK.                                               { A = 1; }
 user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; }
 
-%type user_options                                                                { SUserOptions* }
-user_options(A) ::= .                                                             { A = NULL; }
-user_options(A) ::= user_options(B) TOTPSEED NK_STRING(C).                        {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasTotpseed) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "TOTPSEED");
-    } else {
-      setUserOptionsTotpseed(pCxt, A, &C);
-    }
-  }
-user_options(A) ::= user_options(B) user_enabled(C).                              {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasEnable) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "ENABLE/ACCOUNT LOCK/ACCOUNT UNLOCK");
-    } else {
-      A->enable = C;
-      A->hasEnable = true;
-    }
-  }
-user_options(A) ::= user_options(B) SYSINFO NK_INTEGER(C).                        {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasSysinfo) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "SYSINFO");
-    } else {
-      A->sysinfo = taosStr2Int8(C.z, NULL, 10) ? 1 : 0;
-      A->hasSysinfo = true;
-    }
-  }
-user_options(A) ::= user_options(B) IS_IMPORT NK_INTEGER(C).                      {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasIsImport) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "IS_IMPORT");
-    } else {
-      A->isImport = taosStr2Int8(C.z, NULL, 10) ? 1 : 0;
-      A->hasIsImport = true;
-    }
-  }
-user_options(A) ::= user_options(B) CREATEDB NK_INTEGER(C).                       {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasCreatedb) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CREATEDB");
-    } else {
-      A->createdb = taosStr2Int8(C.z, NULL, 10) ? 1 : 0;
-      A->hasCreatedb = true;
-    }
-  }
-user_options(A) ::= user_options(B) CHANGEPASS NK_INTEGER(C).                     {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasChangepass) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CHANGEPASS");
-    } else {
-      A->changepass = taosStr2Int8(C.z, NULL, 10);
-      A->hasChangepass = true;
-    }
-  }
-user_options(A) ::= user_options(B) SESSION_PER_USER option_value(C).        {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasSessionPerUser) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "SESSION_PER_USER");
-    } else if (C.type == TK_DEFAULT) {
+%type user_option                                                                 { SUserOptions* }
+user_option(A) ::= TOTPSEED NK_STRING(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, &B); }
+user_option(A) ::= user_enabled(B).                                               { A = mergeUserOptions(pCxt, NULL, NULL); A->enable = B; A->hasEnable = true; }
+user_option(A) ::= SYSINFO NK_INTEGER(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); A->sysinfo = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasSysinfo = true; }
+user_option(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = mergeUserOptions(pCxt, NULL, NULL); A->isImport = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasIsImport = true; }
+user_option(A) ::= CREATEDB NK_INTEGER(B).                                        { A = mergeUserOptions(pCxt, NULL, NULL); A->createdb = taosStr2Int8(B.z, NULL, 10) ? 1 : 0; A->hasCreatedb = true; }
+user_option(A) ::= CHANGEPASS NK_INTEGER(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); A->changepass = taosStr2Int8(B.z, NULL, 10); A->hasChangepass = true; }
+user_option(A) ::= SESSION_PER_USER option_value(B).                              {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->sessionPerUser = -1;
     } else {
-      A->sessionPerUser = taosStr2Int32(C.z, NULL, 10);
+      A->sessionPerUser = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasSessionPerUser = true;
   }
-user_options(A) ::= user_options(B) CONNECT_TIME option_value(C).            {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasConnectTime) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CONNECT_TIME");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= CONNECT_TIME option_value(B).                                 {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->connectTime = -1;
     } else {
-      A->connectTime = taosStr2Int32(C.z, NULL, 10);
+      A->connectTime = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasConnectTime = true;
   }
-user_options(A) ::= user_options(B) CONNECT_IDLE_TIME option_value(C).       {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasConnectIdleTime) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CONNECT_IDLE_TIME");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= CONNECT_IDLE_TIME option_value(B).                            {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->connectIdleTime = -1;
     } else {
-      A->connectIdleTime = taosStr2Int32(C.z, NULL, 10);
+      A->connectIdleTime = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasConnectIdleTime = true;
   }
-user_options(A) ::= user_options(B) CALL_PER_SESSION option_value(C).        {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasCallPerSession) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "CALL_PER_SESSION");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= CALL_PER_SESSION option_value(B).                             {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->callPerSession = -1;
     } else {
-      A->callPerSession = taosStr2Int32(C.z, NULL, 10);
+      A->callPerSession = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasCallPerSession = true;
   }
 /****** VNODE_PER_CALL is not supported for now
-user_options(A) ::= user_options(B) VNODE_PER_CALL option_value(C).          {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasVnodePerCall) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "VNODE_PER_CALL");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= VNODE_PER_CALL option_value(B).                               {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->vnodePerCall = -1;
     } else {
-      A->vnodePerCall = taosStr2Int32(C.z, NULL, 10);
+      A->vnodePerCall = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasVnodePerCall = true;
   }
 **********/
-user_options(A) ::= user_options(B) FAILED_LOGIN_ATTEMPTS option_value(C).   {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasFailedLoginAttempts) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "FAILED_LOGIN_ATTEMPTS");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= FAILED_LOGIN_ATTEMPTS option_value(B).                        {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->failedLoginAttempts = -1;
     } else {
-      A->failedLoginAttempts = taosStr2Int32(C.z, NULL, 10);
+      A->failedLoginAttempts = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasFailedLoginAttempts = true;
   }
-user_options(A) ::= user_options(B) PASSWORD_LIFE_TIME option_value(C).      {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasPasswordLifeTime) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_LIFE_TIME");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= PASSWORD_LIFE_TIME option_value(B).                           {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->passwordLifeTime = -1;
     } else {
-      A->passwordLifeTime = taosStr2Int32(C.z, NULL, 10);
+      A->passwordLifeTime = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasPasswordLifeTime = true;
   }
-user_options(A) ::= user_options(B) PASSWORD_REUSE_TIME option_value(C).     {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasPasswordReuseTime) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_REUSE_TIME");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= PASSWORD_REUSE_TIME option_value(B).                          {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_TIME");
     } else {
-      A->passwordReuseTime = taosStr2Int32(C.z, NULL, 10);
+      A->passwordReuseTime = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasPasswordReuseTime = true;
   }
-user_options(A) ::= user_options(B) PASSWORD_REUSE_MAX option_value(C).      {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasPasswordReuseMax) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_REUSE_MAX");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= PASSWORD_REUSE_MAX option_value(B).                           {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_MAX");
     } else {
-      A->passwordReuseMax = taosStr2Int32(C.z, NULL, 10);
+      A->passwordReuseMax = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasPasswordReuseMax = true;
   }
-user_options(A) ::= user_options(B) PASSWORD_LOCK_TIME option_value(C).      {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasPasswordLockTime) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_LOCK_TIME");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= PASSWORD_LOCK_TIME option_value(B).                           {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->passwordLockTime = -1;
     } else {
-      A->passwordLockTime = taosStr2Int32(C.z, NULL, 10);
+      A->passwordLockTime = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasPasswordLockTime = true;
   }
-user_options(A) ::= user_options(B) PASSWORD_GRACE_TIME option_value(C).     {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasPasswordGraceTime) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASSWORD_GRACE_TIME");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= PASSWORD_GRACE_TIME option_value(B).                          {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->passwordGraceTime = -1;
     } else {
-      A->passwordGraceTime = taosStr2Int32(C.z, NULL, 10);
+      A->passwordGraceTime = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasPasswordGraceTime = true;
   }
-user_options(A) ::= user_options(B) INACTIVE_ACCOUNT_TIME option_value(C).   {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasInactiveAccountTime) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "INACTIVE_ACCOUNT_TIME");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= INACTIVE_ACCOUNT_TIME option_value(B).                        {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->inactiveAccountTime = -1;
     } else {
-      A->inactiveAccountTime = taosStr2Int32(C.z, NULL, 10);
+      A->inactiveAccountTime = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasInactiveAccountTime = true;
   }
-user_options(A) ::= user_options(B) ALLOW_TOKEN_NUM option_value(C).         {
-    A = mergeUserOptions(pCxt, B, NULL);
-    if (A->hasAllowTokenNum) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "ALLOW_TOKEN_NUM");
-    } else if (C.type == TK_DEFAULT) {
+user_option(A) ::= ALLOW_TOKEN_NUM option_value(B).                              {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
       A->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
-    } else if (C.type == TK_UNLIMITED) {
+    } else if (B.type == TK_UNLIMITED) {
       A->allowTokenNum = -1;
     } else {
-      A->allowTokenNum = taosStr2Int32(C.z, NULL, 10);
+      A->allowTokenNum = taosStr2Int32(B.z, NULL, 10);
     }
     A->hasAllowTokenNum = true;
   }
 
 
-%type ip_range_list                                                               { SNodeList* }
-%destructor ip_range_list                                                         { nodesDestroyList($$); }
-ip_range_list(A) ::= NK_STRING(B).                                                { A = createNodeList(pCxt, (SNode*)parseIpRange(pCxt, &B)); }
-ip_range_list(A) ::= ip_range_list(B) NK_COMMA NK_STRING(C).                      { A = addNodeToList(pCxt, B, (SNode*)parseIpRange(pCxt, &C)); }
+%type ip_range_list                                                              { SNodeList* }
+%destructor ip_range_list                                                        { nodesDestroyList($$); }
+ip_range_list(A) ::= NK_STRING(B).                                               { A = createNodeList(pCxt, (SNode*)parseIpRange(pCxt, &B)); }
+ip_range_list(A) ::= ip_range_list(B) NK_COMMA NK_STRING(C).                     { A = addNodeToList(pCxt, B, (SNode*)parseIpRange(pCxt, &C)); }
 
 
-%type date_time_range                { SDateTimeRangeNode* }
-date_time_range(A) ::= NK_INTEGER(B) NK_MINUS NK_INTEGER(C) NK_MINUS NK_INTEGER(D) NK_INTEGER(E) NK_COLON NK_INTEGER(F) NK_INTEGER(G). {
-    A = createDateTimeRangeNode(pCxt);
-    A->range.year = taosStr2Int16(B.z, NULL, 10);
-    A->range.month = taosStr2Int8(C.z, NULL, 10);
-    A->range.day = taosStr2Int8(D.z, NULL, 10);
-    A->range.hour = taosStr2Int8(E.z, NULL, 10);
-    A->range.minute = taosStr2Int8(F.z, NULL, 10);
-    A->range.duration = taosStr2Int32(G.z, NULL, 10);
-  }
-date_time_range(A) ::= NK_ID(B) NK_INTEGER(C) NK_COLON NK_INTEGER(D) NK_INTEGER(E). {
-    char buf[8]; // the size of this buf should > 4, so that values like 'SUNN' will produce an error.
-    memcpy(buf, B.z, B.n > sizeof(buf) ? sizeof(buf) : B.n);
-    buf[sizeof(buf) - 1] = 0;
-
-    A = createDateTimeRangeNode(pCxt);
-    A->range.year = 0;
-    A->range.month = -1;
-    A->range.day = (int8_t)taosParseShortWeekday(buf);
-    A->range.hour = taosStr2Int8(C.z, NULL, 10);
-    A->range.minute = taosStr2Int8(D.z, NULL, 10);
-    A->range.duration = taosStr2Int32(E.z, NULL, 10);
-  }
-
-%type date_time_range_list                                                         { SNodeList* }
-%destructor date_time_range_list                                                   { nodesDestroyList($$); }
-date_time_range_list(A) ::= date_time_range(B).                                    { A = createNodeList(pCxt, (SNode*)B); }
-date_time_range_list(A) ::= date_time_range_list(B) NK_COMMA date_time_range(C).   { A = addNodeToList(pCxt, B, (SNode*)C); }
+%type datetime_range_list                                                        { SNodeList* }
+%destructor datetime_range_list                                                  { nodesDestroyList($$); }
+datetime_range_list(A) ::= NK_STRING(B).                                         { A = createNodeList(pCxt, (SNode*)parseDateTimeRange(pCxt, &B)); }
+datetime_range_list(A) ::= datetime_range_list(B) NK_COMMA NK_STRING(C).         { A = addNodeToList(pCxt, B, (SNode*)parseDateTimeRange(pCxt, &C)); }
 
 
-%type create_user_options                                                          { SUserOptions* }
-create_user_options(A) ::= user_options(B).                                        { A = B; }
-create_user_options(A) ::= user_options(B) HOST ip_range_list(C) user_options(D).  {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pIpRanges == NULL) {
-      A->pIpRanges = C;
-    } else if (A->negIpRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
-    } else {
-      nodesListAppendList(A->pIpRanges, C);
-    }
-  }
-create_user_options(A) ::= user_options(B) NOT_ALLOW_HOST ip_range_list(C) user_options(D).  {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pIpRanges == NULL) {
-      A->negIpRanges = true;
-      A->pIpRanges = C;
-    } else if (!A->negIpRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
-    } else {
-      nodesListAppendList(A->pIpRanges, C);
-    }
-  }
-create_user_options(A) ::= user_options(B) ALLOW_DATETIME date_time_range_list(C) user_options(D).  {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pTimeRanges == NULL) {
-      A->pTimeRanges = C;
-    } else if (A->negTimeRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
-    } else {
-      nodesListAppendList(A->pTimeRanges, C);
-    }
-  }
-create_user_options(A) ::= user_options(B) NOT_ALLOW_DATETIME date_time_range_list(C) user_options(D).  {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pTimeRanges == NULL) {
-      A->negTimeRanges = true;
-      A->pTimeRanges = C;
-    } else if (!A->negTimeRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
-    } else {
-      nodesListAppendList(A->pTimeRanges, C);
-    }
-  }
+%type create_user_option                                                         { SUserOptions* }
+create_user_option(A) ::= HOST ip_range_list(B).                                 { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; }
+create_user_option(A) ::= NOT_ALLOW_HOST ip_range_list(B).                       { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; A->negIpRanges = true; }
+create_user_option(A) ::= ALLOW_DATETIME datetime_range_list(B).                 { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; }
+create_user_option(A) ::= NOT_ALLOW_DATETIME datetime_range_list(B).             { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; A->negTimeRanges = true; }
+
+%type create_user_options                                                        { SUserOptions* }
+create_user_options(A) ::= user_option(B).                                       { A = B; }
+create_user_options(A) ::= create_user_option(B).                                { A = B; }
+create_user_options(A) ::= create_user_options(B) user_option(C).                { A = mergeUserOptions(pCxt, B, C); }
+create_user_options(A) ::= create_user_options(B) create_user_option(C).         { A = mergeUserOptions(pCxt, B, C); }
+
+%type create_user_options_opt                                                    { SUserOptions* }
+create_user_options_opt(A) ::= .                                                 { A = NULL; }
+create_user_options_opt(A) ::= create_user_options(B).                           { A = B; }
 
 
-%type alter_user_options                                                            { SUserOptions* }
-alter_user_options(A) ::= user_options(B).                                          { A = B; }
-alter_user_options(A) ::= user_options(B) PASS NK_STRING(C) user_options(D).        {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->hasPassword) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASS");
-    } else {
-      setUserOptionsPassword(pCxt, A, &C);
-    }
-  }
-alter_user_options(A) ::= user_options(B) ADD HOST ip_range_list(C) user_options(D). {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pIpRanges == NULL) {
-      A->pIpRanges = C;
-    } else if (A->negIpRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
-    } else {
-      nodesListAppendList(A->pIpRanges, C);
-    }
-  }
-alter_user_options(A) ::= user_options(B) DROP HOST ip_range_list(C) user_options(D). {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pDropIpRanges == NULL) {
-      A->pDropIpRanges = C;
-    } else if (A->negDropIpRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
-    } else {
-      nodesListAppendList(A->pDropIpRanges, C);
-    }
-  }
-alter_user_options(A) ::= user_options(B) ADD NOT_ALLOW_HOST ip_range_list(C) user_options(D). {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pIpRanges == NULL) {
-      A->pIpRanges = C;
-      A->negIpRanges = true;
-    } else if (!A->negIpRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
-    } else {
-      nodesListAppendList(A->pIpRanges, C);
-    }
-  }
-alter_user_options(A) ::= user_options(B) DROP NOT_ALLOW_HOST ip_range_list(C) user_options(D). {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pDropIpRanges == NULL) {
-      A->pDropIpRanges = C;
-      A->negDropIpRanges = true;
-    } else if (!A->negDropIpRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "HOST", "NOT_ALLOW_HOST");
-    } else {
-      nodesListAppendList(A->pDropIpRanges, C);
-    }
-  }
-alter_user_options(A) ::= user_options(B) ADD ALLOW_DATETIME date_time_range_list(C) user_options(D). {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pTimeRanges == NULL) {
-      A->pTimeRanges = C;
-    } else if (A->negTimeRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
-    } else {
-      nodesListAppendList(A->pTimeRanges, C);
-    }
-  }
-alter_user_options(A) ::= user_options(B) DROP ALLOW_DATETIME date_time_range_list(C) user_options(D). {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pDropTimeRanges == NULL) {
-      A->pDropTimeRanges = C;
-    } else if (A->negDropTimeRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
-    } else {
-      nodesListAppendList(A->pDropTimeRanges, C);
-    }
-  }
-alter_user_options(A) ::= user_options(B) ADD NOT_ALLOW_DATETIME date_time_range_list(C) user_options(D). {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pTimeRanges == NULL) {
-      A->pTimeRanges = C;
-      A->negTimeRanges = true;
-    } else if (!A->negTimeRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
-    } else {
-      nodesListAppendList(A->pTimeRanges, C);
-    }
-  }
-alter_user_options(A) ::= user_options(B) DROP NOT_ALLOW_DATETIME date_time_range_list(C) user_options(D). {
-    A = mergeUserOptions(pCxt, B, D);
-    if (A->pDropTimeRanges == NULL) {
-      A->pDropTimeRanges = C;
-      A->negDropTimeRanges = true;
-    } else if (!A->negDropTimeRanges) {
-      nodesDestroyList(C);
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_CONFLICT, "ALLOW_DATETIME", "NOT_ALLOW_DATETIME");
-    } else {
-      nodesListAppendList(A->pDropTimeRanges, C);
-    }
-  }
+%type alter_user_option                                                          { SUserOptions* }
+alter_user_option(A) ::= PASS NK_STRING(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsPassword(pCxt, A, &B); }
+alter_user_option(A) ::= ADD HOST ip_range_list(B).                              { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; }
+alter_user_option(A) ::= ADD NOT_ALLOW_HOST ip_range_list(B).                    { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; A->negIpRanges = true; }
+alter_user_option(A) ::= DROP HOST ip_range_list(B).                             { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropIpRanges = B; }
+alter_user_option(A) ::= DROP NOT_ALLOW_HOST ip_range_list(B).                   { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropIpRanges = B; A->negDropIpRanges = true; }
+alter_user_option(A) ::= ADD ALLOW_DATETIME datetime_range_list(B).              { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; }
+alter_user_option(A) ::= ADD NOT_ALLOW_DATETIME datetime_range_list(B).          { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; A->negTimeRanges = true; }
+alter_user_option(A) ::= DROP ALLOW_DATETIME datetime_range_list(B).             { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropTimeRanges = B; }
+alter_user_option(A) ::= DROP NOT_ALLOW_DATETIME datetime_range_list(B).         { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropTimeRanges = B; A->negDropTimeRanges = true; }
+
+%type alter_user_options                                                         { SUserOptions* }
+alter_user_options(A) ::= user_option(B).                                        { A = B; }
+alter_user_options(A) ::= alter_user_option(B).                                  { A = B; }
+alter_user_options(A) ::= alter_user_options(B) user_option(C).                  { A = mergeUserOptions(pCxt, B, C); }
+alter_user_options(A) ::= alter_user_options(B) alter_user_option(C).            { A = mergeUserOptions(pCxt, B, C); }
 
 
-cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user_options(D).  {
+cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user_options_opt(D).  {
     D = mergeUserOptions(pCxt, D, NULL);
     setUserOptionsPassword(pCxt, D, &C);
     pCxt->pRootNode = createCreateUserStmt(pCxt, &B, D, A);
   }
-cmd ::= ALTER USER user_name(A) alter_user_options(B).                            {
-    if (B == NULL) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCOMPLETE_SQL);
-    } else {
-      pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B);
-    }
-  }
-cmd ::= DROP USER user_name(A).                                                   { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
+cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
+cmd ::= DROP USER user_name(A).                                                  { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
 
 
 cmd ::= CREATE TOKEN. {}
