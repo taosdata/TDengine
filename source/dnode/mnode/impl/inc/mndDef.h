@@ -422,7 +422,6 @@ typedef struct {
   int8_t  sysInfo;
   int8_t  enable;
   int8_t  changePass;
-  int8_t  negIpRanges;
   int8_t  negTimeRanges;
   union {
     uint8_t flag;
