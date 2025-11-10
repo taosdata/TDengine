@@ -335,9 +335,13 @@ if __name__ == "__main__":
     logger.info(f"scan log file : {scan_result_log}")
     logger.info("Pass files: %s" % len([item for item in res if item[3] == "Pass"]))
     logger.info("Fail files: %s" % len([item for item in res if item[3] == "Fail"]))
-    fail_files = [item for item in res if item[3] == "Fail"]
+    fail_files = [item for item in res if item[3] in ['Fail', 'Invalid', 'Error']]
 
-    logger.error(f"Total failed files: {len(fail_files)}")
+    if len(fail_files) > 0:
+        logger.error(f"Total failed files: {len(fail_files)}")
+    else:
+        logger.info("All files passed the scan.")
+    
     if web_server:
         # 打印 web_path
         for index, fail_item in enumerate(fail_files):
