@@ -252,13 +252,13 @@ static void ttq_cxt_cleanup(void) {
 }
 
 static void ttq_handle_sigint(int signal) {
-  ttq_log(NULL, TTQ_LOG_INFO, "signal handle: %d", signal);
+  fprintf(stderr, "signal handle: %d\n", signal);
 
   run = 0;
 }
 
 static void ttq_handle_sighup(int signal) {
-  ttq_log(NULL, TTQ_LOG_INFO, "signal handle: %d", signal);
+  fprintf(stderr, "signal handle: %d\n", signal);
 
   flag_reload = true;
 }
