@@ -35,6 +35,7 @@ int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhit
   int32_t code = 0;
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
 
+  pWhiteListRsp->neg = 0;
   pWhiteListRsp->numWhiteLists = 2;
   pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
   if (pWhiteListRsp->pWhiteListsDual == NULL) {
