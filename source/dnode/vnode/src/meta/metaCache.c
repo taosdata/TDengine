@@ -874,7 +874,7 @@ int32_t metaStableTagFilterCachePut(
     pFilterEntry = (STagCondFilterEntry**)taosHashGet(
       (*pTagConds)->set, pTagCondKey, tagCondKeyLen);
     TSDB_CHECK_NULL(pFilterEntry, code, lino, _end, terrno);
-    (*pFilterEntry)->pColIds = taosArrayDup(pTagColIds, NULL);
+    (*pFilterEntry)->pColIds = pTagColIds;
   } else {
     // pColIds is already set, so we can destroy the new one
     taosArrayDestroy(pTagColIds);
@@ -997,6 +997,7 @@ static int32_t buildTagDataEntryKey(
   tMD5Update(pContext, (uint8_t*)pKey, (uint32_t)keyLen);
   tMD5Final(pContext);
 
+  taosMemFreeClear(pKey);
   return code;
 }
 
@@ -1054,7 +1055,7 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
           }
         } else {
           // STABLE_TAG_FILTER_CACHE_ADD_TABLE
-          taosArrayPush(*pArray, &pDroppedTable->uid);
+          void* _tmp = taosArrayPush(*pArray, &pDroppedTable->uid);
         }
       }
     }
