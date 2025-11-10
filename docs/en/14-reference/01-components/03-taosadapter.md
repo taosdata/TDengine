@@ -138,7 +138,7 @@ superTableKey = "stb"
 subTableKey = "table"
 timeKey = "time"
 timeFormat = "datetime"
-timeTimeZone = "UTC"
+timezone = "UTC"
 transformation = '''
 $sort(
     (
@@ -192,7 +192,7 @@ Complete configuration parameter description:
   - `subTableKey`: Specifies the key name in the JSON object used to represent the subtable name. Cannot be configured simultaneously with `subTable`.
   - `timeKey`: Specifies the key name in the JSON object used to represent the timestamp. Defaults to `ts` if not set.
   - `timeFormat`: Specifies the format for time parsing. Effective when timeKey is set. See [Time Parsing Format Description](#time-parsing-format-description) for supported formats.
-  - `timeTimeZone`: Specifies the timezone for the timestamp. Effective when timeKey is set. Uses IANA timezone format, defaulting to the timezone of the machine where taosAdapter is located.
+  - `timezone`: Specifies the timezone for the timestamp. Effective when timeKey is set. Uses IANA timezone format, defaulting to the timezone of the machine where taosAdapter is located.
   - `transformation`: Uses JSONata expressions to transform the input JSON data to meet TDengine TSDB's data writing requirements. For specific syntax, refer to the [JSONata documentation](https://jsonata.org/).
   - `fields`: Defines the list of fields to be written, with each field containing the following attributes:
     - `key`: Specifies the key name in the JSON object used to represent the field value. Must match the database field name and cannot contain backticks `` ` ``.
@@ -465,7 +465,7 @@ insert into `test_input_json`.`meters`(`tbname`,`ts`,`current`,`voltage`,`phase`
 
 SQL generation description:
 
-1. The timestamp in the generated SQL will be parsed and converted according to the configured `timeFormat` and `timeTimeZone`, and ultimately formatted in RFC3339nano format when concatenated into the SQL statement.
+1. The timestamp in the generated SQL will be parsed and converted according to the configured `timeFormat` and `timezone`, and ultimately formatted in RFC3339nano format when concatenated into the SQL statement.
 2. Data will be grouped based on `db`, `superTable`, `subTable`, and the obtained `fields` (note that `optional` may be set to `true`, so the obtained data may not include all `fields`). After grouping, the data will be sorted in ascending time order before generating the SQL statement.
 3. The generated SQL statements will be concatenated to approach approximately 1MB in size for batch writing to improve write performance. If the data volume is too large, it will be split into multiple SQL statements for writing.
 

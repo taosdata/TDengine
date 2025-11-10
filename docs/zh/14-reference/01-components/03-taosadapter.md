@@ -140,7 +140,7 @@ superTableKey = "stb"
 subTableKey = "table"
 timeKey = "time"
 timeFormat = "datetime"
-timeTimeZone = "UTC"
+timeZone = "UTC"
 transformation = '''
 $sort(
     (
@@ -194,7 +194,7 @@ fields = [
   - `subTableKey`：指定 JSON 对象中用于表示子表名称的键名，与 `subTable` 不可同时配置。
   - `timeKey`：指定 JSON 对象中用于表示时间戳的键名，如果不设置则默认 `ts`。
   - `timeFormat`：指定时间解析的格式，当 timeKey 设置时有效，具体支持格式见[时间解析格式说明](#时间解析格式说明)。
-  - `timeTimeZone`：指定时间戳的时区，当 timeKey 设置时有效，IANA 时区格式，默认值 taosAdapter 所在机器时区。
+  - `timezone`：指定时间戳的时区，当 timeKey 设置时有效，IANA 时区格式，默认值 taosAdapter 所在机器时区。
   - `transformation`：使用 JSONata 表达式对输入的 JSON 数据进行转换，以符合 TDengine TSDB 的数据写入要求，具体语法见 [JSONata 文档](https://jsonata.org/)。
   - `fields`：定义要写入的字段列表，每个字段包含以下属性：
     - `key`：指定 JSON 对象中用于表示字段值的键名，需要与数据库字段名相同，禁止包含反引号 `` ` ``。
@@ -466,7 +466,7 @@ insert into `test_input_json`.`meters`(`tbname`,`ts`,`current`,`voltage`,`phase`
 
 生成 SQL 过程说明：
 
-1. 写入 SQL 中的时间戳会根据配置的 `timeFormat` 和 `timeTimeZone` 进行解析和转换，最终以 RFC3339nano 格式拼接到 SQL 语句中。
+1. 写入 SQL 中的时间戳会根据配置的 `timeFormat` 和 `timezone` 进行解析和转换，最终以 RFC3339nano 格式拼接到 SQL 语句中。
 2. 数据会按照 `db`、 `superTable` 、 `subTable` 、 获取到的 `fields`（`optional` 有可能设置为 `true`，因此获取的数据并不一定包含全部的 `fields`）进行分组，分组后按照时间升序排序后生成 SQL 语句。
 3. 生成的 SQL 语句会尽量拼接成接近 1M 的 SQL 进行批量写入，以提高写入性能，如果数据量过大则会拆分成多条 SQL 语句进行写入。
 
