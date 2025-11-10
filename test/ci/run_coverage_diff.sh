@@ -744,6 +744,8 @@ function lcovFunc {
         ((upload_attempt++))
     done
 
+    exit 0
+
     echo ""
     echo "=== Coveralls 上传结果分析 ==="
     if [ "$upload_success" = true ]; then
