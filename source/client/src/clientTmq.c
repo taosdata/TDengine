@@ -578,7 +578,7 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
 void tmq_list_destroy(tmq_list_t* list) {
   if (list == NULL) return;
   SArray* container = &list->container;
-  taosArrayDestroyP(container, NULL);
+  taosArrayDestroyP(container, taosMemFree);
 }
 
 int32_t tmq_list_get_size(const tmq_list_t* list) {
@@ -3167,7 +3167,7 @@ static int32_t tmCommittedCb(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* epSet) {
+int32_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* epSet, int64_t* committed) {
   if (tmq == NULL || tname == NULL || epSet == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -3243,7 +3243,7 @@ int64_t getCommittedFromServer(tmq_t* tmq, char* tname, int32_t vgId, SEpSet* ep
   code = pParam->code;
   if (code == TSDB_CODE_SUCCESS) {
     if (pParam->vgOffset.offset.val.type == TMQ_OFFSET__LOG) {
-      code = pParam->vgOffset.offset.val.version;
+      *committed = pParam->vgOffset.offset.val.version;
     } else {
       tOffsetDestroy(&pParam->vgOffset.offset);
       code = TSDB_CODE_TMQ_SNAPSHOT_ERROR;
@@ -3298,18 +3298,23 @@ int64_t tmq_position(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
   if (type == TMQ_OFFSET__LOG) {
     position = pOffsetInfo->endOffset.version;
   } else if (type == TMQ_OFFSET__RESET_EARLIEST || type == TMQ_OFFSET__RESET_LATEST) {
-    code = getCommittedFromServer(tmq, tname, vgId, &epSet);
+    code = getCommittedFromServer(tmq, tname, vgId, &epSet, &position);
     if (code == TSDB_CODE_TMQ_NO_COMMITTED) {
       if (type == TMQ_OFFSET__RESET_EARLIEST) {
         position = begin;
       } else if (type == TMQ_OFFSET__RESET_LATEST) {
         position = end;
+      } else {
+        tqErrorC("consumer:0x%" PRIx64 " invalid offset type:%d", tmq->consumerId, type);
+        return TSDB_CODE_INTERNAL_ERROR;
       }
-    } else {
-      position = code;
+    } else if(code != 0) {
+      tqErrorC("consumer:0x%" PRIx64 " getCommittedFromServer error,%d", tmq->consumerId, code);
+      return code;
     }
   } else {
     tqErrorC("consumer:0x%" PRIx64 " offset type:%d can not be reach here", tmq->consumerId, type);
+    return TSDB_CODE_INTERNAL_ERROR;
   }
 
   tqDebugC("consumer:0x%" PRIx64 " tmq_position vgId:%d position:%" PRId64, tmq->consumerId, vgId, position);
@@ -3359,7 +3364,11 @@ int64_t tmq_committed(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
   SEpSet epSet = pVg->epSet;
   taosWUnLockLatch(&tmq->lock);
 
-  committed = getCommittedFromServer(tmq, tname, vgId, &epSet);
+  code = getCommittedFromServer(tmq, tname, vgId, &epSet, &committed);
+  if (code != 0) {
+    tqErrorC("consumer:0x%" PRIx64 " getCommittedFromServer error,%d", tmq->consumerId, code);
+    return code;
+  }
 
   end:
   tqDebugC("consumer:0x%" PRIx64 " tmq_committed vgId:%d committed:%" PRId64, tmq->consumerId, vgId, committed);

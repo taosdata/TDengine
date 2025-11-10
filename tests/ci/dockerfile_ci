@@ -43,7 +43,7 @@ RUN pip3 config set global.index-url http://admin:123456@192.168.0.212:3141/admi
     && pip3 config set global.trusted-host 192.168.0.212 \
     && pip3 install --no-cache-dir -r /home/requirements.txt \
     && pip3 install --no-cache-dir \
-        taospy==2.8.5 taos-ws-py==0.6.1 pandas psutil codecov fabric2 requests faker simplejson toml \
+        taospy==2.8.6 taos-ws-py==0.6.3 pandas psutil codecov fabric2 requests faker simplejson toml \
         pexpect tzlocal distro decorator loguru hyperloglog websockets 
 
 # 安装 Go、JDK、Maven、Node.js（优化解压路径）

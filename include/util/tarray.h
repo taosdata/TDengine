@@ -170,6 +170,14 @@ void taosArrayPopTailBatch(SArray* pArray, size_t cnt);
 void taosArrayRemove(SArray* pArray, size_t index);
 
 /**
+ * remove data entry of the given index
+ * @param pArray
+ * @param index
+ * @param fp
+ */
+void taosArrayRemoveP(SArray* pArray, size_t index, void (*fp)(void*));
+
+/**
  * remove batch entry from the given index
  * @param pArray
  * @param index

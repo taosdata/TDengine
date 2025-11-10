@@ -331,6 +331,7 @@ extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
 extern bool    tsCompareAsStrInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
+extern int32_t tsRpcRecvLogThreshold;        // in seconds, default 3
 
 // shared storage
 extern int32_t tsSsEnabled;
@@ -346,6 +347,13 @@ extern bool tsInsertPerfEnabled;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+
+// auth
+extern bool    tsAuthServer;
+extern bool    tsAuthReq;
+extern int32_t tsAuthReqInterval;
+extern int32_t tsAuthReqHBInterval;
+extern char    tsAuthReqUrl[];
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

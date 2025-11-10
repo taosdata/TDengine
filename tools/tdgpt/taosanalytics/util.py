@@ -9,7 +9,7 @@ from statsmodels.tsa.stattools import adfuller
 from taosanalytics.conf import app_logger
 
 
-def validate_pay_load(json_obj):
+def validate_pay_load(json_obj, check_rows=True):
     """ validate the input payload """
     if "data" not in json_obj:
         raise ValueError('data attr does not exist in json')
@@ -24,7 +24,7 @@ def validate_pay_load(json_obj):
     if rows != len(data[1]):
         raise ValueError('data inconsistent, number of rows are not identical')
 
-    if rows < 10 or rows > 40000:
+    if check_rows and (rows < 10 or rows > 40000):
         raise ValueError(f'number of rows should between 10 and 40000, actual {rows} rows')
 
     if "schema" not in json_obj:
@@ -82,7 +82,7 @@ def is_white_noise(input_list):
 def is_stationary(input_list):
     """ determine whether the input list is weak stationary or not """
     adf, pvalue, usedlag, nobs, critical_values, _ = adfuller(input_list, autolag='AIC')
-    app_logger.log_inst.info("adf is:%f critical value is:%s" % (adf, critical_values))
+    app_logger.log_inst.info("adf is:%f critical value is:%s", adf, critical_values)
     return pvalue < 0.05
 
 
@@ -135,6 +135,15 @@ def get_dynamic_data(data, schema):
             dynamic.append(data[index])
 
     return None if len(dynamic) == 0 else dynamic
+
+def get_second_data_list(data, schema):
+    second_list = []
+
+    for index, val in enumerate(schema):
+        if val[0] == 'val1':
+            second_list = data[index]
+
+    return None if len(second_list) == 0 else second_list
 
 
 def get_ts_index(schema):

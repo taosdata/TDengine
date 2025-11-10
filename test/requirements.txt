@@ -57,8 +57,8 @@ regex==2024.11.6
 requests==2.32.4
 requests_ntlm==1.3.0
 six==1.17.0
-taos-ws-py==0.6.1
-taospy==2.8.5
+taos-ws-py==0.6.3
+taospy==2.8.6
 threadpool==1.3.2
 toml==0.10.2
 tomli==2.2.1

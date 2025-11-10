@@ -788,3 +788,9 @@ For specific connector error codes, refer to the table below:
 | 0xF005     | WebSocket Connection Failed               | The connected taosAdapter exited                 | Check the status of taosAdapter and retry after a period of time.  |
 | 0xF006     | WebSocket Close Message Received          | taosAdapter closed the connection due to heartbeat timeout caused by network issues | Check for network issues and retry after a period of time.         |
 
+### taosAdapter
+
+| Error Code | Error Description                              | Possible Error Scenarios or Reasons            | Recommended User Actions                         |
+|------------|------------------------------------------------|------------------------------------------------|--------------------------------------------------|
+| 0xFFFF     | taosAdapter request parameter or process error | taosAdapter request parameter or process error | Check the error cause based on the error message |
+| 0xFFFE     | taosAdapter query request exceeded the limit   | taosAdapter query request exceeded the limit   | Reduce the concurrency of query requests         |

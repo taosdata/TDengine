@@ -167,8 +167,10 @@ taosgen -h 127.0.0.1 -c config.yaml
   - 整型：timestamp、bool、tinyint、tinyint unsigned、smallint、smallint unsigned、int、int unsigned、bigint、bigint unsigned。
   - 浮点型：float、double、decimal。
   - 字符型：nchar、varchar（binary）。
+
+  目前，还不支持以下数据类型：json、geometry、varbinary、decimal、blob。
 - count（整数）：表示指定该类型的列连续出现的数量，例如 count：4096 即可生成 4096 个指定类型的列。
-- properties（字符串）：表示 TDengine 数据库的列支持的属性信息，可以包含以下属性：
+- props（字符串）：表示 TDengine 数据库的列支持的属性信息，可以包含以下属性：
   - encode：指定此列两级压缩中的第一级编码算法。
   - compress：指定此列两级压缩中的第二级加密算法。
   - level：指定此列两级压缩中的第二级加密算法的压缩率高低。
@@ -262,10 +264,10 @@ taosgen -h 127.0.0.1 -c config.yaml
     - last_to_first：本次发送数据的首行的时间列 - 上次发送数据的末行的时间列。
     - literal：根据本次发送数据的首行的时间列的值的时间点来发送，模拟实时产生数据的场景。
   - fixed_interval：仅在 interval_strategy = fixed 时生效：
-    - base_interval（整数）：表示固定间隔数值，单位毫秒。
+    - base_interval（整数）：表示固定间隔数值，单位为毫秒，默认值为 1000。
   - dynamic_interval：仅在 interval_strategy = first_to_first / last_to_first 时生效：
-    - min_interval（整数）：默认值为 -1，表示最小时间间隔阈值。
-    - max_interval（整数）：默认值为 -1，表示最大时间间隔阈值。
+    - min_interval（整数）：表示最小时间间隔阈值，单位为毫秒，默认值为 -1，表示未生效。
+    - max_interval（整数）：表示最大时间间隔阈值，单位为毫秒，默认值为 -1，表示未生效。
   - wait_strategy（字符串）：表示在开启时间间隔控制时，发送写入请求之间的等待策略，默认值为：sleep，可选值为：
     - sleep：睡眠，归还当前线程的执行权给操作系统。
     - busy_wait：忙等待，保持当前线程的执行权。
@@ -365,14 +367,13 @@ groupid,location,tbname
 - `ctb-data.csv` 文件内容格式为：
 
 ```csv
-tbname,current,voltage,phase
 tbname,ts,current,voltage,phase
 d1,1700000010000,5.23,221.5,146.2
-d3,1700000030000,8.76,219.8,148.7
-d2,1700000020000,12.45,223.1,147.3
-d3,1700000030001,9.12,220.3,149.1
-d2,1700000020001,11.87,222.7,145.8
-d1,1700000010001,4.98,220.9,147.9
+d3,1700000010000,8.76,219.8,148.7
+d2,1700000010000,12.45,223.1,147.3
+d3,1700000310000,9.12,220.3,149.1
+d2,1700000310000,11.87,222.7,145.8
+d1,1700000310000,4.98,220.9,147.9
 ```
 
 ### 生成器方式生成数据并发布数据到 MQTT Broker 示例
