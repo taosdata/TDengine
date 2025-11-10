@@ -538,7 +538,6 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
     TAOS_CHECK_EXIT(terrno);
   }
 
-  nParam = 0;
   for (int i = 0; i < winSize; ++i) {
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
     if (pTriggerCalcParams == NULL) {
@@ -558,7 +557,7 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("failed to send notification for task:%" PRIx64 ", code:%s", pTask->task.streamId, tstrerror(code));
+    ST_TASK_ELOG("failed to send notification for task:%" PRIx64 ", code:%s lino:%d", pTask->task.streamId, tstrerror(code), lino);
   } else {
     ST_TASK_DLOG("send notification for task:%" PRIx64 ", win count:%d", pTask->task.streamId, nParam);
   }
