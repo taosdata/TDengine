@@ -1054,7 +1054,7 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
           }
         } else {
           // STABLE_TAG_FILTER_CACHE_ADD_TABLE
-          taosArrayPush(*pArray, &pDroppedTable->uid);
+          void* _tmp = taosArrayPush(*pArray, &pDroppedTable->uid);
         }
       }
     }

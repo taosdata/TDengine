@@ -806,7 +806,7 @@ static void extractTagDataEntry(
   STagDataEntry entry = {0};
   entry.colId = pColNode->colId;
   entry.pValueNode = (SNode*)pValueNode;
-  taosArrayPush(pIdWithValue, &entry);
+  void* _tmp = taosArrayPush(pIdWithValue, &entry);
   STagDataEntry* pLastEntry = taosArrayGetLast(pIdWithValue);
   ((SValueNode*)pLastEntry->pValueNode)->node.resType = pColNode->node.resType;
 }
@@ -1991,7 +1991,7 @@ static void extractTagColId(SOperatorNode* pOpNode, SArray* pColIdArray) {
     (SColumnNode*)pLeft : (SColumnNode*)pRight;
 
   col_id_t colId = pColNode->colId;
-  taosArrayPush(pColIdArray, &colId);
+  void* _tmp = taosArrayPush(pColIdArray, &colId);
 }
 
 static int32_t buildTagCondKey(
@@ -2093,7 +2093,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       char* pTagCondKey;
       int32_t tagCondKeyLen;
       SArray* pTagColIds = NULL;
-      buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
+      code = buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
+      QUERY_CHECK_CODE(code, lino, _error);
       taosArrayDestroy(pTagColIds);
       code = pStorageAPI->metaFn.getStableCachedTableList(
         pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
