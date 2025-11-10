@@ -64,7 +64,7 @@ EOF
     # 在 lcov 的 --capture、--remove 和 --list 操作中添加 --quiet 参数，减少冗余输出,仅减少输出信息，不影响功能。
     lcov --quiet -d ../debug/ -capture \
         --rc lcov_branch_coverage=0 \
-        --rc genhtml_branch_coverage=1 \
+        --rc genhtml_branch_coverage=0 \
         --no-external \
         --config-file lcov_taostools.config \
         -b $TDENGINE_DIR/ \

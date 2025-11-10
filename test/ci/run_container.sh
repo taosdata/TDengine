@@ -90,7 +90,7 @@ for debug_entry in "${DEBUG_DIRS[@]}"; do
     # 执行 lcov 命令 - 关键：使用正确的源码路径
     LCOV_CMD="cd ${DEBUG_PATH} && lcov --quiet -d . -capture \
         --rc lcov_branch_coverage=0 \
-        --rc genhtml_branch_coverage=1 \
+        --rc genhtml_branch_coverage=0 \
         --no-external \
         -b /home/TDinternal/community/ \
         -o ${INFO_FILE_PATH}"

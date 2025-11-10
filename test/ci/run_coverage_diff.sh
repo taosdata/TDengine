@@ -584,7 +584,7 @@ function lcovFunc {
             fi
             
             # 打印当前处理的模式
-            # echo "处理排除模式: $file_pattern"
+            # echo "处理排除模式 $exclude_count: $file_pattern"
             exclude_patterns="$exclude_patterns '$file_pattern'"
             ((exclude_count++))
         done < "$TDENGINE_DIR/test/ci/coverage.txt"
@@ -658,6 +658,8 @@ function lcovFunc {
         echo "✗ 最终文件不存在或为空: $TDENGINE_DIR/coverage_tdengine.info"
         exit 1
     fi
+
+    exit 0
 
     # 调试输出覆盖率文件内容样例
     echo "覆盖率文件包含的源文件 (前10个):"
@@ -743,8 +745,6 @@ function lcovFunc {
         
         ((upload_attempt++))
     done
-
-    exit 0
 
     echo ""
     echo "=== Coveralls 上传结果分析 ==="

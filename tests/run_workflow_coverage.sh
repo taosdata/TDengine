@@ -29,7 +29,7 @@ function lcovFunc {
     cd $TDENGINE_DIR
 
     # collect data
-    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=0 --rc genhtml_branch_coverage=1 --no-external -b $TDENGINE_DIR -o coverage.info 
+    lcov -d "$CAPTURE_GCDA_DIR" -capture --rc lcov_branch_coverage=0 --rc genhtml_branch_coverage=0 --no-external -b $TDENGINE_DIR -o coverage.info 
 
 
     # remove exclude paths 
