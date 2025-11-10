@@ -259,6 +259,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   // CONFIG ==============
   // FIXME: if commit multiple times and the config changed?
   if (!pReader->cfgDone) {
+    vDebug("vgId:%d, vnode snap read config start", vgId);
     char    fName[TSDB_FILENAME_LEN];
     int32_t offset = 0;
 
@@ -310,6 +311,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
   // META ==============
   if (!pReader->metaDone) {
+    vDebug("vgId:%d meta snap read start", vgId);
     // open reader if not
     if (pReader->pMetaReader == NULL) {
       code = metaSnapReaderOpen(pReader->pVnode->pMeta, pReader->sver, pReader->ever, &pReader->pMetaReader);
@@ -329,6 +331,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
 
   // TSDB ==============
   if (!pReader->tsdbDone) {
+    vDebug("vgId:%d tsdb snap read start", vgId);
     // open if not
     if (pReader->pTsdbReader == NULL) {
       code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pRanges,
@@ -347,6 +350,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   if (!pReader->tsdbRAWDone) {
+    vDebug("vgId:%d tsdb raw snap read start", vgId);
     // open if not
     if (pReader->pTsdbRAWReader == NULL) {
       code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);

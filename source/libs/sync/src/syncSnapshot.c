@@ -302,7 +302,8 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 
       if (pBlk->blockLen > 0) {
         // has read data
-        sSDebug(pSender, "snapshot sender continue to read, blockLen:%d seq:%d", pBlk->blockLen, pBlk->seq);
+        sSDebug(pSender, "snapshot sender continue to read, blockLen:%d seq:%d type:%d", pBlk->blockLen, pBlk->seq,
+                pBlk->blockType);
       } else {
         // read finish, update seq to end
         pSender->seq = SYNC_SNAPSHOT_SEQ_END;
