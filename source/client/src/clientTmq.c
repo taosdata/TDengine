@@ -375,7 +375,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->enableWalMarker = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for enable.auto.commit:%s", value);
+      tqErrorC("invalid value for enable.wal.marker:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -805,6 +805,7 @@ static int32_t getClientVg(tmq_t* tmq, char* pTopicName, int32_t vgId, SMqClient
 static int32_t sendWalMarkMsgToMnodeCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pEpSet);
+    taosMemoryFreeClear(pMsg->pData);
   }
   tqDebugC("sendWalMarkMsgToMnodeCb code:%d", code);
   return 0;
@@ -1603,6 +1604,7 @@ void tmqClearUnhandleMsg(tmq_t* tmq) {
 int32_t tmqSubscribeCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pEpSet);
+    taosMemoryFreeClear(pMsg->pData);
   }
 
   if (param == NULL) {
