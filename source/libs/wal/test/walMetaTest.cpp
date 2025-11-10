@@ -919,7 +919,7 @@ TEST_F(WalKeepEnv, walSetKeepVersionConcurrent) {
   std::atomic<int> successCount(0);
   
   for (int i = 0; i < numThreads; i++) {
-    threads.push_back(std::thread([this, i, &successCount]() {
+    threads.push_back(std::thread([this, i, &successCount, callsPerThread]() {
       for (int j = 0; j < callsPerThread; j++) {
         int64_t ver = i * callsPerThread + j;
         int code = walSetKeepVersion(pWal, ver);
