@@ -22,6 +22,55 @@ class TestDatatypeDecimal:
         "slowLogScope": "none",
         "queryBufferSize": 10240,
     }
+    
+    def constValToDecimal(self):
+        tdSql.query(
+            f"SELECT CAST(CAST('-0.1234' AS DECIMAL(26, 6)) AS NCHAR(20));"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '-0.123400')
+        
+        tdSql.query(
+            f"SELECT CAST(CAST('-0.123456' AS DECIMAL(26, 6)) AS NCHAR(20));"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '-0.123456')
+        
+        tdSql.query(
+            f"SELECT CAST(CAST('-0.12345678' AS DECIMAL(26, 6)) AS NCHAR(20));"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '-0.123457')
+        
+        tdSql.query(
+            f"SELECT CAST(CAST('-0.12345678' AS DECIMAL(26, 8)) AS NCHAR(20));"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '-0.12345678')
+        
+        tdSql.query(
+            f"SELECT CAST(CAST('-1234' AS DECIMAL(26, 6)) AS NCHAR(20));"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '-1234.000000')
+        
+        tdSql.query(
+            f"SELECT CAST(CAST('-0.12345678' AS DECIMAL(26, 6)) AS NCHAR(20));"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '-0.123457')
+        
+        tdSql.query(
+            f"SELECT CAST(CAST('-0.12345678' AS DECIMAL(32, 6)) AS NCHAR(20));"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '-0.123457')
+        
+        tdSql.query(
+            f"SELECT CAST(CAST('-0.12345678' AS DECIMAL(32, 8)) AS NCHAR(20));"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '-0.12345678')
 
     def test_datatype_decimal(self):
         """DataTypes: decimal
@@ -68,5 +117,7 @@ class TestDatatypeDecimal:
             "select * from prop_statistics_equity_stable where trade_account = '1000000000601';"
         )
         tdSql.checkRows(0)
+        
+        self.constValToDecimal()
 
         tdLog.success(f"{__file__} successfully executed")
