@@ -1021,7 +1021,7 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
     (STagConds**)taosHashGet(pTableEntry, &suid, sizeof(tb_uid_t));
   if (pTagConds != NULL) {
     STagCondFilterEntry** ppFilterEntry = NULL;
-    while (ppFilterEntry = taosHashIterate((*pTagConds)->set, ppFilterEntry)) {
+    while ((ppFilterEntry = taosHashIterate((*pTagConds)->set, ppFilterEntry))) {
       STagCondFilterEntry* pFilterEntry = *ppFilterEntry;
       // rebuild the tagCondKey and check existence
       SArray* pColIds = pFilterEntry->pColIds;

@@ -958,8 +958,10 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
       if (isNullVal) {
         colDataSetNNULL(pColInfoData, currentRow, numOfRows);
       } else {
-        for (uint32_t i = 0; i < numOfRows && !IS_VAR_DATA_TYPE(pColInfoData->info.type); i++){
-          colDataClearNull_f(pColInfoData->nullbitmap, currentRow + i);
+        if (!IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          for (uint32_t i = 0; i < numOfRows; i++){
+            colDataClearNull_f(pColInfoData->nullbitmap, currentRow + i);
+          }
         }
         code = colDataSetNItems(pColInfoData, currentRow, data, numOfRows, numOfBlocks, false);
         if (uidData == NULL && pColInfoData->info.type != TSDB_DATA_TYPE_JSON && IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {

@@ -1383,6 +1383,16 @@ void clearStatisInfoCache(SLRUCache *pStatisCache, SSttStatisCacheKey *pKey) {
   (void)taosThreadMutexUnlock(&statisCacheInfo.lock);
 }
 
+static int32_t dupPlayload(SValue *p){
+  if (p != NULL){
+    int32_t code = tValueDupPayload(p);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return 0;
+}
+
 int32_t sttRowInfoDeepCopy(SSttTableRowsInfo *pDst, SSttTableRowsInfo *pInfo, int32_t numOfPKs) {
   pDst->pCount = taosArrayDup(pInfo->pCount, NULL);
   pDst->pFirstKey = taosArrayDup(pInfo->pFirstKey, NULL);
@@ -1390,14 +1400,14 @@ int32_t sttRowInfoDeepCopy(SSttTableRowsInfo *pDst, SSttTableRowsInfo *pInfo, in
   pDst->pFirstTs = taosArrayDup(pInfo->pFirstTs, NULL);
   pDst->pLastTs = taosArrayDup(pInfo->pLastTs, NULL);
   pDst->pUid = taosArrayDup(pInfo->pUid, NULL);
-
+  int32_t code = 0;
   if (numOfPKs > 0) {
     int32_t len = taosArrayGetSize(pDst->pCount);
     for (int32_t i = 0; i < len; ++i) {
       SValue *p1 = (SValue *)taosArrayGet(pDst->pFirstKey, i);
+      dupPlayload(p1);
       SValue *p2 = (SValue *)taosArrayGet(pDst->pLastKey, i);
-      tValueDupPayload(p1);
-      tValueDupPayload(p2);
+      dupPlayload(p2);
     }
   }
 
@@ -1424,6 +1434,5 @@ int32_t getSttTableRowsInfo(SSttStatisCacheValue *pValue, int32_t numOfPKs, int3
     return TSDB_CODE_INVALID_PARA;
   }
 
-  sttRowInfoDeepCopy(pRowInfo, p, numOfPKs);
-  return TSDB_CODE_SUCCESS;
+  return sttRowInfoDeepCopy(pRowInfo, p, numOfPKs);
 }
