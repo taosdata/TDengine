@@ -634,7 +634,7 @@ static int32_t mndCreateRsma(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SDb
   (void)snprintf(obj.createUser, TSDB_USER_LEN, "%s", pUser->user);
   obj.createdTime = taosGetTimestampMs();
   obj.updateTime = obj.createdTime;
-  obj.uid = mndGenerateUid(obj.name, TSDB_TABLE_FNAME_LEN);
+  obj.uid = mndGenerateUid(obj.name, strlen(obj.name));
   obj.tbUid = pCreate->tbUid;
   obj.dbUid = pDb->uid;
   obj.interval[0] = pCreate->interval[0];

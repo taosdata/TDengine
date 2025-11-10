@@ -456,6 +456,7 @@ typedef struct {
   int64_t   uid;
   SPrivSet  privSet;
   SHashObj* childRoles;
+  SRWLatch  lock;
 } SRoleObj;
 
 typedef struct {

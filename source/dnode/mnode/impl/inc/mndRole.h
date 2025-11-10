@@ -27,6 +27,7 @@ int32_t mndInitRole(SMnode *pMnode);
 void    mndCleanupRole(SMnode *pMnode);
 int32_t mndAcquireRole(SMnode *pMnode, const char *userName, SRoleObj **ppRole);
 void    mndReleaseRole(SMnode *pMnode, SRoleObj *pRole);
+void    mndRoleFreeObj(SRoleObj *pObj);
 
 SSdbRaw *mndRoleActionEncode(SRoleObj *pRole);
 #ifdef __cplusplus
