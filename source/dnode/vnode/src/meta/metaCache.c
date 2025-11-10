@@ -856,7 +856,8 @@ int32_t metaStableTagFilterCachePut(
       pTableEntry, &suid, sizeof(uint64_t), &pEntry, POINTER_BYTES);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    pTagConds = &pEntry;
+    pTagConds = (STagConds**)taosHashGet(pTableEntry, &suid, sizeof(uint64_t));
+    TSDB_CHECK_NULL(pTagConds, code, lino, _end, TSDB_CODE_NOT_FOUND);
   }
 
   STagCondFilterEntry** pFilterEntry =
@@ -881,7 +882,8 @@ int32_t metaStableTagFilterCachePut(
       (*pTagConds)->set, pTagCondKey, tagCondKeyLen, &pEntry, POINTER_BYTES);
     TSDB_CHECK_CODE(code, lino, _end);
 
-    pFilterEntry = &pEntry;
+    pFilterEntry = (STagCondFilterEntry**)taosHashGet(
+      (*pTagConds)->set, pTagCondKey, tagCondKeyLen);
   } else {
     // pColIds is already set, so we can destroy the new one
     taosArrayDestroy(*pTagColIds);
