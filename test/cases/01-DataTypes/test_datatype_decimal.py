@@ -55,10 +55,10 @@ class TestDatatypeDecimal:
         tdSql.checkData(0, 0, '-1234.000000')
         
         tdSql.query(
-            f"SELECT CAST(CAST('-0.12345678' AS DECIMAL(26, 6)) AS NCHAR(20));"
+            f"SELECT CAST(CAST('-12345678' AS DECIMAL(26, 6)) AS NCHAR(20));"
         )
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '-0.123457')
+        tdSql.checkData(0, 0, '-12345678.000000')
         
         tdSql.query(
             f"SELECT CAST(CAST('-0.12345678' AS DECIMAL(32, 6)) AS NCHAR(20));"
