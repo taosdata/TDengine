@@ -265,6 +265,7 @@ static void ttq_handle_sighup(int signal) {
 
 static void ttq_signal_setup(void) {
   signal(SIGINT, ttq_handle_sigint);
+  signal(SIGTERM, ttq_handle_sigint);
 #ifdef SIGHUP
   signal(SIGHUP, ttq_handle_sighup);
 #endif
