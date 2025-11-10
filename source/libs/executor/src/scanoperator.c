@@ -475,7 +475,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   pCost->loadBlocks += 1;
 
   SSDataBlock* p = NULL;
-  code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p, NULL);
+  code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p);
   if (p == NULL || code != TSDB_CODE_SUCCESS || p != pBlock) {
     return code;
   }
@@ -2352,7 +2352,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
 
       SSDataBlock* pBlock = NULL;
-      code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pInfo->dataReader, &pBlock, NULL);
+      code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pInfo->dataReader, &pBlock);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (pBlock && pBlock->info.rows > 0) {

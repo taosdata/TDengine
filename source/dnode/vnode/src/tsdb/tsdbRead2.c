@@ -7161,9 +7161,9 @@ void tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, v
 }
 
 int32_t tsdbGetDataTimeWindowForTables(STsdbReader* pReader, SSDataBlock* pBlock) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  bool    hasNext = false;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  bool         hasNext = false;
   SSDataBlock* pRes = NULL;
 
   TSDB_CHECK_NULL(pBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -7182,88 +7182,15 @@ int32_t tsdbGetDataTimeWindowForTables(STsdbReader* pReader, SSDataBlock* pBlock
     TSDB_CHECK_CODE(code, lino, _end);
 
     // do build results
-
-
+    
 
   }
 
 
-  SMergeTreeConf conf = {
-      .pReader = pReader,
-      .pSchema = pReader->info.pSchema,
-      .pCols = pReader->suppInfo.colId,
-      .numOfCols = pReader->suppInfo.numOfCols,
-      .suid = pReader->info.suid,
-  };
-
-  SReaderStatus* pStatus = &pReader->status;
-  if (pStatus->pCurrentFileset != NULL) {
-    tsdbGetRowsInSttFiles(pStatus->pCurrentFileset, pStatus->pLDataIterArray,
-                                                           pReader->pTsdb, &conf, pReader->idStr);
-  }
-
-  int32_t numOfTables = (int32_t)tSimpleHashGetSize(pStatus->pTableMap);
-
-  SDataBlockIter* pBlockIter = &pStatus->blockIter;
-  // pTableBlockInfo->numOfFiles += pStatus->fileIter.numOfFiles;
-
-  if (pBlockIter->numOfBlocks > 0) { // there are blocks in data files
-    // pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
-  }
-
-  // pTableBlockInfo->numOfTables = numOfTables;
-  bool hasNext = (pBlockIter->numOfBlocks > 0);
-
-  while (true) {
-    if (hasNext) {
-      SFileDataBlockInfo* pBlockInfo = NULL;
-      code = getCurrentBlockInfo(pBlockIter, &pBlockInfo, pReader->idStr);
-      TSDB_CHECK_CODE(code, lino, _end);
-
-      int32_t numOfRows = pBlockInfo->numRow;
-
-      pTableBlockInfo->totalRows += numOfRows;
-
-      if (numOfRows > pTableBlockInfo->maxRows) {
-        pTableBlockInfo->maxRows = numOfRows;
-      }
-
-      if (numOfRows < pTableBlockInfo->minRows) {
-        pTableBlockInfo->minRows = numOfRows;
-      }
-
-      pTableBlockInfo->totalSize += pBlockInfo->blockSize;
-
-      int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
-      pTableBlockInfo->blockRowsHisto[bucketIndex]++;
-
-      hasNext = blockIteratorNext(&pStatus->blockIter);
-    } else {
-      code = initForFirstBlockInFile(pReader, pBlockIter);
-      TSDB_CHECK_CODE(code, lino, _end);
-      if (pStatus->loadFromFile == false) {
-        break;
-      }
-
-      // add the data in stt files of new fileset
-      if (pStatus->pCurrentFileset != NULL) {
-        pTableBlockInfo->numOfSttRows += tsdbGetRowsInSttFiles(pStatus->pCurrentFileset, pStatus->pLDataIterArray,
-                                                               pReader->pTsdb, &conf, pReader->idStr);
-      }
-
-      pTableBlockInfo->numOfBlocks += pBlockIter->numOfBlocks;
-      hasNext = (pBlockIter->numOfBlocks > 0);
-    }
-  }
-
-  // record the data in stt files
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  if (acquired) {
-    (void)tsdbReleaseReader(pReader);
-  }
   return code;
 }
