@@ -8,7 +8,7 @@ class TestMnodeBasic6:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mnode_basic6(self):
-        """replica 3: repeatedly restart
+        """Mnode repeatedly restart
 
         1. Create mnodes on dnode2 and dnode3
         2. Repeatedly restart dnode1 to dnode3 sequentially

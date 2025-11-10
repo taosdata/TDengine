@@ -140,7 +140,12 @@ nav:
     - 23-Show Commands: case_list_docs/ShowCommands.md
     - 24-Users: case_list_docs/Users.md
     - 25-Privileges: case_list_docs/Privileges.md
-    - 26-Node Manager: case_list_docs/NodeManager.md
+    - 26-Node Manager:
+        - 01-Dnode: case_list_docs/NodeManager/Dnode.md
+        - 02-Mnode: case_list_docs/NodeManager/Mnode.md
+        - 03-Qnode: case_list_docs/NodeManager/Qnode.md
+        - 04-Snode: case_list_docs/NodeManager/Snode.md
+        - 05-Bnode: case_list_docs/NodeManager/Bnode.md
     - 27-Mount: case_list_docs/Mount.md
     - 28-Except: case_list_docs/Except.md
     - 29-Escape Characters: case_list_docs/Escape.md
