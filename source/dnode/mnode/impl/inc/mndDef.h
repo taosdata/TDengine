@@ -121,6 +121,7 @@ typedef enum {
   //  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
   TRN_CONFLICT_TSMA = 7,
+  TRN_CONFLICT_ROLE = 8,
 } ETrnConflct;
 
 typedef enum {
@@ -455,7 +456,8 @@ typedef struct {
   int64_t   updateTime;
   int64_t   uid;
   SPrivSet  privSet;
-  SHashObj* childRoles;
+  SHashObj* parents;
+  SHashObj* children;
   SRWLatch  lock;
 } SRoleObj;
 

@@ -19,6 +19,7 @@
 #include <uv.h>
 #endif
 #include "crypt.h"
+#include "mndRole.h"
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
@@ -922,7 +923,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
 
   mInfo("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-user");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_ROLE, NULL, "create-user");
   if (pTrans == NULL) {
     sdbFreeRaw(pRaw);
     mError("user:%s, failed to create since %s", userObj.user, terrstr());
@@ -1914,7 +1915,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   userObj.ipWhiteListVer = taosGetTimestampMs();
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-user");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "create-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
     taosMemoryFree(userObj.pIpWhiteListDual);
@@ -1999,6 +2000,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = 0;
   int32_t        lino = 0;
+  SRoleObj      *pRole = NULL;
   SUserObj      *pUser = NULL;
   SUserObj      *pOperUser = NULL;
   SCreateUserReq createReq = {0};
@@ -2048,6 +2050,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_ALREADY_EXIST, &lino, _OVER);
   }
 
+  code = mndAcquireRole(pMnode, createReq.user, &pRole);
+  if (pRole != NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_ROLE_ALREADY_EXIST, &lino, _OVER);
+  }
+
   code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
   if (pOperUser == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
@@ -2075,6 +2082,7 @@ _OVER:
     mError("user:%s, failed to create at line %d since %s", createReq.user, lino, tstrerror(code));
   }
 
+  mndReleaseRole(pMnode, pRole);
   mndReleaseUser(pMnode, pUser);
   mndReleaseUser(pMnode, pOperUser);
   tFreeSCreateUserReq(&createReq);
@@ -2197,7 +2205,7 @@ _OVER:
 
 static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {
   int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "alter-user");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to alter since %s", pOld->user, terrstr());
     TAOS_RETURN(terrno);
@@ -2762,7 +2770,7 @@ _OVER:
 }
 
 static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-user");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "drop-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to drop since %s", pUser->user, terrstr());
     TAOS_RETURN(terrno);

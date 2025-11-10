@@ -149,14 +149,22 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pOb
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pObj->privSet.set[i]));
   }
-  int32_t nChildRoles = taosHashGetSize(pObj->childRoles);
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nChildRoles));
-  if (nChildRoles > 0) {
+  size_t  klen = 0;
+  int32_t nParents = taosHashGetSize(pObj->parents);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nParents));
+  if (nParents > 0) {
     void *pIter = NULL;
-    char *pChildRoleName = NULL;
-    while (pIter = taosHashIterate(pObj->childRoles, pIter)) {
-      size_t klen = 0;
-      char  *roleName = taosHashGetKey(pIter, &klen);
+    while (pIter = taosHashIterate(pObj->parents, pIter)) {
+      char *roleName = taosHashGetKey(pIter, &klen);
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
+    }
+  }
+  int32_t nChildren = taosHashGetSize(pObj->children);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nChildren));
+  if (nChildren > 0) {
+    void *pIter = NULL;
+    while (pIter = taosHashIterate(pObj->children, pIter)) {
+      char *roleName = taosHashGetKey(pIter, &klen);
       TAOS_CHECK_EXIT(tEncodeCStr(&encoder, roleName));
     }
   }
@@ -190,17 +198,30 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   for (int32_t i = 0; i < nRealGroups; ++i) {
     TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pObj->privSet.set[i]));
   }
-  int32_t nChildRoles = 0;
-  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nChildRoles));
-  if (nChildRoles > 0) {
-    if (!(pObj->childRoles =
-              taosHashInit(nChildRoles, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+  char    roleName[TSDB_ROLE_LEN] = {0};
+  int32_t nParents = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nParents));
+  if (nParents > 0) {
+    if (!(pObj->parents =
+              taosHashInit(nParents, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
       TAOS_CHECK_EXIT(terrno);
     }
-    for (int32_t i = 0; i < nChildRoles; ++i) {
-      char roleName[TSDB_ROLE_LEN] = {0};
+    for (int32_t i = 0; i < nParents; ++i) {
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, roleName));
-      TAOS_CHECK_EXIT(taosHashPut(pObj->childRoles, roleName, strlen(roleName), NULL, 0));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->parents, roleName, strlen(roleName), NULL, 0));
+    }
+  }
+
+  int32_t nChildren = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nChildren));
+  if (nChildren > 0) {
+    if (!(pObj->children =
+              taosHashInit(nChildren, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nChildren; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, roleName));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->children, roleName, strlen(roleName), NULL, 0));
     }
   }
 
@@ -299,9 +320,13 @@ int32_t mndRoleDupObj(SRoleObj *pRole, SRoleObj *pNew) { return 0; }
 
 void mndRoleFreeObj(SRoleObj *pObj) {
   if (pObj) {
-    if (pObj->childRoles) {
-      taosHashCleanup(pObj->childRoles);
-      pObj->childRoles = NULL;
+    if (pObj->parents) {
+      taosHashCleanup(pObj->parents);
+      pObj->parents = NULL;
+    }
+    if (pObj->children) {
+      taosHashCleanup(pObj->children);
+      pObj->children = NULL;
     }
   }
 }
@@ -322,7 +347,8 @@ static int32_t mndRoleActionUpdate(SSdb *pSdb, SRoleObj *pOld, SRoleObj *pNew) {
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
   pOld->privSet = pNew->privSet;
-  TSWAP(pOld->childRoles, pNew->childRoles);
+  TSWAP(pOld->parents, pNew->parents);
+  TSWAP(pOld->children, pNew->children);
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -357,7 +383,7 @@ static int32_t mndCreateRole(SMnode *pMnode, char *acct, SCreateRoleReq *pCreate
   obj.uid = mndGenerateUid(obj.name, strlen(obj.name));
   // TODO: assign default privileges
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-role");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "create-role");
   if (pTrans == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -437,13 +463,64 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndDropRole(SMnode *pMnode, SRpcMsg *pReq, SRoleObj *pRole) {
+static int32_t mndDropParentRole(SMnode *pMnode, SRoleObj *pChild) {
+  return 0;
+}
+
+static int32_t mndDropRole(SMnode *pMnode, SRpcMsg *pReq, SRoleObj *pObj) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "drop-role");
+  if (pTrans == NULL) {
+    mError("role:%s, failed to drop since %s", pObj->name, terrstr());
+    TAOS_CHECK_EXIT(terrno);
+  }
+  mInfo("trans:%d, used to drop role:%s", pTrans->id, pObj->name);
+
+  SSdbRaw *pCommitRaw = mndRoleActionEncode(pObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    TAOS_CHECK_EXIT(terrno);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
+  TAOS_CHECK_EXIT(mndDropParentRole(pMnode, pObj));
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("role:%s, failed to drop at line:%d since %s", pObj->name, lino, tstrerror(code));
+  }
+  mndTransDrop(pTrans);
   TAOS_RETURN(0);
 }
 
 static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
-  assert(0);  
-  TAOS_RETURN(0);
+  SMnode      *pMnode = pReq->info.node;
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  SRoleObj    *pObj = NULL;
+  SDropRoleReq dropReq = {0};
+
+  TAOS_CHECK_EXIT(tDeserializeSDropRoleReq(pReq->pCont, pReq->contLen, &dropReq));
+
+  mInfo("role:%s, start to drop", dropReq.name);
+  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ROLE));
+
+  if (dropReq.name[0] == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_ROLE_FORMAT);
+  }
+
+  TAOS_CHECK_EXIT(mndAcquireRole(pMnode, dropReq.name, &pObj));
+
+  TAOS_CHECK_EXIT(mndDropRole(pMnode, pReq, pObj));
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  auditRecord(pReq, pMnode->clusterId, "dropRole", "", dropReq.name, dropReq.sql, dropReq.sqlLen);
+_exit:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("role:%s, failed to drop at line %d since %s", dropReq.name, lino, tstrerror(code));
+  }
+  mndReleaseRole(pMnode, pObj);
+  tFreeSDropRoleReq(&dropReq);
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessGetRoleAuthReq(SRpcMsg *pReq) {
