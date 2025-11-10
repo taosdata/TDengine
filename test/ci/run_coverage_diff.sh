@@ -584,7 +584,7 @@ function lcovFunc {
             fi
             
             # 打印当前处理的模式
-            echo "处理排除模式: $file_pattern"
+            # echo "处理排除模式: $file_pattern"
             exclude_patterns="$exclude_patterns '$file_pattern'"
             ((exclude_count++))
         done < "$TDENGINE_DIR/test/ci/coverage.txt"
@@ -594,7 +594,7 @@ function lcovFunc {
         if [ -n "$exclude_patterns" ]; then
             # 使用 lcov --remove 排除指定的文件
             echo "执行排除过滤..."
-            echo "排除命令: lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns --rc lcov_branch_coverage=0 -o coverage_tdengine.info"
+            # echo "排除命令: lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns --rc lcov_branch_coverage=0 -o coverage_tdengine.info"
             
             eval "lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns \
                 --rc lcov_branch_coverage=0 \
