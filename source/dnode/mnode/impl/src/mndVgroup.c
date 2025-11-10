@@ -3945,7 +3945,12 @@ static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq) {
     mndReleaseVgroup(pMnode, pVgroup);
     goto _OVER;
   }
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY)) != 0) {
+    mError("vgId:%d, failed to set raw status to ready, error:%s, line:%d", pVgroup->vgId, tstrerror(code), __LINE__);
+    sdbFreeRaw(pCommitRaw);
+    mndReleaseVgroup(pMnode, pVgroup);
+    goto _OVER;
+  }
 
   // Prepare message for vnodes
   SVndSetKeepVersionReq vndReq = {.keepVersion = req.keepVersion};
