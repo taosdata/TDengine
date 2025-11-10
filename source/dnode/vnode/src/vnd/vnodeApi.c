@@ -102,6 +102,8 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getCachedTableList = metaGetCachedTableUidList;
   pMeta->putCachedTableList = metaUidFilterCachePut;
+  pMeta->getStableCachedTableList = metaStableTagFilterCacheGet;
+  pMeta->putStableCachedTableList = metaStableTagFilterCachePut;
 
   pMeta->metaGetCachedTbGroup = metaGetCachedTbGroup;
   pMeta->metaPutTbGroupToCache = metaPutTbGroupToCache;

@@ -6207,26 +6207,6 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     }
   }
 
-  bool finished = false;
-  if (TD_DLIST_NELES(&pContext->groupsForceClose) > 0) {
-    finished = true;
-  } else if (pContext->needTsdbMeta) {
-    // TODO(kjq): use precision of trigger table
-    int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
-    QUERY_CHECK_CONDITION(pContext->stepRange.skey <= pContext->stepRange.ekey, code, lino, _end,
-                          TSDB_CODE_INTERNAL_ERROR);
-    finished = (pContext->stepRange.ekey + 1 > pContext->scanRange.ekey);
-  } else if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
-    finished = true;
-    for (int32_t i = 0; i < TARRAY_SIZE(pContext->pTrigDataBlocks); i++) {
-      SSDataBlock *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pContext->pTrigDataBlocks, i);
-      if (blockDataGetNumOfRows(pDataBlock) > 0) {
-        finished = false;
-        break;
-      }
-    }
-  }
-
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     SSTriggerHistoryGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
     switch (pContext->status) {
@@ -6280,7 +6260,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         } else {
           if (TARRAY_SIZE(pContext->pCalcReq->params) == 0) {
             int32_t nParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-            bool    needCalc = (nParams >= STREAM_CALC_REQ_MAX_WIN_NUM) || (finished && (nParams > 0));
+            bool    needCalc = (nParams > STREAM_CALC_REQ_MAX_WIN_NUM);
             if (needCalc) {
               SSTriggerCalcParam *pParam = NULL;
               for (int32_t i = 0; i < nParams; i++) {
@@ -6328,7 +6308,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     }
     TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
     int32_t nRemainParams = taosArrayGetSize(pGroup->pPendingCalcParams);
-    bool    needMoreCalc = (nRemainParams >= STREAM_CALC_REQ_MAX_WIN_NUM) || (finished && (nRemainParams > 0));
+    bool    needMoreCalc = (nRemainParams > STREAM_CALC_REQ_MAX_WIN_NUM);
     if (needMoreCalc) {
       // the group has remaining calc params to be calculated
       TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
@@ -6336,17 +6316,40 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   }
 
-  if (finished && TD_DLIST_NELES(&pContext->groupsForceClose) == 0 && pContext->isHistory &&
-      (pTask->triggerType == STREAM_TRIGGER_SLIDING || pTask->triggerType == STREAM_TRIGGER_SESSION ||
-       pTask->triggerType == STREAM_TRIGGER_STATE)) {
-    int32_t iter = 0;
-    void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
-    while (px != NULL) {
-      SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
-      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
-        TD_DLIST_APPEND(&pContext->groupsForceClose, pGroup);
+  bool forceClose = pContext->isHistory &&
+                    (pTask->triggerType == STREAM_TRIGGER_SLIDING || pTask->triggerType == STREAM_TRIGGER_SESSION ||
+                     pTask->triggerType == STREAM_TRIGGER_STATE);
+  bool finished = true;
+  if (TD_DLIST_NELES(&pContext->groupsForceClose) == 0) {
+    if (pContext->needTsdbMeta) {
+      // TODO(kjq): use precision of trigger table
+      int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
+      QUERY_CHECK_CONDITION(pContext->stepRange.skey <= pContext->stepRange.ekey, code, lino, _end,
+                            TSDB_CODE_INTERNAL_ERROR);
+      finished = (pContext->stepRange.ekey + 1 > pContext->scanRange.ekey);
+    } else if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
+      for (int32_t i = 0; i < TARRAY_SIZE(pContext->pTrigDataBlocks); i++) {
+        SSDataBlock *pDataBlock = *(SSDataBlock **)TARRAY_GET_ELEM(pContext->pTrigDataBlocks, i);
+        if (blockDataGetNumOfRows(pDataBlock) > 0) {
+          finished = false;
+          break;
+        }
       }
-      px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+    }
+
+    if (finished) {
+      int32_t iter = 0;
+      void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+      while (px != NULL) {
+        SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
+        if (forceClose && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          TD_DLIST_APPEND(&pContext->groupsForceClose, pGroup);
+        } else if (taosArrayGetSize(pGroup->pPendingCalcParams) > 0) {
+          // have remaining calc params to be calculated
+          TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+        }
+        px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+      }
     }
   }
 
@@ -6369,26 +6372,29 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       }
       case STRIGGER_CONTEXT_CHECK_CONDITION: {
         int64_t now = taosGetTimestampNs();
-        QUERY_CHECK_CONDITION(IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        SSTriggerWindow *pHead = TRINGBUF_HEAD(&pGroup->winBuf);
-        SSTriggerWindow *p = pHead;
-        do {
-          SSTriggerCalcParam param = {
-              .triggerTime = now,
-              .wstart = p->range.skey,
-              .wend = p->range.ekey,
-              .wduration = p->range.ekey - p->range.skey,
-              .wrownum = (p == pHead) ? p->wrownum : (pHead->wrownum - p->wrownum),
-          };
-          if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-            void *px = taosArrayPush(pContext->pCalcReq->params, &param);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-          } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-            void *px = taosArrayPush(pContext->pNotifyParams, &param);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-          }
-          TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
-        } while (p != TRINGBUF_TAIL(&pGroup->winBuf));
+        if (forceClose && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          SSTriggerWindow *pHead = TRINGBUF_HEAD(&pGroup->winBuf);
+          SSTriggerWindow *p = pHead;
+          do {
+            SSTriggerCalcParam param = {
+                .triggerTime = now,
+                .wstart = p->range.skey,
+                .wend = p->range.ekey,
+                .wduration = p->range.ekey - p->range.skey,
+                .wrownum = (p == pHead) ? p->wrownum : (pHead->wrownum - p->wrownum),
+            };
+            if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+              void *px = taosArrayPush(pGroup->pPendingCalcParams, &param);
+              QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+            } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+              void *px = taosArrayPush(pContext->pNotifyParams, &param);
+              QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+            }
+            TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
+          } while (p != TRINGBUF_TAIL(&pGroup->winBuf));
+          TRINGBUF_DESTROY(&pGroup->winBuf);
+          TRINGBUF_INIT(&pGroup->winBuf);
+        }
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
           code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
@@ -6400,21 +6406,46 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         pContext->status = STRIGGER_CONTEXT_SEND_CALC_REQ;
       }
       case STRIGGER_CONTEXT_SEND_CALC_REQ: {
-        int32_t nParams = taosArrayGetSize(pContext->pCalcReq->params);
-        bool    needCalc = (nParams > 0);
-        if (needCalc) {
-          QUERY_CHECK_NULL(pContext->pCalcReq, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-          QUERY_CHECK_CONDITION(nParams <= STREAM_CALC_REQ_MAX_WIN_NUM, code, lino, _end, TSDB_CODE_INVALID_PARA);
-          code = stHistoryContextSendCalcReq(pContext);
-          QUERY_CHECK_CODE(code, lino, _end);
-          if (pContext->pCalcReq != NULL) {
-            // calc req has not been sent
-            goto _end;
+        if (pContext->pCalcReq == NULL) {
+          QUERY_CHECK_CONDITION(TARRAY_SIZE(pGroup->pPendingCalcParams) == 0, code, lino, _end,
+                                TSDB_CODE_INTERNAL_ERROR);
+          // do nothing
+        } else {
+          if (TARRAY_SIZE(pContext->pCalcReq->params) == 0) {
+            int32_t nParams = taosArrayGetSize(pGroup->pPendingCalcParams);
+            bool    needCalc = (nParams > 0);
+            if (needCalc) {
+              SSTriggerCalcParam *pParam = NULL;
+              for (int32_t i = 0; i < nParams; i++) {
+                pParam = TARRAY_GET_ELEM(pGroup->pPendingCalcParams, i);
+                if ((i + 1 < nParams && (pParam + 1)->wstart <= pContext->calcRange.skey) || pGroup->finished) {
+                  // skip params out of calc range
+                  continue;
+                }
+                void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
+                QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+                pGroup->finished = (pParam->wend >= pContext->calcRange.ekey);
+                if (TARRAY_SIZE(pContext->pCalcReq->params) >= STREAM_CALC_REQ_MAX_WIN_NUM) {
+                  // max windows reached, send calc request
+                  break;
+                }
+              }
+              int32_t nCalcParams = TARRAY_ELEM_IDX(pGroup->pPendingCalcParams, pParam) + 1;
+              taosArrayPopFrontBatch(pGroup->pPendingCalcParams, nCalcParams);
+            }
           }
-          stHistoryGroupClearTempState(pGroup);
-        } else if (pContext->pCalcReq != NULL) {
-          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
+            code = stHistoryContextSendCalcReq(pContext);
+            QUERY_CHECK_CODE(code, lino, _end);
+            if (pContext->pCalcReq != NULL) {
+              // calc req has not been sent
+              goto _end;
+            }
+            stHistoryGroupClearTempState(pGroup);
+          } else {
+            code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
         }
         break;
       }
