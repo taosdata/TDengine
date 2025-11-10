@@ -201,7 +201,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   char buf[TSDB_PASSWORD_LEN + 1];
 
   buf[TSDB_PASSWORD_LEN] = 0;
-  (void)sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
+  (void)snprintf(buf, sizeof(buf), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
                 context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5],
                 context.digest[6], context.digest[7], context.digest[8], context.digest[9], context.digest[10],
                 context.digest[11], context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
@@ -210,7 +210,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
 
 static FORCE_INLINE int32_t taosHashBinary(char *pBuf, int32_t len) {
   uint64_t hashVal = MurmurHash3_64(pBuf, len);
-  return sprintf(pBuf, "%" PRIu64, hashVal);
+  return snprintf(pBuf, sizeof(pBuf), "%" PRIu64, hashVal);
 }
 
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
@@ -220,7 +220,7 @@ static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
   tMD5Final(&ctx);
   char   *p = pBuf;
   int32_t resLen = 0;
-  return sprintf(pBuf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", ctx.digest[0], ctx.digest[1],
+  return snprintf(pBuf,  sizeof(pBuf), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", ctx.digest[0], ctx.digest[1],
                  ctx.digest[2], ctx.digest[3], ctx.digest[4], ctx.digest[5], ctx.digest[6], ctx.digest[7],
                  ctx.digest[8], ctx.digest[9], ctx.digest[10], ctx.digest[11], ctx.digest[12], ctx.digest[13],
                  ctx.digest[14], ctx.digest[15]);

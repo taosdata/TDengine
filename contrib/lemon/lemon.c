@@ -4017,10 +4017,10 @@ PRIVATE int translate_code(struct lemon *lemp, struct rule *rp){
     }
   }
   if( lhsdirect ){
-    sprintf(zLhs, "yymsp[%d].minor.yy%d",1-rp->nrhs,rp->lhs->dtnum);
+    snprintf(zLhs, sizeof(zLhs), "yymsp[%d].minor.yy%d",1-rp->nrhs,rp->lhs->dtnum);
   }else{
     rc = 1;
-    sprintf(zLhs, "yylhsminor.yy%d",rp->lhs->dtnum);
+    snprintf(zLhs, sizeof(zLhs), "yylhsminor.yy%d",rp->lhs->dtnum);
   }
 
   append_str(0,0,0,0);
