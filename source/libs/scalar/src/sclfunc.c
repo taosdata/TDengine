@@ -2338,6 +2338,151 @@ _return:
   return code;
 }
 
+int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  SColumnInfoData *pInputData[2];
+
+  int32_t initialLen = 0;
+  int32_t finalLen = 0;
+
+  GET_TYPED_DATA(initialLen, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, 0),
+                 typeGetTypeModFromColInfo(&pInput[1].columnData->info));
+  GET_TYPED_DATA(finalLen, int32_t, GET_PARAM_TYPE(&pInput[2]), colDataGetData(pInput[2].columnData, 0),
+                 typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+
+  pInputData[0] = pInput[0].columnData;
+  pInputData[1] = pInput[3].columnData;
+  int8_t  orgType = pInputData[0]->info.type;
+  int8_t  maskType = pInputData[1]->info.type;
+  int32_t orgLength = pInputData[0]->info.bytes - VARSTR_HEADER_SIZE;
+  // int32_t maskLen = pInputData[1]->info.bytes - VARSTR_HEADER_SIZE;
+  int32_t maskLen = 1;
+
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL || GET_PARAM_TYPE(&pInput[3]) == TSDB_DATA_TYPE_NULL ||
+      (pInput[0].numOfRows == 1 && colDataIsNull_s(pInputData[0], 0)) ||
+      (pInput[3].numOfRows == 1 && colDataIsNull_s(pInputData[1], 0))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (orgType == TSDB_DATA_TYPE_NCHAR && maskType != orgType) {
+    maskLen = maskLen * TSDB_NCHAR_SIZE;
+  }
+
+  char *outputBuf = taosMemoryCalloc(orgLength + VARSTR_HEADER_SIZE, 1);
+  if (NULL == outputBuf) {
+    SCL_ERR_RET(terrno);
+  }
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : i;
+    int32_t colIdx2 = (pInput[3].numOfRows == 1) ? 0 : i;
+
+    if (colDataIsNull_s(pInputData[0], colIdx1) || colDataIsNull_s(pInputData[1], colIdx2)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char   *output = outputBuf + VARSTR_HEADER_SIZE;
+    char   *orgStr = varDataVal(colDataGetData(pInputData[0], colIdx1));
+    int32_t orgLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
+    char   *fromStr = varDataVal(colDataGetData(pInputData[1], colIdx2));
+    int32_t fromLen = maskLen;
+    bool    needFreeFrom = false;
+
+    if (fromLen == 0 || orgLen == 0) {
+      (void)memcpy(output, fromStr, fromLen);
+      varDataSetLen(outputBuf, fromLen);
+      SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
+      continue;
+    }
+
+    if (GET_PARAM_TYPE(&pInput[3]) != GET_PARAM_TYPE(&pInput[0])) {
+      SCL_ERR_JRET(convBetweenNcharAndVarchar(varDataVal(colDataGetData(pInputData[1], colIdx2)), &fromStr,
+                                              varDataLen(colDataGetData(pInputData[1], colIdx2)), &fromLen,
+                                              GET_PARAM_TYPE(&pInput[0]), pInput->charsetCxt));
+      needFreeFrom = true;
+    }
+
+    for (int initialIdx = 0; initialIdx < initialLen; ++initialIdx) {
+      (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
+    }
+    for (int initialIdx = initialLen; initialIdx < orgLen - finalLen; ++initialIdx) {
+      (void)memcpy(output + initialIdx * maskLen, orgStr, maskLen);
+    }
+    for (int initialIdx = orgLen - finalLen; initialIdx < orgLen; ++initialIdx) {
+      (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
+    }
+
+    if (needFreeFrom) {
+      taosMemoryFree(fromStr);
+    }
+    varDataSetLen(outputBuf, orgLen);
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
+  }
+  pOutput->numOfRows = numOfRows;
+_return:
+  taosMemoryFree(outputBuf);
+  return code;
+}
+
+int32_t maskNoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          numOfRows = pInput[0].numOfRows;
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  SColumnInfoData *pInputData[1];
+
+  pInputData[0] = pInput[0].columnData;
+  int8_t  orgType = pInputData[0]->info.type;
+  int32_t orgLen = pInputData[0]->info.bytes - VARSTR_HEADER_SIZE;
+
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL ||
+      (pInput[0].numOfRows == 1 && colDataIsNull_s(pInputData[0], 0))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t outputLen = orgLen;
+  char   *outputBuf = taosMemoryCalloc(outputLen + VARSTR_HEADER_SIZE, 1);
+  if (NULL == outputBuf) {
+    SCL_ERR_RET(terrno);
+  }
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : i;
+
+    if (colDataIsNull_s(pInputData[0], colIdx1)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char   *output = outputBuf + VARSTR_HEADER_SIZE;
+    char   *orgStr = varDataVal(colDataGetData(pInputData[0], colIdx1));
+    int32_t orgLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
+
+    if (orgLen == 0) {
+      (void)memcpy(output, orgStr, orgLen);
+      varDataSetLen(outputBuf, orgLen);
+      SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
+      continue;
+    }
+
+    (void)memcpy(output, orgStr, orgLen);
+
+    varDataSetLen(outputBuf, orgLen);
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
+  }
+
+  pOutput->numOfRows = numOfRows;
+_return:
+  taosMemoryFree(outputBuf);
+  return code;
+}
+
 int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pInputData[3];
