@@ -2145,9 +2145,9 @@ mod tests {
         unsafe {
             std::env::set_var("RUST_LOG", "debug");
         }
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::level_filters::LevelFilter::DEBUG)
-            .init();
+            .try_init();
 
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
         let ws_enable = std::env::var("WS_ENABLE").is_ok_and(|w| w.eq_ignore_ascii_case("true"));

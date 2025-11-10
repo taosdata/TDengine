@@ -681,9 +681,9 @@ mod tests {
     /// ```
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_move_post_action_with_taos() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
         let ws_enable = std::env::var("WS_ENABLE")
             .map(|v| v.parse::<bool>().unwrap_or(false))
@@ -792,9 +792,9 @@ mod tests {
     /// ```
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_delete_post_action_with_taos() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
         let ws_enable = std::env::var("WS_ENABLE")
             .map(|v| v.parse::<bool>().unwrap_or(false))
@@ -879,9 +879,9 @@ mod tests {
     /// ```
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_local_to_taos_with_taos() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
         let ws_enable = std::env::var("WS_ENABLE")
             .map(|v| v.parse::<bool>().unwrap_or(false))
@@ -964,9 +964,9 @@ mod tests {
     /// ```
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_watch_local_to_taos_with_taos() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
         let ws_enable = std::env::var("WS_ENABLE")
             .map(|v| v.parse::<bool>().unwrap_or(false))

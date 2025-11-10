@@ -225,10 +225,10 @@ mod tests {
 
     #[test]
     fn test_compute_max_buffer() {
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_ansi(false)
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
 
         let max_vgroups = 64usize;
 

@@ -1369,9 +1369,9 @@ mod tests {
 
     #[test]
     fn parse_json_array_test() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
 
         let json = r#"{
         "json": [
@@ -1464,9 +1464,9 @@ mod tests {
 
     #[test]
     fn log_illegal_array_test() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::WARN)
-            .init();
+            .try_init();
 
         let batch = arrow::array::record_batch!(
             ("a", Int32, [1, 2, 3]),

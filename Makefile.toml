@@ -999,7 +999,6 @@ args = [
   "nextest",
   "--workspace",
   "--no-fail-fast",
-  "--html",
   "--exclude",
   "taos-explorer",
   "--profile",
@@ -1016,6 +1015,19 @@ args = [
   "taos-explorer",
   "--no-fail-fast",
   "--html",
+]
+[tasks.test-ci]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov.lcov",
+  "nextest",
+  "--workspace",
+  "--no-fail-fast",
+  "--profile",
+  "ci",
 ]
 
 [tasks.test]

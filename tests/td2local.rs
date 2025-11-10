@@ -6,9 +6,9 @@ use taos::*;
 /// cargo nextest run test_td2local --nocapture --retries 0
 #[tokio::test]
 async fn test_td2local_with_taos() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::fmt()
+    let _ = tracing_subscriber::fmt::fmt()
         .with_max_level(tracing::Level::DEBUG)
-        .init();
+        .try_init();
 
     let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
     let ws_enable = std::env::var("WS_ENABLE")
