@@ -12627,16 +12627,16 @@ int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
 int32_t tEncodeMqVgOffset(SEncoder *pEncoder, const SMqVgOffset *pOffset) {
   TAOS_CHECK_RETURN(tEncodeSTqOffset(pEncoder, &pOffset->offset));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pOffset->consumerId));
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pOffset->markWal));
+  // TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pOffset->markWal));
   return 0;
 }
 
 int32_t tDecodeMqVgOffset(SDecoder *pDecoder, SMqVgOffset *pOffset) {
   TAOS_CHECK_RETURN(tDecodeSTqOffset(pDecoder, &pOffset->offset));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pOffset->consumerId));
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pOffset->markWal));
-  }
+  // if (!tDecodeIsEnd(pDecoder)) {
+  //   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pOffset->markWal));
+  // }
   return 0;
 }
 

@@ -675,7 +675,7 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   SMqVgOffset pOffset = {0};
 
   pOffset.consumerId = tmq->consumerId;
-  pOffset.markWal = tmq->enableWalMarker;
+  // pOffset.markWal = tmq->enableWalMarker;
   pOffset.offset.val = *offset;
   (void)snprintf(pOffset.offset.subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", tmq->groupId, TMQ_SEPARATOR, pTopicName);
   int32_t len = 0;
@@ -802,6 +802,51 @@ static int32_t getClientVg(tmq_t* tmq, char* pTopicName, int32_t vgId, SMqClient
   return *pVg == NULL ? TSDB_CODE_TMQ_INVALID_VGID : TSDB_CODE_SUCCESS;
 }
 
+static int32_t sendWalMarkMsgToMnodeCb(void* param, SDataBuf* pMsg, int32_t code) {
+  if (pMsg) {
+    taosMemoryFreeClear(pMsg->pEpSet);
+  }
+  tqDebugC("sendWalMarkMsgToMnodeCb code:%d", code);
+  return 0;
+}
+
+static void asyncSendWalMarkMsgToMnode(tmq_t* tmq, int32_t vgId, int64_t keepVersion) {
+  if (tmq == NULL) return ;
+  void*           buf = NULL;
+  SMsgSendInfo*   sendInfo = NULL;
+  SMndSetVgroupKeepVersionReq req = {0};
+
+  tqDebugC("consumer:0x%" PRIx64 " send vgId:%d keepVersion:%"PRId64, tmq->consumerId, vgId, keepVersion);
+  req.vgId = vgId;
+  req.keepVersion = keepVersion;
+
+  int32_t tlen = tSerializeSMndSetVgroupKeepVersionReq(NULL, 0, &req);
+  buf = taosMemoryMalloc(tlen);
+  if (buf == NULL) {
+    return;
+  }
+  tlen = tSerializeSMndSetVgroupKeepVersionReq(buf, tlen, &req);
+
+  sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (sendInfo == NULL) {
+    taosMemoryFree(buf);
+    return;
+  }
+
+  sendInfo->msgInfo = (SDataBuf){.pData = buf, .len = tlen, .handle = NULL};
+  sendInfo->requestId = generateRequestId();
+  sendInfo->fp = sendWalMarkMsgToMnodeCb;
+  sendInfo->msgType = TDMT_MND_SET_VGROUP_KEEP_VERSION;
+
+  SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
+
+  int32_t code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
+  if (code != 0) {
+    tqErrorC("consumer:0x%" PRIx64 " send wal mark msg to mnode failed, code:%s", tmq->consumerId,
+             tstrerror(terrno));
+  }
+}
+
 static int32_t innerCommit(tmq_t* tmq, char* pTopicName, STqOffsetVal* offsetVal, SMqClientVg* pVg, SMqCommitCbParamSet* pParamSet){
   if (tmq == NULL || pTopicName == NULL || offsetVal == NULL || pVg == NULL || pParamSet == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -828,6 +873,9 @@ static int32_t innerCommit(tmq_t* tmq, char* pTopicName, STqOffsetVal* offsetVal
     return code;
   }
 
+  if (tmq->enableWalMarker && offsetVal->type == TMQ_OFFSET__LOG) {
+    asyncSendWalMarkMsgToMnode(tmq, pVg->vgId, offsetVal->version);
+  }
   tqDebugC("consumer:0x%" PRIx64 " topic:%s on vgId:%d send commit msg success, send offset:%s committed:%s",
            tmq->consumerId, pTopicName, pVg->vgId, offsetBuf, commitBuf);
   tOffsetCopy(&pVg->offsetInfo.committedOffset, offsetVal);
