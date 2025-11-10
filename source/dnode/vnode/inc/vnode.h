@@ -146,7 +146,7 @@ int32_t  metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid,
   const uint8_t* pKey, int32_t keyLen, SArray* pList, bool* acquired);
 int32_t  metaStableTagFilterCachePut(void* pVnode, uint64_t suid,
   const void* pTagCondKey, int32_t tagCondKeyLen,
-  const void* pKey, int32_t keyLen, SArray* pUidList, SArray* pTagColIds);
+  const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
 int32_t metaStableTagFilterCacheDropSTable(SMeta* pMeta, tb_uid_t suid);
 typedef enum {
   STABLE_TAG_FILTER_CACHE_DROP_TABLE = 1,

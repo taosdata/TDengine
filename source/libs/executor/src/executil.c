@@ -2110,6 +2110,9 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       QUERY_CHECK_CODE(code, lino, _error);
 
       if (acquired) {
+        taosArrayDestroy(pTagColIds);
+        pTagColIds = NULL;
+        
         digest[0] = 1;
         memcpy(digest + 1, contextStable.digest, tListLen(contextStable.digest));
         qDebug("retrieve table uid list from stable cache, numOfTables:%d",
@@ -2209,7 +2212,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       code = pStorageAPI->metaFn.putStableCachedTableList(
         pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
         contextStable.digest, tListLen(contextStable.digest),
-        pUidList, pTagColIds);
+        pUidList, &pTagColIds);
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }

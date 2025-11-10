@@ -825,7 +825,7 @@ static void freeSArrayPtr(void* pp) {
 
 int32_t metaStableTagFilterCachePut(
   void* pVnode, uint64_t suid, const void* pTagCondKey, int32_t tagCondKeyLen,
-  const void* pKey, int32_t keyLen, SArray* pUidList, SArray* pTagColIds) {
+  const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -874,7 +874,8 @@ int32_t metaStableTagFilterCachePut(
       false, HASH_NO_LOCK);
     TSDB_CHECK_NULL(pEntry->set, code, lino, _end, terrno);
     taosHashSetFreeFp(pEntry->set, freeSArrayPtr);
-    pEntry->pColIds = pTagColIds;
+    pEntry->pColIds = *pTagColIds;
+    *pTagColIds = NULL;
 
     code = taosHashPut(
       (*pTagConds)->set, pTagCondKey, tagCondKeyLen, &pEntry, POINTER_BYTES);
@@ -883,7 +884,8 @@ int32_t metaStableTagFilterCachePut(
     pFilterEntry = &pEntry;
   } else {
     // pColIds is already set, so we can destroy the new one
-    taosArrayDestroy(pTagColIds);
+    taosArrayDestroy(*pTagColIds);
+    *pTagColIds = NULL;
   }
 
   // add to cache.
