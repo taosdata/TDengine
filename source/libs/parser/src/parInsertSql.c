@@ -2685,11 +2685,22 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   }
 }
 
+static void parsedValueDestroy(void *p)
+{
+  if (!p) return;
+
+  SColVal *pVal = (SColVal*)p;
+
+  if (COL_VAL_IS_VALUE(pVal) && IS_VAR_DATA_TYPE(pVal->value.type)) {
+    taosMemoryFreeClear(pVal->value.pData);
+  }
+}
+
 static void clearInsertParseContext(SInsertParseContext* pCxt) {
   if (pCxt == NULL) return;
 
   if (pCxt->pParsedValues != NULL) {
-    taosArrayDestroy(pCxt->pParsedValues);
+    taosArrayDestroyEx(pCxt->pParsedValues, parsedValueDestroy);
     pCxt->pParsedValues = NULL;
   }
 }
@@ -3357,7 +3368,7 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   insDestroyBoundColInfo(&pCxt->tags);
-  taosArrayDestroy(pCxt->pParsedValues);
+  clearInsertParseContext(pCxt);
   taosMemoryFreeClear(pStmt->pTableMeta);
   nodesDestroyNode(pStmt->pTagCond);
   taosArrayDestroy(pStmt->pTableTag);

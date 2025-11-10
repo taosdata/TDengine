@@ -1,13 +1,21 @@
-from new_test_framework.utils import tdLog, tdSql, etool, TDSql
+from new_test_framework.utils import tdLog, tdSql, etool, TDSql, TDSetSql
+from itertools import product
+
+from taos.tmq import *
+import inspect
 import taos
+import time
 
 class TestPrivBasic:
     """Add test case to cover the basic privilege test
     """
-    def setup_class(cls):
-        tdLog.debug("start to execute %s" % __file__)
+    def setup_class(self):
+        pass
 
-    def prepare_data(self):
+    #
+    # ------------------- test_auth_basic.py ----------------
+    #
+    def prepare_data1(self):
         # database
         tdSql.execute("create database db;")
         tdSql.execute("use db;")
@@ -32,7 +40,7 @@ class TestPrivBasic:
         tdSql.execute(f"drop user {user_name};")
 
     def run_test_common_user_privileges(self):
-        self.prepare_data()
+        self.prepare_data1()
         # create user
         self.create_user("test", "test12@#*")
         # check user 'test' privileges
@@ -79,7 +87,7 @@ class TestPrivBasic:
         tdLog.info("test_common_user_privileges successfully executed")
 
     def run_test_common_user_with_createdb_privileges(self):
-        self.prepare_data()
+        self.prepare_data1()
         # create user
         self.create_user("test", "test12@#*")
         # check user 'test' privileges
@@ -188,11 +196,740 @@ class TestPrivBasic:
         self.delete_user("test")
         self.delete_user("test1")
 
+    def do_common_user_privileges(self):
+        self.run_test_common_user_privileges()
+        self.run_test_common_user_with_createdb_privileges()
+        print("\n")
+        print("do common user privileges ............. [passed]")
+    
+    #
+    # ------------------- test_user_privilege.py ----------------
+    #
+    def setup_class2(self):
+        self.setsql = TDSetSql()
+        self.stbname = 'stb'
+        self.user_name = 'test'
+        self.binary_length = 20  # the length of binary for column_dict
+        self.nchar_length = 20  # the length of nchar for column_dict
+        self.dbnames = ['db1', 'db2']
+        self.column_dict = {
+            'ts': 'timestamp',
+            'col1': 'float',
+            'col2': 'int',
+            'col3': 'float',
+        }
+        self.tag_dict = {
+            't1': 'int',
+            't2': f'binary({self.binary_length})'
+        }
+        self.tag_list = [
+            f'1, "Beijing"',
+            f'2, "Shanghai"',
+            f'3, "Guangzhou"',
+            f'4, "Shenzhen"'
+        ]
+        self.values_list = [
+            f'now, 9.1, 200, 0.3'            
+        ]
+        self.tbnum = 4
+        self.stbnum_grant = 200
+
+    def grant_user(self):
+        tdSql.execute(f'grant read on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {self.user_name}')
+        tdSql.execute(f'grant write on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {self.user_name}')
+                
+    def prepare_data2(self):
+        for db in self.dbnames:
+            tdSql.execute(f"create database {db}")
+            tdSql.execute(f"use {db}")
+            tdSql.execute(self.setsql.set_create_stable_sql(self.stbname, self.column_dict, self.tag_dict))
+            for i in range(self.tbnum):
+                tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_list[i]})')
+                for j in self.values_list:
+                    tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
+            for i in range(self.stbnum_grant):
+                tdSql.execute(f'create table {self.stbname}_grant_{i} (ts timestamp, c0 int) tags(t0 int)')
+    
+    def user_read_privilege_check(self, dbname):
+        testconn = taos.connect(user='test', password='test123@#$')        
+        expectErrNotOccured = False
+        
+        try:
+            sql = f"select count(*) from {dbname}.stb where t2 = 'Beijing'"
+            res = testconn.query(sql)
+            data = res.fetch_all()
+            count = data[0][0]            
+        except BaseException:
+            expectErrNotOccured = True
+        
+        if expectErrNotOccured:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured")
+        elif count != 1:
+            tdLog.exit(f"{sql}, expect result doesn't match")
+        pass
+    
+    def user_write_privilege_check(self, dbname):
+        testconn = taos.connect(user='test', password='test123@#$')        
+        expectErrNotOccured = False
+        
+        try:            
+            sql = f"insert into {dbname}.stb_1 values(now, 1.1, 200, 0.3)"
+            testconn.execute(sql)            
+        except BaseException:
+            expectErrNotOccured = True
+        
+        if expectErrNotOccured:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured")
+        else:
+            pass
+    
+    def user_privilege_error_check(self):
+        testconn = taos.connect(user='test', password='test123@#$')        
+        expectErrNotOccured = False
+        
+        sql_list = [f"alter talbe {self.dbnames[0]}.stb_1 set t2 = 'Wuhan'", 
+                    f"insert into {self.dbnames[0]}.stb_1 values(now, 1.1, 200, 0.3)", 
+                    f"drop table {self.dbnames[0]}.stb_1", 
+                    f"select count(*) from {self.dbnames[1]}.stb"]
+        
+        for sql in sql_list:
+            try:
+                res = testconn.execute(sql)                        
+            except BaseException:
+                expectErrNotOccured = True
+            
+            if expectErrNotOccured:
+                pass
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured")
+        pass
+
+    def user_privilege_grant_check(self):
+        for db in self.dbnames:
+            tdSql.execute(f"use {db}")
+            for i in range(self.stbnum_grant):
+                tdSql.execute(f'grant read on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+                tdSql.execute(f'grant write on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+
+    def do_grant_multi_tables(self):
+        self.setup_class2()
+        self.prepare_data2()
+        self.create_user(self.user_name, "test123@#$")
+        self.grant_user()
+        self.user_read_privilege_check(self.dbnames[0])
+        self.user_write_privilege_check(self.dbnames[1])
+        self.user_privilege_error_check()
+        self.user_privilege_grant_check()
+
+        print("do grant multi tables ................. [passed]")
+    
+    #
+    # ------------------- test_user_privilege_show.py ----------------
+    #
+    def setup_class3(self):
+        tdLog.debug("start to execute %s" % __file__)
+        self.setsql = TDSetSql()
+        # user info
+        self.username = 'test1'
+        self.password = 'test123@#$'
+        # db info
+        self.dbname = "user_privilege_show"
+        self.stbname = 'stb1'
+        self.common_tbname = "tb1"
+        self.ctbname_list = ["ct1", "ct2"]
+        self.column_dict = {
+            'ts': 'timestamp',
+            'col1': 'float',
+            'col2': 'int',
+        }
+        self.tag_dict = {
+            'ctbname': 'binary(10)'
+        }
+
+        # privilege check scenario info
+        self.privilege_check_dic = {}
+        self.senario_type = ["stable", "table", "ctable"]
+        self.priv_type = ["read", "write", "all", "none"]
+        # stable senarios
+        # include the show stable xxx command test senarios and expect result, true as have privilege, false as no privilege
+        # the list element is (db_privilege, stable_privilege, expect_res)
+        st_senarios_list = []
+        for senario in list(product(self.priv_type, repeat=2)):
+            expect_res = True
+            if senario == ("write", "write") or senario == ("none", "none") or senario == ("none", "write") or senario == ("write", "none"):
+                expect_res = False
+            st_senarios_list.append(senario + (expect_res,))
+        # self.privilege_check_dic["stable"] = st_senarios_list
+
+        # table senarios
+        # the list element is (db_privilege, table_privilege, expect_res)
+        self.privilege_check_dic["table"] = st_senarios_list
+        
+        # child table senarios
+        # the list element is (db_privilege, stable_privilege, ctable_privilege, expect_res)
+        ct_senarios_list = []
+        for senario in list(product(self.priv_type, repeat=3)):
+            expect_res = True
+            if senario[2] == "write" or (senario[2] == "none" and senario[1] == "write") or (senario[2] == "none" and senario[1] == "none" and senario[0] == "write"):
+                expect_res = False
+            ct_senarios_list.append(senario + (expect_res,))
+        self.privilege_check_dic["ctable"] = ct_senarios_list
+
+    def prepare_data3(self, senario_type):
+        """Create the db and data for test
+        """
+        if senario_type == "stable":
+            # db name
+            self.dbname = self.dbname + '_stable'
+        elif senario_type == "table":
+            # db name
+            self.dbname = self.dbname + '_table'
+        else:
+            # db name
+            self.dbname = self.dbname + '_ctable'
+
+        # create datebase
+        tdSql.execute(f"create database {self.dbname}")
+        tdLog.debug("sql:" + f"create database {self.dbname}")
+        tdSql.execute(f"use {self.dbname}")
+        tdLog.debug("sql:" + f"use {self.dbname}")
+        
+        # create tables
+        if "_stable" in self.dbname:
+            # create stable
+            tdSql.execute(self.setsql.set_create_stable_sql(self.stbname, self.column_dict, self.tag_dict))
+            tdLog.debug("Create stable {} successfully".format(self.stbname))
+        elif "_table" in self.dbname:
+            # create common table
+            tdSql.execute(f"create table {self.common_tbname}(ts timestamp, col1 float, col2 int)")
+            tdLog.debug("sql:" + f"create table {self.common_tbname}(ts timestamp, col1 float, col2 int)")
+        else:
+            # create stable and child table
+            tdSql.execute(self.setsql.set_create_stable_sql(self.stbname, self.column_dict, self.tag_dict))
+            tdLog.debug("Create stable {} successfully".format(self.stbname))
+            for ctname in self.ctbname_list:
+                tdSql.execute(f"create table {ctname} using {self.stbname} tags('{ctname}')")
+                tdLog.debug("sql:" + f"create table {ctname} using {self.stbname} tags('{ctname}')")
+
+    def grant_privilege1(self, username, privilege, privilege_obj, ctable_include=False, tag_condition=None):
+        """Add the privilege for the user
+        """
+        try:
+            if ctable_include and tag_condition:
+                tdSql.execute(f'grant {privilege} on {self.dbname}.{privilege_obj} with {tag_condition} to {username}')
+                tdLog.debug("sql:" + f'grant {privilege} on {self.dbname}.{privilege_obj} with {tag_condition} to {username}')
+            else:
+                tdSql.execute(f'grant {privilege} on {self.dbname}.{privilege_obj} to {username}')
+                tdLog.debug("sql:" + f'grant {privilege} on {self.dbname}.{privilege_obj} to {username}')
+        except Exception as ex:
+            tdLog.exit(ex)
+
+    def remove_privilege(self, username, privilege, privilege_obj, ctable_include=False, tag_condition=None):
+        """Remove the privilege for the user
+        """
+        try:
+            if ctable_include and tag_condition:
+                tdSql.execute(f'revoke {privilege} on {self.dbname}.{privilege_obj} with {tag_condition} from {username}')
+                tdLog.debug("sql:" + f'revoke {privilege} on {self.dbname}.{privilege_obj} with {tag_condition} from {username}')
+            else:
+                tdSql.execute(f'revoke {privilege} on {self.dbname}.{privilege_obj} from {username}')
+                tdLog.debug("sql:" + f'revoke {privilege} on {self.dbname}.{privilege_obj} from {username}')
+        except Exception as ex:
+            tdLog.exit(ex)
+
+    def do_revoke_privilege(self):
+        self.setup_class3()
+
+        self.create_user(self.username, self.password)
+
+        # temp solution only for the db read privilege verification
+        self.prepare_data3("table")
+        # grant db read privilege
+        self.grant_privilege1(self.username, "read", "*")
+        # create the taos connection with -utest -ptest
+        testconn = taos.connect(user=self.username, password=self.password)
+        testconn.execute("use %s;" % self.dbname)
+        # show the user privileges
+        res = testconn.query("select * from information_schema.ins_user_privileges;")
+        tdLog.debug("Current information_schema.ins_user_privileges values: {}".format(res.fetch_all()))
+        # query execution
+        sql = "show create table " + self.common_tbname + ";"
+        tdLog.debug("sql: %s" % sql)
+        res = testconn.query(sql)
+        # query result
+        tdLog.debug("sql res:" + str(res.fetch_all()))
+        # remove the privilege
+        self.remove_privilege(self.username, "read", "*")
+        # clear env
+        testconn.close()
+        tdSql.execute(f"drop database {self.dbname}")
+
+        # remove the user
+        tdSql.execute(f'drop user {self.username}')
+
+        print("do user privileges show ............... [passed]")
+    
+    #
+    # ------------------- test_user_privilege_all.py ----------------
+    #
+    def initAll(self):
+        self.setsql = TDSetSql()
+        # user info
+        self.test_user = 'test_user'
+        self.password = 'test123@#$'
+        # db info
+        self.dbname = "user_privilege_all_db"
+        self.stbname = 'stb'
+        self.common_tbname = "tb"
+        self.ctbname_list = ["ct1", "ct2"]
+        self.common_table_dict = {
+            'ts':'timestamp',
+            'col1':'float',
+            'col2':'int'
+        }
+        self.stable_column_dict = {
+            'ts': 'timestamp',
+            'col1': 'float',
+            'col2': 'int',
+        }
+        self.tag_dict = {
+            'ctbname': 'binary(10)'
+        }
+
+        # case list
+        self.cases = {
+            "test_db_table_both_no_permission": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct1 using stb tags('ct1') values(now, 1.1, 1)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 3.3, 3);",
+                    "select * from tb;"],
+                "res": [False, False, False, False, False, False]
+            },
+            "test_db_no_permission_table_read": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "read",
+                "sql": ["insert into ct1 using stb tags('ct1') values(now, 1.1, 1)", 
+                        "select * from stb;", 
+                        "select * from ct1;", 
+                        "select * from ct2;",
+                        "insert into tb values(now, 3.3, 3);",
+                        "select * from tb;"],
+                "res": [False, False, False, False, False, True]
+            },
+            "test_db_no_permission_childtable_read": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "read",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct1 using stb tags('ct1') values(now, 1.1, 1)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 3.3, 3);",
+                    "select * from tb;"],
+                "res": [False, True, True, False, False, False]
+            },
+            "test_db_no_permission_table_write": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "write",
+                "sql": ["insert into ct1 using stb tags('ct1') values(now, 1.1, 1)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 3.3, 3);",
+                    "select * from tb;"],
+                "res": [False, False, False, False, True, False]
+            },
+            "test_db_no_permission_childtable_write": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "write",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 3.3, 3);",
+                    "select * from tb;"],
+                "res": [True, False, False, False, False, False]
+            },
+            "test_db_read_table_no_permission": {
+                "db_privilege": "read",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 3.3, 3);",
+                    "select * from tb;"],
+                "res": [False, True, True, True, False, True]
+            },
+            "test_db_read_table_read": {
+                "db_privilege": "read",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "read",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 3.3, 3);",
+                    "select * from tb;"],
+                "res": [False, True, True, True, False, True]
+            },
+            "test_db_read_childtable_read": {
+                "db_privilege": "read",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "read",
+                "child_table_ct2_privilege": "read",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 3.3, 3);",
+                    "select * from tb;"],
+                "res": [False, True, True, True, False, True]
+            },
+            "test_db_read_table_write": {
+                "db_privilege": "read",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "write",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 4.4, 4);",
+                    "select * from tb;"],
+                "res": [False, True, True, True, True, True]
+            },
+            "test_db_read_childtable_write": {
+                "db_privilege": "read",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "write",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 5.5, 5)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 4.4, 4);",
+                    "select * from tb;"],
+                "res": [False, True, True, True, True, False, True]
+            },
+            "test_db_write_table_no_permission": {
+                "db_privilege": "write",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 6.6, 6)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 7.7, 7)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 8.8, 8);",
+                    "select * from tb;"],
+                "res": [True, True, False, False, False, True, False]
+            },
+            "test_db_write_table_write": {
+                "db_privilege": "write",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 9.9, 9)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 10.0, 10)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 11.1, 11);",
+                    "select * from tb;"],
+                "res": [True, True, False, False, False, True, False]
+            },
+            "test_db_write_childtable_write": {
+                "db_privilege": "write",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 12.2, 12)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 13.3, 13)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 14.4, 14);",
+                    "select * from tb;"],
+                "res": [True, True, False, False, False, True, False]
+            },
+            "test_db_write_table_read": {
+                "db_privilege": "write",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "read",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 15.5, 15)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 16.6, 16)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 17.7, 17);",
+                    "select * from tb;"],
+                "res": [True, True, False, False, False, True, True]
+            },
+            "test_db_write_childtable_read": {
+                "db_privilege": "write",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "read",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 18.8, 18)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 19.9, 19)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 20.0, 20);",
+                    "select * from tb;"],
+                "res": [True, True, True, True, False, True, False]
+            },
+            "test_db_all_childtable_none": {
+                "db_privilege": "all",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 20.2, 20)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 21.21, 21)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 22.22, 22);",
+                    "select * from tb;"],
+                "res": [True, True, True, True, True, True, True]
+            },
+            "test_db_none_stable_all_childtable_none": {
+                "db_privilege": "none",
+                "stable_priviege": "all",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 23.23, 23)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 24.24, 24)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 25.25, 25);",
+                    "select * from tb;"],
+                "res": [True, True, True, True, True, False, False]
+            },
+            "test_db_no_permission_childtable_all": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "all",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 26.26, 26)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 27.27, 27)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 28.28, 28);",
+                    "select * from tb;"],
+                "res": [False, True, True, True, False, False, False]
+            },
+            "test_db_none_stable_none_table_all": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "all",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 26.26, 26)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 27.27, 27)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 29.29, 29);",
+                    "select * from tb;"],
+                "res": [False, False, False, False, False, True, True]
+            }
+        }
+
+    def prepare_data4(self):
+        """Create the db and data for test
+        """
+        tdLog.debug("Start to prepare the data for test")
+        # create datebase
+        tdSql.execute(f"create database {self.dbname}")
+        tdSql.execute(f"use {self.dbname}")
+
+        # create stable
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname, self.stable_column_dict, self.tag_dict))
+        tdLog.debug("Create stable {} successfully".format(self.stbname))
+
+        # insert data into child table
+        for ctname in self.ctbname_list:
+            tdSql.execute(f"insert into {ctname} using {self.stbname} tags('{ctname}') values(now, 1.1, 1)")
+            tdSql.execute(f"insert into {ctname} using {self.stbname} tags('{ctname}') values(now, 2.1, 2)")
+
+        # create common table
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.common_tbname, self.common_table_dict))
+        tdLog.debug("Create common table {} successfully".format(self.common_tbname))
+
+        # insert data into common table 
+        tdSql.execute(f"insert into {self.common_tbname} values(now, 1.1, 1)")
+        tdSql.execute(f"insert into {self.common_tbname} values(now, 2.2, 2)")
+        tdLog.debug("Finish to prepare the data")
+
+
+    def grant_privilege2(self, test_user, privilege, table, tag_condition=None):
+        """Add the privilege for the user
+        """
+        try:
+            if tag_condition:
+                tdSql.execute(f'grant {privilege} on {self.dbname}.{table} with {tag_condition} to {test_user}')
+            else:
+                tdSql.execute(f'grant {privilege} on {self.dbname}.{table} to {test_user}')
+            time.sleep(2)
+            tdLog.debug("Grant {} privilege on {}.{} with condition {} to {} successfully".format(privilege, self.dbname, table, tag_condition, test_user))
+        except Exception as ex:
+            tdLog.exit(ex)
+
+    def remove_privilege(self, test_user, privilege, table, tag_condition=None):
+        """Remove the privilege for the user
+        """
+        try:
+            if tag_condition:
+                tdSql.execute(f'revoke {privilege} on {self.dbname}.{table} with {tag_condition} from {test_user}')
+            else:
+                tdSql.execute(f'revoke {privilege} on {self.dbname}.{table} from {test_user}')
+            tdLog.debug("Revoke {} privilege on {}.{} with condition {} from {} successfully".format(privilege, self.dbname, table, tag_condition, test_user))
+        except Exception as ex:
+            tdLog.exit(ex)
+
+    def do_user_privilege_all(self):
+        self.initAll()
+        self.create_user(self.test_user, self.password)
+        # prepare the test data
+        self.prepare_data4()
+
+        for case_name in self.cases.keys():
+            tdLog.debug("Execute the case {} with params {}".format(case_name, str(self.cases[case_name])))
+            # grant privilege for user test if case need
+            if self.cases[case_name]["db_privilege"] != "none":
+                self.grant_privilege2(self.test_user, self.cases[case_name]["db_privilege"], "*")
+            if self.cases[case_name]["stable_priviege"] != "none":
+                self.grant_privilege2(self.test_user, self.cases[case_name]["stable_priviege"], self.stbname)
+            if self.cases[case_name]["child_table_ct1_privilege"] != "none" and self.cases[case_name]["child_table_ct2_privilege"] != "none":
+                self.grant_privilege2(self.test_user, self.cases[case_name]["child_table_ct1_privilege"], self.stbname, "ctbname='ct1' or ctbname='ct2'")
+            elif self.cases[case_name]["child_table_ct1_privilege"] != "none":
+                self.grant_privilege2(self.test_user, self.cases[case_name]["child_table_ct1_privilege"], self.stbname, "ctbname='ct1'")
+            elif self.cases[case_name]["child_table_ct2_privilege"] != "none":
+                self.grant_privilege2(self.test_user, self.cases[case_name]["child_table_ct2_privilege"], self.stbname, "ctbname='ct2'")
+            if self.cases[case_name]["table_tb_privilege"] != "none":
+                self.grant_privilege2(self.test_user, self.cases[case_name]["table_tb_privilege"], self.common_tbname)
+            # connect db with user test
+            testconn = taos.connect(user=self.test_user, password=self.password)
+            if case_name != "test_db_table_both_no_permission":
+                testconn.execute("use %s;" % self.dbname)
+            # check privilege of user test from ins_user_privileges table
+            res = testconn.query("select * from information_schema.ins_user_privileges;")
+            tdLog.debug("Current information_schema.ins_user_privileges values: {}".format(res.fetch_all()))
+            # check privilege of user test by executing sql query
+            for index in range(len(self.cases[case_name]["sql"])):
+                tdLog.debug("Execute sql: {}".format(self.cases[case_name]["sql"][index]))
+                try:
+                    # for write privilege
+                    if "insert " in self.cases[case_name]["sql"][index]:
+                        testconn.execute(self.cases[case_name]["sql"][index])
+                        # check the expected result
+                        if self.cases[case_name]["res"][index]:
+                            tdLog.debug("Write data with sql {} successfully".format(self.cases[case_name]["sql"][index]))
+                    # for read privilege
+                    elif "select " in self.cases[case_name]["sql"][index]:
+                        res = testconn.query(self.cases[case_name]["sql"][index])
+                        data = res.fetch_all()
+                        tdLog.debug("query result: {}".format(data))
+                        # check query results by cases
+                        if case_name in ["test_db_no_permission_childtable_read", "test_db_write_childtable_read", "test_db_no_permission_childtable_all"] and self.cases[case_name]["sql"][index] == "select * from ct2;":
+                            if not self.cases[case_name]["res"][index]:
+                                if  0 == len(data):
+                                    tdLog.debug("Query with sql {} successfully as expected with empty result".format(self.cases[case_name]["sql"][index]))
+                                    continue
+                                else:
+                                    tdLog.exit("Query with sql {} failed with result {}".format(self.cases[case_name]["sql"][index], data))
+                        # check the expected result
+                        if self.cases[case_name]["res"][index]:
+                            if len(data) > 0:
+                                tdLog.debug("Query with sql {} successfully".format(self.cases[case_name]["sql"][index]))
+                            else:
+                                tdLog.exit("Query with sql {} failed with result {}".format(self.cases[case_name]["sql"][index], data))
+                        else:
+                            tdLog.exit("Execute query sql {} successfully, but expected failed".format(self.cases[case_name]["sql"][index]))
+                except BaseException as ex:
+                    # check the expect false result
+                    if not self.cases[case_name]["res"][index]:
+                        tdLog.debug("Execute sql {} failed with {} as expected".format(self.cases[case_name]["sql"][index], str(ex)))
+                        continue
+                    # unexpected exception
+                    else:
+                        tdLog.exit(ex)
+            # remove the privilege
+            if self.cases[case_name]["db_privilege"] != "none":
+                self.remove_privilege(self.test_user, self.cases[case_name]["db_privilege"], "*")
+            if self.cases[case_name]["stable_priviege"] != "none":
+                self.remove_privilege(self.test_user, self.cases[case_name]["stable_priviege"], self.stbname)
+            if self.cases[case_name]["child_table_ct1_privilege"] != "none":
+                self.remove_privilege(self.test_user, self.cases[case_name]["child_table_ct1_privilege"], self.stbname, "ctbname='ct1'")
+            if self.cases[case_name]["child_table_ct2_privilege"] != "none":
+                self.remove_privilege(self.test_user, self.cases[case_name]["child_table_ct2_privilege"], self.stbname, "ctbname='ct2'")
+            if self.cases[case_name]["table_tb_privilege"] != "none":
+                self.remove_privilege(self.test_user, self.cases[case_name]["table_tb_privilege"], self.common_tbname)
+            # close the connection of user test
+            testconn.close()
+
+        # remove the user
+        tdSql.execute(f'drop user {self.test_user}')
+
+        print("do user privileges all ................ [passed]") 
+
+    #
+    # ------------------- main ----------------
+    #
     def test_priv_basic(self):
         """Privileges basic
         
         1. Test common user privileges
         2. Test common user with create database privilege
+        3. Test grant read and write privileges with condition
+        4. Test grant privilege on multiple tables
+        5. Test grant privilege error cases
+        6. Test revoke privilege
+        7. Test grant on super/child/normal table
         
         Since: v3.0.0.0
 
@@ -202,10 +939,11 @@ class TestPrivBasic:
 
         History:
             - 2025-10-22 Alex Duan Migrated from uncatalog/army/authorith/test_auth_basic.py
-
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_privilege.py
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_privilege_show.py
+            - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_privilege_all.py
         """
-        self.run_test_common_user_privileges()
-        self.run_test_common_user_with_createdb_privileges()
-
-        tdLog.success("%s successfully executed" % __file__)
-
+        self.do_common_user_privileges()
+        self.do_grant_multi_tables()
+        self.do_revoke_privilege()
+        self.do_user_privilege_all()
