@@ -2115,6 +2115,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         qDebug("retrieve table uid list from stable cache, numOfTables:%d",
           (int32_t)taosArrayGetSize(pUidList));
         goto _end;
+      } else {
+        qDebug("failed to get table uid list from stable cache");
       }
     }
     if (tsTagFilterCache) {
