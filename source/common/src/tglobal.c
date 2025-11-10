@@ -806,7 +806,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfStreamMgmtThreads = TRANGE(tsNumOfStreamMgmtThreads, 2, 5);
 
   tsNumOfVnodeStreamReaderThreads = tsNumOfCores / 2;
-  tsNumOfVnodeStreamReaderThreads = TMAX(tsNumOfVnodeStreamReaderThreads, 2);
+  tsNumOfVnodeStreamReaderThreads = TMAX(tsNumOfVnodeStreamReaderThreads, 4);
 
   tsNumOfStreamTriggerThreads = tsNumOfCores;
   tsNumOfStreamTriggerThreads = TMAX(tsNumOfStreamTriggerThreads, 4);
