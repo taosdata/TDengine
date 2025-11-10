@@ -15,9 +15,6 @@ class TestNormalTableAlter5:
         4. Loop for 7 times
         5. Kill then restart
 
-        Catalog:
-            - Table:NormalTable:Alter
-
         Since: v3.0.0.0
 
         Labels: common,ci

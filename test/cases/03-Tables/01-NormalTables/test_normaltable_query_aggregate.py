@@ -7,7 +7,7 @@ class TestNormalTableAggregate:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_aggregate(self):
-        """Query: aggregate
+        """Normal table aggregate
 
         1. Create a table with 256 columns
         2. Insert data
@@ -15,9 +15,6 @@ class TestNormalTableAggregate:
         4. Execute filter queries
         5. Execute aggregate queries
         6. Kill the process and restart the database
-
-        Catalog:
-            - Table:NormalTable:Query
 
         Since: v3.0.0.0
 

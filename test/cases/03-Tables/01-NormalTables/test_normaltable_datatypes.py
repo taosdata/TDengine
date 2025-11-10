@@ -12,9 +12,7 @@ class TestNormalTableDatatypes:
         1. Create a normal table containing bigint, binary, bool, double, float, int, smallint, tinyint types
         2. Write data
         3. Perform a projection query, including an order by condition
-        
-        Catalog:
-            - Table:NormalTable:Create
+
 
         Since: v3.0.0.0
 

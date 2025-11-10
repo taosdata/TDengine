@@ -7,15 +7,13 @@ class TestNormalTableSynatx:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_synatx(self):
-        """Synatx
+        """Normal table syntax
 
         1. Attempt to create tables with invalid table names
         2. Attempt to create tables with invalid column names
         3. Attempt to create tables with invalid data types
         4. Create normal tables with valid and invalid names
 
-        Catalog:
-            - Table:NormalTable:Create
 
         Since: v3.0.0.0
 

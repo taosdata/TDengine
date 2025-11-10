@@ -14,8 +14,6 @@ class TestNormalTableAlter1:
         3. Restart the database
         4. Resume ADD/DROP/MODIFY operations and verify again
 
-        Catalog:
-            - Table:NormalTable:Alter
 
         Since: v3.0.0.0
 

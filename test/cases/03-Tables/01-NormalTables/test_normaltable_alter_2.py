@@ -14,8 +14,6 @@ class TestNormalTableAlter2:
         3. Restart the database.
         4. Continue modifying columns and verify the changes.
 
-        Catalog:
-            - Table:NormalTable:Alter
 
         Since: v3.0.0.0
 

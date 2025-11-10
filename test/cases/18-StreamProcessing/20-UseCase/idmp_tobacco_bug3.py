@@ -4,12 +4,12 @@ from test_idmp_tobacco import IdmpScene
 class TestIdmpTobaccoBug3:
 
     def test_idmp_tobacco_bug3(self):
-        """IDMP 光伏场景测试
+        """IDMP tobacco scene
 
-        bug3
-
-        Catalog:
-            - Streams:UseCases
+        1. Initialize IDMP tobacco scene
+        2. Run stream processing job
+        3. Verify results
+        
 
         Since: v3.3.7.0
 

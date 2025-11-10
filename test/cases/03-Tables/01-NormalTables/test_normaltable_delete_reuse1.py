@@ -14,8 +14,6 @@ class TestNormalTableDeleteReuse2:
         3. Query data
         4. Repeat 20 timeses
 
-        Catalog:
-            - Table:NormalTable:Drop
 
         Since: v3.0.0.0
 

@@ -55,11 +55,7 @@ nav:
         - 06-Precision: case_list_docs/Databases/Precision.md
         - 07-Flush: case_list_docs/Databases/Flush.md
     - 03-Tables:
-        - 01-NormalTables:
-            - 01-Create: case_list_docs/Tables/NormalTables/Create.md
-            - 02-Drop: case_list_docs/Tables/NormalTables/Drop.md
-            - 03-Alter: case_list_docs/Tables/NormalTables/Alter.md
-            - 04-Query: case_list_docs/Tables/NormalTables/Query.md
+        - 01-NormalTables: case_list_docs/Tables/NormalTables.md
         - 02-SubTables: case_list_docs/Tables/SubTables.md
     - 04-Super Tables:
         - 01-Create: case_list_docs/SuperTables/Create.md
@@ -105,7 +101,7 @@ nav:
         - 06-System: case_list_docs/Functions/System.md
         - 07-Geometry: case_list_docs/Functions/Geometry.md
     - 12-UDFs: case_list_docs/UDFs.md
-    - 13-Time-SeriesExt:
+    - 13-TimeSeries-Ext:
         - 01-PartitionBy: case_list_docs/TimeSeriesExt/PartitionBy.md
         - 02-Fill: case_list_docs/TimeSeriesExt/Fill.md
         - 03-TimeWindow: case_list_docs/TimeSeriesExt/TimeWindow.md

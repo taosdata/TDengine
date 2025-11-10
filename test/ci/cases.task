@@ -119,26 +119,22 @@
 # 03-Tables
 
 ## 01-NormalTables
-### 01-Create
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_100w.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_column_limit.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_datatypes.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normaltable_synatx.py
-### 02-Drop
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normaltable_delete_reuse1.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normaltable_delete_reuse2.py
-,,n,.,pytest cases/03-Tables/01-NormalTables/02-Drop/test_normaltable_delete_writing.py
-### 03-Alter
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_1.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_2.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_3.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_4.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normaltable_alter_5.py
-### 04-Query
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_after_drop.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_aggregate.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_composite.py
-,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normaltable_query_filter.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_100w.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_column_limit.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_datatypes.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_synatx.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_delete_reuse1.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_delete_reuse2.py
+,,n,.,pytest cases/03-Tables/01-NormalTables/test_normaltable_delete_writing.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_alter_1.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_alter_2.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_alter_3.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_alter_4.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_alter_5.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_query_after_drop.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_query_aggregate.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_query_composite.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_query_filter.py
 ## 02-SubTables
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_autocreate.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_batchcreate.py

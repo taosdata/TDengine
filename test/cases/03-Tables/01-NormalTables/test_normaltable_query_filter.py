@@ -7,16 +7,13 @@ class TestNormalTableQuery:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_query(self):
-        """Query: filter
+        """Normal table filter
 
         1. Create a normal table
         2. Insert data
         3. Execute projection queries
         4. Execute aggregate queries
         5. Execute field filtering queries
-
-        Catalog:
-            - Table:NormalTable:Query
 
         Since: v3.0.0.0
 

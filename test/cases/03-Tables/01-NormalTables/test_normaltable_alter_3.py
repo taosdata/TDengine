@@ -13,9 +13,6 @@ class TestNormalTableAlter3:
         2. Insert out-of-order data
         3. Query data
 
-        Catalog:
-            - Table:NormalTable:Alter
-
         Since: v3.0.0.0
 
         Labels: common,ci

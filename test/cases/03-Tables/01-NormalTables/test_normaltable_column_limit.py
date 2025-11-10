@@ -15,9 +15,6 @@ class TestNormalTableColumnNumLimit:
         2. Add or delete columns
         3. Check column count, the count should not exceed 4096
 
-        Catalog:
-            - Table:NormalTable:Create
-
         Since: v3.0.0.0
 
         Labels: common,ci

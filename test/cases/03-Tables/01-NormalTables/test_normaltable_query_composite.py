@@ -9,7 +9,7 @@ class TestCompositeKeyLoad:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_composite_key_load(self):
-        """Query: composite key
+        """Normal table composite key
 
         Error Reading Composite Key Data from Memory and STT Files
 
@@ -19,9 +19,6 @@ class TestCompositeKeyLoad:
         Reproduction Steps:
         1. Create table with timestamp column and composite key string column. Insert 4 records into STT files and 1 record into memory.
         2. Execute query → Trigger failure
-
-        Catalog:
-            - Table:NormalTable:Query
 
         Since: v3.0.0.0
 
