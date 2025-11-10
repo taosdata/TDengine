@@ -869,7 +869,7 @@ static int32_t genStableTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pConte
   tMD5Final(pContext);
 
   taosMemoryFree(payload);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
@@ -879,11 +879,9 @@ static int32_t genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
 
   char*   payload = NULL;
   int32_t len = 0;
-  int32_t code = TSDB_CODE_SUCCESS;
-  code = nodesNodeToMsg(pTagCond, &payload, &len);
+  int32_t code = nodesNodeToMsg(pTagCond, &payload, &len);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s",
-      __func__, __LINE__, tstrerror(code));
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
   }
 
@@ -2069,10 +2067,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   } else {
     T_MD5_CTX context = {0};
 
-    if (pTagCond != NULL && pStreamInfo != NULL &&
+    if (pTagCond != NULL && 
       tsStableTagFilterCache && canOptimizeTagFilter(pTagCond)) {
       qDebug("stable tag filter condition can be optimized");
-      if (((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
+      if (pStreamInfo != NULL && ((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
         SNode* tmp = NULL;
         code = nodesCloneNode((SNode*)pTagCond, &tmp);
         QUERY_CHECK_CODE(code, lino, _error);
@@ -2130,7 +2128,9 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       // try to retrieve the result from meta cache
       QUERY_CHECK_CODE(code, lino, _error);      
       bool acquired = false;
-      code = pStorageAPI->metaFn.getCachedTableList(pVnode, pScanNode->suid, context.digest, tListLen(context.digest), pUidList, &acquired);
+      code = pStorageAPI->metaFn.getCachedTableList(
+        pVnode, pScanNode->suid, context.digest,
+        tListLen(context.digest), pUidList, &acquired);
       QUERY_CHECK_CODE(code, lino, _error);
 
       if (acquired) {
@@ -2191,7 +2191,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       digest[0] = 1;
       memcpy(digest + 1, context.digest, tListLen(context.digest));
     }
-    if (pTagCond != NULL && pStreamInfo != NULL &&
+    if (pTagCond != NULL && 
       tsStableTagFilterCache && canOptimizeTagFilter(pTagCond)) {
       qDebug("tag filter condition can be optimized, cache separately");
       char* pTagCondKey;
