@@ -2411,7 +2411,7 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
     }
     for (int initialIdx = initialLen; initialIdx < orgLen - finalLen; ++initialIdx) {
-      (void)memcpy(output + initialIdx * maskLen, orgStr, maskLen);
+      (void)memcpy(output + initialIdx * maskLen, orgStr + initialIdx * maskLen, maskLen);
     }
     for (int initialIdx = orgLen - finalLen; initialIdx < orgLen; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
