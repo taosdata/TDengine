@@ -65,7 +65,7 @@ class TestTb100wDataOrder:
 
 
     def test_tb_100w_data_order(self):
-        """Create 100w Normal Tables
+        """Normal table create 100w
 
         1. Create 100w normal tables
         2. Query table order by col

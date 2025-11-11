@@ -7,11 +7,12 @@ class TestNormalTableDatatypes:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_datatypes(self):
-        """Datatypes
+        """Normal table data types
 
         1. Create a normal table containing bigint, binary, bool, double, float, int, smallint, tinyint types
         2. Write data
         3. Perform a projection query, including an order by condition
+        4. Perform a filter query, including various comparison conditions
 
 
         Since: v3.0.0.0
