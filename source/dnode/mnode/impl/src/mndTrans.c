@@ -2040,7 +2040,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
   }
 
   if (*actionPos >= numOfActions) {
-    mInfo("trans:%d, this serail group is finished, actionPos:%d >= numOfActions:%d at group %d", pTrans->id,
+    mInfo("trans:%d, this serial group is finished, actionPos:%d >= numOfActions:%d at group %d", pTrans->id,
           *actionPos, numOfActions, groupId);
     return TSDB_CODE_MND_TRANS_GROUP_FINISHED;
   }
