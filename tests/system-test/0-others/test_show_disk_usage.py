@@ -144,14 +144,14 @@ class TDTestCase:
         tdSql.checkData(0,0,disk_occupied) 
         tdSql.query(f"select sum(data1+data2+data3)/sum(raw_data) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
         #tdSql.checkData(0,0,compress_radio/100) 
-        tdSql.query(f"select sum(wal) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
+        tdSql.query(f"select sum(wal_size) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
         tdSql.query(f"select sum(table_meta) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
         tdSql.query(f"select sum(cache_rdb) from information_schema.ins_disk_usage  where db_name='{self.dbname}';")
 
         tdSql.execute(f"use {self.other_dbname};") 
         tdSql.query(f"select sum(data1+data2+data3) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
         tdSql.checkData(0,0,0)
-        tdSql.query(f"select sum(wal) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
+        tdSql.query(f"select sum(wal_size) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
         tdSql.checkData(0,0,0)
         tdSql.query(f"select sum(cache_rdb) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
         tdSql.checkData(0,0,12)
@@ -173,7 +173,7 @@ class TDTestCase:
         tdSql.checkData(0,0,disk_occupied) 
 
 
-        tdSql.query(f"select sum(wal) from information_schema.ins_disk_usage where db_name='{self.other_dbname}' or db_name='{self.dbname}';")
+        tdSql.query(f"select sum(wal_size) from information_schema.ins_disk_usage where db_name='{self.other_dbname}' or db_name='{self.dbname}';")
         tdSql.checkRows(1) 
         iwal = tdSql.queryResult[0][0]  
         tdSql.query(f"select sum(table_meta) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}' or db_name='{self.dbname}';")

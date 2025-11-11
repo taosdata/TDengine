@@ -331,7 +331,7 @@ Note: Users with SYSINFO property set to 0 cannot view this table.
 |:----|:-----------|:-----------|:--------------------|
 | 1   | db_name    | VARCHAR(32) | Database name                              |
 | 2   | vgroup_id  | INT         | vgroup ID                                  |
-| 3   | wal        | BIGINT      | WAL file size, in KB                       |
+| 3   | wal_size   | BIGINT      | WAL file size, in KB                       |
 | 4   | data1      | BIGINT      | Data file size on primary storage, in KB   |
 | 5   | data2      | BIGINT      | Data file size on secondary storage, in KB |
 | 6   | data3      | BIGINT      | Data file size on tertiary storage, in KB  |
