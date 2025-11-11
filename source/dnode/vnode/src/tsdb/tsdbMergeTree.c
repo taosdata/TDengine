@@ -1396,9 +1396,8 @@ int32_t putStatisInfoIntoCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SStt
   LRUStatus status = taosLRUCacheInsert(pCache, pKey, sizeof(SSttStatisCacheKey), pValue, sizeof(SSttStatisCacheValue),
                                         freeStatisFileItems, NULL, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
   if (status != TAOS_LRU_STATUS_OK) {
-    tsdbError("%s failed to insert items into statis cache, status:%d", id, status);
-      
     if (status == TAOS_LRU_STATUS_FAIL) {
+      tsdbError("%s failed to insert items into statis cache, status:%d", id, status);
       freeStatisFileItems(NULL, 0, pValue, NULL);
     }
   } else {
