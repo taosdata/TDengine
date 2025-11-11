@@ -354,7 +354,7 @@ static int32_t scanDeleteDataNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
     uint64_t* uid = taosArrayGet(req.uidList, i);
     STREAM_CHECK_NULL_GOTO(uid, terrno);
     uint64_t   id = 0;
-    ST_TASK_ILOG("stream reader scan delete start data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, *uid, req.skey, req.ekey);
+    ST_TASK_DLOG("stream reader scan delete start data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, *uid, req.skey, req.ekey);
     STREAM_CHECK_CONDITION_GOTO(!uidInTableListSet(sStreamReaderInfo, req.suid, *uid, &id, false), TDB_CODE_SUCCESS);
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->deleteBlock, ((SSDataBlock*)rsp->deleteBlock)->info.rows + 1));
     STREAM_CHECK_RET_GOTO(buildWalMetaBlockNew(rsp->deleteBlock, id, req.skey, req.ekey, ver));
@@ -391,7 +391,7 @@ static int32_t scanDropTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SST
     STREAM_CHECK_RET_GOTO(buildDropTableBlock(rsp->dropBlock, id, ver));
     ((SSDataBlock*)rsp->dropBlock)->info.rows++;
     rsp->totalRows++;
-    ST_TASK_ILOG("stream reader scan drop uid %" PRId64 ", id %" PRIu64, pDropTbReq->uid, id);
+    ST_TASK_DLOG("stream reader scan drop uid %" PRId64 ", id %" PRIu64, pDropTbReq->uid, id);
   }
 
 end:
@@ -442,11 +442,11 @@ static int32_t scanCreateTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, v
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
     if (!needReLoadTableList(sStreamReaderInfo, pCreateReq->type, pCreateReq->ctb.suid, pCreateReq->uid, false)) {
-      ST_TASK_ILOG("stream reader scan create table jump, %s", pCreateReq->name);
+      ST_TASK_DLOG("stream reader scan create table jump, %s", pCreateReq->name);
       continue;
     }
   
-    ST_TASK_ILOG("stream reader scan create table %s", pCreateReq->name);  
+    ST_TASK_DLOG("stream reader scan create table %s", pCreateReq->name);  
     STREAM_CHECK_NULL_GOTO(taosArrayPush(uidList, &pCreateReq->uid), terrno);
   }
   
@@ -471,7 +471,7 @@ static int32_t processAutoCreateTableNew(SStreamTriggerReaderInfo* sStreamReader
   uidList = taosArrayInit(8, sizeof(tb_uid_t));
   STREAM_CHECK_NULL_GOTO(uidList, terrno);
   STREAM_CHECK_NULL_GOTO(taosArrayPush(uidList, &pCreateReq->uid), terrno);
-  ST_TASK_ILOG("stream reader scan auto create table %s", pCreateReq->name);
+  ST_TASK_DLOG("stream reader scan auto create table %s", pCreateReq->name);
 
   STREAM_CHECK_RET_GOTO(reloadTableList(sStreamReaderInfo, uidList));
 end:
@@ -505,7 +505,7 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, vo
   STREAM_CHECK_NULL_GOTO(uidList, terrno);
   STREAM_CHECK_NULL_GOTO(taosArrayPush(uidList, &uid), terrno);
   STREAM_CHECK_RET_GOTO(reloadTableList(sStreamReaderInfo, uidList));
-  ST_TASK_ILOG("stream reader scan alter table %s", req.tbName);
+  ST_TASK_DLOG("stream reader scan alter table %s", req.tbName);
 
 end:
   taosArrayDestroy(uidList);
@@ -532,7 +532,7 @@ end:
   
 //   STREAM_CHECK_RET_GOTO(reloadTableList(sStreamReaderInfo));
 
-//   ST_TASK_ILOG("stream reader scan alter suid %" PRId64, req.suid);
+//   ST_TASK_DLOG("stream reader scan alter suid %" PRId64, req.suid);
 // end:
 //   tFreeSMAltertbReq(&reqAlter);
 //   tDecoderClear(&decoder);
@@ -550,7 +550,7 @@ end:
 //   STREAM_CHECK_RET_GOTO(tDecodeSVDropStbReq(&decoder, &req));
 //   STREAM_CHECK_CONDITION_GOTO(req.suid != sStreamReaderInfo->suid, TDB_CODE_SUCCESS);
 
-//   ST_TASK_ILOG("stream reader scan drop suid %" PRId64, req.suid);
+//   ST_TASK_DLOG("stream reader scan drop suid %" PRId64, req.suid);
 // end:
 //   tDecoderClear(&decoder);
 //   return code;
@@ -1246,7 +1246,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
         if (colVal.cid == colId && COL_VAL_IS_VALUE(&colVal)) {
           if (IS_VAR_DATA_TYPE(colVal.value.type) || colVal.value.type == TSDB_DATA_TYPE_DECIMAL){
             STREAM_CHECK_RET_GOTO(varColSetVarData(pColData, blockStart+ numOfRows, (const char*)colVal.value.pData, colVal.value.nData, !COL_VAL_IS_VALUE(&colVal)));
-            // ST_TASK_ILOG("%s vtable colId:%d, i:%d, colData:%p, data:%s, len:%d, rowIndex:%d, offset:%d, uid:%" PRId64, __func__, colId, i, pColData, 
+            // ST_TASK_DLOG("%s vtable colId:%d, i:%d, colData:%p, data:%s, len:%d, rowIndex:%d, offset:%d, uid:%" PRId64, __func__, colId, i, pColData, 
             //   (const char*)colVal.value.pData, colVal.value.nData, blockStart+ numOfRows, pColData->varmeta.offset[blockStart+ numOfRows], submitTbData.uid);
           } else {
             STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, blockStart + numOfRows, (const char*)(&(colVal.value.val)), !COL_VAL_IS_VALUE(&colVal)));
