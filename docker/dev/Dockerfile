@@ -6,17 +6,17 @@ RUN echo ${BUILDPLATFORM}, ${TARGETPLATFORM}
 RUN case "${TARGETPLATFORM}" in \
   "linux/amd64") \
     echo MOLD_ARCH=x86_64 > /etc/environment; \
-    echo TINI_ARCH=amd64 >> /etc/environment \
-    echo PROTOC_ARCH=x86_64 >> /etc/environment \
+    echo TINI_ARCH=amd64 >> /etc/environment; \
+    echo PROTOC_ARCH=x86_64 >> /etc/environment; \
     ;; \
   "linux/arm64") \
     echo MOLD_ARCH=aarch64 > /etc/environment; \
     echo TINI_ARCH=arm64 >> /etc/environment; \
-    echo PROTOC_ARCH=aarch_64 >> /etc/environment \
+    echo PROTOC_ARCH=aarch_64 >> /etc/environment; \
     ;; \
   *) \
-    echo "Unsupported platform: ${TARGETPLATFORM}" \
-    exit 1 \
+    echo "Unsupported platform: ${TARGETPLATFORM}"; \
+    exit 1; \
     ;; \
   esac
 RUN cat /etc/environment
