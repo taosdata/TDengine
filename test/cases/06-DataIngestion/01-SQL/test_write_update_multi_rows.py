@@ -439,7 +439,7 @@ class TestUpdateDataMutiRows:
     # ------------------ main ------------------
     #
     def test_update_data_muti_rows(self):
-        """Data Ingestion Update With Multi-Rows
+        """Write with multi-rows
 
         1. Write data with multi rows
         2. Update multi rows with 10000 times

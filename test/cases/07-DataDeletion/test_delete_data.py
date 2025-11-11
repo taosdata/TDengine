@@ -317,7 +317,7 @@ class TestDeleteData:
         tdSql.checkData(0, 1, 2)        
     
     def test_delete_data(self):
-        """Delete Data Test (obsolete)
+        """Delete data test (obsolete)
 
         1. Delete data from normal table
         2. Insert data into child table

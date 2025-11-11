@@ -10,7 +10,6 @@ class TestDatabaseDeleteReuse1:
     def test_database_delete_reuse1(self):
         """Drop db while querying
 
-
         1. Create database
         2. Drop database
         3. Create database again
