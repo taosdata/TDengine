@@ -2003,12 +2003,12 @@ class TestDecimal3:
         tdLog.info(f"{datetime.now()} start to test {name}")
 
     def test_decimal3(self):
-        """DataTypes: decimal3
+        """DataTypes: decimal last
 
-        1. check decimal ddl
-        2. check insert decimal values
-        3. check query decimal
-        4. check decimal and view
+        1. Check decimal ddl
+        2. Insert decimal values
+        3. Query decimal with last/last_row
+        4. Query decimal view with last/last_row
 
         Since: v3.0.0.0
 

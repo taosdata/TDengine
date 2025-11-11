@@ -267,9 +267,6 @@ class TestAlterReplica:
         2. Alter replica count from 1 to 3
         3. Alter replica count from 3 to 1
 
-        Catalog:
-            - Database:Alter
-
         Since: v3.0.0.0
 
         Labels: common,ci

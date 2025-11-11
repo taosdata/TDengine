@@ -7,7 +7,7 @@ class TestNormalTableDeleteReuse2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_normal_table_delete_reuse2(self):
-        """Repeatedly drop 2
+        """Repeatedly drop same name
 
         1. Create a normal table (same name)
         2. Insert data 

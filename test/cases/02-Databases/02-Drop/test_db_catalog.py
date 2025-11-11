@@ -8,18 +8,15 @@ class TestDatabaseCatalog:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_catalog(self):
-        """Check catalog
+        """Drop db basic
 
-        1. Create database
-        2. Create normal table
-        3. Insert data
-        4. Alter data column
-        5. Insert data
-        6. Drop database
-        7. Repeat three times
+        1. Drop database with if exists
+        2. Drop empty database
+        3. Drop database with only meta
+        4. Drop database with super/child/normal tables
+        5. Loop drop and create database for many times
+        6. Verify drop database on information_schema.ins_databases
 
-        Catalog:
-            - Database:Drop
 
         Since: v3.0.0.0
 
