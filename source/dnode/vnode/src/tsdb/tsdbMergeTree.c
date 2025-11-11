@@ -986,7 +986,7 @@ static FORCE_INLINE int32_t tLDataIterDescCmprFn(const SRBTreeNode *p1, const SR
 
 static void clearTableRowsInfoCache(void) {
   int32_t items = (statisCacheInfo.pStatisFileCache != NULL)? taosLRUCacheGetElems(statisCacheInfo.pStatisFileCache):0;
-  tsdbInfo("start to free %d items in statisCache:%d", items);
+  tsdbInfo("start to free %d items in statisCache", items);
 
   taosLRUCacheCleanup(statisCacheInfo.pStatisFileCache);
   (void)taosThreadMutexDestroy(&statisCacheInfo.lock);
