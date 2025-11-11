@@ -214,7 +214,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 
 # 06-DataIngestion
-
 ## 01-SQL
 ,,n,.,pytest cases/06-DataIngestion/01-SQL/test_write.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_basic.py
@@ -229,6 +228,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_stb.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_update.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_update_multi_rows.py
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_insert_csv_with_quote.py
 ## 02-STMT
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-STMT/test_stmt_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-STMT/test_write_stmt_error.py

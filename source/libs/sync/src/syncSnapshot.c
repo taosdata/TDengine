@@ -518,12 +518,12 @@ static int32_t snapshotReceiverSignatureCmp(SSyncSnapshotReceiver *pReceiver, Sy
   if (code != 0)
     sRError(pReceiver, "receiver signature failed, result:%d, msg signature:(%" PRId64 ", %" PRId64 ")", code,
             pMsg->term, pMsg->startTime);
-  return 0;
+  return code;
 }
 
 static int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
   if (pReceiver->pWriter != NULL) {
-    sRError(pReceiver, "vgId:%d, snapshot receiver writer is not null", pReceiver->pSyncNode->vgId);
+    sRError(pReceiver, "snapshot receiver writer already started before");
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
   }
 
@@ -541,12 +541,12 @@ static int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, Syn
   int32_t code = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm, &pReceiver->snapshotParam,
                                                                   &pReceiver->pWriter);
   if (code != 0) {
-    sRError(pReceiver, "snapshot receiver start write failed since %s", tstrerror(code));
+    sRError(pReceiver, "snapshot receiver start writer failed since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
 
   // event log
-  sRInfo(pReceiver, "snapshot receiver start write");
+  sRInfo(pReceiver, "snapshot receiver writer started");
   return 0;
 }
 
@@ -777,13 +777,13 @@ static int32_t syncNodeOnSnapshotPrep(SSyncNode *pSyncNode, SyncSnapshotSend *pM
   if (snapshotReceiverIsStart(pReceiver)) {
     // already start
     int32_t order = 0;
-    if ((order = snapshotReceiverSignatureCmp(pReceiver, pMsg)) < 0) {
+    if ((order = snapshotReceiverSignatureCmp(pReceiver, pMsg)) < 0) {  // order < 0
       sInfo("failed to prepare snapshot, received a new snapshot preparation. restart receiver.");
       goto _START_RECEIVER;
-    } else if (order == 0) {
+    } else if (order == 0) {  // order == 0
       sInfo("prepare snapshot, received a duplicate snapshot preparation. send reply.");
       goto _SEND_REPLY;
-    } else {
+    } else {  // order > 0
       // ignore
       sError("failed to prepare snapshot, received a stale snapshot preparation. ignore.");
       code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
