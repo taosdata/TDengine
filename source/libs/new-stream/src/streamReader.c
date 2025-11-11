@@ -37,7 +37,7 @@ static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t
   }
   SStreamTableKeyInfo* keyInfo = taosMemoryCalloc(1, sizeof(SStreamTableKeyInfo));
   STREAM_CHECK_NULL_GOTO(keyInfo, terrno);
-  *keyInfo = (SStreamTableKeyInfo){.uid = uid, .groupId = gid, .prev = NULL, .next = NULL};
+  *keyInfo = (SStreamTableKeyInfo){.uid = uid, .groupId = gid, .markedDeleted = false, .prev = NULL, .next = NULL};
   if (taosArrayPush(pTableListInfo->pTableList, &keyInfo) == NULL) {
     taosMemoryFreeClear(keyInfo);
     code = terrno;
@@ -84,6 +84,11 @@ static int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int6
     list->head = NULL;
     list->tail = NULL;
     list->size = 0;
+    code = taosHashRemove(pTableListInfo->gIdMap, &(info->table->groupId), LONG_BYTES);
+    if (code != 0) {
+      stError("stream reader remove table list failed, remove groupId failed, uid:%"PRId64", gid:%"PRIu64, uid, info->table->groupId);
+      goto end;
+    }
   } else if (list->head == info->table) {
     // first element
     list->head = info->table->next;
@@ -100,8 +105,11 @@ static int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int6
     info->table->next->prev = info->table->prev;
     list->size -= 1;
   }
-
-  taosArrayRemoveP(pTableListInfo->pTableList, info->index, taosMemFree);
+  
+  SStreamTableKeyInfo* tmp = taosArrayGetP(pTableListInfo->pTableList, info->index);
+  if (tmp != NULL) {
+    tmp->markedDeleted = true;
+  }
   code = taosHashRemove(pTableListInfo->uIdMap, &uid, LONG_BYTES);
   
 end:
@@ -130,6 +138,9 @@ int32_t  qStreamCopyTableInfo(StreamTableListInfo* src, StreamTableListInfo* dst
       continue;
     }
     SStreamTableMapElement* element = taosHashGet(src->uIdMap, &info->uid, LONG_BYTES);
+    if (info->markedDeleted) {
+      continue;
+    }
     STREAM_CHECK_RET_GOTO(qStreamSetTableList(dst, info->uid, info->groupId, element != NULL ? element->suid : 0));
   }
 end:
@@ -217,7 +228,7 @@ static int32_t buildTableListFromArray(STableKeyInfo** pKeyInfo, int32_t* size, 
   STableKeyInfo* kInfo = *pKeyInfo;
   for (int32_t i = 0; i < totalSize; ++i) {
     SStreamTableKeyInfo* info = taosArrayGetP(pTableList, i);
-    if (info == NULL) {
+    if (info == NULL || info->markedDeleted) {
       continue;
     }
     kInfo->uid = info->uid;
@@ -291,6 +302,7 @@ int32_t qStreamModifyTableList(StreamTableListInfo* tableInfo, SArray* tableList
     if (info == NULL) {
       continue;
     }
+    STREAM_CHECK_RET_GOTO(qStreamRemoveTableList(tableInfo, info->uid));
     STREAM_CHECK_RET_GOTO(qStreamSetTableList(tableInfo, info->uid, info->groupId, 0));
   }
 

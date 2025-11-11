@@ -17,6 +17,7 @@ extern "C" {
 typedef struct SStreamTableKeyInfo {
   int64_t uid;
   uint64_t groupId;
+  bool     markedDeleted;
   struct SStreamTableKeyInfo* prev;
   struct SStreamTableKeyInfo* next;
 } SStreamTableKeyInfo;

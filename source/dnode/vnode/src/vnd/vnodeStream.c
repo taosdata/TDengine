@@ -2867,7 +2867,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   for (size_t i = 0; i < taosArrayGetSize(pTableListArray); i++) {
     SStreamTableKeyInfo* pKeyInfo = taosArrayGetP(pTableListArray, i);
-    if (pKeyInfo == NULL) {
+    if (pKeyInfo == NULL || pKeyInfo->markedDeleted) {
       continue;
     }
     VTableInfo* vTable = taosArrayReserve(vTableInfo.infos, 1);
