@@ -595,16 +595,16 @@ static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode*
   int32_t indexExt = -1;
   const SColumnNode* pMergeTspk = (const SColumnNode*)pMergeWindow->pTspk;
   PLAN_ERR_JRET(stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, NULL, &pMergeWindow->pFuncs));
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     /**
       For stream calc query, we need the _twstart or _tprev_ts placeholder
       in the part window to merge part results together.
     */
     PLAN_ERR_JRET(stbSplAppendPlaceHolder(pPartWin->pFuncs, &indexExt,
                                           pMergeTspk->node.resType.precision,
-                                          pCxt->pPlanCxt->streamTriggerWinType));
+                                          pCxt->pPlanCxt->streamCxt.triggerWinType));
   }
-  if (!pCxt->pPlanCxt->withExtWindow) {
+  if (!pCxt->pPlanCxt->streamCxt.hasExtWindow) {
     /**
       If the query is not an external window query, we need the _wstart
       placeholder for the merged INTERVAL window to do aggregation.
@@ -1644,7 +1644,7 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
   }
 
-  if (info.pSplitNode && !pCxt->pPlanCxt->streamTriggerQuery && !pCxt->pPlanCxt->streamCalcQuery) {
+  if (info.pSplitNode && !inStreamTriggerClause(pCxt->pPlanCxt) && !inStreamCalcClause(pCxt->pPlanCxt)) {
     info.pSplitNode->splitDone = true;
   }
   pCxt->split = true;
@@ -2282,7 +2282,7 @@ static bool streamScanFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan
 static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   int32_t                     code = TSDB_CODE_SUCCESS;
   SStreamScanSplitInfo info = {0};
-  if (!pCxt->pPlanCxt->streamTriggerQuery && !pCxt->pPlanCxt->streamCalcQuery) {
+  if (!inStreamCalcClause(pCxt->pPlanCxt) && !inStreamTriggerClause(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
   while (splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)streamScanFindSplitNode, &info)) {

@@ -838,3 +838,11 @@ bool checkScanLogicNode(SLogicNode* pNode) {
 
   return false;
 }
+
+bool inStreamCalcClause(SPlanContext* pCxt) {
+  return pCxt->streamCxt.isCalc;
+}
+
+bool inStreamTriggerClause(SPlanContext* pCxt) {
+  return pCxt->streamCxt.isTrigger;
+}

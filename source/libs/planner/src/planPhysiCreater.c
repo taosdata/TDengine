@@ -1048,14 +1048,15 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       PLAN_ERR_RET(createTableMergeScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode));
       break;
     default:
-      PLAN_ERR_RET(TSDB_CODE_FAILED);
+      PLAN_ERR_RET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                                       "invalid scan type:%d", pScanLogicNode->scanType));
       break;
   }
 
-  if (pCxt->pPlanCxt->streamTriggerQuery && !pCxt->pPlanCxt->streamTriggerScanSubplan) {
-    pCxt->pPlanCxt->streamTriggerScanSubplan = (SNode*)pSubplan;
+  if (inStreamTriggerClause(pCxt->pPlanCxt) && !pCxt->pPlanCxt->streamCxt.triggerScanSubplan) {
+    pCxt->pPlanCxt->streamCxt.triggerScanSubplan = (SNode*)pSubplan;
   }
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     SStreamCalcScan pStreamCalcScan = {0};
     pStreamCalcScan.vgList = taosArrayInit(1, sizeof(int32_t));
     if (NULL == taosArrayPush(pStreamCalcScan.vgList, &pSubplan->execNode.nodeId)) {
@@ -1065,7 +1066,7 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
     if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {
       pStreamCalcScan.readFromCache = true;
     }
-    if (NULL == taosArrayPush(pCxt->pPlanCxt->streamCalcScanPlanArray, &pStreamCalcScan)) {
+    if (NULL == taosArrayPush(pCxt->pPlanCxt->streamCxt.calcScanPlanArray, &pStreamCalcScan)) {
       PLAN_ERR_RET(terrno);
     }
   }
@@ -2672,46 +2673,6 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
     *pPhyNode = (SPhysiNode*)pExchange;
   } else {
     nodesDestroyNode((SNode*)pExchange);
-  }
-
-  return code;
-}
-
-static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExchangeLogicNode* pExchangeLogicNode,
-                                                   SPhysiNode** pPhyNode) {
-  SScanPhysiNode* pScan =
-      (SScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pExchangeLogicNode, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN);
-  if (NULL == pScan) {
-    return terrno;
-  }
-
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  pScan->pScanCols = NULL;
-  code = nodesCloneList(pExchangeLogicNode->node.pTargets, &pScan->pScanCols);
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = sortScanCols(pScan->pScanCols);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = sortScanCols(pScan->pScanCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setConditionsSlotId(pCxt, (const SLogicNode*)pExchangeLogicNode, (SPhysiNode*)pScan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    SStreamScanPhysiNode* pTableScan = (SStreamScanPhysiNode*)pScan;
-    pTableScan->triggerType = pCxt->pPlanCxt->triggerType;
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    *pPhyNode = (SPhysiNode*)pScan;
-  } else {
-    nodesDestroyNode((SNode*)pScan);
   }
 
   return code;
