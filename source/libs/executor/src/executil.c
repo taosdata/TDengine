@@ -1805,17 +1805,21 @@ static int32_t doSetQualifiedUid(STableListInfo* pListInfo, SArray* pUidList, co
       qDebug("tagfilter get uid:%" PRId64 ", res:%d", uid, pResultList[i]);
 
       info.uid = uid;
+      qInfo("doSetQualifiedUid row:%d added to pTableList", i);
       void* p = taosArrayPush(pListInfo->pTableList, &info);
       if (p == NULL) {
         return terrno;
       }
 
       if (addUid) {
+        qInfo("doSetQualifiedUid row:%d added to pUidList", i);
         void* tmp = taosArrayPush(pUidList, &uid);
         if (tmp == NULL) {
           return terrno;
         }
       }
+    } else {
+      qInfo("doSetQualifiedUid row:%d failed", i);
     }
   }
 
@@ -1905,6 +1909,8 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     }
     terrno = 0;
   } else {
+    qDebug("pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
+    
     if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) ||
           taosArrayGetSize(pUidTagList) > 0) {
       code = pAPI->metaFn.getTableTagsByUid(pVnode, pListInfo->idInfo.suid, pUidTagList);
@@ -1917,6 +1923,8 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
       QUERY_CHECK_CODE(code, lino, end);
     }
   }
+
+  qDebug("final pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
 
   int32_t numOfTables = taosArrayGetSize(pUidTagList);
   if (numOfTables == 0) {
@@ -2197,7 +2205,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status, &pStorageAPI->metaFilter);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
-          qDebug("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
+          qDebug("failed to get tableIds from index, suid:%" PRIu64 ", uidListSize:%d", pScanNode->uid, (int32_t)taosArrayGetSize(pUidList));
         } else {
           qDebug("succ to get filter result, table num: %d", (int)taosArrayGetSize(pUidList));
         }
@@ -2267,6 +2275,7 @@ _error:
   taosArrayDestroy(pUidList);
   taosArrayDestroy(pTagColIds);
   taosMemFreeClear(pTagCondKey);
+  taosMemFreeClear(pTagCondStr);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -3069,6 +3078,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   if (readHandle->winRangeValid) {
     pCond->twindows = readHandle->winRange;
   }
+  pCond->cacheSttStatis = readHandle->cacheSttStatis;
   // allowed read stt file optimization mode
   pCond->notLoadData = (pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD) &&
                        (pTableScanNode->scan.node.pConditions == NULL) && (pTableScanNode->interval == 0);

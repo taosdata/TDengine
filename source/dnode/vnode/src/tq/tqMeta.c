@@ -289,7 +289,8 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
   handle->pRef = walOpenRef(pVnode->pWal);
   TQ_NULL_GO_TO_END(handle->pRef);
 
-  SReadHandle reader = {
+  SReadHandle reader = {0};
+  reader = (SReadHandle){
       .vnode = pVnode,
       .initTableReader = true,
       .initTqReader = true,

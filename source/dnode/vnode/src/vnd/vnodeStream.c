@@ -3149,6 +3149,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     SReadHandle handle = {0};
     handle.vnode = pVnode;
     handle.uid = uid;
+    handle.cacheSttStatis = true;
 
     initStorageAPI(&handle.api);
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode) ||
