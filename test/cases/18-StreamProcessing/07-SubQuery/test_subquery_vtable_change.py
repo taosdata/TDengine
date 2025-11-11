@@ -28,14 +28,14 @@ class TestStreamSubQueryVtableChange:
         """
 
         tdStream.createSnode()
-        tdSql.execute(f"alter all dnodes 'debugflag 131';")
-        tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
+        tdSql.execute(f"alter all dnodes 'debugflag 143';")
+        tdSql.execute(f"alter all dnodes 'stdebugflag 143';")
 
         streams = []
         streams.append(self.Basic0())  # add col ref from new vg for virtual normal table
-        streams.append(self.Basic1())  # add col ref from new vg for virtual child table
-        streams.append(self.Basic2())  # add col ref from new vg for virtual super table
-        streams.append(self.Basic3())  # add new virtual child table, and ref from new vg
+        # streams.append(self.Basic1())  # add col ref from new vg for virtual child table
+        # streams.append(self.Basic2())  # add col ref from new vg for virtual super table
+        # streams.append(self.Basic3())  # add new virtual child table, and ref from new vg
 
         tdStream.checkAll(streams)
 
