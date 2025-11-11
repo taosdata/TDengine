@@ -2773,23 +2773,19 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 #ifdef TD_ENTERPRISE
   if (strcasecmp(name, "authServer") == 0) {
     tsAuthServer = pItem->bval;
-    code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
   if (strcasecmp(name, "authReq") == 0) {
     tsAuthReq = pItem->bval;
-    code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
   if (strcasecmp(name, "authReqInterval") == 0) {
     tsAuthReqInterval = pItem->i32;
-    code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
   if (strcasecmp(name, "authReqUrl") == 0) {
-    TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
     tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
-    code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
 #endif
