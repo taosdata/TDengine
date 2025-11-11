@@ -3670,31 +3670,23 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
 
   pReq->createTable = true;
 
-  SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
-  QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-
   if (pReq->createTable && pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
       (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {
     needTagValue = true;
   }
 
   if (needTagValue && taosArrayGetSize(pReq->groupColVals) == 0) {
-    void *px = tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(int64_t));
-    if (px == NULL) {
-      code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE);
-      QUERY_CHECK_CODE(code, lino, _end);
-      goto _end;
-    } else {
-      SArray *pGroupColVals = *(SArray **)px;
-      for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
-        SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
-        SStreamGroupValue *pDst = taosArrayPush(pReq->groupColVals, pValue);
-        QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
-        if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
-          pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
-          QUERY_CHECK_NULL(pDst->data.pData, code, lino, _end, terrno);
-          TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
-        }
+    void *px = tSimpleHashGet(pContext->pGroupColVals, &pReq->gid, sizeof(int64_t));
+    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SArray *pGroupColVals = *(SArray **)px;
+    for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
+      SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
+      SStreamGroupValue *pDst = taosArrayPush(pReq->groupColVals, pValue);
+      QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
+      if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
+        pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
+        QUERY_CHECK_NULL(pDst->data.pData, code, lino, _end, terrno);
+        TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
       }
     }
   }
