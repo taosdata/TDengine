@@ -403,6 +403,9 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
   HASH_FIND(hh_id, context->topic_info, topic_name, strlen(topic_name), tinfo_found);
   if (tinfo_found) {
     HASH_DELETE(hh_id, context->topic_info, tinfo_found);
+
+    ttq_free(tinfo_found->topic_name);
+    ttq_free(tinfo_found);
   }
 
   return true;
