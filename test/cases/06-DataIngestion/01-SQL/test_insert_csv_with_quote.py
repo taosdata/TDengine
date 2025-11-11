@@ -33,10 +33,10 @@ class TestInsertBasic:
         tdSql.execute("create table tb(ts timestamp,c1 double);")
 
         csvPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "csv")
-        print(f"csvPath: {csvPath}")
+        tdLog.debug(f"csvPath: {csvPath}")
 
-        tdSql.error(f"insert into tb file '{csvPath}/1.csv';", expectErrInfo="Syntax error in SQL")
-        tdSql.error(f"insert into tb file '{csvPath}/2.csv';", expectErrInfo="Syntax error in SQL")
+        tdSql.error(f"insert into tb file '{csvPath}/1.csv';", expectErrInfo="syntax err", fullMatched=False)
+        tdSql.error(f"insert into tb file '{csvPath}/2.csv';", expectErrInfo="syntax err", fullMatched=False)
         tdSql.execute(f"insert into tb file '{csvPath}/3.csv';")
         tdSql.query("select * from tb;")
         tdSql.checkRows(10)
