@@ -1845,6 +1845,23 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
   return code;
 }
 
+
+void fprintDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId) {
+    if (!pBlock) {
+      qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
+      return;
+    } else if (pBlock->info.rows == 0) {
+      qDebug("%" PRIx64 " %s %s %s: Block is Empty. block type %d", qId, taskIdStr, flag, __func__, pBlock->info.type);
+      return;
+    }
+    
+    char*   pBuf = NULL;
+    int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr, qId);
+    if (code == 0) {
+      qDebugL("%" PRIx64 " %s %s", qId, __func__, pBuf);
+      taosMemoryFree(pBuf);
+    }
+}
 int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
                                  SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
   *listAdded = false;
@@ -1918,7 +1935,7 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     QUERY_CHECK_CODE(code, lino, end);
   }
 
-  printDataBlock(pResBlock, "tagFilter", "", 0);
+  fprintDataBlock(pResBlock, "tagFilter", "", 0);
 
   //  int64_t st1 = taosGetTimestampUs();
   //  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
