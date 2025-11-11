@@ -7,7 +7,7 @@ class TestFuncScalarNull:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_func_scalar_null(self):
-        """Operator Null
+        """Operator null
 
         1. Usage of NULL in the IN operator
         2. Comparison of NULL values

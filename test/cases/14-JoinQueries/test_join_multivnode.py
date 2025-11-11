@@ -7,7 +7,7 @@ class TestJoinMultivnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_multivnode(self):
-        """Join Test Multivnode
+        """Join multi-vnode
 
         1. Create database with multiple vnodes
         2. Create two super tables

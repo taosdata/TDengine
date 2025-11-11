@@ -12,7 +12,6 @@ class TestStreamCountTrigger:
         """Trigger mode count
 
         Verification testing during the development process.
-
             1. Create database and super table
             2. Create sub tables
             3. Create streams with count trigger mode
@@ -21,7 +20,7 @@ class TestStreamCountTrigger:
             
         Since: v3.3.3.7
 
-        Labels: common,ci,skip
+        Labels: common,ci
 
         Jira: None
 

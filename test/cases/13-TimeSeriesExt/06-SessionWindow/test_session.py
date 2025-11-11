@@ -7,7 +7,7 @@ class TestSession:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_session(self):
-        """Session: basic test
+        """Session basic
 
         1. Test the basic usage of session window
         2. Test some illegal statements

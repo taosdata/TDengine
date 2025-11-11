@@ -267,7 +267,7 @@ class TestShowDiskInfo:
     # ------------------- main ----------------
     #
     def test_show_diskinfo(self):
-        """Show DiskInfo
+        """Show disk info
 
         1. Create super tables and child tables, then write data
         2. Perform a FLUSH operation on the database

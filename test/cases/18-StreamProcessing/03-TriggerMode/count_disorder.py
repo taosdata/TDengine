@@ -19,7 +19,7 @@ class TestStreamCountTrigger:
 
         Since: v3.3.3.7
 
-        Labels: common,ci,skip
+        Labels: common,ci
 
         Jira: None
 

@@ -290,7 +290,7 @@ class TestDropLostConsumers:
         tdLog.info("stop to test max_poll_interval_ms=20s and done ")
 
     def test_drop_lost_comsumers(self):
-        """TMQ: drop lost consumers
+        """Tmq: drop lost consumers
 
         1. verifying that the boundary and valid values of session_timeout_ms are in effect
         2. verifying that the boundary and valid values of max_poll_interval_ms are in effect

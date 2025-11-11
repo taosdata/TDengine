@@ -7,7 +7,7 @@ class TestJoinManyBlocks:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_manyblocks(self):
-        """Join Test Manyblocks
+        """Join many blocks
 
         1. Create database and two super tables
         2. Insert data into each child tables with same timestamps

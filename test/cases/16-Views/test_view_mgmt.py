@@ -15,7 +15,7 @@ class TestViewMgmt:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_view_mgmt(self):
-        """View Management
+        """View management
 
         1. Create 3 super tables
         2. Create child tables and insert data

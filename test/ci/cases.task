@@ -55,8 +55,7 @@
 ## 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_catalog.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse_vnode.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse1.py
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse2.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_delete_reuse.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/02-Drop/test_db_repeat.py
 ,,n,.,pytest cases/02-Databases/02-Drop/test_db_writing.py
 ## 03-Alter
