@@ -47,7 +47,7 @@ class TestWalKeepVersionTrim:
 
         # set keep version 0 in a separate thread
         def alter_vgroup():
-            tdSql.execute("alter vgroup 2 set keep version 0")
+            tdSql.execute("alter vgroup 2 set keep 0")
         
         thread = threading.Thread(target=alter_vgroup)
         thread.start()

@@ -312,7 +312,6 @@ static SKeyword keywordTable[] = {
     {"VARCHAR",              TK_VARCHAR},
     {"VARIABLES",            TK_VARIABLES},
     {"VERBOSE",              TK_VERBOSE},
-    {"VERSION",              TK_VERSION},
     {"VGROUP",               TK_VGROUP},
     {"VGROUPS",              TK_VGROUPS},
     {"VIEW",                 TK_VIEW},

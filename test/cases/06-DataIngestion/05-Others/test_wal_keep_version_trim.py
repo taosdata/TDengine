@@ -40,7 +40,7 @@ class TestWalKeepVersionTrim:
         tdSql.execute("alter database test WAL_RETENTION_PERIOD 0")
 
         # set keep version 0
-        tdSql.execute("alter vgroup 2 set keep version 0")
+        tdSql.execute("alter vgroup 2 set keep 0")
         tdSql.execute("flush database test")
 
         tdSql.query("show test.vgroups")

@@ -2226,7 +2226,8 @@ static int32_t mndTrimDbWal(SMnode *pMnode, SDbObj *pDb) {
     if (pHead == NULL) {
       sdbCancelFetch(pSdb, pVgroup);
       sdbRelease(pSdb, pVgroup);
-      continue;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
     }
     pHead->contLen = htonl(contLen);
     pHead->vgId = htonl(pVgroup->vgId);
@@ -2243,7 +2244,7 @@ static int32_t mndTrimDbWal(SMnode *pMnode, SDbObj *pDb) {
     sdbRelease(pSdb, pVgroup);
   }
 
-  return 0;
+  return code;
 }
 
 static int32_t mndProcessTrimDbWalReq(SRpcMsg *pReq) {
