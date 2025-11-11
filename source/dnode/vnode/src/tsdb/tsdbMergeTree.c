@@ -1400,8 +1400,6 @@ int32_t putStatisInfoIntoCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SStt
       
     if (status == TAOS_LRU_STATUS_FAIL) {
       freeStatisFileItems(NULL, 0, pValue, NULL);
-    } else {
-      ASSERT(0);
     }
   } else {
     int32_t total = taosLRUCacheGetElems(pCache);
