@@ -283,7 +283,7 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
     // close consumer if no succeeded topics, mnode may print spurious consumer not exist errors
     if (!context->topic_list || tmq_list_get_size(context->topic_list) <= 0) {
       tmq_list_destroy(context->topic_list);
-      tmq_consumer_close(context->tmq);
+      (void)tmq_consumer_close(context->tmq);
       context->topic_list = NULL;
       context->tmq = NULL;
     }
@@ -357,7 +357,7 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
   if (code != 0) {
     if (!context->topic_list || tmq_list_get_size(context->topic_list) <= 0) {
       tmq_list_destroy(context->topic_list);
-      tmq_consumer_close(context->tmq);
+      (void)tmq_consumer_close(context->tmq);
       context->topic_list = NULL;
       context->tmq = NULL;
     }
@@ -379,7 +379,7 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
 
     if (!context->topic_list || tmq_list_get_size(context->topic_list) <= 0) {
       tmq_list_destroy(context->topic_list);
-      tmq_consumer_close(context->tmq);
+      (void)tmq_consumer_close(context->tmq);
       context->topic_list = NULL;
       context->tmq = NULL;
     }
@@ -395,7 +395,7 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
 
   if (!context->topic_list || tmq_list_get_size(context->topic_list) <= 0) {
     tmq_list_destroy(context->topic_list);
-    tmq_consumer_close(context->tmq);
+    (void)tmq_consumer_close(context->tmq);
     context->topic_list = NULL;
     context->tmq = NULL;
   }
@@ -435,7 +435,7 @@ void tmq_ctx_cleanup(struct tmq_ctx* context) {
   }
 
   if (context->tmq) {
-    tmq_consumer_close(context->tmq);
+    (void)tmq_consumer_close(context->tmq);
     context->tmq = NULL;
   }
 
