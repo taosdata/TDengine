@@ -999,7 +999,7 @@ static int32_t buildTagDataEntryKey(
       memcpy(pStart, &pTagValue.cid, sizeof(col_id_t));
       pStart += sizeof(col_id_t);
       // copy value
-      if (IS_VAR_DATA_TYPE(pTagValue.type)) {
+      if (IS_VAR_DATA_TYPE(pTagValue.type) && pTagValue.pData != NULL) {
         int32_t varLen = pTagValue.nData;
         memcpy(pStart, pTagValue.pData, varLen);
         pStart += varLen;

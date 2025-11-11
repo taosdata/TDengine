@@ -742,52 +742,54 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
     (void)memcpy(pStart, &entry->colId, sizeof(col_id_t));
     pStart += sizeof(col_id_t);
 
-    switch (pValueNode->node.resType.type) {
-      case TSDB_DATA_TYPE_BOOL:
-        (void)memcpy(
-          pStart, &pValueNode->datum.b, pValueNode->node.resType.bytes);
-        pStart += pValueNode->node.resType.bytes;
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_BIGINT:
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        (void)memcpy(
-          pStart, &pValueNode->datum.i, pValueNode->node.resType.bytes);
-        pStart += pValueNode->node.resType.bytes;
-        break;
-      case TSDB_DATA_TYPE_UTINYINT:
-      case TSDB_DATA_TYPE_USMALLINT:
-      case TSDB_DATA_TYPE_UINT:
-      case TSDB_DATA_TYPE_UBIGINT:
-        (void)memcpy(
-          pStart, &pValueNode->datum.u, pValueNode->node.resType.bytes);
-        pStart += pValueNode->node.resType.bytes;
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-      case TSDB_DATA_TYPE_DOUBLE:
-        (void)memcpy(
-          pStart, &pValueNode->datum.d, pValueNode->node.resType.bytes);
-        pStart += pValueNode->node.resType.bytes;
-        break;
-      case TSDB_DATA_TYPE_VARCHAR:
-      case TSDB_DATA_TYPE_VARBINARY:
-      case TSDB_DATA_TYPE_NCHAR:
-        (void)memcpy(pStart,
-          varDataVal(pValueNode->datum.p), varDataLen(pValueNode->datum.p));
-        pStart += varDataLen(pValueNode->datum.p);
-        break;
-      case TSDB_DATA_TYPE_JSON: {
-        int32_t jsonLen = getJsonValueLen(pValueNode->datum.p);
-        (void)memcpy(pStart, varDataVal(pValueNode->datum.p), jsonLen);
-        pStart += jsonLen;
-        break;
+    if (!pValueNode->isNull) {
+      switch (pValueNode->node.resType.type) {
+        case TSDB_DATA_TYPE_BOOL:
+          (void)memcpy(
+            pStart, &pValueNode->datum.b, pValueNode->node.resType.bytes);
+          pStart += pValueNode->node.resType.bytes;
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          (void)memcpy(
+            pStart, &pValueNode->datum.i, pValueNode->node.resType.bytes);
+          pStart += pValueNode->node.resType.bytes;
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+        case TSDB_DATA_TYPE_USMALLINT:
+        case TSDB_DATA_TYPE_UINT:
+        case TSDB_DATA_TYPE_UBIGINT:
+          (void)memcpy(
+            pStart, &pValueNode->datum.u, pValueNode->node.resType.bytes);
+          pStart += pValueNode->node.resType.bytes;
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_DOUBLE:
+          (void)memcpy(
+            pStart, &pValueNode->datum.d, pValueNode->node.resType.bytes);
+          pStart += pValueNode->node.resType.bytes;
+          break;
+        case TSDB_DATA_TYPE_VARCHAR:
+        case TSDB_DATA_TYPE_VARBINARY:
+        case TSDB_DATA_TYPE_NCHAR:
+          (void)memcpy(pStart,
+            varDataVal(pValueNode->datum.p), varDataLen(pValueNode->datum.p));
+          pStart += varDataLen(pValueNode->datum.p);
+          break;
+        case TSDB_DATA_TYPE_JSON: {
+          int32_t jsonLen = getJsonValueLen(pValueNode->datum.p);
+          (void)memcpy(pStart, varDataVal(pValueNode->datum.p), jsonLen);
+          pStart += jsonLen;
+          break;
+        }
+        default:
+          qError("unsupported tag data type %d in tag filter optimization",
+            pValueNode->node.resType.type);
+          return TSDB_CODE_STREAM_INTERNAL_ERROR;
       }
-      default:
-        qError("unsupported tag data type %d in tag filter optimization",
-          pValueNode->node.resType.type);
-        return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
   }
 
@@ -2239,8 +2241,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       digest[0] = 1;
       memcpy(digest + 1, context.digest, tListLen(context.digest));
     }
-    if (tsStableTagFilterCache && pStreamInfo != NULL &&
-      canCacheTagCondFilter) {
+    if (tsStableTagFilterCache && isStream && canCacheTagCondFilter) {
       qInfo("suid:%" PRIu64 ", %s add uid list to stableTagFilterCache, key:%s, keyLen:%d, condition:%s, uidListSize:%d", 
         pScanNode->suid, idstr, pTagCondKey, tagCondKeyLen, pTagCondStr, (int32_t)taosArrayGetSize(pUidList));
       code = pStorageAPI->metaFn.putStableCachedTableList(
