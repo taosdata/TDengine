@@ -56,7 +56,7 @@ RUN cat /etc/environment && . /etc/environment \
 ENV PROTOC_VERSION=33.0
 RUN cat /etc/environment && . /etc/environment \
   && wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip \
-  && unzip -o protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip /usr/ \
+  && unzip -o protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip -d /usr/ \
   && chmod +x /usr/bin/protoc \
   && rm -rf protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip
 # Workdir and trust
