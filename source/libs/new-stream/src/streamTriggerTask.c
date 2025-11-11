@@ -6346,7 +6346,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           TD_DLIST_APPEND(&pContext->groupsForceClose, pGroup);
         } else if (taosArrayGetSize(pGroup->pPendingCalcParams) > 0) {
           // have remaining calc params to be calculated
-          TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          TD_DLIST_APPEND(&pContext->groupsForceClose, pGroup);
         }
         px = tSimpleHashIterate(pContext->pGroups, px, &iter);
       }
