@@ -142,8 +142,8 @@ cmd ::= CREATE ROLE not_exists_opt(A) role_name(B).                             
 cmd ::= DROP ROLE exists_opt(A) role_name(B).                                     { pCxt->pRootNode = createDropRoleStmt(pCxt, A, &B); }
 
 /************************************************ grant/revoke ********************************************************/
-cmd ::= GRANT privileges(A) ON priv_level(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C, D); }
-cmd ::= REVOKE privileges(A) ON priv_level(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C, D); }
+cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C, D); }
+cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C, D); }
 
 %type privileges                                                                  { SPrivSet }
 %destructor privileges                                                            { }
@@ -310,6 +310,11 @@ priv_type(A) ::= READ PERFORMANCE_SCHEMA BASIC.                                 
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_TYPE(PRIV_APPS_SHOW); }
+
+%type priv_level_opt                                                              { STokenPair }
+%destructor priv_level_opt                                                        { }
+priv_level_opt(A) ::= .                                                           { A.first = nil_token; A.second = nil_token; }
+priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; }
 
 %type priv_level                                                                  { STokenPair }
 %destructor priv_level                                                            { }
