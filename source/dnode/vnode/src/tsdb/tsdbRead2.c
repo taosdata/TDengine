@@ -14,6 +14,8 @@
  */
 
 #include "osDef.h"
+#include "tcommon.h"
+#include "thash.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
@@ -6195,7 +6197,7 @@ _end:
   return code;
 }
 
-static int32_t doTsdbNextDataBlockFilesFirst(STsdbReader* pReader) {
+static int32_t doTsdbNextDataBlockFiles(STsdbReader* pReader) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SReaderStatus* pStatus = NULL;
@@ -6250,7 +6252,7 @@ static int32_t doTsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
   }
 
   if (!pReader->bFilesetDelimited) {
-    code = doTsdbNextDataBlockFilesFirst(pReader);
+    code = doTsdbNextDataBlockFiles(pReader);
   } else {
     code = doTsdbNextDataBlockFilesetDelimited(pReader);
   }
@@ -7160,14 +7162,38 @@ void tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, v
   pReader->notifyParam = param;
 }
 
-int32_t tsdbGetDataTimeWindowForTables(STsdbReader* pReader, SSDataBlock* pBlock) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
-  bool         hasNext = false;
-  SSDataBlock* pRes = NULL;
+int32_t tsdbGetFirstTimestampForTables(void* pVnode, STimeWindow* pWindow, SVersionRange* pVerRange, void* pTableList,
+                                       int32_t numOfTables, SSDataBlock* pBlock, const char* idstr) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  bool                hasNext = false;
+  SSDataBlock*        pRes = NULL;
+  STsdbReader*        pReader = NULL;
+  SHashObj*           pIgnoreTableList = NULL;
+  SQueryTableDataCond cond = {0};
 
   TSDB_CHECK_NULL(pBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pWindow, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pTableList, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  cond.numOfCols = 1;
+  cond.colList = taosMemoryCalloc(cond.numOfCols, sizeof(SColumnInfo));
+  cond.colList[0].colId = 1;
+
+  cond.pSlotList = taosMemoryMalloc(sizeof(int32_t) * cond.numOfCols);
+  cond.pSlotList[0] = 0;
+  cond.twindows = *pWindow;
+
+  cond.startVersion = pVerRange->minVer;
+  cond.endVersion = pVerRange->minVer;
+
+  cond.type = TSDB_ORDER_ASC;  // return the first timestamp/last timestamp
+
+  pIgnoreTableList = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  TSDB_CHECK_NULL(pIgnoreTableList, code, lino, _end, terrno);
+
+  code = tsdbReaderOpen2(pVnode, &cond, pTableList, numOfTables, NULL, (void**)&pReader, idstr, &pIgnoreTableList);
+  TSDB_CHECK_CODE(code, lino, _end);
 
   while (1) {
     code = tsdbNextDataBlock2(pReader, &hasNext);
@@ -7178,18 +7204,21 @@ int32_t tsdbGetDataTimeWindowForTables(STsdbReader* pReader, SSDataBlock* pBlock
       break;
     }
 
+    // retrieve only one row for each table
     code = tsdbRetrieveDataBlock2(pReader, &pRes);
     TSDB_CHECK_CODE(code, lino, _end);
 
     // do build results
     
 
+    // set the pDumpInfo, and add the table into ignore table list.
+    taosHashPut(pIgnoreTableList, &pRes->info.id.uid, sizeof(uint64_t), NULL, 0);
+    pReader->status.fBlockDumpInfo.allDumped = true;
   }
-
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    tsdbError("%s %s failed at line %d since %s", idstr, __func__, lino, tstrerror(code));
   }
 
   return code;
