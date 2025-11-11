@@ -1918,6 +1918,8 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     QUERY_CHECK_CODE(code, lino, end);
   }
 
+  printDataBlock(pResBlock, "tagFilter", "", 0);
+
   //  int64_t st1 = taosGetTimestampUs();
   //  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
   pBlockList = taosArrayInit(2, POINTER_BYTES);
