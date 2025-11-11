@@ -458,7 +458,14 @@ typedef struct {
   SPrivSet  privSet;
   SHashObj* parents;
   SHashObj* children;
-  SRWLatch  lock;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t enable : 1;
+      uint8_t reserve : 7;
+    };
+  };
+  SRWLatch lock;
 } SRoleObj;
 
 typedef struct {
