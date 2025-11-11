@@ -96,6 +96,11 @@ class TestDatabaseDeleteReuse1:
             x = x + 1
 
             tdLog.info(f"===> loop times: {x}")
+        # clean
+        tdSql.execute(f"drop database d1")
+        tdSql.execute(f"drop database d2")
+        tdSql.execute(f"drop database d3")
+        tdSql.execute(f"drop database d4")            
 
     def do_db_delete_reuse2(self):
         tdLog.info(f"======== step1")
