@@ -378,6 +378,7 @@ async fn spawn_stream_writer(
         "kafka" => Some("kafka"),
         "avevaHistorian" => Some("avevahistorian"),
         "mqtt" => Some("mqtt"),
+        "pulsar" | "pulsarTuya" => Some("pulsar"),
         _ => None,
     };
 

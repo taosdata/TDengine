@@ -1,4 +1,4 @@
-FROM alpine AS builder
+FROM docker.1ms.run/alpine AS builder
 ARG TARGETPLATFORM
 ARG TARGETARCH
 ARG TARGETVARIANT
@@ -7,10 +7,12 @@ RUN case "${TARGETPLATFORM}" in \
   "linux/amd64") \
     echo MOLD_ARCH=x86_64 > /etc/environment; \
     echo TINI_ARCH=amd64 >> /etc/environment \
+    echo PROTOC_ARCH=x86_64 >> /etc/environment \
     ;; \
   "linux/arm64") \
     echo MOLD_ARCH=aarch64 > /etc/environment; \
-    echo TINI_ARCH=arm64 >> /etc/environment \
+    echo TINI_ARCH=arm64 >> /etc/environment; \
+    echo PROTOC_ARCH=aarch_64 >> /etc/environment \
     ;; \
   *) \
     echo "Unsupported platform: ${TARGETPLATFORM}" \
@@ -20,10 +22,11 @@ RUN case "${TARGETPLATFORM}" in \
 RUN cat /etc/environment
 
 # based on https://github.com/pypa/manylinux/issues/1306#issuecomment-1374817895
-FROM lukewiwa/manylinux2014
+FROM docker.1ms.run/lukewiwa/manylinux2014
 COPY --from=builder /etc/environment /etc/
 RUN yum makecache fast \
-  && yum install -y wget perl-IPC-Cmd perl-Test-Simple perl-IO-Zlib libatomic openssl-devel \
+  && yum install -y wget perl-devel perl-IPC-Cmd perl-Test-Simple perl-IO-Zlib perl-ExtUtils-Manifest perl-ExtUtils-MakeMaker \
+    libatomic openssl-devel \
   && yum -y clean all \
   && rm -rf /var/cache/yum
 
@@ -50,6 +53,12 @@ RUN cat /etc/environment && . /etc/environment \
   && tar -xvf mold-${MOLD_VERSION}-${MOLD_ARCH}-linux.tar.gz  \
   && cp mold-${MOLD_VERSION}-${MOLD_ARCH}-linux/bin/mold /usr/bin/mold \
   && rm -rf mold-${MOLD_VERSION}-${MOLD_ARCH}-linux mold-${MOLD_VERSION}-${MOLD_ARCH}-linux.tar.gz
+ENV PROTOC_VERSION=33.0
+RUN cat /etc/environment && . /etc/environment \
+  && wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip \
+  && unzip -o protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip /usr/ \
+  && chmod +x /usr/bin/protoc \
+  && rm -rf protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip
 # Workdir and trust
 WORKDIR /app
 RUN git config --global --add safe.directory /app

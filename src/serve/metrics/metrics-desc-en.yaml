@@ -85,6 +85,13 @@ kafka_consumed_messages: Number of messages has been consumed
 total_kafka_consumed_messages: Total consumed messages since task started
 kafka_sent_batches: Total batches sent since task started
 kafka_received_acks: Total received acks since task started
+pulsar_total_partitions: Pulsar topic partitions
+pulsar_consumers: Pulsar consumers
+pulsar_consumed_messages: Pulsar total consumed messages
+pulsar_send_msgs: Number of messages sent by this running task. 
+pulsar_msg_acks: Pulsar ACK messages
+pulsar_sent_batches: Number of batches sent by this running task. 
+pulsar_received_batches: Number of batches received by this running task. 
 mqtt_fetched_messages: Total number of messages fetched in this task run
 mqtt_received_bytes: Number of bytes received in this task run
 mqtt_dumped_messages: Number of messages dumped in this task run

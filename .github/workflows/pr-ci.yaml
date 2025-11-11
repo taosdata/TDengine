@@ -67,7 +67,7 @@ jobs:
           cargo make typos
       - name: Clippy check
         run: |
-          cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings
+          cargo make clippy
 
   unit-test:
     needs: [check]

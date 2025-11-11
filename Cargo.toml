@@ -42,6 +42,7 @@ members = [
   "crates/taos-to-local",
   "crates/source-kinghistorian",
   "crates/source-kinghistorian/kinghistorian-sys",
+  "crates/source-pulsar",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -198,6 +199,9 @@ orc-rust = "0.6"
 duckdb = "1.3"
 num = "0.4"
 criterion = { version = "0.7", features = ["html_reports"] }
+
+pulsar = "6.4.1"
+md5 = "0.8"
 
 taosx-core = { path = "./taosx-core", default-features = false }
 taosx-ipc.path = "./taosx-ipc"

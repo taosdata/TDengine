@@ -95,7 +95,7 @@ reqwest = { workspace = true }
 taosx-ipc.workspace = true
 taos = { workspace = true }
 shadow-rs = { workspace = true }
-md5 = "0.8"
+md5.workspace = true
 rand.workspace = true
 base64.workspace = true
 sled = "0.34.7"
