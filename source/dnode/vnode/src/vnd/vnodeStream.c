@@ -2420,7 +2420,8 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
     ST_TASK_DLOG("vgId:%d %s get skey:%" PRId64 ", eksy:%" PRId64 ", uid:%" PRId64 ", gId:%" PRIu64 ", rows:%" PRId64,
             TD_VID(pVnode), __func__, pTaskInner->pResBlock->info.window.skey, pTaskInner->pResBlock->info.window.ekey,
             pTaskInner->pResBlock->info.id.uid, pTaskInner->pResBlock->info.id.groupId, pTaskInner->pResBlock->info.rows);
-    if (pTaskInner->pResBlockDst->info.rows >= STREAM_RETURN_ROWS_NUM) {
+    if ((req->tsdbTriggerDataReq.gid != 0 && pTaskInner->pResBlockDst->info.rows >= STREAM_RETURN_ROWS_NUM) || 
+        (req->tsdbTriggerDataReq.gid == 0 && pTaskInner->pResBlockDst->info.rows >= 0)) {  //todo optimize send multi blocks in one group
       break;
     }
   }
