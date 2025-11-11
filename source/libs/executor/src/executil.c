@@ -1805,17 +1805,21 @@ static int32_t doSetQualifiedUid(STableListInfo* pListInfo, SArray* pUidList, co
       qDebug("tagfilter get uid:%" PRId64 ", res:%d", uid, pResultList[i]);
 
       info.uid = uid;
+      qInfo("doSetQualifiedUid row:%d added to pTableList", i);
       void* p = taosArrayPush(pListInfo->pTableList, &info);
       if (p == NULL) {
         return terrno;
       }
 
       if (addUid) {
+        qInfo("doSetQualifiedUid row:%d added to pUidList", i);
         void* tmp = taosArrayPush(pUidList, &uid);
         if (tmp == NULL) {
           return terrno;
         }
       }
+    } else {
+      qInfo("doSetQualifiedUid row:%d failed", i);
     }
   }
 
