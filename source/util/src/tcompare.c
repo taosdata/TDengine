@@ -235,7 +235,7 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   taosHexEncode(varDataVal(pLeft), buf1, varDataLen(pLeft), bufSize);
   taosHexEncode(varDataVal(pRight), buf2, varDataLen(pRight), bufSize);
   
-  uInfo("ucs4compare res:%d, left:%d,%s, right:%d,%s", ret, len1, buf1, len2, buf2);
+  uInfo("ucs4compare res:%d, left:%d,%p,[%s], right:%d,%p,[%s]", ret, len1, pLeft, buf1, len2, pRight, buf2);
   
   if (ret == 0) {
     if (len1 > len2)
