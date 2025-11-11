@@ -2375,7 +2375,8 @@ static int32_t extWinAggOutputSingleCGrpRes(SOperatorInfo* pOperator, SExternalW
       continue;
     }
 
-    pCCtx->outWinNum++;
+    pGrpCtx->outWinNum++;
+    //SResultRow* pRow = (SResultRow*)((char*)pExtW->resultRows.pResultRows[0] + pWin->resWinIdx * pExtW->aggSup.resultRowSize);
     SResultRow* pRow = (SResultRow*)((char*)pExtW->resultRows.pResultRows[pWin->resWinIdx / pExtW->resultRows.resRowSize] + (pWin->resWinIdx % pExtW->resultRows.resRowSize) * pExtW->aggSup.resultRowSize);
     
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
