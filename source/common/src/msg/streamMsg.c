@@ -4244,8 +4244,10 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcParam(&decoder, &pReq->params, false));
   TAOS_CHECK_EXIT(tDeserializeStriggerGroupColVals(&decoder, &pReq->groupColVals));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->createTable));
-  TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->isWindowTrigger));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->precision));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->isWindowTrigger));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->precision));
+  }
 
   tEndDecode(&decoder);
 

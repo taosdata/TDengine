@@ -742,52 +742,54 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
     (void)memcpy(pStart, &entry->colId, sizeof(col_id_t));
     pStart += sizeof(col_id_t);
 
-    switch (pValueNode->node.resType.type) {
-      case TSDB_DATA_TYPE_BOOL:
-        (void)memcpy(
-          pStart, &pValueNode->datum.b, pValueNode->node.resType.bytes);
-        pStart += pValueNode->node.resType.bytes;
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_BIGINT:
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        (void)memcpy(
-          pStart, &pValueNode->datum.i, pValueNode->node.resType.bytes);
-        pStart += pValueNode->node.resType.bytes;
-        break;
-      case TSDB_DATA_TYPE_UTINYINT:
-      case TSDB_DATA_TYPE_USMALLINT:
-      case TSDB_DATA_TYPE_UINT:
-      case TSDB_DATA_TYPE_UBIGINT:
-        (void)memcpy(
-          pStart, &pValueNode->datum.u, pValueNode->node.resType.bytes);
-        pStart += pValueNode->node.resType.bytes;
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-      case TSDB_DATA_TYPE_DOUBLE:
-        (void)memcpy(
-          pStart, &pValueNode->datum.d, pValueNode->node.resType.bytes);
-        pStart += pValueNode->node.resType.bytes;
-        break;
-      case TSDB_DATA_TYPE_VARCHAR:
-      case TSDB_DATA_TYPE_VARBINARY:
-      case TSDB_DATA_TYPE_NCHAR:
-        (void)memcpy(pStart,
-          varDataVal(pValueNode->datum.p), varDataLen(pValueNode->datum.p));
-        pStart += varDataLen(pValueNode->datum.p);
-        break;
-      case TSDB_DATA_TYPE_JSON: {
-        int32_t jsonLen = getJsonValueLen(pValueNode->datum.p);
-        (void)memcpy(pStart, varDataVal(pValueNode->datum.p), jsonLen);
-        pStart += jsonLen;
-        break;
+    if (!pValueNode->isNull) {
+      switch (pValueNode->node.resType.type) {
+        case TSDB_DATA_TYPE_BOOL:
+          (void)memcpy(
+            pStart, &pValueNode->datum.b, pValueNode->node.resType.bytes);
+          pStart += pValueNode->node.resType.bytes;
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+        case TSDB_DATA_TYPE_SMALLINT:
+        case TSDB_DATA_TYPE_INT:
+        case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          (void)memcpy(
+            pStart, &pValueNode->datum.i, pValueNode->node.resType.bytes);
+          pStart += pValueNode->node.resType.bytes;
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+        case TSDB_DATA_TYPE_USMALLINT:
+        case TSDB_DATA_TYPE_UINT:
+        case TSDB_DATA_TYPE_UBIGINT:
+          (void)memcpy(
+            pStart, &pValueNode->datum.u, pValueNode->node.resType.bytes);
+          pStart += pValueNode->node.resType.bytes;
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+        case TSDB_DATA_TYPE_DOUBLE:
+          (void)memcpy(
+            pStart, &pValueNode->datum.d, pValueNode->node.resType.bytes);
+          pStart += pValueNode->node.resType.bytes;
+          break;
+        case TSDB_DATA_TYPE_VARCHAR:
+        case TSDB_DATA_TYPE_VARBINARY:
+        case TSDB_DATA_TYPE_NCHAR:
+          (void)memcpy(pStart,
+            varDataVal(pValueNode->datum.p), varDataLen(pValueNode->datum.p));
+          pStart += varDataLen(pValueNode->datum.p);
+          break;
+        case TSDB_DATA_TYPE_JSON: {
+          int32_t jsonLen = getJsonValueLen(pValueNode->datum.p);
+          (void)memcpy(pStart, varDataVal(pValueNode->datum.p), jsonLen);
+          pStart += jsonLen;
+          break;
+        }
+        default:
+          qError("unsupported tag data type %d in tag filter optimization",
+            pValueNode->node.resType.type);
+          return TSDB_CODE_STREAM_INTERNAL_ERROR;
       }
-      default:
-        qError("unsupported tag data type %d in tag filter optimization",
-          pValueNode->node.resType.type);
-        return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
   }
 
@@ -1805,21 +1807,21 @@ static int32_t doSetQualifiedUid(STableListInfo* pListInfo, SArray* pUidList, co
       qDebug("tagfilter get uid:%" PRId64 ", res:%d", uid, pResultList[i]);
 
       info.uid = uid;
-      qInfo("doSetQualifiedUid row:%d added to pTableList", i);
+      //qInfo("doSetQualifiedUid row:%d added to pTableList", i);
       void* p = taosArrayPush(pListInfo->pTableList, &info);
       if (p == NULL) {
         return terrno;
       }
 
       if (addUid) {
-        qInfo("doSetQualifiedUid row:%d added to pUidList", i);
+        //qInfo("doSetQualifiedUid row:%d added to pUidList", i);
         void* tmp = taosArrayPush(pUidList, &uid);
         if (tmp == NULL) {
           return terrno;
         }
       }
     } else {
-      qInfo("doSetQualifiedUid row:%d failed", i);
+      //qInfo("doSetQualifiedUid row:%d failed", i);
     }
   }
 
@@ -1909,6 +1911,8 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     }
     terrno = 0;
   } else {
+    qDebug("pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
+    
     if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) ||
           taosArrayGetSize(pUidTagList) > 0) {
       code = pAPI->metaFn.getTableTagsByUid(pVnode, pListInfo->idInfo.suid, pUidTagList);
@@ -1921,6 +1925,8 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
       QUERY_CHECK_CODE(code, lino, end);
     }
   }
+
+  qDebug("final pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
 
   int32_t numOfTables = taosArrayGetSize(pUidTagList);
   if (numOfTables == 0) {
@@ -1939,7 +1945,7 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     QUERY_CHECK_CODE(code, lino, end);
   }
 
-  fprintDataBlock(pResBlock, "tagFilter", "", 0);
+  //fprintDataBlock(pResBlock, "tagFilter", "", 0);
 
   //  int64_t st1 = taosGetTimestampUs();
   //  qDebug("generate tag block rows:%d, cost:%ld us", rows, st1-st);
@@ -2201,7 +2207,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status, &pStorageAPI->metaFilter);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
-          qDebug("failed to get tableIds from index, suid:%" PRIu64, pScanNode->uid);
+          qDebug("failed to get tableIds from index, suid:%" PRIu64 ", uidListSize:%d", pScanNode->uid, (int32_t)taosArrayGetSize(pUidList));
         } else {
           qDebug("succ to get filter result, table num: %d", (int)taosArrayGetSize(pUidList));
         }
@@ -2235,9 +2241,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       digest[0] = 1;
       memcpy(digest + 1, context.digest, tListLen(context.digest));
     }
-    if (tsStableTagFilterCache && pStreamInfo != NULL &&
-      canCacheTagCondFilter) {
-      qDebug("suid:%" PRIu64 ", %s add uid list to stableTagFilterCache, key:%s, keyLen:%d, condition:%s, uidListSize:%d", 
+    if (tsStableTagFilterCache && isStream && canCacheTagCondFilter) {
+      qInfo("suid:%" PRIu64 ", %s add uid list to stableTagFilterCache, key:%s, keyLen:%d, condition:%s, uidListSize:%d", 
         pScanNode->suid, idstr, pTagCondKey, tagCondKeyLen, pTagCondStr, (int32_t)taosArrayGetSize(pUidList));
       code = pStorageAPI->metaFn.putStableCachedTableList(
         pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
@@ -3074,6 +3079,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   if (readHandle->winRangeValid) {
     pCond->twindows = readHandle->winRange;
   }
+  pCond->cacheSttStatis = readHandle->cacheSttStatis;
   // allowed read stt file optimization mode
   pCond->notLoadData = (pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD) &&
                        (pTableScanNode->scan.node.pConditions == NULL) && (pTableScanNode->interval == 0);
