@@ -261,6 +261,7 @@ typedef struct {
   int8_t calcNotifyOnly;
   int8_t lowLatencyCalc;
   int8_t igNoDataTrigger;
+  int8_t enableMultiGroupCalc;
 
   // notify options
   SArray* pNotifyAddrUrls;

@@ -527,7 +527,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (pRealTable->placeholderType == SP_PARTITION_ROWS) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
-                               &pCxt->pPlanCxt->streamTriggerScanList);
+                               &pCxt->pPlanCxt->streamCxt.triggerScanList);
   }
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
@@ -1187,7 +1187,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     PLAN_ERR_JRET(terrno);
   }
 
-  if (pCxt->pPlanCxt->streamCalcQuery && pSelect->pTimeRange != NULL) {
+  if (inStreamCalcClause(pCxt->pPlanCxt) && pSelect->pTimeRange != NULL) {
     // ts column might be extract from where to time range. So, ts column won't be collected into pVtableScan->pScanCols.
     PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
   }
@@ -1285,7 +1285,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       break;
     case TSDB_VIRTUAL_NORMAL_TABLE:
     case TSDB_VIRTUAL_CHILD_TABLE: {
-      if (pCxt->pPlanCxt->streamCalcQuery) {
+      if (inStreamCalcClause(pCxt->pPlanCxt)) {
         PLAN_ERR_JRET(createVirtualSuperTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
       } else {
         PLAN_ERR_JRET(createVirtualNormalChildTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
@@ -1295,7 +1295,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
     default:
       PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_TABLE_TYPE);
   }
-  pCxt->pPlanCxt->streamVtableCalc = true;
+  pCxt->pPlanCxt->streamCxt.isVtableCalc = true;
 
   return code;
 _return:
@@ -2188,7 +2188,7 @@ static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   PAR_ERR_RET(conditionHasPlaceHolder(pSelect->pWhere, &hasPlaceHolderCond));
 
   if (hasPlaceHolderCond || !pSelect->pExtWindow || NULL != pSelect->pGroupByList ||
-      !pCxt->pPlanCxt->streamCalcQuery ||
+      !inStreamCalcClause(pCxt->pPlanCxt) ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
@@ -2196,7 +2196,20 @@ static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect
       !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
     nodesDestroyNode(pSelect->pExtWindow);
     pSelect->pExtWindow = NULL;
+    pCxt->pPlanCxt->streamCxt.hasExtWindow = false;
   }
+
+  if (pCxt->pPlanCxt->streamCxt.hasNotify || pCxt->pPlanCxt->streamCxt.hasForceOutput) {
+    // stream has notify or force output, external window node must be the root node, if not, do not use external window
+    if (pSelect->pFill || pSelect->hasInterpFunc || pSelect->hasForecastFunc || pSelect->hasImputationFunc ||
+        pSelect->isDistinct || pSelect->pOrderByList) {
+      nodesDestroyNode(pSelect->pExtWindow);
+      pSelect->pExtWindow = NULL;
+      pCxt->pPlanCxt->streamCxt.hasExtWindow = false;
+    }
+  }
+
+  pCxt->pPlanCxt->streamCxt.hasExtWindow = true;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2469,7 +2482,7 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
-  if (pCxt->pPlanCxt->streamCalcQuery &&
+  if (inStreamCalcClause(pCxt->pPlanCxt) &&
       nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     pSort->skipPKSortOpt = true;

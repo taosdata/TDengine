@@ -2522,6 +2522,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
       break;
     }
   }
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->enableMultiGroupCalc));
 
 _exit:
 
@@ -2824,6 +2825,9 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
       break;
   }
 
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->enableMultiGroupCalc));
+  }
 
 _exit:
 
