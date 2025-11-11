@@ -3069,6 +3069,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   if (readHandle->winRangeValid) {
     pCond->twindows = readHandle->winRange;
   }
+  pCond->cacheSttStatis = readHandle->cacheSttStatis;
   // allowed read stt file optimization mode
   pCond->notLoadData = (pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD) &&
                        (pTableScanNode->scan.node.pConditions == NULL) && (pTableScanNode->interval == 0);

@@ -365,6 +365,7 @@ static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
   pScanBaseInfo->readHandle.uid = pHandle->uid;
   pScanBaseInfo->readHandle.winRangeValid = pHandle->winRangeValid;
   pScanBaseInfo->readHandle.winRange = pHandle->winRange;
+  pScanBaseInfo->readHandle.cacheSttStatis = pHandle->cacheSttStatis;
 }
 
 int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
@@ -1837,52 +1838,11 @@ end:
   return code;
 }
 
-// int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid, TdThreadRwlock* lock) {
-//   int32_t index = -1;
-//   (void)taosThreadRwlockRdlock(lock);
-//   if (((STableListInfo*)pTableListInfo)->groupOffset == NULL){
-//     index = 0;
-//     goto end;
-//   }
-//   for (int32_t i = 0; i < ((STableListInfo*)pTableListInfo)->numOfOuputGroups; ++i) {
-//     int32_t offset = ((STableListInfo*)pTableListInfo)->groupOffset[i];
-
-//     STableKeyInfo* pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, offset);
-//     if (pKeyInfo != NULL && pKeyInfo->groupId == gid) {
-//       index = i;
-//       goto end;
-//     }
-//   }
-// end:
-//   (void)taosThreadRwlockUnlock(lock);
-//   return index;
-// }
-
 void qStreamDestroyTableList(void* pTableListInfo) { tableListDestroy(pTableListInfo); }
 SArray*  qStreamGetTableListArray(void* pTableListInfo) {
   STableListInfo* pList = pTableListInfo;
   return pList->pTableList;
 }
-// int32_t qStreamGetTableListGroupNum(const void* pTableList, TdThreadRwlock* lock) { 
-//   (void)taosThreadRwlockRdlock(lock);
-//   int32_t code = ((STableListInfo*)pTableList)->numOfOuputGroups; 
-//   (void)taosThreadRwlockUnlock(lock);
-//   return code; 
-// }
-
-// void    qStreamSetTableListGroupNum(void* pTableList, int32_t groupNum, TdThreadRwlock* lock) {
-//   (void)taosThreadRwlockWrlock(lock);
-//   ((STableListInfo*)pTableList)->numOfOuputGroups = groupNum; 
-//   (void)taosThreadRwlockUnlock(lock);
-// }
-
-// SArray* qStreamGetTableArrayList(const void* pTableList, TdThreadRwlock* lock) { 
-//   SArray* pList = NULL;
-//   (void)taosThreadRwlockRdlock(lock); 
-//   pList = ((STableListInfo*)pTableList)->pTableList;
-//   (void)taosThreadRwlockUnlock(lock);
-//   return pList;
-// }
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }
 
