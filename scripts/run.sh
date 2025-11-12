@@ -459,9 +459,9 @@ if [ ${send2feishu_enabled} == "True" ] ;then
         result='success'
     fi
     if [[ ${t_file} =~ "query" ]];then
-        owner="guoxy"
+        owner="Platform TSDB Test"
     elif [[ ${t_file} =~ "insert" ]];then
-        owner="Jayden Jia"
+        owner="Platform TSDB Test"
     elif [[ ${t_file} =~ "taox" ]];then
         owner="jiacy"
     else
