@@ -473,12 +473,10 @@ _exit:
 }
 
 void tFreeRunnerOReaderDeployReq(void* param) {
-  if (NULL == param || NULL == *(void**)param) {
-    return;
-  }
-
   SStreamOReaderDeployReq* pReq = (SStreamOReaderDeployReq*)param;
-  taosArrayDestroy(pReq->vgIds);
+  if (pReq) {
+    taosArrayDestroy(pReq->vgIds);
+  }
 }
 
 void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq) {
