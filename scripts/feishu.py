@@ -62,7 +62,7 @@ def send_msg(result, testScope, owner, hostname, startTime, endTime, gitCommit, 
 def main():
     result = 'success'
     testScope= 'query'
-    owner = 'guoxy'
+    owner = 'Platform TSDB Test'
     hostname = socket.gethostname()    
     startTime =  datetime.now()
     gitCommit = 'baf098267f4083fb53b56'
