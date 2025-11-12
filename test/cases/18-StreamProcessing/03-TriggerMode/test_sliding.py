@@ -222,15 +222,12 @@ class TestStreamSlidingTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_sliding_trigger(self):
-        """Sliding:
+        """Options: sliding
         
-        1. create table
-        2. insert data
-        3. craete steam
-        4. check result
-        
-        Catalog:
-            - Streams:TriggerMode
+        1. Create stream with sliding trigger mode, different partition by columns and sliding time.
+        2. Execute various queries on the stream with different calculation tables and validate the results.
+        3. Validate the results against expected outputs or result files.
+        4. Clean up the created streams and databases after test execution.
 
         Since: v3.3.3.7
 

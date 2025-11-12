@@ -9,7 +9,7 @@ class TestWriteOutOfOrderData:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_write_out_of_order_data(self):
-        """Write: out of order data
+        """Write expired data
 
         1. Write out-of-order and expired data, including:
             Data distributed across multiple files

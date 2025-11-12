@@ -7,12 +7,15 @@ class TestUnion:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_ts6660(self):
-        """union with order by
+        """Operator union order by
 
-        test for ORDER BY column check in UNION
-
-        Catalog:
-            - Query:Union
+        1. Create 1 database 1 stable 2 subtables
+        2. Insert data into 2 subtables 1 rows each
+        3. Use union operator to combine the result from 2 subtables
+        4. Use order by pseudo columns tbname, _wstart in union query
+        5. Use number column in order by clause in union query
+        6. Check error when order by column is not in select columns in union query
+        
 
         Since: v3.0.0.0
 
@@ -112,12 +115,13 @@ class TestUnion:
         tdSql.checkRows(6)
 
     def test_setOp_orderBy_pseudo(self):
-        """union operator and order by pseudo functions like tbname, _wstart, etc.
+        """Operator union
 
-        1. -
-
-        Catalog:
-            - Query:Union
+        1. Create 1 database 1 stable 3 subtables
+        2. Insert data into 3 subtables 1 rows each
+        3. Use union operator to combine the result from 3 subtables
+        4. Use order by pseudo columns tbname, _wstart in union query
+        
 
         Since: v3.0.0.0
 
@@ -189,13 +193,13 @@ class TestUnion:
                     order by ts;") # use alias
 
     def test_setOp_orderby_normal_func(self):
-        """union operator and order by normal functions like math, string functions.
+        """Operator union order by functions
 
-        1. -
-
-        Catalog:
-            - Query:Union
-
+        1. Create 1 database 1 stable 3 subtables
+        2. Insert data into 3 subtables 1 rows each
+        3. Use union operator to combine the result from 3 subtables
+        4. Use normal functions abs(), ltrim(), lower() in order by clause in union query
+        
         Since: v3.0.0.0
 
         Labels: set operator, order by, normal function

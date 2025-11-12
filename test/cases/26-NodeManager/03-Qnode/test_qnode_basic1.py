@@ -8,14 +8,12 @@ class TestQnodeBasic1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_qnode_basic1(self):
-        """basic test
+        """Qnode basic
 
         1. Repeated create and drop qnodes
         2. Check the results of ins_qnodes
         3. Restart the dnode and check the results of the qnode
 
-        Catalog:
-            - ManageNodes:Qnode
 
         Since: v3.0.0.0
 

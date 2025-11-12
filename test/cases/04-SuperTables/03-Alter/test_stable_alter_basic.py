@@ -799,7 +799,7 @@ class TestStableAlterBasic:
         tdSql.checkData(1, 3, 101)
 
     def test_stable_alter_basic(self):
-        """Alter Super Table Basic
+        """Alter basic
 
         1. Add Modify Drop Column
         2. Add Modify Drop Rename Tag

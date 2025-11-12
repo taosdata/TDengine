@@ -208,7 +208,7 @@ class TestDeleteNormaltable:
             tdSql.execute(f'drop table {self.ntbname}')
         tdSql.execute(f'drop database {self.dbname}')
     def test_delete_normaltable(self):
-        """Delete Data in Normal Table
+        """Delete normal table
 
         1. Create normal table
         2. Insert data into normal table
