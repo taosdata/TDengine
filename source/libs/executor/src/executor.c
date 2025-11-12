@@ -521,10 +521,9 @@ _end:
     pAPI->metaReaderFn.clearReader(&mr);
   }
   (*ppArrayRes) = qa;
+_error:
 
   taosArrayDestroy(tUid);
-
-_error:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
