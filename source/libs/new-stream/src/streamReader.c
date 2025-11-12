@@ -507,8 +507,6 @@ static void releaseStreamReaderInfo(void* p) {
   pInfo->calcBlock = NULL;
   blockDataDestroy(pInfo->metaBlock);
   pInfo->metaBlock = NULL;
-  tSimpleHashCleanup(pInfo->indexHash);
-  pInfo->indexHash = NULL;
   taosHashCleanup(pInfo->pTableMetaCacheTrigger);
   taosHashCleanup(pInfo->pTableMetaCacheCalc);
   (void)taosThreadRwlockDestroy(&pInfo->lock);
@@ -703,8 +701,6 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->triggerBlock));
   SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, INT16_MIN); // ver
   STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerBlock, &idata));
-  sStreamReaderInfo->indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->indexHash, terrno);
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
