@@ -584,7 +584,7 @@ function lcovFunc {
             fi
             
             # 打印当前处理的模式
-            # echo "处理排除模式 $exclude_count: $file_pattern"
+            echo "处理排除模式 $exclude_count: $file_pattern"
             exclude_patterns="$exclude_patterns '$file_pattern'"
             ((exclude_count++))
         done < "$TDENGINE_DIR/test/ci/coverage.txt"
