@@ -13,12 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "taos.h"
 #include "tlrucache.h"
 #include "tsdb.h"
 #include "tsdbFSet2.h"
 #include "tsdbMerge.h"
 #include "tsdbReadUtil.h"
 #include "tsdbSttFileRW.h"
+#include "ttypes.h"
 
 typedef struct SSttStatisCacheKey {
   int64_t suid;
@@ -118,11 +120,20 @@ void destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   pInfo->pin = false;
 
   taosArrayDestroy(pLoadInfo->info.pUid);
-  taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
-  taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
   taosArrayDestroy(pLoadInfo->info.pCount);
   taosArrayDestroy(pLoadInfo->info.pFirstTs);
   taosArrayDestroy(pLoadInfo->info.pLastTs);
+
+  if (taosArrayGetSize(pLoadInfo->info.pFirstKey) > 0) {
+    SValue *pVal = taosArrayGet(pLoadInfo->info.pFirstKey, 0);
+    if (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) {
+      taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
+      taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
+    } else {
+      taosArrayDestroy(pLoadInfo->info.pFirstKey);
+      taosArrayDestroy(pLoadInfo->info.pLastKey);
+    }
+  }
 
   pLoadInfo->info.pUid = NULL;
   pLoadInfo->info.pFirstKey = NULL;
@@ -1367,8 +1378,6 @@ void freeStatisFileItems(const void* key, size_t keyLen, void* value, void* ud) 
   SSttStatisCacheKey *  pKey = (SSttStatisCacheKey *)key;
   SSttStatisCacheValue *pVal = value;
 
-  // tsdbTrace("start to free cache statis, vgId:%d, uid:%"PRIu64", fid:%d", pKey->vgId, pKey->suid, pKey->fid);
-
   for(int32_t i = 0; i < taosArrayGetSize(pVal->pLevel); ++i) {
     SArray* pInfos = taosArrayGetP(pVal->pLevel, i);
 
@@ -1428,13 +1437,15 @@ static int32_t dupPlayload(SValue *p){
 }
 
 int32_t sttRowInfoDeepCopy(SSttTableRowsInfo *pDst, SSttTableRowsInfo *pInfo, int32_t numOfPKs) {
+  int32_t code = 0;
+
   pDst->pCount = taosArrayDup(pInfo->pCount, NULL);
   pDst->pFirstKey = taosArrayDup(pInfo->pFirstKey, NULL);
   pDst->pLastKey = taosArrayDup(pInfo->pLastKey, NULL);
   pDst->pFirstTs = taosArrayDup(pInfo->pFirstTs, NULL);
   pDst->pLastTs = taosArrayDup(pInfo->pLastTs, NULL);
   pDst->pUid = taosArrayDup(pInfo->pUid, NULL);
-  int32_t code = 0;
+  
   if (numOfPKs > 0) {
     int32_t len = taosArrayGetSize(pDst->pCount);
     for (int32_t i = 0; i < len; ++i) {

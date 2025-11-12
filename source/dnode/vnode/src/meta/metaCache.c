@@ -952,8 +952,10 @@ _end:
       TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {
     metaDebug(
-      "vgId:%d, suid:%" PRIu64 " stable tag filter cache dropped from cache",
-      TD_VID(pMeta->pVnode), suid);
+      "vgId:%d, suid:%" PRIu64 " stable tag filter cache dropped from cache"
+      "left stable num:%d, tag conditions num:%" PRIu32,
+      TD_VID(pMeta->pVnode), suid, (int32_t)taosHashGetSize(pTableEntry),
+      pMeta->pCache->sStableTagFilterResCache.numTagDataEntries);
   }
   code = taosThreadRwlockUnlock(pRwlock);
   if (TSDB_CODE_SUCCESS != code) {
@@ -963,28 +965,68 @@ _end:
   return code;
 }
 
-static int32_t buildTagDataEntryKey(
-  const SArray* pColIds, STag* pTag, T_MD5_CTX* pContext) {
+static int32_t getTagColSize(
+  const SSchema* pTagSchemas, int32_t nTagCols, col_id_t cid) {
+  for (int32_t i = 0; i < nTagCols; i++) {
+    if (pTagSchemas[i].colId == cid) {
+      return pTagSchemas[i].bytes;
+    }
+  }
+  return 0;
+}
+
+// when encode nchar tag into tag data entry key, need to convert it to var type
+static FORCE_INLINE int32_t ncharToVar(char *pData, int32_t nData, char **ppOut) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+  char *t = taosMemoryCalloc(1, nData + VARSTR_HEADER_SIZE);
+  if (NULL == t) {
+    return terrno;
+  }
+  int32_t len = taosUcs4ToMbs(
+    (TdUcs4 *)pData, nData, varDataVal(t), NULL);
+  if (len < 0) {
+    taosMemoryFree(t);
+    return TSDB_CODE_SCALAR_CONVERT_ERROR;
+  }
+  varDataSetLen(t, len);
+
+  *ppOut = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+  memcpy(*ppOut, t, len + VARSTR_HEADER_SIZE);
+
+_return:
+  taosMemoryFree(t);
+  return code;
+}
+
+static int32_t buildTagDataEntryKey(const SArray* pColIds, const STag* pTag,
+  const SSchemaWrapper* pTagScheam, T_MD5_CTX* pContext) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t keyLen = 0;
+  char* pKey = NULL;
   // get length first
   for (int32_t i = 0; i < taosArrayGetSize(pColIds); i++) {
     STagVal pTagValue = {.cid = *(col_id_t*)taosArrayGet(pColIds, i)};
     if (tTagGet(pTag, &pTagValue)) {
       keyLen += sizeof(col_id_t);
       if (IS_VAR_DATA_TYPE(pTagValue.type)) {
-        keyLen += pTagValue.nData;
+        int32_t varLen = getTagColSize(
+          pTagScheam->pSchema, pTagScheam->nCols, pTagValue.cid);
+        code = varLen > 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_NOT_FOUND;
+        QUERY_CHECK_CODE(code, lino, _end);
+        keyLen += varLen;
       } else {
         keyLen += tDataTypes[pTagValue.type].bytes;
       }
     } else {
       // tag value not found
       code = TSDB_CODE_NOT_FOUND;
-      return code;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
-  char* pKey = taosMemoryCalloc(1, keyLen);
+  pKey = taosMemoryCalloc(1, keyLen);
   if (NULL == pKey) {
     code = terrno;
     return code;
@@ -1000,19 +1042,26 @@ static int32_t buildTagDataEntryKey(
       pStart += sizeof(col_id_t);
       // copy value
       if (IS_VAR_DATA_TYPE(pTagValue.type) && pTagValue.pData != NULL) {
-        int32_t varLen = pTagValue.nData;
-        memcpy(pStart, pTagValue.pData, varLen);
-        pStart += varLen;
+        if (TSDB_DATA_TYPE_NCHAR == pTagValue.type) {
+          // need to convert nchar to var
+          char *pVar = NULL;
+          code = ncharToVar((char *)pTagValue.pData, pTagValue.nData, &pVar);
+          QUERY_CHECK_CODE(code, lino, _end);
+          memcpy(pStart, varDataVal(pVar), varDataLen(pVar));
+          pStart += varDataLen(pVar);
+          taosMemoryFree(pVar);
+        } else {
+          memcpy(pStart, pTagValue.pData, pTagValue.nData);
+          pStart += pTagValue.nData;
+        }
       } else {
-        int32_t typeLen = tDataTypes[pTagValue.type].bytes;
-        memcpy(pStart, &pTagValue.i64, typeLen);
-        pStart += typeLen;
+        memcpy(pStart, &pTagValue.i64, tDataTypes[pTagValue.type].bytes);
+        pStart += tDataTypes[pTagValue.type].bytes;
       }
     } else {
       // tag value not found
-      taosMemoryFree(pKey);
       code = TSDB_CODE_NOT_FOUND;
-      return code;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 
@@ -1021,6 +1070,7 @@ static int32_t buildTagDataEntryKey(
   tMD5Update(pContext, (uint8_t*)pKey, (uint32_t)keyLen);
   tMD5Final(pContext);
 
+_end:
   taosMemFreeClear(pKey);
   return code;
 }
@@ -1028,8 +1078,9 @@ static int32_t buildTagDataEntryKey(
 // remove the dropped table uid from all cache entries
 // pDroppedTable is the dropped child table meta entry
 int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
-  const SMetaEntry* pDroppedTable, ETagFilterCacheAction action) {
-  if (pMeta == NULL || pDroppedTable == NULL) {
+  const SMetaEntry* pChildTable, const SMetaEntry* pSuperTable,
+  ETagFilterCacheAction action) {
+  if (pMeta == NULL || pChildTable == NULL || pSuperTable == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t   lino = 0;
@@ -1040,7 +1091,7 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
   code = taosThreadRwlockWrlock(pRwlock);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  tb_uid_t suid = pDroppedTable->ctbEntry.suid;;
+  tb_uid_t suid = pChildTable->ctbEntry.suid;;
   STagConds** pTagConds =
     (STagConds**)taosHashGet(pTableEntry, &suid, sizeof(tb_uid_t));
   if (pTagConds != NULL) {
@@ -1053,11 +1104,12 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
       int32_t keyLen = 0;
       char*   pKey = NULL;
       T_MD5_CTX context = {0};
-      code = buildTagDataEntryKey(pColIds, (STag*)pDroppedTable->ctbEntry.pTags, &context);
+      code = buildTagDataEntryKey(pColIds, (STag*)pChildTable->ctbEntry.pTags, 
+        &pSuperTable->stbEntry.schemaTag, &context);
       if (code != TSDB_CODE_SUCCESS) {
-        metaError("vgId:%d, suid:%" PRIu64 " failed to build tag condition key for dropped table uid:%" PRIu64
-          " since %s",
-          TD_VID(pMeta->pVnode), suid, pDroppedTable->uid, tstrerror(code));
+        metaError("vgId:%d, suid:%" PRIu64 " failed to build tag condition"
+          " key for dropped table uid:%" PRIu64 " since %s",
+          TD_VID(pMeta->pVnode), suid, pChildTable->uid, tstrerror(code));
         goto _end;
       }
 
@@ -1069,17 +1121,18 @@ int32_t metaStableTagFilterCacheUpdateUid(SMeta* pMeta,
         if (action == STABLE_TAG_FILTER_CACHE_DROP_TABLE) {
           for (int32_t i = 0; i < taosArrayGetSize(*pArray); i++) {
             uint64_t uid = *(uint64_t*)taosArrayGet(*pArray, i);
-            if (uid == pDroppedTable->uid) {
+            if (uid == pChildTable->uid) {
               taosArrayRemove(*pArray, i);
-              metaDebug("vgId:%d, suid:%" PRIu64 " removed dropped table uid:%" PRIu64
+              metaDebug("vgId:%d, suid:%" PRIu64
+                " removed dropped table uid:%" PRIu64
                 " from stable tag filter cache",
-                TD_VID(pMeta->pVnode), suid, pDroppedTable->uid);
+                TD_VID(pMeta->pVnode), suid, pChildTable->uid);
               break;
             } 
           }
         } else {
           // STABLE_TAG_FILTER_CACHE_ADD_TABLE
-          void* _tmp = taosArrayPush(*pArray, &pDroppedTable->uid);
+          void* _tmp = taosArrayPush(*pArray, &pChildTable->uid);
         }
       }
     }
@@ -1094,7 +1147,7 @@ _end:
       "vgId:%d, suid:%" PRIu64 " update table uid:%" PRIu64
       " in stable tag filter cache, action:%d",
       TD_VID(pMeta->pVnode),
-      pDroppedTable->ctbEntry.suid, pDroppedTable->uid, action);
+      pChildTable->ctbEntry.suid, pChildTable->uid, action);
   }
   code = taosThreadRwlockUnlock(pRwlock);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1104,8 +1157,8 @@ _end:
   return code;
 }
 
-int32_t metaStableTagFilterCacheDropTag(SMeta* pMeta,
-  tb_uid_t suid, col_id_t cid) {
+int32_t metaStableTagFilterCacheDropTag(
+  SMeta* pMeta, tb_uid_t suid, col_id_t cid) {
   if (pMeta == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
