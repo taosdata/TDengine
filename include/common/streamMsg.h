@@ -840,6 +840,7 @@ typedef struct SSTriggerWalMetaNewRequest {
 
 typedef struct SSTriggerWalNewRsp {
   SSHashObj*           indexHash;
+  SSHashObj*           uidHash;
   void*                dataBlock;
   void*                metaBlock;
   void*                deleteBlock;
