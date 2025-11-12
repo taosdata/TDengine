@@ -59,7 +59,7 @@ typedef enum {
 
 #define SCH_DEFAULT_TASK_TIMEOUT_USEC 30000000
 #define SCH_MAX_TASK_TIMEOUT_USEC     300000000
-#define SCH_DEFAULT_MAX_RETRY_NUM     6
+#define SCH_DEFAULT_MAX_RETRY_NUM     12
 #define SCH_MIN_AYSNC_EXEC_NUM        3
 #define SCH_DEFAULT_RETRY_TOTAL_ROUND 3
 #define SCH_DEFAULT_TASK_CAPACITY_NUM 1000
@@ -210,11 +210,8 @@ typedef struct SSchTaskProfile {
 } SSchTaskProfile;
 
 typedef struct SSchRedirectCtx {
-  int32_t periodMs;
+  int32_t redirectDelayMs;
   bool    inRedirect;
-  int32_t totalTimes;
-  int32_t roundTotal;
-  int32_t roundTimes;  // retry times in current round
   int64_t startTs;
 } SSchRedirectCtx;
 
@@ -680,8 +677,10 @@ int32_t  schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp);
 int32_t  schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode);
 int32_t  schChkResetJobRetry(SSchJob *pJob, int32_t rspCode);
 void     schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask);
-int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, int32_t rspCode);
+int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, bool resetRetry);
 int32_t  schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
+int32_t  schFailedTaskNeedRetry(SSchTask *pTask, SSchJob *pJob, int32_t rspCode);
+int32_t  schGetTaskCurrentNodeAddr(SSchTask *pTask, SSchJob *pJob, SQueryNodeAddr **ppAddr);
 
 extern SSchDebug gSCHDebug;
 
