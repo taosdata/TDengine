@@ -145,7 +145,7 @@ int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, Strea
     STREAM_CHECK_RET_GOTO(qStreamSetTableList(dst, info->uid, info->groupId, element != NULL ? element->suid : 0));
   }
 end:
-   taosRLockLatch(&sStreamReaderInfo->lock);
+   taosRUnLockLatch(&sStreamReaderInfo->lock);
   return code;
 }
 
