@@ -407,6 +407,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
 typedef struct {
   tb_uid_t tableUid;
   tb_uid_t childUid;
+  int8_t   check;
 } STqPair;
 
 static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const SArray* tableIdList, const char* idstr,
@@ -468,12 +469,13 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       }
     }
 
+    STqPair item = {.tableUid = *id, .childUid = mr.me.uid, .check = 0};
     if (pScanInfo->pTagCond != NULL) {
-      //tb_uid_t id = mr.me.uid;
-      STqPair item = {.tableUid = *id, .childUid = mr.me.uid}; 
-      if (taosArrayPush(tUid, &item) == NULL) {
-        QUERY_CHECK_NULL(NULL, code, lino, _end, terrno);
-      }
+      // tb_uid_t id = mr.me.uid;
+      item.check = 1;
+    }
+    if (taosArrayPush(tUid, &item) == NULL) {
+      QUERY_CHECK_NULL(NULL, code, lino, _end, terrno);
     }
   }
 
@@ -487,16 +489,19 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       continue;
     }
 
-    STableKeyInfo info = {.groupId = 0, .uid = t->childUid};
-    code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
-      continue;
+    if (t->check == 1) {
+      STableKeyInfo info = {.groupId = 0, .uid = t->childUid};
+      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
+        continue;
+      }
+
+      if (!qualified) {
+        continue;
+      }
     }
 
-    if (!qualified) {
-      continue;
-    }
     void* tmp = taosArrayPush(qa, &t->tableUid);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
@@ -516,6 +521,7 @@ _error:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
 }
 
 int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
