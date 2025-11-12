@@ -9,9 +9,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
-100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
-100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal64.py
-100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal_last.py
+200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
+200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal64.py
+200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal_last.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py
@@ -539,9 +539,9 @@
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_1.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_2.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_event.py
-,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_sliding.py
+100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_sliding.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_session.py
-,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_state.py
+100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_state.py
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_usage_restrict.py
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_vtable_change.py
 ## 08-Recalc
