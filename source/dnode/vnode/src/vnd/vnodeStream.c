@@ -2809,6 +2809,7 @@ static int32_t vnodeProcessStreamWalCalcDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
     blockDataTransform(pBlock2, resultRsp.dataBlock);
     blockDataDestroy(resultRsp.dataBlock);
     resultRsp.dataBlock = pBlock2;
+    pBlock2 = NULL;
   }
 
   size = tSerializeSStreamWalDataResponse(NULL, 0, &resultRsp);
