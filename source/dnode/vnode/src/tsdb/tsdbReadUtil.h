@@ -313,6 +313,13 @@ typedef struct SBrinRecordIter {
   SBrinRecord      record;
 } SBrinRecordIter;
 
+typedef struct STableFirstLastTsIter {
+  STsdbReader* pReader;
+  SHashObj*    pIgnoreTables;
+  SSDataBlock* pBlock;
+  bool         hasNext;
+} STableFirstLastTsIter;
+
 int32_t uidComparFunc(const void* p1, const void* p2);
 int32_t getTableBlockScanInfo(SSHashObj* pTableMap, uint64_t uid, STableBlockScanInfo** pInfo, const char* id);
 

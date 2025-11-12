@@ -36,8 +36,7 @@ void initStorageAPI(SStorageAPI* pAPI) {
 }
 
 void initTsdbReaderAPI(TsdReader* pReader) {
-  pReader->tsdReaderOpen = (int32_t(*)(void*, SQueryTableDataCond*, void*, int32_t, SSDataBlock*, void**, const char*,
-                                       SHashObj**))tsdbReaderOpen2;
+  pReader->tsdReaderOpen = tsdbReaderOpen2;
   pReader->tsdReaderClose = tsdbReaderClose2;
 
   pReader->tsdNextDataBlock = tsdbNextDataBlock2;
@@ -66,6 +65,11 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->fileSetReadNext = tsdbFileSetReaderNext;
   pReader->fileSetGetEntryField = tsdbFileSetGetEntryField;
   pReader->fileSetReaderClose = tsdbFileSetReaderClose;
+
+  // retrieve first/last ts for each table
+  pReader->tsdCreateFirstLastTsIter = tsdbCreateFirstLastTsIter;
+  pReader->tsdNextFirstLastTsBlock = tsdbNextFirstLastTsBlock;
+  pReader->tsdDestroyFirstLastTsIter = tsdbDestroyFirstLastTsIter;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {

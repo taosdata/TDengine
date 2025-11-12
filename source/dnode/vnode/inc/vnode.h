@@ -192,8 +192,10 @@ void     tsdbReaderSetCloseFlag(STsdbReader *pReader);
 int64_t  tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
 void     tsdbSetFilesetDelimited(STsdbReader *pReader);
 void     tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn notifyFn, void *param);
-int32_t  tsdbReaderGetProgress(const STsdbReader *pReader, void **pBuf, uint64_t *pLen);
-int32_t  tsdbReaderSetProgress(STsdbReader *pReader, const void *buf, uint64_t len);
+int32_t  tsdbCreateFirstLastTsIter(void *pVnode, STimeWindow *pWindow, SVersionRange *pVerRange, uint64_t suid, void *pTableList,
+                                   int32_t numOfTables, int32_t order, void **pIter, const char *idstr);
+int32_t  tsdbNextFirstLastTsBlock(void *pIter, SSDataBlock *pRes);
+void     tsdbDestroyFirstLastTsIter(void *pIter);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
