@@ -1059,7 +1059,7 @@ class Test_IDMP_Meters:
         objects = [
             # table                 cnt avg  sum
             ["result_stream4", 10, 400, 2000],
-            ["result_stream4_sub1", 10, 400, 2000], # ci randomly failed
+            ["result_stream4_sub1", 10, 400, 2000],
         ]
         nrow = 11
 
