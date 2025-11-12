@@ -4505,7 +4505,7 @@ void tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr) {
   ptr->infos = NULL;
 }
 
-int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp) {
+int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp, int32_t vgId) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -4521,6 +4521,7 @@ int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsRe
     STsInfo* tsInfo = taosArrayGet(pRsp->tsInfo, i);
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, tsInfo->gId));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, tsInfo->ts));
+    TAOS_CHECK_EXIT(tSerializeStriggerGroupColVals(&encoder, tsInfo->groupInfo.gInfo, vgId));
   }
 
   tEndEncode(&encoder);

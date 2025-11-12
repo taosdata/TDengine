@@ -1030,9 +1030,27 @@ typedef struct SStreamRuntimeFuncInfo {
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool full);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
+
+typedef struct SStreamGroupValue {
+  SValue        data;
+  bool          isNull;
+  bool          isTbname;
+  int64_t       uid;
+  int32_t       vgId;
+} SStreamGroupValue;
+
+typedef struct SStreamGroupInfo {
+  SArray* gInfo;  // SArray<SStreamGroupValue>
+} SStreamGroupInfo;
+
+int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo, int32_t vgId);
+int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
+void    tDestroySStreamGroupValue(void *ptr);
+
 typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;
+  SStreamGroupInfo groupInfo;
 } STsInfo;
 
 typedef struct VTableInfo {
@@ -1056,7 +1074,7 @@ typedef struct SStreamTsResponse {
   SArray* tsInfo;  // SArray<STsInfo>
 } SStreamTsResponse;
 
-int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
+int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp, int32_t vgId);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
 typedef struct SStreamWalDataSlice {
@@ -1073,22 +1091,6 @@ typedef struct SStreamWalDataResponse {
 
 int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock);
 int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* pRsp, SArray* pSlices);
-
-typedef struct SStreamGroupValue {
-  SValue        data;
-  bool          isNull;
-  bool          isTbname;
-  int64_t       uid;
-  int32_t       vgId;
-} SStreamGroupValue;
-
-typedef struct SStreamGroupInfo {
-  SArray* gInfo;  // SArray<SStreamGroupValue>
-} SStreamGroupInfo;
-
-int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo, int32_t vgId);
-int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
-void    tDestroySStreamGroupValue(void *ptr);
 
 typedef enum EValueType {
   SCL_VALUE_TYPE_NULL = 0,

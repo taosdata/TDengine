@@ -15,6 +15,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <taos.h>
 #include <tdef.h>
 #include "executor.h"
@@ -250,15 +251,23 @@ end:
   return code;
 }
 
-static int32_t buildTsRsp(const SStreamTsResponse* tsRsp, void** data, size_t* size) {
+static void destroyTsInfo(void *p) {
+  if (NULL == p) {
+    return;
+  }
+  STsInfo* tsInfo = (STsInfo *)p;
+  taosArrayDestroyEx(tsInfo->groupInfo.gInfo, tDestroySStreamGroupValue);
+}
+
+static int32_t buildTsRsp(const SStreamTsResponse* tsRsp, void** data, size_t* size, int32_t vgId) {
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf = NULL;
-  int32_t len = tSerializeSStreamTsResponse(NULL, 0, tsRsp);
+  int32_t len = tSerializeSStreamTsResponse(NULL, 0, tsRsp, vgId);
   STREAM_CHECK_CONDITION_GOTO(len <= 0, TSDB_CODE_INVALID_PARA);
   buf = rpcMallocCont(len);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
-  int32_t actLen = tSerializeSStreamTsResponse(buf, len, tsRsp);
+  int32_t actLen = tSerializeSStreamTsResponse(buf, len, tsRsp, vgId);
   STREAM_CHECK_CONDITION_GOTO(actLen != len, TSDB_CODE_INVALID_PARA);
   *data = buf;
   *size = len;
@@ -2041,6 +2050,32 @@ end:
   return code;
 }
 
+static int32_t buildGroupVal(SHashObj* groupIdMap, STsInfo* tsInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SArray** gInfo = taosHashAcquire(groupIdMap, &tsInfo->gId, POINTER_BYTES);
+  STREAM_CHECK_NULL_GOTO(gInfo, TSDB_CODE_STREAM_NO_CONTEXT);
+  STREAM_CHECK_NULL_GOTO(*gInfo, TSDB_CODE_STREAM_NO_CONTEXT);
+  tsInfo->groupInfo.gInfo = taosArrayInit(taosArrayGetSize(*gInfo), sizeof(SStreamGroupValue));
+  STREAM_CHECK_NULL_GOTO(tsInfo->groupInfo.gInfo, terrno);
+  for (size_t i = 0; i < taosArrayGetSize(*gInfo); i++) {
+    SStreamGroupValue* srcGv = taosArrayGet(*gInfo, i);
+    STREAM_CHECK_NULL_GOTO(srcGv, terrno);
+    SStreamGroupValue* destGv = taosArrayReserve(tsInfo->groupInfo.gInfo, 1);
+    STREAM_CHECK_NULL_GOTO(destGv, terrno);
+    memcpy(destGv, srcGv, sizeof(SStreamGroupValue));
+    if ((IS_VAR_DATA_TYPE(srcGv->data.type) || srcGv->data.type == TSDB_DATA_TYPE_DECIMAL)) {
+      destGv->data.nData = srcGv->data.nData;
+      destGv->data.pData = taosMemoryCalloc(1, srcGv->data.nData + 1);
+      STREAM_CHECK_NULL_GOTO(destGv->data.pData, terrno);
+      memcpy(destGv->data.pData, srcGv->data.pData, srcGv->data.nData);
+    }
+  }
+end:
+  taosHashRelease(groupIdMap, gInfo);
+  return code;
+}
+
 static int32_t processTs(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTriggerReaderInfo* sStreamReaderInfo,
                                   SStreamReaderTaskInner* pTaskInner, StreamTableListInfo* tableInfo, uint64_t gid) {
   int32_t code = 0;
@@ -2063,6 +2098,8 @@ static int32_t processTs(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTrigge
         tsInfo->ts = pTaskInner->pResBlock->info.window.ekey;
       }
       tsInfo->gId = qStreamGetGroupIdFromSet(sStreamReaderInfo, pTaskInner->pResBlock->info.id.uid);
+      STREAM_CHECK_RET_GOTO(buildGroupVal(sStreamReaderInfo->groupIdMap, tsInfo));        
+
       ST_TASK_DLOG("vgId:%d %s get ts:%" PRId64 ", gId:%" PRIu64 ", ver:%" PRId64, TD_VID(pVnode), __func__, tsInfo->ts,
               tsInfo->gId, tsRsp->ver);
     }
@@ -2138,14 +2175,14 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
 
   STREAM_CHECK_RET_GOTO(processTs(pVnode, &lastTsRsp, sStreamReaderInfo, pTaskInner, &dst, 0));
   ST_TASK_DLOG("vgId:%d %s get result size:%"PRIzu", ver:%"PRId64, TD_VID(pVnode), __func__, taosArrayGetSize(lastTsRsp.tsInfo), lastTsRsp.ver);
-  STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size))
+  STREAM_CHECK_RET_GOTO(buildTsRsp(&lastTsRsp, &buf, &size, TD_VID(pVnode)))
 
 end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
-  taosArrayDestroy(lastTsRsp.tsInfo);
+  taosArrayDestroyEx(lastTsRsp.tsInfo, destroyTsInfo);
   qStreamDestroyTableInfo(&dst);
   releaseStreamTask(&pTaskInner);
   taosMemoryFree(pList);
@@ -2181,14 +2218,14 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_RET_GOTO(processTs(pVnode, &firstTsRsp, sStreamReaderInfo, pTaskInner, &dst, req->firstTsReq.gid));
 
   ST_TASK_DLOG("vgId:%d %s get result size:%"PRIzu", ver:%"PRId64, TD_VID(pVnode), __func__, taosArrayGetSize(firstTsRsp.tsInfo), firstTsRsp.ver);
-  STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size));
+  STREAM_CHECK_RET_GOTO(buildTsRsp(&firstTsRsp, &buf, &size, TD_VID(pVnode)));
 
 end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
-  taosArrayDestroy(firstTsRsp.tsInfo);
+  taosArrayDestroyEx(firstTsRsp.tsInfo, destroyTsInfo);
   qStreamDestroyTableInfo(&dst);
   releaseStreamTask(&pTaskInner);
   taosMemoryFree(pList);
