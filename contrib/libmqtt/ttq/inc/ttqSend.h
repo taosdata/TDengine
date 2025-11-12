@@ -1,18 +1,3 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
-
 #ifndef _TD_SEND_TTQ_H_
 #define _TD_SEND_TTQ_H_
 
@@ -20,8 +5,8 @@
 extern "C" {
 #endif
 
-#include "ttqProperty.h"
 #include "tmqttInt.h"
+#include "ttqProperty.h"
 
 int send__simple_command(struct tmqtt *ttq, uint8_t command);
 int send__command_with_mid(struct tmqtt *ttq, uint8_t command, uint16_t mid, bool dup, uint8_t reason_code,
