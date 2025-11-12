@@ -248,6 +248,8 @@ class TestDeleteData:
                 tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
             else:
                 tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
+        
+        tdSql.error(f'delete from {tbname} where _c0 > forecast(_c0)')
 
     def delete_data_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname}')
