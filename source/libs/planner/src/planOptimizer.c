@@ -5550,13 +5550,15 @@ static bool vtableTagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
   SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)pNode;
   SVirtualScanLogicNode*  pVtableScan = (SVirtualScanLogicNode*)nodesListGetNode(pDyn->node.pChildren, 0);
-  if (LIST_LENGTH(pVtableScan->node.pChildren) != 2) {
+  if (!pVtableScan || LIST_LENGTH(pVtableScan->node.pChildren) != 2) {
     return false;
   }
   SScanLogicNode*         pTagScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 0);
   SScanLogicNode*         pScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 1);
 
-  if (!pTagScan || !pScan || pTagScan->scanType != SCAN_TYPE_TAG || pScan->hasNormalCols) {
+  if (NULL == pTagScan || nodeType((SLogicNode*)pTagScan) != QUERY_NODE_LOGIC_PLAN_SCAN ||
+      NULL == pScan || nodeType((SLogicNode*)pScan) != QUERY_NODE_LOGIC_PLAN_SCAN ||
+      pTagScan->scanType != SCAN_TYPE_TAG || pScan->hasNormalCols) {
     return false;
   }
 
@@ -5632,7 +5634,7 @@ static int32_t vtableTagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   nodesDestroyNode((SNode*)pScan);
   nodesDestroyNode((SNode*)pDyn);
   NODES_CLEAR_LIST(pAgg->pChildren);
-  nodesListMakeAppend(&pAgg->pChildren, (SNode*)pTagScan);
+  PLAN_ERR_JRET(nodesListMakeAppend(&pAgg->pChildren, (SNode*)pTagScan));
   pTagScan->node.pParent = pAgg;
   pTagScan->onlyMetaCtbIdx = false;
   pTagScan->node.dynamicOp = false;
@@ -5640,6 +5642,9 @@ static int32_t vtableTagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
 
   pCxt->optimized = true;
 _return:
+  if (code) {
+    planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+  }
   if (freeTargets) {
     nodesDestroyList(pScanTargets);
   }

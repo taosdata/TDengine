@@ -300,19 +300,19 @@ taos> select count(*) from test_vtable_select.vtb_virtual_stb group by tbname sl
                  23333 |
                  23333 |
 
-taos> select tbname from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;
+taos> select tbname from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
              tbname             |
 =================================
  vtb_virtual_ctb_full           |
- vtb_virtual_ctb_mix            |
  vtb_virtual_ctb_half_full      |
+ vtb_virtual_ctb_mix            |
 
-taos> select tbname, count(*) from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;
+taos> select tbname, count(*) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname slimit 10 limit 10;
              tbname             |       count(*)        |
 =========================================================
  vtb_virtual_ctb_full           |                 23333 |
- vtb_virtual_ctb_mix            |                 23333 |
  vtb_virtual_ctb_half_full      |                 23333 |
+ vtb_virtual_ctb_mix            |                 23333 |
 
 taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by tbname slimit 10 limit 10;
       avg(u_int_col)       |
