@@ -566,7 +566,7 @@ function lcovFunc {
         
         # 先打印所有源文件
         echo "=== 覆盖率文件中的所有源文件列表 ==="
-        grep "^SF:" coverage_tdengine_raw.info | sed 's/^SF://' | head -2000
+        # grep "^SF:" coverage_tdengine_raw.info | sed 's/^SF://' | head -2000
         local total_sources=$(grep "^SF:" coverage_tdengine_raw.info | wc -l)
         echo "总源文件数: $total_sources"
         
@@ -584,7 +584,7 @@ function lcovFunc {
             fi
             
             # 打印当前处理的模式
-            echo "处理排除模式 $exclude_count: $file_pattern"
+            # echo "处理排除模式 $exclude_count: $file_pattern"
             exclude_patterns="$exclude_patterns '$file_pattern'"
             ((exclude_count++))
         done < "$TDENGINE_DIR/test/ci/coverage.txt"
