@@ -400,6 +400,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_twa.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_derivative.py 
 ## 05-Compare
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/05-Compare/test_fun_cmp_if.py
 #,,y,.,./ci/pytest.sh pytest cases/11-Functions/05-others/test_resinfo.py
