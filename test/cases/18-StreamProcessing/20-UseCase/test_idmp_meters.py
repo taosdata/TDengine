@@ -1059,7 +1059,7 @@ class Test_IDMP_Meters:
         objects = [
             # table                 cnt avg  sum
             ["result_stream4", 10, 400, 2000],
-            #["result_stream4_sub1", 10, 400, 2000], # ci randomly failed
+            ["result_stream4_sub1", 10, 400, 2000],
         ]
         nrow = 11
 
@@ -1084,7 +1084,7 @@ class Test_IDMP_Meters:
                 ts += 10 * 60 * 1000  # 10 minutes
 
         print("verify stream4 ................................. successfully.")
-        #print("verify stream4 sub1 ............................ successfully.")
+        print("verify stream4 sub1 ............................ successfully.")
 
         # verify stream4_sub2 ~ 6
         offsets = [

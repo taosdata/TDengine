@@ -9,9 +9,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
-100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
-100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal64.py
-100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal_last.py
+200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
+200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal64.py
+200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal_last.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py
@@ -536,12 +536,12 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_basic.py
-,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_1.py
-,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_2.py
-,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_event.py
-,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_sliding.py
-,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_session.py
-,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_state.py
+100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_1.py
+100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_2.py
+100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_event.py
+100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_sliding.py
+100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_session.py
+100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_state.py
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_usage_restrict.py
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_vtable_change.py
 ## 08-Recalc
@@ -555,7 +555,7 @@
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_privilege.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
-,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_public.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_pv.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_tobacco.py
