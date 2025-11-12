@@ -1598,12 +1598,19 @@ int32_t tSerializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* 
 int32_t tDeserializeSUpdateIpWhiteDual(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
 void    tFreeSUpdateIpWhiteDualReq(SUpdateIpWhite* pReq);
 
-typedef struct {
-  int64_t ipWhiteVer;
-} SRetrieveIpWhiteReq;
 
-int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
-int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
+// SRetrieveWhiteListReq is used to retrieve both ip and datetime whitelist, but the
+// corresponding response struct is different.
+typedef struct {
+  int64_t ver;
+} SRetrieveWhiteListReq;
+
+int32_t tSerializeRetrieveWhiteListReq(void* buf, int32_t bufLen, SRetrieveWhiteListReq* pReq);
+int32_t tDeserializeRetrieveWhiteListReq(void* buf, int32_t bufLen, SRetrieveWhiteListReq* pReq);
+
+
+// SGetUserWhiteListReq is used to get both ip and datetime whitelist, but the
+// corresponding response struct is different.
 typedef struct {
   char user[TSDB_USER_LEN];
 } SGetUserWhiteListReq;
@@ -1619,20 +1626,20 @@ typedef struct {
     SIpV4Range* pWhiteLists;
     SIpRange*   pWhiteListsDual;
   };
-} SGetUserWhiteListRsp;
+} SGetUserIpWhiteListRsp;
 
 int32_t tIpStrToUint(const SIpAddr* addr, SIpRange* range);
 int32_t tIpUintToStr(const SIpRange* range, SIpAddr* addr);
 int32_t tIpRangeSetMask(SIpRange* range, int32_t mask);
 void    tIpRangeSetDefaultMask(SIpRange* range);
 
-int32_t tSerializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
-int32_t tDeserializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
-void    tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp* pRsp);
+int32_t tSerializeSGetUserIpWhiteListRsp(void* buf, int32_t bufLen, SGetUserIpWhiteListRsp* pRsp);
+int32_t tDeserializeSGetUserIpWhiteListRsp(void* buf, int32_t bufLen, SGetUserIpWhiteListRsp* pRsp);
+void    tFreeSGetUserIpWhiteListRsp(SGetUserIpWhiteListRsp* pRsp);
 
-int32_t tSerializeSGetUserWhiteListDualRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
-int32_t tDeserializeSGetUserWhiteListDualRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
-void    tFreeSGetUserWhiteListDualRsp(SGetUserWhiteListRsp* pRsp);
+int32_t tSerializeSGetUserIpWhiteListDualRsp(void* buf, int32_t bufLen, SGetUserIpWhiteListRsp* pRsp);
+int32_t tDeserializeSGetUserIpWhiteListDualRsp(void* buf, int32_t bufLen, SGetUserIpWhiteListRsp* pRsp);
+void    tFreeSGetUserIpWhiteListDualRsp(SGetUserIpWhiteListRsp* pRsp);
 
 /*
  * for client side struct, only column id, type, bytes are necessary
