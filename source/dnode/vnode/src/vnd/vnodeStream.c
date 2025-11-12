@@ -2810,12 +2810,13 @@ static int32_t vnodeProcessStreamGroupColValueReq(SVnode* pVnode, SRpcMsg* pMsg,
   int32_t lino = 0;
   void*   buf = NULL;
   size_t  size = 0;
-
+  SArray** gInfo = NULL;
+  
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, request gid:%" PRId64, TD_VID(pVnode), __func__, req->groupColValueReq.gid);
 
-  SArray** gInfo = taosHashGet(sStreamReaderInfo->groupIdMap, &req->groupColValueReq.gid, POINTER_BYTES);
+  gInfo = taosHashAcquire(sStreamReaderInfo->groupIdMap, &req->groupColValueReq.gid, POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(gInfo, TSDB_CODE_STREAM_NO_CONTEXT);
   SStreamGroupInfo pGroupInfo = {0};
   pGroupInfo.gInfo = *gInfo;
@@ -2827,6 +2828,7 @@ static int32_t vnodeProcessStreamGroupColValueReq(SVnode* pVnode, SRpcMsg* pMsg,
   size = tSerializeSStreamGroupInfo(buf, size, &pGroupInfo, TD_VID(pVnode));
   STREAM_CHECK_CONDITION_GOTO(size < 0, size);
 end:
+  taosHashRelease(sStreamReaderInfo->groupIdMap, gInfo);
   if (code != 0) {
     rpcFreeCont(buf);
     buf = NULL;
