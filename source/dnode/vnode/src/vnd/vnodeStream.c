@@ -294,7 +294,7 @@ static int32_t buildArrayRsp(SArray* pBlockList, void** data, size_t* size) {
   void*   buf = NULL;
 
   int32_t blockNum = 0;
-  size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp);
+  size_t  dataEncodeBufSize = 0;
   for(size_t i = 0; i < taosArrayGetSize(pBlockList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pBlockList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
@@ -311,7 +311,7 @@ static int32_t buildArrayRsp(SArray* pBlockList, void** data, size_t* size) {
   for(size_t i = 0; i < taosArrayGetSize(pBlockList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pBlockList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
-    int32_t actualLen = blockEncode(pBlock, buf, dataEncodeBufSize, taosArrayGetSize(pBlock->pDataBlock));
+    int32_t actualLen = blockEncode(pBlock, dataBuf, dataEncodeBufSize, taosArrayGetSize(pBlock->pDataBlock));
     STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
     dataBuf += actualLen;
   }
