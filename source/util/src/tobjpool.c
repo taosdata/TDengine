@@ -402,6 +402,46 @@ void taosObjListPopObjEx(SObjList *pList, void *pObj, FDelete fp) {
   taosObjListPopObj(pList, pObj);
 }
 
+void taosObjListMoveBefore(SObjList *pList, void *pObj, void *pRefer) {
+  if (pList == NULL || pObj == NULL || pRefer == NULL || pObj == pRefer) {
+    return;
+  }
+
+  SObjPool     *pPool = pList->pPool;
+  SObjPoolNode *pObjNode = TOBJPOOL_OBJ_GET_NODE(pObj);
+  int64_t       objIdx = TOBJPOOL_GET_IDX(pPool, pObjNode);
+  if (objIdx < 0 || objIdx >= pPool->capacity) {
+    return;
+  }
+  SObjPoolNode *pRefNode = TOBJPOOL_OBJ_GET_NODE(pRefer);
+  int64_t       refIdx = TOBJPOOL_GET_IDX(pPool, pRefNode);
+  if (refIdx < 0 || refIdx >= pPool->capacity) {
+    return;
+  }
+
+  // remove pObjNode from current position
+  if (pObjNode->prevIdx != TOBJPOOL_INVALID_IDX) {
+    TOBJPOOL_GET_NODE(pPool, pObjNode->prevIdx)->nextIdx = pObjNode->nextIdx;
+  } else {
+    pList->headIdx = pObjNode->nextIdx;
+  }
+  if (pObjNode->nextIdx != TOBJPOOL_INVALID_IDX) {
+    TOBJPOOL_GET_NODE(pPool, pObjNode->nextIdx)->prevIdx = pObjNode->prevIdx;
+  } else {
+    pList->tailIdx = pObjNode->prevIdx;
+  }
+
+  // insert pObjNode before pRefNode
+  if (pRefNode->prevIdx != TOBJPOOL_INVALID_IDX) {
+    TOBJPOOL_GET_NODE(pPool, pRefNode->prevIdx)->nextIdx = objIdx;
+  } else {
+    pList->headIdx = objIdx;
+  }
+  pObjNode->prevIdx = pRefNode->prevIdx;
+  pObjNode->nextIdx = refIdx;
+  pRefNode->prevIdx = objIdx;
+}
+
 void *taosObjListGetHead(SObjList *pList) {
   if (pList == NULL || pList->headIdx == TOBJPOOL_INVALID_IDX) {
     return NULL;
