@@ -2267,7 +2267,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         break;
       }
       if (taosArrayGetSize(pTask->pVirTableInfoRsp) > 0 && taosArrayGetSize(pTask->readerList) == 0) {
-        ST_TASK_DLOG("ignore start message since orig table readers are not ready, vir table count: %" PRId64,
+        ST_TASK_DLOG("ignore start message since orig table readers are not ready, vir table count: %" PRIzu,
                      TARRAY_SIZE(pTask->pVirTableInfoRsp));
         break;
       }
@@ -2316,7 +2316,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
     }
     case STREAM_MSG_ORIGTBL_READER_INFO: {
       if (pTask->task.status != STREAM_STATUS_INIT || taosArrayGetSize(pTask->readerList) > 0) {
-        ST_TASK_DLOG("ignore redundant original reader info, current status: %d, reader count: %" PRId64,
+        ST_TASK_DLOG("ignore redundant original reader info, current status: %d, reader count: %" PRIzu,
                      pTask->task.status, TARRAY_SIZE(pTask->readerList));
         break;
       }
