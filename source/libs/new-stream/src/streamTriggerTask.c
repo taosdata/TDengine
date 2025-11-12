@@ -37,7 +37,6 @@
 #define STREAM_TRIGGER_REALTIME_SESSIONID 1
 #define STREAM_TRIGGER_HISTORY_SESSIONID  2
 
-#define STREAM_TRIGGER_HISTORY_STEP_MS (10 * MILLISECOND_PER_DAY)     // 10d
 #define STREAM_TRIGGER_RECALC_MERGE_MS (30 * MILLISECOND_PER_MINUTE)  // 30min
 
 #define IS_TRIGGER_GROUP_TO_CHECK(pGroup) \
@@ -1081,7 +1080,8 @@ int32_t stTriggerTaskReleaseDropTableRequest(SStreamTriggerTask *pTask, SSTrigge
 }
 
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
-                                      STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory) {
+                                      STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory,
+                                      bool shrinkRange) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
   bool                    needUnlock = false;
@@ -1113,6 +1113,9 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
     } else {
       void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pReq->gid, sizeof(int64_t));
       pReq->scanRange.skey = ((px == NULL) ? INT64_MIN : *(int64_t *)px) + 1;
+    }
+    if (shrinkRange && pCalcRange->skey != INT64_MIN) {
+      pReq->scanRange.skey = TMAX(pReq->scanRange.skey, pCalcRange->skey - pTask->historyStep);
     }
     pReq->scanRange.ekey = pGroup->newThreshold;
     pReq->calcRange = *pCalcRange;
@@ -1899,6 +1902,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
         _end, TSDB_CODE_INVALID_PARA);
   }
   pTask->precision = pMsg->precision;
+  pTask->historyStep = convertTimePrecision(10 * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, pTask->precision);
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
   pTask->streamName = taosStrdup(pMsg->streamName);
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);
@@ -2385,7 +2389,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         while (px != NULL) {
           SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
           STimeWindow             range = {.skey = pReq->start, .ekey = pReq->end - 1};
-          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false);
+          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, false);
           QUERY_CHECK_CODE(code, lino, _end);
           px = tSimpleHashIterate(pContext->pGroups, px, &iter);
         }
@@ -3670,31 +3674,23 @@ static int32_t stRealtimeContextRetryCalcRequest(SSTriggerRealtimeContext *pCont
 
   pReq->createTable = true;
 
-  SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
-  QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-
   if (pReq->createTable && pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
       (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {
     needTagValue = true;
   }
 
   if (needTagValue && taosArrayGetSize(pReq->groupColVals) == 0) {
-    void *px = tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(int64_t));
-    if (px == NULL) {
-      code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE);
-      QUERY_CHECK_CODE(code, lino, _end);
-      goto _end;
-    } else {
-      SArray *pGroupColVals = *(SArray **)px;
-      for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
-        SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
-        SStreamGroupValue *pDst = taosArrayPush(pReq->groupColVals, pValue);
-        QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
-        if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
-          pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
-          QUERY_CHECK_NULL(pDst->data.pData, code, lino, _end, terrno);
-          TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
-        }
+    void *px = tSimpleHashGet(pContext->pGroupColVals, &pReq->gid, sizeof(int64_t));
+    QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    SArray *pGroupColVals = *(SArray **)px;
+    for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
+      SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
+      SStreamGroupValue *pDst = taosArrayPush(pReq->groupColVals, pValue);
+      QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
+      if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
+        pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
+        QUERY_CHECK_NULL(pDst->data.pData, code, lino, _end, terrno);
+        TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
       }
     }
   }
@@ -3904,7 +3900,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       pTask->historyCalcStarted = true;
 
       if (pTask->fillHistory) {
-        code = stTriggerTaskAddRecalcRequest(pTask, NULL, NULL, pContext->pReaderWalProgress, true);
+        code = stTriggerTaskAddRecalcRequest(pTask, NULL, NULL, pContext->pReaderWalProgress, true, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -4319,7 +4315,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
             }
           }
           ST_TASK_DLOG("add recalc request for delete data, start: %" PRId64 ", end: %" PRId64, range.skey, range.ekey);
-          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false);
+          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
           QUERY_CHECK_CODE(code, lino, _end);
           if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
             code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
@@ -4353,7 +4349,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
           }
         }
         ST_TASK_DLOG("add recalc request for delete data, start: %" PRId64 ", end: %" PRId64, range.skey, range.ekey);
-        code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false);
+        code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
           code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
@@ -6176,8 +6172,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
 
     pContext->status = STRIGGER_CONTEXT_FETCH_META;
     if (pContext->needTsdbMeta) {
-      // TODO(kjq): use precision of trigger table
-      int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
+      int64_t step = pTask->historyStep;
       pContext->stepRange.skey = pContext->scanRange.skey;
       pContext->stepRange.ekey = pContext->scanRange.skey / step * step + step - 1;
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
@@ -6323,7 +6318,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   if (TD_DLIST_NELES(&pContext->groupsForceClose) == 0) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
-      int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
+      int64_t step = pTask->historyStep;
       QUERY_CHECK_CONDITION(pContext->stepRange.skey <= pContext->stepRange.ekey, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
       finished = (pContext->stepRange.ekey + 1 > pContext->scanRange.ekey);
@@ -6463,7 +6458,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     pContext->status = STRIGGER_CONTEXT_FETCH_META;
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
-      int64_t step = STREAM_TRIGGER_HISTORY_STEP_MS;
+      int64_t step = pTask->historyStep;
       pContext->stepRange.skey = pContext->stepRange.ekey + 1;
       pContext->stepRange.ekey += step;
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
@@ -7247,7 +7242,7 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
       if (range.skey <= range.ekey) {
         ST_TASK_DLOG("add recalc request for disorder data, threshold: %" PRId64 ", start: %" PRId64 ", end: %" PRId64,
                      pGroup->oldThreshold, pMeta->skey, pMeta->ekey);
-        code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false);
+        code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
           code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
@@ -8147,7 +8142,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
         if (skip) {
           STimeWindow range = {.skey = param.wstart, .ekey = param.wend};
           ST_TASK_DLOG("add recalc request for next window, groupId: %" PRId64, pGroup->gid);
-          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false);
+          code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           code = taosObjListAppend(&pGroup->pPendingCalcParams, &param);
