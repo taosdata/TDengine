@@ -182,10 +182,10 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
       break;
-    case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
+    case TDMT_MND_RETRIEVE_IP_WHITELIST_RSP:
       dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
-    case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
+    case TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:

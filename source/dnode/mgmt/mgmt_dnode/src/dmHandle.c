@@ -61,14 +61,14 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   }
   int64_t oldVer = pMgmt->pData->ipWhiteVer;
 
-  SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
-  int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
+  SRetrieveWhiteListReq req = {.ver = oldVer};
+  int32_t             contLen = tSerializeRetrieveWhiteListReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize ip white list request since: %s", tstrerror(contLen));
     return;
   }
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveIpWhite(pHead, contLen, &req);
+  contLen = tSerializeRetrieveWhiteListReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize ip white list request since:%s", tstrerror(contLen));
@@ -77,7 +77,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
-                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE_DUAL,
+                    .msgType = TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL,
                     .info.ahandle = 0,
                     .info.notFreeAhandle = 1,
                     .info.refId = 0,
@@ -92,6 +92,15 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
     dError("failed to send retrieve ip white list request since:%s", tstrerror(code));
   }
 }
+
+
+
+static void dmMayShouldUpdateDateTimeWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
+  // Implementation would be similar to dmMayShouldUpdateIpWhiteList,
+  // but for datetime whitelist. This is a placeholder for the actual logic.
+}
+
+
 
 static void dmMayShouldUpdateAnalyticsFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   int32_t code = 0;

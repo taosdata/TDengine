@@ -181,8 +181,6 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
-  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
-                                   1);  // TODO: check the return value
 
 _OVER:
   mndTransDrop(pTrans);
@@ -770,7 +768,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
   }
 
-  pMnode->ipWhiteVer = mndGetIpWhiteVer(pMnode);
+  pMnode->ipWhiteVer = mndGetIpWhiteListVersion(pMnode);
 
   int64_t analVer = sdbGetTableVer(pMnode->pSdb, SDB_ANODE);
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
@@ -1018,8 +1016,6 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
 
-  (void)mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD,
-                                   1);  // TODO: check the return value
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);

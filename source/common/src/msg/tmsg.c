@@ -3089,7 +3089,7 @@ _return:
   }
   return code;
 }
-int32_t tSerializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteReq *pReq) {
+int32_t tSerializeRetrieveWhiteListReq(void *buf, int32_t bufLen, SRetrieveWhiteListReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -3097,7 +3097,7 @@ int32_t tSerializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteReq
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->ipWhiteVer));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->ver));
   tEndEncode(&encoder);
 
 _exit:
@@ -3110,7 +3110,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteReq *pReq) {
+int32_t tDeserializeRetrieveWhiteListReq(void *buf, int32_t bufLen, SRetrieveWhiteListReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -3118,7 +3118,7 @@ int32_t tDeserializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteR
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->ipWhiteVer));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->ver));
   tEndDecode(&decoder);
 
 _exit:
@@ -4122,7 +4122,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSGetUserWhiteListRsp(void *buf, int32_t bufLen, SGetUserWhiteListRsp *pRsp) {
+int32_t tSerializeSGetUserIpWhiteListRsp(void *buf, int32_t bufLen, SGetUserIpWhiteListRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -4149,7 +4149,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSGetUserWhiteListRsp(void *buf, int32_t bufLen, SGetUserWhiteListRsp *pRsp) {
+int32_t tDeserializeSGetUserIpWhiteListRsp(void *buf, int32_t bufLen, SGetUserIpWhiteListRsp *pRsp) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -4177,9 +4177,9 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
-void tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteLists); }
+void tFreeSGetUserIpWhiteListRsp(SGetUserIpWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteLists); }
 
-int32_t tSerializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUserWhiteListRsp *pRsp) {
+int32_t tSerializeSGetUserIpWhiteListDualRsp(void *buf, int32_t bufLen, SGetUserIpWhiteListRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -4205,7 +4205,7 @@ _exit:
   tEncoderClear(&encoder);
   return tlen;
 }
-int32_t tDeserializeSGetUserWhiteListDualRsp(void *buf, int32_t bufLen, SGetUserWhiteListRsp *pRsp) {
+int32_t tDeserializeSGetUserIpWhiteListDualRsp(void *buf, int32_t bufLen, SGetUserIpWhiteListRsp *pRsp) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -4311,7 +4311,7 @@ void tIpRangeSetDefaultMask(SIpRange *range) {
     p6->mask = 32;
   }
 }
-void tFreeSGetUserWhiteListDualRsp(SGetUserWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteListsDual); }
+void tFreeSGetUserIpWhiteListDualRsp(SGetUserIpWhiteListRsp *pRsp) { taosMemoryFree(pRsp->pWhiteListsDual); }
 
 bool isValidDateTimeRange(SDateTimeRange* pRange) {
   if (pRange->hour < 0 || pRange->hour > 23) {
