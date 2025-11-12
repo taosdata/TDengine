@@ -6798,20 +6798,27 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
       int32_t vgId = pProgress->pTaskAddr->nodeId;
 
-      pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-      QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
       if (pRsp->contLen > 0) {
         const char *pCont = pRsp->pCont;
-        code = blockDecode(pDataBlock, pCont, &pCont);
-        QUERY_CHECK_CODE(code, lino, _end);
+        int32_t     nBlocks = *(int32_t *)pCont;
+        pCont += sizeof(int32_t);
+        for (int32_t i = 0; i < nBlocks; i++) {
+          pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+          QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+          code = blockDecode(pDataBlock, pCont, &pCont);
+          QUERY_CHECK_CODE(code, lino, _end);
+          void *px = taosArrayPush(pContext->pTrigDataBlocks, &pDataBlock);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+          pDataBlock = NULL;
+        }
         QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
-        blockDataEmpty(pDataBlock);
+        pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+        QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+        void *px = taosArrayPush(pContext->pTrigDataBlocks, &pDataBlock);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        pDataBlock = NULL;
       }
-
-      void *px = taosArrayPush(pContext->pTrigDataBlocks, &pDataBlock);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      pDataBlock = NULL;
 
       if (--pContext->curReaderIdx > 0) {
         ST_TASK_DLOG("wait for response from other %d readers", pContext->curReaderIdx);
