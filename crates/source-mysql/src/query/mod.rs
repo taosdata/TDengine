@@ -1,11 +1,6 @@
-use std::collections::HashMap;
-use std::pin::Pin;
-
-use futures::stream::IntoStream;
 use futures::{StreamExt, TryStreamExt};
 use sqlx::mysql::{MySqlConnectOptions, MySqlRow};
 use sqlx::{Column, Error, Executor, MySql, MySqlPool, Pool, Row, TypeInfo};
-use taos::Itertools;
 
 use crate::config::connect::ConnectConfig;
 
@@ -94,7 +89,6 @@ impl MySqlQuery {
         }
     }
 
-    #[allow(dead_code)]
     pub async fn show_tables(&mut self) -> anyhow::Result<Vec<String>> {
         let result = self.pool.fetch_all("SHOW TABLES").await;
         let tables = match result {
@@ -112,40 +106,13 @@ impl MySqlQuery {
                     let col0_value = generate_json_value(row, col0_type, 0, "".to_string())?;
                     Ok(col0_value.as_str().unwrap().to_string())
                 })
-                .try_collect()?,
+                .collect::<Result<_, _>>()?,
             Err(err) => anyhow::bail!("failed to show tables, cause: {}", err.to_string()),
         };
         Ok(tables)
     }
 
-    #[allow(dead_code)]
-    pub async fn show_columns(&mut self, table: &str) -> anyhow::Result<HashMap<String, String>> {
-        let result = self
-            .pool
-            .fetch_all(format!("SHOW COLUMNS FROM {}", table).as_str())
-            .await;
-        let columns = match result {
-            Ok(rows) => rows
-                .iter()
-                .map(|row| -> anyhow::Result<(String, String)> {
-                    let col0 = row.column(0);
-                    let col1 = row.column(1);
-                    let col0_type = col0.type_info().name();
-                    let col1_type = col1.type_info().name();
-                    let col0_value = generate_json_value(row, col0_type, 0, "".to_string())?;
-                    let col1_value = generate_json_value(row, col1_type, 1, "".to_string())?;
-                    Ok((
-                        col0_value.as_str().unwrap().to_string(),
-                        col1_value.as_str().unwrap().to_string(),
-                    ))
-                })
-                .try_collect()?,
-            Err(err) => anyhow::bail!("failed to show columns, cause: {}", err.to_string()),
-        };
-        Ok(columns)
-    }
-
-    pub async fn select_distinct_values(&mut self, sql: &str) -> anyhow::Result<Vec<MySqlRow>> {
+    pub async fn select_all(&mut self, sql: &str) -> anyhow::Result<Vec<MySqlRow>> {
         let result = self.pool.fetch_all(sql).await;
         match result {
             Ok(rows) => Ok(rows),
@@ -167,21 +134,11 @@ impl MySqlQuery {
         })
     }
 
-    #[allow(dead_code)]
-    pub async fn select_all(&mut self, sql: &str) -> anyhow::Result<Vec<MySqlRow>> {
-        let result = self.pool.fetch_all(sql).await;
-        match result {
-            Ok(rows) => Ok(rows),
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
-        }
-    }
-
-    #[allow(clippy::type_complexity)]
     pub fn select_by_stream<'a>(
         &mut self,
         sql: &'a str,
-    ) -> IntoStream<Pin<Box<dyn futures::Stream<Item = Result<MySqlRow, Error>> + Send + 'a>>> {
-        self.pool.fetch(sql).into_stream()
+    ) -> impl futures::Stream<Item = Result<MySqlRow, Error>> + Send + 'a {
+        self.pool.fetch(sql)
     }
 
     pub async fn top_n(&mut self, sql: &str, top_n: u32) -> anyhow::Result<Vec<MySqlRow>> {
@@ -322,50 +279,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn test_show_columns() {
-        // prepare data
-        let _ = test_create_table("test_show_columns").await;
-
-        let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
-        let config = ConnectConfig::from_dsn(&dsn).unwrap();
-        let mut query = MySqlQuery::try_new(config, String::from("+08:00"))
-            .await
-            .unwrap();
-
-        let columns = query.show_columns("test_show_columns").await.unwrap();
-        assert!(
-            columns.eq(&[
-                ("id".to_string(), "int".to_string()),
-                ("name".to_string(), "varchar".to_string()),
-                ("value".to_string(), "double".to_string()),
-                ("ts".to_string(), "timestamp".to_string())
-            ]
-            .iter()
-            .cloned()
-            .collect())
-                || columns.eq(&[
-                    ("id".to_string(), "[105, 110, 116]".to_string()),
-                    (
-                        "name".to_string(),
-                        "[118, 97, 114, 99, 104, 97, 114, 40, 50, 53, 53, 41]".to_string()
-                    ),
-                    (
-                        "value".to_string(),
-                        "[100, 111, 117, 98, 108, 101]".to_string()
-                    ),
-                    (
-                        "ts".to_string(),
-                        "[116, 105, 109, 101, 115, 116, 97, 109, 112]".to_string()
-                    )
-                ]
-                .iter()
-                .cloned()
-                .collect())
-        );
-    }
-
-    #[tokio::test]
     async fn test_select_distinct_values_with_datasource() {
         // prepare data
         let _ = test_create_table("test_select_distinct_values").await;
@@ -378,7 +291,7 @@ mod tests {
             .unwrap();
 
         let rows = query
-            .select_distinct_values("select distinct name,value from test_select_distinct_values")
+            .select_all("select distinct name,value from test_select_distinct_values")
             .await
             .unwrap();
         dbg!(&rows);

@@ -73,6 +73,7 @@ use super::{
 };
 
 mod put;
+mod xnode_api;
 
 pub struct AgentRpcChannel {
     agent_activity_receiver: AgentActionsReceiver,
@@ -671,20 +672,33 @@ impl FlightService for FlightServiceImpl {
         let remote = req.remote_addr();
         let (mut meta, extension, req) = req.into_parts();
         tracing::info!("Receive do_exchange stream from {:?}", remote);
+
         let token = meta
             .get("x-token")
-            .ok_or_else(|| Status::aborted("Token should be set"))?
-            .to_str()
-            .map_err(|err| Status::aborted(format!("Invalid token: {err}")))?;
+            .map(|s| {
+                s.to_str()
+                    .map_err(|err| Status::aborted(format!("Invalid token: {err}")))
+            })
+            .transpose()?;
 
         let controller = self.controller.clone();
-        let agent = controller
-            .agent_connect_with_token(&AgentToken(token.to_string()), remote.as_ref())
-            .await
-            .map_err(|err| Status::permission_denied(format!("Agent connection error: {err}")))?;
+        let agent = match token {
+            Some(token) => Some(
+                controller
+                    .agent_connect_with_token(&AgentToken(token.to_string()), remote.as_ref())
+                    .await
+                    .map_err(|err| {
+                        Status::permission_denied(format!("Agent connection error: {err}"))
+                    })?,
+            ),
+            None => None,
+        };
 
-        let agent_id = agent.id;
-        let (tx, rx) = self.subscribe_agent_action_flight(agent_id);
+        let agent_id = agent.map(|a| a.id);
+        let (tx, rx) = match agent_id {
+            Some(id) => self.subscribe_agent_action_flight(id),
+            None => flume::bounded(1000),
+        };
 
         let connection_id = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -693,31 +707,22 @@ impl FlightService for FlightServiceImpl {
         meta.append("x-cid", connection_id.to_string().parse().unwrap());
         {
             // Update agent connection id to ensure only one connection per agent.
-            self.agent_connections
-                .write()
-                .await
-                .insert(agent_id, connection_id);
-            self.notify_sender
-                .send(AgentNotify::AgentConnected(agent_id))
-                .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
-            tracing::debug!(
-                "Sent agent notify: {:?}",
-                AgentNotify::AgentConnected(agent_id)
-            );
+            if let Some(agent_id) = agent_id {
+                self.agent_connections
+                    .write()
+                    .await
+                    .insert(agent_id, connection_id);
+                self.notify_sender
+                    .send(AgentNotify::AgentConnected(agent_id))
+                    .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
+                tracing::debug!(
+                    "Sent agent notify: {:?}",
+                    AgentNotify::AgentConnected(agent_id)
+                );
+            }
         }
 
-        // dbg!(&agent);
-        // let agent: Agent = serde_json::from_str(r#"
-        // {
-        //     "id": 2, "dsn": "taos:///", "name": "agent1", "cluster_id":"", "user_id":"", "connectors": [], "created_at":"2022-02-02T00:00:00Z"
-        // }"#).unwrap();
-
-        // let (tx, rx) = flume::bounded::<Result<RecordBatch, FlightError>>(100);
-
-        // let sender = tx.clone();
         let controller_runner = controller.clone();
-        let agent_id = agent.id;
-        // let tx = tx.clone();
         let notify_sender = self.notify_sender.clone();
         let datasets_sender = self.datasets_senders.clone();
         let dsv_senders = self.dsv_senders.clone();
@@ -727,9 +732,9 @@ impl FlightService for FlightServiceImpl {
             let span = tracing::trace_span!("agent_rpc", agent = agent_id);
             let _enter = span.enter();
 
-            let encoder = FlightDataDecoder::new(req.map_err(FlightError::from));
+            let decoder = FlightDataDecoder::new(req.map_err(FlightError::from));
             let last_heart_ms = AtomicU64::new(0);
-            let result = encoder
+            let result = decoder
                 .try_for_each_concurrent(20, |data| async {
                     let payload = data.payload;
                     match payload {
@@ -758,7 +763,7 @@ impl FlightService for FlightServiceImpl {
                             const ORDER: Ordering = Ordering::Relaxed;
 
                             for _ in 0..rows {
-                                let (ts, action, _req_id, context) = (
+                                let (ts, action, req_id, context) = (
                                     ts.value_as_datetime_with_tz(
                                         0,
                                         ts.timezone().unwrap_or("UTC").parse().unwrap(),
@@ -903,10 +908,10 @@ impl FlightService for FlightServiceImpl {
                                             })
                                             .unwrap();
                                         info!(?activity, "agent activity");
-                                        // let _ =
-                                        //     controller_runner.push_agent_activity(activity).await;
-                                        let _ = notify_sender
+                                        if let Some(agent_id) = agent_id {
+                                            let _ = notify_sender
                                             .send(AgentNotify::AgentActivity(agent_id, activity));
+                                        }
                                     }
                                     "task-activity" => {
                                         let activity: Activity = serde_json::from_str(context)
@@ -917,11 +922,13 @@ impl FlightService for FlightServiceImpl {
                                             })
                                             .unwrap();
                                         let notify_sender = notify_sender.clone();
-                                        tokio::spawn(async move {
-                                            info!(?activity, "task activity");
-                                            let _ = notify_sender
-                                                .send(AgentNotify::TaskActivity(agent_id, activity));
-                                        });
+                                        if let Some(agent_id) = agent_id {
+                                            tokio::spawn(async move {
+                                                info!(?activity, "task activity");
+                                                let _ = notify_sender
+                                                    .send(AgentNotify::TaskActivity(agent_id, activity));
+                                            });
+                                        }
                                     }
                                     "heartbeat-ok" => {
                                         let resp: HeartbeatResponse =
@@ -1002,13 +1009,17 @@ impl FlightService for FlightServiceImpl {
                                             }
                                         }
                                     }
+                                    "xnode_plan_task" => {
+                                        let batch = xnode_api::xnode_plan_task(context, req_id).await;
+                                        if tx.send_async(batch).await.is_err() {
+                                            tracing::warn!("Failed to send xnode_plan_task response, receiver dropped");
+                                        }
+                                    }
                                     action => {
                                         warn!("Unknown action: {action}");
                                     }
                                 }
                             }
-                            // batch.
-                            // todo: send data to controller.
                         }
                     }
                     Ok(())
@@ -1020,36 +1031,39 @@ impl FlightService for FlightServiceImpl {
                 "Agent RPC stopped"
             );
 
-            let mut guard = agent_connections.write().await;
-            if let Some(cid) = guard.get(&agent_id) {
-                if *cid == connection_id {
-                    guard.remove(&agent_id);
+            if let Some(agent_id) = agent_id {
+                let mut guard = agent_connections.write().await;
+                if let Some(cid) = guard.get(&agent_id) {
+                    if *cid == connection_id {
+                        guard.remove(&agent_id);
 
-                    let context = result.err().map(|err| {
-                        json!({"code": 0xFFFFi32, "message": err.to_string()}).to_string()
-                    });
-                    let activity = Activity::new::<String>(
-                        agent_id,
-                        Utc::now(),
-                        LevelFilter::Warn,
-                        "Disconnected.",
-                        "disconnected",
-                        context,
-                    );
-                    if let Err(err) = notify_sender.send(AgentNotify::AgentDisconnected(agent_id)) {
-                        tracing::error!(agent = agent_id, "Agent disconnected: {err:#}");
+                        let context = result.err().map(|err| {
+                            json!({"code": 0xFFFFi32, "message": err.to_string()}).to_string()
+                        });
+                        let activity = Activity::new::<String>(
+                            agent_id,
+                            Utc::now(),
+                            LevelFilter::Warn,
+                            "Disconnected.",
+                            "disconnected",
+                            context,
+                        );
+                        if let Err(err) = notify_sender.send(AgentNotify::AgentDisconnected(agent_id)) {
+                            tracing::error!(agent = agent_id, "Agent disconnected: {err:#}");
+                        }
+                        let _ = controller_runner.push_agent_activity(activity).await?;
+
+                        tracing::info!(agent = agent_id, "Agent RPC stopped");
+                    } else {
+                        tracing::warn!(
+                            agent.id = agent_id,
+                            agent.cid = connection_id,
+                            "Agent RPC stopped but current connection id({cid}) is not matched, do nothing."
+                        );
                     }
-                    let _ = controller_runner.push_agent_activity(activity).await?;
-
-                    tracing::info!(agent = agent_id, "Agent RPC stopped");
-                } else {
-                    tracing::warn!(
-                        agent.id = agent_id,
-                        agent.cid = connection_id,
-                        "Agent RPC stopped but current connection id({cid}) is not matched, do nothing."
-                    );
                 }
             }
+
             Ok::<_, anyhow::Error>(())
         }.in_current_span());
         let stream: Self::DoExchangeStream = Box::pin({
@@ -1168,21 +1182,6 @@ async fn modify_dsn_params(dsn: &str) -> anyhow::Result<Dsn> {
             .insert("csv_config_file_origin".to_string(), csv_path.to_string());
     }
 
-    // let mut map = BTreeMap::new();
-    // for (k, v) in dsn.params {
-    //     let new_value = if k == "csv_config_file" {
-    //         encode_csv_config_file(v.clone())?
-    //     } else if k == "transform_config_file" {
-    //         String::new()
-    //     } else if v.contains("@") {
-    //         get_string_content_from_param_value(&v, false, false)?.unwrap_or(String::new())
-    //     } else {
-    //         String::new()
-    //     };
-    //     let new_value = if new_value.is_empty() { v } else { new_value };
-    //     map.insert(k, new_value);
-    // }
-    // dsn.params = map;
     for (k, v) in dsn.params.iter_mut() {
         if k == "csv_config_file" {
             *v = encode_csv_config_file(v.clone())?;

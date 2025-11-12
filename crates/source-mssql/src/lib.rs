@@ -71,7 +71,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // replace subtable fields
     let distinct_sql = config.task.generate_distinct_sql()?;
-    let values = if !distinct_sql.is_empty() {
+    let values = if let Some(distinct_sql) = distinct_sql {
         query.select_for_schema(&distinct_sql).await?
     } else {
         LinkedHashMap::new()

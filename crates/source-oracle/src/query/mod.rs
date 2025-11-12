@@ -84,7 +84,7 @@ impl OracleQuery {
         anyhow::bail!("migrate oracle, failed to get connection from pool")
     }
 
-    pub fn select_distinct_values(
+    pub fn select_all(
         &mut self,
         sql: &str,
     ) -> anyhow::Result<(LinkedHashMap<String, OracleType>, Vec<oracle::Row>)> {
@@ -139,38 +139,6 @@ impl OracleQuery {
             Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
         }
         Ok(col_map)
-    }
-
-    #[allow(dead_code)]
-    pub fn select_all(
-        &mut self,
-        sql: &str,
-    ) -> anyhow::Result<(LinkedHashMap<String, OracleType>, Vec<oracle::Row>)> {
-        let conn = self.get_conn()?;
-        // select data
-        let result = conn.query(sql, &[]);
-        let mut col_map = LinkedHashMap::new();
-        let mut rows = Vec::new();
-        match result {
-            Ok(rs) => {
-                let cols = rs.column_info();
-                for col in cols {
-                    col_map.insert(col.name().to_string(), col.oracle_type().clone());
-                }
-                for row in rs {
-                    match row {
-                        Ok(row) => {
-                            rows.push(row);
-                        }
-                        Err(err) => {
-                            anyhow::bail!("failed to select data, cause: {}", err.to_string())
-                        }
-                    }
-                }
-            }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
-        }
-        Ok((col_map, rows))
     }
 
     pub fn select_all_and_to_record_batches(
@@ -338,7 +306,7 @@ mod tests {
         let mut query = OracleQuery::try_new(config, String::from("+08:00")).unwrap();
 
         let (col_map, rows) = query
-            .select_distinct_values("select distinct name,value from t_metric")
+            .select_all("select distinct name,value from t_metric")
             .unwrap();
         dbg!(&col_map);
         dbg!(&rows);

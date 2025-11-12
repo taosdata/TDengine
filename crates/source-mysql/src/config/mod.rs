@@ -5,7 +5,7 @@ use crate::config::connect::ConnectConfig;
 use taosx_core::utils::replace_date_placeholder;
 use taosx_core::{plugins::config::AdvancedOptions, utils};
 
-use anyhow::Ok;
+use anyhow::{Context, Ok};
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use taos::Dsn;
 
@@ -210,17 +210,24 @@ impl TaskConfig {
             .unwrap_or(5))
     }
 
-    pub fn generate_distinct_sql(&self) -> anyhow::Result<String> {
+    pub fn generate_distinct_sql(&self) -> anyhow::Result<Option<String>> {
         // generate sql
-        let sql = self.subtable_fields.clone().unwrap_or("".to_string());
+        let Some(sql) = self.subtable_fields.as_ref() else {
+            return Ok(None);
+        };
 
         // task start time with time zone
         let start = self.start;
-        let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
+        let time_zone = FixedOffset::from_str(&self.time_zone).context("parse time zone error")?;
         let start_tz = start.with_timezone(&time_zone);
 
         // replace the placeholders
-        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
+        let mut res = replace_date_placeholder(sql.clone(), start_tz);
+        if let Some(end) = self.end {
+            let end_ts = end.with_timezone(&time_zone);
+            res = replace_date_placeholder(res, end_ts);
+        }
+        anyhow::Ok(Some(res))
     }
 
     pub fn generate_sql(&self) -> anyhow::Result<String> {
@@ -486,14 +493,14 @@ mod tests {
         let dsn = Dsn::from_str("mysql://root:password@192.168.1.45:3306/test_ci?subtable_fields=select distinct sys_sn,sys_so from tablename&sql=select * from tablename where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
-        let sql = config.task.generate_distinct_sql().unwrap();
+        let sql = config.task.generate_distinct_sql().unwrap().unwrap();
         assert_eq!(sql, "select distinct sys_sn,sys_so from tablename");
 
         // use placeholders
         let dsn = Dsn::from_str("mysql://root:password@192.168.1.45:3306/test_ci?subtable_fields=select distinct sys_sn,sys_so from table_${Ymd}&sql=select * from table_${Ymd} where ts>=${start} and ts<${end}&start=2021-01-01T00:00:00+08:00&end=2021-01-02T00:00:00+02:00&interval=1d&delay=0")
             .unwrap();
         let config = MySqlConfig::from_dsn(&dsn).unwrap();
-        let sql = config.task.generate_distinct_sql().unwrap();
+        let sql = config.task.generate_distinct_sql().unwrap().unwrap();
         assert_eq!(sql, "select distinct sys_sn,sys_so from table_20210101");
     }
 

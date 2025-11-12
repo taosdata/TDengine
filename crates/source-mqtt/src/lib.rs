@@ -34,6 +34,7 @@ pub mod client;
 pub mod config;
 mod dump;
 mod metrics;
+pub mod split_job;
 pub mod topic;
 
 pub const MQTT_ID: &str = "mqtt";

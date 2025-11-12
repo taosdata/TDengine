@@ -49,6 +49,10 @@ shadow-rs.workspace = true
 orc-rust.workspace = true
 duckdb = { workspace = true, features = ["appender-arrow", "bundled"] }
 async-compression = { workspace = true }
+tonic = { workspace = true }
+http = { workspace = true }
+arrow-flight = { workspace = true }
+
 taosx-core = { path = "../../taosx-core" }
 
 [build-dependencies]

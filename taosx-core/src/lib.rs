@@ -7,6 +7,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_with::serde_as;
 
+pub mod ha;
 pub mod migrations;
 
 pub use legacy::*;

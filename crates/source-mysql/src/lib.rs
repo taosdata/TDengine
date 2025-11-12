@@ -82,7 +82,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // replace subtable fields
     let distinct_sql = config.task.generate_distinct_sql()?;
-    let values = if !distinct_sql.is_empty() {
+    let values = if let Some(distinct_sql) = distinct_sql {
         query.select_one_for_schema(&distinct_sql).await?
     } else {
         None
@@ -344,7 +344,7 @@ fn generate_json_value(
             }
         }
         // 字符串
-        "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDUIMTEXT" | "LONGTEXT" => {
+        "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDIUMTEXT" | "LONGTEXT" => {
             let val = row.try_get::<Option<String>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
@@ -580,7 +580,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mysql_to_taos() {
+    async fn test_mysql_to_taos_with_datasource() {
         let from = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
@@ -605,7 +605,6 @@ mod tests {
         )
         .await
         .ok();
-        // let _ = res.await;
     }
 
     #[tokio::test]

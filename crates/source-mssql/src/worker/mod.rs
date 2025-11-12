@@ -282,8 +282,10 @@ pub async fn get_all_distinct_values(
         let distinct_sql = config.task.generate_distinct_sql()?;
 
         // get distinct values
-        if !distinct_sql.is_empty() && current_distinct_sql != distinct_sql {
-            let values = query.select_distinct_values(&distinct_sql).await;
+        if let Some(distinct_sql) =
+            distinct_sql.filter(|distinct_sql| distinct_sql != &current_distinct_sql)
+        {
+            let values = query.select_all(&distinct_sql).await;
             let (col_map, values) = match values {
                 Ok(values) => values,
                 Err(e) => {

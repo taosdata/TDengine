@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
+use anyhow::Context;
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 
 use mongodb::bson::{Bson, Document};
@@ -141,7 +142,7 @@ impl TaskConfig {
                 anyhow::Ok(start_time)
             })
             .transpose()?
-            .expect("start is required");
+            .context("start is required")?;
         Ok(start)
     }
 

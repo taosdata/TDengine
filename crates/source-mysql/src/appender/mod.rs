@@ -317,7 +317,7 @@ pub async fn to_record_batches(
                     }
                 }
                 // 字符串
-                "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDUIMTEXT" | "LONGTEXT" => {
+                "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDIUMTEXT" | "LONGTEXT" => {
                     let val = row.try_get::<Option<String>, _>(col_cidx);
                     match val {
                         Ok(val) => match val {

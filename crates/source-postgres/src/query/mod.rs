@@ -1,5 +1,6 @@
 use std::pin::Pin;
 
+use anyhow::Context;
 use futures::stream::IntoStream;
 use futures::{StreamExt, TryStreamExt};
 use sqlx::{Error, Executor, Pool};
@@ -96,15 +97,11 @@ impl PostgresQuery {
         // TODO timezone
     }
 
-    pub async fn select_distinct_values(&mut self, sql: &str) -> anyhow::Result<Vec<PgRow>> {
-        let result = self.pool.fetch_all(sql).await;
-        match result {
-            Ok(rows) => Ok(rows),
-            Err(err) => anyhow::bail!(
-                "failed to select distinct values, cause: {}",
-                err.to_string()
-            ),
-        }
+    pub async fn select_all(&mut self, sql: &str) -> anyhow::Result<Vec<PgRow>> {
+        self.pool
+            .fetch_all(sql)
+            .await
+            .context("postgres fetch data error")
     }
 
     pub async fn select_one_for_schema(&mut self, sql: &str) -> anyhow::Result<Option<PgRow>> {
@@ -116,15 +113,6 @@ impl PostgresQuery {
                 anyhow::bail!("failed to execute query, cause: {}", e.to_string());
             }
         })
-    }
-
-    #[allow(dead_code)]
-    pub async fn select_all(&mut self, sql: &str) -> anyhow::Result<Vec<PgRow>> {
-        let result = self.pool.fetch_all(sql).await;
-        match result {
-            Ok(rows) => Ok(rows),
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
-        }
     }
 
     #[allow(clippy::type_complexity)]

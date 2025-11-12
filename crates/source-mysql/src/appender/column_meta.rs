@@ -45,7 +45,7 @@ impl ColumnMeta {
             // 文本
             "TINYTEXT" => Ok(IpcDataType::NChar(50)),
             "TEXT" => Ok(IpcDataType::NChar(50)),
-            "MEDUIMTEXT" => Ok(IpcDataType::NChar(50)),
+            "MEDIUMTEXT" => Ok(IpcDataType::NChar(50)),
             "LONGTEXT" => Ok(IpcDataType::NChar(50)),
             // 字节数组
             "BINARY" => Ok(IpcDataType::VarBinary(50)),
@@ -91,7 +91,7 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         "LONGBLOB" => Ok(DataType::LargeBinary),
         "TINYTEXT" => Ok(DataType::Utf8),
         "TEXT" => Ok(DataType::Utf8),
-        "MEDUIMTEXT" => Ok(DataType::Utf8),
+        "MEDIUMTEXT" => Ok(DataType::Utf8),
         "LONGTEXT" => Ok(DataType::Utf8),
         // 字节数组
         "BINARY" => Ok(DataType::Binary),
@@ -197,7 +197,7 @@ mod tests {
         let column_meta = ColumnMeta::try_new("id".to_string(), "TEXT".to_string()).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
-        let column_meta = ColumnMeta::try_new("id".to_string(), "MEDUIMTEXT".to_string()).unwrap();
+        let column_meta = ColumnMeta::try_new("id".to_string(), "MEDIUMTEXT".to_string()).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "LONGTEXT".to_string()).unwrap();
@@ -323,7 +323,7 @@ mod tests {
             DataType::Utf8
         );
         assert_eq!(
-            to_arrow_data_type("MEDUIMTEXT".to_string()).unwrap(),
+            to_arrow_data_type("MEDIUMTEXT".to_string()).unwrap(),
             DataType::Utf8
         );
         assert_eq!(

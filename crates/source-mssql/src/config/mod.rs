@@ -224,17 +224,25 @@ impl TaskConfig {
             .unwrap_or(5))
     }
 
-    pub fn generate_distinct_sql(&self) -> anyhow::Result<String> {
+    pub fn generate_distinct_sql(&self) -> anyhow::Result<Option<String>> {
         // generate sql
-        let sql = self.subtable_fields.clone().unwrap_or("".to_string());
+        let Some(sql) = self.subtable_fields.as_ref() else {
+            return Ok(None);
+        };
 
         // task start time with time zone
         let start = self.start;
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
         let start_tz = start.with_timezone(&time_zone);
 
+        let mut res = replace_date_placeholder(sql.clone(), start_tz);
+        if let Some(end) = self.end {
+            let end_tz = end.with_timezone(&time_zone);
+            res = replace_date_placeholder(res, end_tz);
+        }
+
         // replace the placeholders
-        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
+        anyhow::Ok(Some(res))
     }
 
     pub fn generate_sql(&self) -> anyhow::Result<String> {

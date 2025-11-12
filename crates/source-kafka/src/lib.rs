@@ -36,6 +36,7 @@ mod message_sender;
 pub mod pending_ack_fut;
 pub mod poll;
 pub mod sample;
+pub mod split_job;
 mod sub_task;
 pub mod topic_offset;
 pub mod valid;

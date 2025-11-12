@@ -205,6 +205,12 @@ taosx-task.path = "crates/task"
 taosx-metrics.path = "./taosx-metrics"
 source-csv.path = "./crates/source-csv"
 source-kafka.path = "./crates/source-kafka"
+source-mqtt.path = "./crates/source-mqtt"
+source-mongodb.path = "./crates/source-mongodb"
+source-mysql.path = "./crates/source-mysql"
+source-postgres.path = "./crates/source-postgres"
+source-oracle.path = "./crates/source-oracle"
+source-mssql.path = "./crates/source-mssql"
 tmq-to-local.path = "./crates/tmq-to-local"
 tmq-to-td.path = "./crates/tmq-to-td"
 legacy-to-taos.path = "./crates/legacy-to-taos"
@@ -242,6 +248,7 @@ description = "taosX - TDengine data integration tool"
 anyhow.workspace = true
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
+arrow-schema.workspace = true
 zerocopy = { workspace = true }
 opendal = { workspace = true, features = ["services-s3"] }
 #multi_index_map = "0.15.0"
@@ -362,6 +369,12 @@ taosx-ipc.workspace = true
 taosx-metrics.workspace = true
 taosx-task.workspace = true
 source-kafka.workspace = true
+source-mqtt.workspace = true
+source-mongodb.workspace = true
+source-mysql.workspace = true
+source-postgres.workspace = true
+source-oracle.workspace = true
+source-mssql.workspace = true
 tmq-to-local.workspace = true
 tmq-to-td.workspace = true
 legacy-to-taos.workspace = true
