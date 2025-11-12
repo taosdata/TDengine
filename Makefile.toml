@@ -1,79 +1,77 @@
 # command "toml get ..." requires installation of "toml-cli" first, ref https://github.com/gnprice/toml-cli
 
 # Use env scripts to get the latest version from git tags to make it available for any platform.
-env_scripts = [
-  '''
-    #!@duckscript
+env_scripts = ['''
+  #!@duckscript
 
-    # setup version
-    ver = get_env VER_NUMBER
-    if is_empty ${ver}
-      out = exec git describe --tags --abbrev=0
-      ver = trim ${out.stdout}
-      ver = replace ${ver} "ver-" ""
-      echo "* last published version: ${ver}"
-      set_env "VER_NUMBER" "${ver}"
-    end
+  # setup version
+  ver = get_env VER_NUMBER
+  if is_empty ${ver}
+    out = exec git describe --tags --abbrev=0
+    ver = trim ${out.stdout}
+    ver = replace ${ver} "ver-" ""
+    echo "* last published version: ${ver}"
+    set_env "VER_NUMBER" "${ver}"
+  end
 
-    # 获取编译器版本信息
-    gcc_version = exec cc -dumpversion
-    version = trim ${gcc_version.stdout}
-    if is_empty ${version}
-      set_env "CFLAGS" "-fno-builtin"
+  # 获取编译器版本信息
+  gcc_version = exec cc -dumpversion
+  version = trim ${gcc_version.stdout}
+  if is_empty ${version}
+    set_env "CFLAGS" "-fno-builtin"
+  else
+    echo "GCC version: ${version}"
+
+    if contains ${version} "."
+      version = semver_parse "${version}"
     else
-      echo "GCC version: ${version}"
-
-      if contains ${version} "."
-        version = semver_parse "${version}"
-      else
-        version = semver_parse "${version}.0.0"
-      end
-      echo "Major version: ${version.major}"
-
-      # 比较主版本号是否大于 9
-      if greater_than ${version.major} 9
-          echo "GCC version is 10+"
-      else
-          echo "GCC version is 9 or lower, use -fno-builtin"
-          set_env "CFLAGS" "-fno-builtin"
-      end
+      version = semver_parse "${version}.0.0"
     end
+    echo "Major version: ${version.major}"
 
-    cus_name = get_env "CUS_NAME"
-    echo ${cus_name}
-    if is_empty "${cus_name}"
-      cus_name = set "TDengine"
-      set_env "CUS_NAME" "${cus_name}"
+    # 比较主版本号是否大于 9
+    if greater_than ${version.major} 9
+        echo "GCC version is 10+"
+    else
+        echo "GCC version is 9 or lower, use -fno-builtin"
+        set_env "CFLAGS" "-fno-builtin"
     end
-    echo "Product: ${cus_name}"
+  end
 
-    if eq "${cus_name}" "TDengine TSDB-Lite"
-      set_env "TSDB_LITE" "true"
+  cus_name = get_env "CUS_NAME"
+  echo ${cus_name}
+  if is_empty "${cus_name}"
+    cus_name = set "TDengine"
+    set_env "CUS_NAME" "${cus_name}"
+  end
+  echo "Product: ${cus_name}"
+
+  if eq "${cus_name}" "TDengine TSDB-Lite"
+    set_env "TSDB_LITE" "true"
+  end
+
+  cus_prompt = get_env "CUS_PROMPT"
+  if is_empty "${cus_prompt}"
+    cus_prompt = set "taos"
+    set_env "CUS_PROMPT" "${cus_prompt}"
+  end
+  echo "Prompt: ${cus_prompt}"
+
+  # 获取插件目录
+  plugins_home = get_env "PLUGINS_HOME"
+
+  # 获取当前系统平台
+  os = os_family
+  echo "Build on OS: ${os}"
+  set_env "CARGO_MAKE_BUILD_OS_FAMILY" "${os}"
+  if is_empty "${plugins_home}"
+    if eq ${os} "windows"
+      set_env "PLUGINS_HOME" "C:\\${cus_name}\\plugins"
+    else
+      set_env "PLUGINS_HOME" "/usr/local/${cus_prompt}/plugins"
     end
-
-    cus_prompt = get_env "CUS_PROMPT"
-    if is_empty "${cus_prompt}"
-      cus_prompt = set "taos"
-      set_env "CUS_PROMPT" "${cus_prompt}"
-    end
-    echo "Prompt: ${cus_prompt}"
-
-    # 获取插件目录
-    plugins_home = get_env "PLUGINS_HOME"
-
-    # 获取当前系统平台
-    os = os_family
-    echo "Build on OS: ${os}"
-    set_env "CARGO_MAKE_BUILD_OS_FAMILY" "${os}"
-    if is_empty "${plugins_home}"
-      if eq ${os} "windows"
-        set_env "PLUGINS_HOME" "C:\\${cus_name}\\plugins"
-      else
-        set_env "PLUGINS_HOME" "/usr/local/${cus_prompt}/plugins"
-      end
-    end
-    ''',
-]
+  end
+  ''']
 
 [config]
 load_cargo_aliases = false
@@ -82,7 +80,9 @@ default_to_workspace = false
 
 [env]
 UPX_DIR = "./target/deploy/upx/"
-BUILD_PROFILE = { value = "release", condition = { env_not_set = ["BUILD_PROFILE"] } }
+BUILD_PROFILE = { value = "release", condition = { env_not_set = [
+  "BUILD_PROFILE",
+] } }
 RUST_VERSION = "1.90.0"
 ZIG_VERSION = "0.14.1"
 
@@ -98,7 +98,16 @@ echo CFLAGS=$CFLAGS
 echo PLUGINS_HOME=$PLUGINS_HOME
 """
 [tasks.taosx-unlicensed]
-condition.files_modified = { input = ["${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*", "src/**/*.rs", "crates/**/*.rs", "taosx-core/src/**/*.rs", "taosx-ipc/src/**/*.rs", "taosx-metrics/src/**/*.rs"], output = ["target/${BUILD_PROFILE}/taosx"] }
+condition.files_modified = { input = [
+  "${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*",
+  "src/**/*.rs",
+  "crates/**/*.rs",
+  "taosx-core/src/**/*.rs",
+  "taosx-ipc/src/**/*.rs",
+  "taosx-metrics/src/**/*.rs",
+], output = [
+  "target/${BUILD_PROFILE}/taosx",
+] }
 dependencies = ["install-protoc"]
 command = "cargo"
 args = [
@@ -112,7 +121,16 @@ args = [
 ]
 
 [tasks.taosx]
-condition.files_modified = { input = ["${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*", "src/**/*.rs", "crates/**/*.rs", "taosx-core/src/**/*.rs", "taosx-ipc/src/**/*.rs", "taosx-metrics/src/**/*.rs"], output = ["target/${BUILD_PROFILE}/taosx"] }
+condition.files_modified = { input = [
+  "${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*",
+  "src/**/*.rs",
+  "crates/**/*.rs",
+  "taosx-core/src/**/*.rs",
+  "taosx-ipc/src/**/*.rs",
+  "taosx-metrics/src/**/*.rs",
+], output = [
+  "target/${BUILD_PROFILE}/taosx",
+] }
 dependencies = ["install-protoc"]
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
@@ -214,7 +232,11 @@ deprecated = true
 
 [tasks.install-plugins]
 description = "Install all available plugins"
-run_task = { name = ["install-plugin-opc", "install-plugin-influxdb", "install-plugin-opentsdb"] }
+run_task = { name = [
+  "install-plugin-opc",
+  "install-plugin-influxdb",
+  "install-plugin-opentsdb",
+] }
 
 [tasks.install-plugin-opc]
 condition = { files_exist = ["plugins/opc/taosx-opc"] }
@@ -442,6 +464,7 @@ rm -rf ./TDengine-enterprise-${VER_NUMBER}
 """
 dependencies = [
 
+
   # "taosx",
   # "plugins",
   # "taos-explorer"
@@ -499,13 +522,39 @@ rm -rf ./TDengine-enterprise-${VER_NUMBER}
 cwd = "docker/dev/"
 script = """
 echo use manylinux2014 as base image with docker/dev/Dockerfile .
-docker buildx build --platform linux/amd64,linux/arm64 -t taosx/dev:${RUST_VERSION} --build-arg RUST_VERSION=${RUST_VERSION} --load .
+set -e
+PLATFORM=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --platform)
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --platform=*)
+      PLATFORM="${1#--platform=}"
+      shift
+      ;;
+    *)
+      echo "Unknown param: $1, ignored"
+      ;;
+  esac
+done
+if [ -z "$PLATFORM" ]; then
+  PLATFORM="linux/amd64,linux/arm64" # default platform
+fi
+echo "Building taosx/dev:${RUST_VERSION} for platform: ${PLATFORM}"
+docker buildx build --platform ${PLATFORM} -t taosx/dev:${RUST_VERSION} --build-arg RUST_VERSION=${RUST_VERSION} --load .
 """
 [tasks.install-taosx-dev-docker-image]
 install_script = """
 #!/bin/bash
 echo "Prepare dev image for version $RUST_VERSION"
-docker images --format json | jq 'select(.Repository == "taosx/dev" and .Tag == "'$RUST_VERSION'")' |grep Tag || cargo make build-docker-dev
+if ! docker image inspect taosx/dev:${RUST_VERSION} >/dev/null 2>&1; then
+  echo "Dev image taosx/dev:${RUST_VERSION} not found locally. Building..."
+  cargo make build-docker-dev
+else
+  echo "Dev image taosx/dev:${RUST_VERSION} already present. Skipping build."
+fi
 """
 
 [tasks.check-aarch64]
@@ -542,42 +591,53 @@ dependencies = ["install-taosx-dev-docker-image"]
 script = """
 echo Build taosX release binaries with taosx/dev image.
 
-# Get platform
-export PLATFORM=$(echo "$@" | rg '\\--platform (\\S+)' -o -r '$1')
-export EXTRAS="$(echo $@ | rg '\\--platform \\S+ (.*)' --replace '$1')"
+# Parse arguments: extract --platform (linux/amd64 or linux/arm64) and pass remaining to cargo.
+PLATFORM=""
+EXTRAS=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --platform)
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --platform=*)
+      PLATFORM="${1#--platform=}"
+      shift
+      ;;
+    *)
+      if [ -z "$EXTRAS" ]; then
+        EXTRAS="$1"
+      else
+        EXTRAS="$EXTRAS $1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$PLATFORM" ]; then
+  PLATFORM="linux/amd64" # default platform
+fi
 
 case "${PLATFORM}" in
-  "linux/amd64" | "linux/arm64")
-    echo Build taosX release for target $PLATFORM
+  "linux/amd64"|"linux/arm64")
+    echo "Build taosX release for target ${PLATFORM}"
     echo "EXTRAS: ${EXTRAS}"
     echo "BUILD_PROFILE: ${BUILD_PROFILE}"
-    export TARGET_DIR=$PWD/target/${PLATFORM}
-    mkdir -p $TARGET_DIR
-    docker run --platform $PLATFORM --rm \
+    TARGET_DIR=$PWD/target/${PLATFORM}
+    mkdir -p "$TARGET_DIR"
+    docker run --platform "${PLATFORM}" --rm \
       -v .:/app \
       -v $HOME/.cargo/registry:/root/.cargo/registry \
       -v $HOME/.cargo/git:/root/.cargo/git \
-      -v $TARGET_DIR:/app/target \
+      -v "$TARGET_DIR":/app/target \
       -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
       taosx/dev:${RUST_VERSION} \
-      cargo build --profile ${BUILD_PROFILE} ${EXTRAS}
-    ;;
-  "")
-    export TARGET_DIR=$PWD/target/centos7
-    mkdir -p $TARGET_DIR
-    echo "ARGS: $@"
-    docker run --rm \
-      -v .:/app \
-      -v $HOME/.cargo/registry:/root/.cargo/registry \
-      -v $HOME/.cargo/git:/root/.cargo/git \
-      -v $TARGET_DIR:/app/target \
-      -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
-      taosx/dev:${RUST_VERSION} \
-      cargo build --profile ${BUILD_PROFILE} $@
+      cargo build --profile "${BUILD_PROFILE}" ${EXTRAS}
     ;;
   *)
-    echo Unsupported platform $PLATFORM
-    exit -1
+    echo "Unsupported platform: ${PLATFORM}. Allowed: linux/amd64 or linux/arm64"
+    exit 1
     ;;
 esac
 
@@ -775,7 +835,12 @@ docker build -t taosx/zigbuilder:${RUST_VERSION} -f build.arm64.Dockerfile \
 [tasks.zigbuild-aarch64-taosx]
 install_script = """
 echo "Prepare zigbuilder image for aarch64"
-docker images --format json | jq -e 'select(.Repository == "taosx/zigbuilder" and .Tag == "$RUST_VERSION")' || cargo make zigbuild-aarch64-image
+if ! docker image inspect taosx/zigbuilder:${RUST_VERSION} >/dev/null 2>&1; then
+  echo "zigbuilder image taosx/zigbuilder:${RUST_VERSION} not found. Building..."
+  cargo make zigbuild-aarch64-image
+else
+  echo "zigbuilder image taosx/zigbuilder:${RUST_VERSION} already present."
+fi
 """
 script = """
 docker run --rm -v .:/app -w /app \
@@ -862,7 +927,16 @@ rm -rf explorer/public/docs-en
 """
 [tasks.explorer-ui-prod]
 dependencies = ["download-docs-from-remote", "remove-docs-if-community"]
-condition.files_modified = { input = ["explorer/package.json", "explorer/vite.config.ts", "explorer/pnpm-*.yaml", "explorer/src/**", "explorer/static/**", "explorer/taos-ui/**"], output = ["explorer/dist/"] }
+condition.files_modified = { input = [
+  "explorer/package.json",
+  "explorer/vite.config.ts",
+  "explorer/pnpm-*.yaml",
+  "explorer/src/**",
+  "explorer/static/**",
+  "explorer/taos-ui/**",
+], output = [
+  "explorer/dist/",
+] }
 condition.env_not_set = ["NO_BUILD_UI"]
 cwd = "explorer"
 script_runner = "@duckscript"
@@ -909,7 +983,9 @@ args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
 
 [tasks.explorer]
 run_task = [
-  { name = "explorer-disable-x-api", condition = { env_true = ["TSDB_LITE"] } },
+  { name = "explorer-disable-x-api", condition = { env_true = [
+    "TSDB_LITE",
+  ] } },
   { name = "explorer-with-x-api" },
 ]
 
