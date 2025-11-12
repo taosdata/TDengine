@@ -893,14 +893,13 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
     goto _end;
   }
 
-  // use weighted average to select the free slot
-  int32_t rnd = taosRand() % nIdleSlots;
-  for (int32_t i = 0; i < nCalcNodes; i++) {
-    pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, i);
-    if (TD_DLIST_NELES(&pNode->idleSlots) > rnd) {
-      break;
+  // select a free slot with payload balance
+  pNode = TARRAY_GET_ELEM(pTask->pCalcNodes, 0);
+  for (int32_t i = 1; i < nCalcNodes; i++) {
+    SSTriggerCalcNode *pTmpNode = TARRAY_GET_ELEM(pTask->pCalcNodes, i);
+    if (TD_DLIST_NELES(&pTmpNode->idleSlots) > TD_DLIST_NELES(&pNode->idleSlots)) {
+      pNode = pTmpNode;
     }
-    rnd -= TD_DLIST_NELES(&pNode->idleSlots);
   }
   SSTriggerCalcSlot *pSlot = TD_DLIST_HEAD(&pNode->idleSlots);
   QUERY_CHECK_NULL(pSlot, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -1114,10 +1113,19 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
       void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pReq->gid, sizeof(int64_t));
       pReq->scanRange.skey = ((px == NULL) ? INT64_MIN : *(int64_t *)px) + 1;
     }
-    if (shrinkRange && pCalcRange->skey != INT64_MIN) {
+    pReq->scanRange.ekey = pGroup->newThreshold;
+    if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+      if (pCalcRange->skey != INT64_MIN) {
+        STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->skey);
+        pReq->scanRange.skey = TMAX(pReq->scanRange.skey, win.skey);
+      }
+      if (pCalcRange->ekey != INT64_MAX) {
+        STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->ekey);
+        pReq->scanRange.ekey = TMIN(pReq->scanRange.ekey, win.ekey);
+      }
+    } else if (shrinkRange && pTask->fillHistoryStartTime > 0 && pCalcRange->skey != INT64_MIN) {
       pReq->scanRange.skey = TMAX(pReq->scanRange.skey, pCalcRange->skey - pTask->historyStep);
     }
-    pReq->scanRange.ekey = pGroup->newThreshold;
     pReq->calcRange = *pCalcRange;
     pReq->isHistory = false;
   }
@@ -2255,7 +2263,12 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
   switch (pMsg->msgType) {
     case STREAM_MSG_START: {
       if (pTask->task.status != STREAM_STATUS_INIT) {
-        // redundant message, ignore it
+        ST_TASK_DLOG("ignore redundant start message, current status: %d", pTask->task.status);
+        break;
+      }
+      if (taosArrayGetSize(pTask->pVirTableInfoRsp) > 0 && taosArrayGetSize(pTask->readerList) == 0) {
+        ST_TASK_DLOG("ignore start message since orig table readers are not ready, vir table count: %" PRId64,
+                     TARRAY_SIZE(pTask->pVirTableInfoRsp));
         break;
       }
       if (pTask->pRealtimeContext == NULL) {
@@ -2303,7 +2316,8 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
     }
     case STREAM_MSG_ORIGTBL_READER_INFO: {
       if (pTask->task.status != STREAM_STATUS_INIT || taosArrayGetSize(pTask->readerList) > 0) {
-        // redundant message, ignore it
+        ST_TASK_DLOG("ignore redundant original reader info, current status: %d, reader count: %" PRId64,
+                     pTask->task.status, TARRAY_SIZE(pTask->readerList));
         break;
       }
       SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
@@ -2434,7 +2448,7 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
         }
         break;
       }
-      case TSDB_CODE_STREAM_TASK_NOT_EXIST: {
+      default: {
         bool addWait = false;
         if (pReq->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
           addWait = (listNEles(&pTask->pRealtimeContext->retryPullReqs) == 0);
@@ -2450,12 +2464,11 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           code = stTriggerTaskAddWaitSession(pTask, pReq->sessionId, resumeTime);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        break;
-      }
-      default: {
-        *pErrTaskId = pReq->readerTaskId;
-        code = pRsp->code;
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (code != TSDB_CODE_STREAM_TASK_NOT_EXIST) {
+          *pErrTaskId = pReq->readerTaskId;
+          code = pRsp->code;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
       }
     }
   } else if (pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) {
@@ -4317,10 +4330,8 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
           ST_TASK_DLOG("add recalc request for delete data, start: %" PRId64 ", end: %" PRId64, range.skey, range.ekey);
           code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
           QUERY_CHECK_CODE(code, lino, _end);
-          if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
-            code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
+          code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
     } else {
@@ -4351,10 +4362,8 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         ST_TASK_DLOG("add recalc request for delete data, start: %" PRId64 ", end: %" PRId64, range.skey, range.ekey);
         code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
-          code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
+        code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
   }
@@ -7244,10 +7253,8 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
                      pGroup->oldThreshold, pMeta->skey, pMeta->ekey);
         code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
-          code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
+        code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
+        QUERY_CHECK_CODE(code, lino, _end);
         if (pGroup->windows.neles > 0) {
           SSTriggerWindow *pWin = taosObjListGetHead(&pGroup->windows);
           if (pWin->range.skey <= range.ekey) {
@@ -8134,12 +8141,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
       QUERY_CHECK_CODE(code, lino, _end);
       if (calcClose) {
         // skip calc if it should be recalculated later
-        bool skip = false;
         if (pGroup->recalcNextWindow) {
-          skip = (i == 0) && (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS);
-          pGroup->recalcNextWindow = false;
-        }
-        if (skip) {
           STimeWindow range = {.skey = param.wstart, .ekey = param.wend};
           ST_TASK_DLOG("add recalc request for next window, groupId: %" PRId64, pGroup->gid);
           code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
@@ -8149,6 +8151,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
           QUERY_CHECK_CODE(code, lino, _end);
           pWin->pWinCloseNotify = NULL;
         }
+        pGroup->recalcNextWindow = false;
       } else if (notifyClose) {
         void *px = taosArrayPush(pContext->pNotifyParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
