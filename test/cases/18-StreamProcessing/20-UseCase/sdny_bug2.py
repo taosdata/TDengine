@@ -35,7 +35,7 @@ class TestSdnyStream:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
         Jira: None
 

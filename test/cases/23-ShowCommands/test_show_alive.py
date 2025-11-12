@@ -12,7 +12,7 @@ class TestShowAlive:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_show_alive(self):
-        """Show Alive
+        """Show alive
 
         Continuously start and stop multiple dnodes to verify the returned results of show alive.
 

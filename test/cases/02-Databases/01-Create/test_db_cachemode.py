@@ -579,7 +579,7 @@ class TestDbCachemodel:
     # ------------------- main ----------------
     #
     def test_db_cachemodel(self):
-        """Balance: replica-3
+        """Options: cache model
 
         1. Create database with different cachemodel options(none/last_row/last_value/both)
         2. Insert data into subtables

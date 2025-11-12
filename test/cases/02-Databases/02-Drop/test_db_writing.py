@@ -9,7 +9,7 @@ class TestDatabaseDeleteWriting:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_delete_writing(self):
-        """Drop while writing
+        """Drop db while writing
 
         1. Create database
         2. Create normal table
@@ -17,9 +17,6 @@ class TestDatabaseDeleteWriting:
         4. Sleep 1s
         5. Repeat 10 times with the same names
         6. Meanwhile, start a thread that keeps inserting into that table regardless of success
-
-        Catalog:
-            - Database:Drop
 
         Since: v3.0.0.0
 

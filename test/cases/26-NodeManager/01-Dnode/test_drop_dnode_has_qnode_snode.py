@@ -8,7 +8,7 @@ class TestDropDnodeHasQnodeSnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_drop_dnode_has_qnode_snode(self):
-        """Drop: drop with qnode and snode
+        """Drop drop with qnode and snode
 
         Drop the dnode containing the mnode and snode
 

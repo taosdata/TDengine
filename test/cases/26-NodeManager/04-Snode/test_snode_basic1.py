@@ -8,7 +8,7 @@ class TestSnodeBasic1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_basic1(self):
-        """snode basic 1
+        """Snode basic
 
         1. Repeated create and drop snodes
         2. Check the results of ins_snodes

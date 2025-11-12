@@ -7,12 +7,15 @@ class TestJoinOrder:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_order(self):
-        """Join Test
+        """Join with order by
 
-        1.
-
-        Catalog:
-            - Query:Join
+        1. Create database with vgroup 1
+        2. Create 1 stable 'sta' and 1 child table 'tba1'
+        3. Insert 4 rows data into child table 'tba1'
+        4. child query as left join table
+        5. stba1 as right join table
+        6. Join two tables on timestamp column with different order by combinations
+        7. Check the result of join correctly
 
         Since: v3.0.0.0
 

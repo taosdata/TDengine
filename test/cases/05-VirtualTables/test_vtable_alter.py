@@ -398,7 +398,7 @@ class TestVtableAlter():
         tdSql.checkData(0, 0, "NCHAR(64)")
 
     def test_alter_virtual_super_table_and_create_child(self):
-        """Alter: virtual super table then create child table
+        """Alter: virtual stable create child table
 
         1. add column
         2. drop column

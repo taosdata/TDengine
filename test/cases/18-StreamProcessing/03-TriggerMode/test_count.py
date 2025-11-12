@@ -9,12 +9,13 @@ class TestStreamCountTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_count_trigger(self):
-        """Count: 
+        """Trigger mode count
 
-        Verification testing during the development process.
-
-        Catalog:
-            - Streams:Others
+        1. Create snode and database
+        2. Create super table and sub tables
+        3. Create streams with count_window trigger mode
+        4. Insert data into source tables
+        5. Check stream results
 
         Since: v3.3.3.7
 
