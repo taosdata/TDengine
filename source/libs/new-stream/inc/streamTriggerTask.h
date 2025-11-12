@@ -331,6 +331,7 @@ typedef struct SStreamTriggerTask {
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
   int8_t  precision;
+  int64_t historyStep;
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // trigger options: old version, to be removed
@@ -405,7 +406,8 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
 int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest);
 
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
-                                      STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory);
+                                      STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory,
+                                      bool shrinkRange);
 int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRecalcRequest **ppReq);
 
 // interfaces called by stream mgmt thread
