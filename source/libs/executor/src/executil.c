@@ -718,6 +718,8 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
   for (int32_t i = 0; i < taosArrayGetSize(pIdWithValue); ++i) {
     STagDataEntry* entry      = (STagDataEntry*)taosArrayGet(pIdWithValue, i);
     SValueNode*    pValueNode = (SValueNode*)entry->pValueNode;
+    // num type may have different bytes length, use the smaller one
+    int32_t        bytes = MIN(entry->bytes, pValueNode->node.resType.bytes);
 
     (void)memcpy(pStart, &entry->colId, sizeof(col_id_t));
     pStart += sizeof(col_id_t);
@@ -726,8 +728,8 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
       switch (pValueNode->node.resType.type) {
         case TSDB_DATA_TYPE_BOOL:
           (void)memcpy(
-            pStart, &pValueNode->datum.b, pValueNode->node.resType.bytes);
-          pStart += pValueNode->node.resType.bytes;
+            pStart, &pValueNode->datum.b, bytes);
+          pStart += bytes;
           break;
         case TSDB_DATA_TYPE_TINYINT:
         case TSDB_DATA_TYPE_SMALLINT:
@@ -735,22 +737,22 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
         case TSDB_DATA_TYPE_BIGINT:
         case TSDB_DATA_TYPE_TIMESTAMP:
           (void)memcpy(
-            pStart, &pValueNode->datum.i, pValueNode->node.resType.bytes);
-          pStart += pValueNode->node.resType.bytes;
+            pStart, &pValueNode->datum.i, bytes);
+          pStart += bytes;
           break;
         case TSDB_DATA_TYPE_UTINYINT:
         case TSDB_DATA_TYPE_USMALLINT:
         case TSDB_DATA_TYPE_UINT:
         case TSDB_DATA_TYPE_UBIGINT:
           (void)memcpy(
-            pStart, &pValueNode->datum.u, pValueNode->node.resType.bytes);
-          pStart += pValueNode->node.resType.bytes;
+            pStart, &pValueNode->datum.u, bytes);
+          pStart += bytes;
           break;
         case TSDB_DATA_TYPE_FLOAT:
         case TSDB_DATA_TYPE_DOUBLE:
           (void)memcpy(
-            pStart, &pValueNode->datum.d, pValueNode->node.resType.bytes);
-          pStart += pValueNode->node.resType.bytes;
+            pStart, &pValueNode->datum.d, bytes);
+          pStart += bytes;
           break;
         case TSDB_DATA_TYPE_VARCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
@@ -759,12 +761,6 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
             varDataVal(pValueNode->datum.p), varDataLen(pValueNode->datum.p));
           pStart += varDataLen(pValueNode->datum.p);
           break;
-        case TSDB_DATA_TYPE_JSON: {
-          int32_t jsonLen = getJsonValueLen(pValueNode->datum.p);
-          (void)memcpy(pStart, varDataVal(pValueNode->datum.p), jsonLen);
-          pStart += jsonLen;
-          break;
-        }
         default:
           qError("unsupported tag data type %d in tag filter optimization",
             pValueNode->node.resType.type);
