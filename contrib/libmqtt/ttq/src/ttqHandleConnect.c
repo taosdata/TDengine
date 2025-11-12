@@ -1,32 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include "tmqttBrokerInt.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <ttlist.h>
 
+#include "tmqttProto.h"
 #include "ttqMemory.h"
 #include "ttqPacket.h"
 #include "ttqProperty.h"
 #include "ttqSend.h"
+#include "ttqSystree.h"
 #include "ttqTime.h"
 #include "ttqTls.h"
-#include "tmqttProto.h"
-#include "ttqSystree.h"
 #include "ttqUtil.h"
 
 static char nibble_to_hex(uint8_t value) {
@@ -82,7 +67,7 @@ static void connection_check_acl(struct tmqtt *context, struct tmqtt_client_msg 
       access = TTQ_ACL_WRITE;
     }
     if (tmqttAclCheck(context, msg_tail->store->topic, msg_tail->store->payloadlen, msg_tail->store->payload,
-                        msg_tail->store->qos, msg_tail->store->retain, access) != TTQ_ERR_SUCCESS) {
+                      msg_tail->store->qos, msg_tail->store->retain, access) != TTQ_ERR_SUCCESS) {
       DL_DELETE((*head), msg_tail);
       ttqDbMsgStoreRefDec(&msg_tail->store);
       tmqtt_property_free_all(&msg_tail->properties);
@@ -202,27 +187,27 @@ int ttqCxtOnAuthorised(struct tmqtt *context, void *auth_data_out, uint16_t auth
   if (db.config->connection_messages == true) {
     if (context->is_bridge) {
       if (context->username) {
-        ttq_log(NULL, TTQ_LOG_NOTICE, "New bridge connected from %s:%d as %s (p%d, c%d, k%d, u'%s').",
-                    context->address, context->remote_port, context->id, context->protocol, context->clean_start,
-                    context->keepalive, context->username);
+        ttq_log(NULL, TTQ_LOG_NOTICE, "New bridge connected from %s:%d as %s (p%d, c%d, k%d, u'%s').", context->address,
+                context->remote_port, context->id, context->protocol, context->clean_start, context->keepalive,
+                context->username);
       } else {
         ttq_log(NULL, TTQ_LOG_NOTICE, "New bridge connected from %s:%d as %s (p%d, c%d, k%d).", context->address,
-                    context->remote_port, context->id, context->protocol, context->clean_start, context->keepalive);
+                context->remote_port, context->id, context->protocol, context->clean_start, context->keepalive);
       }
     } else {
       if (context->username) {
-        ttq_log(NULL, TTQ_LOG_NOTICE, "New client connected from %s:%d as %s (p%d, c%d, k%d, u'%s').",
-                    context->address, context->remote_port, context->id, context->protocol, context->clean_start,
-                    context->keepalive, context->username);
+        ttq_log(NULL, TTQ_LOG_NOTICE, "New client connected from %s:%d as %s (p%d, c%d, k%d, u'%s').", context->address,
+                context->remote_port, context->id, context->protocol, context->clean_start, context->keepalive,
+                context->username);
       } else {
         ttq_log(NULL, TTQ_LOG_NOTICE, "New client connected from %s:%d as %s (p%d, c%d, k%d).", context->address,
-                    context->remote_port, context->id, context->protocol, context->clean_start, context->keepalive);
+                context->remote_port, context->id, context->protocol, context->clean_start, context->keepalive);
       }
     }
 
     if (context->will) {
       ttq_log(NULL, TTQ_LOG_DEBUG, "Will message specified (%ld bytes) (r%d, q%d).",
-                  (long)context->will->msg.payloadlen, context->will->msg.retain, context->will->msg.qos);
+              (long)context->will->msg.payloadlen, context->will->msg.retain, context->will->msg.qos);
 
       ttq_log(NULL, TTQ_LOG_DEBUG, "\t%s", context->will->msg.topic);
     } else {
@@ -565,7 +550,7 @@ int ttqHandleConnect(struct tmqtt *context) {
     if ((protocol_version & 0x7F) != PROTOCOL_VERSION_v31) {
       if (db.config->connection_messages == true) {
         ttq_log(NULL, TTQ_LOG_INFO, "Invalid protocol version %d in CONNECT from %s.", protocol_version,
-                    context->address);
+                context->address);
       }
       ttqSendConnack(context, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
       rc = TTQ_ERR_PROTOCOL;
@@ -587,7 +572,7 @@ int ttqHandleConnect(struct tmqtt *context) {
     } else {
       if (db.config->connection_messages == true) {
         ttq_log(NULL, TTQ_LOG_INFO, "Invalid protocol version %d in CONNECT from %s.", protocol_version,
-                    context->address);
+                context->address);
       }
       ttqSendConnack(context, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
       rc = TTQ_ERR_PROTOCOL;
@@ -762,8 +747,7 @@ int ttqHandleConnect(struct tmqtt *context) {
     if (context->protocol == ttq_p_mqtt311 || context->protocol == ttq_p_mqtt31) {
       if (password_flag) {
         /* username_flag == 0 && password_flag == 1 is forbidden */
-        ttq_log(NULL, TTQ_LOG_ERR, "Protocol error from %s: password without username, closing connection.",
-                    client_id);
+        ttq_log(NULL, TTQ_LOG_ERR, "Protocol error from %s: password without username, closing connection.", client_id);
         rc = TTQ_ERR_PROTOCOL;
         goto handle_connect_error;
       }

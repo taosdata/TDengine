@@ -1,26 +1,11 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include "tmqttBrokerInt.h"
 
 #include <stdio.h>
 #include <string.h>
 
+#include "tmqttProto.h"
 #include "ttqPacket.h"
 #include "ttqSend.h"
-#include "tmqttProto.h"
 #include "ttqUtil.h"
 
 static int ttq_handle_pingreq(struct tmqtt *ttq) {
@@ -89,15 +74,14 @@ static int ttq_handle_puback(struct tmqtt *ttq) {
     return TTQ_ERR_MALFORMED_PACKET;
   }
 
-  ttq_log(NULL, TTQ_LOG_DEBUG, "Received %s from %s (Mid: %d, RC:%d)", "PUBACK", SAFE_PRINT(ttq->id), mid,
-              reason_code);
+  ttq_log(NULL, TTQ_LOG_DEBUG, "Received %s from %s (Mid: %d, RC:%d)", "PUBACK", SAFE_PRINT(ttq->id), mid, reason_code);
 
   tmqtt_property_free_all(&properties);
 
   rc = ttqDbMessageDeleteOutgoing(ttq, mid, ttq_ms_wait_for_pubcomp, qos);
   if (rc == TTQ_ERR_NOT_FOUND) {
     ttq_log(ttq, TTQ_LOG_WARNING, "Warning: Received %s from %s for an unknown packet identifier %d.", "PUBACK",
-                SAFE_PRINT(ttq->id), mid);
+            SAFE_PRINT(ttq->id), mid);
     return TTQ_ERR_SUCCESS;
   } else {
     return rc;

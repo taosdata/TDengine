@@ -1,32 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include "ttqSend.h"
 
 #include <string.h>
 
 #include "tmqttBrokerInt.h"
 
+#include "tmqttInt.h"
+#include "tmqttProto.h"
+#include "ttq.h"
 #include "ttqLogging.h"
 #include "ttqMemory.h"
 #include "ttqNet.h"
 #include "ttqPacket.h"
 #include "ttqProperty.h"
-#include "tmqttInt.h"
-#include "ttq.h"
-#include "tmqttProto.h"
 #include "ttqSystree.h"
 
 int send__publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint32_t payloadlen, const void *payload,

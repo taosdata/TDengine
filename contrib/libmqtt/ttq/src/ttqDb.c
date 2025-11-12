@@ -1,18 +1,3 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include "tmqttBrokerInt.h"
 
 #include <stdio.h>
@@ -20,8 +5,8 @@
 
 #include "ttqMemory.h"
 #include "ttqSend.h"
-#include "ttqTime.h"
 #include "ttqSystree.h"
+#include "ttqTime.h"
 #include "ttqUtil.h"
 
 /**
@@ -643,8 +628,8 @@ int ttqDbMessageDelete(struct tmqtt *context, bool force_free) {
 }
 
 int ttqDbMessageEasyQueue(struct tmqtt *context, const char *topic, uint8_t qos, uint32_t payloadlen,
-                            const void *payload, int retain, uint32_t message_expiry_interval,
-                            tmqtt_property **properties) {
+                          const void *payload, int retain, uint32_t message_expiry_interval,
+                          tmqtt_property **properties) {
   struct tmqtt_msg_store *stored;
   const char             *source_id;
   enum tmqtt_msg_origin   origin;

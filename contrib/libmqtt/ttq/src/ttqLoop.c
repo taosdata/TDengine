@@ -1,18 +1,3 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include "tmqttBrokerInt.h"
 
 #define _GNU_SOURCE
@@ -27,12 +12,12 @@
 #include <time.h>
 #include <ttlist.h>
 
+#include "tmqttProto.h"
 #include "ttqMemory.h"
 #include "ttqPacket.h"
 #include "ttqSend.h"
-#include "ttqTime.h"
-#include "tmqttProto.h"
 #include "ttqSystree.h"
+#include "ttqTime.h"
 #include "ttqUtil.h"
 
 #ifdef WITH_PERSISTENCE
@@ -131,7 +116,7 @@ static void queue_plugin_msgs(void) {
       }
     } else {
       ttqDbMessageEasyQueue(NULL, msg->topic, (uint8_t)msg->qos, (uint32_t)msg->payloadlen, msg->payload, msg->retain,
-                              message_expiry, &msg->properties);
+                            message_expiry, &msg->properties);
     }
     ttq_free(msg->topic);
     ttq_free(msg->payload);
