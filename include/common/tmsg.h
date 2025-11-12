@@ -4221,7 +4221,6 @@ void    tDeleteSTqOffset(void* val);
 
 typedef struct SMqVgOffset {
   int64_t   consumerId;
-  // int8_t    markWal;
   STqOffset offset;
 } SMqVgOffset;
 
