@@ -4629,7 +4629,7 @@ _exit:
   return code;
 }
  
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* rsp, SSHashObj* indexHash) {
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* rsp) {
   SEncoder encoder = {0};
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -4640,7 +4640,7 @@ int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWal
 
   if (rsp->dataBlock != NULL && ((SSDataBlock*)rsp->dataBlock)->info.rows > 0) {
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1)); // has real data
-    TAOS_CHECK_EXIT(encodeData(&encoder, rsp->dataBlock, indexHash));
+    TAOS_CHECK_EXIT(encodeData(&encoder, rsp->dataBlock, rsp->indexHash));
   } else {
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, 0));  // no real data
   }

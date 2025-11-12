@@ -839,6 +839,7 @@ typedef struct SSTriggerWalMetaNewRequest {
 } SSTriggerWalMetaNewRequest;
 
 typedef struct SSTriggerWalNewRsp {
+  SSHashObj*           indexHash;
   void*                dataBlock;
   void*                metaBlock;
   void*                deleteBlock;
@@ -1069,7 +1070,7 @@ typedef struct SStreamWalDataResponse {
   SSHashObj* pSlices;  // SSHash<uid, SStreamWalDataSlice>
 } SStreamWalDataResponse;
 
-int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock, SSHashObj* indexHash);
+int32_t tSerializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* metaBlock);
 int32_t tDeserializeSStreamWalDataResponse(void* buf, int32_t bufLen, SSTriggerWalNewRsp* pRsp, SArray* pSlices);
 
 typedef struct SStreamGroupValue {
