@@ -522,7 +522,6 @@ _error:
   }
   return code;
 }
-}
 
 int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
