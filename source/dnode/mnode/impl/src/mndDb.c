@@ -2512,57 +2512,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndS3MigrateDb(SMnode *pMnode, SDbObj *pDb) {
-  SSdb            *pSdb = pMnode->pSdb;
-  SVgObj          *pVgroup = NULL;
-  void            *pIter = NULL;
-  SVS3MigrateDbReq s3migrateReq = {.timestamp = taosGetTimestampSec()};
-  int32_t          reqLen = tSerializeSVS3MigrateDbReq(NULL, 0, &s3migrateReq);
-  int32_t          contLen = reqLen + sizeof(SMsgHead);
-  int32_t          code = 0;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    if (pVgroup->dbUid != pDb->uid) continue;
-
-    SMsgHead *pHead = rpcMallocCont(contLen);
-    if (pHead == NULL) {
-      sdbCancelFetch(pSdb, pVgroup);
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-    pHead->contLen = htonl(contLen);
-    pHead->vgId = htonl(pVgroup->vgId);
-    int32_t ret = 0;
-    if ((ret = tSerializeSVS3MigrateDbReq((char *)pHead + sizeof(SMsgHead), contLen, &s3migrateReq)) < 0) {
-      sdbRelease(pSdb, pVgroup);
-      return ret;
-    }
-
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_S3MIGRATE, .pCont = pHead, .contLen = contLen};
-    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-    if (code != 0) {
-      mError("vgId:%d, failed to send vnode-s3migrate request to vnode since 0x%x", pVgroup->vgId, code);
-    } else {
-      mInfo("vgId:%d, send vnode-s3migrate request to vnode, time:%d", pVgroup->vgId, s3migrateReq.timestamp);
-    }
-    sdbRelease(pSdb, pVgroup);
-  }
-
-  if (pRsp == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_RETURN(code);
-  }
-
-  (void)tSerializeSSsMigrateDbRsp(pRsp, rspLen, pSsMigrateRsp);
-  *pRspLen = rspLen;
-  *ppRsp = pRsp;
-  TAOS_RETURN(code);
-}
-
 int32_t mndSsMigrateDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   int32_t       code = 0;
   SSsMigrateDbRsp ssMigrateRsp = {0};

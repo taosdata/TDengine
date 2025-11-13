@@ -462,11 +462,6 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   pVnode->state.committed = pInfo->info.state.committed;
 
-  if (smaPostCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to post-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
-
   code = syncEndSnapshot(pVnode->sync, pInfo->forceTrim);
   TSDB_CHECK_CODE(code, lino, _exit);
 
