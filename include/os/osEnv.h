@@ -43,6 +43,7 @@ extern char            tsFMASupported;
 extern char 	       tsAVX512Supported;
 extern char            tsAVX512Enable;
 extern char            tsTagFilterCache;
+extern char            tsStableTagFilterCache;
 
 extern char configDir[];
 extern char tsDataDir[];
