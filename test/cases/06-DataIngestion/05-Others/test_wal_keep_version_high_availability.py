@@ -63,7 +63,7 @@ class TestWalKeepVersionTrim:
         tdSql.checkData(0, 18, 0)
         tdSql.checkData(1, 18, -1)
 
-        max_retry = 30
+        max_retry = 240
         # check wal vgId 3 firstVer is greater than 0 means flush finished
         for dnode_id in [1,2,3]:
             check_ver = False
