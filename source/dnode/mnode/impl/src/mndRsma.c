@@ -218,9 +218,7 @@ SSdbRow *mndRsmaActionDecode(SSdbRaw *pRaw) {
   void     *buf = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
-    TAOS_CHECK_EXIT(terrno);
-  }
+  TAOS_CHECK_EXIT(sdbGetRawSoftVer(pRaw, &sver));
 
   if (sver != MND_RSMA_VER_NUMBER) {
     mError("rsma read invalid ver, data ver: %d, curr ver: %d", sver, MND_RSMA_VER_NUMBER);
