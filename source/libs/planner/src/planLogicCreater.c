@@ -82,6 +82,16 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_IS_WINDOW_FILLED:
       pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
       break;
+    case FUNCTION_TYPE_TPREV_TS:
+    case FUNCTION_TYPE_TCURRENT_TS:
+    case FUNCTION_TYPE_TWSTART:
+    case FUNCTION_TYPE_TWEND:
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+    case FUNCTION_TYPE_TNEXT_LOCALTIME:
+    case FUNCTION_TYPE_TLOCALTIME:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->isPrimTs = true;
+      break;
     default:
       break;
   }
@@ -1755,8 +1765,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
 
   int32_t code = TSDB_CODE_SUCCESS;
   // no agg func
-  if (!pSelect->hasAggFuncs) {
-    if (pSelect->hasIndefiniteRowsFunc) {
+  if (!pSelect->hasAggFuncs || !pSelect->pFromTable) {
+    if (pSelect->hasIndefiniteRowsFunc && pSelect->pFromTable) {
       pWindow->node.requireDataOrder = getRequireDataOrder(pSelect->hasTimeLineFunc, pSelect);
       pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
       nodesDestroyList(pWindow->pFuncs);
@@ -2000,7 +2010,23 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
   return code;
 }
 
+static int32_t createWindowLogicNodeByExternalWithoutFrom(SLogicPlanContext* pCxt, SExternalWindowNode* pExternal,
+                                                          SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  SWindowLogicNode* pWindow = NULL;
+  int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
+  if (NULL == pWindow) {
+    return code;
+  }
 
+  pWindow->winType = WINDOW_TYPE_EXTERNAL;
+  pWindow->node.groupAction = GROUP_ACTION_NONE;
+  pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pWindow->isPartTb = 0;
+  pWindow->pTspk = NULL;
+
+  return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+}
 static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExternalWindowNode* pExternal,
                                                SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   SWindowLogicNode* pWindow = NULL;
@@ -2259,6 +2285,12 @@ _return:
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (!pSelect->pFromTable) {
+    PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow));
+    pCxt->pPlanCxt->withExtWindow = true;
+    PLAN_RET(createWindowLogicNodeByExternalWithoutFrom(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode));
+  }
+
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
       !pCxt->pPlanCxt->streamCalcQuery ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
@@ -2724,7 +2756,11 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
 static int32_t createSelectWithoutFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                                 SLogicNode** pLogicNode) {
-  return createProjectLogicNode(pCxt, pSelect, pLogicNode);
+  if (pCxt->pPlanCxt->streamCalcQuery) {
+    return createExternalWindowLogicNode(pCxt, pSelect, pLogicNode);
+  } else {
+    return createProjectLogicNode(pCxt, pSelect, pLogicNode);
+  }
 }
 
 static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {

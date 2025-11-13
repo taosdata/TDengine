@@ -3858,7 +3858,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       ST_TASK_DLOG("control request 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
       pTask->historyCalcStarted = true;
 
-      if (pTask->fillHistory) {
+      if (pTask->fillHistory || pTask->fillHistoryFirst) {
         code = stTriggerTaskAddRecalcRequest(pTask, NULL, NULL, pContext->pReaderWalProgress, true);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -6988,7 +6988,7 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
     pGroup->oldThreshold = pTask->fillHistoryStartTime - 1;
   }
 #endif
-  if (pTask->fillHistory) {
+  if (pTask->fillHistory || pTask->fillHistoryFirst) {
     void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &gid, sizeof(int64_t));
     if (px != NULL) {
       pGroup->oldThreshold = TMAX(pGroup->oldThreshold, *(int64_t *)px);
