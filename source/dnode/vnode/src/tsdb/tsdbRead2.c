@@ -7289,13 +7289,15 @@ int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes) {
 
     // do build results
     code = bdGetColumnInfoData(pTsIter->pBlock, 0, &pCol);
-
     void* pVal = colDataGetNumData(pCol, 0);
 
     int32_t rowIndex = pRes->info.rows;
 
     code = bdGetColumnInfoData(pRes, 0, &pTsCol);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     code = bdGetColumnInfoData(pRes, 1, &pUidCol);
+    TSDB_CHECK_CODE(code, lino, _end);
 
     colDataSetInt64(pTsCol, rowIndex, pVal);
     colDataSetInt64(pUidCol, rowIndex, (void*)&pTsIter->pBlock->info.id.uid);
@@ -7303,7 +7305,9 @@ int32_t tsdbNextFirstLastTsBlock(void* pIter, SSDataBlock* pRes) {
     pRes->info.rows += 1;
 
     // set the pDumpInfo, and add the table into ignore table list.
-    taosHashPut(pTsIter->pIgnoreTables, &pTsIter->pBlock->info.id.uid, sizeof(uint64_t), NULL, 0);
+    code = taosHashPut(pTsIter->pIgnoreTables, &pTsIter->pBlock->info.id.uid, sizeof(uint64_t), NULL, 0);
+    TSDB_CHECK_CODE(code, lino, _end);
+
     pTsIter->pReader->status.fBlockDumpInfo.allDumped = true;
 
     // enough result already, return now
