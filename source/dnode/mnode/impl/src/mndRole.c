@@ -65,6 +65,7 @@ int32_t mndInitRole(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ROLE, mndProcessCreateRoleReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ROLE, mndProcessDropRoleReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ROLE, mndProcessAlterRoleReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndRetrieveRoles);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndCancelGetNextRole);
@@ -145,6 +146,8 @@ static int32_t tSerializeSRoleObj(void *buf, int32_t bufLen, const SRoleObj *pOb
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createdTime));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->updateTime));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->uid));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->version));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pObj->flag));
   TAOS_CHECK_EXIT(tEncodeU8(&encoder, PRIV_GROUP_CNT));
   for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
     TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pObj->privSet.set[i]));
@@ -192,6 +195,8 @@ static int32_t tDeserializeSRoleObj(void *buf, int32_t bufLen, SRoleObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->createdTime));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->updateTime));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->uid));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->version));
+  TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pObj->flag));
   uint8_t nPrivGroups = 0;
   TAOS_CHECK_EXIT(tDecodeU8(&decoder, &nPrivGroups));
   int32_t nRealGroups = nPrivGroups > PRIV_GROUP_CNT ? PRIV_GROUP_CNT : nPrivGroups;
@@ -276,14 +281,11 @@ static SSdbRow *mndRoleActionDecode(SSdbRaw *pRaw) {
   void     *buf = NULL;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
-    goto _exit;
-  }
+  TAOS_CHECK_EXIT(sdbGetRawSoftVer(pRaw, &sver));
 
   if (sver != MND_ROLE_VER_NUMBER) {
-    code = TSDB_CODE_SDB_INVALID_DATA_VER;
     mError("role, read invalid ver, data ver: %d, curr ver: %d", sver, MND_ROLE_VER_NUMBER);
-    TAOS_CHECK_EXIT(code);
+    TAOS_CHECK_EXIT(TSDB_CODE_SDB_INVALID_DATA_VER);
   }
 
   if (!(pRow = sdbAllocRow(sizeof(SRoleObj)))) {
@@ -315,8 +317,6 @@ _exit:
   mTrace("role, decode from raw:%p, row:%p", pRaw, pObj);
   return pRow;
 }
-
-int32_t mndRoleDupObj(SRoleObj *pRole, SRoleObj *pNew) { return 0; }
 
 void mndRoleFreeObj(SRoleObj *pObj) {
   if (pObj) {
@@ -381,6 +381,8 @@ static int32_t mndCreateRole(SMnode *pMnode, char *acct, SCreateRoleReq *pCreate
   obj.createdTime = taosGetTimestampMs();
   obj.updateTime = obj.createdTime;
   obj.uid = mndGenerateUid(obj.name, strlen(obj.name));
+  obj.version = 1;
+  obj.enable = 1;
   // TODO: assign default privileges
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "create-role");
@@ -494,8 +496,7 @@ _exit:
 
 static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
-  int32_t      code = 0;
-  int32_t      lino = 0;
+  int32_t      code = 0, lino = 0;
   SRoleObj    *pObj = NULL;
   SDropRoleReq dropReq = {0};
 
@@ -520,6 +521,79 @@ _exit:
   }
   mndReleaseRole(pMnode, pObj);
   tFreeSDropRoleReq(&dropReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndAlterRole(SMnode *pMnode, SRpcMsg *pReq, SRoleObj *pObj) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-role");
+  if (pTrans == NULL) {
+    mError("role:%s, failed to alter since %s", pObj->name, terrstr());
+    TAOS_CHECK_EXIT(terrno);
+  }
+  mInfo("trans:%d, used to alter role:%s", pTrans->id, pObj->name);
+
+  SSdbRaw *pCommitRaw = mndRoleActionEncode(pObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    TAOS_CHECK_EXIT(terrno);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("role:%s, failed to alter at line:%d since %s", pObj->name, lino, tstrerror(code));
+  }
+  mndTransDrop(pTrans);
+  TAOS_RETURN(0);
+}
+
+static int32_t mndRoleDupObj(SRoleObj *pOld, SRoleObj *pNew) {
+  int32_t code = 0;
+  (void)memcpy(pNew, pOld, sizeof(SRoleObj));
+  ++pNew->version;
+  pNew->updateTime = taosGetTimestampMs();
+
+  taosRLockLatch(&pOld->lock);
+
+
+_OVER:
+  taosRUnLockLatch(&pOld->lock);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
+  SMnode       *pMnode = pReq->info.node;
+  int32_t       code = 0, lino = 0;
+  SRoleObj     *pObj = NULL;
+  SRoleObj      newObj = {0};
+  SAlterRoleReq alterReq = {0};
+
+  TAOS_CHECK_EXIT(tDeserializeSAlterRoleReq(pReq->pCont, pReq->contLen, &alterReq));
+
+  mInfo("role:%s, start to alter, flag:%" PRIu8, alterReq.name, alterReq.flag);
+  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_ROLE));
+
+  if (alterReq.name[0] == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_ROLE_FORMAT);
+  }
+
+  TAOS_CHECK_EXIT(mndAcquireRole(pMnode, alterReq.name, &pObj));
+  TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
+  if (alterReq.alterType == TSDB_ALTER_ROLE_LOCK) {
+    newObj.enable = alterReq.lock ? 0 : 1;
+  }
+  TAOS_CHECK_EXIT(mndAlterRole(pMnode, pReq, &newObj));
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  auditRecord(pReq, pMnode->clusterId, "alterRole", "", alterReq.name, alterReq.sql, alterReq.sqlLen);
+_exit:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("role:%s, failed to alter at line %d since %s", alterReq.name, lino, tstrerror(code));
+  }
+  mndReleaseRole(pMnode, pObj);
+  mndRoleFreeObj(&newObj);
+  tFreeSAlterRoleReq(&alterReq);
   TAOS_RETURN(code);
 }
 

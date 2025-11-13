@@ -257,6 +257,8 @@ typedef enum {
 #define TSDB_ALTER_USER_DROP_WHITE_LIST 0x8
 #define TSDB_ALTER_USER_CREATEDB        0x9
 
+#define TSDB_ALTER_ROLE_LOCK            0x1
+
 #define TSDB_ALTER_RSMA_FUNCTION        0x1
 
 #define TSDB_KILL_MSG_LEN 30
@@ -410,6 +412,7 @@ typedef enum ENodeType {
   QUERY_NODE_SCAN_VGROUPS_STMT,
   QUERY_NODE_CREATE_ROLE_STMT,
   QUERY_NODE_DROP_ROLE_STMT,
+  QUERY_NODE_ALTER_ROLE_STMT,
 
   // placeholder for [154, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -1361,6 +1364,24 @@ typedef struct {
 int32_t tSerializeSDropRoleReq(void* buf, int32_t bufLen, SDropRoleReq* pReq);
 int32_t tDeserializeSDropRoleReq(void* buf, int32_t bufLen, SDropRoleReq* pReq);
 void    tFreeSDropRoleReq(SDropRoleReq* pReq);
+
+typedef struct {
+  int8_t alterType;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t lock : 1;
+      uint8_t reserve : 7;
+    };
+  };
+  char    name[TSDB_ROLE_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SAlterRoleReq;
+
+int32_t tSerializeSAlterRoleReq(void* buf, int32_t bufLen, SAlterRoleReq* pReq);
+int32_t tDeserializeSAlterRoleReq(void* buf, int32_t bufLen, SAlterRoleReq* pReq);
+void    tFreeSAlterRoleReq(SAlterRoleReq* pReq);
 
 typedef struct SIpV4Range {
   uint32_t ip;

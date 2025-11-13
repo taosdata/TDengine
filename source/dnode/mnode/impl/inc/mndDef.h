@@ -92,6 +92,7 @@ typedef enum {
   MND_OPER_ALTER_RSMA,
   MND_OPER_CREATE_ROLE,
   MND_OPER_DROP_ROLE,
+  MND_OPER_ALTER_ROLE,
 } EOperType;
 
 typedef enum {
@@ -451,13 +452,11 @@ typedef struct {
 } SUserObj;
 
 typedef struct {
-  char      name[TSDB_ROLE_LEN];
-  int64_t   createdTime;
-  int64_t   updateTime;
-  int64_t   uid;
-  SPrivSet  privSet;
-  SHashObj* parents;
-  SHashObj* children;
+  char    name[TSDB_ROLE_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t version;
   union {
     uint8_t flag;
     struct {
@@ -465,7 +464,10 @@ typedef struct {
       uint8_t reserve : 7;
     };
   };
-  SRWLatch lock;
+  SPrivSet  privSet;
+  SHashObj* parents;
+  SHashObj* children;
+  SRWLatch  lock;
 } SRoleObj;
 
 typedef struct {

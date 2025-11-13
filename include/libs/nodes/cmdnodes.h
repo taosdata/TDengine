@@ -446,6 +446,19 @@ typedef struct SDropRoleStmt {
   bool      ignoreNotExists;
 } SDropRoleStmt;
 
+typedef struct SAlterRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  int8_t    alterType;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t lock : 1;  // 1: lock, 0: unlock
+      uint8_t reserve : 7;
+    };
+  };
+} SAlterRoleStmt;
+
 typedef struct SCreateDnodeStmt {
   ENodeType type;
   char      fqdn[TSDB_FQDN_LEN];

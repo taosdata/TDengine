@@ -140,7 +140,14 @@ sysinfo_opt(A) ::= SYSINFO NK_INTEGER(B).                                       
 /************************************************ create/drop role **********************************************/
 cmd ::= CREATE ROLE not_exists_opt(A) role_name(B).                               { pCxt->pRootNode = createCreateRoleStmt(pCxt, A, &B); }
 cmd ::= DROP ROLE exists_opt(A) role_name(B).                                     { pCxt->pRootNode = createDropRoleStmt(pCxt, A, &B); }
-
+cmd ::= LOCK ROLE role_name(A).                                                   { 
+                                                                                    SToken t = {.n = 1, .z = "1", .type = TK_STRING };
+                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A, TSDB_ALTER_ROLE_LOCK, &t); 
+                                                                                  }
+cmd ::= UNLOCK ROLE role_name(A).                                                 { 
+                                                                                    SToken t = {.n = 1, .z = "0", .type = TK_STRING };
+                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A,TSDB_ALTER_ROLE_LOCK, &t); 
+                                                                                  }
 /************************************************ grant/revoke ********************************************************/
 cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C, D); }
 cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C, D); }
