@@ -18,7 +18,7 @@ class TestCompatibilityRollingUpgradeAll:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_compatibility_rolling_upgrade_all(self):
-        """Comp: Rolling Upgrade All Dnodes
+        """Comp: rolling upgrade all dnodes
 
         Test rolling upgrade of all cluster nodes simultaneously with stream processing validation:
 

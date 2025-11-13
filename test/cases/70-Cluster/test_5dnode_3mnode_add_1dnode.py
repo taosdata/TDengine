@@ -63,9 +63,14 @@ class Test5dnode3mnodeAdd1Dnode:
 
     @pytest.mark.cluster
     def test_five_dnode_three_mnode(self):
-        """add dnode
+        """Cluster 5 dnodes 3 mnodes
 
-        start 5 dnodes and 3 mnodes, add one dnode
+        1. Create 5 dnode 3 mnode cluster
+        2. Create database and stables
+        3. Insert data into stables
+        4. Add 1 dnode to cluster during data insertion
+        5. Restart all dnodes one by one
+        6. Verify data integrity
 
         Since: v3.3.0.0
 

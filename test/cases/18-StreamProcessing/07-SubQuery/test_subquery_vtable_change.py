@@ -9,7 +9,7 @@ class TestStreamSubQueryVtableChange:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery_vtable_change(self):
-        """Meta Change: virtual table
+        """Meta change: virtual table
 
         test meta change (add/drop/modify) cases to stream for virtual table in subquery
 

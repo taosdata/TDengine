@@ -1225,7 +1225,7 @@ class TestTsma:
     
 
     def test_tsma(self):
-        """Tsma basic
+        """TSMAs basic
 
         1. Create snode on dnode 1
         2. Initialize data
@@ -1234,7 +1234,7 @@ class TestTsma:
         5. Execute tsma flush query test cases
         6. Execute tsma redistribute vgroups test cases if cluster dnode nums > 1
         7. Drop tsma test.tsma5
-        8. Bug fix TD-32519 test cases
+        8. Verify TD-32519
         9. Drop snode
         
 
