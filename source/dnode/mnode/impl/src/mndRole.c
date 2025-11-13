@@ -564,6 +564,19 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static bool mndIsRoleChanged(SRoleObj *pOld, SAlterRoleReq *pAlterReq) {
+  switch (pAlterReq->alterType) {
+    case TSDB_ALTER_ROLE_LOCK:
+      if ((pAlterReq->lock && pOld->enable) || (!pAlterReq->lock && !pOld->enable)) {
+        return true;
+      }
+      break;
+    default:
+      break;
+  }
+  return false;
+}
+
 static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = 0, lino = 0;
@@ -581,13 +594,14 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_EXIT(mndAcquireRole(pMnode, alterReq.name, &pObj));
-  TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
-  if (alterReq.alterType == TSDB_ALTER_ROLE_LOCK) {
-    newObj.enable = alterReq.lock ? 0 : 1;
+  if (mndIsRoleChanged(pObj, &alterReq)) {
+    TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
+    if (alterReq.alterType == TSDB_ALTER_ROLE_LOCK) {
+      newObj.enable = alterReq.lock ? 0 : 1;
+    }
+    TAOS_CHECK_EXIT(mndAlterRole(pMnode, pReq, &newObj));
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
-  TAOS_CHECK_EXIT(mndAlterRole(pMnode, pReq, &newObj));
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
   auditRecord(pReq, pMnode->clusterId, "alterRole", "", alterReq.name, alterReq.sql, alterReq.sqlLen);
 _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
