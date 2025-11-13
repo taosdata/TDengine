@@ -142,7 +142,7 @@ async fn check_connector_grant_of(
     // get tdengine server version and handle compatibility
     // skip license check for newly-added connectors in old version
     let connectors_old = ["opc_da", "opc_ua", "pi", "kafka", "influxdb", "mqtt"];
-    let connectors_3330 = ["csv"];
+    let connectors_3330 = ["csv", "pulsar"];
 
     if *version < VERSION_3_2_3 && connectors_old.contains(&connector) {
         return Ok(LicenseKind::good());
@@ -589,6 +589,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 "mongodb" => "mongodb",
                 "csv" => "csv",
                 "orc" => "orc",
+                "pulsar" | "pulsarTuya" => "pulsar",
                 connector => {
                     bail!("The current connector {connector} is not supported by license.");
                 }
@@ -826,6 +827,7 @@ mod tests {
             ("postgres", "postgres", "PostgreSQL"),
             ("oracle", "oracle", "Oracle"),
             ("mqtt", "mqtt", "MQTT"),
+            // ("pulsar", "pulsar", "Pulsar"),
             ("sparkplugb", "sparkplugb", "SparkplugB"),
         ];
 

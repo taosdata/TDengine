@@ -67,6 +67,12 @@ impl LocalRestoreConfig {
 
         Ok(pool)
     }
+
+    /// 建立 root 级别连接（不指定 database，不包含 subject / params），用于数据库不存在时的自动建库场景。
+    pub async fn connect_taos_root(&self) -> anyhow::Result<Taos> {
+        let taos = taosx_core::utils::sql::connect_taos_root(&self.raw_to).await?;
+        Ok(taos)
+    }
 }
 
 pub struct LocalRestoreConfigBuilder {

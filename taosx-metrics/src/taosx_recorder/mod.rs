@@ -113,7 +113,9 @@ impl TaosXRecorder {
     }
 
     pub fn install(self) {
-        metrics::set_global_recorder(self).expect("failed to install TaosXRecorder");
+        if let Err(err) = metrics::set_global_recorder(self) {
+            eprintln!("failed to install TaosXRecorder: {:#}", err);
+        }
     }
 }
 

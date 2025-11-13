@@ -689,14 +689,14 @@ fn listen_tcp() {
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 20)]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
+    let _ = tracing_subscriber::fmt()
         .with_level(true)
         .with_file(true)
         .with_thread_ids(true)
         .with_thread_names(true)
         .with_max_level(tracing::Level::DEBUG)
         .pretty()
-        .init();
+        .try_init();
     #[cfg(not(target_os = "windows"))]
     let unix_handle = std::thread::spawn(listen_unix_socket);
 

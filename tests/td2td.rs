@@ -2,6 +2,7 @@ use assert_cmd::{Command, prelude::*};
 use chrono::Utc;
 use itertools::Itertools;
 use legacy_to_taos::legacy_to_taos;
+use semver::{Version, VersionReq};
 use std::io::BufRead;
 use std::time::Duration;
 use taos::{AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
@@ -40,10 +41,26 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
     const TID: i64 = 6499;
     let ws_enable = true;
 
-    tracing_subscriber::fmt::fmt()
+    let _ = tracing_subscriber::fmt::fmt()
         .with_max_level(tracing::Level::DEBUG)
-        .init();
+        .try_init();
 
+    let version = Command::new("taos")
+        .arg("-V")
+        .output()?
+        .stdout
+        .lines()
+        .map_while(Result::ok)
+        .find(|s| s.starts_with("taos version: "))
+        .map_or("3.6.0".to_string(), |s| {
+            let mut parts = s
+                .trim_start_matches("taos version: ")
+                .split('.')
+                .take(3)
+                .collect_vec();
+            parts.resize(3, "0");
+            parts.join(".")
+        });
     // 1. create databases, stable and stream
     println!("====== create databases and stream =====");
     let output = Command::new("taos")
@@ -61,7 +78,15 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
         ))
         .output()?;
     let err = String::from_utf8_lossy(&output.stderr);
-    assert!(err.is_empty());
+
+    if let Ok(ver) = Version::parse(&version) {
+        if VersionReq::parse(">=3.7.0").unwrap().matches(&ver) {
+            // current stream support only >=3.7.0
+            assert!(err.is_empty(), "{}", err);
+        }
+    } else {
+        anyhow::bail!("Failed to parse version string from `taos -V`: '{version}'");
+    }
 
     // 2. write some data in DB_SRC
     println!("======= write data =====");
@@ -191,9 +216,9 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
 /// ```
 #[tokio::test]
 async fn test_ts6402_with_taos() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::fmt()
+    let _ = tracing_subscriber::fmt::fmt()
         .with_max_level(tracing::Level::DEBUG)
-        .init();
+        .try_init();
     let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
     const DB_SRC: &str = "test_ts6402_src";
     const DB_DST: &str = "test_ts6402_dst";
@@ -331,7 +356,7 @@ async fn test_ts6402_with_taos() -> anyhow::Result<()> {
 /// ```
 #[test]
 fn test_td_33256_with_taos() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::fmt().with_level(true).init();
+    let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
 
     let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
     const SOURCE: &str = "td33256";

@@ -2623,15 +2623,34 @@ pub async fn update_todo_list(
             taos.exec("use information_schema").await?;
             taos.exec(format!("use `{database}`")).await?;
             for stable in &stables {
-                let mut set = taos
-                    .query(format!("select vgroup_id, table_name from information_schema.ins_tables where db_name = '{}' and stable_name = '{}'", database, stable)).await?;
-                let mut stream = set.deserialize().map_ok(|(vgroup_id, name)| {
-                    LegacyTableItem::new(vgroup_id, Some(stable.clone()), Arc::new(name))
-                });
-                while let Some(table) = stream.try_next().await? {
-                    if !todo.tables.contains_async(&table).await {
-                        let _ = tables.insert_async(table.clone()).await;
-                        let _ = todo.tables.insert_async(table).await;
+                match taos
+                    .query(format!("select vgroup_id, table_name from information_schema.ins_tables where db_name = '{}' and stable_name = '{}'", database, stable)).await
+                {
+                    Ok(mut set) => {
+                        let mut stream = set.deserialize().map_ok(|(vgroup_id, name)| {
+                            LegacyTableItem::new(vgroup_id, Some(stable.clone()), Arc::new(name))
+                        });
+                        while let Some(table) = stream.try_next().await? {
+                            if !todo.tables.contains_async(&table).await {
+                                let _ = tables.insert_async(table.clone()).await;
+                                let _ = todo.tables.insert_async(table).await;
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        tracing::warn!(cause = format!("{err:#}"), "Fetch table list from stable name {stable} error, try fallback query by `table_name`");
+                        let mut set = taos
+                            .query(format!("select table_name from information_schema.ins_tables where db_name = '{}' and stable_name = '{}'", database, stable)).await
+                            .with_context(|| format!("Fetch table name list from stable name {stable}"))?;
+                                let mut stream = set.deserialize().map_ok(|name| {
+                            LegacyTableItem::new(0, Some(stable.clone()), Arc::new(name))
+                        });
+                        while let Some(table) = stream.try_next().await? {
+                            if !todo.tables.contains_async(&table).await {
+                                let _ = tables.insert_async(table.clone()).await;
+                                let _ = todo.tables.insert_async(table).await;
+                            }
+                        }
                     }
                 }
             }
@@ -4148,9 +4167,9 @@ mod tests {
     /// ```
     #[tokio::test(flavor = "multi_thread")]
     async fn test_sync_with_taos() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
 
         // prepare
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());

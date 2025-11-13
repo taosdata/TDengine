@@ -12,6 +12,7 @@ use source_opc::opc_to_taos;
 use source_opentsdb::opentsdb_to_taos;
 use source_orc::orc_to_taos;
 use source_pi::pi_to_taos;
+use source_pulsar::pulsar_to_taos;
 use taos::Dsn;
 use taoslog::QidManager;
 use taoslog::utils::{QidMetadataGetter, Span};
@@ -289,6 +290,18 @@ impl TaskOpts {
 
                     kafka_to_taos(
                         dsn,
+                        parser.clone(),
+                        to.clone(),
+                        cancel.clone(),
+                        with_agent.clone(),
+                        task_id_number,
+                        notify.clone(),
+                    )
+                    .await?;
+                }
+                (source_pulsar::PULSAR_ID | source_pulsar::PULSAR_TUYA_ID, "taos") => {
+                    pulsar_to_taos(
+                        from.clone(),
                         parser.clone(),
                         to.clone(),
                         cancel.clone(),

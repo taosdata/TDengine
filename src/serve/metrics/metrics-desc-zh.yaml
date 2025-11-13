@@ -73,7 +73,7 @@ written_raw_blocks: 本次运行此任务写人成功的 raw block 数
 failed_raw_blocks: 本次运行此任务写入失败的 raw block 数
 persist_read_messages: 当前任务读取的持久化消息数
 persist_write_messages: 当前任务写入的持久化消息数
-persist_received_acks: 当前任务持久化组件接收到的 ACK 数 
+persist_received_acks: 当前任务持久化组件接收到的 ACK 数
 persist_send_batches: 当前任务持久化组件发送的批次数
 kafka_consumers: Kafka 消费者数
 kafka_total_partitions: Kafka topic 总分区数
@@ -82,6 +82,13 @@ kafka_consumed_messages: 已经消费的消息数
 total_kafka_consumed_messages: 累计消费的消息总数
 kafka_sent_batches: 本次运行任务发送的批次数量
 kafka_received_acks: 本次运行任务接收到的 ACK 数量
+pulsar_total_partitions: Pulsar topic 总分区数
+pulsar_consumers: Pulsar 消费者数
+pulsar_consumed_messages: 已经消费的消息数
+pulsar_send_msgs: 本次运行任务发送的消息数
+pulsar_msg_acks: 本次运行任务 ACK 消息数量
+pulsar_sent_batches: 本次运行任务发送的批次数量
+pulsar_received_batches: 本次运行任务接收到的批次数量
 mqtt_fetched_messages: 本次运行任务消息拉取总数量
 mqtt_received_bytes: 本次任务接收到的消息字节数
 mqtt_dumped_messages: 本次运行任务已 dump 的消息数

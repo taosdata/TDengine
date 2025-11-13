@@ -153,6 +153,26 @@ impl FromStr for StopAt {
     }
 }
 
+trait QueryExt: AsyncQueryable {
+    async fn get_vgroups(&self, db: &str) -> Result<usize, RawError> {
+        self.query_one::<_, usize>(format!(
+            "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{}'",
+            db
+        ))
+        .await
+        .transpose()
+        .map_or_else(
+            || Err(RawError::from_string("Expect num of vgroups, got none")),
+            |opt| opt,
+        )
+    }
+    async fn get_vgroups_or(&self, db: &str, default: usize) -> usize {
+        self.get_vgroups(db).await.unwrap_or(default)
+    }
+}
+
+impl<T: AsyncQueryable> QueryExt for T {}
+
 /// Parse input dsn, returns subscription dsn and a list of topics.
 ///
 /// Steps:
@@ -250,12 +270,12 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
     }
 
     let source = builder.build().await?;
+    const DEFAULT_VGROUPS: usize = 2;
 
     let mut topics = database
         .split(",")
         .map(|s| s.trim().to_string())
         .collect_vec();
-
     if let Some(topic) = use_topic_name {
         if topics.len() > 1 {
             anyhow::bail!("`use.topic.name` option does not work for multi databases, use \"{from}\" directly");
@@ -280,16 +300,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
             }
         }
 
-        let vgroups = source
-            .query_one(format!(
-                "select `vgroups` from information_schema.ins_databases where name='{database}'"
-            ))
-            // .await?
-            // .expect("database not exists");
-            .await
-            .ok()
-            .unwrap_or_default()
-            .unwrap_or(2);
+        let vgroups = source.get_vgroups_or(&database, DEFAULT_VGROUPS).await;
 
         let database_sql = match source
             .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", database))
@@ -325,16 +336,8 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
         if let Some(topic) = source_topics.iter().find(|t| t.name() == topic) {
             databases.push(topic.db_name().to_string());
             let vgroups = source
-                .query_one(format!(
-                    "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{}'",
-                    topic.db_name()
-                ))
-                // .await?
-                // .expect("database may not exist");
-                .await
-                .ok()
-                .unwrap_or_default()
-                .unwrap_or(2);
+                .get_vgroups_or(topic.db_name(), DEFAULT_VGROUPS)
+                .await;
 
             let database_sql = match source
                 .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
@@ -381,16 +384,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                 }
             }
 
-            let vgroups = source
-                .query_one(format!(
-                    "select `vgroups` from information_schema.ins_databases where name='{database}'"
-                ))
-                // .await?
-                // .expect("database not exists");
-                .await
-                .ok()
-                .unwrap_or_default()
-                .unwrap_or(2);
+            let vgroups = source.get_vgroups_or(database, DEFAULT_VGROUPS).await;
 
             let database_sql = match source
                 .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", database))
@@ -438,12 +432,8 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                     if let Some(topic) = source_topics.iter().find(|t| t.name() == topic) {
                         databases.push(topic.db_name().to_string());
                         let vgroups = source
-                            .query_one(format!(
-                                "select `vgroups` from information_schema.ins_databases where name='{}'",
-                                topic.db_name()
-                            ))
-                            .await?
-                            .expect("database not exists");
+                            .get_vgroups_or(topic.db_name(), DEFAULT_VGROUPS)
+                            .await;
 
                         let database_sql = match source
                             .query_one::<_, ((), String)>(format!(
@@ -486,13 +476,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                             .await
                             .context(format!("create topic for stable `{database}`.`{table}`"))?;
                         databases.push(database.to_string());
-                        let vgroups = source
-                            .query_one(format!(
-                                "select `vgroups` from information_schema.ins_databases where name='{}'",
-                                database
-                            ))
-                            .await?
-                            .expect("database not exists");
+                        let vgroups = source.get_vgroups_or(database, DEFAULT_VGROUPS).await;
 
                         let database_sql = match source
                             .query_one::<_, ((), String)>(format!(
@@ -565,12 +549,8 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
 
                         databases.push(topic.db_name().to_string());
                         let vgroups = source
-                            .query_one(format!(
-                                "select `vgroups` from information_schema.ins_databases where name='{}'",
-                                topic.db_name()
-                            ))
-                            .await?
-                            .expect("database not exists");
+                            .get_vgroups_or(topic.db_name(), DEFAULT_VGROUPS)
+                            .await;
 
                         let database_sql = match source
                             .query_one::<_, ((), String)>(format!(
@@ -635,13 +615,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                         };
 
                         databases.push(database.to_string());
-                        let vgroups = source
-                            .query_one(format!(
-                                "select `vgroups` from information_schema.ins_databases where name='{}'",
-                                database
-                            ))
-                            .await?
-                            .expect("database not exists");
+                        let vgroups = source.get_vgroups_or(database, DEFAULT_VGROUPS).await;
 
                         let database_sql = match source
                             .query_one::<_, ((), String)>(format!(
@@ -694,13 +668,9 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
             .collect_vec();
         let mut out = Vec::new();
         for topic in found {
-            let vgroups: usize = source
-                .query_one(format!(
-                    "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{}'",
-                    topic.db_name()
-                ))
-                .await?
-                .expect("database not exists");
+            let vgroups = source
+                .get_vgroups_or(topic.db_name(), DEFAULT_VGROUPS)
+                .await;
             let database_sql = match source
                 .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
                 .await
@@ -751,12 +721,7 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
                             _ => return Err(err.into()),
                         }
                     }
-                    let vgroups = source
-                        .query_one(format!(
-                            "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{topic}'"
-                        ))
-                        .await?
-                        .expect("database not exists");
+                    let vgroups = source.get_vgroups_or(&database, DEFAULT_VGROUPS).await;
                     let database_sql = match source
                         .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", topic))
                         .await

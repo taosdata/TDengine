@@ -1167,9 +1167,9 @@ mod tests {
                 tracing::error!("on completed");
             }
         }
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
         let mut set = Container::default();
         set.register(Tmq2Taos).expect("register test task");
         let set = Arc::new(set);

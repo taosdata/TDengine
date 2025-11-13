@@ -9,7 +9,7 @@ use anyhow::Result;
 
 use crate::{LegacyMetrics, TargetOpts, TimeRange};
 
-use super::{scheduler::Scheduler, sync_single_table, TableRecord};
+use super::{TableRecord, scheduler::Scheduler, sync_single_table};
 
 pub struct TablesHandle {
     source: TaosPool,
@@ -404,9 +404,9 @@ mod tests {
     use super::*;
     #[tokio::test(flavor = "multi_thread")]
     async fn all_tables() -> Result<()> {
-        pretty_env_logger::formatted_timed_builder()
+        let _ = pretty_env_logger::formatted_timed_builder()
             .filter_level(log::LevelFilter::Debug)
-            .init();
+            .try_init();
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([
             "drop database if exists ts2031f",
@@ -461,9 +461,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn child_table() -> Result<()> {
-        pretty_env_logger::formatted_timed_builder()
+        let _ = pretty_env_logger::formatted_timed_builder()
             .filter_level(log::LevelFilter::Debug)
-            .init();
+            .try_init();
         let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
         taos.exec_many([
             "drop database if exists ts2031f",

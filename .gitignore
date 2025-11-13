@@ -56,3 +56,11 @@ tests/tools/sample/*.z
 explorer/playwright-report/
 explorer/public/docs
 explorer/public/docs-en
+/issues
+/docs-en.zip
+/docs-zh.zip
+docker/ci/zig-x86_64-linux-*.tar.xz
+*.zstd
+.hypothesis
+.rhai-repl-history
+.license_report.md

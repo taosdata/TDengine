@@ -1335,11 +1335,14 @@ mod tests {
         let args = shlex::split("taosx serve").unwrap();
         let matches = dbg!(Args::command()).get_matches_from(args);
         let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
+
+        dotenv::dotenv().ok();
         #[cfg(unix)]
         if let Commands::Serve(cli) = args.commands.unwrap() {
             assert_eq!(
                 cli.get_database_url(),
-                "sqlite:/var/lib/taos/taosx/taosx.db"
+                std::env::var("DATABASE_URL")
+                    .unwrap_or_else(|_| "sqlite:/var/lib/taos/taosx/taosx.db".into())
             );
         }
         unsafe {

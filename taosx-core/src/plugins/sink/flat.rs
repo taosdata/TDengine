@@ -3591,12 +3591,12 @@ pub mod tests {
     #[ignore]
     async fn test_stable_multiple_tables_small_record_batch() -> anyhow::Result<()> {
         // pretty_env_logger::init();
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_level(true)
             .with_file(true)
             .with_max_level(tracing::Level::DEBUG)
             .pretty()
-            .init();
+            .try_init();
         let builder = STableMessagesBuilder::new()
             .stable("meters")
             .table_num(10)
@@ -3718,9 +3718,9 @@ pub mod tests {
     #[tokio::test]
     pub async fn test_handle_sql_too_long_with_taos() -> anyhow::Result<()> {
         // let _ = tracing_subscriber::fmt::fmt().with_level(true).try_init();
-        tracing_subscriber::fmt::fmt()
+        let _ = tracing_subscriber::fmt::fmt()
             .with_max_level(tracing::Level::DEBUG)
-            .init();
+            .try_init();
 
         // prepare
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
@@ -3866,12 +3866,12 @@ pub mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_archive_td38264() -> anyhow::Result<()> {
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_level(true)
             .with_file(true)
             .with_max_level(tracing::Level::DEBUG)
             .pretty()
-            .init();
+            .try_init();
         let builder = STableMessagesBuilder::new()
             .stable("meters")
             .table_num(10)
