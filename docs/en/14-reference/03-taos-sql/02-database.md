@@ -181,6 +181,13 @@ TRIM DATABASE db_name;
 
 Deletes expired data and reorganizes data according to the multi-level storage configuration.
 
+## Delete Expired WAL
+
+```sql
+TRIM DATABASE db_name WAL;
+```
+Delete expired WAL logs; when using `trim wal` to delete expired WAL logs, the vgroup keep version restriction is ignored.
+
 ## Flush Memory Data to Disk
 
 ```sql
