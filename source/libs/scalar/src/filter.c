@@ -5644,7 +5644,6 @@ typedef struct SClassifyConditionCxt {
   bool hasTagIndexCol;
   bool hasTagCol;
   bool hasOtherCol;
-  bool hasPlaceHolder;
 } SClassifyConditionCxt;
 
 static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
@@ -5666,8 +5665,6 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
     if (fmIsPseudoColumnFunc(pFunc->funcId)) {
       if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
         pCxt->hasTagCol = true;
-      } else if (fmIsPlaceHolderFunc(pFunc->funcId)) {
-        pCxt->hasPlaceHolder = true;
       } else {
         pCxt->hasOtherCol = true;
       }
@@ -5677,15 +5674,25 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
 }
 
 EConditionType filterClassifyCondition(SNode *pNode) {
-  SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false, .hasPlaceHolder = false};
+  SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
   nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
-  return cxt.hasOtherCol ? COND_TYPE_NORMAL
-                         : (cxt.hasPrimaryKey && cxt.hasTagCol
-                                ? COND_TYPE_NORMAL
-                                : (cxt.hasPrimaryKey ? COND_TYPE_PRIMARY_KEY
-                                                     : (cxt.hasTagIndexCol ? COND_TYPE_TAG_INDEX
-                                                                           : (cxt.hasTagCol ? COND_TYPE_TAG
-                                                                                            : (cxt.hasPlaceHolder ? COND_TYPE_NORMAL : COND_TYPE_TAG)))));
+  if (cxt.hasOtherCol || (cxt.hasPrimaryKey && cxt.hasTagCol)) {
+    return COND_TYPE_NORMAL;
+  }
+
+  if (cxt.hasPrimaryKey) {
+    return COND_TYPE_PRIMARY_KEY;
+  }
+
+  if (cxt.hasTagIndexCol) {
+    return COND_TYPE_TAG_INDEX;
+  }
+
+  if (cxt.hasTagCol) {
+    return COND_TYPE_TAG;
+  }
+
+  return COND_TYPE_NORMAL;
 }
 
 int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res) {
