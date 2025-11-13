@@ -810,6 +810,7 @@ typedef struct SSttBlockLoadInfo {
   bool                  checkRemainingRow;  // todo: no assign value?
   bool                  isLast;
   bool                  sttBlockLoaded;
+  bool                  freePk;  // need to free pk
   SSttTableRowsInfo     info;
   SSttBlockLoadCostInfo cost;
 } SSttBlockLoadInfo;
@@ -893,6 +894,7 @@ typedef struct SMergeTreeConf {
   SVersionRange verRange;
   bool          strictTimeRange;
   bool          cacheStatis;    // cache the stt statis file info in cache
+  bool          freePk;
   SArray       *pSttFileBlockIterArray;
   void         *pCurrentFileset;
   STSchema     *pSchema;
@@ -918,7 +920,7 @@ void    tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool    tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 
-int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo);
+int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, bool freePk, SSttBlockLoadInfo **pInfo);
 void    destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void    destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
 
