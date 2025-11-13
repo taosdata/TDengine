@@ -719,7 +719,7 @@ static int32_t buildTagDataEntryKey(SArray* pIdWithValue, char** keyBuf, int32_t
     STagDataEntry* entry      = (STagDataEntry*)taosArrayGet(pIdWithValue, i);
     SValueNode*    pValueNode = (SValueNode*)entry->pValueNode;
     // num type may have different bytes length, use the smaller one
-    int32_t        bytes = MIN(entry->bytes, pValueNode->node.resType.bytes);
+    int32_t        bytes = TMIN(entry->bytes, pValueNode->node.resType.bytes);
 
     (void)memcpy(pStart, &entry->colId, sizeof(col_id_t));
     pStart += sizeof(col_id_t);
