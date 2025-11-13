@@ -602,8 +602,12 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
   int32_t defaultMqttPort = 6083;
-  if (taosGetFqdn(defaultFqdn) != 0) {
+  int64_t cost = 0;
+  if (taosGetFqdnWithTimeCost(defaultFqdn, &cost) != 0) {
     tstrncpy(defaultFqdn, "localhost", TSDB_FQDN_LEN);
+  }
+  if (cost >= 1000) {
+    printf("warning: get fqdn cost %" PRId64 " ms", cost);
   }
 
   TAOS_CHECK_RETURN(
