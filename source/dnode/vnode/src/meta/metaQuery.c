@@ -1597,7 +1597,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
   while (1) {
     tb_uid_t uid = metaCtbCursorNext(pCur);
     if (uid == 0) {
-      metaInfo("got uid 0 and uidTagSize:%d", (int32_t)taosArrayGetSize(pUidTagInfo));
+      metaDebug("got uid 0 and uidTagSize:%d", (int32_t)taosArrayGetSize(pUidTagInfo));
       break;
     }
 

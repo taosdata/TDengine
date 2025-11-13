@@ -1418,7 +1418,7 @@ int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArra
       }
 
       if (pIter->pBlockLoadInfo == NULL) {
-        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols, &pIter->pBlockLoadInfo);
+        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols, pConf->freePk, &pIter->pBlockLoadInfo);
         if (code != TSDB_CODE_SUCCESS) {
           tsdbError("failed to create block load info, code: out of memory, %s", pstr);
           continue;
