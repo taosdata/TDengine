@@ -968,7 +968,7 @@ end:
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
   }
   if (createTable) {
-    ST_TASK_ILOG("[runner calc]success, gid:%" PRId64 ", but has no data, skip create table.", pReq->gid);
+    ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ", but has no data, skip create table.", pReq->gid);
     return TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE;
   }
   return code;
