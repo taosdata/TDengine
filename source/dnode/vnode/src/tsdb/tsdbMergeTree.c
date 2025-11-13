@@ -56,7 +56,7 @@ static void    freeStatisFileItems(const void *key, size_t keyLen, void *value, 
 static void tLDataIterClose2(SLDataIter *pIter);
 
 // SLDataIter =================================================
-int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, bool freePk, SSttBlockLoadInfo **pInfo) {
+int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo) {
   *pInfo = NULL;
 
   SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(1, sizeof(SSttBlockLoadInfo));
@@ -68,7 +68,6 @@ int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t num
   pLoadInfo->blockData[1].sttBlockIndex = -1;
 
   pLoadInfo->currentLoadBlockIndex = 1;
-  pLoadInfo->freePk = freePk;
 
   int32_t code = tBlockDataCreate(&pLoadInfo->blockData[0].data);
   if (code) {
@@ -125,13 +124,8 @@ void destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   taosArrayDestroy(pLoadInfo->info.pFirstTs);
   taosArrayDestroy(pLoadInfo->info.pLastTs);
 
-  if (pLoadInfo->freePk) {
-    taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
-    taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
-  } else {
-    taosArrayDestroy(pLoadInfo->info.pFirstKey);
-    taosArrayDestroy(pLoadInfo->info.pLastKey);
-  }
+  taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
+  taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
 
   pLoadInfo->info.pUid = NULL;
   pLoadInfo->info.pFirstKey = NULL;
@@ -1084,7 +1078,7 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf, SSttDataInfoF
       }
 
       if (pLoadInfo == NULL) {
-        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols, pConf->freePk, &pLoadInfo);
+        code = tCreateSttBlockLoadInfo(pConf->pSchema, pConf->pCols, pConf->numOfCols, &pLoadInfo);
         if (code != TSDB_CODE_SUCCESS) {
           goto _end;
         }

@@ -3120,7 +3120,6 @@ static void initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
       .pReader = pReader,
       .idstr = pReader->idStr,
       .rspRows = (pReader->info.execMode == READER_EXEC_ROWS),
-      .freePk = shouldFreePkBuf(&pReader->suppInfo),
   };
 
   info.pKeyRangeList = taosArrayInit(4, sizeof(SSttKeyRange));
