@@ -9,9 +9,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_blob.py
-200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
-200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal64.py
-200,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal_last.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal64.py
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal_last.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_double.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_float.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_geometry.py
@@ -820,7 +820,7 @@
 
 # 82-UnitTest
 
-100,,n,cases,bash 82-UnitTest/test.sh
+200,,n,cases,bash 82-UnitTest/test.sh
 
 # 83-DocTest
 
