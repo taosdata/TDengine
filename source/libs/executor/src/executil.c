@@ -2069,6 +2069,10 @@ static EDealRes canOptimizeTagCondFilter(SNode* pTagCond, void* pContext) {
     ((SLogicConditionNode*)pTagCond)->condType == LOGIC_COND_TYPE_AND) {
     return DEAL_RES_CONTINUE;
   }
+  if (nodeType(pTagCond) == QUERY_NODE_FUNCTION &&
+    fmIsStreamPesudoColVal(((SFunctionNode*)pTagCond)->funcId)) {
+    return DEAL_RES_CONTINUE;
+  }
   *(bool*)pContext = false;
   return DEAL_RES_END;
 }
@@ -2146,9 +2150,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
           memcpy(
             digest + 1, contextStable.digest, tListLen(contextStable.digest));
           qDebug("suid:%" PRIu64 ", %s retrieve table uid list from stable cache,"
-            " key:%s, kenLen:%d, numOfTables:%d", 
-            pScanNode->suid, idstr, pTagCondKey, tagCondKeyLen,
-            (int32_t)taosArrayGetSize(pUidList));
+            " numOfTables:%d", 
+            pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
           goto _end;
         } else {
           qDebug("suid:%" PRIu64 
@@ -2241,10 +2244,9 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       memcpy(digest + 1, context.digest, tListLen(context.digest));
     }
     if (tsStableTagFilterCache && isStream && canCacheTagCondFilter) {
-      qInfo("suid:%" PRIu64 ", %s add uid list to stableTagFilterCache, key:%s,"
-        " keyLen:%d, uidListSize:%d", 
-        pScanNode->suid, idstr, pTagCondKey, tagCondKeyLen,
-        (int32_t)taosArrayGetSize(pUidList));
+      qInfo("suid:%" PRIu64 ", %s add uid list to stableTagFilterCache, "
+        "uidListSize:%d", 
+        pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
       code = pStorageAPI->metaFn.putStableCachedTableList(
         pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
         contextStable.digest, tListLen(contextStable.digest),
