@@ -1074,7 +1074,7 @@ static int32_t setColData(int64_t rows, int32_t rowStart, int32_t rowEnd, SColDa
   return code;
 }
 
-static int32_t getColId(int64_t suid, int64_t uid, int32_t i, SStreamTriggerReaderInfo* sStreamReaderInfo, SSTriggerWalNewRsp* rsp, int16_t* colId) {
+static int32_t getColId(int64_t suid, int64_t uid, int16_t i, SStreamTriggerReaderInfo* sStreamReaderInfo, SSTriggerWalNewRsp* rsp, int16_t* colId) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t id[2] = {suid, uid};
