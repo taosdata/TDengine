@@ -905,6 +905,11 @@ static int32_t collectMetaKeyFromShowUserPrivileges(SCollectMetaKeyCxt* pCxt, SS
                                  pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromShowRolePrivileges(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ROLE_PRIVILEGES,
+                                 pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowViews(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VIEWS,
                                          pCxt->pMetaCache);
@@ -1354,6 +1359,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowVnodes(pCxt, (SShowVnodesStmt*)pStmt);
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
       return collectMetaKeyFromShowUserPrivileges(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+      return collectMetaKeyFromShowRolePrivileges(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_VIEWS_STMT:
       return collectMetaKeyFromShowViews(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_COMPACTS_STMT:

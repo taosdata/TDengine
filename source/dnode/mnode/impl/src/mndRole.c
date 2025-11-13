@@ -68,6 +68,8 @@ int32_t mndInitRole(SMnode *pMnode) {
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndRetrieveRoles);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndCancelGetNextRole);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE_PRIVILEGES, mndRetrievePrivileges);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE_PRIVILEGES, mndCancelGetNextPrivileges);
   return sdbSetTable(pMnode->pSdb, table);
 }
 

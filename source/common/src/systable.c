@@ -596,6 +596,15 @@ static const SSysDbTableSchema userRolesSchema[] = {
     {.name = "children", .bytes = TSDB_ROLE_MAX_CHILDREN * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema userRolePrivilegesSchema[] = {
+    {.name = "role_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "db_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "notes", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -648,6 +657,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_RETENTIONS, retentionsSchema, tListLen(retentionsSchema), false},
     {TSDB_INS_TABLE_RETENTION_DETAILS, retentionDetailsSchema, tListLen(retentionDetailsSchema), false},
     {TSDB_INS_TABLE_ROLES, userRolesSchema, tListLen(userRolesSchema), true},
+    {TSDB_INS_TABLE_ROLE_PRIVILEGES, userRolePrivilegesSchema, tListLen(userRolePrivilegesSchema), true},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {
