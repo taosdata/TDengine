@@ -267,6 +267,13 @@ _exit:
 
 static int64_t tBlockDataSize(SBlockData* pBlockData) {
   int64_t nData = 0;
+
+  // Key part
+  nData += (sizeof(int64_t) * pBlockData->nRow);  // uid
+  nData += (sizeof(int64_t) * pBlockData->nRow);  // version
+  nData += (sizeof(TSKEY) * pBlockData->nRow);    // primary keys
+
+  // General column part
   for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
     SColData* pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
     if (pColData->flag == HAS_NONE || pColData->flag == HAS_NULL) {
