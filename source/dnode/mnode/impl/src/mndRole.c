@@ -347,6 +347,8 @@ static int32_t mndRoleActionUpdate(SSdb *pSdb, SRoleObj *pOld, SRoleObj *pNew) {
   taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
   pOld->privSet = pNew->privSet;
+  pOld->version = pNew->version;
+  pOld->flag = pNew->flag;
   TSWAP(pOld->parents, pNew->parents);
   TSWAP(pOld->children, pNew->children);
   taosWUnLockLatch(&pOld->lock);
