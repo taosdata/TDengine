@@ -124,16 +124,8 @@ void destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
   taosArrayDestroy(pLoadInfo->info.pFirstTs);
   taosArrayDestroy(pLoadInfo->info.pLastTs);
 
-  if (taosArrayGetSize(pLoadInfo->info.pFirstKey) > 0) {
-    SValue *pVal = taosArrayGet(pLoadInfo->info.pFirstKey, 0);
-    if (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) {
-      taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
-      taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
-    } else {
-      taosArrayDestroy(pLoadInfo->info.pFirstKey);
-      taosArrayDestroy(pLoadInfo->info.pLastKey);
-    }
-  }
+  taosArrayDestroyEx(pLoadInfo->info.pFirstKey, freeItem);
+  taosArrayDestroyEx(pLoadInfo->info.pLastKey, freeItem);
 
   pLoadInfo->info.pUid = NULL;
   pLoadInfo->info.pFirstKey = NULL;
