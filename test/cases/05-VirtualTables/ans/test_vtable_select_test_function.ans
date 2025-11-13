@@ -2972,3 +2972,13 @@ taos> select twa(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 ============================
          -163685.413924687 |
 
+taos> select count(tbname) from test_vtable_select.vtb_virtual_ntb_full;
+     count(tbname)     |
+========================
+                 23333 |
+
+taos> select count(1) from test_vtable_select.vtb_virtual_ntb_full
+       count(1)        |
+========================
+                 23333 |
+
