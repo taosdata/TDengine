@@ -2079,6 +2079,8 @@ end:
   return code;
 }
 
+static bool stReaderTaskWaitQuit(SStreamTask* pTask) { return taosHasRWWFlag(&pTask->entryLock); }
+
 static int32_t processTs(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTriggerReaderInfo* sStreamReaderInfo,
                                   SStreamReaderTaskInner* pTaskInner, StreamTableListInfo* tableInfo, uint64_t gid) {
   int32_t code = 0;
@@ -2106,7 +2108,7 @@ static int32_t processTs(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTrigge
     }
     int32_t        pNum = 0;
     STREAM_CHECK_RET_GOTO(qStreamIterTableList(tableInfo, &pList, &pNum));
-    if (gid != 0 || pNum == 0) {
+    if (gid != 0 || pNum == 0 || stReaderTaskWaitQuit(pTask)) {
       break;
     }
     STREAM_CHECK_RET_GOTO(resetTsdbReader(pTaskInner, sStreamReaderInfo, pList, pNum));
@@ -3285,9 +3287,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 
 end:
-  ST_TASK_DLOG("vgId:%d %s start to build rsp", TD_VID(pVnode), __func__);
   STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision));
-  ST_TASK_DLOG("vgId:%d %s end:", TD_VID(pVnode), __func__);
   taosArrayDestroy(pResList);
   streamReleaseTask(taskAddr);
 
