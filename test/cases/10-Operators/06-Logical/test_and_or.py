@@ -7,7 +7,7 @@ class TestAndOr:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_and_or(self):
-        """And Or
+        """Logical and & or
 
         1. Mixed usage of AND and OR operators
 

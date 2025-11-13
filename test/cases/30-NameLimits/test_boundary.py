@@ -230,7 +230,7 @@ class TestBoundary:
         tdSql.execute('drop database db')
 
     def test_boundary(self):
-        """ Name Length Boundary Check
+        """Name length boundary
 
         1. Database name length boundary check
         2. Table name length boundary check

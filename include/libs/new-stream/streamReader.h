@@ -17,6 +17,7 @@ extern "C" {
 typedef struct SStreamTableKeyInfo {
   int64_t uid;
   uint64_t groupId;
+  bool     markedDeleted;
   struct SStreamTableKeyInfo* prev;
   struct SStreamTableKeyInfo* next;
 } SStreamTableKeyInfo;
@@ -78,11 +79,9 @@ typedef struct SStreamTriggerReaderInfo {
   SFilterInfo* pFilterInfo;
   SHashObj*    pTableMetaCacheTrigger;
   SHashObj*    pTableMetaCacheCalc;
-  SSHashObj*   indexHash;  // index hash for wal data
-  STSchema*    triggerTableSchema;
   bool         groupByTbname;
   void*        pVnode;
-  TdThreadRwlock lock;
+  SRWLatch     lock;
 
   StreamTableListInfo        tableList;
   StreamTableListInfo        vSetTableList;
@@ -144,14 +143,14 @@ int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTas
                         
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
-int32_t  qStreamCopyTableInfo(StreamTableListInfo* src, StreamTableListInfo* dst, TdThreadRwlock* lock);
+int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);
 int32_t  qTransformStreamTableList(void* pTableListInfo, StreamTableListInfo* tableInfo);
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
 SArray*  qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size);
 uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
 uint64_t qStreamGetGroupIdFromSet(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
-int32_t  qStreamModifyTableList(StreamTableListInfo* tableInfo, SArray* tableListAdd, SArray* tableListDel, TdThreadRwlock* lock);
+int32_t  qStreamModifyTableList(StreamTableListInfo* tableInfo, SArray* tableListAdd, SArray* tableListDel, SRWLatch* lock);
 
 #ifdef __cplusplus
 }

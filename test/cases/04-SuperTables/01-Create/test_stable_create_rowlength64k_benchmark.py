@@ -31,7 +31,7 @@ class TestRowlength64kBenchmark:
     
 
     def test_rowlength64k_benchmark(self):
-        """Test Table Max Columns With Benchmark
+        """Stable max row length 64k Benchmark
 
         1. taosBenchmark create table with column 1023
         2. taosBenchmark create table with column 4095

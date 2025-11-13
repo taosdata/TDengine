@@ -490,7 +490,7 @@ class TestWriteBug:
     # ------------------ main ------------------
     #
     def test_write_bug(self):
-        """Data Ingestion Bug
+        """Write bugs
 
         1. TD-27388
         2. TD-29157

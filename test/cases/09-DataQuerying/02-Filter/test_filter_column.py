@@ -7,7 +7,7 @@ class TestFilterColumn:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_filter_column(self):
-        """Column
+        """Filter columns
 
         1. Filtering super tables and regular tables by regular data columns
         2. Applying mathematical operators in combination

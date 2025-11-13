@@ -141,6 +141,22 @@ int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *k
                                    bool *acquired);
 int32_t  metaUidFilterCachePut(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen, double selectivityRatio);
+int32_t  metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid,
+  const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
+  const uint8_t* pKey, int32_t keyLen, SArray* pList, bool* acquired);
+int32_t  metaStableTagFilterCachePut(void* pVnode, uint64_t suid,
+  const void* pTagCondKey, int32_t tagCondKeyLen,
+  const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
+int32_t metaStableTagFilterCacheDropSTable(SMeta* pMeta, tb_uid_t suid);
+typedef enum {
+  STABLE_TAG_FILTER_CACHE_DROP_TABLE = 1,
+  STABLE_TAG_FILTER_CACHE_ADD_TABLE = 2,
+} ETagFilterCacheAction;
+int32_t metaStableTagFilterCacheUpdateUid(
+  SMeta* pMeta, const SMetaEntry* pDroppedTable,
+  const SMetaEntry* pSuperTable, ETagFilterCacheAction action);
+int32_t metaStableTagFilterCacheDropTag(
+  SMeta* pMeta, tb_uid_t suid, col_id_t tagColId);
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
@@ -177,7 +193,7 @@ void     tsdbReaderClose2(void *pReader);
 int32_t  tsdbNextDataBlock2(void *pReader, bool *hasNext);
 int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
 void     tsdbReleaseDataBlock2(void *pReader);
-int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock, SArray *pIdList);
+int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock);
 int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);
 int32_t  tsdbGetFileBlocksDistInfo2(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 void     tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock);
@@ -190,8 +206,10 @@ void     tsdbReaderSetCloseFlag(STsdbReader *pReader);
 int64_t  tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
 void     tsdbSetFilesetDelimited(STsdbReader *pReader);
 void     tsdbReaderSetNotifyCb(STsdbReader *pReader, TsdReaderNotifyCbFn notifyFn, void *param);
-int32_t  tsdbReaderGetProgress(const STsdbReader *pReader, void **pBuf, uint64_t *pLen);
-int32_t  tsdbReaderSetProgress(STsdbReader *pReader, const void *buf, uint64_t len);
+int32_t  tsdbCreateFirstLastTsIter(void *pVnode, STimeWindow *pWindow, SVersionRange *pVerRange, uint64_t suid, void *pTableList,
+                                   int32_t numOfTables, int32_t order, void **pIter, const char *idstr);
+int32_t  tsdbNextFirstLastTsBlock(void *pIter, SSDataBlock *pRes);
+void     tsdbDestroyFirstLastTsIter(void *pIter);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
