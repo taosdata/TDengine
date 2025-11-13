@@ -599,6 +599,7 @@ struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+  bool       forceTrim;  // force trim WAL, ignore keepVersion constraint
 };
 
 struct SCompactInfo {

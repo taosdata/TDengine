@@ -6085,6 +6085,42 @@ int32_t tDeserializeSTrimDbReq(void *buf, int32_t bufLen, STrimDbReq *pReq) {
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->db));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->maxSpeed));
+  tEndDecode(&decoder); 
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVndSetKeepVersionReq(void *buf, int32_t bufLen, SVndSetKeepVersionReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->keepVersion));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVndSetKeepVersionReq(void *buf, int32_t bufLen, SVndSetKeepVersionReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->keepVersion));
   tEndDecode(&decoder);
 
 _exit:
@@ -6194,6 +6230,45 @@ int32_t tDeserializeSVS3MigrateDbReq(void *buf, int32_t bufLen, SVS3MigrateDbReq
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->timestamp));
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSMndSetVgroupKeepVersionReq(void *buf, int32_t bufLen, SMndSetVgroupKeepVersionReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vgId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->keepVersion));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMndSetVgroupKeepVersionReq(void *buf, int32_t bufLen, SMndSetVgroupKeepVersionReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vgId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->keepVersion));
 
   tEndDecode(&decoder);
 
@@ -12552,6 +12627,7 @@ int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
 int32_t tEncodeMqVgOffset(SEncoder *pEncoder, const SMqVgOffset *pOffset) {
   TAOS_CHECK_RETURN(tEncodeSTqOffset(pEncoder, &pOffset->offset));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pOffset->consumerId));
+  // TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pOffset->markWal));
   return 0;
 }
 

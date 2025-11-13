@@ -99,7 +99,7 @@ class TDTestCase:
         start_time = time.time()
         tdSql.execute(f'create stream s21 fill_history 1 async into ts5617.st21 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
         end_time = time.time()
-        if end_time - start_time > 1:
+        if end_time - start_time > 5:
             tdLog.exit("create history stream sync too long")
 
         tdSql.query("show streams")

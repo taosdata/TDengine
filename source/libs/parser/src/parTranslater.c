@@ -9781,6 +9781,15 @@ static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt*
   return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB, (FSerializeFunc)tSerializeSTrimDbReq, &req);
 }
 
+static int32_t translateTrimDbWal(STranslateContext* pCxt, STrimDbWalStmt* pStmt) {
+  STrimDbReq req = {.maxSpeed = 0};  // WAL trim doesn't need maxSpeed
+  SName      name = {0};
+  int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+  (void)tNameGetFullDbName(&name, req.db);
+  return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB_WAL, (FSerializeFunc)tSerializeSTrimDbReq, &req);
+}
+
 static int32_t checkColumnOptions(SNodeList* pList) {
   SNode* pNode;
   FOREACH(pNode, pList) {
@@ -14289,6 +14298,15 @@ static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgr
   return code;
 }
 
+static int32_t translateSetVgroupKeepVersion(STranslateContext* pCxt, SSetVgroupKeepVersionStmt* pStmt) {
+  SMndSetVgroupKeepVersionReq req = {0};
+  req.vgId = pStmt->vgId;
+  req.keepVersion = pStmt->keepVersion;
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_SET_VGROUP_KEEP_VERSION, (FSerializeFunc)tSerializeSMndSetVgroupKeepVersionReq, &req);
+  return code;
+}
+
 static int32_t translateMergeVgroup(STranslateContext* pCxt, SMergeVgroupStmt* pStmt) {
   SMergeVgroupReq req = {.vgId1 = pStmt->vgId1, .vgId2 = pStmt->vgId2};
   return buildCmdMsg(pCxt, TDMT_MND_MERGE_VGROUP, (FSerializeFunc)tSerializeSMergeVgroupReq, &req);
@@ -14916,6 +14934,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       code = translateTrimDatabase(pCxt, (STrimDatabaseStmt*)pNode);
       break;
+    case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
+      code = translateTrimDbWal(pCxt, (STrimDbWalStmt*)pNode);
+      break;
     case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
       code = translateS3MigrateDatabase(pCxt, (SS3MigrateDatabaseStmt*)pNode);
       break;
@@ -15055,6 +15076,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
       code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);
+      break;
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:
+      code = translateSetVgroupKeepVersion(pCxt, (SSetVgroupKeepVersionStmt*)pNode);
       break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = translateMergeVgroup(pCxt, (SMergeVgroupStmt*)pNode);
