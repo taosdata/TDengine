@@ -25,20 +25,20 @@ class TestStateWindowExtend:
         tdSql.execute("create database if not exists testdb", show=True)
         tdSql.execute("use testdb")
         values = """
-                 ('2025-09-01 10:00:00', null,    20), \
-                 ('2025-09-01 10:00:01', 'a',     23.5), \
-                 ('2025-09-01 10:00:02', 'a',     25.9), \
-                 ('2025-09-01 10:02:15', null,    26), \
-                 ('2025-09-01 10:02:45', 'a',     28), \
-                 ('2025-09-01 10:04:00', null,    24.3), \
-                 ('2025-09-01 10:05:00', null,    null), \
-                 ('2025-09-01 11:01:10', 'b',     18), \
-                 ('2025-09-01 12:03:22', 'b',     14.4), \
-                 ('2025-09-01 12:20:19', 'a',     17.7), \
-                 ('2025-09-01 13:00:00', 'a',     null), \
-                 ('2025-09-01 14:00:00', null,    22.3), \
-                 ('2025-09-01 18:18:18', 'b',     18.18), \
-                 ('2025-09-01 20:00:00', 'b',     19.5), \
+                 ('2025-09-01 10:00:00', null,    20),
+                 ('2025-09-01 10:00:01', 'a',     23.5),
+                 ('2025-09-01 10:00:02', 'a',     25.9),
+                 ('2025-09-01 10:02:15', null,    26),
+                 ('2025-09-01 10:02:45', 'a',     28),
+                 ('2025-09-01 10:04:00', null,    24.3),
+                 ('2025-09-01 10:05:00', null,    null),
+                 ('2025-09-01 11:01:10', 'b',     18),
+                 ('2025-09-01 12:03:22', 'b',     14.4),
+                 ('2025-09-01 12:20:19', 'a',     17.7),
+                 ('2025-09-01 13:00:00', 'a',     null),
+                 ('2025-09-01 14:00:00', null,    22.3),
+                 ('2025-09-01 18:18:18', 'b',     18.18),
+                 ('2025-09-01 20:00:00', 'b',     19.5),
                  ('2025-09-02 08:00:00', null,    9.9)
                  """
         # normal table
@@ -590,11 +590,11 @@ class TestStateWindowExtend:
 
         stream = StreamItem (
             id=2,
-            stream="create stream scn2 count_window(5) from ntb into res_scn2 as \
-                        select _wstart, _wduration, _wend, _twstart, _twend, \
-                        count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v \
-                        from ntb where ts >= _twstart and ts <= _twend \
-                        state_window(s, 2)",
+            stream='''create stream scn2 count_window(5) from ntb into res_scn2 as
+                        select _wstart, _wduration, _wend, _twstart, _twend,
+                        count(*) cnt_all, count(s) cnt_s, count(v) cnt_v, avg(v) avg_v
+                        from ntb where ts >= _twstart and ts <= _twend
+                        state_window(s, 2)''',
             res_query="select _wstart, _wduration, _wend, cnt_all, cnt_s, cnt_v, avg_v from res_scn2 \
                         where _wend <= '2025-09-02 08:00:04.000'",
             exp_query="select _wstart, _wduration, _wend, count(*), count(s), count(v), avg(v) from ntb \

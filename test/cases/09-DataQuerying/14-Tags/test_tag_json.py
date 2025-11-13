@@ -13,9 +13,6 @@ class TestSelectWithJsonTags:
         3. Inset data with json tags
         3. Select data and check the result
 
-        Catalog:
-            - Query:Tags
-
         Since: v3.0.0.0
 
         Labels: common,ci
@@ -57,3 +54,27 @@ class TestSelectWithJsonTags:
         tdSql.checkData(0, 0, "\"大连\\f123\"")
 
         tdLog.info(f"end select with json tags test successfully")
+
+    def test_select_with_json_tags(self):
+        """Operator json
+
+        1. Create db
+        2. Create supper table with json data-type tag
+        3. Create child table with json tag values
+        4. Query with json operators
+        5. Check the result value correctly
+
+        Catalog:
+            - Operators:Json
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-08-04 Ethan liu adds test for test select with json tags
+
+        """
+        pass

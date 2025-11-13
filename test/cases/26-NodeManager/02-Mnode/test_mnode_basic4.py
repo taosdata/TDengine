@@ -8,7 +8,7 @@ class TestMnodeBasic4:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mnode_basic4(self):
-        """replica 3: kill -9 then drop
+        """Mnode kill -9 then drop
 
         1. Create mnodes on the second and third dnodes
         2. Force stop dnode3

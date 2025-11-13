@@ -9,16 +9,17 @@ class TestStreamCountTrigger:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_count_trigger(self):
-        """basic qdb 2
+        """Trigger mode count many
 
-        Verification testing during the development process.
-
-        Catalog:
-            - Streams:Others
+        1. Create database and super table
+        2. Create sub tables
+        3. Create streams with count trigger mode
+        4. Insert data into sub tables
+        5. Check stream results
 
         Since: v3.3.3.7
 
-        Labels: common,ci,skip
+        Labels: common,ci
 
         Jira: None
 

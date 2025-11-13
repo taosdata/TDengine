@@ -15,7 +15,6 @@
 
 #include "filter.h"
 #include "function.h"
-#include "os.h"
 #include "tname.h"
 
 #include "tglobal.h"

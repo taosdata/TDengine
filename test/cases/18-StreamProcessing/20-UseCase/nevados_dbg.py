@@ -13,7 +13,7 @@ class Test_Nevados:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_nevados(self):
-        """Nevados
+        """IDMP nevados
 
         Refer: https://taosdata.feishu.cn/wiki/XaqbweV96iZVRnkgHLJcx2ZCnQf
 

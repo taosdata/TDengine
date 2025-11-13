@@ -219,7 +219,6 @@ function transfer_debug_dirs() {
 
     rm -rf debug.tar.gz
 }
-
 function clean_tmp() {
     local index=$1
     local cmd=""
@@ -554,7 +553,6 @@ while [ $i -lt ${#hosts[*]} ]; do
     j=$((j + threads[i]))
     i=$((i + 1))
 done
-
 # prepare cases
 prepare_cases $j
 

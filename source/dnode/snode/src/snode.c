@@ -224,6 +224,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.execId = req.execId;
   calcReq.sessionId = req.pStRtFuncInfo->sessionId;
   calcReq.triggerType = req.pStRtFuncInfo->triggerType;
+  calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
+  calcReq.precision = req.pStRtFuncInfo->precision;
   TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
   TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
   calcReq.gid = req.pStRtFuncInfo->groupId;

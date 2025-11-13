@@ -524,7 +524,7 @@ class TestInsertColumnValue:
             tdSql.checkRows(4)
 
     def test_write_column_value(self):
-        """ Write Data with Special Columns
+        """ Write special columns
 
         1. Write data with different data types 
         2. Write data to super table with special column
