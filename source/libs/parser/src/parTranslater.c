@@ -17172,9 +17172,6 @@ _return:
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
       code = translateTrimDbWal(pCxt, (STrimDbWalStmt*)pNode);
       break;
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      code = translateS3MigrateDatabase(pCxt, (SS3MigrateDatabaseStmt*)pNode);
-      break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
       break;
