@@ -261,6 +261,9 @@ typedef enum {
 
 #define TSDB_ALTER_RSMA_FUNCTION        0x1
 
+#define TSDB_GRANT_TYPE_ROLE            0x1
+#define TSDB_GRANT_TYPE_PRIVILEGES      0x2
+
 #define TSDB_KILL_MSG_LEN 30
 
 #define TSDB_TABLE_NUM_UNIT 100000

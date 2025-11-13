@@ -4057,7 +4057,7 @@ static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName) {
     }
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    trimEscape(pCxt, pName, true);
+    trimEscape(pCxt, TSDB_ROLE_LEN, true);
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
@@ -5196,11 +5196,12 @@ _err:
   return NULL;
 }
 
-SNode* createGrantStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair* pPrivLevel, SToken* pUserName,
-                       SNode* pTagCond) {
+SNode* createGrantStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair* pPrivLevel, SToken* pPrincipal,
+                       SNode* pTagCond, int8_t type) {
   CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkRoleName(pCxt, pPrincipal));
+
   CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
-  CHECK_NAME(checkUserName(pCxt, pUserName));
   CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
   SGrantStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_GRANT_STMT, (SNode**)&pStmt);
@@ -5210,7 +5211,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair*
   if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
     COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
   }
-  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
   pStmt->pTagCond = pTagCond;
   return (SNode*)pStmt;
 _err:
@@ -5218,11 +5219,13 @@ _err:
   return NULL;
 }
 
-SNode* createRevokeStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair* pPrivLevel, SToken* pUserName,
-                        SNode* pTagCond) {
+SNode* createRevokeStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair* pPrivLevel, SToken* pPrincipal,
+                        SNode* pTagCond, int8_t type) {
   CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pPrincipal));
+
   CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
-  CHECK_NAME(checkUserName(pCxt, pUserName));
+
   CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
   SRevokeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REVOKE_STMT, (SNode**)&pStmt);
@@ -5232,7 +5235,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, SPrivSet privileges, STokenPair
   if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
     COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
   }
-  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
   pStmt->pTagCond = pTagCond;
   return (SNode*)pStmt;
 _err:
