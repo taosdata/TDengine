@@ -11,14 +11,15 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, instrument};
 
 use taosx_core::dsv::DataSourceValidation;
-use taosx_core::runners::log_rotation;
+use taosx_core::runners::new_rolling_file_appender;
 use taosx_core::utils::mask_dsn;
 use taosx_core::utils::monitor::send_sub_process_info;
-use taosx_core::{DataSet, Transferred, build_ipc, get_log_keep_days, utils::port_pool::PortPool};
+use taosx_core::{DataSet, Transferred, build_ipc, utils::port_pool::PortPool};
 
 use config::{ConnectionConfig, INFLUXDB_V1, InfluxdbConfig};
 
 use taosx_core::runners::{get_data_dir, get_plugin_dir};
+use tracing_subscriber::fmt::MakeWriter;
 
 mod config;
 
@@ -106,15 +107,13 @@ pub async fn influxdb_to_taos(
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 
-    let mut log_path = log_path();
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push(format!("influxdb-{}.log", task_id.unwrap_or(0)));
-    tracing::info!("log file dir: {}", &log_path.display());
+    let log_dir = log_path();
+    std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
+    let component = format!("influxdb-{}", task_id.unwrap_or(0));
+    tracing::info!("log dir: {}", &log_dir.display());
 
-    let log_keep_days = get_log_keep_days();
-
-    let mut log_rotation = log_rotation(&log_path, log_keep_days);
+    let appender = new_rolling_file_appender(log_dir.as_path(), &component)
+        .context("failed to create influxdb log")?;
 
     // get the version of jdk
     let get_jdk_version = tokio::process::Command::new("java")
@@ -195,8 +194,13 @@ pub async fn influxdb_to_taos(
                 let mut guard = error_buf_producer.lock().await;
                 let _ = guard.push_overwrite(line.clone());
             }
-            // Write the line to log_rotation
-            write!(log_rotation, "{}", line)?;
+            // Write the line to rolling file appender
+            let mut w = appender.make_writer();
+            use std::io::Write as _;
+            w.write_all(line.as_bytes())?;
+            if let Err(err) = w.flush() {
+                eprintln!("failed to flush InfluxDB log: {err}");
+            }
             line.clear();
         }
         Ok::<(), std::io::Error>(())

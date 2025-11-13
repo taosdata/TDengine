@@ -3,9 +3,7 @@ use taosx_core::dsv::DataSourceValidation;
 use taosx_core::runners::opc::csv::CsvParser;
 use taosx_core::runners::opc::csv::header::CsvHeader;
 use taosx_core::runners::opc::model::{ModelType, OpcModelConfig};
-use taosx_core::runners::{
-    get_data_dir, get_logs_home_dir, log_rotation, new_rolling_file_appender,
-};
+use taosx_core::runners::{get_data_dir, get_logs_home_dir, new_rolling_file_appender};
 use taosx_core::sink::persist::PersistConfig;
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::monitor::send_sub_process_info;
@@ -454,15 +452,16 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
         .output()
         .await
         .with_context(|| "Start OPC collector error")?;
-    let mut log_path = get_log_dir("");
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push("opc.log");
-
-    let mut log_rotation = log_rotation(&log_path, 700);
-
-    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))
-        .context("writing logs error")?;
+    let log_dir = get_log_dir("");
+    std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
+    let appender =
+        new_rolling_file_appender(log_dir.as_path(), "opc").context("failed to create opc log")?;
+    {
+        let mut w = appender.make_writer();
+        use std::io::Write as _;
+        w.write_all(String::from_utf8_lossy(&output.stderr).as_bytes())?;
+        w.flush().ok();
+    }
 
     tracing::info!("opc_datasets OPC exit with status {}", output.status);
     if !output.status.success() {

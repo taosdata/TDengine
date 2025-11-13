@@ -75,7 +75,6 @@ csv.workspace = true
 glob.workspace = true
 notify.workspace = true
 futures-ext.workspace = true
-file-rotate = "0.7.5"
 ringbuf.workspace = true
 deadpool.workspace = true
 actix-web.workspace = true

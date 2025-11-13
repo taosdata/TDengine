@@ -1,4 +1,4 @@
-use crate::runners::log_rotation;
+use crate::runners::new_rolling_file_appender;
 use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::model::OpcModelConfig;
 use crate::utils::dsn::json_to_dsn;
@@ -13,6 +13,7 @@ use taos::{Dsn, IntoDsn};
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
+use tracing_subscriber::fmt::MakeWriter;
 
 pub mod config;
 pub mod csv;
@@ -427,15 +428,18 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
         .output()
         .await
         .with_context(|| "Start OPC collector error")?;
-    let mut log_path = super::get_log_dir("");
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push("opc.log");
+    let log_dir = super::get_log_dir("");
+    std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
+    let appender =
+        new_rolling_file_appender(log_dir.as_path(), "opc").context("failed to create opc log")?;
 
-    let mut log_rotation = log_rotation(&log_path, 700);
-
-    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))
-        .context("writing logs error")?;
+    {
+        let mut w = appender.make_writer();
+        use std::io::Write as _;
+        w.write_all(String::from_utf8_lossy(&output.stderr).as_bytes())
+            .context("writing logs error")?;
+        w.flush().ok();
+    }
 
     tracing::info!("opc_datasets OPC exit with status {}", output.status);
     if !output.status.success() {

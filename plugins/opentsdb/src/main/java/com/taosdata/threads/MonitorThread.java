@@ -70,7 +70,7 @@ public class MonitorThread implements Runnable {
 
                 // 判断上次输出时间，每隔一分钟输出一次完整信息
                 if (this.lastTime == null || (System.currentTimeMillis() - this.lastTime.getTime()) > 10000) {
-                    logger.info(StatusCache.toPrintString());
+                    logger.debug(StatusCache.toPrintString());
                     // 更新lastTime
                     this.lastTime = new Date();
                 }
