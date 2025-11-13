@@ -659,7 +659,7 @@ function lcovFunc {
         exit 1
     fi
 
-    exit 0
+    # exit 0
 
     # 调试输出覆盖率文件内容样例
     echo "覆盖率文件包含的源文件 (前10个):"
