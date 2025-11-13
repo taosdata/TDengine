@@ -262,7 +262,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 12  | file_size | INT          | 此 vgroup 中数据/元数据文件的大小                                                                |
 | 13  |   tsma     | TINYINT      | 此 vgroup 是否专用于 Time-range-wise SMA，1: 是，0: 否                                           |
 | 14  |   keep_version    | INT      | 此 vgroup 大于等于 keep_version 的 wal 日志不会被自动删除                                      |
-| 15  |   keep_version_time    | INT      | 此 vgroup在 keep_version 上次被修改的时间                                 |
+| 15  |   keep_version_time    | INT      | 此 vgroup 在 keep_version 上次被修改的时间                                 |
 
 
 ## INS_CONFIGS
