@@ -1056,27 +1056,7 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
     int64_t ntables;
 
     // malloc stmtData for tags
-    BArray *fields = stbInfo->tags;
-    for (int i = 0; i < fields->size; ++i) {
-        Field *field = benchArrayGet(fields, i);
-        if (field->stmtData.data == NULL) {
-            // data
-            if (field->type == TSDB_DATA_TYPE_BINARY
-                    || field->type == TSDB_DATA_TYPE_NCHAR) {
-                field->stmtData.data = benchCalloc(1, TAG_BATCH_COUNT * (field->length + 1), true);
-            } else {
-                field->stmtData.data = benchCalloc(1, TAG_BATCH_COUNT * field->length, true);
-            }
-
-            // is_null
-            field->stmtData.is_null = benchCalloc(sizeof(char), TAG_BATCH_COUNT, true);
-            // lengths
-            field->stmtData.lengths = benchCalloc(sizeof(int32_t), TAG_BATCH_COUNT, true);
-
-            // log
-            debugPrint("i=%d startMultiThreadCreateChildTable fields=%p %s malloc stmtData.data=%p\n", i, fields, field->name ,field->stmtData.data);
-        }
-    }
+    prepareTagsStmt(stbInfo);
 
     if (stbInfo->childTblTo > 0) {
         ntables = stbInfo->childTblTo - stbInfo->childTblFrom;
