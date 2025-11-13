@@ -256,7 +256,7 @@ TRIM DATABASE db_name;
 TRIM DATABASE db_name WAL;
 ```
 
-删除过期的 WAL 日志；使用 trim wal 删除过期 wal 日志时会忽略 vgroup keep version 的限制。
+删除过期的 WAL 日志。使用 `trim wal` 删除过期 WAL 日志时，会忽略 vgroup 的 `keep_version` 限制。
 
 ## 落盘内存数据
 
