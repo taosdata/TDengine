@@ -218,7 +218,7 @@ class TestJoinConst:
         5. Validate the query result with expected .csv file
         6. File .in sql include now()/today() and constant timestamps
         7. File .in sql include inner/outer/semi/anti join
-        8. Check abnormal cases 
+        8. Check abnormal cases
         
 
         Since: v3.0.0.0
