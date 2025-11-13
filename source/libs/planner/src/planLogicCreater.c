@@ -989,6 +989,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   // Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0), &pRealTableScan));
 
+  if (((SScanLogicNode*)pRealTableScan)->scanType == SCAN_TYPE_TAG) {
+    ((SScanLogicNode*)pRealTableScan)->scanType = SCAN_TYPE_TABLE;
+  }
+
   PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
 
   FOREACH(pNode, pVtableScan->pScanCols) {
