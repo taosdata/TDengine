@@ -675,7 +675,6 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   SMqVgOffset pOffset = {0};
 
   pOffset.consumerId = tmq->consumerId;
-  // pOffset.markWal = tmq->enableWalMarker;
   pOffset.offset.val = *offset;
   (void)snprintf(pOffset.offset.subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", tmq->groupId, TMQ_SEPARATOR, pTopicName);
   int32_t len = 0;

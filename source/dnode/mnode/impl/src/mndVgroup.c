@@ -1281,11 +1281,6 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->mountVgId, false, pVgroup, pShow->pIter, _OVER);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set isTsma, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->keepVersion, false);
@@ -1293,6 +1288,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       mError("vgId:%d, failed to set keepVersion, since %s", pVgroup->vgId, tstrerror(code));
       return code;
     }
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->keepVersionTime, false);
     if (code != 0) {

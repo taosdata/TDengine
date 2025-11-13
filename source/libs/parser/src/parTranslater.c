@@ -17169,6 +17169,7 @@ _return:
       break;
     case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
       code = translateSsMigrateDatabase(pCxt, (SSsMigrateDatabaseStmt*)pNode);
+      break;
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
       code = translateTrimDbWal(pCxt, (STrimDbWalStmt*)pNode);
       break;
