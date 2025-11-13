@@ -69,6 +69,7 @@ typedef struct STsdbReaderInfo {
   STimeWindow   window;
   SVersionRange verRange;
   int16_t       order;
+  bool          cacheSttStatis;
 } STsdbReaderInfo;
 
 typedef struct SBlockInfoBuf {

@@ -578,7 +578,7 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
 void tmq_list_destroy(tmq_list_t* list) {
   if (list == NULL) return;
   SArray* container = &list->container;
-  taosArrayDestroyP(container, NULL);
+  taosArrayDestroyP(container, taosMemFree);
 }
 
 int32_t tmq_list_get_size(const tmq_list_t* list) {

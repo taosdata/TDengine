@@ -298,6 +298,12 @@ typedef struct SStoreMeta {
                                 bool* acquireRes);
   int32_t (*putCachedTableList)(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                                 int32_t payloadLen, double selectivityRatio);
+  int32_t (*getStableCachedTableList)(void* pVnode, tb_uid_t suid,
+    const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
+    const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes);
+  int32_t (*putStableCachedTableList)(void* pVnode, uint64_t suid,
+    const void* pTagCondKey, int32_t tagCondKeyLen,
+    const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
 
   int32_t (*metaGetCachedRefDbs)(void* pVnode, tb_uid_t suid, SArray* pList);
   int32_t (*metaPutRefDbsToCache)(void* pVnode, tb_uid_t suid, SArray* pList);

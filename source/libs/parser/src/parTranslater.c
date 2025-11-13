@@ -14179,6 +14179,7 @@ static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRe
   pReq->triggerTblType = pMeta->tableType;
   pReq->triggerTblUid = pMeta->uid;
   pReq->triggerTblSuid = pMeta->suid;
+  pReq->triggerPrec = pMeta->tableInfo.precision;
 
   return code;
 
