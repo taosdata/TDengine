@@ -355,15 +355,9 @@ static void extWinSetCurWinIdx(SOperatorInfo* pOperator, int32_t idx) {
   }
 }
 
-
 static void extWinIncCurWinOutIdx(SStreamRuntimeInfo* pStreamRuntimeInfo) {
-  if (pStreamRuntimeInfo->funcInfo.isMultiGroupCalc) {
-    ((SExtWinGrpCtx*)pStreamRuntimeInfo->funcInfo.curGrpCalc->pRunnerGrpCtx)->curIdx++;
-  } else {
-    pStreamRuntimeInfo->funcInfo.curOutIdx++;
-  }
+  ((SExtWinGrpCtx*)pStreamRuntimeInfo->funcInfo.curGrpCalc->pRunnerGrpCtx)->curIdx++;
 }
-
 
 static const STimeWindow* extWinGetNextWin(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo) {
   int32_t curIdx = extWinGetCurWinIdx(pTaskInfo);

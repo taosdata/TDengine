@@ -507,7 +507,7 @@ static int32_t stRunnerMergeOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerT
 
   if (pOutput && pOutput->info.rows > 0) {
     int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
-    if (pExec->runtimeInfo.funcInfo.isMultiGroupCalc || lowLatencyCalc || (pExec->runtimeInfo.funcInfo.curOutIdx) >= winNum || pOutput->info.rows >= 4096) {
+    if (pExec->runtimeInfo.funcInfo.isMultiGroupCalc || lowLatencyCalc || (pExec->runtimeInfo.funcInfo.curIdx) >= winNum || pOutput->info.rows >= 4096) {
       TAOS_CHECK_EXIT(stRunnerOutputBlock(pTask, pExec, pOutput, finished));
       blockDataCleanup(pOutput);
     }
@@ -907,7 +907,7 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExec
 
 static int32_t stRunnerHandleResBlock(SStreamRunnerTask* pTask, SStreamRuntimeFuncInfo* pInfo,
                                       SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock, bool finished) {
-  int32_t      nextOutIdx = pInfo->curOutIdx;
+  int32_t      nextOutIdx = pInfo->curIdx;
   SSDataBlock* pForceOutBlock = NULL;
   int32_t      code = 0;
   int32_t      lino = 0;
@@ -991,7 +991,6 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   }
 
   pInfo->curIdx = pReq->curWinIdx;
-  pInfo->curOutIdx = pReq->curWinIdx;
   pInfo->createTable = &pReq->createTable;
 
   while (code == 0) {
@@ -1021,7 +1020,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     ST_TASK_ILOG("[runner calc]handled res block, gid:%" PRId64 ", curIdx:%d, finished:%d",
                   pInfo->groupId, pInfo->curIdx, finished);
 
-    if (finished && (pInfo->withExternalWindow || pInfo->curOutIdx >= winNum)) {
+    if (finished && (pInfo->withExternalWindow || pInfo->curIdx >= winNum)) {
       break;
     }
   }
