@@ -42,7 +42,7 @@ pub const MQTT_ID: &str = "mqtt";
 #[instrument(skip_all)]
 pub async fn mqtt_to_taos(
     from: Dsn,
-    parser: Option<Parser>,
+    mut parser: Option<Parser>,
     to: Dsn,
     upstream_cancel_token: CancellationToken,
     with_agent: Option<(i64, String, String)>,
@@ -60,6 +60,9 @@ pub async fn mqtt_to_taos(
         let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, None).await;
     }
     let metrics = get_metrics_arc_from_i64(task_id).await;
+    if let Some(parser) = parser.as_mut() {
+        parser.set_metrics(metrics.clone());
+    }
     let metrics = Arc::new(MqttMetrics::new(metrics));
 
     metrics.reset_metrics();

@@ -93,7 +93,7 @@ pub struct PendingState {
 #[instrument(skip_all)]
 pub async fn kafka_to_taos(
     from: Dsn,
-    parser: Option<Parser>,
+    mut parser: Option<Parser>,
     to: Dsn,
     upstream_cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
@@ -119,6 +119,9 @@ pub async fn kafka_to_taos(
         .await;
     }
     let metrics_arc = get_metrics_arc_from_i64(task_id).await;
+    if let Some(parser) = parser.as_mut() {
+        parser.set_metrics(metrics_arc.clone());
+    }
 
     let parallel = parser
         .as_ref()

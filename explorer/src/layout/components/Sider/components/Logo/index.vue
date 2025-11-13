@@ -33,7 +33,7 @@ const opened = computed(() => store.state.sidebar.opened)
   & .sidebar_logo_expend {
     width: 100%;
     height: auto;
-    padding: 5% 5%;
+    padding: 0% 5%;
     transition-duration: 0.4s;
   }
   & .sidebar_logo_fold {

@@ -69,6 +69,15 @@ impl std::ops::Deref for Parser {
     }
 }
 
+impl std::ops::DerefMut for Parser {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Parser::Inner(parser) => parser,
+            Parser::WithSample { parser, .. } => parser,
+        }
+    }
+}
+
 use self::sink::lush::LushModelConfig;
 use self::sink::IpcHandler;
 

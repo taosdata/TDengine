@@ -839,7 +839,7 @@ async function getMsgBody() {
   });
   async function onValid() {
     requesting.value = true;
-    const isSupportType = sourceForm.type == 'kafka' || sourceForm.type == 'mqtt' || sourceForm.type == 'mongodb';
+    const isSupportType = sourceForm.type == 'kafka' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya' || sourceForm.type == 'mqtt' || sourceForm.type == 'mongodb';
     const params: Recordable = { dsn: sourceForm };
     params.dsn.sample_data_limit = transformerState.limitOffset;
     // if (isSupportType) {
@@ -861,6 +861,10 @@ async function getMsgBody() {
         let type = '';
         if (sourceForm.type == 'kafka') {
           type = 'Kafka';
+        } else if (sourceForm.type == 'pulsar') {
+          type = 'Pulsar';
+        } else if (sourceForm.type == 'pulsarTuya') {
+          type = 'PulsarTuya';
         } else if (sourceForm.type == 'mqtt') {
           type = 'MQTT';
         } else if (sourceForm.type == 'mongodb') {
@@ -1168,7 +1172,7 @@ async function handleParseResult(topParser: TopParseType) {
     );
   });
   columnsArr.value = (
-    sourceForm.type == 'csv'
+    (sourceForm.type == 'csv' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya')
       ? result[0].fields
       : result[0].fields.filter((item: { name: string }) => {
           if (sourceForm.type == 'mqtt' && !defaultColsMap.mqtt.includes(item.name)) {
@@ -1922,7 +1926,7 @@ function generateInput() {
           if (item.name == 'payload') {
             inputobj['payload'] = msg;
           }
-        } else if (sourceForm.type == 'kafka' || sourceForm.type == 'mongodb') {
+        } else if (sourceForm.type == 'kafka' || sourceForm.type == 'mongodb' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya') {
           inputobj = inputobj ? inputobj : {};
           if (item.name == 'value') {
             inputobj['value'] = msg;

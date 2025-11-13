@@ -2849,7 +2849,7 @@ pub struct Task {
     /// You can filter tasks by some labels.
     #[serde(skip_serializing_if = "Labels::is_empty")]
     #[serde(default)]
-    #[sqlx(try_from = "String", default)]
+    #[sqlx(try_from = "Option<String>", default)]
     // #[serde(deserialize_with = "labels_serde::deserialize")]
     pub labels: Labels,
 
@@ -3457,25 +3457,35 @@ impl Labels {
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_labels() {
-    let db = sqlx::SqlitePool::connect("sqlite:./target/taosx.dev.db")
-        .await
-        .unwrap();
+    let db = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+    MIGRATOR.run(&db).await.unwrap();
 
     #[derive(
         Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::Decode, sqlx::Encode, sqlx::FromRow,
     )]
     struct JsonTest {
-        #[sqlx(try_from = "String")]
+        id: i64,
+        from: String,
+        to: String,
+        #[sqlx(try_from = "Option<String>")]
         labels: Labels,
     }
 
-    let json: JsonTest = sqlx::query_as("select labels from task_with_labels")
+    sqlx::query("insert into tasks (`from`, `to`, `status`) values (?, ?, ?)")
+        .bind("tmq:///test")
+        .bind("local:/path/to/backup/test")
+        .bind("pending")
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let json = sqlx::query_as::<_, JsonTest>("select * from task_with_labels")
         .fetch_one(&db)
         .await
         .unwrap();
-    dbg!(json);
+    dbg!(&json);
+    assert!(json.labels.is_empty());
 }
 
 impl TryFrom<String> for Labels {
@@ -3483,6 +3493,21 @@ impl TryFrom<String> for Labels {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         serde_json::from_str(&value)
+    }
+}
+
+impl TryFrom<&str> for Labels {
+    type Error = serde_json::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        serde_json::from_str(value)
+    }
+}
+
+impl TryFrom<Option<String>> for Labels {
+    type Error = serde_json::Error;
+    fn try_from(value: Option<String>) -> Result<Self, Self::Error> {
+        value.map_or_else(|| Ok(Labels(None)), |s| s.try_into())
     }
 }
 

@@ -1726,21 +1726,6 @@ pub async fn tmq_to_td(
                                 break;
                             }
                             Err(err) => {
-                                let err_str = format!("{err:#}");
-                                if !(err_str.contains("0xE001")
-                                    || err_str.contains("0xE002")
-                                    || err_str.contains("0xE003")
-                                    || err_str.contains("0xE004")
-                                    || err_str.contains("0xE00B"))
-                                {
-                                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
-                                    // 0xE001: internal error
-                                    // 0xE002: connection closed
-                                    // 0xE003: send timeout
-                                    // 0xE004: receive timeout
-                                    // 0x000B: unable to establish connection
-                                    return Err(err);
-                                }
                                 if retries > max_retries {
                                     tracing::error!("Consumer error: {err:#}");
                                     return Err(err);
@@ -2145,9 +2130,9 @@ mod tests {
         unsafe {
             std::env::set_var("RUST_LOG", "debug");
         }
-        tracing_subscriber::fmt()
+        let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::level_filters::LevelFilter::DEBUG)
-            .init();
+            .try_init();
 
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
         let ws_enable = std::env::var("WS_ENABLE").is_ok_and(|w| w.eq_ignore_ascii_case("true"));

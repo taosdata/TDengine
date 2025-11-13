@@ -43,7 +43,7 @@ pub async fn sparkplugb_to_taos(
     from: &Dsn,
     to: &Dsn,
     with_agent: Option<(i64, String, String)>,
-    parser: Option<Parser>,
+    mut parser: Option<Parser>,
     task_id: Option<i64>,
     notify: TaskNotifySender,
     cancel: &CancellationToken,
@@ -58,7 +58,11 @@ pub async fn sparkplugb_to_taos(
             .await
             .context("init task metrics error")?;
     }
-    let metrics = Arc::new(Metrics::new(get_metrics_arc_from_i64(task_id).await));
+    let metrics = get_metrics_arc_from_i64(task_id).await;
+    if let Some(parser) = parser.as_mut() {
+        parser.set_metrics(metrics.clone());
+    }
+    let metrics = Arc::new(Metrics::new(metrics));
     metrics.reset();
 
     let config: Config = from.try_into()?;

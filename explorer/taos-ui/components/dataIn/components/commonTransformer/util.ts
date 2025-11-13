@@ -175,10 +175,12 @@ export function configureSupportFlags(data: string) {
     data == 'oracle' ||
     data == 'mssql' ||
     data == 'kafka' ||
+    data == 'pulsar' ||
+    data == 'pulsarTuya' ||
     data == 'mqtt' ||
     data == 'mongodb' ||
     data == 'sparkplugb';
-  supportTransform.supportTopicBody = data == 'mqtt' || data == 'sparkplugb' || data == 'kafka';
+  supportTransform.supportTopicBody = data == 'mqtt' || data == 'sparkplugb' || data == 'kafka' || data == 'pulsar' || data == 'pulsarTuya';
   supportTransform.is_sparkplugb = data == 'sparkplugb';
 }
 

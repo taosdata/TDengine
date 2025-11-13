@@ -42,6 +42,7 @@ members = [
   "crates/taos-to-local",
   "crates/source-kinghistorian",
   "crates/source-kinghistorian/kinghistorian-sys",
+  "crates/source-pulsar",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -199,6 +200,9 @@ duckdb = "1.3"
 num = "0.4"
 criterion = { version = "0.7", features = ["html_reports"] }
 
+pulsar = "6.4.1"
+md5 = "0.8"
+
 taosx-core = { path = "./taosx-core", default-features = false }
 taosx-ipc.path = "./taosx-ipc"
 taosx-task.path = "crates/task"
@@ -215,7 +219,7 @@ archive = { path = "./crates/archive" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "414bc5ab"
+rev = "9eddb6e3"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]

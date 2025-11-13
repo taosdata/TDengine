@@ -585,8 +585,6 @@ pub async fn point_records_to_sql(
             .ok_or(anyhow::anyhow!("id not found"))?
             .to_string()
             .context("invalid id value")?;
-        let point_config = point_config_map.get(&point_id);
-        tracing::info!(?point_config);
         let point_id_short = crate::runners::opc::generate_tag_value_from_pattern(
             config.opc_type.as_static_str(),
             "{id}",
