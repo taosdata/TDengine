@@ -547,6 +547,17 @@ int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2) {
   return 0;
 }
 
+int32_t taosGetFqdnWithTimeCost(char *fqdn, int64_t *timeoutMs) {
+  int32_t code = 0;
+  int64_t startMs = taosGetTimestampMs();
+
+  code = taosGetFqdn(fqdn);
+  int64_t cost = taosGetTimestampMs() - startMs;
+  if (timeoutMs != NULL) {
+    *timeoutMs = cost;
+  }
+  return code;
+}
 int32_t taosGetFqdn(char *fqdn) {
   OS_PARAM_CHECK(fqdn);
 #ifdef WINDOWS
