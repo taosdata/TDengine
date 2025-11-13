@@ -11,7 +11,7 @@ class Test_Three_Gorges_Phase1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_usecase_3gorges_1(self):
-        """Three Gorges Info Dept Phase 1
+        """Three Gorges Info Dept Phase
 
         Refer: https://taosdata.feishu.cn/wiki/ATWQwcOAviZfWikU69WcNAbTndc
         1. System-level Alarms
@@ -19,6 +19,7 @@ class Test_Three_Gorges_Phase1:
         3. Battery Cluster Alarms
         4. Centralized Control Data
         5. Predictive Data
+
         Since: v3.3.3.7
 
         Labels: common,ci,skip
