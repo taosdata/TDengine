@@ -781,8 +781,14 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
+    if (pRequest->killed) {
+      tscInfo("query has been killed, can not fetch more row.");
+      pRequest->code = TSDB_CODE_TSC_QUERY_KILLED;
+      return NULL;
+    }
+
     if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
-        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0 || pRequest->killed) {
+        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
       return NULL;
     }
 

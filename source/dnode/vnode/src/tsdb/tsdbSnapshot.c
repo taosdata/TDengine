@@ -269,6 +269,26 @@ static int64_t tBlockDataSize(SBlockData* pBlockData) {
   int64_t nData = 0;
   for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
     SColData* pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
+    if (pColData->flag == HAS_NONE || pColData->flag == HAS_NULL) {
+      continue;
+    }
+
+    if (pColData->flag != HAS_VALUE) {
+      if (pColData->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
+        nData += BIT2_SIZE(pColData->nVal);
+      } else {
+        nData += BIT1_SIZE(pColData->nVal);
+      }
+    }
+
+    if (pColData->flag == (HAS_NONE | HAS_NULL)) {
+      continue;
+    }
+
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      nData += pColData->nVal * sizeof(int32_t);  // var data offset
+    }
+
     nData += pColData->nData;
   }
   return nData;
@@ -332,6 +352,9 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
+  } else {
+    tsdbDebug("vgId:%d, tsdb snapshot read time-series data done, data size:%" PRId64 "", TD_VID(reader->tsdb->pVnode),
+              data[0] ? ((SSnapDataHdr*)(data[0]))->size : 0);
   }
   return code;
 }
