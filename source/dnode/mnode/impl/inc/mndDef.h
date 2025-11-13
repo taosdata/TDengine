@@ -583,6 +583,8 @@ typedef struct {
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
   int32_t   mountVgId;  // TS-5868
+  int64_t   keepVersion;  // WAL keep version, -1 for disabled
+  int64_t   keepVersionTime;  // WAL keep version time
 } SVgObj;
 
 
