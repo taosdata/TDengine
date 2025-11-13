@@ -5830,6 +5830,7 @@ void tsdbReaderClose2(void* ptr) {
   if (ptr == NULL) {
     return;
   }
+
   STsdbReader* pReader = (STsdbReader*)ptr;
   int32_t code = tsdbAcquireReader(pReader);
   if (code) {
@@ -7163,6 +7164,49 @@ void tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, v
   pReader->notifyParam = param;
 }
 
+static int32_t initQueryTableCond(SQueryTableDataCond* pCond, uint64_t suid, const STimeWindow* pWindow,
+                                  const SVersionRange* pRange, int32_t order, const char* id) {
+  pCond->numOfCols = 1;
+
+  pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
+  if (pCond->colList == NULL) {
+    tsdbError("failed to prepare col list for query cond, code:%s, %s", tstrerror(terrno), id);
+    return terrno;
+  }                                  
+
+  pCond->colList[0].colId = 1;
+  pCond->colList[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  pCond->colList[0].bytes = sizeof(int64_t);
+
+  pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
+  if (pCond->pSlotList == NULL) {
+    taosMemoryFree(pCond->colList);
+    tsdbError("failed to prepare slot list for query cond, code:%s, %s", tstrerror(terrno), id);
+    return terrno;
+  }
+
+  pCond->pSlotList[0] = 0;
+  pCond->twindows = *pWindow;
+
+  pCond->startVersion = pRange->minVer;
+  pCond->endVersion = pRange->maxVer;
+
+  pCond->order = order;  // return the first timestamp/last timestamp
+  pCond->type = TIMEWINDOW_RANGE_CONTAINED;
+  pCond->suid = suid;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void clearQueryTableCond(SQueryTableDataCond* pCond) {
+  if (pCond == NULL) {
+    return;
+  }
+
+  taosMemoryFree(pCond->colList);
+  taosMemoryFree(pCond->pSlotList);
+}
+
 int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRange* pVerRange, uint64_t suid, void* pTableList,
                                   int32_t numOfTables, int32_t order, void** pIter, const char* idstr) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -7178,22 +7222,8 @@ int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRa
   TSDB_CHECK_NULL(pVerRange, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pTableList, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  cond.numOfCols = 1;
-  cond.colList = taosMemoryCalloc(cond.numOfCols, sizeof(SColumnInfo));
-  cond.colList[0].colId = 1;
-  cond.colList[0].type = TSDB_DATA_TYPE_TIMESTAMP; 
-  cond.colList[0].bytes = sizeof(int64_t);
-
-  cond.pSlotList = taosMemoryMalloc(sizeof(int32_t) * cond.numOfCols);
-  cond.pSlotList[0] = 0;
-  cond.twindows = *pWindow;
-
-  cond.startVersion = pVerRange->minVer;
-  cond.endVersion = pVerRange->maxVer;
-
-  cond.order = order;  // return the first timestamp/last timestamp
-  cond.type = TIMEWINDOW_RANGE_CONTAINED;
-  cond.suid = suid;
+  code = initQueryTableCond(&cond, suid, pWindow, pVerRange, order, idstr);
+  TSDB_CHECK_CODE(code, lino, _end);
 
   STableFirstLastTsIter* pTsIter = taosMemoryCalloc(1, sizeof(STableFirstLastTsIter));
   TSDB_CHECK_NULL(pTsIter, code, lino, _end, terrno);
@@ -7212,15 +7242,16 @@ int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRa
 
   *pIter = pTsIter;
 
-  // free cond
-  taosMemoryFree(cond.colList);
-  taosMemoryFree(cond.pSlotList);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s %s failed at line %d since %s", idstr, __func__, lino, tstrerror(code));
+    taosHashCleanup(pIgnoreMap);
+    taosMemoryFree(pTsIter);
+    tsdbReaderClose2(pReader);
   }
 
+  clearQueryTableCond(&cond);
   return code;
 }
 
@@ -7290,18 +7321,15 @@ _end:
 }
 
 void tsdbDestroyFirstLastTsIter(void* pIter) {
-  int32_t     code = 0;
-  int32_t     lino = 0;
-  const char* idstr = NULL;
+  if (pIter == NULL) {
+    return;
+  }
 
-  TSDB_CHECK_NULL(pIter, code, lino, _end, TSDB_CODE_INVALID_PARA);
   STableFirstLastTsIter* pTsIter = pIter;
+  tsdbDebug("%s destroy first/last iter", pTsIter->pReader->idStr);
 
   taosHashCleanup(pTsIter->pIgnoreTables);
   tsdbReaderClose2(pTsIter->pReader);
 
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s %s failed at line %d since %s", idstr, __func__, lino, tstrerror(code));
-  }
+  taosMemoryFree(pIter);
 }
