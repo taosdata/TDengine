@@ -1,0 +1,16 @@
+{
+  "parse": {
+    "ts": { "as": "TIMESTAMP(ms)" },
+    "current": { "as": "FLOAT" },
+    "voltage": { "as": "INT" },
+    "phase": { "as": "FLOAT" },
+    "groupid": { "as": "INT" },
+    "location": { "as": "VARCHAR(24)" }
+  },
+  "model": {
+    "name": "${tbname}",
+    "using": "meters",
+    "tags": ["groupid", "location"],
+    "columns": ["ts", "current", "voltage", "phase"]
+  }
+}
