@@ -562,17 +562,17 @@ function lcovFunc {
 
     # 使用 coverage.txt 文件来排除指定的文件
     if [ -f "$TDENGINE_DIR/test/ci/coverage.txt" ]; then
-        echo "使用 coverage.txt 进行排除过滤..."
+        # echo "使用 coverage.txt 进行排除过滤..."
         
         # 先打印所有源文件
-        echo "=== 覆盖率文件中的所有源文件列表 ==="
+        # echo "=== 覆盖率文件中的所有源文件列表 ==="
         # grep "^SF:" coverage_tdengine_raw.info | sed 's/^SF://' | head -2000
         local total_sources=$(grep "^SF:" coverage_tdengine_raw.info | wc -l)
-        echo "总源文件数: $total_sources"
+        # echo "总源文件数: $total_sources"
         
         local exclude_patterns=""
         local exclude_count=0
-        echo "扫描 coverage.txt 文件..."
+        # echo "扫描 coverage.txt 文件..."
         
         while IFS= read -r file_pattern; do
             # 跳过空行和注释行
@@ -589,11 +589,11 @@ function lcovFunc {
             ((exclude_count++))
         done < "$TDENGINE_DIR/test/ci/coverage.txt"
         
-        echo "加载了 $exclude_count 个排除模式"
+        # echo "加载了 $exclude_count 个排除模式"
         
         if [ -n "$exclude_patterns" ]; then
             # 使用 lcov --remove 排除指定的文件
-            echo "执行排除过滤..."
+            # echo "执行排除过滤..."
             # echo "排除命令: lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns --rc lcov_branch_coverage=0 -o coverage_tdengine.info"
             
             eval "lcov --quiet --remove coverage_tdengine_raw.info $exclude_patterns \
@@ -601,22 +601,22 @@ function lcovFunc {
                 -o coverage_tdengine.info"
             
             if [ -s "coverage_tdengine.info" ]; then
-                echo "✓ 成功应用 coverage.txt 排除过滤"
+                # echo "✓ 成功应用 coverage.txt 排除过滤"
                 # 打印过滤后的文件统计
                 local final_sources=$(grep "^SF:" "coverage_tdengine.info" | wc -l || echo "0")
                 local excluded_count=$((raw_sources - final_sources))
-                echo "排除文件数: $excluded_count 个"
-                echo "剩余文件数: $final_sources 个"
+                # echo "排除文件数: $excluded_count 个"
+                # echo "剩余文件数: $final_sources 个"
                 
                 # 验证特定文件是否被过滤
-                echo "=== 过滤验证 ==="
-                for test_file in "get_db_name_test.c" "replay_test.c" "sml_test.c"; do
-                    if grep -q "SF:.*$test_file" coverage_tdengine.info; then
-                        echo "✗ 未过滤: $test_file"
-                    else
-                        echo "✓ 已过滤: $test_file"
-                    fi
-                done
+                # echo "=== 过滤验证 ==="
+                # for test_file in "get_db_name_test.c" "replay_test.c" "sml_test.c"; do
+                #     if grep -q "SF:.*$test_file" coverage_tdengine.info; then
+                #         echo "✗ 未过滤: $test_file"
+                #     else
+                #         echo "✓ 已过滤: $test_file"
+                #     fi
+                # done
             else
                 echo "✗ 排除后文件为空，使用原始数据"
                 cp coverage_tdengine_raw.info coverage_tdengine.info
