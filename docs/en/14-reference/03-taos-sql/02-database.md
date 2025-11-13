@@ -186,7 +186,7 @@ Deletes expired data and reorganizes data according to the multi-level storage c
 ```sql
 TRIM DATABASE db_name WAL;
 ```
-Delete expired WAL logs; when using `trim wal` to delete expired WAL logs, the vgroup keep version restriction is ignored.
+Delete expired WAL logs. Using `trim wal` ignores the vgroup `keep_version` restriction.
 
 ## Flush Memory Data to Disk
 
