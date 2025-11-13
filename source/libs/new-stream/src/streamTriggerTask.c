@@ -400,7 +400,9 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
   int32_t                   iter = 0;
   int32_t                   ver = atomic_add_fetch_32(&pTask->checkpointVersion, 1);
 
-  if (tSimpleHashGetSize(pTask->pRealtimeStartVer) == 0) {
+  if (tSimpleHashGetSize(pTask->pRealtimeStartVer) == 0 ||
+      tSimpleHashGetSize(pTask->pRealtimeStartVer) < taosArrayGetSize(pTask->readerList)) {
+    // skip checkpoint if no realtime start ver info or incomplete info
     goto _end;
   }
 
@@ -443,6 +445,8 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
     QUERY_CHECK_CODE(code, lino, _end);
     px = tSimpleHashIterate(pTask->pHistoryCutoffTime, px, &iter);
   }
+
+  tEncodeI8(&encoder, pTask->historyFinished);
 
   tEndEncode(&encoder);
 
@@ -517,9 +521,15 @@ static int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *
     ST_TASK_DLOG("parse checkpoint, gid: %" PRId64 ", cutoffTime: %" PRId64, gid, cutoffTime);
   }
 
+  int8_t historyFinished = 0;
+  if (tDecodeIsEnd(&decoder)) {
+    tDecodeI8(&decoder, &historyFinished);
+  }
+
   tEndDecode(&decoder);
   QUERY_CHECK_CONDITION(decoder.pos == len, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   atomic_store_32(&pTask->checkpointVersion, ver);
+  atomic_store_8(&pTask->historyFinished, historyFinished);
 
 #if !TRIGGER_USE_HISTORY_META
   bool startFromBound = !pTask->fillHistoryFirst;
