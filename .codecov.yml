@@ -1,3 +1,5 @@
+default_branch: cover/3.0
+
 coverage:
   precision: 2
   notify:
