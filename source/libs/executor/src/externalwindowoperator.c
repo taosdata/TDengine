@@ -465,11 +465,7 @@ static void extWinSetCurWinIdx(SOperatorInfo* pOperator, int32_t idx) {
 
 
 static void extWinIncCurWinOutIdx(SStreamRuntimeInfo* pStreamRuntimeInfo) {
-  if (pStreamRuntimeInfo->funcInfo.isMultiGroupCalc) {
-    //((SExtWinTrigGrpCtx*)pStreamRuntimeInfo->funcInfo.curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx++;
-  } else {
-    pStreamRuntimeInfo->funcInfo.curOutIdx++;
-  }
+  ((SExtWinTrigGrpCtx*)pStreamRuntimeInfo->funcInfo.curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx++;
 }
 
 
@@ -2375,8 +2371,7 @@ static int32_t extWinAggOutputSingleCGrpRes(SOperatorInfo* pOperator, SExternalW
       continue;
     }
 
-    pGrpCtx->outWinNum++;
-    //SResultRow* pRow = (SResultRow*)((char*)pExtW->resultRows.pResultRows[0] + pWin->resWinIdx * pExtW->aggSup.resultRowSize);
+    pCCtx->outWinNum++;
     SResultRow* pRow = (SResultRow*)((char*)pExtW->resultRows.pResultRows[pWin->resWinIdx / pExtW->resultRows.resRowSize] + (pWin->resWinIdx % pExtW->resultRows.resRowSize) * pExtW->aggSup.resultRowSize);
     
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
