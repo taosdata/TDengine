@@ -7,7 +7,7 @@ class TestFilterSma:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_filter_sma(self):
-        """Sma Based
+        """Filter sma
 
         1. Create db with STT_TRIGGER option and set value to 1, will flush data to disk easily
         2. Create supper table and sub table

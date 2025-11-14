@@ -2686,20 +2686,21 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   if ('\0' == pCol->tableAlias[0] && nums > 1) {
     pTable = getJoinProbeTable(pCxt);
   } else {
-    code = findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable);
+    PAR_ERR_JRET(findTable(pCxt, ('\0' == pCol->tableAlias[0] ? NULL : pCol->tableAlias), &pTable));
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
-    } else if (NULL != pTable && QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
-      setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
-      pCol->isPrimTs = true;
-    } else {
-      code = rewriteCountStarAsCount1(pCxt, pCount);
-    }
+  if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
+  } else if (NULL != pTable && QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+    setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
+    pCol->isPrimTs = true;
+  } else {
+    PAR_ERR_JRET(rewriteCountStarAsCount1(pCxt, pCount));
   }
 
+  return code;
+_return:
+  parserError("%s failed to rewrite count(*), code:%d", __func__, code);
   return code;
 }
 
@@ -2713,18 +2714,33 @@ static bool isCountNotNullValue(SFunctionNode* pFunc) {
 
 // count(1) is rewritten as count(ts) for scannning optimization
 static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
-  SValueNode* pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
-  STableNode* pTable = NULL;
-  int32_t     code = findTable(pCxt, NULL, &pTable);
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-    SColumnNode* pCol = NULL;
-    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-    if (TSDB_CODE_SUCCESS == code) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
-      NODES_DESTORY_LIST(pCount->pParameterList);
-      code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
-    }
+  SValueNode*  pValue = (SValueNode*)nodesListGetNode(pCount->pParameterList, 0);
+  STableNode*  pTable = NULL;
+  bool         freeCol = false;
+  SColumnNode* pCol = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+
+  PAR_ERR_JRET(findTable(pCxt, NULL, &pTable));
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+  freeCol = true;
+  if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
+  } else if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+    setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
+    pCol->isPrimTs = true;
+  } else {
+    goto _return;
   }
+  NODES_DESTORY_LIST(pCount->pParameterList);
+  PAR_ERR_JRET(nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol));
+  freeCol = false;
+
+  return code;
+_return:
+  if (freeCol) {
+    nodesDestroyNode((SNode*)pCol);
+  }
+  parserError("%s failed to rewrite count(1), code:%d", __func__, code);
   return code;
 }
 
@@ -2740,20 +2756,37 @@ static bool isCountTbname(SFunctionNode* pFunc) {
 static int32_t rewriteCountTbname(STranslateContext* pCxt, SFunctionNode* pCount) {
   SFunctionNode* pTbname = (SFunctionNode*)nodesListGetNode(pCount->pParameterList, 0);
   const char*    pTableAlias = NULL;
+  STableNode*    pTable = NULL;
+  SColumnNode*   pCol = NULL;
+  bool           freeCol = false;
+  int32_t        code = TSDB_CODE_SUCCESS;
+
   if (LIST_LENGTH(pTbname->pParameterList) > 0) {
     pTableAlias = ((SValueNode*)nodesListGetNode(pTbname->pParameterList, 0))->literal;
   }
-  STableNode* pTable = NULL;
-  int32_t     code = findTable(pCxt, pTableAlias, &pTable);
-  if (TSDB_CODE_SUCCESS == code) {
-    SColumnNode* pCol = NULL;
-    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-    if (TSDB_CODE_SUCCESS == code) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
-      NODES_DESTORY_LIST(pCount->pParameterList);
-      code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
-    }
+
+  PAR_ERR_JRET(findTable(pCxt, pTableAlias, &pTable));
+
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+  freeCol = true;
+
+  if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
+    setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, ((SVirtualTableNode*)pTable)->pMeta->schema, -1, pCol);
+    pCol->isPrimTs = true;
+  } else {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
   }
+
+  NODES_DESTORY_LIST(pCount->pParameterList);
+  PAR_ERR_JRET(nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol));
+  freeCol = false;
+
+  return code;
+_return:
+  if (freeCol) {
+    nodesDestroyNode((SNode*)pCol);
+  }
+  parserError("%s failed to rewrite count(tbname), code:%d", __func__, code);
   return code;
 }
 
@@ -3198,11 +3231,13 @@ static int32_t translateForbidSysTableFunc(STranslateContext* pCxt, SFunctionNod
     return TSDB_CODE_SUCCESS;
   }
 
-  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  SNode*       pTable = pSelect->pFromTable;
-  if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable) &&
-      TSDB_SYSTEM_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC, pFunc->functionName);
+  if (isSelectStmt(pCxt->pCurrStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    SNode*       pTable = pSelect->pFromTable;
+    if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable) &&
+        TSDB_SYSTEM_TABLE == ((SRealTableNode*)pTable)->pMeta->tableType) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED_FUNC, pFunc->functionName);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -14251,6 +14286,7 @@ static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRe
   pReq->triggerTblType = pMeta->tableType;
   pReq->triggerTblUid = pMeta->uid;
   pReq->triggerTblSuid = pMeta->suid;
+  pReq->triggerPrec = pMeta->tableInfo.precision;
 
   return code;
 

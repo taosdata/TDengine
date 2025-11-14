@@ -11,11 +11,10 @@ class TestNullTag:
 
         1. Create table with NULL tags
         2. Select tags
-        3. Alter tags
-
-        Catalog:
-            - DataTypes
-            - Tables:SubTables:Create
+        3. Alter tags with NULL
+        4. Insert data with NULL tags
+        5. Query data with NULL tags
+        
 
         Since: v3.0.0.0
 

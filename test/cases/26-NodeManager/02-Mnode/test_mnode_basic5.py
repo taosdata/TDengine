@@ -8,7 +8,7 @@ class TestMnodeBasic5:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mnode_basic5(self):
-        """basic test
+        """Mnode basic
 
         1. Create and delete mnodes on an offline dnode - expected to fail
         2. Create mnodes on a dnode that already has an mnode - expected to fail

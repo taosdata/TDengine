@@ -78,3 +78,5 @@ select statecount(u_tinyint_col, "GT", 20) from test_vtable_select.vtb_virtual_n
 select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 select twa(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
 
+select count(tbname) from test_vtable_select.vtb_virtual_ntb_full;
+select count(1) from test_vtable_select.vtb_virtual_ntb_full;

@@ -7,7 +7,7 @@ class TestFilterOperator:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_operator(self):
-        """Operator Based
+        """Filter with operators
 
         1. Filtering with logical operators
         2. Filtering with comparison operators

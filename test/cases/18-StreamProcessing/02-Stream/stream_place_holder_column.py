@@ -12,7 +12,7 @@ class TestStreamSchema:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Check stream table modify test
+        """Stream table modify
         
         1. Check stream table modify 
 

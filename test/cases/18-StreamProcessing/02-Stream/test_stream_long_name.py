@@ -34,12 +34,12 @@ class TestStreamLongName:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_long_name(self):
-        """Stream: check long name
+        """Stream long name
 
-        Test stream with excessively long names.
-
-        Catalog:
-            - Streams:Stream
+        1. Test stream with excessively long names
+        2. Test stream with special characters in names
+        3. Test stream name length
+        4. Verify long stream name in information_schema.ins_streams
 
         Since: v3.3.3.7
 

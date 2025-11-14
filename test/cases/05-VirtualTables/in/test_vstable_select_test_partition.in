@@ -43,24 +43,6 @@ select _wstart, _wend, tinyint_col, count(*), count(u_int_col),count(u_tinyint_c
 select _wstart, _wend, tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tinyint_col session(ts, 10a) order by 1,2,3,4 slimit 10 limit 10;
 select _wstart, _wend, tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_stb partition by tinyint_col session(ts, 10a) order by 1,2,3,4 slimit 10 limit 10;
 
-select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 order by 1,2,3,4 slimit 10 limit 10;
-select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 order by 1,2,3,4 slimit 10 limit 10;
-select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 order by 1,2,3,4 slimit 10 limit 10;
-select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 order by 1,2,3,4 slimit 10 limit 10;
-
-select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 order by 1,2,3,4 slimit 10 limit 10;
-select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 order by 1,2,3,4 slimit 10 limit 10;
-select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 order by 1,2,3,4 slimit 10 limit 10;
-select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 order by 1,2,3,4 slimit 10 limit 10;
-
-select _wstart, _wend, count(*) from (select * from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col order by 1) count_window(10) order by 1,2,3 limit 10;
-select _wstart, _wend, count(*) from (select * from test_vtable_select.vtb_virtual_stb partition by tinyint_col order by 1) count_window(10) order by 1,2,3 limit 10;
-select _wstart, _wend, count(*) from (select * from test_vtable_select.vtb_virtual_stb partition by bool_col order by 1) count_window(10) order by 1,2,3 limit 10;
-select _wstart, _wend, count(*) from (select * from test_vtable_select.vtb_virtual_stb partition by bool_col order by 1) count_window(10) order by 1,2,3 limit 10;
-select _wstart, _wend, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from (select * from test_vtable_select.vtb_virtual_stb partition by bool_col order by 1) count_window(10) order by 1,2,3,4 limit 10;
-select _wstart, _wend, count(*), count(u_int_col),count(u_tinyint_col) from (select * from test_vtable_select.vtb_virtual_stb partition by bool_col order by 1) count_window(10) order by 1,2,3,4 limit 10;
-select _wstart, _wend, count(*), count(u_int_col) from (select * from test_vtable_select.vtb_virtual_stb partition by bool_col order by 1) count_window(10) order by 1,2,3,4 limit 10;
-
 select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col interval(1s) order by 1,2,3,4 slimit 10 limit 10;
 select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col interval(1s) order by 1,2,3,4 slimit 2 limit 10;
 select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col interval(1s) order by 1,2,3,4 slimit 2 limit 5;

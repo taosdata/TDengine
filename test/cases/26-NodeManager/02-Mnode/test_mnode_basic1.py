@@ -8,7 +8,7 @@ class TestMnodeBasic1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_mnode_basic1(self):
-        """replica 2: create on same dnode
+        """Mnode create on same dnode
 
         1. Create an mnode on the dnode2
         2. Delete mnode2
