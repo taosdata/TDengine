@@ -33,7 +33,7 @@ typedef struct {
 } STransEntry;
 typedef struct {
   int32_t     inited;
-  STransEntry tran[10];
+  STransEntry tran[256];
   int32_t     num;
 } STransCache;
 
