@@ -120,22 +120,22 @@ The following configuration parameters only take effect for Native connections.
 
 ## WebSocket Connection Configuration Parameters
 
-The following configuration parameters only take effect for WebSocket connections.  
+The following configuration parameters only take effect for WebSocket connections.
 
 |Parameter Name|Supported Version|Dynamic Modification|Description|
 |----------------------|----------|--------------------|-------------|
-| serverPort | After 3.3.6.0 | Not supported | The port that taosAdapter listens on, default value: 6041 |
-| timezone | After 3.3.6.0 | Not supported | Time zone; defaults to dynamically obtaining the current system time zone setting |
-| logDir | After 3.3.6.0 | Not supported | Log file directory, operational logs will be written to this directory, default value: /var/log/taos |
-| debugFlag | After 3.3.6.0 | Not supported | Log switch for running logs, 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs); default value: 131 |
-| logKeepDays | After 3.3.7.4 | Not supported | Maximum retention period for log files in days. When set to 0, no log files are deleted. When greater than 0, log files exceeding the size limit are renamed to taoslog.ts.gz (where ts is the last modification timestamp) and new log files are created. Log files older than the specified days are deleted; default value: 30 |
-| rotationCount | After 3.3.7.4 | Not supported | Number of log file rotations before deletion, default value: 30 |
-| rotationSize | After 3.3.7.4 | Not supported | Maximum size of a single log file (supports KB/MB/GB units), default value: 1GB |
-| compression | After 3.3.6.0 | Not supported | Enable WebSocket message compression. 0: disabled (default), 1: enabled |
-| adapterList | After 3.3.7.4 | Not supported | List of taosAdapter addresses for load balancing and failover. Multiple addresses are comma-separated, format: `host1:port1,host2:port2,...` |
-| connRetries | After 3.3.7.4 | Not supported | Maximum number of retries upon connection failure, default value: 5 |
-| retryBackoffMs | After 3.3.7.4 | Not supported | Initial wait time in milliseconds after connection failure. This value increases exponentially with consecutive failures until reaching the maximum wait time, default value: 200 |
-| retryBackoffMaxMs | After 3.3.7.4 | Not supported | Maximum wait time in milliseconds when connection fails, default value: 2000 |
+| serverPort | `≥ v3.3.6.0` | Not supported | The port that taosAdapter listens on, default value: 6041 |
+| timezone | `≥ v3.3.6.0` | Not supported | Time zone; defaults to dynamically obtaining the current system time zone setting |
+| logDir | `≥ v3.3.6.0` | Not supported | Log file directory, operational logs will be written to this directory, default value: /var/log/taos |
+| debugFlag | `≥ v3.3.6.0` | Not supported | Log switch for running logs, 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs); default value: 131 |
+| compression | `≥ v3.3.6.0` | Not supported | Enable WebSocket message compression. 0: disabled (default), 1: enabled |
+| adapterList | `≥ v3.3.6.15` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | List of taosAdapter addresses for load balancing and failover. Multiple addresses are comma-separated, format: `host1:port1,host2:port2,...` |
+| logKeepDays | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum retention period for log files in days. When set to 0, no log files are deleted. When greater than 0, log files exceeding the size limit are renamed to taoslog.ts.gz (where ts is the last modification timestamp) and new log files are created. Log files older than the specified days are deleted; default value: 30 |
+| rotationSize | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum size of a single log file (supports KB/MB/GB units), default value: 1GB |
+| connRetries | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum number of retries upon connection failure, default value: 5 |
+| retryBackoffMs | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Initial wait time in milliseconds after connection failure. This value increases exponentially with consecutive failures until reaching the maximum wait time, default value: 200 |
+| retryBackoffMaxMs | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum wait time in milliseconds when connection fails, default value: 2000 |
+| wsTlsMode | `≥ v3.3.6.32` and `< v3.3.7.0` | Not supported | WebSocket TLS encryption mode. 0: TLS disabled by default; client auto-upgrades if server requires TLS (default); 1: TLS enabled |
 
 ## API
 

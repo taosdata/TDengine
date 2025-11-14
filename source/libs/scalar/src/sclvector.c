@@ -1989,6 +1989,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
         colDataSetInt8(pOut->columnData, i, (int8_t *)&result);
       } else {
         bool res = filterDoCompare(fp, optr, pLeftData, pRightData);
+        //sclInfo("row %d compareRes:%d", i, res);
         colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
         if (res) {
           ++(*num);

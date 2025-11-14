@@ -1084,9 +1084,11 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   bool complete = true;
   for (int32_t i = 0; i < rowNum; ++i) {
     complete = true;
+    //sclInfo("logic row:%d start", i);
     for (int32_t m = 0; m < paramNum; ++m) {
       if (NULL == params[m].columnData) {
         complete = false;
+        //sclInfo("logic row:%d param:%d skipped", i, m);
         continue;
       }
 
@@ -1097,21 +1099,28 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
       GET_TYPED_DATA(value, bool, params[m].columnData->info.type, p,
                      typeGetTypeModFromColInfo(&params[m].columnData->info));
 
+      //sclInfo("logic row:%d param:%d value:%d", i, m, value);
+
       if (LOGIC_COND_TYPE_AND == node->condType && (false == value)) {
         complete = true;
+        //sclInfo("logic row:%d param:%d value:%d AND complete", i, m, value);
         break;
       } else if (LOGIC_COND_TYPE_OR == node->condType && value) {
         complete = true;
+        //sclInfo("logic row:%d param:%d value:%d OR complete", i, m, value);
         break;
       } else if (LOGIC_COND_TYPE_NOT == node->condType) {
         value = !value;
+        //sclInfo("logic row:%d param:%d value:%d NOT", i, m, value);
       }
     }
 
     if (complete) {
+      //sclInfo("logic row:%d complete value:%d", i, value);
       SCL_ERR_JRET(colDataSetVal(output->columnData, i, (char *)&value, false));
       if (value) {
         numOfQualified++;
+        //sclInfo("logic row:%d complete numOfQualified:%d", i, numOfQualified);
       }
     }
   }

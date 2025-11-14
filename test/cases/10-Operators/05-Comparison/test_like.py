@@ -7,14 +7,11 @@ class TestAndOr:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_like(self):
-        """Like
+        """Operator like
 
         1. Using LIKE operator in SELECT statements
         2. Using LIKE operator in SHOW statements
         3. Using LIKE operator in tag queries
-
-        Catalog:
-            - Operator
 
         Since: v3.0.0.0
 

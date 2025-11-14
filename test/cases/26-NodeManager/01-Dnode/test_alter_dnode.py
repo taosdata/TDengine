@@ -7,7 +7,7 @@ class TestDnodeAlterDebugFlag:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_dnode_alter_debugflag(self):
-        """Dnode: alter
+        """Dnode alter
 
         1. Start only one dnode
         2. Modify the monitor and debugflag parameters of the online dnode

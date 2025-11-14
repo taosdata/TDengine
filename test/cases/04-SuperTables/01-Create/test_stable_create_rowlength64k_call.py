@@ -73,7 +73,7 @@ class TestRowlength64k1():
     # main
     #
     def test_stable_create_rowlength64k(self):
-        """Call Table Max Columns Case With Different Mode
+        """Stable max row length 64k
 
         1. Call Table Max Columns Case with Different queryPolicy (-Q 1 to 4)
         2. Call Table Max Columns Case with restful

@@ -7,7 +7,7 @@ class TestWriteUpdate:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_write_update(self):
-        """Write: update data
+        """Write update
 
         1. Update data in memory
         2. Update data in files

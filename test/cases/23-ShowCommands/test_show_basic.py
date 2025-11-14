@@ -821,7 +821,7 @@ class TestShowBasic:
     # ------------------- main ----------------
     #
     def test_show_basic(self):
-        """Show Command Basic Test Case
+        """Show basic
 
         1. Verify show commands result with information_schema database
         2. Verify show commands result after dnode restarts

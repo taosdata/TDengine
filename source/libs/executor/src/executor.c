@@ -369,6 +369,7 @@ static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {
   pScanBaseInfo->readHandle.winRange = pHandle->winRange;
   pScanBaseInfo->readHandle.extWinRangeValid = pHandle->extWinRangeValid;
   pScanBaseInfo->readHandle.extWinRange = pHandle->extWinRange;
+  pScanBaseInfo->readHandle.cacheSttStatis = pHandle->cacheSttStatis;
 }
 
 int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle) {
@@ -1867,26 +1868,6 @@ SArray*  qStreamGetTableListArray(void* pTableListInfo) {
   STableListInfo* pList = pTableListInfo;
   return pList->pTableList;
 }
-// int32_t qStreamGetTableListGroupNum(const void* pTableList, TdThreadRwlock* lock) { 
-//   (void)taosThreadRwlockRdlock(lock);
-//   int32_t code = ((STableListInfo*)pTableList)->numOfOuputGroups; 
-//   (void)taosThreadRwlockUnlock(lock);
-//   return code; 
-// }
-
-// void    qStreamSetTableListGroupNum(void* pTableList, int32_t groupNum, TdThreadRwlock* lock) {
-//   (void)taosThreadRwlockWrlock(lock);
-//   ((STableListInfo*)pTableList)->numOfOuputGroups = groupNum; 
-//   (void)taosThreadRwlockUnlock(lock);
-// }
-
-// SArray* qStreamGetTableArrayList(const void* pTableList, TdThreadRwlock* lock) { 
-//   SArray* pList = NULL;
-//   (void)taosThreadRwlockRdlock(lock); 
-//   pList = ((STableListInfo*)pTableList)->pTableList;
-//   (void)taosThreadRwlockUnlock(lock);
-//   return pList;
-// }
 
 int32_t qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet) { return doFilter(pBlock, pFilterInfo, NULL, pRet); }
 

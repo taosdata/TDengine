@@ -7,11 +7,11 @@ class TestWriteDelete:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_write_delete(self):
-        """Write: delete data
+        """Write mixed delete
         
         1. Insert data
         2. Flush the database
-        3.Delete data by specific timestamp
+        3. Delete data by specific timestamp
         4. Delete data by timestamp range
         5. Delete data using timestamp condition comparisons
         6. Restart the dnode

@@ -349,11 +349,12 @@ class TestStmtBasic:
     # ----------------  main ---------------
     #
     def test_stmt_basic(self):
-        """STMT Write Basic Case
+        """STMT basic
 
         1. stmt insert multi rows order by asc/desc
         2. stmt set tbname and tags, and query with different functions
         3. verify result is ok
+        4. clean env
 
         Since: v3.0.0.0
 
