@@ -566,15 +566,16 @@ _OVER:
 
 static bool mndIsRoleChanged(SRoleObj *pOld, SAlterRoleReq *pAlterReq) {
   switch (pAlterReq->alterType) {
-    case TSDB_ALTER_ROLE_LOCK:
-      if ((pAlterReq->lock && pOld->enable) || (!pAlterReq->lock && !pOld->enable)) {
-        return true;
+    case TSDB_ALTER_ROLE_LOCK: {
+      if ((pAlterReq->lock && !pOld->enable) || (!pAlterReq->lock && pOld->enable)) {
+        return false;
       }
       break;
+    }
     default:
       break;
   }
-  return false;
+  return true;
 }
 
 static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
@@ -593,7 +594,16 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_ROLE_FORMAT);
   }
 
-  TAOS_CHECK_EXIT(mndAcquireRole(pMnode, alterReq.principal, &pObj));
+  if(mndAcquireRole(pMnode, alterReq.principal, &pObj) != 0) {
+    SUserObj *pUser = NULL;
+    code = mndAcquireUser(pMnode, alterReq.principal, &pUser);
+    if (pUser != NULL) {
+      mndReleaseUser(pMnode, pUser);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_ALREADY_EXIST);
+    } else {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
   if (mndIsRoleChanged(pObj, &alterReq)) {
     TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
     if (alterReq.alterType == TSDB_ALTER_ROLE_LOCK) {

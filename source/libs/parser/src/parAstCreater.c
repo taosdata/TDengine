@@ -5205,24 +5205,30 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPri
   CHECK_MAKE_NODE(pStmt);
   pStmt->optrType = optrType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
-  if (optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
-    CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
-    CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
-    pStmt->privileges = *(SPrivSet*)resouces;
-    COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
-    if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
-      COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+  switch (optrType) {
+    case TSDB_ALTER_ROLE_LOCK:
+      break;
+    case TSDB_ALTER_ROLE_PRIVILEGES: {
+      CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
+      CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
+      pStmt->privileges = *(SPrivSet*)resouces;
+      COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+      if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
+        COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+      }
+      pStmt->pTagCond = pTagCond;
+      break;
     }
-    pStmt->pTagCond = pTagCond;
-  } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
-    SToken* pRole = (SToken*)resouces;
-    CHECK_NAME(checkRoleName(pCxt, pRole));
-    COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
-  } else {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unsupported grant type");
-    goto _err;
+    case TSDB_ALTER_ROLE_ROLE: {
+      SToken* pRole = (SToken*)resouces;
+      CHECK_NAME(checkRoleName(pCxt, pRole));
+      COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
+      break;
+    }
+    default:
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unsupported grant type");
+      goto _err;
   }
-
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pTagCond);

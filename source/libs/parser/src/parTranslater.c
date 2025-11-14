@@ -15841,35 +15841,47 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
   return code;
 }
 
-static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
+static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, bool grant) {
   int32_t       code = 0;
   SAlterRoleReq req = {0};
   req.alterType = pStmt->optrType;
-  req.privileges = pStmt->privileges;
-#ifdef TD_ENTERPRISE
-  if (0 != pStmt->tabName[0]) {
-    SName       name = {0};
-    STableMeta* pTableMeta = NULL;
-    toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
-    code = getTargetMeta(pCxt, &name, &pTableMeta, true);
-    req.targetType = TSDB_OBJ_TABLE;
-    if (TSDB_CODE_SUCCESS != code) {
-      if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
-      }
-    } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
-      req.targetType = TSDB_OBJ_VIEW;
-    }
-    taosMemoryFree(pTableMeta);
-  }
-#endif
-
+  req.add = grant ? 1 : 0;
   tstrncpy(req.principal, pStmt->principal, TSDB_ROLE_LEN);
-  snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-  snprintf(req.tblName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
-  if (req.targetType = TSDB_OBJ_TABLE) {
-    code = translateGrantTagCond(pCxt, pStmt, &req);
+  switch (req.alterType) {
+    case TSDB_ALTER_ROLE_PRIVILEGES: {
+      req.privileges = pStmt->privileges;
+#ifdef TD_ENTERPRISE
+      if (0 != pStmt->tabName[0]) {
+        SName       name = {0};
+        STableMeta* pTableMeta = NULL;
+        toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
+        code = getTargetMeta(pCxt, &name, &pTableMeta, true);
+        req.targetType = TSDB_OBJ_TABLE;
+        if (TSDB_CODE_SUCCESS != code) {
+          if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+            return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+          }
+        } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+          req.targetType = TSDB_OBJ_VIEW;
+        }
+        taosMemoryFree(pTableMeta);
+      }
+#endif
+      snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
+      snprintf(req.tblName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
+      if (req.targetType = TSDB_OBJ_TABLE) {
+        code = translateGrantTagCond(pCxt, pStmt, &req);
+      }
+      break;
+    }
+    case TSDB_ALTER_ROLE_ROLE: {
+      snprintf(req.roleName, TSDB_ROLE_LEN, "%s", pStmt->roleName);
+      break;
+    }
+    default:
+      break;
   }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_ROLE, (FSerializeFunc)tSerializeSAlterRoleReq, &req);
   }
@@ -15877,35 +15889,12 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   return code;
 }
 
+static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
+  return translateGrantRevoke(pCxt, pStmt, true);
+}
+
 static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
-  int32_t       code = 0;
-  SAlterUserReq req = {0};
-  req.alterType = TSDB_ALTER_USER_DEL_PRIVILEGES;
-  req.privileges = pStmt->privileges;
-
-#ifdef TD_ENTERPRISE
-  if (0 != pStmt->tabName[0]) {
-    SName       name = {0};
-    STableMeta* pTableMeta = NULL;
-    toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
-    code = getTargetMeta(pCxt, &name, &pTableMeta, true);
-    if (TSDB_CODE_SUCCESS != code) {
-      if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
-      }
-    } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
-      req.isView = true;
-    }
-    taosMemoryFree(pTableMeta);
-  }
-#endif
-
-  tstrncpy(req.user, pStmt->principal, TSDB_USER_LEN);
-  snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-  snprintf(req.tabName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
-  code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
-  tFreeSAlterUserReq(&req);
-  return code;
+  return translateGrantRevoke(pCxt, (SGrantStmt*)pStmt, false);
 }
 
 static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStmt* pStmt) {
