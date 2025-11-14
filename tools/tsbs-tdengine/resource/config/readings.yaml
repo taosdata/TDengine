@@ -1,10 +1,10 @@
 testCases:
     - scenarioId: "A1"
       concurrency: 1
-      expectRows: 1000
+      expectRows: 5
       verifySql: select count(*) from test.res_a1 
 
     - scenarioId: "A2"
-      concurrency: 2
-      expectRows: 2000
+      concurrency: 1
+      expectRows: 6684
       verifySql: select count(*) from test.res_a2

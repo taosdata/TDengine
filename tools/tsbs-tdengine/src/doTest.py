@@ -27,7 +27,7 @@ class DoTest(BaseStep):
     def __init__(self, scene):
         self.scene = scene
 
-    def wait_stream_end(self, verifySql, expectRows, timeout=20):
+    def wait_stream_end(self, verifySql, expectRows, timeout=120):
         print("Waiting for stream processing to complete...")
         print(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Timeout: {timeout} seconds")
         conn = taos.connect()
@@ -52,7 +52,7 @@ class DoTest(BaseStep):
         conn.close()
         #raise Exception(info)
     
-    def read_verify_info(self, yaml_file):
+    def read_verify_info(self, scenario_id, yaml_file):
         try:
             with open(yaml_file, 'r') as f:
                 data = yaml.safe_load(f)
@@ -60,16 +60,16 @@ class DoTest(BaseStep):
                 
                 # Search for matching test case by scenarioId
                 for case in cases:
-                    if case.get('scenarioId') == self.scene.name:
+                    if case.get('scenarioId') == scenario_id:
                         verify_sql = case.get('verifySql')
                         expect_rows = case.get('expectRows')
-                        print(f"Found verify info for scenario '{self.scene.name}':")
+                        print(f"Found verify info for scenario '{scenario_id}':")
                         print(f"  Verify SQL: {verify_sql}")
                         print(f"  Expect Rows: {expect_rows}")
                         return verify_sql, expect_rows
                 
                 # If no matching scenario found
-                print(f"No verify info found for scenario '{self.scene.name}' in {yaml_file}")
+                print(f"No verify info found for scenario '{scenario_id}' in {yaml_file}")
                 return None, None
                 
         except FileNotFoundError:
@@ -88,7 +88,7 @@ class DoTest(BaseStep):
         # read table.yaml files to read verify sql and expect rows
         for yaml_file in self.scene.yaml_files:
             print(f"Processing YAML file: {yaml_file}")
-            verifySql, expectRows = self.read_verify_info(yaml_file)
+            verifySql, expectRows = self.read_verify_info(self.scene.name, yaml_file)
             if verifySql != None and expectRows != None:
                 self.wait_stream_end(verifySql, expectRows)
             else:

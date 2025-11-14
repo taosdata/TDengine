@@ -8,7 +8,7 @@ testCases:
                 from test.readings 
                 stream_options(fill_history_first) 
                 into test.res_a1 
-                as select _tcurrent_ts, avg(fuel_consumption) 
+                as select _tcurrent_ts ts, avg(fuel_consumption)
                         from test.readings 
                         where _c0 >= _tprev_ts and _c0 < _tcurrent_ts;
 
@@ -21,9 +21,34 @@ testCases:
                from test.readings 
                stream_options(fill_history_first) 
                into test.res_a2 
-               as select _tcurrent_ts cur_ts, count(*), avg(fuel_consumption) 
+               as 
+                  select _tcurrent_ts ts, count(*), avg(fuel_consumption) 
                       from (  
                             select fuel_consumption, last(grade) cur_grade 
                             from test.readings 
                             where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname) 
                       where cur_grade > 70;
+
+    - scenarioId: "A6"
+      classfication: "Summary"
+      description: ""
+      sql: |
+        create stream test.stm_a6 
+               sliding(1h) 
+               from test.readings 
+               stream_options(fill_history_first) 
+               into test.res_a6 
+               as 
+                  select _tcurrent_ts, count(*), avg(last_velocity) 
+                      from (
+                            select _tprev_ts ts, last(current_load) load, load_capacity, name 
+                            from test.diagnostics 
+                            where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname
+                          ) a join (
+                            select _tprev_ts ts, last(velocity) last_velocity, name 
+                            from test.readings 
+                            where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname
+                          ) b 
+                          on a.ts = b.ts 
+                            and a.load < 0.1 * a.load_capacity 
+                            and a.name = b.name

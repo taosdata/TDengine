@@ -1,0 +1,5 @@
+testCases:
+    - scenarioId: "A6"
+      concurrency: 1
+      expectRows: 3
+      verifySql: select count(*) from test.res_a6 
