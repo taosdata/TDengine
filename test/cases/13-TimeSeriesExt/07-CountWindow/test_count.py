@@ -236,29 +236,9 @@ class TestCount:
         tdSql.execute(f"insert into t2 values(1648791223001,9,1,11,1.1);")
         tdSql.execute(f"insert into t2 values(1648791223009,0,1,12,1.0);")
 
-        tdSql.query(
+        tdSql.error(
             f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st count_window(4,1);"
         )
-        # rows
-        tdSql.checkRows(12)
-        # row 0
-        tdSql.checkData(0, 1, 4)
-        tdSql.checkData(0, 2, 4)
-        # row 1
-        tdSql.checkData(1, 1, 4)
-        tdSql.checkData(1, 2, 4)
-        # row 2
-        tdSql.checkData(2, 1, 4)
-        tdSql.checkData(2, 2, 4)
-        # row 9
-        tdSql.checkData(9, 1, 3)
-        tdSql.checkData(9, 2, 3)
-        # row 10
-        tdSql.checkData(10, 1, 2)
-        tdSql.checkData(10, 2, 2)
-        # row 11
-        tdSql.checkData(11, 1, 1)
-        tdSql.checkData(11, 2, 1)
 
     def Count0(self):
         tdLog.info(f"step1: normatable")
@@ -583,15 +563,9 @@ class TestCount:
         tdSql.execute(f"insert into t2 values(1648791223001,9,1,11,1.1);")
         tdSql.execute(f"insert into t2 values(1648791223009,0,1,12,1.0);")
 
-        tdSql.query(
+        tdSql.error(
             f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st count_window(4);"
         )
-        tdSql.checkData(0, 1, 4)
-        tdSql.checkData(0, 2, 4)
-        tdSql.checkData(1, 1, 4)
-        tdSql.checkData(1, 2, 4)
-        tdSql.checkData(2, 1, 4)
-        tdSql.checkData(2, 2, 4)
 
         tdLog.info(f"step2")
         tdLog.info(f"=============== create database")

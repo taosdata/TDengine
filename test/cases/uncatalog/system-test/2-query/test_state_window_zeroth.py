@@ -209,58 +209,19 @@ class TestStateWindowZeroth:
         tdSql.checkData(4, 3, '正常')
 
         # super table 
-        tdSql.query("select _wstart, _wend, count(*) from stb state_window(cint, 0, 0)", show=True)
-        tdSql.checkRows(5)
-        tdSql.checkData(0, 2, 2)
-        tdSql.checkData(1, 2, 4)
-        tdSql.checkData(2, 2, 8)
-        tdSql.checkData(3, 2, 4)
-        tdSql.checkData(4, 2, 4)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint, 0, 0)", show=True)
 
-        tdSql.query("select _wstart, _wend, count(*) from stb state_window(cint, 0, 1)", show=True)
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 2, 4)
-        tdSql.checkData(1, 2, 8)
-        tdSql.checkData(2, 2, 4)
-        
-        tdSql.query("select _wstart, _wend, count(*) from stb state_window(cint, 0, -1)", show=True)
-        tdSql.checkRows(5)
-        tdSql.checkData(0, 2, 2)
-        tdSql.checkData(1, 2, 4)
-        tdSql.checkData(2, 2, 8)
-        tdSql.checkData(3, 2, 4)
-        tdSql.checkData(4, 2, 4)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint, 0, 1)", show=True)
 
-        tdSql.query("select _wstart, _wend, count(*) from stb state_window(cbool, 0, true)", show=True)
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 2, 6)
-        tdSql.checkData(1, 2, 2)
-        tdSql.checkData(2, 2, 4)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint, 0, -1)", show=True)
 
-        tdSql.query("select _wstart, _wend, count(*) from stb state_window(cbool, 0, false)", show=True)
-        tdSql.checkRows(4)
-        tdSql.checkData(0, 2, 2)
-        tdSql.checkData(1, 2, 2)
-        tdSql.checkData(2, 2, 4)
-        tdSql.checkData(3, 2, 2)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cbool, 0, true)", show=True)
 
-        tdSql.query("select _wstart, _wend, count(*) from stb state_window(cstr, 0, 'a')", show=True)
-        tdSql.checkRows(5)
-        tdSql.checkData(0, 2, 2)
-        tdSql.checkData(1, 2, 2)
-        tdSql.checkData(2, 2, 2)
-        tdSql.checkData(3, 2, 4)
-        tdSql.checkData(4, 2, 4)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cbool, 0, false)", show=True)
 
-        tdSql.query("select _wstart, _wend, count(*) from stb state_window(cstr, 0, 'A')", show=True)
-        tdSql.checkRows(7)
-        tdSql.checkData(0, 2, 4)
-        tdSql.checkData(1, 2, 2)
-        tdSql.checkData(2, 2, 2)
-        tdSql.checkData(3, 2, 2)
-        tdSql.checkData(4, 2, 2)
-        tdSql.checkData(5, 2, 4)
-        tdSql.checkData(6, 2, 4)
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cstr, 0, 'a')", show=True)
+
+        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cstr, 0, 'A')", show=True)
 
     def check_zeroth_state_stream_compute(self):
         # create streams
