@@ -9,7 +9,7 @@ class TestStreamRecalcDeleteRecalc:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_delete_recalc(self):
-        """Recalc: DELETE_RECALC
+        """Recalc: full deletion scenarios
 
         Test DELETE_RECALC option behavior with various data deletion scenarios:
 

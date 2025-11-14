@@ -10,7 +10,7 @@ class TestStreamDisorderVtable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_disnorder_vtable(self):
-        """Abnormal Data: virtual table
+        """Abnormal data: virtual table
 
         test data disorder/update/delete change cases to stream for virtual table
 
