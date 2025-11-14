@@ -227,8 +227,8 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
     iter++;
     pNode = pNode->next;
   }
-
-  if (iter >= TSDB_REF_ITER_THRESHOLD) {
+ 
+ if (iter >= TSDB_REF_ITER_THRESHOLD) {
     uWarn("rsetId:%d rid:%" PRId64 " iter:%d", rsetId, rid, iter);
   }
 
