@@ -1079,6 +1079,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     scanAllCols = false;
   }
 
+  if (((SScanLogicNode*)pRealTableScan)->scanType == SCAN_TYPE_TAG) {
+    ((SScanLogicNode*)pRealTableScan)->scanType = SCAN_TYPE_TABLE;
+  }
+
   PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
 
   FOREACH(pNode, pVtableScan->pScanCols) {
