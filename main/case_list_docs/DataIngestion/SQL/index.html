@@ -1007,6 +1007,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#06-DataIngestion.01-SQL.test_wal_keep_version_high_availability.TestWalKeepVersionTrim.test_wal_keep_version_high_availability" class="md-nav__link">
+        Test WAL keep version and trim functionality 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#06-DataIngestion.01-SQL.test_wal_keep_version_trim.TestWalKeepVersionTrim.test_wal_keep_version_and_trim" class="md-nav__link">
+        Test WAL keep version and trim functionality 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#06-DataIngestion.01-SQL.test_write.TestInsertDouble.test_write" class="md-nav__link">
         Write basic 
       </a>
@@ -4003,6 +4025,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#06-DataIngestion.01-SQL.test_wal_keep_version_high_availability.TestWalKeepVersionTrim.test_wal_keep_version_high_availability" class="md-nav__link">
+        Test WAL keep version and trim functionality 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#06-DataIngestion.01-SQL.test_wal_keep_version_trim.TestWalKeepVersionTrim.test_wal_keep_version_and_trim" class="md-nav__link">
+        Test WAL keep version and trim functionality 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#06-DataIngestion.01-SQL.test_write.TestInsertDouble.test_write" class="md-nav__link">
         Write basic 
       </a>
@@ -4199,6 +4243,74 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/06-DataIngestion/01-SQL/test_insert_csv_with_quote.py" target="_blank">
                       cases/06-DataIngestion/01-SQL/test_insert_csv_with_quote.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="06-DataIngestion.01-SQL.test_wal_keep_version_high_availability.TestWalKeepVersionTrim.test_wal_keep_version_high_availability" class="doc doc-heading">
+
+<a href="#06-DataIngestion.01-SQL.test_wal_keep_version_high_availability.TestWalKeepVersionTrim.test_wal_keep_version_high_availability" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Test WAL keep version and trim functionality</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">This test verifies:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. prepare data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. stop dnode 3</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. set keep version 0</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. start dnode 3</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. check wal keep version</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/06-DataIngestion/01-SQL/test_wal_keep_version_high_availability.py" target="_blank">
+                      cases/06-DataIngestion/01-SQL/test_wal_keep_version_high_availability.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="06-DataIngestion.01-SQL.test_wal_keep_version_trim.TestWalKeepVersionTrim.test_wal_keep_version_and_trim" class="doc doc-heading">
+
+<a href="#06-DataIngestion.01-SQL.test_wal_keep_version_trim.TestWalKeepVersionTrim.test_wal_keep_version_and_trim" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Test WAL keep version and trim functionality</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">This test verifies:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. prepare data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. set keep version 0</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. check wal keep version</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. trim database wal</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. check wal log dropped after trim</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/06-DataIngestion/01-SQL/test_wal_keep_version_trim.py" target="_blank">
+                      cases/06-DataIngestion/01-SQL/test_wal_keep_version_trim.py
                     </a>
                   </div>
         </div>
