@@ -699,7 +699,7 @@ void monSendContent(char *pCont, const char *uri) {
   if (pCont != NULL) {
     char tmp[100] = {0};
     (void)tsnprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
-    uInfoL("report client cont with QID:%s", tmp);
+    uDebugL("report client cont with QID:%s", tmp);
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReportWithQID(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag, tmp) !=
         0) {

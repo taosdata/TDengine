@@ -387,7 +387,7 @@ char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int32_t tsStreamBufferSize = 0;       // MB
 int64_t tsStreamBufferSizeBytes = 0;  // bytes
-bool    tsStreamPerfLogEnabled = true;
+bool    tsStreamPerfLogEnabled = false;
 bool    tsFilterScalarMode = false;
 
 bool tsUpdateCacheBatch = true;

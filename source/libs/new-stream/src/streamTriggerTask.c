@@ -400,7 +400,9 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
   int32_t                   iter = 0;
   int32_t                   ver = atomic_add_fetch_32(&pTask->checkpointVersion, 1);
 
-  if (tSimpleHashGetSize(pTask->pRealtimeStartVer) == 0) {
+  if (tSimpleHashGetSize(pTask->pRealtimeStartVer) == 0 ||
+      tSimpleHashGetSize(pTask->pRealtimeStartVer) < taosArrayGetSize(pTask->readerList)) {
+    // skip checkpoint if no realtime start ver info or incomplete info
     goto _end;
   }
 
@@ -443,6 +445,8 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
     QUERY_CHECK_CODE(code, lino, _end);
     px = tSimpleHashIterate(pTask->pHistoryCutoffTime, px, &iter);
   }
+
+  tEncodeI8(&encoder, pTask->historyFinished);
 
   tEndEncode(&encoder);
 
@@ -517,9 +521,15 @@ static int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *
     ST_TASK_DLOG("parse checkpoint, gid: %" PRId64 ", cutoffTime: %" PRId64, gid, cutoffTime);
   }
 
+  int8_t historyFinished = 0;
+  if (tDecodeIsEnd(&decoder)) {
+    tDecodeI8(&decoder, &historyFinished);
+  }
+
   tEndDecode(&decoder);
   QUERY_CHECK_CONDITION(decoder.pos == len, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   atomic_store_32(&pTask->checkpointVersion, ver);
+  atomic_store_8(&pTask->historyFinished, historyFinished);
 
 #if !TRIGGER_USE_HISTORY_META
   bool startFromBound = !pTask->fillHistoryFirst;
@@ -1134,7 +1144,7 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
     goto _end;
   }
 
-  ST_TASK_DLOG("add recalc request, isHistory: %d, gid: %" PRId64 ", scanRange: [%" PRId64 ", %" PRId64
+  ST_TASK_ILOG("add recalc request, isHistory: %d, gid: %" PRId64 ", scanRange: [%" PRId64 ", %" PRId64
                "], calcRange: [%" PRId64 ", %" PRId64 "]",
                isHistory, pReq->gid, pReq->scanRange.skey, pReq->scanRange.ekey, pReq->calcRange.skey,
                pReq->calcRange.ekey);
@@ -1171,7 +1181,7 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
             .skey = TMIN(pTmpReq->calcRange.skey, pReq->calcRange.skey),
             .ekey = TMAX(pTmpReq->calcRange.ekey, pReq->calcRange.ekey),
         };
-        ST_TASK_DLOG("merge recalc request, gid: %" PRId64 ", calcRange1: [%" PRId64 ", %" PRId64
+        ST_TASK_ILOG("merge recalc request, gid: %" PRId64 ", calcRange1: [%" PRId64 ", %" PRId64
                      "], calcRange2: [%" PRId64 ", %" PRId64 "] to scanRange: [%" PRId64 ", %" PRId64
                      "], calcRange: [%" PRId64 ", %" PRId64 "]",
                      pReq->gid, pTmpReq->calcRange.skey, pTmpReq->calcRange.ekey, pReq->calcRange.skey,
@@ -1221,7 +1231,7 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
   if (pNode != NULL) {
     *ppReq = *(SSTriggerRecalcRequest **)pNode->data;
     taosMemoryFreeClear(pNode);
-    ST_TASK_DLOG("start recalc request, gid: %" PRId64 ", scanRange: [%" PRId64 ", %" PRId64 "], calcRange: [%" PRId64
+    ST_TASK_ILOG("start recalc request, gid: %" PRId64 ", scanRange: [%" PRId64 ", %" PRId64 "], calcRange: [%" PRId64
                  ", %" PRId64 "]",
                  (*ppReq)->gid, (*ppReq)->scanRange.skey, (*ppReq)->scanRange.ekey, (*ppReq)->calcRange.skey,
                  (*ppReq)->calcRange.ekey);
@@ -3484,12 +3494,22 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         pParam->prevTs--;
       }
     }
-    ST_TASK_DLOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
-                 ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
-                 ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
-                 i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs, pParam->currentTs,
-                 pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime, pParam->triggerTime,
-                 pCalcReq->createTable);
+    if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+      ST_TASK_ILOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
+                   ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
+                   ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
+                   i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs, pParam->currentTs,
+                   pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime, pParam->triggerTime,
+                   pCalcReq->createTable);
+
+    } else {
+      ST_TASK_DLOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
+                   ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
+                   ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
+                   i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs, pParam->currentTs,
+                   pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime, pParam->triggerTime,
+                   pCalcReq->createTable);
+    }
   }
 
 #ifdef SKIP_SEND_CALC_REQUEST
@@ -4327,7 +4347,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
               pGroup->recalcNextWindow = true;
             }
           }
-          ST_TASK_DLOG("add recalc request for delete data, start: %" PRId64 ", end: %" PRId64, range.skey, range.ekey);
+          ST_TASK_ILOG("add recalc request for delete data, start: %" PRId64 ", end: %" PRId64, range.skey, range.ekey);
           code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
           QUERY_CHECK_CODE(code, lino, _end);
           code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
@@ -4359,7 +4379,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
             pGroup->recalcNextWindow = true;
           }
         }
-        ST_TASK_DLOG("add recalc request for delete data, start: %" PRId64 ", end: %" PRId64, range.skey, range.ekey);
+        ST_TASK_ILOG("add recalc request for delete data, start: %" PRId64 ", end: %" PRId64, range.skey, range.ekey);
         code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stRealtimeGroupRemovePendingCalc(pGroup, &range);
@@ -5899,12 +5919,21 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
         pParam->prevTs--;
       }
     }
-    ST_TASK_DLOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
-                 ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
-                 ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
-                 i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs, pParam->currentTs,
-                 pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime, pParam->triggerTime,
-                 pCalcReq->createTable);
+    if (pTask->triggerType == STREAM_TRIGGER_STATE && !pContext->isHistory) {
+      ST_TASK_ILOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
+                   ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
+                   ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
+                   i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs, pParam->currentTs,
+                   pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime, pParam->triggerTime,
+                   pCalcReq->createTable);
+    } else {
+      ST_TASK_DLOG("[calc param %d]: gid=%" PRId64 ", wstart=%" PRId64 ", wend=%" PRId64 ", nrows=%" PRId64
+                   ", prevTs=%" PRId64 ", currentTs=%" PRId64 ", nextTs=%" PRId64 ", prevLocalTime=%" PRId64
+                   ", nextLocalTime=%" PRId64 ", localTime=%" PRId64 ", create=%d",
+                   i, pCalcReq->gid, pParam->wstart, pParam->wend, pParam->wrownum, pParam->prevTs, pParam->currentTs,
+                   pParam->nextTs, pParam->prevLocalTime, pParam->nextLocalTime, pParam->triggerTime,
+                   pCalcReq->createTable);
+    }
   }
 
   // serialize and send request
@@ -7256,7 +7285,7 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
       }
       range.ekey = TMIN(range.ekey, pGroup->oldThreshold);
       if (range.skey <= range.ekey) {
-        ST_TASK_DLOG("add recalc request for disorder data, threshold: %" PRId64 ", start: %" PRId64 ", end: %" PRId64,
+        ST_TASK_ILOG("add recalc request for disorder data, threshold: %" PRId64 ", start: %" PRId64 ", end: %" PRId64,
                      pGroup->oldThreshold, pMeta->skey, pMeta->ekey);
         code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, pContext->pReaderWalProgress, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
