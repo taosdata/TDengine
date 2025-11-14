@@ -69,7 +69,7 @@ static int64_t getSuid(SStreamTriggerReaderInfo* sStreamReaderInfo, STableKeyInf
   taosRLockLatch(&sStreamReaderInfo->lock);
   SStreamTableMapElement* element = taosHashGet(sStreamReaderInfo->vSetTableList.uIdMap, &pList->uid, LONG_BYTES);  
   if (element != 0) {
-    suid = element->suid;
+    suid = element->table->groupId;
     taosRUnLockLatch(&sStreamReaderInfo->lock);
     goto end;
   }
@@ -2137,7 +2137,7 @@ static int32_t processTs(SVnode* pVnode, SStreamTsResponse* tsRsp, SStreamTrigge
     int64_t        suid = 0;
     STREAM_CHECK_RET_GOTO(qStreamIterTableList(tableInfo, &pList, &pNum, &suid));
     STREAM_CHECK_CONDITION_GOTO(pNum == 0, TSDB_CODE_SUCCESS);
-    pTaskInner->options->suid = suid;
+    pTaskInner->options->suid = sStreamReaderInfo->isVtableStream ? suid : sStreamReaderInfo->suid;
     STREAM_CHECK_RET_GOTO(processTsOnce(pVnode, tsRsp, sStreamReaderInfo, pTaskInner, pList, pNum));
     taosMemoryFreeClear(pList);
   }
@@ -2203,7 +2203,7 @@ static int32_t vnodeProcessStreamLastTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
   
 end:
   ST_TASK_DLOG("vgId:%d %s get result size:%"PRIzu", ver:%"PRId64, TD_VID(pVnode), __func__, taosArrayGetSize(tsRsp.tsInfo), tsRsp.ver);
-  STREAM_CHECK_RET_GOTO(buildTsRsp(&tsRsp, &buf, &size))
+  code = buildTsRsp(&tsRsp, &buf, &size);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
@@ -2236,23 +2236,18 @@ static int32_t vnodeProcessStreamFirstTsReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_RET_GOTO(createStreamTaskForTs(&options, &pTaskInner, &sStreamReaderInfo->storageApi));
 
   if (req->firstTsReq.gid != 0) {
-    tsRsp.tsInfo = taosArrayInit(1, sizeof(STsInfo));
-    STREAM_CHECK_NULL_GOTO(tsRsp.tsInfo, terrno);
     STREAM_CHECK_RET_GOTO(qStreamGetTableList(sStreamReaderInfo, req->firstTsReq.gid, &pList, &pNum));
     STREAM_CHECK_CONDITION_GOTO(pNum == 0, TSDB_CODE_SUCCESS);
     pTaskInner->options->suid = getSuid(sStreamReaderInfo, pList);
     STREAM_CHECK_RET_GOTO(processTsOnce(pVnode, &tsRsp, sStreamReaderInfo, pTaskInner, pList, pNum));
-
   } else {
-    
     STREAM_CHECK_RET_GOTO(qStreamCopyTableInfo(sStreamReaderInfo, &dst));
     STREAM_CHECK_RET_GOTO(processTs(pVnode, &tsRsp, sStreamReaderInfo, pTaskInner, &dst));
-
   }
 
 end:
   ST_TASK_DLOG("vgId:%d %s get result size:%"PRIzu", ver:%"PRId64, TD_VID(pVnode), __func__, taosArrayGetSize(tsRsp.tsInfo), tsRsp.ver);
-  STREAM_CHECK_RET_GOTO(buildTsRsp(&tsRsp, &buf, &size));
+  code = buildTsRsp(&tsRsp, &buf, &size);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};

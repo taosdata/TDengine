@@ -15,9 +15,8 @@
 void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) { 
   if (pTableListInfo == NULL) return;
   taosArrayDestroyP(pTableListInfo->pTableList, taosMemFree);
-  taosHashCancelIterate(pTableListInfo->suIdMap, pTableListInfo->pIter);
+  taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
   taosHashCleanup(pTableListInfo->gIdMap);
-  taosHashCleanup(pTableListInfo->suIdMap);
   taosHashCleanup(pTableListInfo->uIdMap);
 }
 
@@ -79,7 +78,7 @@ end:
   return code;
 }
 
-static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid, int64_t suid){
+static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid){
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -90,10 +89,6 @@ static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t
   if (pTableListInfo->gIdMap == NULL) {
     pTableListInfo->gIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     STREAM_CHECK_NULL_GOTO(pTableListInfo->gIdMap, terrno);
-  }
-  if (pTableListInfo->suIdMap == NULL) {
-    pTableListInfo->suIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-    STREAM_CHECK_NULL_GOTO(pTableListInfo->suIdMap, terrno);
   }
   if (pTableListInfo->uIdMap == NULL) {
     pTableListInfo->uIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
@@ -109,9 +104,8 @@ static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t
   }
 
   STREAM_CHECK_RET_GOTO(addList(pTableListInfo->gIdMap, keyInfo, gid));
-  STREAM_CHECK_RET_GOTO(addList(pTableListInfo->suIdMap, keyInfo, suid));
 
-  SStreamTableMapElement element = {.table = keyInfo, .index = taosArrayGetSize(pTableListInfo->pTableList) - 1, .suid = suid};
+  SStreamTableMapElement element = {.table = keyInfo, .index = taosArrayGetSize(pTableListInfo->pTableList) - 1};
   STREAM_CHECK_RET_GOTO(taosHashPut(pTableListInfo->uIdMap, &uid, LONG_BYTES, &element, sizeof(element)));
 
 end:
@@ -124,14 +118,12 @@ static int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int6
 
   STREAM_CHECK_NULL_GOTO(pTableListInfo->pTableList, terrno);
   STREAM_CHECK_NULL_GOTO(pTableListInfo->gIdMap, terrno);
-  STREAM_CHECK_NULL_GOTO(pTableListInfo->suIdMap, terrno);
   STREAM_CHECK_NULL_GOTO(pTableListInfo->uIdMap, terrno);
   SStreamTableMapElement* info = taosHashGet(pTableListInfo->uIdMap, &uid, LONG_BYTES);
   if (info == NULL) {
     goto end;
   }
 
-  STREAM_CHECK_RET_GOTO(removeList(pTableListInfo->suIdMap, info->table, info->suid));
   STREAM_CHECK_RET_GOTO(removeList(pTableListInfo->gIdMap, info->table, info->table->groupId));
   
   SStreamTableKeyInfo* tmp = taosArrayGetP(pTableListInfo->pTableList, info->index);
@@ -170,7 +162,7 @@ int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, Strea
     if (info->markedDeleted || element == NULL) {
       continue;
     }
-    STREAM_CHECK_RET_GOTO(qStreamSetTableList(dst, info->uid, info->groupId, element->suid));
+    STREAM_CHECK_RET_GOTO(qStreamSetTableList(dst, info->uid, info->groupId));
   }
 end:
    taosRUnLockLatch(&sStreamReaderInfo->lock);
@@ -200,7 +192,7 @@ int32_t  qTransformStreamTableList(void* pTableListInfo, SStreamTriggerReaderInf
     if (info == NULL) {
       continue;
     }
-    int32_t code = qStreamSetTableList(&sStreamReaderInfo->tableList, info->uid, info->groupId, sStreamReaderInfo->suid);
+    int32_t code = qStreamSetTableList(&sStreamReaderInfo->tableList, info->uid, info->groupId);
     if (code != 0){
       return code;
     }
@@ -224,9 +216,11 @@ uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo
 }
 
 uint64_t qStreamGetGroupIdFromSet(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid){
+  uint64_t groupId = uid;
   taosRLockLatch(&sStreamReaderInfo->lock);
-  StreamTableListInfo* tmp = sStreamReaderInfo->isVtableStream ? &sStreamReaderInfo->vSetTableList : &sStreamReaderInfo->tableList;
-  uint64_t groupId = qStreamGetGroupId(tmp, uid);
+  if (!sStreamReaderInfo->isVtableStream){
+    groupId = qStreamGetGroupId(&sStreamReaderInfo->tableList, uid);
+  }
   taosRUnLockLatch(&sStreamReaderInfo->lock);
   return groupId;
 }
@@ -303,7 +297,7 @@ int32_t qStreamIterTableList(StreamTableListInfo* tableInfo, STableKeyInfo** pKe
   }
   *size = 0;
   *pKeyInfo = NULL;
-  tableInfo->pIter = taosHashIterate(tableInfo->suIdMap, tableInfo->pIter);
+  tableInfo->pIter = taosHashIterate(tableInfo->gIdMap, tableInfo->pIter);
   STREAM_CHECK_NULL_GOTO(tableInfo->pIter, code);
 
   int64_t* key = (int64_t*)taosHashGetKey(tableInfo->pIter, NULL);
@@ -335,7 +329,7 @@ int32_t qStreamModifyTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, SArr
       continue;
     }
     STREAM_CHECK_RET_GOTO(qStreamRemoveTableList(&sStreamReaderInfo->tableList, info->uid));
-    STREAM_CHECK_RET_GOTO(qStreamSetTableList(&sStreamReaderInfo->tableList, info->uid, info->groupId, sStreamReaderInfo->suid));
+    STREAM_CHECK_RET_GOTO(qStreamSetTableList(&sStreamReaderInfo->tableList, info->uid, info->groupId));
   }
 
 end:
@@ -351,7 +345,7 @@ int32_t qBuildVTableList(SSHashObj* uidHash, SStreamTriggerReaderInfo* sStreamRe
   void*   px = tSimpleHashIterate(uidHash, NULL, &iter);
   while (px != NULL) {
     int64_t* id = tSimpleHashGetKey(px, NULL);
-    STREAM_CHECK_RET_GOTO(qStreamSetTableList(&sStreamReaderInfo->vSetTableList, *(id+1), *(id+1), *id));
+    STREAM_CHECK_RET_GOTO(qStreamSetTableList(&sStreamReaderInfo->vSetTableList, *(id+1), *id));
     px = tSimpleHashIterate(uidHash, px, &iter);
     ST_TASK_DLOG("%s build tablelist for vtable, suid:%"PRId64" uid:%"PRId64, __func__, *id, *(id+1));
   }

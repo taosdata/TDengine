@@ -31,14 +31,12 @@ typedef struct SStreamTableList {
 typedef struct SStreamTableMapElement {
   SStreamTableKeyInfo* table;
   int32_t index;
-  int64_t suid;
 } SStreamTableMapElement;
 
 typedef struct StreamTableListInfo {
   SArray*          pTableList;   // element type: SStreamTableKeyInfo*
-  SHashObj*        gIdMap;       // key: groupId, value: SStreamTableList
+  SHashObj*        gIdMap;       // key: groupId/suid, value: SStreamTableList
   SHashObj*        uIdMap;       // key: uid, value: SStreamTableKeyInfo*,index
-  SHashObj*        suIdMap;      // key: suid, value: SStreamTableList
   void*            pIter;        // iterator for gIdMap
 } StreamTableListInfo;
 
