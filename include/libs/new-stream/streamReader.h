@@ -38,6 +38,7 @@ typedef struct StreamTableListInfo {
   SArray*          pTableList;   // element type: SStreamTableKeyInfo*
   SHashObj*        gIdMap;       // key: groupId, value: SStreamTableList
   SHashObj*        uIdMap;       // key: uid, value: SStreamTableKeyInfo*,index
+  SHashObj*        suIdMap;      // key: suid, value: SStreamTableList
   void*            pIter;        // iterator for gIdMap
 } StreamTableListInfo;
 
@@ -81,6 +82,7 @@ typedef struct SStreamTriggerReaderInfo {
   SHashObj*    pTableMetaCacheCalc;
   bool         groupByTbname;
   void*        pVnode;
+  SStorageAPI  storageApi;
   SRWLatch     lock;
 
   StreamTableListInfo        tableList;
@@ -113,16 +115,17 @@ typedef struct {
   int64_t     suid;
   int64_t     ver;
   int32_t**   pSlotList;
+  SStorageAPI*  storageApi;
 } SStreamOptions;
 
 typedef struct {
   int64_t                              streamId;
   int64_t                              sessionId;
-  SStorageAPI                          api;
+  SStorageAPI*                         storageApi;
   void*                                pReader;
   SSDataBlock*                         pResBlock;
   SSDataBlock*                         pResBlockDst;
-  SStreamOptions                       options;
+  SStreamOptions*                      options;
   char*                                idStr;
   SQueryTableDataCond                  cond;
 } SStreamReaderTaskInner;
@@ -139,18 +142,20 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
 int32_t qBuildVTableList(SSHashObj* uidHash, SStreamTriggerReaderInfo* sStreamReaderInfo);
 
 int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTaskInner** ppTask,
-                         SSDataBlock* pResBlock, SStorageAPI* api, STableKeyInfo* pList, int32_t pNum);
+                         SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi;);
+
+int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** ppTask, SStorageAPI* api);
                         
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
 int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);
-int32_t  qTransformStreamTableList(void* pTableListInfo, StreamTableListInfo* tableInfo);
+int32_t  qTransformStreamTableList(void* pTableListInfo, SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
 SArray*  qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo);
-int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size);
+int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size, int64_t* suid);
 uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
 uint64_t qStreamGetGroupIdFromSet(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
-int32_t  qStreamModifyTableList(StreamTableListInfo* tableInfo, SArray* tableListAdd, SArray* tableListDel, SRWLatch* lock);
+int32_t  qStreamModifyTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, SArray* tableListAdd, SArray* tableListDel, SRWLatch* lock);
 
 #ifdef __cplusplus
 }

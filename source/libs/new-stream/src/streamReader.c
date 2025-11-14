@@ -10,13 +10,73 @@
 #include "tdef.h"
 #include "thash.h"
 #include "tsimplehash.h"
+#include "tcommon.h"
 
 void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) { 
   if (pTableListInfo == NULL) return;
   taosArrayDestroyP(pTableListInfo->pTableList, taosMemFree);
-  taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
+  taosHashCancelIterate(pTableListInfo->suIdMap, pTableListInfo->pIter);
   taosHashCleanup(pTableListInfo->gIdMap);
+  taosHashCleanup(pTableListInfo->suIdMap);
   taosHashCleanup(pTableListInfo->uIdMap);
+}
+
+static int32_t removeList(SHashObj* idMap, SStreamTableKeyInfo* table, uint64_t key){
+  int32_t code = 0;
+  int32_t lino = 0;
+  SStreamTableList* list = taosHashGet(idMap, &key, LONG_BYTES);
+  if (list == NULL) {
+    stError("stream reader remove table list failed, groupId not exist, key:%"PRIu64, key);
+    code = TSDB_CODE_NOT_FOUND;
+    goto end;
+  } 
+  if (list->head == table && list->tail == table) {
+    // only one element
+    list->head = NULL;
+    list->tail = NULL;
+    list->size = 0;
+    code = taosHashRemove(idMap, &key, LONG_BYTES);
+    if (code != 0) {
+      stError("stream reader remove table list failed, remove groupId failed, key:%"PRIu64, key);
+      goto end;
+    }
+  } else if (list->head == table) {
+    // first element
+    list->head = table->next;
+    list->head->prev = NULL;
+    list->size -= 1;
+  } else if (list->tail == table) {
+    // last element
+    list->tail = table->prev;
+    list->tail->next = NULL;
+    list->size -= 1;
+  } else {
+    // middle element
+    table->prev->next = table->next;
+    table->next->prev = table->prev;
+    list->size -= 1;
+  }
+end:
+  return code;
+}
+
+static int32_t addList(SHashObj* idMap, SStreamTableKeyInfo* table, uint64_t key){
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SStreamTableList* list = taosHashGet(idMap, &key, LONG_BYTES);
+  if (list == NULL) {
+    SStreamTableList tmp  = {.head = table, .tail = table, .size = 1};
+    STREAM_CHECK_RET_GOTO(taosHashPut(idMap, &key, LONG_BYTES, &tmp, sizeof(SStreamTableList)));
+  } else {
+    list->tail->next = table;
+    table->prev = list->tail;
+    list->tail = table;
+    list->size += 1;
+  }
+
+end:
+  return code;
 }
 
 static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid, int64_t suid){
@@ -31,6 +91,10 @@ static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t
     pTableListInfo->gIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     STREAM_CHECK_NULL_GOTO(pTableListInfo->gIdMap, terrno);
   }
+  if (pTableListInfo->suIdMap == NULL) {
+    pTableListInfo->suIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    STREAM_CHECK_NULL_GOTO(pTableListInfo->suIdMap, terrno);
+  }
   if (pTableListInfo->uIdMap == NULL) {
     pTableListInfo->uIdMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     STREAM_CHECK_NULL_GOTO(pTableListInfo->uIdMap, terrno);
@@ -44,16 +108,9 @@ static int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t
     goto end;
   }
 
-  SStreamTableList* list = taosHashGet(pTableListInfo->gIdMap, &gid, LONG_BYTES);
-  if (list == NULL) {
-    SStreamTableList tmp  = {.head = keyInfo, .tail = keyInfo, .size = 1};
-    STREAM_CHECK_RET_GOTO(taosHashPut(pTableListInfo->gIdMap, &gid, LONG_BYTES, &tmp, sizeof(SStreamTableList)));
-  } else {
-    list->tail->next = keyInfo;
-    keyInfo->prev = list->tail;
-    list->tail = keyInfo;
-    list->size += 1;
-  }
+  STREAM_CHECK_RET_GOTO(addList(pTableListInfo->gIdMap, keyInfo, gid));
+  STREAM_CHECK_RET_GOTO(addList(pTableListInfo->suIdMap, keyInfo, suid));
+
   SStreamTableMapElement element = {.table = keyInfo, .index = taosArrayGetSize(pTableListInfo->pTableList) - 1, .suid = suid};
   STREAM_CHECK_RET_GOTO(taosHashPut(pTableListInfo->uIdMap, &uid, LONG_BYTES, &element, sizeof(element)));
 
@@ -67,44 +124,15 @@ static int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int6
 
   STREAM_CHECK_NULL_GOTO(pTableListInfo->pTableList, terrno);
   STREAM_CHECK_NULL_GOTO(pTableListInfo->gIdMap, terrno);
+  STREAM_CHECK_NULL_GOTO(pTableListInfo->suIdMap, terrno);
   STREAM_CHECK_NULL_GOTO(pTableListInfo->uIdMap, terrno);
   SStreamTableMapElement* info = taosHashGet(pTableListInfo->uIdMap, &uid, LONG_BYTES);
   if (info == NULL) {
     goto end;
   }
 
-  SStreamTableList* list = taosHashGet(pTableListInfo->gIdMap, &(info->table->groupId), LONG_BYTES);
-  if (list == NULL) {
-    stError("stream reader remove table list failed, groupId not exist, uid:%"PRId64", gid:%"PRIu64, uid, info->table->groupId);
-    code = TSDB_CODE_NOT_FOUND;
-    goto end;
-  } 
-  if (list->head == info->table && list->tail == info->table) {
-    // only one element
-    list->head = NULL;
-    list->tail = NULL;
-    list->size = 0;
-    code = taosHashRemove(pTableListInfo->gIdMap, &(info->table->groupId), LONG_BYTES);
-    if (code != 0) {
-      stError("stream reader remove table list failed, remove groupId failed, uid:%"PRId64", gid:%"PRIu64, uid, info->table->groupId);
-      goto end;
-    }
-  } else if (list->head == info->table) {
-    // first element
-    list->head = info->table->next;
-    list->head->prev = NULL;
-    list->size -= 1;
-  } else if (list->tail == info->table) {
-    // last element
-    list->tail = info->table->prev;
-    list->tail->next = NULL;
-    list->size -= 1;
-  } else {
-    // middle element
-    info->table->prev->next = info->table->next;
-    info->table->next->prev = info->table->prev;
-    list->size -= 1;
-  }
+  STREAM_CHECK_RET_GOTO(removeList(pTableListInfo->suIdMap, info->table, info->suid));
+  STREAM_CHECK_RET_GOTO(removeList(pTableListInfo->gIdMap, info->table, info->table->groupId));
   
   SStreamTableKeyInfo* tmp = taosArrayGetP(pTableListInfo->pTableList, info->index);
   if (tmp != NULL) {
@@ -139,10 +167,10 @@ int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, Strea
       continue;
     }
     SStreamTableMapElement* element = taosHashGet(src->uIdMap, &info->uid, LONG_BYTES);
-    if (info->markedDeleted) {
+    if (info->markedDeleted || element == NULL) {
       continue;
     }
-    STREAM_CHECK_RET_GOTO(qStreamSetTableList(dst, info->uid, info->groupId, element != NULL ? element->suid : 0));
+    STREAM_CHECK_RET_GOTO(qStreamSetTableList(dst, info->uid, info->groupId, element->suid));
   }
 end:
    taosRUnLockLatch(&sStreamReaderInfo->lock);
@@ -164,7 +192,7 @@ int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo
   return num;
 }
 
-int32_t  qTransformStreamTableList(void* pTableListInfo, StreamTableListInfo* tableInfo){
+int32_t  qTransformStreamTableList(void* pTableListInfo, SStreamTriggerReaderInfo* sStreamReaderInfo){
   SArray* pList = qStreamGetTableListArray(pTableListInfo);
   int32_t totalSize = taosArrayGetSize(pList);
   for (int32_t i = 0; i < totalSize; ++i) {
@@ -172,7 +200,7 @@ int32_t  qTransformStreamTableList(void* pTableListInfo, StreamTableListInfo* ta
     if (info == NULL) {
       continue;
     }
-    int32_t code = qStreamSetTableList(tableInfo, info->uid, info->groupId, 0);
+    int32_t code = qStreamSetTableList(&sStreamReaderInfo->tableList, info->uid, info->groupId, sStreamReaderInfo->suid);
     if (code != 0){
       return code;
     }
@@ -267,7 +295,7 @@ end:
   return code;
 }
 
-int32_t qStreamIterTableList(StreamTableListInfo* tableInfo, STableKeyInfo** pKeyInfo, int32_t* size) {
+int32_t qStreamIterTableList(StreamTableListInfo* tableInfo, STableKeyInfo** pKeyInfo, int32_t* size, int64_t* suid) {
   int32_t      code = 0;
   int32_t      lino = 0;
   if (pKeyInfo == NULL || size == NULL) {
@@ -275,16 +303,18 @@ int32_t qStreamIterTableList(StreamTableListInfo* tableInfo, STableKeyInfo** pKe
   }
   *size = 0;
   *pKeyInfo = NULL;
-  tableInfo->pIter = taosHashIterate(tableInfo->gIdMap, tableInfo->pIter);
+  tableInfo->pIter = taosHashIterate(tableInfo->suIdMap, tableInfo->pIter);
   STREAM_CHECK_NULL_GOTO(tableInfo->pIter, code);
 
+  int64_t* key = (int64_t*)taosHashGetKey(tableInfo->pIter, NULL);
+  *suid = *key;
   SStreamTableList* list = (SStreamTableList*)(tableInfo->pIter);
   STREAM_CHECK_RET_GOTO(buildTableListFromList(pKeyInfo, size, list));
 end:
   return code;
 }
 
-int32_t qStreamModifyTableList(StreamTableListInfo* tableInfo, SArray* tableListAdd, SArray* tableListDel, SRWLatch* lock) {
+int32_t qStreamModifyTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, SArray* tableListAdd, SArray* tableListDel, SRWLatch* lock) {
   int32_t      code = 0;
   int32_t      lino = 0;
   
@@ -295,7 +325,7 @@ int32_t qStreamModifyTableList(StreamTableListInfo* tableInfo, SArray* tableList
     if (uid == NULL) {
       continue;
     }
-    STREAM_CHECK_RET_GOTO(qStreamRemoveTableList(tableInfo, *uid));
+    STREAM_CHECK_RET_GOTO(qStreamRemoveTableList(&sStreamReaderInfo->tableList, *uid));
   }
 
   totalSize = taosArrayGetSize(tableListAdd);
@@ -304,8 +334,8 @@ int32_t qStreamModifyTableList(StreamTableListInfo* tableInfo, SArray* tableList
     if (info == NULL) {
       continue;
     }
-    STREAM_CHECK_RET_GOTO(qStreamRemoveTableList(tableInfo, info->uid));
-    STREAM_CHECK_RET_GOTO(qStreamSetTableList(tableInfo, info->uid, info->groupId, 0));
+    STREAM_CHECK_RET_GOTO(qStreamRemoveTableList(&sStreamReaderInfo->tableList, info->uid));
+    STREAM_CHECK_RET_GOTO(qStreamSetTableList(&sStreamReaderInfo->tableList, info->uid, info->groupId, sStreamReaderInfo->suid));
   }
 
 end:
@@ -336,7 +366,7 @@ void releaseStreamTask(void* p) {
   if (pTask == NULL) return;
   blockDataDestroy(pTask->pResBlock);
   blockDataDestroy(pTask->pResBlockDst);
-  pTask->api.tsdReader.tsdReaderClose(pTask->pReader);
+  pTask->storageApi->tsdReader.tsdReaderClose(pTask->pReader);
   cleanupQueryTableDataCond(&pTask->cond);
   
   taosMemoryFree(pTask);
@@ -451,32 +481,42 @@ end:
 }
 
 int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTaskInner** ppTask,
-                         SSDataBlock* pResBlock, SStorageAPI* api, STableKeyInfo* pList, int32_t pNum) {
+                         SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi) {
   int32_t                 code = 0;
   int32_t                 lino = 0;
   SStreamReaderTaskInner* pTaskInner = taosMemoryCalloc(1, sizeof(SStreamReaderTaskInner));
 
   STREAM_CHECK_NULL_GOTO(pTaskInner, terrno);
-  pTaskInner->api = *api;
-  pTaskInner->options = *options;
+  pTaskInner->options = options;
+  pTaskInner->storageApi = storageApi;
   if (pResBlock != NULL) {
     STREAM_CHECK_RET_GOTO(createOneDataBlock(pResBlock, false, &pTaskInner->pResBlock));
   } else {
-    STREAM_CHECK_RET_GOTO(createDataBlockForStream(pTaskInner->options.schemas, &pTaskInner->pResBlock));
+    STREAM_CHECK_RET_GOTO(createDataBlockForStream(pTaskInner->options->schemas, &pTaskInner->pResBlock));
   }
 
   cleanupQueryTableDataCond(&pTaskInner->cond);
-  STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTaskInner->cond, options->order, pTaskInner->options.schemas, options->isSchema,
+  STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTaskInner->cond, options->order, options->schemas, options->isSchema,
                                                     options->twindows, options->suid, options->ver, options->pSlotList));
-  STREAM_CHECK_RET_GOTO(pTaskInner->api.tsdReader.tsdReaderOpen(pVnode, &pTaskInner->cond, pList, pNum, pTaskInner->pResBlock,
+  STREAM_CHECK_RET_GOTO(pTaskInner->storageApi->tsdReader.tsdReaderOpen(pVnode, &pTaskInner->cond, pList, pNum, pTaskInner->pResBlock,
                                                           (void**)&pTaskInner->pReader, pTaskInner->idStr, NULL));
-  
   *ppTask = pTaskInner;
   pTaskInner = NULL;
 
 end:
   releaseStreamTask(&pTaskInner);
   return code;
+}
+
+int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** ppTask, SStorageAPI* storageApi) {
+  SStreamReaderTaskInner* pTaskInner = taosMemoryCalloc(1, sizeof(SStreamReaderTaskInner));
+  if (pTaskInner == NULL) 
+    return terrno;
+  
+  pTaskInner->options = options;
+  pTaskInner->storageApi = storageApi;
+  *ppTask = pTaskInner;
+  return 0;
 }
 
 static void destroyCondition(SNode* pCond) {
