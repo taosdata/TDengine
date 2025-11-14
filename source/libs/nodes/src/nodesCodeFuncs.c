@@ -3486,7 +3486,8 @@ static const char* jkExternalPhysiPlanIsSingleTable = "IsSingleTable";
 static const char* jkExternalPhysiPlanInputHasOrder = "InputHasOrder";
 static const char* jkExternalPhysiPlanOrgTableUid = "OrgTableUid";
 static const char* jkExternalPhysiPlanOrgTableVgId = "OrgTableVgId";
-static const char* jkExternalPhysiPlanGenNewGroup = "GenNewGroup";
+static const char* jkExternalPhysiPlanNeedGroupSort = "NeedGroupSort";
+static const char* jkExternalPhysiPlanCalcWithPartition = "CalcWithPartition";
 
 static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3514,7 +3515,10 @@ static int32_t physiExternalNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkExternalPhysiPlanOrgTableVgId, pNode->orgTableVgId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanGenNewGroup, pNode->genNewGroup);
+    code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanNeedGroupSort, pNode->needGroupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExternalPhysiPlanCalcWithPartition, pNode->calcWithPartition);
   }
   return code;
 }
@@ -3545,7 +3549,10 @@ static int32_t jsonToPhysiExternalNode(const SJson* pJson, void* pObj) {
     code = tjsonGetIntValue(pJson, jkExternalPhysiPlanOrgTableVgId, &pNode->orgTableVgId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanGenNewGroup, &pNode->genNewGroup);
+    code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanNeedGroupSort, &pNode->needGroupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkExternalPhysiPlanCalcWithPartition, &pNode->calcWithPartition);
   }
 
   return code;

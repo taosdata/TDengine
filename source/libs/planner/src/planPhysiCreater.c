@@ -2988,7 +2988,8 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
   }
   pExternal->isSingleTable = pWindowLogicNode->isSingleTable;
   pExternal->inputHasOrder = pWindowLogicNode->inputHasOrder;
-  pExternal->genNewGroup = pWindowLogicNode->genNewGroup;
+  pExternal->needGroupSort = pWindowLogicNode->needGroupSort;
+  pExternal->calcWithPartition = pWindowLogicNode->calcWithPartition;
   pExternal->orgTableUid = pWindowLogicNode->orgTableUid;
   pExternal->orgTableVgId = pWindowLogicNode->orgTableVgId;
   PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pTimeRange, &pExternal->pTimeRange));

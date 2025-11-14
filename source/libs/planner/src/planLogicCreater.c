@@ -2381,7 +2381,8 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
   pWindow->node.groupAction = GROUP_ACTION_NONE;
   pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->node.resultDataOrder = (NULL != pSelect->pPartitionByList ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL);
-  pWindow->genNewGroup = (NULL != pSelect->pPartitionByList && NULL != pSelect->pWindow);
+  pWindow->calcWithPartition = (NULL != pSelect->pPartitionByList);
+  pWindow->needGroupSort = false;
   bool isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
   if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
     SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;

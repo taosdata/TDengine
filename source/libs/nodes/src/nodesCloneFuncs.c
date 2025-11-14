@@ -756,7 +756,8 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_LIST_FIELD(pProjs);
   COPY_SCALAR_FIELD(isSingleTable);
   COPY_SCALAR_FIELD(inputHasOrder);
-  COPY_SCALAR_FIELD(genNewGroup);
+  COPY_SCALAR_FIELD(needGroupSort);
+  COPY_SCALAR_FIELD(calcWithPartition);
   COPY_SCALAR_FIELD(extendOption);
   COPY_SCALAR_FIELD(orgTableUid);
   COPY_SCALAR_FIELD(orgTableVgId);
