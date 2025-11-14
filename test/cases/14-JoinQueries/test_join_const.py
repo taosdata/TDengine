@@ -209,7 +209,7 @@ class TestJoinConst:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
     def test_join_const(self):
-        """Join compare from different data types
+        """Join full data types
         
         1. Create stable sta/stb
         2. Create child table a1/a2 from sta, b1/b2 from stb
@@ -218,6 +218,7 @@ class TestJoinConst:
         5. Validate the query result with expected .csv file
         6. File .in sql include now()/today() and constant timestamps
         7. File .in sql include inner/outer/semi/anti join
+        8. Check abnormal cases
         
 
         Since: v3.0.0.0

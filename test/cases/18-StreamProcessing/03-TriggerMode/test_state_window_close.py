@@ -12,15 +12,13 @@ class TestWindowCloseStateWindow:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_window_close_state_window(self):
-        """State window close
+        """Options: state window close
 
         Test window close trigger mode with state window windows
         1. create streams with state window windows
         2. write data to source tables with state window gaps
         3. check stream results
-            
-        Catalog:
-            - Streams: 03-TriggerMode
+
 
         Since: v3.3.3.7
 

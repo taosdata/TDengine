@@ -9,7 +9,7 @@ class TestStreamRecalcWatermark:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_watermark(self):
-        """Stream Recalculation WATERMARK Option Test
+        """Recalc: watermark with out-of-order data
 
         Test WATERMARK option with out-of-order data:
         1. Write out-of-order data within WATERMARK tolerance - should trigger recalculation

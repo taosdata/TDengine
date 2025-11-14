@@ -27,9 +27,14 @@ class Test5dnode3mnodeStop:
 
     @pytest.mark.cluster
     def test_five_dnode_three_mnode(self):
-        """replica 3: cluster mnode status
+        """Cluster database with replica 3
 
-        5dnodes start/stop each dnode, then check mnode status
+        1. Create 5 dnodes 3 mnodes cluster
+        2. Create database with replica 3 and vgroups 4
+        3. Stop dnode one by one and check mnode status
+        4. Restart dnode one by one and check mnode status
+        5. Check vgroups status and replica status
+
 
         Since: v3.3.0.0
 
