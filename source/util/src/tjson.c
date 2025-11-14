@@ -318,7 +318,7 @@ int32_t tjsonGetArraySize(const SJson* pJson) { return cJSON_GetArraySize(pJson)
 
 SJson* tjsonGetArrayItem(const SJson* pJson, int32_t index) { return cJSON_GetArrayItem(pJson, index); }
 
-int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObject func, void* pObj) {
+int32_t tjsonToObject(const SJson* pJson, const char* pName, FJsonToObject func, void* pObj) {
   SJson* pJsonObj = tjsonGetObjectItem(pJson, pName);
   if (NULL == pJsonObj) {
     return TSDB_CODE_SUCCESS;
@@ -326,7 +326,7 @@ int32_t tjsonToObject(const SJson* pJson, const char* pName, FToObject func, voi
   return func(pJsonObj, pObj);
 }
 
-int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, void** pObj, int32_t objSize) {
+int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FJsonToObject func, void** pObj, int32_t objSize) {
   if (objSize <= 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -342,7 +342,7 @@ int32_t tjsonMakeObject(const SJson* pJson, const char* pName, FToObject func, v
   return func(pJsonObj, *pObj);
 }
 
-int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void* pArray, int32_t itemSize) {
+int32_t tjsonToArray(const SJson* pJson, const char* pName, FJsonToObject func, void* pArray, int32_t itemSize) {
   const cJSON* jArray = tjsonGetObjectItem(pJson, pName);
   int32_t      size = (NULL == jArray ? 0 : tjsonGetArraySize(jArray));
   for (int32_t i = 0; i < size; ++i) {
@@ -354,7 +354,7 @@ int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tjsonToTArray(const SJson* pJson, const char* pName, FToObject func, SArray** pArray, int32_t itemSize) {
+int32_t tjsonToTArray(const SJson* pJson, const char* pName, FJsonToObject func, SArray** pArray, int32_t itemSize) {
   const cJSON* jArray = tjsonGetObjectItem(pJson, pName);
   int32_t      size = tjsonGetArraySize(jArray);
   if (size > 0) {
