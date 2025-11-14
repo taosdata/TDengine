@@ -616,7 +616,6 @@
 90,,y,.,./ci/pytest.sh pytest cases/20-RSMAs/test_rsma.py
 
 # 21-MetaData
-
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_change.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_sysdb.py
@@ -680,7 +679,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/04-Snode/test_snode_basic1.py -N 2
 
 # 27-Mount
-
 ,,y,.,./ci/pytest.sh pytest cases/27-Mount/test_mount_basic.py
 
 # 28-Except
