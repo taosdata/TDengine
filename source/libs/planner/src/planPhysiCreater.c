@@ -2843,7 +2843,8 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
   }
   pExternal->isSingleTable = pWindowLogicNode->isSingleTable;
   pExternal->inputHasOrder = pWindowLogicNode->inputHasOrder;
-  pExternal->genNewGroup = pWindowLogicNode->genNewGroup;
+  pExternal->needGroupSort = pWindowLogicNode->needGroupSort;
+  pExternal->calcWithPartition = pWindowLogicNode->calcWithPartition;
   PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pTimeRange, &pExternal->pTimeRange));
 
   PLAN_ERR_JRET(createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode));

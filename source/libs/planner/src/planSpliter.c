@@ -895,6 +895,11 @@ static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitIn
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (isPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode) &&
       (LIST_LENGTH(((SWindowLogicNode*)pInfo->pSplitNode)->pTsmaSubplans) == 0)) {
+    if (nodeType((SLogicNode*)nodesListGetNode(((SWindowLogicNode*)pInfo->pSplitNode)->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_WINDOW &&
+        ((SWindowLogicNode*)nodesListGetNode(((SWindowLogicNode*)pInfo->pSplitNode)->node.pChildren, 0))->winType == WINDOW_TYPE_EXTERNAL &&
+        isPartTableWinodw((SWindowLogicNode*)nodesListGetNode(((SWindowLogicNode*)pInfo->pSplitNode)->node.pChildren, 0))) {
+      ((SWindowLogicNode*)nodesListGetNode(((SWindowLogicNode*)pInfo->pSplitNode)->node.pChildren, 0))->needGroupSort = true;
+    }
     return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
     return stbSplSplitWindowForCrossTable(pCxt, pInfo);
