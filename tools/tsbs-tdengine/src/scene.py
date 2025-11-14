@@ -18,25 +18,45 @@ import sys
 
 
 class Scene:
-    def __init__(self, scenario, sql, config_path, data_path):
-        self.scenario = scenario
-        self.sql = sql
-        tables = self.parser_tables(sql)
+    def __init__(self, name, sql, config_path, data_path):
+        self.name = name
+        self.sql  = sql
+        tables    = self.find_tables_from_sql(sql)
         self.generate_filename(tables, config_path, data_path)
         
-    def parser_tables(self, sql):
-        pass    
+    # find table from sql
+    def find_tables_from_sql(self, sql):
+        # find keyword 'from' in sql, get the table name after it
+        tables = []
+        sql_lower = sql.lower()
+        tokens = sql_lower.split()
+        for i in range(len(tokens)):
+            if tokens[i] == 'from' and i + 1 < len(tokens):
+                table = tokens[i + 1]
+                # remove any trailing semicolon or comma
+                table = table.rstrip(';,')
+                table = table.split(".")[-1]
+                # skip
+                if table[0] == "(" or table[0] == "'" or table[0] == '"' or len(table) < 2:
+                    continue
+                
+                # append
+                if table not in tables:
+                    tables.append(table)
+
+        print(f"Found tables : {tables} scene:{self.name}")
+        return tables 
     
     # Generate file names for CSV, SQL, and YAML files based on table names
     def generate_filename(self, tables, config_path, data_path):
         self.csv_files = []
         self.sql_files = []
-        self.yarml_files = []
+        self.yaml_files = []
         for table in tables:
             filename = os.path.join(data_path, f"{table}.csv")
             self.csv_files.append(filename)
             filename = os.path.join(config_path, f"{table}.sql")
             self.sql_files.append(filename)
             filename = os.path.join(config_path, f"{table}.yaml")
-            self.yarml_files.append(filename)
+            self.yaml_files.append(filename)
     

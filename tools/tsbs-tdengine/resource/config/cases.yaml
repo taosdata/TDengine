@@ -3,30 +3,27 @@ testCases:
       classfication: "Summary"
       description: ""
       sql: |
-        create stream stm_a1 
+        create stream test.stm_a1 
                 sliding(1h) 
-                from readings 
+                from test.readings 
                 stream_options(fill_history_first) 
-                into res_a1 
+                into test.res_a1 
                 as select _tcurrent_ts, avg(fuel_consumption) 
-                        from readings 
+                        from test.readings 
                         where _c0 >= _tprev_ts and _c0 < _tcurrent_ts;
 
     - scenarioId: "A2"
       classfication: "Summary"
       description: ""
       sql: |
-         create stream stm_a2 
-                sliding(1m) 
-                from readings 
-                stream_options(fill_history_first) 
-                into res_a2 
-                as 
-                   select _tcurrent_ts cur_ts, count(*), avg(cur_fuel) 
-                       from (
-                            select interp(fuel_consumption) cur_fuel, interp(grade) cur_grade 
-                                   from readings 
-                                   partition by tbname 
-                                   range(_tcurrent_ts, 1m) 
-                                   fill(prev, NULL, NULL)) 
-                        where cur_grade > 70
+        create stream test.stm_a2 
+               sliding(1m) 
+               from test.readings 
+               stream_options(fill_history_first) 
+               into test.res_a2 
+               as select _tcurrent_ts cur_ts, count(*), avg(fuel_consumption) 
+                      from (  
+                            select fuel_consumption, last(grade) cur_grade 
+                            from test.readings 
+                            where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts partition by tbname) 
+                      where cur_grade > 70;

@@ -31,8 +31,8 @@ class CmdLine:
     
     def __init__(self):
         # default
-        self.config_path = getRelativePath('../config/')
-        self.data_path   = getRelativePath('../data/')
+        self.config_path = relative_path('../resource/config/')
+        self.data_path   = relative_path('../resource/data/')
         
         # args
         self.parser = None
@@ -45,20 +45,7 @@ class CmdLine:
             prog='tsbs-tdengine',
             description='TSBS TDengine Testing Tool - Performance testing tool for TDengine using TSBS dataset',
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
-Examples:
-  # Run all scenarios with default settings
-  python main.py
-  
-  # Run specific scenario with custom config
-  python main.py -s cpu-only -c ./my_config.json
-  
-  # Run with custom data file and parallelism
-  python main.py -d ./my_data.csv -p 8
-  
-  # Output to custom log and result files
-  python main.py -l ./logs/test.log -j ./results/test.json
-            """
+            epilog='Example usage:\n  tsbs-tdengine -c ./config/cases.yaml -d ./data/readings.csv -s cpu-memory -p 8'
         )
         
         # Config file
@@ -122,32 +109,6 @@ Examples:
             version=f'TSBS TDengine Tool v{VERSION}'
         )
     
-    def _validate_args(self):
-        """Validate command line arguments"""
-        # Validate config file exists if specified
-        if self.args.config and not os.path.exists(self.args.config):
-            print(f"Error: Config file not found: {self.args.config}")
-            sys.exit(1)
-        
-        # Validate data file exists if specified
-        if self.args.data and not os.path.exists(self.args.data):
-            print(f"Error: Data file not found: {self.args.data}")
-            sys.exit(1)
-        
-        # Validate parallelism is positive
-        if self.args.parallelism <= 0:
-            print(f"Error: Parallelism must be positive, got: {self.args.parallelism}")
-            sys.exit(1)
-        
-        # Create output directories if they don't exist
-        log_dir = os.path.dirname(self.args.log_output)
-        if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir, exist_ok=True)
-        
-        json_dir = os.path.dirname(self.args.json_output)
-        if json_dir and not os.path.exists(json_dir):
-            os.makedirs(json_dir, exist_ok=True)
-    
     # Getter methods for all parameters
     
     def get_config(self):
@@ -175,16 +136,6 @@ Examples:
         """Get parallelism level"""
         return self.args.parallelism
     
-    def _get_default_scenarios(self):
-        """Get default list of scenarios"""
-        # TODO: Load from config or define default scenarios
-        return [
-            'cpu-only',
-            'cpu-memory',
-            'cpu-memory-disk',
-            'all-metrics'
-        ]
-    
     def show_config(self):
         """Print current configuration"""
         print("\n=== Current Configuration ===")
@@ -198,16 +149,14 @@ Examples:
 
 
     def case_to_scene_obj(self, case):
+        name = case["scenarioId"]
+        sql  = case["sql"]
         
-        name = case.get('scenarioId', 'unknown')
-        csv = case.get('dataFile', None)
-        taosx_json = case.get('taosxJson', None)
-        yarm = case.get('yarm', None)
-        
-        return Scene(name, csv, taosx_json, yarm)
+        return Scene(name, sql, self.config_path, self.data_path)
 
     def load_cases_yaml(self, yaml_file):
         try:
+            print(f"Loading YAML file: {yaml_file}")
             with open(yaml_file, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
             

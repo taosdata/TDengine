@@ -36,11 +36,11 @@ from cmdLine import cmd
 
 
 def doScene(scene):
-    print("Running scene: %s" % scene.scenario)
+    print("Running scene: %s" % scene.name)
 
     # prepare env
     env = prepareEnv.PrepareEnv(scene)
-    env.run(scene)
+    env.run()
     
     # write data
     writer = writeData.WriteData(scene)
@@ -69,9 +69,12 @@ if __name__ == "__main__":
     cluster.create_cluster(1, 1)
     
     # do test
+    metrics.start()
     scenes = cmd.get_scenes()
     for scene in scenes:
         doScene(scene)
+    
+    metrics.end()
 
     # output metrics
     metrics.output_metrics()

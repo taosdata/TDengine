@@ -15,11 +15,84 @@
 
 import os
 import sys
+import taos
+import time
+import yaml
+
+from scene import Scene
 from baseStep import BaseStep
+from outMetrics import metrics
 
 class DoTest(BaseStep):
-    def __init__(self):
-        pass
+    def __init__(self, scene):
+        self.scene = scene
+
+    def wait_stream_end(self, verifySql, expectRows, timeout=20):
+        print("Waiting for stream processing to complete...")
+        print(f"Verify SQL: {verifySql}, Expect Rows: {expectRows}, Timeout: {timeout} seconds")
+        conn = taos.connect()
+        cursor = conn.cursor()
+        for i in range(timeout):
+            try:        
+                cursor.execute(verifySql)
+                results = cursor.fetchall()
+                rows = results[0][0]
+                if rows == expectRows:
+                    print(f"i={i} stream processing completed.")
+                    conn.close()
+                    return
+                print(f"{i} real rows: {rows}, expect rows: {expectRows}")
+            except Exception as e:
+                print(f"i={i} query stream result table except: {e}")
+            
+            time.sleep(1)
+
+        info = f"stream processing not completed in {timeout} seconds"
+        print(info)
+        conn.close()
+        #raise Exception(info)
+    
+    def read_verify_info(self, yaml_file):
+        try:
+            with open(yaml_file, 'r') as f:
+                data = yaml.safe_load(f)
+                cases = data.get("testCases", [])
+                
+                # Search for matching test case by scenarioId
+                for case in cases:
+                    if case.get('scenarioId') == self.scene.name:
+                        verify_sql = case.get('verifySql')
+                        expect_rows = case.get('expectRows')
+                        print(f"Found verify info for scenario '{self.scene.name}':")
+                        print(f"  Verify SQL: {verify_sql}")
+                        print(f"  Expect Rows: {expect_rows}")
+                        return verify_sql, expect_rows
+                
+                # If no matching scenario found
+                print(f"No verify info found for scenario '{self.scene.name}' in {yaml_file}")
+                return None, None
+                
+        except FileNotFoundError:
+            print(f"YAML file not found: {yaml_file}")
+            return None, None
+        except yaml.YAMLError as e:
+            print(f"Error parsing YAML file: {e}")
+            return None, None
+        except Exception as e:
+            print(f"Error reading verify info: {e}")
+            return None, None
 
     def run(self):
         print("DoTest step executed")
+        metrics.start_test(self.scene.name)
+        # read table.yaml files to read verify sql and expect rows
+        for yaml_file in self.scene.yaml_files:
+            print(f"Processing YAML file: {yaml_file}")
+            verifySql, expectRows = self.read_verify_info(yaml_file)
+            if verifySql != None and expectRows != None:
+                self.wait_stream_end(verifySql, expectRows)
+            else:
+                print(f"verify sql is none, skipping  {yaml_file}")
+        
+        # mark test end time
+        metrics.end_test(self.scene.name)

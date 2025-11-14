@@ -2,9 +2,9 @@ testCases:
     - scenarioId: "A1"
       concurrency: 1
       expectRows: 1000
-      verifySql: select count(*) from res_a1 
+      verifySql: select count(*) from test.res_a1 
 
     - scenarioId: "A2"
       concurrency: 2
       expectRows: 2000
-      verifySql: select count(*) from res_a2 
+      verifySql: select count(*) from test.res_a2

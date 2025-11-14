@@ -1,16 +1,26 @@
 {
   "parse": {
     "ts": { "as": "TIMESTAMP(ms)" },
-    "current": { "as": "FLOAT" },
-    "voltage": { "as": "INT" },
-    "phase": { "as": "FLOAT" },
-    "groupid": { "as": "INT" },
-    "location": { "as": "VARCHAR(24)" }
+    "latitude": { "as": "DOUBLE" },
+    "longitude": { "as": "DOUBLE" },
+    "elevation": { "as": "DOUBLE" },
+    "velocity": { "as": "DOUBLE" },
+    "heading": { "as": "DOUBLE" },
+    "grade": { "as": "DOUBLE" },
+    "fuel_consumption": { "as": "DOUBLE" },
+    "name": { "as": "VARCHAR(30)" },
+    "fleet": { "as": "VARCHAR(30)" },
+    "driver": { "as": "VARCHAR(30)" },
+    "model": { "as": "VARCHAR(30)" },
+    "device_version": { "as": "VARCHAR(30)" },
+    "load_capacity": { "as": "DOUBLE" },
+    "fuel_capacity": { "as": "DOUBLE" },
+    "nominal_fuel_consumption": { "as": "DOUBLE" }
   },
   "model": {
-    "name": "${tbname}",
-    "using": "meters",
-    "tags": ["groupid", "location"],
-    "columns": ["ts", "current", "voltage", "phase"]
+    "name": "${name}",
+    "using": "readings",
+    "tags": ["fleet","driver","model","device_version","load_capacity","fuel_capacity","nominal_fuel_consumption"],
+    "columns": ["ts","latitude","longitude","elevation","velocity","heading","grade","fuel_consumption"]
   }
 }

@@ -1,1 +1,1 @@
-python3 streamPerf.py
+python3 src/main.py

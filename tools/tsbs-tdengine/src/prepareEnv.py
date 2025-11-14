@@ -32,8 +32,7 @@ class PrepareEnv(BaseStep):
                 command = command.strip()
                 if command:
                     conn.execute(command)
-                    print(f"Exec: {command} success.")
-
+                    print(f"exe success: {command}")
 
     def wait_stream_ready(self, conn, stream_name="", timeout=120):
         sql = "select * from information_schema.ins_stream_tasks where type = 'Trigger' and status != 'Running'"
@@ -42,18 +41,27 @@ class PrepareEnv(BaseStep):
         cursor = conn.cursor()   
         print(f"Wait stream ready...")
         time.sleep(5)
-        for i in range(timeout):
-            cursor.execute(sql)
-            results = cursor.fetchall()
-            if len(results) == 0:
-                return
-            time.sleep(1)
         
+        try:
+            for i in range(timeout):
+                cursor.execute(sql)
+                results = cursor.fetchall()
+                if len(results) == 0:
+                    print(f"wait {i} seconds stream is Running.")
+                    return
+                time.sleep(1)
+            
+            # Timeout reached
+            info = f"stream task status not ready in {timeout} seconds"
+            print(info)
+            raise Exception(info)
+        finally:
+            # Always close cursor, even if exception occurs
+            cursor.close()
 
         info = f"stream task status not ready in {timeout} seconds"
         print(info)
         raise Exception(info)
-
 
     def run(self):
         print("Prepare running...")
@@ -64,10 +72,10 @@ class PrepareEnv(BaseStep):
             self.exec_sql_file(conn, sql_file)
         
         # create stream sql
-        print("prepare execute main sql:" + self.scene.sql)
+        print("prepare execute main sql:")
         conn.execute(self.scene.sql)
-        conn.close()
         
         # wait for stream to be ready
         print("prepare wait stream ready...")
         self.wait_stream_ready(conn)
+        conn.close()
