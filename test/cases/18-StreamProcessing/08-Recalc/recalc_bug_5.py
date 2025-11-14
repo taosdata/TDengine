@@ -9,7 +9,7 @@ class TestStreamRecalcDeleteRecalc:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_recalc_delete_recalc(self):
-        """Stream Recalculation DELETE_RECALC Option Test
+        """Recalc: delete data
 
         Test DELETE_RECALC option with data deletion:
         1. Delete data from trigger table - streams with DELETE_RECALC should trigger recalculation
