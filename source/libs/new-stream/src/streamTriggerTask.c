@@ -2339,7 +2339,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
     case STREAM_MSG_ORIGTBL_READER_INFO: {
       if (pTask->task.status != STREAM_STATUS_INIT || taosArrayGetSize(pTask->readerList) > 0) {
         ST_TASK_DLOG("ignore redundant original reader info, current status: %d, reader count: %" PRIzu,
-                     pTask->task.status, TARRAY_SIZE(pTask->readerList));
+                     pTask->task.status, taosArrayGetSize(pTask->readerList));
         break;
       }
       SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;

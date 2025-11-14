@@ -612,6 +612,8 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     taosWLockLatch(&pDataInfo->lock);
     taosMemoryFreeClear(pDataInfo->decompBuf);
     taosMemoryFreeClear(pDataInfo->pRsp);
+    taosArrayDestroy(pDataInfo->pSrcUidList);
+    pDataInfo->pSrcUidList = NULL;
 
     pDataInfo->totalRows = 0;
     pDataInfo->code = 0;
@@ -1656,6 +1658,10 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
       }
 
+      if (pDataInfo->pSrcUidList) {
+        taosArrayDestroy(pDataInfo->pSrcUidList);
+        pDataInfo->pSrcUidList = NULL;
+      }
       pDataInfo->pSrcUidList = taosArrayDup(pBasicParam->uidList, NULL);
       if (pDataInfo->pSrcUidList == NULL) {
         return terrno;
