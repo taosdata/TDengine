@@ -7,15 +7,13 @@ class TestUnionAllAsTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_unionall_as_table(self):
-        """union all
+        """Operator union all
 
         1. Union of projection queries
         2. Union of queries containing window and aggregate functions
         3. Union of system table queries
         4. Union of queries from databases with different precision levels
 
-        Catalog:
-            - Operator
 
         Since: v3.0.0.0
 

@@ -6,12 +6,13 @@ class TestJoinNsDb:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_ns_db(self):
-        """Join Test
+        """Join with ns precision
 
-        1.
-
-        Catalog:
-            - Query:Join
+        1. Create two databases with ns precision
+        2. Create stable and child table in two databases
+        3. Insert data into two child tables with same timestamps
+        4. Inner join two tables from two databases on timetruncate(ts) and tag columns
+        5. Check join result rows is correct
 
         Since: v3.0.0.0
 

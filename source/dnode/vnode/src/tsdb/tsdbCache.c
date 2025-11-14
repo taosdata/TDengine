@@ -3097,6 +3097,7 @@ static int32_t lastIterOpen(SFSLastIter *iter, STFileSet *pFileSet, STsdb *pTsdb
       .timewindow = (STimeWindow){.skey = lastTs, .ekey = TSKEY_MAX},
       .verRange = (SVersionRange){.minVer = 0, .maxVer = INT64_MAX},
       .strictTimeRange = false,
+      .cacheStatis = false,
       .pSchema = pTSchema,
       .pCurrentFileset = pFileSet,
       .backward = 1,

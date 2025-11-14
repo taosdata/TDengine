@@ -104,41 +104,31 @@ class TestEvent:
         tdSql.checkData(1, 0, 4)
 
         # super table: no window
-        tdSql.query(
+        # duplicate timestamp
+        tdSql.error(
             f"select count(*) from sta event_window start with f1 = 0 end with f2 = 'c';"
         )
-        tdSql.checkRows(0)
 
         # super table: single row window
         tdLog.info(
             f"====> select count(*) from sta event_window start with f1 = 0 end with f3 = false;"
         )
-        tdSql.query(
+        tdSql.error(
             f"select count(*) from sta event_window start with f1 = 0 end with f3 = false;"
         )
-        tdSql.checkRows(4)
-        tdSql.checkData(0, 0, 1)
 
         # super table: multi rows window
-        tdSql.query(
+        tdSql.error(
             f"select count(*) from sta event_window start with f1 = 0 end with f2 = 'b';"
         )
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 7)
 
         # super table: multi windows
         tdLog.info(
             f"====> select count(*) from sta event_window start with f1 >= 0 end with f3 = true;"
         )
-        tdSql.query(
+        tdSql.error(
             f"select count(*) from sta event_window start with f1 >= 0 end with f3 = true;"
         )
-        tdSql.checkRows(4)
-        tdSql.checkData(0, 0, 3)
-        tdSql.checkData(1, 0, 1)
-        tdSql.checkData(2, 0, 7)
-        tdSql.checkData(3, 0, 1)
-
         # multi-child table: no window
         tdSql.query(
             f"select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f2 = 'c';"

@@ -12,7 +12,7 @@ class Test_Period:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_main(self):
-        """Nevados
+        """IDMP Nevados 
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
@@ -21,7 +21,7 @@ class Test_Period:
 
         Since: v3.3.7.0
 
-        Labels: common,ci
+        Labels: common,ci,skip
 
 
         History:

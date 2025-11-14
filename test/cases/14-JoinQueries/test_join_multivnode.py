@@ -7,12 +7,14 @@ class TestJoinMultivnode:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_multivnode(self):
-        """Join Test Multivnode
+        """Join multi-vnode
 
-        1.
+        1. Create database with multiple vnodes
+        2. Create two super tables
+        3. Insert data into each child tables with same timestamps
+        4. Join two super tables on timestamps and tag columns
+        5. Check the result of join correctly
 
-        Catalog:
-            - Query:Join
 
         Since: v3.0.0.0
 
@@ -39,7 +41,7 @@ class TestJoinMultivnode:
 
         tstart = 100000
 
-        tdSql.execute(f"create database if not exists {db} keep 36500")
+        tdSql.execute(f"create database if not exists {db} vgroups 5 keep 36500")
         tdSql.execute(f"use {db}")
         tdSql.execute(
             f"create table {mt} (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))"

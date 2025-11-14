@@ -16,10 +16,6 @@ class TestDatatypeTimestamp:
         4. Alter tag value
         5. Handle illegal input
 
-        Catalog:
-            - DataTypes
-            - Tables:SubTables:Create
-
         Since: v3.0.0.0
 
         Labels: common,ci

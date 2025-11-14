@@ -69,6 +69,7 @@ typedef struct {
   bool               localExec;
   int64_t            uid;
   void*              streamRtInfo;
+  bool               cacheSttStatis;
 } SReadHandle;
 
 typedef struct SStreamInserterParam {
@@ -272,14 +273,7 @@ int32_t  qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
                                         SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList);
 
 SArray*  qStreamGetTableListArray(void* pTableListInfo);
-// int32_t  qStreamSetTableList(void** pTableListInfo, uint64_t uid, uint64_t gid, TdThreadRwlock* lock);
-// int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size, TdThreadRwlock* lock);
-// uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid, TdThreadRwlock* lock);
 void     qStreamDestroyTableList(void* pTableListInfo);
-// int32_t  qStreamGetTableListGroupNum(const void* pTableList, TdThreadRwlock* lock);
-// void     qStreamSetTableListGroupNum(void* pTableList, int32_t groupNum, TdThreadRwlock* lock);
-// SArray*  qStreamGetTableArrayList(const void* pTableList, TdThreadRwlock* lock);
-// int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid, TdThreadRwlock* lock);
 int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo, SColumnInfoData** pRet);
 int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
