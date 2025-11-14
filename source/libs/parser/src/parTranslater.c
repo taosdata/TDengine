@@ -12573,8 +12573,8 @@ static int32_t translateDropRole(STranslateContext* pCxt, SDropRoleStmt* pStmt) 
 
 static int32_t translateAlterRole(STranslateContext* pCxt, SAlterRoleStmt* pStmt) {
   int32_t       code = 0;
-  SAlterRoleReq alterReq = {0};
-  tstrncpy(alterReq.name, pStmt->name, TSDB_ROLE_LEN);
+  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_LOCK};
+  tstrncpy(alterReq.principal, pStmt->name, TSDB_ROLE_LEN);
   alterReq.alterType = pStmt->alterType;
   alterReq.flag = pStmt->flag;
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_ROLE, (FSerializeFunc)tSerializeSAlterRoleReq, &alterReq);
@@ -15792,7 +15792,7 @@ static int32_t createRealTableForGrantTable(SGrantStmt* pStmt, SRealTableNode** 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterUserReq* pReq) {
+static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterRoleReq* pReq) {
   SRealTableNode* pTable = NULL;
   if ('\0' == pStmt->tabName[0] || '*' == pStmt->tabName[0]) {
     if (pStmt->pTagCond) {
@@ -15843,8 +15843,8 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 
 static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   int32_t       code = 0;
-  SAlterUserReq req = {0};
-  req.alterType = TSDB_ALTER_USER_ADD_PRIVILEGES;
+  SAlterRoleReq req = {0};
+  req.alterType = pStmt->optrType;
   req.privileges = pStmt->privileges;
 #ifdef TD_ENTERPRISE
   if (0 != pStmt->tabName[0]) {
@@ -15852,27 +15852,28 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
     STableMeta* pTableMeta = NULL;
     toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
     code = getTargetMeta(pCxt, &name, &pTableMeta, true);
+    req.targetType = TSDB_OBJ_TABLE;
     if (TSDB_CODE_SUCCESS != code) {
       if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
       }
     } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
-      req.isView = true;
+      req.targetType = TSDB_OBJ_VIEW;
     }
     taosMemoryFree(pTableMeta);
   }
 #endif
 
-  tstrncpy(req.user, pStmt->principal, TSDB_USER_LEN);
+  tstrncpy(req.principal, pStmt->principal, TSDB_ROLE_LEN);
   snprintf(req.objname, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-  snprintf(req.tabName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
-  if (!req.isView) {
+  snprintf(req.tblName, TSDB_TABLE_NAME_LEN, "%s", pStmt->tabName);
+  if (req.targetType = TSDB_OBJ_TABLE) {
     code = translateGrantTagCond(pCxt, pStmt, &req);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+    code = buildCmdMsg(pCxt, TDMT_MND_ALTER_ROLE, (FSerializeFunc)tSerializeSAlterRoleReq, &req);
   }
-  tFreeSAlterUserReq(&req);
+  tFreeSAlterRoleReq(&req);
   return code;
 }
 

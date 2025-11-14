@@ -586,14 +586,14 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_EXIT(tDeserializeSAlterRoleReq(pReq->pCont, pReq->contLen, &alterReq));
 
-  mInfo("role:%s, start to alter, flag:%" PRIu8, alterReq.name, alterReq.flag);
+  mInfo("role:%s, start to alter, flag:%u" , alterReq.principal, alterReq.flag);
   TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_ROLE));
 
-  if (alterReq.name[0] == 0) {
+  if (alterReq.principal[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_ROLE_FORMAT);
   }
 
-  TAOS_CHECK_EXIT(mndAcquireRole(pMnode, alterReq.name, &pObj));
+  TAOS_CHECK_EXIT(mndAcquireRole(pMnode, alterReq.principal, &pObj));
   if (mndIsRoleChanged(pObj, &alterReq)) {
     TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
     if (alterReq.alterType == TSDB_ALTER_ROLE_LOCK) {
@@ -602,10 +602,10 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(mndAlterRole(pMnode, pReq, &newObj));
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
-  auditRecord(pReq, pMnode->clusterId, "alterRole", "", alterReq.name, alterReq.sql, alterReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "alterRole", "", alterReq.principal, alterReq.sql, alterReq.sqlLen);
 _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("role:%s, failed to alter at line %d since %s", alterReq.name, lino, tstrerror(code));
+    mError("role:%s, failed to alter at line %d since %s", alterReq.principal, lino, tstrerror(code));
   }
   mndReleaseRole(pMnode, pObj);
   mndRoleFreeObj(&newObj);

@@ -148,11 +148,11 @@ cmd ::= UNLOCK ROLE role_name(A).                                               
                                                                                     SToken t = {.n = 1, .z = "0", .type = TK_STRING };
                                                                                     pCxt->pRootNode = createAlterRoleStmt(pCxt, &A,TSDB_ALTER_ROLE_LOCK, &t); 
                                                                                   }
-cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, TSDB_GRANT_TYPE_ROLE); }
-cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, TSDB_GRANT_TYPE_ROLE); }
+cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
+cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
 /************************************************ grant/revoke ********************************************************/
-cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_GRANT_TYPE_PRIVILEGES); }
-cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_GRANT_TYPE_PRIVILEGES); }
+cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
+cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
 
 %type privileges                                                                  { SPrivSet }
 %destructor privileges                                                            { }

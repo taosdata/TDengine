@@ -5205,7 +5205,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPri
   CHECK_MAKE_NODE(pStmt);
   pStmt->optrType = optrType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
-  if (optrType == TSDB_GRANT_TYPE_PRIVILEGES) {
+  if (optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
     CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
     CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
     pStmt->privileges = *(SPrivSet*)resouces;
@@ -5214,7 +5214,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPri
       COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
     }
     pStmt->pTagCond = pTagCond;
-  } else if (optrType == TSDB_GRANT_TYPE_ROLE) {
+  } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
     SToken* pRole = (SToken*)resouces;
     CHECK_NAME(checkRoleName(pCxt, pRole));
     COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
@@ -5238,7 +5238,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPr
   CHECK_MAKE_NODE(pStmt);
   pStmt->optrType = optrType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
-  if (optrType == TSDB_GRANT_TYPE_PRIVILEGES) {
+  if (optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
     CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
     CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
     pStmt->privileges = *(SPrivSet*)resouces;
@@ -5247,7 +5247,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, STokenPair* pPr
       COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
     }
     pStmt->pTagCond = pTagCond;
-  } else if (optrType == TSDB_GRANT_TYPE_ROLE) {
+  } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
     SToken* pRole = (SToken*)resouces;
     CHECK_NAME(checkRoleName(pCxt, pRole));
     COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);

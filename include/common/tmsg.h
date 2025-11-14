@@ -218,6 +218,21 @@ typedef enum {
   TSDB_TRIGGER_AUTO = 1,
 } ETriggerType;
 
+typedef enum {
+  TSDB_OBJ_CLUSTER = 0,
+  TSDB_OBJ_NODE = 1,
+  TSDB_OBJ_DB = 2,
+  TSDB_OBJ_TABLE = 3,
+  TSDB_OBJ_VIEW = 4,
+  TSDB_OBJ_USER = 5,
+  TSDB_OBJ_ROLE = 6,
+  TSDB_OBJ_RSMA = 7,
+  TSDB_OBJ_INDEX = 8,
+  TSDB_OBJ_STREAM = 9,
+  TSDB_OBJ_TOPIC = 10,
+  TSDB_OBJ_MAX = 11,
+} ETsdbObjType;
+
 #define TSDB_ALTER_TABLE_ADD_TAG                         1
 #define TSDB_ALTER_TABLE_DROP_TAG                        2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME                 3
@@ -258,11 +273,11 @@ typedef enum {
 #define TSDB_ALTER_USER_CREATEDB        0x9
 
 #define TSDB_ALTER_ROLE_LOCK            0x1
+#define TSDB_ALTER_ROLE_ROLE            0x2
+#define TSDB_ALTER_ROLE_PRIVILEGES      0x3
+#define TSDB_ALTER_ROLE_MAX             0x4 // increase according to actual use
 
 #define TSDB_ALTER_RSMA_FUNCTION        0x1
-
-#define TSDB_GRANT_TYPE_ROLE            0x1
-#define TSDB_GRANT_TYPE_PRIVILEGES      0x2
 
 #define TSDB_KILL_MSG_LEN 30
 
@@ -1369,15 +1384,25 @@ int32_t tDeserializeSDropRoleReq(void* buf, int32_t bufLen, SDropRoleReq* pReq);
 void    tFreeSDropRoleReq(SDropRoleReq* pReq);
 
 typedef struct {
-  int8_t alterType;
+  uint8_t alterType;
+  uint8_t targetType;  // db, table, view, rsma, etc.
   union {
-    uint8_t flag;
+    uint32_t flag;
     struct {
-      uint8_t lock : 1;
-      uint8_t reserve : 7;
+      uint32_t lock : 1;
+      uint32_t add : 1;
+      uint32_t reserve : 30;
     };
   };
-  char    name[TSDB_ROLE_LEN];
+  union {
+    SPrivSet privileges;
+    char     roleName[TSDB_ROLE_LEN];
+  };
+  char    principal[TSDB_ROLE_LEN];    // role or user name
+  char    objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char    tblName[TSDB_TABLE_NAME_LEN];
+  char*   tagCond;
+  int32_t tagCondLen;
   int32_t sqlLen;
   char*   sql;
 } SAlterRoleReq;

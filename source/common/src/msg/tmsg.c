@@ -2582,10 +2582,21 @@ int32_t tSerializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq) 
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->alterType));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));  
-  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->flag));
-
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->alterType));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->targetType));
+  TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pReq->flag));
+  if (pReq->alterType == TSDB_ALTER_ROLE_ROLE) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->roleName));
+  } else if (pReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
+    TAOS_CHECK_EXIT(tEncodeU8(&encoder, PRIV_GROUP_CNT));
+    for (int32_t i = 0; i < PRIV_GROUP_CNT; i++) {
+      TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pReq->privileges.set[i]));
+    }
+  }
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->principal));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->objname));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tblName));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->tagCond, pReq->tagCondLen));
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -2605,9 +2616,35 @@ int32_t tDeserializeSAlterRoleReq(void *buf, int32_t bufLen, SAlterRoleReq *pReq
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, (int8_t *)&pReq->alterType));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
-  TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->flag));
+  TAOS_CHECK_EXIT(tDecodeU8(&decoder, (int8_t *)&pReq->alterType));
+  TAOS_CHECK_EXIT(tDecodeU8(&decoder, (int8_t *)&pReq->targetType));
+  TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pReq->flag));
+  if (pReq->alterType == TSDB_ALTER_ROLE_ROLE) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->roleName));
+  } else if (pReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
+    uint8_t groupCnt = 0;
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, (int8_t *)&groupCnt));
+    for (int32_t i = 0; i < groupCnt; i++) {
+      if (i < PRIV_GROUP_CNT) {
+        TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pReq->privileges.set[i]));
+      } else {
+        uint64_t unused;
+        TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &unused));
+      }
+    }
+  } else if(pReq->alterType >= TSDB_ALTER_ROLE_MAX) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+  }
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->principal));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->objname));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tblName));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->tagCondLen));
+  if (pReq->tagCondLen > 0) {
+    pReq->tagCond = taosMemoryMalloc(pReq->tagCondLen + 1);
+    if (pReq->tagCond == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
   DECODESQL();
   tEndDecode(&decoder);
 
@@ -2616,7 +2653,10 @@ _exit:
   return code;
 }
 
-void tFreeSAlterRoleReq(SAlterRoleReq *pReq) { FREESQL(); }
+void tFreeSAlterRoleReq(SAlterRoleReq *pReq) {
+  taosMemoryFreeClear(pReq->tagCond);
+  FREESQL();
+}
 
 int32_t tSerializeSAuditReq(void *buf, int32_t bufLen, SAuditReq *pReq) {
   SEncoder encoder = {0};
