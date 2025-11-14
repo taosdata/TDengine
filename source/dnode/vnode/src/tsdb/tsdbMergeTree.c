@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "taos.h"
 #include "tlrucache.h"
 #include "tsdb.h"
 #include "tsdbFSet2.h"
@@ -52,6 +51,7 @@ static int32_t getStatisInfoFromCache(SLRUCache *pCache, SSttStatisCacheKey *pKe
                                       LRUHandle **pHandle, const char *id);
 static void    releaseCacheHandle(SLRUCache *pCache, LRUHandle **pHandle, bool lock);
 static void    freeStatisFileItems(const void *key, size_t keyLen, void *value, void *ud);
+static int32_t getCacheValueSize(const SSttStatisCacheValue *pValue);
 
 static void tLDataIterClose2(SLDataIter *pIter);
 
@@ -1405,7 +1405,7 @@ int32_t putStatisInfoIntoCache(SLRUCache *pCache, SSttStatisCacheKey *pKey, SStt
                                const char *id) {
   (void)taosThreadMutexLock(&statisCacheInfo.lock);
 
-  LRUStatus status = taosLRUCacheInsert(pCache, pKey, sizeof(SSttStatisCacheKey), pValue, sizeof(SSttStatisCacheValue),
+  LRUStatus status = taosLRUCacheInsert(pCache, pKey, sizeof(SSttStatisCacheKey), pValue, getCacheValueSize(pValue),
                                         freeStatisFileItems, NULL, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
   if (status != TAOS_LRU_STATUS_OK) {
     if (status == TAOS_LRU_STATUS_FAIL) {
@@ -1500,7 +1500,7 @@ int32_t getSttTableRowsInfo(SSttStatisCacheValue *pValue, int32_t numOfPKs, int3
 }
 
 int32_t getCacheValueSize(const SSttStatisCacheValue *pValue) {
-  int32_t size = sizeof(SSttStatisCacheValue);
+  int32_t size = sizeof(SSttStatisCacheValue) + sizeof(SArray);
 
   for (int32_t i = 0; i < taosArrayGetSize(pValue->pLevel); ++i) {
     SArray *pRowsInfoArr = *(SArray **)taosArrayGet(pValue->pLevel, i);
